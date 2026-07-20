@@ -8,7 +8,6 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Command.State;
-using TomasAI.IFM.Domain.Fund.Command.Exceptions;
 using TomasAI.IFM.Domain.Fund.Command.Validation;
 using TomasAI.IFM.Domain.Fund.Command;
 
@@ -56,7 +55,7 @@ public class FundCommandTests
     }
 
     [Fact]
-    public void CreateFundCommand_GivenExistingFund_WhenExecuted_ThenThrowsCreateFundException()
+    public void CreateFundCommand_GivenExistingFund_WhenExecuted_ThenReturnsFailedResultWithFundAlreadyExistsMessage()
     {
         // Arrange - Given an existing fund
         var state = new FundCommandState();
@@ -81,11 +80,11 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing CreateFundCommand
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw CreateFundException
-        act.Should().Throw<CreateFundException>()
-            .WithMessage($"*fundId {existingFund.FundId} already exists*");
+        // Assert - Then return a failed result with a fund-already-exists error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"fundId {existingFund.FundId} already exists");
     }
 
     [Fact]
@@ -133,7 +132,7 @@ public class FundCommandTests
     }
 
     [Fact]
-    public void AddOrderToFundCommand_GivenExistingFund_WhenAddingOrderWithNonExistingFundId_ThenThrowsAddOrderToFundException()
+    public void AddOrderToFundCommand_GivenExistingFund_WhenAddingOrderWithNonExistingFundId_ThenReturnsFailedResultWithFundDoesNotExistMessage()
     {
         // Arrange - Given an existing fund
         var state = new FundCommandState();
@@ -160,15 +159,15 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing AddOrderToFundCommand with non-existing fund ID
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw AddOrderToFundException
-        act.Should().Throw<AddOrderToFundException>()
-            .WithMessage($"*fundId {fundOrder.FundId} does not exist*");
+        // Assert - Then return a failed result with a fund-does-not-exist error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"fundId {fundOrder.FundId} does not exist");
     }
 
     [Fact]
-    public void AddOrderToFundCommand_GivenExistingFundOrder_WhenAddingDuplicateOrder_ThenThrowsAddOrderToFundException()
+    public void AddOrderToFundCommand_GivenExistingFundOrder_WhenAddingDuplicateOrder_ThenReturnsFailedResultWithOrderAlreadyExistsMessage()
     {
         // Arrange - Given an existing fund with an order
         var state = new FundCommandState();
@@ -197,15 +196,15 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing AddOrderToFundCommand with duplicate order
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw AddOrderToFundException
-        act.Should().Throw<AddOrderToFundException>()
-            .WithMessage($"*orderId {existingOrder.OrderId} already exists*");
+        // Assert - Then return a failed result with an order-already-exists error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"orderId {existingOrder.OrderId} already exists");
     }
 
     [Fact]
-    public void AddOrderToFundCommand_GivenExistingFund_WhenAddingOrderWithNonOpenOrderStatus_ThenThrowsAddOrderToFundException()
+    public void AddOrderToFundCommand_GivenExistingFund_WhenAddingOrderWithNonOpenOrderStatus_ThenReturnsFailedResultWithInvalidOrderStatusMessage()
     {
         // Arrange - Given an existing fund
         var state = new FundCommandState();
@@ -232,11 +231,11 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing AddOrderToFundCommand with non-open order status
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw AddOrderToFundException
-        act.Should().Throw<AddOrderToFundException>()
-            .WithMessage($"*orderId {fundOrder.OrderId} invalid order status*");
+        // Assert - Then return a failed result with an invalid-order-status error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"orderId {fundOrder.OrderId} invalid order status");
     }
 
     [Fact]
@@ -295,7 +294,7 @@ public class FundCommandTests
     }
 
     [Fact]
-    public void AddTradeToFundOrderCommand_GivenExistingFundOrderTrade_WhenAddingDuplicateTrade_ThenThrowsAddTradeToFundOrderException()
+    public void AddTradeToFundOrderCommand_GivenExistingFundOrderTrade_WhenAddingDuplicateTrade_ThenReturnsFailedResultWithTradeAlreadyExistsMessage()
     {
         // Arrange - Given an existing fund order with an existing trade
         var state = new FundCommandState();
@@ -329,15 +328,15 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing AddTradeToFundOrderCommand with duplicate trade
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw AddTradeToFundOrderException
-        act.Should().Throw<AddTradeToFundOrderException>()
-            .WithMessage($"*tradeId {existingTrade.TradeId} already exists*");
+        // Assert - Then return a failed result with a trade-already-exists error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"tradeId {existingTrade.TradeId} already exists");
     }
 
     [Fact]
-    public void AddTradeToFundOrderCommand_GivenExistingFundOrderTrade_WhenAddingTradeWithNonExistingFundId_ThenThrowsAddTradeToFundOrderException()
+    public void AddTradeToFundOrderCommand_GivenExistingFundOrderTrade_WhenAddingTradeWithNonExistingFundId_ThenReturnsFailedResultWithFundDoesNotExistMessage()
     {
         // Arrange - Given an existing fund order with an existing trade
         var state = new FundCommandState();
@@ -374,15 +373,15 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing AddTradeToFundOrderCommand with non-existing fund ID
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw AddTradeToFundOrderException
-        act.Should().Throw<AddTradeToFundOrderException>()
-            .WithMessage($"*fundId {fundOrderTrade.FundId} does not exist*");
+        // Assert - Then return a failed result with a fund-does-not-exist error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"fundId {fundOrderTrade.FundId} does not exist");
     }
 
     [Fact]
-    public void AddTradeToFundOrderCommand_GivenExistingFundOrderTrade_WhenAddingTradeWithNonExistingOrderId_ThenThrowsAddTradeToFundOrderException()
+    public void AddTradeToFundOrderCommand_GivenExistingFundOrderTrade_WhenAddingTradeWithNonExistingOrderId_ThenReturnsFailedResultWithOrderDoesNotExistMessage()
     {
         // Arrange - Given an existing fund order with an existing trade
         var state = new FundCommandState();
@@ -419,11 +418,11 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing AddTradeToFundOrderCommand with non-existing order ID
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw AddTradeToFundOrderException
-        act.Should().Throw<AddTradeToFundOrderException>()
-            .WithMessage($"*orderId {fundOrderTrade.OrderId} does not exist*");
+        // Assert - Then return a failed result with an order-does-not-exist error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"orderId {fundOrderTrade.OrderId} does not exist");
     }
 
     [Fact]
@@ -530,7 +529,7 @@ public class FundCommandTests
     }
 
     [Fact]
-    public void ChangeFundOrderTradeStateCommand_GivenExistingFundOrderTrade_WhenChangingFundOrderTradeStateWithNonExistingFundId_ThenThrowsChangeFundOrderTradeStateException()
+    public void ChangeFundOrderTradeStateCommand_GivenExistingFundOrderTrade_WhenChangingFundOrderTradeStateWithNonExistingFundId_ThenReturnsFailedResultWithFundDoesNotExistMessage()
     {
         // Arrange - Given an existing fund order with an existing trade
         var state = new FundCommandState();
@@ -569,15 +568,15 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing ChangeFundOrderTradeStateCommand with non-existing fund ID
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw ChangeFundOrderTradeStateException
-        act.Should().Throw<ChangeFundOrderTradeStateException>()
-            .WithMessage($"*fundId {nonExistingFundId} does not exist*");
+        // Assert - Then return a failed result with a fund-does-not-exist error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"fundId {nonExistingFundId} does not exist");
     }
 
     [Fact]
-    public void ChangeFundOrderTradeStateCommand_GivenExistingFundOrderTrade_WhenChangingFundOrderTradeStateWithNonExistingOrderId_ThenThrowsChangeFundOrderTradeStateException()
+    public void ChangeFundOrderTradeStateCommand_GivenExistingFundOrderTrade_WhenChangingFundOrderTradeStateWithNonExistingOrderId_ThenReturnsFailedResultWithOrderDoesNotExistMessage()
     {
         // Arrange - Given an existing fund order with an existing trade
         var state = new FundCommandState();
@@ -616,15 +615,15 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing ChangeFundOrderTradeStateCommand with non-existing order ID
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw ChangeFundOrderTradeStateException
-        act.Should().Throw<ChangeFundOrderTradeStateException>()
-            .WithMessage($"*orderId {nonExistingOrderId} does not exist*");
+        // Assert - Then return a failed result with an order-does-not-exist error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"orderId {nonExistingOrderId} does not exist");
     }
 
     [Fact]
-    public void ChangeFundOrderTradeStateCommand_GivenExistingFundOrderTrade_WhenChangingFundOrderTradeStateWithNonExistingTradeId_ThenThrowsChangeFundOrderTradeStateException()
+    public void ChangeFundOrderTradeStateCommand_GivenExistingFundOrderTrade_WhenChangingFundOrderTradeStateWithNonExistingTradeId_ThenReturnsFailedResultWithTradeDoesNotExistMessage()
     {
         // Arrange - Given an existing fund order with an existing trade
         var state = new FundCommandState();
@@ -663,11 +662,11 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing ChangeFundOrderTradeStateCommand with non-existing trade ID
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw ChangeFundOrderTradeStateException
-        act.Should().Throw<ChangeFundOrderTradeStateException>()
-            .WithMessage($"*tradeId {nonExistingTradeId} does not exist*");
+        // Assert - Then return a failed result with a trade-does-not-exist error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"tradeId {nonExistingTradeId} does not exist");
     }
 
     [Fact]
@@ -717,7 +716,7 @@ public class FundCommandTests
     }
 
     [Fact]
-    public void RemoveOrderFromFundCommand_GivenExistingFundOrder_WhenRemovingOrderFromFundWithNonExistingFundId_ThenThrowsRemoveOrderFromFundException()
+    public void RemoveOrderFromFundCommand_GivenExistingFundOrder_WhenRemovingOrderFromFundWithNonExistingFundId_ThenReturnsFailedResultWithFundDoesNotExistMessage()
     {
         // Arrange - Given an existing fund with an order
         var state = new FundCommandState();
@@ -749,15 +748,15 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing RemoveOrderFromFundCommand with non-existing fund ID
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw RemoveOrderFromFundException
-        act.Should().Throw<RemoveOrderFromFundException>()
-            .WithMessage($"*fundId {fundOrderIdWithNonExistingFundId.FundId} does not exist*");
+        // Assert - Then return a failed result with a fund-does-not-exist error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"fundId {fundOrderIdWithNonExistingFundId.FundId} does not exist");
     }
 
     [Fact]
-    public void RemoveOrderFromFundCommand_GivenExistingFundOrder_WhenRemovingOrderFromFundWithNonExistingOrderId_ThenThrowsRemoveOrderFromFundException()
+    public void RemoveOrderFromFundCommand_GivenExistingFundOrder_WhenRemovingOrderFromFundWithNonExistingOrderId_ThenReturnsFailedResultWithOrderDoesNotExistMessage()
     {
         // Arrange - Given an existing fund with an order
         var state = new FundCommandState();
@@ -789,11 +788,11 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing RemoveOrderFromFundCommand with non-existing order ID
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw RemoveOrderFromFundException
-        act.Should().Throw<RemoveOrderFromFundException>()
-            .WithMessage($"*orderId {fundOrderIdWithNonExistingOrderId.OrderId} does not exist*");
+        // Assert - Then return a failed result with an order-does-not-exist error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"orderId {fundOrderIdWithNonExistingOrderId.OrderId} does not exist");
     }
 
     [Fact]
@@ -852,7 +851,7 @@ public class FundCommandTests
     }
 
     [Fact]
-    public void RemoveTradeFromFundOrderCommand_GivenExistingFundOrderTrade_WhenRemovingTradeFromFundOrderWithNonExistingFundId_ThenThrowsRemoveTradeFromFundOrderException()
+    public void RemoveTradeFromFundOrderCommand_GivenExistingFundOrderTrade_WhenRemovingTradeFromFundOrderWithNonExistingFundId_ThenReturnsFailedResultWithFundDoesNotExistMessage()
     {
         // Arrange - Given an existing fund order with an existing trade
         var state = new FundCommandState();
@@ -889,10 +888,10 @@ public class FundCommandTests
         command.Should().NotBeNull();
 
         // Act - When executing RemoveTradeFromFundOrderCommand with non-existing fund ID
-        Action act = () => command!.Execute(state);
+        var result = command!.Execute(state);
 
-        // Assert - Then throw RemoveTradeFromFundOrderException
-        act.Should().Throw<RemoveTradeFromFundOrderException>()
-            .WithMessage($"*fundId {fundOrderTradeIdWithNonExistingFundId.FundId} does not exist*");
+        // Assert - Then return a failed result with a fund-does-not-exist error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"fundId {fundOrderTradeIdWithNonExistingFundId.FundId} does not exist");
     }
 }

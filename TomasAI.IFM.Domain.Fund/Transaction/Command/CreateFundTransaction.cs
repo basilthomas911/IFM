@@ -19,6 +19,9 @@ public static class CreateFundTransaction
     /// <returns>True when the state was updated successfully; otherwise false.</returns>
     public static ServiceResult<GuidResult> Execute(this CreateFundTransactionCommand e, FundTransactionCommandState state)
     {
+        if (e.FundTransaction is null)
+            return e.UpdateFailed($"{e.CommandName}: fund transaction is null");
+
         var fundTransactionEvent = e.FundTransaction.CreateFundTransactionEvent(e.CommandId, e.OriginatedOn, e.OriginatedBy);
         if (fundTransactionEvent is not null)
         {

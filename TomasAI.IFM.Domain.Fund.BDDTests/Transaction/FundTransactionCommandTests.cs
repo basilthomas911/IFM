@@ -6,7 +6,6 @@ using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Transaction.Command;
-using TomasAI.IFM.Domain.Fund.Transaction.Command.Exceptions;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.State;
 
 namespace TomasAI.IFM.Domain.Fund.BDDTests.Transaction;
@@ -81,7 +80,7 @@ public class FundTransactionCommandTests
     #region CreateFundTransactionCommand - edge cases
 
     [Fact]
-    public void CreateFundTransactionCommand_GivenUnsupportedTransactionType_WhenExecuted_ThenThrowsInvalidOperationException()
+    public void CreateFundTransactionCommand_GivenUnsupportedTransactionType_WhenExecuted_ThenReturnsFailedResultWithDoesNotExistMessage()
     {
         // Arrange - Given an unsupported (Unknown) transaction type
         var state = CreateState();
@@ -89,11 +88,11 @@ public class FundTransactionCommandTests
         var command = new CreateFundTransactionCommand(fundTransaction);
 
         // Act - When executing CreateFundTransactionCommand
-        Action act = () => command.Execute(state);
+        var result = command.Execute(state);
 
-        // Assert - Then throws InvalidOperationException because no event can be built for the transaction type
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*does not exist*");
+        // Assert - Then return a failed result because no event can be built for the transaction type, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("does not exist");
     }
 
     [Fact]
@@ -170,7 +169,7 @@ public class FundTransactionCommandTests
     #region CreateFundTransactionsCommand - edge cases
 
     [Fact]
-    public void CreateFundTransactionsCommand_GivenUnsupportedTransactionType_WhenExecuted_ThenThrowsCreateFundTransactionException()
+    public void CreateFundTransactionsCommand_GivenUnsupportedTransactionType_WhenExecuted_ThenReturnsFailedResultWithUnsupportedTypeMessage()
     {
         // Arrange - Given a batch containing an unsupported transaction type
         var state = CreateState();
@@ -182,11 +181,12 @@ public class FundTransactionCommandTests
             new FundTransactionEntityId(fundTransactions[0].FundId, fundTransactions[0].OrderId), fundTransactions);
 
         // Act - When executing CreateFundTransactionsCommand
-        Action act = () => command.Execute(state);
+        var result = command.Execute(state);
 
-        // Assert - Then throws CreateFundTransactionException
-        act.Should().Throw<CreateFundTransactionException>()
-            .WithMessage("*Unsupported fund transaction type*");
+        // Assert - Then return a failed result with an unsupported-transaction-type error message, and no exception thrown
+        // (the CreateFundTransactionException raised internally while building the batch is caught and converted to a failed result)
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("Unsupported fund transaction type");
     }
 
     [Fact]
@@ -236,7 +236,7 @@ public class FundTransactionCommandTests
     #region ProcessEndOfDayFundTransactionCommand - edge cases
 
     [Fact]
-    public void ProcessEndOfDayFundTransactionCommand_GivenNonExistingFundTransaction_WhenExecuted_ThenThrowsProcessEndOfDayFundTransactionException()
+    public void ProcessEndOfDayFundTransactionCommand_GivenNonExistingFundTransaction_WhenExecuted_ThenReturnsFailedResultWithDoesNotExistMessage()
     {
         // Arrange - Given a state without any existing fund transaction
         var state = CreateState();
@@ -244,15 +244,15 @@ public class FundTransactionCommandTests
         var command = new ProcessEndOfDayFundTransactionCommand(fundTransaction);
 
         // Act - When executing ProcessEndOfDayFundTransactionCommand
-        Action act = () => command.Execute(state);
+        var result = command.Execute(state);
 
-        // Assert - Then throws ProcessEndOfDayFundTransactionException
-        act.Should().Throw<ProcessEndOfDayFundTransactionException>()
-            .WithMessage("*does not exist*");
+        // Assert - Then return a failed result with a does-not-exist error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("does not exist");
     }
 
     [Fact]
-    public void ProcessEndOfDayFundTransactionCommand_GivenTransactionTypeNotUnrealizedTradePnl_WhenExecuted_ThenThrowsProcessEndOfDayFundTransactionException()
+    public void ProcessEndOfDayFundTransactionCommand_GivenTransactionTypeNotUnrealizedTradePnl_WhenExecuted_ThenReturnsFailedResultWithInvalidTransactionTypeMessage()
     {
         // Arrange - Given an existing fund transaction but the EOD command uses a non-UnrealizedTradePnl type
         var state = CreateState(balance: 1000m);
@@ -263,11 +263,11 @@ public class FundTransactionCommandTests
         var command = new ProcessEndOfDayFundTransactionCommand(invalidEodTransaction);
 
         // Act - When executing ProcessEndOfDayFundTransactionCommand
-        Action act = () => command.Execute(state);
+        var result = command.Execute(state);
 
-        // Assert - Then throws ProcessEndOfDayFundTransactionException
-        act.Should().Throw<ProcessEndOfDayFundTransactionException>()
-            .WithMessage("*transaction type must be UnrealizedTradePnl*");
+        // Assert - Then return a failed result with an invalid-transaction-type error message, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("transaction type must be UnrealizedTradePnl");
     }
 
     #endregion
