@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="CommandHandlers\**" />
+    <EmbeddedResource Remove="CommandHandlers\**" />
+    <None Remove="CommandHandlers\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

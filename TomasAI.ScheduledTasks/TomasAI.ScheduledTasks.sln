@@ -1,0 +1,61 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.4.33213.308
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TomasAI.IFM.Application.Command.Client", "..\TomasAI.IFM.Application.Command.RestApi.Client\TomasAI.IFM.Application.Command.Client.csproj", "{2356F5AF-4A01-406F-B401-E75A5C3545F9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TomasAI.IFM.Application.Query.Client", "..\TomasAI.IFM.Application.Query.RestApiClient\TomasAI.IFM.Application.Query.Client.csproj", "{04C0D4BB-39F7-44CB-B170-3ED178B9A1D4}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TomasAI.IFM.Application.ScheduledTask.SetClosingPrice", "..\TomasAI.IFM.Application.ScheduledTask.SetClosingPrice\TomasAI.IFM.Application.ScheduledTask.SetClosingPrice.csproj", "{D8B8605E-B441-430A-935D-2205BD2786EA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TomasAI.IFM.UI.EventConsumer", "..\TomasAI.IFM.UI.EventConsumer\TomasAI.IFM.UI.EventConsumer.csproj", "{0BD4A45B-E926-4664-80A6-F946E1853AC8}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose", "..\TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose\TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose.csproj", "{97808CE7-8F8B-4B8A-BA3C-C95A5E72EA4D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen", "..\TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen\TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen.csproj", "{042C7B43-2243-41CD-AE53-B85B0FF913C4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScheduledTask.TrainFuturesItiPredictiveModel", "SceduledTask.TrainFuturesItiPredictiveModel\ScheduledTask.TrainFuturesItiPredictiveModel.csproj", "{A7C38427-5940-4CBD-86AD-EAB0210B6B8A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2356F5AF-4A01-406F-B401-E75A5C3545F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2356F5AF-4A01-406F-B401-E75A5C3545F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2356F5AF-4A01-406F-B401-E75A5C3545F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2356F5AF-4A01-406F-B401-E75A5C3545F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{04C0D4BB-39F7-44CB-B170-3ED178B9A1D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{04C0D4BB-39F7-44CB-B170-3ED178B9A1D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{04C0D4BB-39F7-44CB-B170-3ED178B9A1D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{04C0D4BB-39F7-44CB-B170-3ED178B9A1D4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D8B8605E-B441-430A-935D-2205BD2786EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D8B8605E-B441-430A-935D-2205BD2786EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D8B8605E-B441-430A-935D-2205BD2786EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D8B8605E-B441-430A-935D-2205BD2786EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0BD4A45B-E926-4664-80A6-F946E1853AC8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0BD4A45B-E926-4664-80A6-F946E1853AC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0BD4A45B-E926-4664-80A6-F946E1853AC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0BD4A45B-E926-4664-80A6-F946E1853AC8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97808CE7-8F8B-4B8A-BA3C-C95A5E72EA4D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97808CE7-8F8B-4B8A-BA3C-C95A5E72EA4D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97808CE7-8F8B-4B8A-BA3C-C95A5E72EA4D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97808CE7-8F8B-4B8A-BA3C-C95A5E72EA4D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{042C7B43-2243-41CD-AE53-B85B0FF913C4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{042C7B43-2243-41CD-AE53-B85B0FF913C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{042C7B43-2243-41CD-AE53-B85B0FF913C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{042C7B43-2243-41CD-AE53-B85B0FF913C4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A7C38427-5940-4CBD-86AD-EAB0210B6B8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A7C38427-5940-4CBD-86AD-EAB0210B6B8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A7C38427-5940-4CBD-86AD-EAB0210B6B8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A7C38427-5940-4CBD-86AD-EAB0210B6B8A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7995C715-57A4-47F5-A6FB-CA639818A38A}
+	EndGlobalSection
+EndGlobal

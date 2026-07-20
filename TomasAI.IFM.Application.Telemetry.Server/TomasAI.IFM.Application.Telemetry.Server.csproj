@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>e594ec16-fec6-40a9-8b25-f0c620edc9f4</UserSecretsId>
+	  <!--
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+   <DockerfileRunArguments>-p "23430:23430" -p "23429:23429"</DockerfileRunArguments>
+   -->
+	  
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.19.4" />
+    <PackageReference Include="Serilog.AspNetCore" Version="3.2.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="..\.dockerignore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.Command.RestApi.Client\TomasAI.IFM.Application.Command.RestApi.Client.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.RestApi\TomasAI.IFM.Framework.Messaging.RestApi.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Telemetry\TomasAI.IFM.Framework.Telemetry.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

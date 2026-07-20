@@ -1,0 +1,10 @@
+﻿{
+  "profiles": {
+    "TomasAI.IFM.Application.ScheduledTask.EndOfDay": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

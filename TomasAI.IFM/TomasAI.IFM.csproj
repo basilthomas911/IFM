@@ -1,0 +1,690 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\packages\librdkafka.redist.1.4.2\build\librdkafka.redist.props" Condition="Exists('..\packages\librdkafka.redist.1.4.2\build\librdkafka.redist.props')" />
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{1F078587-9122-4D26-A1CD-E5C0A1A4B033}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>TomasAI.IFM</RootNamespace>
+    <AssemblyName>IFMApp</AssemblyName>
+    <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <TargetFrameworkProfile />
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+    <PublishUrl>C:\TomasAI\Projects\IFM\ClientSetup\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <UpdateUrl>http://localhost/TomasAI.IFM/</UpdateUrl>
+    <ApplicationRevision>618</ApplicationRevision>
+    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <PublishWizardCompleted>true</PublishWizardCompleted>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>x64</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ManifestCertificateThumbprint>350C45A47B20E369243C43FE7B734273821E6487</ManifestCertificateThumbprint>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ManifestKeyFile>TomasAI.IFM_TemporaryKey.pfx</ManifestKeyFile>
+  </PropertyGroup>
+  <PropertyGroup>
+    <GenerateManifests>true</GenerateManifests>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SignManifests>false</SignManifests>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetZone>LocalIntranet</TargetZone>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>ifmapp.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Confluent.Kafka, Version=1.4.2.0, Culture=neutral, PublicKeyToken=12c514ca49093d1e, processorArchitecture=MSIL">
+      <HintPath>..\packages\Confluent.Kafka.1.4.2\lib\net46\Confluent.Kafka.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.AspNetCore.Connections.Abstractions, Version=2.2.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.AspNetCore.Connections.Abstractions.2.2.0\lib\netstandard2.0\Microsoft.AspNetCore.Connections.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.AspNetCore.Http.Connections.Client, Version=1.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.AspNetCore.Http.Connections.Client.1.0.4\lib\netstandard2.0\Microsoft.AspNetCore.Http.Connections.Client.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.AspNetCore.Http.Connections.Common, Version=1.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.AspNetCore.Http.Connections.Common.1.0.4\lib\netstandard2.0\Microsoft.AspNetCore.Http.Connections.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.AspNetCore.Http.Features, Version=2.2.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.AspNetCore.Http.Features.2.2.0\lib\netstandard2.0\Microsoft.AspNetCore.Http.Features.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.AspNetCore.SignalR.Client, Version=1.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.AspNetCore.SignalR.Client.1.0.4\lib\netstandard2.0\Microsoft.AspNetCore.SignalR.Client.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.AspNetCore.SignalR.Client.Core, Version=1.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.AspNetCore.SignalR.Client.Core.1.0.4\lib\netstandard2.0\Microsoft.AspNetCore.SignalR.Client.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.AspNetCore.SignalR.Common, Version=1.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.AspNetCore.SignalR.Common.1.0.4\lib\netstandard2.0\Microsoft.AspNetCore.SignalR.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.AspNetCore.SignalR.Protocols.Json, Version=1.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.AspNetCore.SignalR.Protocols.Json.1.0.4\lib\netstandard2.0\Microsoft.AspNetCore.SignalR.Protocols.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Bcl.AsyncInterfaces, Version=8.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Bcl.AsyncInterfaces.8.0.0\lib\net462\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Configuration, Version=3.1.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Configuration.3.1.4\lib\netstandard2.0\Microsoft.Extensions.Configuration.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Configuration.Abstractions, Version=3.1.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Configuration.Abstractions.3.1.4\lib\netstandard2.0\Microsoft.Extensions.Configuration.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Configuration.Binder, Version=3.1.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Configuration.Binder.3.1.4\lib\netstandard2.0\Microsoft.Extensions.Configuration.Binder.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.DependencyInjection, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.DependencyInjection.8.0.0\lib\net462\Microsoft.Extensions.DependencyInjection.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.DependencyInjection.Abstractions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.DependencyInjection.Abstractions.8.0.0\lib\net462\Microsoft.Extensions.DependencyInjection.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Http, Version=3.1.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Http.3.1.4\lib\netstandard2.0\Microsoft.Extensions.Http.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Logging, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Logging.8.0.0\lib\net462\Microsoft.Extensions.Logging.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Logging.Abstractions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Logging.Abstractions.8.0.0\lib\net462\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Logging.Debug, Version=2.2.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Logging.Debug.2.2.0\lib\netstandard2.0\Microsoft.Extensions.Logging.Debug.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Options, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Options.8.0.0\lib\net462\Microsoft.Extensions.Options.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Primitives, Version=8.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.Primitives.8.0.0\lib\net462\Microsoft.Extensions.Primitives.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json.Bson, Version=1.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.Bson.1.0.2\lib\net45\Newtonsoft.Json.Bson.dll</HintPath>
+    </Reference>
+    <Reference Include="QLNet, Version=1.11.4.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\QLNet.1.11.4\lib\netstandard2.0\QLNet.dll</HintPath>
+    </Reference>
+    <Reference Include="RestSharp, Version=106.0.0.0, Culture=neutral, PublicKeyToken=598062e77f915f75, processorArchitecture=MSIL">
+      <HintPath>..\packages\RestSharp.106.10.1\lib\net452\RestSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="Serilog, Version=2.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10, processorArchitecture=MSIL">
+      <HintPath>..\packages\Serilog.2.9.0\lib\net46\Serilog.dll</HintPath>
+    </Reference>
+    <Reference Include="Serilog.Extensions.Logging, Version=2.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10, processorArchitecture=MSIL">
+      <HintPath>..\packages\Serilog.Extensions.Logging.3.0.1\lib\netstandard2.0\Serilog.Extensions.Logging.dll</HintPath>
+    </Reference>
+    <Reference Include="Serilog.Sinks.Console, Version=3.1.1.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10, processorArchitecture=MSIL">
+      <HintPath>..\packages\Serilog.Sinks.Console.3.1.1\lib\net45\Serilog.Sinks.Console.dll</HintPath>
+    </Reference>
+    <Reference Include="ServiceStack.Text, Version=5.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\ServiceStack.Text.Core.5.8.0\lib\netstandard2.0\ServiceStack.Text.dll</HintPath>
+    </Reference>
+    <Reference Include="SimpleInjector, Version=4.2.2.0, Culture=neutral, PublicKeyToken=984cb50dea722e99, processorArchitecture=MSIL">
+      <HintPath>..\packages\SimpleInjector.4.2.2\lib\net45\SimpleInjector.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Buffers.4.5.1\lib\net461\System.Buffers.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Collections.Immutable, Version=1.2.4.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Collections.Immutable.1.6.0\lib\netstandard2.0\System.Collections.Immutable.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ComponentModel.Annotations, Version=4.2.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.ComponentModel.Annotations.4.7.0\lib\net461\System.ComponentModel.Annotations.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Diagnostics.DiagnosticSource, Version=8.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Diagnostics.DiagnosticSource.8.0.0\lib\net462\System.Diagnostics.DiagnosticSource.dll</HintPath>
+    </Reference>
+    <Reference Include="System.IO.Pipelines, Version=4.0.0.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.IO.Pipelines.4.5.2\lib\netstandard2.0\System.IO.Pipelines.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Memory, Version=4.0.1.2, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Memory.4.5.5\lib\net461\System.Memory.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Net.Http.Formatting, Version=5.2.6.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.AspNet.WebApi.Client.5.2.6\lib\net45\System.Net.Http.Formatting.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Numerics.Vectors, Version=4.1.4.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Numerics.Vectors.4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime, Version=4.1.1.1, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.4.3.1\lib\net462\System.Runtime.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Runtime.Caching" />
+    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.0.0\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Text.Encodings.Web, Version=5.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Text.Encodings.Web.5.0.0\lib\net461\System.Text.Encodings.Web.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Text.Json, Version=5.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Text.Json.5.0.0\lib\net461\System.Text.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Threading.Channels, Version=4.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Threading.Channels.4.5.0\lib\netstandard2.0\System.Threading.Channels.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Threading.Tasks.Extensions, Version=4.2.0.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Threading.Tasks.Extensions.4.5.4\lib\net461\System.Threading.Tasks.Extensions.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ValueTuple, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.ValueTuple.4.5.0\lib\net47\System.ValueTuple.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Web" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Windows.Forms.DataVisualization" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Deployment" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Extensions\ListViewItemExtension.cs" />
+    <Compile Include="Extensions\LookupTypeListExtension.cs" />
+    <Compile Include="Models\ApplicationEventModel.cs" />
+    <Compile Include="Models\MarketDataAnalyticsEventModel.cs" />
+    <Compile Include="Models\EventModel.cs" />
+    <Compile Include="Models\FundCommandModel.cs" />
+    <Compile Include="Models\FundOrderEventModel.cs" />
+    <Compile Include="Models\FundQueryModel.cs" />
+    <Compile Include="Models\IEventModel.cs" />
+    <Compile Include="Models\MarketDataCommandModel.cs" />
+    <Compile Include="Models\MarketDataAnalyticsCommandModel.cs" />
+    <Compile Include="Models\FundEventModel.cs" />
+    <Compile Include="Models\EndOfDayProcessEventModel.cs" />
+    <Compile Include="Models\MarketDataFeedEventModel.cs" />
+    <Compile Include="Models\MarketDataFeedQueryModel.cs" />
+    <Compile Include="Models\MarketDataAnalyticsQueryModel.cs" />
+    <Compile Include="Models\ReferenceCommandModel.cs" />
+    <Compile Include="Models\TradeCommandModel.cs" />
+    <Compile Include="Models\TradePlacementCommandModel.cs" />
+    <Compile Include="Models\MarketDataEventModel.cs" />
+    <Compile Include="Models\TradePlanActionEventModel.cs" />
+    <Compile Include="Models\EconomicCalendarEventModel.cs" />
+    <Compile Include="Models\OptionTradeSpreadBarDataEventModel.cs" />
+    <Compile Include="Models\TradePlacementEventModel.cs" />
+    <Compile Include="Models\TradePlanEventModel.cs" />
+    <Compile Include="Models\SpreadDistributionJobModel.cs" />
+    <Compile Include="Models\StatusConsoleModel.cs" />
+    <Compile Include="Models\MarketDataFeedCommandModel.cs" />
+    <Compile Include="Models\ReferenceQueryModel.cs" />
+    <Compile Include="Models\SystemAdminModel.cs" />
+    <Compile Include="Models\TradePositionFeedEventModel.cs" />
+    <Compile Include="Models\TradePlanQueryModel.cs" />
+    <Compile Include="Models\TradeQueryModel.cs" />
+    <Compile Include="Extensions\ComboBoxExtension.cs" />
+    <Compile Include="Extensions\ControlExtension.cs" />
+    <Compile Include="Extensions\DataGridViewRowCollectionExtension.cs" />
+    <Compile Include="Extensions\ProgressBarExtension.cs" />
+    <Compile Include="ViewModels\App\IFMAppViewModel.cs" />
+    <Compile Include="Startup.cs" />
+    <Compile Include="Contracts\IAppRoot.cs" />
+    <Compile Include="Contracts\IControlCommand.cs" />
+    <Compile Include="Contracts\IModel.cs" />
+    <Compile Include="Contracts\IFormControl.cs" />
+    <Compile Include="Contracts\IForm.cs" />
+    <Compile Include="Models\BaseModel.cs" />
+    <Compile Include="Models\MarketDataQueryModel.cs" />
+    <Compile Include="ViewModels\App\MarketEconomicCalendarViewModel.cs" />
+    <Compile Include="ViewModels\App\StatusConsoleViewModel.cs" />
+    <Compile Include="ViewModels\MarketData\FuturesEodDataUIViewModel.cs" />
+    <Compile Include="ViewModels\MarketData\FuturesTradeSignalUIViewModel.cs" />
+    <Compile Include="ViewModels\MarketData\FuturesTradeStatusUIViewModel.cs" />
+    <Compile Include="ViewModels\MarketData\PlaceTradeUIViewModel.cs" />
+    <Compile Include="ViewModels\Reference\LookupTypeEditorViewModel.cs" />
+    <Compile Include="ViewModels\Reference\MDIForwardLossRatioUIViewModel.cs" />
+    <Compile Include="ViewModels\Trade\FundOrderEditorViewModel.cs" />
+    <Compile Include="ViewModels\Trade\OptionTradeSpreadBarUIViewModel.cs" />
+    <Compile Include="Views\App\MarketEconomicCalendarView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\App\MarketEconomicCalendarView.Designer.cs">
+      <DependentUpon>MarketEconomicCalendarView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\App\IFMAppView.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\App\IFMAppView.Designer.cs">
+      <DependentUpon>IFMAppView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ViewModels\BaseEditorViewModel.cs" />
+    <Compile Include="ViewModels\Reference\EconomicCalendarEditorViewModel.cs" />
+    <Compile Include="ViewModels\Reference\ReferenceViewModel.cs" />
+    <Compile Include="ViewModels\Trade\IronCondor\IronCondorTradeInfoViewModel.cs" />
+    <Compile Include="Views\AccurateTimer.cs" />
+    <Compile Include="Views\App\MarketDataView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\App\MarketDataView.Designer.cs">
+      <DependentUpon>MarketDataView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\App\MarketOutlookView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\App\MarketOutlookView.Designer.cs">
+      <DependentUpon>MarketOutlookView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\App\StatusConsoleView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\App\StatusConsoleView.Designer.cs">
+      <DependentUpon>StatusConsoleView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Fund\AdjustFundTransactionForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Fund\AdjustFundTransactionForm.Designer.cs">
+      <DependentUpon>AdjustFundTransactionForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\Fund\AdjustFundTransactionViewModel.cs" />
+    <Compile Include="Views\Fund\FundTransactionEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Fund\FundTransactionEditor.Designer.cs">
+      <DependentUpon>FundTransactionEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\Fund\FundTransactionEditorViewModel.cs" />
+    <Compile Include="Views\ListBinding.cs" />
+    <Compile Include="Views\MarketData\FuturesContractEditorControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\MarketData\FuturesContractEditorControl.Designer.cs">
+      <DependentUpon>FuturesContractEditorControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\MarketData\FuturesContractEditorViewModel.cs" />
+    <Compile Include="Views\MarketData\FuturesOptionContractEditorControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\MarketData\FuturesOptionContractEditorControl.Designer.cs">
+      <DependentUpon>FuturesOptionContractEditorControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\MarketData\FuturesOptionContractEditorViewModel.cs" />
+    <Compile Include="ViewModels\MarketData\MarketDataViewModel.cs" />
+    <Compile Include="Views\MarketData\YieldCurveRateEditorControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\MarketData\YieldCurveRateEditorControl.Designer.cs">
+      <DependentUpon>YieldCurveRateEditorControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\MarketData\YieldCurveRateEditForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\MarketData\YieldCurveRateEditForm.Designer.cs">
+      <DependentUpon>YieldCurveRateEditForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\MarketData\YieldCurveRateEditorViewModel.cs" />
+    <Compile Include="Views\Reference\EconomicCalendarEditorView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\Reference\EconomicCalendarEditorView.Designer.cs">
+      <DependentUpon>EconomicCalendarEditorView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Reference\LookupTypeEditorView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\Reference\LookupTypeEditorView.Designer.cs">
+      <DependentUpon>LookupTypeEditorView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Reference\ReferenceView.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Reference\ReferenceView.Designer.cs">
+      <DependentUpon>ReferenceView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\SystemAdmin\BackupDatabasesView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\SystemAdmin\BackupDatabasesView.Designer.cs">
+      <DependentUpon>BackupDatabasesView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\SystemAdmin\BackupDatabasesViewModel.cs" />
+    <Compile Include="Views\SystemAdmin\SystemAdminForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\SystemAdmin\SystemAdminForm.Designer.cs">
+      <DependentUpon>SystemAdminForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\SystemAdmin\SystemAdminViewModel.cs" />
+    <Compile Include="Views\SystemInfo\SystemErrorView.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\SystemInfo\SystemErrorView.Designer.cs">
+      <DependentUpon>SystemErrorView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\SystemInfo\SystemWaitView.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\SystemInfo\SystemWaitView.Designer.cs">
+      <DependentUpon>SystemWaitView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Trade\CreateFundForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Trade\CreateFundForm.Designer.cs">
+      <DependentUpon>CreateFundForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Trade\CreateFundOrderTradeForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Trade\CreateFundOrderTradeForm.Designer.cs">
+      <DependentUpon>CreateFundOrderTradeForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\Fund\CreateFundViewModel.cs" />
+    <Compile Include="Views\Trade\DeleteFundOrderForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Trade\DeleteFundOrderForm.Designer.cs">
+      <DependentUpon>DeleteFundOrderForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Trade\IronCondor\IronCondorView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\Trade\IronCondor\IronCondorView.Designer.cs">
+      <DependentUpon>IronCondorView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\MarketData\MarketDataForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\MarketData\MarketDataForm.Designer.cs">
+      <DependentUpon>MarketDataForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Trade\CreateFundOrderForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Trade\CreateFundOrderForm.Designer.cs">
+      <DependentUpon>CreateFundOrderForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Trade\IronCondor\IronCondorTradeOrderView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Views\Trade\IronCondor\IronCondorTradeOrderView.Designer.cs">
+      <DependentUpon>IronCondorTradeOrderView.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\Trade\IronCondor\IronCondorTradeOrderViewModel.cs" />
+    <Compile Include="ViewModels\Trade\IronCondor\IronCondorViewModel.cs" />
+    <Compile Include="Views\Trade\ITradeOrderControl.cs" />
+    <Compile Include="Views\Trade\SetLocalSymbolForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Trade\SetLocalSymbolForm.Designer.cs">
+      <DependentUpon>SetLocalSymbolForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Trade\TradeBlotterFactory.cs" />
+    <Compile Include="Views\Trade\TradeEndOfDayForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Trade\TradeEndOfDayForm.Designer.cs">
+      <DependentUpon>TradeEndOfDayForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\Trade\EndOfDayProcessViewModel.cs" />
+    <Compile Include="Views\Trade\TradeOrderConfirmationForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Trade\TradeOrderConfirmationForm.Designer.cs">
+      <DependentUpon>TradeOrderConfirmationForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\Trade\TradeOrderConfirmationViewModel.cs" />
+    <Compile Include="Views\Trade\TradeOrderEditorForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Views\Trade\TradeOrderEditorForm.Designer.cs">
+      <DependentUpon>TradeOrderEditorForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ViewModels\Trade\TradeOrderEditorViewModel.cs" />
+    <EmbeddedResource Include="Views\App\MarketEconomicCalendarView.resx">
+      <DependentUpon>MarketEconomicCalendarView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\App\IFMAppView.resx">
+      <DependentUpon>IFMAppView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <EmbeddedResource Include="Views\App\MarketDataView.resx">
+      <DependentUpon>MarketDataView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\App\MarketOutlookView.resx">
+      <DependentUpon>MarketOutlookView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\App\StatusConsoleView.resx">
+      <DependentUpon>StatusConsoleView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Fund\AdjustFundTransactionForm.resx">
+      <DependentUpon>AdjustFundTransactionForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Fund\FundTransactionEditor.resx">
+      <DependentUpon>FundTransactionEditor.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\MarketData\FuturesContractEditorControl.resx">
+      <DependentUpon>FuturesContractEditorControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\MarketData\FuturesOptionContractEditorControl.resx">
+      <DependentUpon>FuturesOptionContractEditorControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\MarketData\YieldCurveRateEditorControl.resx">
+      <DependentUpon>YieldCurveRateEditorControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\MarketData\YieldCurveRateEditForm.resx">
+      <DependentUpon>YieldCurveRateEditForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Reference\EconomicCalendarEditorView.resx">
+      <DependentUpon>EconomicCalendarEditorView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Reference\LookupTypeEditorView.resx">
+      <DependentUpon>LookupTypeEditorView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Reference\ReferenceView.resx">
+      <DependentUpon>ReferenceView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\SystemAdmin\BackupDatabasesView.resx">
+      <DependentUpon>BackupDatabasesView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\SystemAdmin\SystemAdminForm.resx">
+      <DependentUpon>SystemAdminForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\SystemInfo\SystemErrorView.resx">
+      <DependentUpon>SystemErrorView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\SystemInfo\SystemWaitView.resx">
+      <DependentUpon>SystemWaitView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Trade\CreateFundForm.resx">
+      <DependentUpon>CreateFundForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Trade\CreateFundOrderTradeForm.resx">
+      <DependentUpon>CreateFundOrderTradeForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Trade\DeleteFundOrderForm.resx">
+      <DependentUpon>DeleteFundOrderForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Trade\IronCondor\IronCondorView.resx">
+      <DependentUpon>IronCondorView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\MarketData\MarketDataForm.resx">
+      <DependentUpon>MarketDataForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Trade\CreateFundOrderForm.resx">
+      <DependentUpon>CreateFundOrderForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Trade\IronCondor\IronCondorTradeOrderView.resx">
+      <DependentUpon>IronCondorTradeOrderView.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Trade\SetLocalSymbolForm.resx">
+      <DependentUpon>SetLocalSymbolForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Trade\TradeEndOfDayForm.resx">
+      <DependentUpon>TradeEndOfDayForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Trade\TradeOrderConfirmationForm.resx">
+      <DependentUpon>TradeOrderConfirmationForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Views\Trade\TradeOrderEditorForm.resx">
+      <DependentUpon>TradeOrderEditorForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <None Include="..\.editorconfig">
+      <Link>.editorconfig</Link>
+    </None>
+    <None Include="packages.config" />
+    <None Include="Properties\app.manifest" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.Fund.ViewModels.FundTransactionViewModel.datasource" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.Log.ViewModels.StatusConsoleLogViewModel.datasource" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.MarketData.ViewModels.FuturesOptionContractViewModel.datasource" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.MarketData.ViewModels.YieldCurveRateViewModel.datasource" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.MarketDataFeed.ViewModels.FuturesBarDataViewModel.datasource" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.MarketDataFeed.ViewModels.FuturesEodDataViewModel.datasource" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.Trade.ViewModels.IronCondorSpreadPathViewModel.datasource" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.Trade.ViewModels.OptionTradeSpreadBarDataViewModel.datasource" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.Trade.ViewModels.TradeHistoryViewModel.datasource" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.Trade.ViewModels.TradeInfoViewModel.datasource" />
+    <None Include="Properties\DataSources\TomasAI.IFM.Shared.Trade.ViewModels.TradePlanSummaryViewModel.datasource" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config">
+      <SubType>Designer</SubType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <BootstrapperPackage Include=".NETFramework,Version=v4.7.1">
+      <Visible>False</Visible>
+      <ProductName>Microsoft .NET Framework 4.7.1 %28x86 and x64%29</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.Command.RestApi.Client\TomasAI.IFM.Application.Command.Client.csproj">
+      <Project>{f73a6187-f3c0-4195-aae3-386795d13a4f}</Project>
+      <Name>TomasAI.IFM.Application.Command.Client</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TomasAI.IFM.Application.Query.RestApiClient\TomasAI.IFM.Application.Query.Client.csproj">
+      <Project>{5bb38b6e-5c9f-437e-b8cc-35ba3adb7684}</Project>
+      <Name>TomasAI.IFM.Application.Query.Client</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.RestApi\TomasAI.IFM.Framework.Messaging.RestApi.csproj">
+      <Project>{ea78393b-fd7e-42fd-b163-e574a2c00a75}</Project>
+      <Name>TomasAI.IFM.Framework.Messaging.RestApi</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging\TomasAI.IFM.Framework.Messaging.csproj">
+      <Project>{307842b9-10c8-4cc2-9280-66f12b739e0f}</Project>
+      <Name>TomasAI.IFM.Framework.Messaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Serialization\TomasAI.IFM.Framework.Serialization.csproj">
+      <Project>{0df49295-1aef-4860-9764-ceee66bc170b}</Project>
+      <Name>TomasAI.IFM.Framework.Serialization</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TomasAI.IFM.KafkaClient\TomasAI.IFM.Framework.Messaging.Kafka.csproj">
+      <Project>{b8233a71-ea33-4d39-8b3f-955f96a04713}</Project>
+      <Name>TomasAI.IFM.Framework.Messaging.Kafka</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TomasAI.IFM.MarketDataFeed.InteractiveBrokers\TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers.csproj">
+      <Project>{62deb03a-d796-4452-ba41-7817cdb27009}</Project>
+      <Name>TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TomasAI.IFM.Shared.EventProducers\TomasAI.IFM.Shared.EventProducers.csproj">
+      <Project>{9a532f7c-4a56-453c-b026-36b6d68f92b7}</Project>
+      <Name>TomasAI.IFM.Shared.EventProducers</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj">
+      <Project>{0c12c1cd-0a64-4f1c-8297-c78893eef9b3}</Project>
+      <Name>TomasAI.IFM.Shared</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TomasAI.IFM.StatusConsole\TomasAI.IFM.Service.StatusConsole.csproj">
+      <Project>{383b785c-be42-4c5e-95b0-971903b74f20}</Project>
+      <Name>TomasAI.IFM.Service.StatusConsole</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TomasAI.IFM.UI.EventConsumer\TomasAI.IFM.UI.EventConsumer.csproj">
+      <Project>{8a6eb3bb-72b3-41c2-a295-7eec40b0cbab}</Project>
+      <Name>TomasAI.IFM.UI.EventConsumer</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="ifmapp.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Connected Services\" />
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\librdkafka.redist.1.4.2\build\librdkafka.redist.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\librdkafka.redist.1.4.2\build\librdkafka.redist.props'))" />
+  </Target>
+</Project>

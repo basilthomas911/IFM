@@ -1,0 +1,4 @@
+﻿
+GO
+ALTER ROLE [db_denydatareader] ADD MEMBER [NT SERVICE\SQLAgent$DOMAINDATA];
+

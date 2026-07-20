@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.Trade.Actor.BDDTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.Trade.Actor.UnitTests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Order\Execution\BrokerOrder\" />
+    <Folder Include="Position\Workflow\CandidateBuilder\Advisor\" />
+    <Folder Include="Position\Workflow\CandidateBuilder\Comparison\" />
+    <Folder Include="Position\Monitor\Futures\Option\IronCondor\" />
+    <Folder Include="Position\Monitor\Futures\Option\VerticalSpread\" />
+    <Folder Include="Position\Workflow\ExitCondition\Advisor\" />
+    <Folder Include="Position\Workflow\ForwardLoss\" />
+    <Folder Include="Position\Workflow\RiskEvaluator\" />
+    <Folder Include="Strategy\IntrinsicTime\Futures\Option\IronCondor\Candidate\Advisor\" />
+    <Folder Include="Strategy\IntrinsicTime\Futures\Option\IronCondor\Candidate\Builder\" />
+    <Folder Include="Strategy\IntrinsicTime\Futures\Option\IronCondor\Candidate\Comparison\" />
+    <Folder Include="Strategy\IntrinsicTime\Futures\Option\SpreadEngine\OptionChain\" />
+    <Folder Include="Strategy\IntrinsicTime\Futures\Option\VerticalSpread\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\CandidateBuilder\Advisor\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\CandidateBuilder\Comparison\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\RegimeDiscovery\Advisor\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\RiskEvaluator\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\TradeSelector\Advisor\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.Blackboard\TomasAI.IFM.Application.Blackboard.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Domain\TomasAI.IFM.Shared.Domain.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

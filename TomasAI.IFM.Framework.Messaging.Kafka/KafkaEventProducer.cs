@@ -1,0 +1,183 @@
+using System.Text;
+using Confluent.Kafka;
+using Newtonsoft.Json;
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+using System.Collections.Concurrent;
+
+namespace TomasAI.IFM.Framework.Messaging.Kafka;
+
+/// <summary>
+/// Represents an abstract base class for producing events to a Kafka event broker.
+/// </summary>
+/// <remarks>This class provides the foundational functionality for sending events to Kafka, including both
+/// synchronous and asynchronous event delivery mechanisms. Derived classes must implement the <see
+/// cref="PostEventAsync(IEvent)"/> method to define how external classes send events to the Kafka broker.</remarks>
+public abstract class KafkaEventProducer : IEventProducer
+{
+    static ConcurrentDictionary<string, Type>? _eventPrimerMap;
+    static SemaphoreSlim? _asyncLock;
+    readonly string? _eventProducerName;
+    readonly IEventProducerOptions? _options;
+    readonly ILogger? _logger;
+    readonly IProducer<string,string>? _producer;
+    readonly Dictionary<string, string>? _startupMap;
+
+    public KafkaEventProducer()
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="KafkaEventProducer"/> class,  which is responsible for producing
+    /// events to a Kafka topic using the specified configuration.
+    /// </summary>
+    /// <remarks>This constructor sets up the Kafka producer with idempotence enabled and default buffering
+    /// behavior.  It also initializes internal state and logs a message indicating successful initialization.</remarks>
+    /// <param name="options">The configuration options for the event producer, including Kafka connection details.</param>
+    /// <param name="logger">The logger instance used for logging operational and diagnostic information.</param>
+    public KafkaEventProducer(IEventProducerOptions options, ILogger logger)
+    {
+        _options = options;
+        _logger = logger;
+        _eventProducerName = this.GetType().Name;
+        var config = new ProducerConfig
+        {
+            BootstrapServers = _options.BootstrapServers,
+            QueueBufferingBackpressureThreshold = 1, 
+            EnableIdempotence = true,
+            LingerMs = 0
+        };
+        _producer = new ProducerBuilder<string, string>(config).Build();
+        _startupMap ??= [];
+        _eventPrimerMap ??= [];
+        _asyncLock ??= new SemaphoreSlim(1, 1);
+        _logger.LogInformationEvent(_eventProducerName,"successfully initialized");
+    }
+
+    /// <summary>
+    /// derived class must implement this in order for external classes to send events to kafka event broker
+    /// </summary>
+    /// <param name="event"></param>
+    /// <returns></returns>
+    public abstract Task PostEventAsync(IEvent @event);
+
+    /// <summary>
+    /// Sends an event asynchronously to the appropriate topic based on the event type.
+    /// </summary>
+    /// <remarks>This method serializes the event value to JSON and sends it to a topic named after the event
+    /// type. If the event is not successfully persisted, a log entry is created. Additionally, if the event type has
+    /// not been previously mapped, it is added to the primer map and a primer event is sent to the topic.</remarks>
+    /// <typeparam name="TKey">The type of the event key used to identify the event.</typeparam>
+    /// <typeparam name="TValue">The type of the event value, which must implement <see cref="IEvent"/>.</typeparam>
+    /// <param name="eventKey">The key associated with the event. This is used to partition or identify the event.</param>
+    /// <param name="eventValue">The event data to be sent. Must not be <see langword="null"/> and must have a valid  <see
+    /// cref="IEvent.EventSource"/> and <see cref="IEvent.CommandId"/>.</param>
+    /// <returns>A task that represents the asynchronous operation of sending the event.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="eventValue"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the <see cref="IEvent.EventSource"/> property of <paramref name="eventValue"/> is null, empty, or
+    /// whitespace.</exception>
+    protected async Task SendEventAsync<TKey, TValue>(TKey eventKey, TValue eventValue) where TValue:IEvent
+    {
+        try
+        {
+            // Note: Awaiting the asynchronous produce request below prevents flow of execution
+            // from proceeding until the acknowledgement from the broker is received (at the 
+            // expense of low throughput).
+            if (eventValue is null)
+                throw new ArgumentNullException(nameof(eventValue));
+            if (string.IsNullOrWhiteSpace(eventValue.EventSource))
+                throw new InvalidOperationException($"SendEventAsync: {eventValue.GetType().Name}.EventSource is empty");
+            eventValue.CheckForEmptyCommandId();
+
+            var topicName = eventValue.GetType().Name; 
+            var value = JsonConvert.SerializeObject(eventValue, Formatting.None);
+            Message<string, string> message = new()
+            {
+                Key = $"{eventKey}",
+                Value = value,
+                Headers = []
+            };
+            message.Headers.Add("EventAssemblyQualifiedName", Encoding.ASCII.GetBytes(eventValue.GetType().AssemblyQualifiedName!));
+            var deliveryReport = await _producer!.ProduceAsync(topicName, message);
+            if (deliveryReport.Status != PersistenceStatus.Persisted)
+                _logger!.LogInformationEvent(_eventProducerName!, $"{topicName} not persisted");
+            if (!_eventPrimerMap!.ContainsKey(topicName))
+            {
+                await _asyncLock!.WaitAsync();
+                try
+                {
+                    if (!_eventPrimerMap.ContainsKey(topicName))
+                    {
+                        _eventPrimerMap.TryAdd(topicName, eventValue.GetType());
+                        _logger!.LogInformationEvent(_eventProducerName!, $"{topicName} primer mapped");
+                        await _producer.ProduceAsync(topicName, message);
+                    }
+                }
+                finally
+                {
+                    _asyncLock.Release();
+                }
+            }
+            _logger?.LogInformationEvent(_eventProducerName!, "produce: {topicName}",  topicName);
+        }
+        catch (ProduceException<string, string> ex)
+        {
+            _logger?.LogErrorEvent(_eventProducerName!, ex, $"SendEventAsync: failed to send event [{ex.Error.Code}]");
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogErrorEvent(_eventProducerName!, ex, $"SendEventAsync: failed to send event");
+        }
+    }
+
+    /// <summary>
+    /// Streams an event to the appropriate topic for processing.
+    /// </summary>
+    /// <remarks>This method serializes the event and sends it to a topic named after the event's type. The
+    /// event's assembly-qualified name is included in the message headers for deserialization purposes. If an error
+    /// occurs during message production, it is logged but not rethrown.</remarks>
+    /// <typeparam name="TKey">The type of the event key.</typeparam>
+    /// <typeparam name="TValue">The type of the event value, which must implement <see cref="IEvent"/>.</typeparam>
+    /// <param name="eventKey">The key associated with the event. This is used to partition the event.</param>
+    /// <param name="eventValue">The event to be streamed. Must not be <see langword="null"/> and must have a valid <see
+    /// cref="IEvent.EventSource"/>.</param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="eventValue"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the <see cref="IEvent.EventSource"/> property of <paramref name="eventValue"/> is null, empty, or
+    /// whitespace.</exception>
+    protected async Task StreamEventAsync<TKey, TValue>(TKey eventKey, TValue eventValue) where TValue : IEvent
+    {
+        try
+        {
+            if (eventValue == null)
+                throw new ArgumentNullException(nameof(eventValue));
+            if (string.IsNullOrWhiteSpace(eventValue.EventSource))
+                throw new InvalidOperationException($"StreamEventAsync: {eventValue.GetType().Name}.EventSource is empty");
+            eventValue.CheckForEmptyCommandId();
+            var topicName = eventValue.GetType().Name;  
+            var value = JsonConvert.SerializeObject(eventValue, Formatting.None);
+            Message<string, string> message = new()
+            {
+                Key = $"{eventKey}",
+                Value = value,
+                Headers = []
+            };
+            message.Headers.Add("EventAssemblyQualifiedName", Encoding.ASCII.GetBytes(eventValue.GetType().AssemblyQualifiedName!));
+            _producer!.Produce(topicName, message);
+            _logger?.LogInformationEvent(_eventProducerName!, "produce: {topicName}", topicName);
+            await Task.CompletedTask;
+        }
+        catch (ProduceException<string, string> ex)
+        {
+            var eventName = eventValue.EventName ?? "Unknown";
+            _logger?.LogErrorEvent(_eventProducerName!, ex, $"StreamEventAsync: failed to stream event {eventName} [{ex.Error.Code}]");
+        }
+        catch (Exception ex)
+        {
+            var eventName = eventValue.EventName ?? "Unknown";
+            _logger?.LogErrorEvent(_eventProducerName!, ex, $"StreamEventAsync: failed to stream event {eventName}");
+        }
+    }
+    
+}

@@ -1,0 +1,10 @@
+﻿{
+  "profiles": {
+    "TomasAI.IFM.Application.ScheduledTask.DatabaseBackup": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

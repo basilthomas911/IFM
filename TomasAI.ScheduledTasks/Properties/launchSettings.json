@@ -1,0 +1,10 @@
+﻿{
+  "profiles": {
+    "TomasAI.ScheduledTasks": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

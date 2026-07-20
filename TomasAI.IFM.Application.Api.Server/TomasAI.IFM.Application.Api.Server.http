@@ -1,0 +1,6 @@
+@TomasAI.IFM.Application.Api.Server_HostAddress = http://localhost:5287
+
+GET {{TomasAI.IFM.Application.Api.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

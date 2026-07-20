@@ -1,0 +1,25 @@
+﻿CREATE TABLE [dbo].[trade_position] (
+    [OrderId]          INT             NOT NULL,
+    [TradeId]          INT             NOT NULL,
+    [TradeType]        VARCHAR (32)    NOT NULL,
+    [ValueDate]        DATE            NOT NULL,
+    [DaysToExpiry]     INT             NOT NULL,
+    [TradeStatus]      VARCHAR (32)    NOT NULL,
+    [Commission]       DECIMAL (18, 2) NULL,
+    [DeltaHedge]       INT             NOT NULL,
+    [NetSpread]        DECIMAL (18, 2) NOT NULL,
+    [TradeValue]       DECIMAL (18, 2) NOT NULL,
+    [TradePnl]         DECIMAL (18, 2) NULL,
+    [AssetPrice]       DECIMAL (18, 2) NOT NULL,
+    [OTMProbability]   REAL            NOT NULL,
+    [ForwardPrice]     MONEY           NOT NULL,
+    [ForwardLossRatio] REAL            NULL,
+    [LossProbability]  REAL            NULL,
+    [RiskFreeRate]     REAL            NOT NULL,
+    [CreatedOn]        DATETIME        NULL,
+    [CreatedBy]        VARCHAR (64)    NULL,
+    [UpdatedOn]        DATETIME        NULL,
+    [UpdatedBy]        VARCHAR (64)    NULL,
+    CONSTRAINT [PK_trade_position] PRIMARY KEY CLUSTERED ([OrderId] ASC, [TradeId] ASC, [TradeType] ASC, [ValueDate] ASC, [DaysToExpiry] ASC, [TradeStatus] ASC)
+);
+

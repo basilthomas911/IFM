@@ -1,0 +1,69 @@
+architecture-beta
+    group storage(cloud)[TomasAI.IFM.Framework.Storage]
+
+    group core(server)[Core Abstractions] in storage
+        service iRepo(database)[IObjectRepository] in core
+        service iRepoCtx(server)[IObjectRepositoryContext] in core
+        service iRepoProv(server)[IObjectRepositoryProvider] in core
+        service iRepoConn(server)[IObjectRepositoryConnection] in core
+        service iRepoTxn(server)[IObjectRepositoryTransaction] in core
+
+    group mapping(server)[Data Mapping] in storage
+        service iMapReader(disk)[IObjectMapReader] in mapping
+        service iDataMapper(disk)[IObjectDataMapper] in mapping
+        service iDataRecord(disk)[IObjectDataRecord] in mapping
+        service iSpanReader(disk)[IObjectSpanReader] in mapping
+        service dbMap(disk)[DbMap / DbMapCollection] in mapping
+        service typeMapper(disk)[ObjectDataTypeMapper] in mapping
+        service propType(disk)[ObjectDataPropertyType] in mapping
+
+    group impl(server)[Repository Implementations] in storage
+        service objDataRepo(database)[ObjectDataRepository] in impl
+        service dbProvider(server)[ObjectDataDbProvider] in impl
+        service repoParam(server)[ObjectDataRepositoryParameter] in impl
+
+    group sqlserver(server)[SqlServer Provider] in storage
+        service sqlConn(database)[SqlServerConnection] in sqlserver
+        service sqlProv(server)[SqlServerProvider] in sqlserver
+        service sqlParam(server)[SqlServerParameter] in sqlserver
+        service sqlTxn(server)[SqlServerTransaction] in sqlserver
+        service sqlReader(disk)[SqlServerDataReader] in sqlserver
+
+    group postgres(server)[Postgres Provider] in storage
+        service pgConn(database)[PostgresConnection] in postgres
+        service pgProv(server)[PostgresProvider] in postgres
+        service pgParam(server)[PostgresParameter] in postgres
+        service pgTxn(server)[PostgresTransaction] in postgres
+        service pgReader(disk)[PostgresDataReader] in postgres
+
+    group scylladb(server)[ScyllaDb Provider] in storage
+        service scyllaConn(database)[ScyllaDbConnection] in scylladb
+        service scyllaProv(server)[ScyllaDbProvider] in scylladb
+        service scyllaMapper(disk)[ScyllaDbMapper] in scylladb
+        service scyllaSerial(disk)[TypeSerializers] in scylladb
+
+    group datareaders(server)[File/URI Data Readers] in storage
+        service csvReader(disk)[CsvDataReader] in datareaders
+        service jsonReader(disk)[JsonDataReader] in datareaders
+        service fileReader(disk)[FileStringReader] in datareaders
+        service httpReader(internet)[HttpStringReader] in datareaders
+        service csvWriter(disk)[CsvDataWriter] in datareaders
+
+    group util(server)[Utilities] in storage
+        service poolBuf(server)[PooledBufferBuilder] in util
+        service poolRoBuf(server)[PooledReadOnlyBuffer] in util
+        service linqVisitor(server)[LinqExpressionTreeVisitor] in util
+        service scalar(server)[Scalar] in util
+
+    iRepo:R -- L:iRepoCtx
+    iRepo:R -- L:iRepoProv
+    iRepo:R -- L:iRepoConn
+    iRepo:B -- T:iRepoTxn
+    objDataRepo:T -- B:iRepo
+    objDataRepo:R -- L:dbProvider
+    sqlConn:T -- B:iRepoConn
+    pgConn:T -- B:iRepoConn
+    scyllaConn:T -- B:iRepoConn
+    sqlProv:T -- B:iRepoProv
+    pgProv:T -- B:iRepoProv
+    scyllaProv:T -- B:iRepoProv

@@ -1,0 +1,6 @@
+@TomasAI.IFM.UI.Angular.Server_HostAddress = http://localhost:5039
+
+GET {{TomasAI.IFM.UI.Angular.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

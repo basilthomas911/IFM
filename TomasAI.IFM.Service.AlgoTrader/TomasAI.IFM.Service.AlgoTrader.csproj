@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="EventHandlers\**" />
+    <EmbeddedResource Remove="EventHandlers\**" />
+    <None Remove="EventHandlers\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="AlgoTraderService2.cs" />
+    <Compile Remove="IAlgoTraderService2.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.Blackboard\TomasAI.IFM.Application.Blackboard.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Service.AlgoTrader.Model\TomasAI.IFM.Service.AlgoTrader.Model.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.EventService\TomasAI.IFM.Shared.EventService.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,145 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <Name>TomasAI.IFM.Framework.Storage.MarketDataDb</Name>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectVersion>4.1</ProjectVersion>
+    <ProjectGuid>{acb8e696-f6f2-408d-b065-d41b9a28bd8b}</ProjectGuid>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql130DatabaseSchemaProvider</DSP>
+    <OutputType>Database</OutputType>
+    <RootPath>
+    </RootPath>
+    <RootNamespace>TomasAI.IFM.Framework.Storage.MarketDataDb</RootNamespace>
+    <AssemblyName>TomasAI.IFM.Framework.Storage.MarketDataDb</AssemblyName>
+    <ModelCollation>1033,CI</ModelCollation>
+    <DefaultFileStructure>BySchemaAndSchemaType</DefaultFileStructure>
+    <DeployToDatabase>True</DeployToDatabase>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetLanguage>CS</TargetLanguage>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <SqlServerVerification>False</SqlServerVerification>
+    <IncludeCompositeObjects>True</IncludeCompositeObjects>
+    <TargetDatabaseSet>True</TargetDatabaseSet>
+    <DefaultCollation>SQL_Latin1_General_CP1_CI_AS</DefaultCollation>
+    <DefaultFilegroup>PRIMARY</DefaultFilegroup>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <OutputPath>bin\Release\</OutputPath>
+    <BuildScriptName>$(MSBuildProjectName).sql</BuildScriptName>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <DefineDebug>false</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <OutputPath>bin\Debug\</OutputPath>
+    <BuildScriptName>$(MSBuildProjectName).sql</BuildScriptName>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineDebug>true</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">11.0</VisualStudioVersion>
+    <!-- Default to the v11.0 targets path if the targets file for the current VS version is not found -->
+    <SSDTExists Condition="Exists('$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets')">True</SSDTExists>
+    <VisualStudioVersion Condition="'$(SSDTExists)' == ''">11.0</VisualStudioVersion>
+  </PropertyGroup>
+  <Import Condition="'$(SQLDBExtensionsRefPath)' != ''" Project="$(SQLDBExtensionsRefPath)\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
+  <Import Condition="'$(SQLDBExtensionsRefPath)' == ''" Project="$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
+  <ItemGroup>
+    <Folder Include="Properties" />
+    <Folder Include="dbo\" />
+    <Folder Include="dbo\Tables\" />
+    <Folder Include="dbo\Views\" />
+    <Folder Include="Security\" />
+    <Folder Include="dbo\Stored Procedures\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Build Include="dbo\Tables\return_rates_1.sql" />
+    <Build Include="dbo\Tables\market_exchanges_1.sql" />
+    <Build Include="dbo\Tables\futures_intra_data_1.sql" />
+    <Build Include="dbo\Tables\futures_option_tick_data_1.sql" />
+    <Build Include="dbo\Tables\futures_bar_data_1.sql" />
+    <Build Include="dbo\Tables\index_tick_data_1.sql" />
+    <Build Include="dbo\Tables\futures_option_contract_1.sql" />
+    <Build Include="dbo\Tables\market_holidays_1.sql" />
+    <Build Include="dbo\Tables\normal_curve_data_1.sql" />
+    <Build Include="dbo\Tables\market_volatility_strike_price_offset_1.sql" />
+    <Build Include="dbo\Tables\streaming_data_log_1.sql" />
+    <Build Include="dbo\Tables\futures_tick_data_1.sql" />
+    <Build Include="dbo\Tables\vix_futures_eod_data_1.sql" />
+    <Build Include="dbo\Tables\trade_live_feed_1.sql" />
+    <Build Include="dbo\Tables\index_contract_1.sql" />
+    <Build Include="dbo\Tables\futures_eod_data_1.sql" />
+    <Build Include="dbo\Tables\yield_curve_rates_1.sql" />
+    <Build Include="dbo\Tables\futures_tick_data_old_1.sql" />
+    <Build Include="dbo\Tables\futures_contract_1.sql" />
+    <Build Include="dbo\Views\__MigrationLogCurrent_1.sql" />
+    <Build Include="Security\DEV-SERVER_IFMApp_1.sql" />
+    <Build Include="Security\basilt_1.sql" />
+    <Build Include="Security\NT SERVICE_SQLAgent_DOMAINDATA_1.sql" />
+    <Build Include="Security\RoleMemberships_1.sql" />
+    <Build Include="Security\RoleMemberships_2.sql" />
+    <Build Include="dbo\Stored Procedures\spBackupDatabase_1.sql" />
+    <Build Include="dbo\Stored Procedures\spDeleteFuturesContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetFuturesContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetLastFuturesOptionTickData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetVixFuturesEodDataByValueDate.sql" />
+    <Build Include="dbo\Stored Procedures\spDeleteFuturesOptionContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetFuturesOptionContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetRateOfReturn_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetLastRateOfReturn_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertFuturesOptionContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetFuturesEodDataByDateRange_1.sql" />
+    <Build Include="dbo\Stored Procedures\spUpdateFuturesContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetFuturesContracts_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertFuturesBarData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spUpdateFuturesEodData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetLastFuturesTickDataByTickDate_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetFuturesOptionContracts_1.sql" />
+    <Build Include="dbo\Stored Procedures\spUpdateFuturesOptionContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetYieldCurveRate.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertFuturesEodData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetFuturesEodData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spUpdateFuturesEodDataNearestStrikes_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetNormalCurveData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetMarketExchanges_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertRateOfReturn_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertFuturesContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetMarketVolatilityStrikePriceOffsets_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetLastFuturesTickData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertStreamingDataLog_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetYieldCurveRates_1.sql" />
+    <Build Include="dbo\Stored Procedures\spDeleteYieldCurveRate_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertYieldCurveRate_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertVixFuturesEodData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetYieldCurveRateYears_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetVixFuturesEodData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spYieldCurveRateExists_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetCurrentlyTradedFuturesContracts_1.sql" />
+    <Build Include="dbo\Stored Procedures\spUpdateYieldCurveRate_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetCurrentFuturesEodData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetCurrentFuturesEodDataByDateRange_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetCurrentTradedFuturesContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertTradeLiveFeed_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertFuturesTickData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spDeleteTradeLiveFeed_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetIndexContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertIndexContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spInsertFuturesOptionTickData_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetBenchmarkReturns_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetLastYieldCurveRate_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetCurrentTradedVixFuturesContract_1.sql" />
+    <Build Include="dbo\Stored Procedures\spGetMarketHolidays_1.sql" />
+  </ItemGroup>
+</Project>

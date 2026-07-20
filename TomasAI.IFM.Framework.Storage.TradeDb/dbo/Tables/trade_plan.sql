@@ -1,0 +1,46 @@
+﻿CREATE TABLE [dbo].[trade_plan] (
+    [TradePlanId]           INT           IDENTITY (1, 1) NOT NULL,
+    [OrderId]               INT           NOT NULL,
+    [TradeId]               INT           NULL,
+    [TradeType]             VARCHAR (32)  NULL,
+    [TradeDate]             DATE          NOT NULL,
+    [ValueDate]             DATE          NOT NULL,
+    [MaturityDate]          DATE          NOT NULL,
+    [ActionDate]            DATETIME      NOT NULL,
+    [ActionType]            VARCHAR (32)  NOT NULL,
+    [ActionSubType]         VARCHAR (32)  NULL,
+    [ActionState]           VARCHAR (32)  NOT NULL,
+    [ActionReason]          VARCHAR (255) NULL,
+    [TradePnl]              MONEY         NOT NULL,
+    [ForwardLossRatio]      REAL          NOT NULL,
+    [LossProbability]       REAL          NULL,
+    [MScore]                REAL          NULL,
+    [MaxProfit]             MONEY         NOT NULL,
+    [MaxLoss]               MONEY         NOT NULL,
+    [MinProfitTarget]       MONEY         NULL,
+    [DailyProfitTarget]     MONEY         NOT NULL,
+    [AssetPrice]            MONEY         NOT NULL,
+    [AssetStdDev]           REAL          NOT NULL,
+    [AssetMean]             REAL          NOT NULL,
+    [AssetPriceChange]      REAL          NULL,
+    [MarketTrend]           VARCHAR (32)  NOT NULL,
+    [MarketVolatility]      VARCHAR (32)  NULL,
+    [MarketDirection]       VARCHAR (32)  NULL,
+    [VixVolatility]         VARCHAR (32)  NOT NULL,
+    [FiftyDayMA]            REAL          NOT NULL,
+    [TwoHundredDayMA]       REAL          NOT NULL,
+    [PutSpreadProbability]  REAL          NULL,
+    [CallSpreadProbability] REAL          NULL,
+    [NetPrice]              MONEY         NULL,
+    [ForwardPrice]          MONEY         NULL,
+    [StopLossLimit]         REAL          NULL,
+    [CreatedOn]             DATETIME      NULL,
+    [CreatedBy]             VARCHAR (64)  NULL,
+    CONSTRAINT [PK_trade_plan] PRIMARY KEY CLUSTERED ([TradePlanId] ASC)
+);
+
+
+GO
+CREATE NONCLUSTERED INDEX [IX_trade_plan]
+    ON [dbo].[trade_plan]([OrderId] ASC, [TradeId] ASC);
+

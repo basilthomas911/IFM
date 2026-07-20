@@ -1,0 +1,6 @@
+﻿ALTER ROLE [db_datareader] ADD MEMBER [DEV-SERVER\IFMApp];
+
+
+GO
+ALTER ROLE [db_datawriter] ADD MEMBER [DEV-SERVER\IFMApp];
+

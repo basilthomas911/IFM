@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="EventDb\**" />
+    <Compile Remove="FundDb\**" />
+    <Compile Remove="LogDb\**" />
+    <Compile Remove="MarketDataDb\**" />
+    <Compile Remove="OptionPricerDb\**" />
+    <Compile Remove="ReferenceDb\**" />
+    <Compile Remove="SqlServer\**" />
+    <Compile Remove="TradeDb\**" />
+    <Compile Remove="TradePlanDb\**" />
+    <EmbeddedResource Remove="EventDb\**" />
+    <EmbeddedResource Remove="FundDb\**" />
+    <EmbeddedResource Remove="LogDb\**" />
+    <EmbeddedResource Remove="MarketDataDb\**" />
+    <EmbeddedResource Remove="OptionPricerDb\**" />
+    <EmbeddedResource Remove="ReferenceDb\**" />
+    <EmbeddedResource Remove="SqlServer\**" />
+    <EmbeddedResource Remove="TradeDb\**" />
+    <EmbeddedResource Remove="TradePlanDb\**" />
+    <None Remove="EventDb\**" />
+    <None Remove="FundDb\**" />
+    <None Remove="LogDb\**" />
+    <None Remove="MarketDataDb\**" />
+    <None Remove="OptionPricerDb\**" />
+    <None Remove="ReferenceDb\**" />
+    <None Remove="SqlServer\**" />
+    <None Remove="TradeDb\**" />
+    <None Remove="TradePlanDb\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Postgres\DbContextFactory.cs" />
+    <Compile Remove="Postgres\IDbContextFactory.cs" />
+    <Compile Remove="ScyllaDb\DbContextFactory.cs" />
+    <Compile Remove="ScyllaDb\IDbContextFactory.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+	  <InternalsVisibleTo Include="$(MSBuildProjectName).UnitTests" />
+
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.Blackboard\TomasAI.IFM.Application.Blackboard.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Fund.Shared\TomasAI.IFM.Domain.Fund.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId\TomasAI.IFM.Framework.SequenceId.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Storage\TomasAI.IFM.Framework.Storage.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

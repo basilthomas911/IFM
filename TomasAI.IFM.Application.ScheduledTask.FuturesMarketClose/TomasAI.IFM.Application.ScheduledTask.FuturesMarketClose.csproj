@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <UserSecretsId>dotnet-TomasAI.IFM.Application.ScheduledTask.DatabaseBackup-208F325E-0443-4FE5-B466-CA80CB3DDE66</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.22" />
+    <PackageReference Include="RestSharp" Version="106.10.1" />
+    <PackageReference Include="Serilog.AspNetCore" Version="3.2.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="4.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.Command.RestApi.Client\TomasAI.IFM.Application.Command.Client.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Query.RestApiClient\TomasAI.IFM.Application.Query.Client.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.RestApi\TomasAI.IFM.Framework.Messaging.RestApi.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging\TomasAI.IFM.Framework.Messaging.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Serialization\TomasAI.IFM.Framework.Serialization.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.KafkaClient\TomasAI.IFM.Framework.Messaging.Kafka.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.UI.EventConsumer\TomasAI.IFM.UI.EventConsumer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="appsettings.Development.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Update="appsettings.Production.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

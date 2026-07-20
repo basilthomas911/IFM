@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
+    },
+    "Profile 1": {
+      "commandName": "Executable",
+      "executablePath": "C:\\TomasAI\\Projects\\IFM\\TomasAI.InvestmentFundManager\\TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen\\bin\\Debug\\net7.0\\TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen.exe",
+      "workingDirectory": "C:\\TomasAI\\Projects\\IFM\\TomasAI.InvestmentFundManager\\TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen\\bin\\Debug\\net7.0",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

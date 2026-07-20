@@ -1,0 +1,11 @@
+﻿{
+  "profiles": {
+    "TomasAI.IFM.Application.ScheduledTask.SetClosingPrice": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

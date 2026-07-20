@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+	  <PackageReference Include="coverlet.collector" Version="6.0.0" />
+	  <PackageReference Include="FluentAssertions" Version="8.8.0" />
+	  <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+	  <PackageReference Include="NSubstitute" Version="5.3.0" />
+	  <PackageReference Include="NSubstitute.Analyzers.CSharp" Version="1.0.17">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	  </PackageReference>
+	  <PackageReference Include="xunit" Version="2.5.3" />
+	  <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed\TomasAI.IFM.Domain.MarketData.Feed.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.NatsJetStream\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="FuturesBarData\" />
+    <Folder Include="FuturesClosingPrice\" />
+    <Folder Include="FuturesEodData\" />
+    <Folder Include="FuturesOptionQuoteData\" />
+    <Folder Include="FuturesTickData\" />
+  </ItemGroup>
+
+</Project>

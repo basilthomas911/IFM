@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.MarketData.Analytics.Actor.BDDTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.MarketData.Analytics.Actor.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Domain\TomasAI.IFM.Shared.Domain.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="MarketEvaluationSnapshot\" />
+    <Folder Include="VixVolatility\Command\" />
+    <Folder Include="VixVolatility\Event\" />
+    <Folder Include="VixVolatility\Query\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="FuturesAtrSignal\Command\GenerateFuturesAtrDailySignal.cs" />
+  </ItemGroup>
+
+</Project>

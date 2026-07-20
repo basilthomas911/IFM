@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "TomasAI.IFM.Framework.Caching": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:52041;http://localhost:52042"
+    }
+  }
+}

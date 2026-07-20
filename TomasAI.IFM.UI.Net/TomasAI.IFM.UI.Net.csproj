@@ -1,0 +1,164 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.17763.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />    
+	<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Primitives" Version="9.0.0" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="SimpleInjector" Version="5.5.0" />
+    <PackageReference Include="WinForms.DataVisualization" Version="1.9.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.Api.Client\TomasAI.IFM.Application.Api.Client.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Kafka\TomasAI.IFM.Framework.Messaging.Kafka.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.NatsJetStream\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.RestApi\TomasAI.IFM.Framework.Messaging.RestApi.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Serialization\TomasAI.IFM.Framework.Serialization.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Service.StatusConsole\TomasAI.IFM.Service.StatusConsole.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.EventProducers\TomasAI.IFM.Shared.EventProducers.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.UI.EventConsumer\TomasAI.IFM.UI.EventConsumer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EditorConfigFiles Remove="C:\TomasAI\Projects\IFM\TomasAI.InvestmentFundManager\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="appsettings.Development.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="appsettings.Production.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="ifmapp.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="C:\TomasAI\Projects\IFM\TomasAI.InvestmentFundManager\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Views\App\IFMAppView.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\App\MarketDataView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\App\MarketEconomicCalendarView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\App\MarketOutlookView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\App\StatusConsoleView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\Fund\AdjustFundTransactionEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\Fund\FundTransactionEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\MarketData\FuturesContractEditorControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\MarketData\FuturesOptionContractEditorControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\MarketData\MarketDataForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\MarketData\YieldCurveRateEditForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\MarketData\YieldCurveRateEditorControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\Reference\EconomicCalendarEditorView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\Reference\LookupTypeEditorView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\Reference\ReferenceForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\SystemAdmin\BackupDatabasesView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\SystemAdmin\SystemAdminForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\SystemInfo\SystemErrorView.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\SystemInfo\SystemWaitView.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\Trade\CreateFundForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\Trade\CreateFundOrderForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\Trade\CreateFundOrderTradeForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\Trade\DeleteFundOrderForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\Trade\IronCondor\IronCondorTradeOrderView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\Trade\IronCondor\IronCondorView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="Views\Trade\SetLocalSymbolForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\Trade\TradeEndOfDayForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\Trade\TradeOrderConfirmationForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="Views\Trade\TradeOrderEditorForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="App.config">
+      <SubType>Designer</SubType>
+    </None>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

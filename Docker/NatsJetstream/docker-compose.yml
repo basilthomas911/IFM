@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:latest
+    container_name: ifm-nats-server
+    ports:
+      - "4222:4222" # Client port
+      - "8222:8222" # Monitoring port (HTTP)
+    volumes:
+      - nats_data:/data # Mount a named volume for JetStream data persistence
+    command:
+      - "-js" # Enable JetStream
+      - "-sd" # Specify store directory for JetStream
+      - "/data" # Path to the store directory inside the container
+      - "-p" # Client port
+      - "4222"
+      - "-m" # Monitoring port
+      - "8222"
+
+volumes:
+  nats_data:
+    driver: local

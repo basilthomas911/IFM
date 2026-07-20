@@ -1,0 +1,101 @@
+using MessagePack;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
+
+namespace TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend.Events;
+
+[MessagePackObject(AllowPrivate = true)]
+public record FuturesItiTrendDeltaModelTrainedEvent : IEvent
+{
+    [IgnoreMember] public const string Actor = "FuturesItiTrendDeltaEvent";
+    [IgnoreMember] public const string Verb = "ModelTrained";
+    [IgnoreMember] public const int ErrorCode = 19002;
+    [IgnoreMember] static readonly string CachedUserName = $"{Environment.UserDomainName}\\{Environment.UserName}";
+
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public Guid Id { get; init; }
+    [Key(2)] public FuturesItiTrendEntityId EntityId { get; init; }
+    [Key(3)] public long EventId { get; init; }
+    [Key(4)] public Guid CommandId { get; init; }
+    [Key(5)] public string AggregateId { get; init; }
+    [Key(6)] public string EventSource { get; init; }
+    [Key(7)] public DateTime ReceivedOn { get; init; }
+
+    // payload (keys 8..)
+    [Key(8)] public DateOnly StartDate { get; init; }
+    [Key(9)] public DateOnly EndDate { get; init; }
+    [Key(10)] public FuturesItiTrendModelDataStatistics Statistics { get; init; }
+    [Key(11)] public DateTime TrainedOn { get; init; }
+    [Key(12)] public string TrainedBy { get; init; }
+
+    [IgnoreMember] public string UserName => CachedUserName;
+    [IgnoreMember] public string EventName => nameof(FuturesItiTrendDeltaModelTrainedEvent);
+    [IgnoreMember] public EventType EventType => EventType.DomainEvent;
+
+    public FuturesItiTrendDeltaModelTrainedEvent() { }
+
+    [SerializationConstructor]
+    public FuturesItiTrendDeltaModelTrainedEvent(
+        ActorSubject subject,
+        Guid id,
+        FuturesItiTrendEntityId entityId,
+        long eventId,
+        Guid commandId,
+        string aggregateId,
+        string eventSource,
+        DateTime receivedOn,
+        DateOnly startDate,
+        DateOnly endDate,
+        FuturesItiTrendModelDataStatistics statistics,
+        DateTime trainedOn,
+        string trainedBy)
+    {
+        Subject = subject;
+        Id = id;
+        EntityId = entityId;
+        EventId = eventId;
+        CommandId = commandId;
+        AggregateId = aggregateId ?? string.Empty;
+        EventSource = eventSource ?? string.Empty;
+        ReceivedOn = receivedOn;
+        StartDate = startDate;
+        EndDate = endDate;
+        Statistics = statistics;
+        TrainedOn = trainedOn;
+        TrainedBy = trainedBy ?? string.Empty;
+    }
+
+    public ICompleteEvent ToCompletedEvent() => new FuturesItiTrendDeltaModelTrainedCompleteEvent
+    {
+        CommandId = CommandId,
+        EntityId = this.EntityId,
+        StartDate = this.StartDate ,
+        EndDate = this.EndDate,
+        Statistics=this.Statistics,
+        TrainedOn = this.TrainedOn,
+        TrainedBy = this.TrainedBy
+    };
+    public IErrorEvent ToFailedEvent(Exception ex) => new FuturesItiTrendDeltaModelTrainedFailEvent
+    {
+        CommandId = CommandId,
+        ErrorMessage = ex.Message,
+        ErrorType = ErrorType.Command,
+        ErrorCode = ErrorCode
+    };
+}
+
+
+public record FuturesItiTrendDeltaModelTrainedCompleteEvent : CompleteEvent
+{
+    public FuturesItiTrendEntityId EntityId { get; init; }
+    public DateOnly StartDate { get; init; }
+    public DateOnly EndDate { get; init; }
+    public FuturesItiTrendModelDataStatistics Statistics { get; init; }
+    public DateTime TrainedOn { get; init; }
+    public string TrainedBy { get; init; }
+}
+
+public record FuturesItiTrendDeltaModelTrainedFailEvent : ErrorEvent
+{
+}

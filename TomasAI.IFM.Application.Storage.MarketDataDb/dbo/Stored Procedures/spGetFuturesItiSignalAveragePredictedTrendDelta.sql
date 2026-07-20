@@ -1,0 +1,68 @@
+﻿-- =============================================
+-- Author:		<Author,,Name>
+-- Create date: <Create Date,,>
+-- Description:	<Description,,>
+-- =============================================
+CREATE PROCEDURE [dbo].[spGetFuturesItiSignalAveragePredictedTrendDelta] 
+	@contractId varchar(32),
+	@valueDate date
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+	declare @maxUpTrendValueDate date
+	declare @maxDownTrendValueDate date
+	declare @avgUpTrendPredictedDelta real
+	declare @avgDownTrendPredictedDelta real
+	declare @avgUpTrendFuturesRsi real
+	declare @avgDownTrendFuturesRsi real
+
+	select @maxUpTrendValueDate = max(ValueDate) from futures_iti_signal 
+	where ContractId = @contractId 
+	and ValueDate <= @valueDate 
+	and IntrinsicTimeTrend = 'UpTrend'
+
+	select @maxDownTrendValueDate = max(ValueDate) from futures_iti_signal 
+	where ContractId = @contractId 
+	and ValueDate <= @valueDate 
+	and IntrinsicTimeTrend = 'DownTrend'
+
+	select @avgUpTrendPredictedDelta = avg(PredictedDelta),
+			@avgUpTrendFuturesRsi = avg(FuturesRSI)
+	FROM [marketdatadb].[dbo].[futures_iti_signal]
+	where IntrinsicTimeTrend = 'UpTrend'
+	and IntrinsicTimeMode in ('TrendExtremeChanged','TrendReversalChanged','TrendDirectionChanged')
+	and ContractId = @contractId
+	and ValueDate = @maxUpTrendValueDate
+	and FuturesRSI <> -1
+	and SequenceId > (select max(SequenceId)
+					from futures_iti_signal
+					where IntrinsicTimeTrend = 'UpTrend'
+					and IntrinsicTimeMode = 'TrendDirectionChanged'
+					and ContractId = @contractId
+					and ValueDate = @maxUpTrendValueDate)
+
+	select @avgDownTrendPredictedDelta = avg(PredictedDelta) ,
+			@avgDownTrendFuturesRsi = avg(FuturesRSI)
+	FROM [marketdatadb].[dbo].[futures_iti_signal]
+	where IntrinsicTimeTrend = 'DownTrend'
+	and IntrinsicTimeMode in ('TrendExtremeChanged','TrendReversalChanged','TrendDirectionChanged')
+	and ContractId = @contractId
+	and ValueDate = @maxDownTrendValueDate
+	and FuturesRSI <> -1
+	and SequenceId > (select max(SequenceId)
+					from futures_iti_signal
+					where IntrinsicTimeTrend = 'DownTrend'
+					and IntrinsicTimeMode = 'TrendDirectionChanged'
+					and ContractId = @contractId
+					and ValueDate = @maxDownTrendValueDate)
+
+	select @contractId as ContractId,
+		   @valueDate as ValueDate,
+		   ISNULL(@avgUpTrendPredictedDelta,0) as PredictedUpTrendDelta,
+		   ISNULL(@avgDownTrendPredictedDelta,0) as PredictedDownTrendDelta,
+		   ISNULL(@avgUpTrendFuturesRsi,0) as UpTrendFuturesRsi,
+		   ISNULL(@avgDownTrendFuturesRsi,0) as DownTrendFuturesRsi
+
+END

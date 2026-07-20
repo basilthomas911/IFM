@@ -1,0 +1,64 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="coverlet.collector" Version="6.0.2" />
+		<PackageReference Include="FluentAssertions" Version="8.8.0" />
+		<PackageReference Include="Hazelcast.Net.Caching" Version="5.5.1" />
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="7.0.11" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="NSubstitute" Version="5.3.0" />
+		<PackageReference Include="Serilog" Version="4.2.0" />
+		<PackageReference Include="Serilog.AspNetCore" Version="3.2.0" />
+		<PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+		<PackageReference Include="Serilog.Sinks.Debug" Version="1.0.1" />
+		<PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+		<PackageReference Include="SimpleInjector.Integration.ServiceCollection" Version="4.10.3" />
+		<PackageReference Include="StackExchange.Redis" Version="2.8.24" />
+		<PackageReference Include="xunit" Version="2.9.2" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.8" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.8" />
+
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\TomasAI.IFM.Application.Actor.Client\TomasAI.IFM.Application.Actor.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Application.Actor.IntegrationTests\TomasAI.IFM.Application.Actor.IntegrationTests.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Application.Api.Client\TomasAI.IFM.Application.Api.Client.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Application.Blackboard\TomasAI.IFM.Application.Blackboard.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Securities\TomasAI.IFM.Domain.MarketData.Securities.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.Reference\TomasAI.IFM.Domain.Reference.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Framework.Caching.Redis\TomasAI.IFM.Framework.Caching.Redis.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Framework.Caching\TomasAI.IFM.Framework.Caching.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Framework.MarketData.InteractiveBrokers\TomasAI.IFM.Framework.MarketData.InteractiveBrokers.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.NatsJetStream\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.RestApi\TomasAI.IFM.Framework.Messaging.RestApi.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging\TomasAI.IFM.Framework.Messaging.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Framework.Serialization\TomasAI.IFM.Framework.Serialization.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Framework.Storage.Azure\TomasAI.IFM.Framework.Storage.Azure.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers\TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Service.TradePosition.HostedService\TomasAI.IFM.Service.TradePosition.HostedService.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Service.TradePosition\TomasAI.IFM.Service.TradePosition.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Shared.EventProducers\TomasAI.IFM.Shared.EventProducers.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.TradePlan.HostedService\TomasAI.IFM.Service.TradePlan.HostedService.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.TradePlan\TomasAI.IFM.Service.TradePlan.csproj" />
+	</ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>
