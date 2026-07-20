@@ -191,7 +191,7 @@ public class ScyllaDbExtensionsTests
         var result = localTime.AsMilliseconds();
 
         // Assert
-        result.Should().BeGreaterOrEqualTo(0);
+        result.Should().BeGreaterThanOrEqualTo(0);
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public class ScyllaDbExtensionsTests
         var result = localTime.AsMicroseconds();
 
         // Assert
-        result.Should().BeGreaterOrEqualTo(0);
+        result.Should().BeGreaterThanOrEqualTo(0);
     }
 
     [Fact]

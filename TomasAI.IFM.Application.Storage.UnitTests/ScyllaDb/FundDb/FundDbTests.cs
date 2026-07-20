@@ -112,7 +112,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         await db.InsertFundAsync(SampleData.Fund);
         var funds = await db.GetFundsAsync();
         funds.Should().NotBeNull();
-        funds .Count.Should().BeGreaterOrEqualTo(1);
+        funds .Count.Should().BeGreaterThanOrEqualTo(1);
         var fund = funds.Where(e => e.FundId == SampleData.Fund.FundId).SingleOrDefault();
         fund.Should().NotBeNull();
         fund.FundId.Should().Be(SampleData.Fund.FundId);
@@ -157,7 +157,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         await db.Use($"delete from fund_order where FundId = {SampleData.FundOrder.FundId}").ExecuteCommandAsync();
         await db.InsertFundOrderAsync(SampleData.FundOrder);
         var fundOrders = await db.GetFundOrdersAsync();
-        fundOrders.Count.Should().BeGreaterOrEqualTo(1);    
+        fundOrders.Count.Should().BeGreaterThanOrEqualTo(1);    
         fundOrders.Where(e => e.FundId == SampleData.FundOrder.FundId && e.OrderId == SampleData.FundOrder.OrderId ).SingleOrDefault().Should().NotBeNull();
     }
 
@@ -172,7 +172,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
          await db.DeleteFundOrderAsync(fundOrderId.FundId, fundOrderId.OrderId);
         var fundOrders = await db.GetFundOrdersAsync();
         fundOrders.Where(e => e.FundId == SampleData.FundOrder.FundId && e.OrderId == SampleData.FundOrder.OrderId).SingleOrDefault().Should().BeNull();
-        fundOrders.Count.Should().BeGreaterOrEqualTo(0);
+        fundOrders.Count.Should().BeGreaterThanOrEqualTo(0);
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         await db.Use($"delete from fund_order_trade where FundId = {SampleData.FundOrderTrade.FundId} and OrderId = {SampleData.FundOrderTrade.OrderId}").ExecuteCommandAsync();
         await db.InsertFundOrderTradeAsync(SampleData.FundOrderTrade);
         var fundOrderTrades = await db.GetFundOrderTradesAsync();
-        fundOrderTrades.Count.Should().BeGreaterOrEqualTo(1);
+        fundOrderTrades.Count.Should().BeGreaterThanOrEqualTo(1);
         fundOrderTrades.Where(e => e.FundId == SampleData.FundOrderTrade.FundId && e.OrderId == SampleData.FundOrderTrade.OrderId && e.TradeId == SampleData.FundOrderTrade.TradeId).SingleOrDefault().Should().NotBeNull();
     }
 
@@ -220,7 +220,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
             SampleData.FundTransaction.FundId,
             DateOnly.FromDateTime(SampleData.FundTransaction.TransactionDate.AddDays(-1)),
             DateOnly.FromDateTime(SampleData.FundTransaction.TransactionDate.AddDays(1)));
-        fundTransactions.Count.Should().BeGreaterOrEqualTo(1);
+        fundTransactions.Count.Should().BeGreaterThanOrEqualTo(1);
         fundTransactions.Where(e => e.FundId == SampleData.FundTransaction.FundId && e.OrderId == SampleData.FundTransaction.OrderId && e.TradeId == SampleData.FundTransaction.TradeId).SingleOrDefault().Should().NotBeNull();
     }
 
@@ -244,7 +244,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
             SampleData.FundTransaction.FundId,
             SampleData.FundTransaction.ValueDate.AddDays(-1),
             SampleData.FundTransaction.ValueDate.AddDays(1));
-        fundPnl.Count.Should().BeGreaterOrEqualTo(1);
+        fundPnl.Count.Should().BeGreaterThanOrEqualTo(1);
     }
 
     [Fact]
@@ -260,7 +260,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
             .ExecuteCommandAsync();
         await db.InsertFundAsync(SampleData.Fund);
         var fundBalance = await db.GetFundBalanceAsync(fundId);
-        fundBalance.Should().BeGreaterOrEqualTo(SampleData.Fund.Balance);
+        fundBalance.Should().BeGreaterThanOrEqualTo(SampleData.Fund.Balance);
     }
 
     [Fact]

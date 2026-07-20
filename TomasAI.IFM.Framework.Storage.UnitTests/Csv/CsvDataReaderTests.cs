@@ -498,7 +498,7 @@ public class CsvDataReaderTests
         var result = reader.GetOrdinal("Name");
 
         // Assert
-        result.Should().BeGreaterOrEqualTo(0);
+        result.Should().BeGreaterThanOrEqualTo(0);
     }
 
     [Fact]

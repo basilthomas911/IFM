@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Framework.Storage.UnitTests.Csv;
 public class CsvObjectDataReaderTests
 {
     [Fact]
-    public void ReadAsync_ThrowsNotImplementedException()
+    public async Task ReadAsync_ThrowsNotImplementedException()
     {
         // Arrange
         var mockDataReader = Substitute.For<ICsvDataReader>();
@@ -21,6 +21,6 @@ public class CsvObjectDataReaderTests
         Func<Task> act = () => reader.ReadAsync();
 
         // Assert
-        act.Should().Throw<NotImplementedException>();
+        await act.Should().ThrowAsync<NotImplementedException>();
     }
 }

@@ -665,7 +665,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
 
         // Assert
         result.Should().NotBeNull();
-        result.Should().HaveCountGreaterOrEqualTo(2);
+        result.Should().HaveCountGreaterThanOrEqualTo(2);
         result.Should().Contain(signal => signal.ContractId == $"{SampleData.FuturesContract1.ContractId}");
         result.Should().Contain(signal => signal.ContractId == $"{SampleData.FuturesContract2.ContractId}");
     }
@@ -693,7 +693,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
 
         // Assert
         result.Should().NotBeNull();
-        result.Should().HaveCountGreaterOrEqualTo(2);
+        result.Should().HaveCountGreaterThanOrEqualTo(2);
         result.Should().OnlyContain(signal => signal.ContractId == $"{SampleData.FuturesContract1.ContractId}");
     }
 
@@ -785,7 +785,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
 
         // Assert
         result.Should().NotBeNull();
-        result.Count.Should().BeGreaterOrEqualTo(2);
+        result.Count.Should().BeGreaterThanOrEqualTo(2);
         result.Should().Contain(x => x.ContractId == SampleData.FuturesContract1.ContractId);
         result.Should().Contain(x => x.ContractId == SampleData.FuturesContract2.ContractId);
     }
@@ -814,12 +814,12 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
 
         // Assert
         result.Should().NotBeNull();
-        result.Count.Should().BeGreaterOrEqualTo(2);
+        result.Count.Should().BeGreaterThanOrEqualTo(2);
         result.Maximum.Should().Be(2);
         result.Minimum.Should().Be(1);
         result.Mean.Should().BeGreaterThan(1.0);
-        result.Median.Should().BeGreaterOrEqualTo(0.0);
-        result.Skewness.Should().BeGreaterOrEqualTo(0.0);
+        result.Median.Should().BeGreaterThanOrEqualTo(0.0);
+        result.Skewness.Should().BeGreaterThanOrEqualTo(0.0);
         result.StdDev.Should().NotBe(0);
         result.Variance.Should().NotBe(0);
     }

@@ -51,7 +51,7 @@ public class FundTransactionCommandTests
         var result = command.Execute(state);
 
         // Assert - Then a FundTransactionEvent is recorded with the expected balance update
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().ContainSingle(e => e is FundTransactionEvent);
         var fundTxEvent = state.Events.OfType<FundTransactionEvent>().First();
         fundTxEvent.FundTransaction.FundId.Should().Be(fundTransaction.FundId);
@@ -71,7 +71,7 @@ public class FundTransactionCommandTests
         var result = command.Execute(state);
 
         // Assert - Then the balance is reduced by the withdrawal amount
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         var fundTxEvent = state.Events.OfType<FundTransactionEvent>().First();
         fundTxEvent.FundTransaction.Balance.Should().Be(800m);
     }
@@ -111,7 +111,7 @@ public class FundTransactionCommandTests
         var result = command.Execute(state);
 
         // Assert - Then no fund transaction event is recorded and the state update reflects the null event
-        result.Should().BeFalse();
+        result.Success.Should().BeFalse();
         state.Events.Should().BeEmpty();
     }
 
@@ -136,7 +136,7 @@ public class FundTransactionCommandTests
         var result = command.Execute(state);
 
         // Assert - Then a FundTransactionsEvent is recorded with accumulated balances
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().ContainSingle(e => e is FundTransactionsEvent);
         var evt = state.Events.OfType<FundTransactionsEvent>().First();
         evt.FundTransactions.Should().HaveCount(2);
@@ -160,7 +160,7 @@ public class FundTransactionCommandTests
         var result = command.Execute(state);
 
         // Assert - Then the balance is reduced by the withdrawal amount
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         var evt = state.Events.OfType<FundTransactionsEvent>().First();
         evt.FundTransactions![0].Balance.Should().Be(400m);
     }
@@ -225,7 +225,7 @@ public class FundTransactionCommandTests
         var result = command.Execute(state);
 
         // Assert - Then an EndOfDayFundTransactionProcessedEvent is recorded
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().Contain(e => e is EndOfDayFundTransactionProcessedEvent);
         var evt = state.Events.OfType<EndOfDayFundTransactionProcessedEvent>().First();
         evt.FundTransaction.TransactionType.Should().Be(FundTransactionType.UnrealizedTradePnl);

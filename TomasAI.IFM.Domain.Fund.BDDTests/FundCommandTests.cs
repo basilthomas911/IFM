@@ -39,7 +39,7 @@ public class FundCommandTests
         var result = command!.Execute(state);
 
         // Assert - Then return FundCreatedEvent
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().NotBeNullOrEmpty();
         state.Events.Should().ContainSingle(e => e is FundCreatedEvent);
 
@@ -117,7 +117,7 @@ public class FundCommandTests
         var result = command!.Execute(state);
 
         // Assert - Then return OrderAddedToFundEvent
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().NotBeNullOrEmpty();
         state.Events.Should().Contain(e => e is OrderAddedToFundEvent);
 
@@ -279,7 +279,7 @@ public class FundCommandTests
         var result = command!.Execute(state);
 
         // Assert - Then return TradeAddedToFundOrderEvent
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().NotBeNullOrEmpty();
         state.Events.Should().Contain(e => e is TradeAddedToFundOrderEvent);
 
@@ -516,7 +516,7 @@ public class FundCommandTests
         var result = command!.Execute(state);
 
         // Assert - Then return FundOrderTradeStateChangedEvent
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().NotBeNullOrEmpty();
         state.Events.Should().Contain(e => e is FundOrderTradeStateChangedEvent);
 
@@ -705,7 +705,7 @@ public class FundCommandTests
         var result = command!.Execute(state);
 
         // Assert - Then return OrderRemovedFromFundEvent
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().NotBeNullOrEmpty();
         state.Events.Should().Contain(e => e is OrderRemovedFromFundEvent);
 
@@ -836,7 +836,7 @@ public class FundCommandTests
         var result = command!.Execute(state);
 
         // Assert - Then return TradeRemovedFromFundOrderEvent
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().NotBeNullOrEmpty();
         state.Events.Should().Contain(e => e is TradeRemovedFromFundOrderEvent);
 

@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Framework.Storage.UnitTests.Json;
 public class JsonObjectDataReaderTests
 {
     [Fact]
-    public void ReadAsync_ThrowsNotImplementedException()
+    public async Task ReadAsync_ThrowsNotImplementedException()
     {
         // Arrange
         var mockDataReader = Substitute.For<IJsonDataReader>();
@@ -22,6 +22,6 @@ public class JsonObjectDataReaderTests
         Func<Task> act = () => reader.ReadAsync();
 
         // Assert
-        act.Should().Throw<NotImplementedException>();
+        await act.Should().ThrowAsync<NotImplementedException>();
     }
 }

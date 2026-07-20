@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="8.10.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Shared.Domain\TomasAI.IFM.Shared.Domain.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
