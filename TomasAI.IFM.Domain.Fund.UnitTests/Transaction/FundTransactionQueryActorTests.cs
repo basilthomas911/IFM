@@ -310,9 +310,10 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task OnExceptionAsync_GivenNullContext_WhenExceptionOccurs_ThenSwallowsArgumentNullException()
+    public async Task OnExceptionAsync_GivenNullContext_WhenExceptionOccurs_ThenThrowsArgumentNullException()
     {
-        // Arrange - the try/catch inside OnExceptionAsync catches the ArgumentNullException raised by IsArgumentNull.Check
+        // Arrange - the IsArgumentNull.Check guards run before the try/catch, so a null context
+        // is a programming error that must propagate rather than being silently logged.
         var (dbFactory, _) = CreateDbFactory();
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
         var query = CreateQuery();
@@ -322,7 +323,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         Func<Task> act = async () => await actor.InvokeOnExceptionAsync(null!, query.Subject.ThreadId, query, GetFundTransactionsQuery.Verb, ex);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     #endregion

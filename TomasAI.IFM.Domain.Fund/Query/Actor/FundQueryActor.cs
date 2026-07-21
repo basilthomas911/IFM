@@ -189,13 +189,13 @@ public class FundQueryActor(
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported or cannot be processed by the actor.</exception>
     protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(threadId);
+        IsArgumentNull.Check(query);
+        IsArgumentNull.Check(verb);
+        IsArgumentNull.Check(ex.Message);
         try
         {
-            IsArgumentNull.Check(context);
-            IsArgumentNull.Check(threadId);
-            IsArgumentNull.Check(query);
-            IsArgumentNull.Check(verb);
-            IsArgumentNull.Check(ex.Message);
             var serviceResultTask = default(ValueTask) switch
             {
                 _ when query is GetClosingFundBalanceQuery 

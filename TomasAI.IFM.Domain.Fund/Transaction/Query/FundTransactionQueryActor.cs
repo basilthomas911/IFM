@@ -117,12 +117,12 @@ public class FundTransactionQueryActor(
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
     protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(threadId);
+        IsArgumentNull.Check(query);
+        IsArgumentNull.Check(verb);
         try
         {
-            IsArgumentNull.Check(context);
-            IsArgumentNull.Check(threadId);
-            IsArgumentNull.Check(query);
-            IsArgumentNull.Check(verb);
             var serviceResultTask = default(ValueTask) switch
             {
                 _ when query is GetFundTransactionsQuery
