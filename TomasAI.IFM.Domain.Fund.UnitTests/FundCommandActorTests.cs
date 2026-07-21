@@ -505,7 +505,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_CloseFundOrderCommand_ThrowsWhenFundDoesNotExist()
+    public async Task ReceiveAsync_CloseFundOrderCommand_ReturnsFailedResultWhenFundDoesNotExist()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -530,14 +530,15 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, fundState, cmd);
+        var result = await actor.InvokeReceiveAsync(context, fundState, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<CloseFundOrderException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"fundId {closeFundOrderId.FundId} does not exist");
     }
 
     [Fact]
-    public async Task ReceiveAsync_CloseFundOrderCommand_ThrowsWhenFundIdMismatch()
+    public async Task ReceiveAsync_CloseFundOrderCommand_ReturnsFailedResultWhenFundIdMismatch()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -565,14 +566,15 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, fundState, cmd);
+        var result = await actor.InvokeReceiveAsync(context, fundState, cmd);
 
-        // Assert
-        await act.Should().ThrowAsync<CloseFundOrderException>();
+        // Assert - the fund exists (under a different fund id) but the order does not exist for this fund id
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"orderId {closeFundOrderId.OrderId} does not exist");
     }
 
     [Fact]
-    public async Task ReceiveAsync_CloseFundOrderCommand_ThrowsWhenOrderDoesNotExist()
+    public async Task ReceiveAsync_CloseFundOrderCommand_ReturnsFailedResultWhenOrderDoesNotExist()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -600,14 +602,15 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, fundState, cmd);
+        var result = await actor.InvokeReceiveAsync(context, fundState, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<CloseFundOrderException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"orderId {closeFundOrderId.OrderId} does not exist");
     }
 
     [Fact]
-    public async Task ReceiveAsync_CloseFundOrderCommand_ThrowsWhenOrderAlreadyClosed()
+    public async Task ReceiveAsync_CloseFundOrderCommand_ReturnsFailedResultWhenOrderAlreadyClosed()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -641,10 +644,11 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, fundState, cmd);
+        var result = await actor.InvokeReceiveAsync(context, fundState, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<CloseFundOrderException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"orderId {closeFundOrderId.OrderId} is already closed");
     }
 
     [Fact]
@@ -745,7 +749,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_RemoveTradeFromFundOrderCommand_ThrowsWhenTradeIdDoesNotExist()
+    public async Task ReceiveAsync_RemoveTradeFromFundOrderCommand_ReturnsFailedResultWhenTradeIdDoesNotExist()
     {
         // Arrange - Given: An existing fund order trade
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -782,10 +786,11 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, fundState, cmd);
+        var result = await actor.InvokeReceiveAsync(context, fundState, cmd);
 
-        // Assert - Then: Return RemoveTradeFromFundOrderException
-        await act.Should().ThrowAsync<RemoveTradeFromFundOrderException>();
+        // Assert - Then: Return a failed result with a trade-does-not-exist error message
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"tradeId {nonExistingTradeId} does not exist");
     }
 
     #region ParseMessage Additional Tests
@@ -910,7 +915,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_AddOrderToFundCommand_ThrowsWhenFundDoesNotExist()
+    public async Task ReceiveAsync_AddOrderToFundCommand_ReturnsFailedResultWhenFundDoesNotExist()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FundCommandActor>>();
@@ -928,10 +933,11 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<AddOrderToFundException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"fundId {SampleData.FundOrder.FundId} does not exist");
     }
 
     [Fact]
@@ -966,7 +972,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_AddTradeToFundOrderCommand_ThrowsWhenFundOrderDoesNotExist()
+    public async Task ReceiveAsync_AddTradeToFundOrderCommand_ReturnsFailedResultWhenFundOrderDoesNotExist()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FundCommandActor>>();
@@ -987,10 +993,11 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<AddTradeToFundOrderException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"orderId {SampleData.FundOrderTrade.OrderId} does not exist");
     }
 
     [Fact]
@@ -1027,7 +1034,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_ChangeFundOrderTradeStateCommand_ThrowsWhenTradeDoesNotExist()
+    public async Task ReceiveAsync_ChangeFundOrderTradeStateCommand_ReturnsFailedResultWhenTradeDoesNotExist()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FundCommandActor>>();
@@ -1050,10 +1057,11 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<ChangeFundOrderTradeStateException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"tradeId {tradeId.TradeId} does not exist within order {tradeId.OrderId}");
     }
 
     [Fact]
@@ -1089,7 +1097,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_RemoveOrderFromFundCommand_ThrowsWhenOrderDoesNotExist()
+    public async Task ReceiveAsync_RemoveOrderFromFundCommand_ReturnsFailedResultWhenOrderDoesNotExist()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FundCommandActor>>();
@@ -1111,10 +1119,11 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<RemoveOrderFromFundException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"orderId {orderId.OrderId} does not exist within fund: {orderId.FundId}");
     }
 
     [Fact]
@@ -1148,7 +1157,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_GenerateFundMaxProfitCommand_ThrowsWhenFundDoesNotExist()
+    public async Task ReceiveAsync_GenerateFundMaxProfitCommand_ReturnsFailedResultWhenFundDoesNotExist()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FundCommandActor>>();
@@ -1166,14 +1175,15 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<GenerateFundRiskMarginException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"fundId {SampleData.FundOrder.FundId} does not exist");
     }
 
     [Fact]
-    public async Task ReceiveAsync_CreateFundCommand_ThrowsWhenFundAlreadyExists()
+    public async Task ReceiveAsync_CreateFundCommand_ReturnsFailedResultWhenFundAlreadyExists()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FundCommandActor>>();
@@ -1193,10 +1203,11 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<CreateFundException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain($"fundId {SampleData.Fund.FundId} already exists");
     }
 
     [Fact]

@@ -20,6 +20,9 @@ public static class CreateFundTransactions
     /// <returns>True when the state was updated successfully; otherwise false.</returns>
     public static ServiceResult<GuidResult> Execute(this CreateFundTransactionsCommand e, FundTransactionCommandState state)
     {
+        if (e.FundTransactions is null || e.FundTransactions.Length == 0)
+            return e.UpdateFailed($"{e.CommandName}: fund transactions is empty");
+
         var currentBalance = state.GetCurrentBalance(e.FundTransactions[0].FundId);
         try
         {

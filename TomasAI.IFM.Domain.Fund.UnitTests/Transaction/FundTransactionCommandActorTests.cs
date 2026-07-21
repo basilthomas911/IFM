@@ -313,7 +313,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_ProcessEndOfDayFundTransactionCommand_ThrowsWhenTransactionDoesNotExist()
+    public async Task ReceiveAsync_ProcessEndOfDayFundTransactionCommand_ReturnsFailedResultWhenTransactionDoesNotExist()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
@@ -327,10 +327,11 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<ProcessEndOfDayFundTransactionException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("does not exist");
     }
 
     [Fact]
@@ -409,7 +410,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_CreateFundTransactionCommand_ThrowsCreateFundTransactionException_WhenTransactionTypeIsUnsupported()
+    public async Task ReceiveAsync_CreateFundTransactionCommand_ReturnsFailedResultWhenTransactionTypeIsUnsupported()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
@@ -424,14 +425,15 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("does not exist");
     }
 
     [Fact]
-    public async Task ReceiveAsync_CreateFundTransactionsCommand_ThrowsCreateFundTransactionException_WhenAnyTransactionTypeIsUnsupported()
+    public async Task ReceiveAsync_CreateFundTransactionsCommand_ReturnsFailedResultWhenAnyTransactionTypeIsUnsupported()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
@@ -446,14 +448,15 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
-        // Assert
-        await act.Should().ThrowAsync<CreateFundTransactionException>();
+        // Assert - the CreateFundTransactionException raised internally while building the batch is caught and converted to a failed result
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("Unsupported fund transaction type");
     }
 
     [Fact]
-    public async Task ReceiveAsync_ProcessEndOfDayFundTransactionCommand_ThrowsWhenTransactionTypeIsNotUnrealizedTradePnl()
+    public async Task ReceiveAsync_ProcessEndOfDayFundTransactionCommand_ReturnsFailedResultWhenTransactionTypeIsNotUnrealizedTradePnl()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
@@ -472,10 +475,11 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<ProcessEndOfDayFundTransactionException>();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("transaction type must be UnrealizedTradePnl");
     }
 
     [Fact]

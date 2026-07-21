@@ -190,20 +190,18 @@ public class FundTransactionCommandTests
     }
 
     [Fact]
-    public void CreateFundTransactionsCommand_GivenEmptyTransactionArray_WhenConstructed_ThenThrowsArgumentOutOfRangeException()
+    public void CreateFundTransactionsCommand_GivenEmptyTransactionArray_WhenExecuted_ThenReturnsFailedResultWithEmptyMessage()
     {
         // Arrange - Given an empty array of fund transactions
         var fundTransactions = Array.Empty<FundTransactionReadModel>();
+        var command = new CreateFundTransactionsCommand(new FundTransactionEntityId(0, 0), fundTransactions);
 
-        // Act - When constructing CreateFundTransactionsCommand and executing it (accesses index 0)
-        Action act = () =>
-        {
-            var cmd = new CreateFundTransactionsCommand(new FundTransactionEntityId(0, 0), fundTransactions);
-            cmd.Execute(CreateState());
-        };
+        // Act - When executing CreateFundTransactionsCommand with an empty batch
+        var result = command.Execute(CreateState());
 
-        // Assert - Then throws because there is no first transaction to derive current balance from
-        act.Should().Throw<IndexOutOfRangeException>();
+        // Assert - Then return a failed result because there is no first transaction to derive current balance from, and no exception thrown
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("fund transactions is empty");
     }
 
     #endregion
