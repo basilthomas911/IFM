@@ -54,9 +54,9 @@ public class SystemAdminCommandActor(
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject.ToSubject();
         if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.ContainsKey(msgSubject.Verb))
+            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = _parseMap[msgSubject.Verb](message);
+        var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
         _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
         return command;
@@ -87,9 +87,9 @@ public class SystemAdminCommandActor(
         IsArgumentNull.Check(cmd);
         var systemAdminState = IsArgumentNull.Set((state as SystemAdminCommandState)!);
         var cmdName = cmd.GetType().Name;
-        _ = _receiveMap.ContainsKey(cmdName)
-            ? _receiveMap[cmdName](cmd, context, systemAdminState)
-            : throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
+            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        _ = receiveFunc.Invoke(cmd, context, systemAdminState);
         return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
     }
 
@@ -115,10 +115,11 @@ public class SystemAdminCommandActor(
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
         var cmdName = cmd.GetType().Name;
-        var validationErrors = _validationMap.ContainsKey(cmdName)
-            ? _validationMap[cmdName](cmd)
-            : throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        validationErrors.ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
+            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
+        getValidationErrors
+            .Invoke(cmd)
+            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
     /// <summary>

@@ -67,9 +67,9 @@ public class FuturesContractCommandActor(
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject.ToSubject();
         if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.ContainsKey(msgSubject.Verb))
+            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = _parseMap[msgSubject.Verb](message);
+        var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
         _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
         return command;
@@ -107,9 +107,9 @@ public class FuturesContractCommandActor(
         IsArgumentNull.Check(cmd);
         var futuresContractState = IsArgumentNull.Set((state as FuturesContractCommandState)!);
         var cmdName = cmd.GetType().Name;
-        _ = _receiveMap.ContainsKey(cmdName)
-            ? _receiveMap[cmdName](cmd, context, futuresContractState)
-            : throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
+            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        _ = receiveFunc.Invoke(cmd, context, futuresContractState);
         return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
     }
 
@@ -144,10 +144,11 @@ public class FuturesContractCommandActor(
         IsArgumentNull.Check(cmd);
         var refLookupService = IsArgumentNull.Set(context.Container.Resolve<IReferenceLookupService>());
         var cmdName = cmd.GetType().Name;
-        var validationErrors = _validationMap.ContainsKey(cmdName)
-            ? _validationMap[cmdName](cmd, refLookupService)
-            : throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        validationErrors.ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
+            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
+        getValidationErrors
+            .Invoke(cmd, refLookupService)
+            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
     /// <summary>

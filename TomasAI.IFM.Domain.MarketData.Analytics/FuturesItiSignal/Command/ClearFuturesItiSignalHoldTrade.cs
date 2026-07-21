@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
@@ -18,9 +19,14 @@ public static class ClearFuturesItiSignalHoldTrade
     /// </summary>
     /// <param name="e">The clear hold-trade command to execute.</param>
     /// <param name="state">The current actor command state.</param>
-    /// <returns><see langword="true"/> if the state was successfully updated; otherwise, <see langword="false"/>.</returns>
-    public static bool Execute(this ClearFuturesItiSignalHoldTradeCommand e, FuturesItiSignalCommandState state)
-        => state.Exists(e.EntityId) && state.IsTradeInHoldState && state.Update(e.CreateClearHoldTradeEvent(state), e);
+    /// <returns>A <see cref="ServiceResult{GuidResult}"/> indicating whether the state was successfully updated.</returns>
+    public static ServiceResult<GuidResult> Execute(this ClearFuturesItiSignalHoldTradeCommand e, FuturesItiSignalCommandState state)
+    {
+        var updated = state.Exists(e.EntityId) && state.IsTradeInHoldState && state.Update(e.CreateClearHoldTradeEvent(state), e);
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(e.CommandId))
+            : e.UpdateFailed($"{e.CommandName}: unable to clear hold-trade state");
+    }
 
     /// <summary>
     /// Creates a futures ITI signal generated event for clearing hold-trade state.

@@ -41,9 +41,9 @@ public class FuturesTdiSignalEventActor(
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject.ToSubject();
         if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.ContainsKey(msgSubject.Verb))
+            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             return default!;
-        var @event = _parseMap[msgSubject.Verb](message);
+        var @event = messageParser.Invoke(message);
         IsArgumentNull.Check(@event);
         @event.CheckForEmptyCommandId();
         return @event;
@@ -71,9 +71,9 @@ public class FuturesTdiSignalEventActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
-        _ = _receiveMap.ContainsKey(eventName)
-            ? await _receiveMap[eventName](@event, context, statusConsoleWriter, logger)
-            : throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
+            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        _ = await receiveFunc.Invoke(@event, context, statusConsoleWriter, logger);
     }
 
     /// <summary>

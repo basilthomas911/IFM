@@ -55,9 +55,9 @@ public class FuturesItiSignalCommandActor(
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject.ToSubject();
         if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.ContainsKey(msgSubject.Verb))
+            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = _parseMap[msgSubject.Verb](message);
+        var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
         _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
         return command;
@@ -90,17 +90,16 @@ public class FuturesItiSignalCommandActor(
         IsArgumentNull.Check(cmd);
         var itiSignalState = IsArgumentNull.Set((state as FuturesItiSignalCommandState)!);
         var cmdName = cmd.GetType().Name;
-        _ = _receiveMap.ContainsKey(cmdName)
-            ? _receiveMap[cmdName](cmd, context, itiSignalState)
-            : throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
+            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        return await ValueTask.FromResult(receiveFunc.Invoke(cmd, context, itiSignalState));
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures ITI signal
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesItiSignalCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesItiSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(GenerateFuturesItiSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesItiSignalCommand)!.Execute(state),
         [typeof(ClearFuturesItiSignalHoldTradeCommand).Name] = (cmd, context, state) => (cmd as ClearFuturesItiSignalHoldTradeCommand)!.Execute(state),
@@ -120,10 +119,11 @@ public class FuturesItiSignalCommandActor(
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
         var cmdName = cmd.GetType().Name;
-        var validationErrors = _validationMap.ContainsKey(cmdName)
-            ? _validationMap[cmdName](cmd)
-            : throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        validationErrors.ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
+            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
+        getValidationErrors
+            .Invoke(cmd)
+            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
     /// <summary>

@@ -140,10 +140,11 @@ public class FundTransactionCommandActor(
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
         var cmdName = cmd.GetType().Name;
-        var validationErrors = _validationMap.ContainsKey(cmdName)
-            ? _validationMap[cmdName](cmd)
-            : throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        validationErrors.ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
+            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
+        getValidationErrors
+            .Invoke(cmd)
+            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
     /// <summary>

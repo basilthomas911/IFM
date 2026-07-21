@@ -41,9 +41,9 @@ public class FundQueryActor(
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject.ToSubject();
         if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.ContainsKey(msgSubject.Verb))
+            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = _parseMap[msgSubject.Verb](message);
+        var query = messageParser.Invoke(message);
         IsArgumentNull.Check(query);
         context.SetMessageInfo(
             msgSubject.ThreadId,

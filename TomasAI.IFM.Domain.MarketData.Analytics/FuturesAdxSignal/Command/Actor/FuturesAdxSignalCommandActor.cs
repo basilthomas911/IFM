@@ -12,7 +12,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.Actor;
 
 /// <summary>
 /// Represents an actor responsible for managing futures ADX signal commands and state within an event-sourced system.
@@ -55,9 +55,9 @@ public class FuturesAdxSignalCommandActor(
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject.ToSubject();
         if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.ContainsKey(msgSubject.Verb))
+            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = _parseMap[msgSubject.Verb](message);
+        var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
         _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
         return command;
@@ -89,10 +89,9 @@ public class FuturesAdxSignalCommandActor(
         IsArgumentNull.Check(cmd);
         var adxSignalState = IsArgumentNull.Set((state as FuturesAdxSignalCommandState)!);
         var cmdName = cmd.GetType().Name;
-        var result = _receiveMap.ContainsKey(cmdName)
-            ? _receiveMap[cmdName](cmd, context, adxSignalState)
-            : throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        return await ValueTask.FromResult(result);
+        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
+            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        return await ValueTask.FromResult(receiveFunc.Invoke(cmd, context, adxSignalState));
     }
 
     /// <summary>
@@ -118,10 +117,11 @@ public class FuturesAdxSignalCommandActor(
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
         var cmdName = cmd.GetType().Name;
-        var validationErrors = _validationMap.ContainsKey(cmdName)
-            ? _validationMap[cmdName](cmd)
-            : throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        validationErrors.ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
+            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
+        getValidationErrors
+            .Invoke(cmd)
+            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
     /// <summary>

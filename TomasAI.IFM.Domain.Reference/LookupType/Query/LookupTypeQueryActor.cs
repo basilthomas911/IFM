@@ -34,9 +34,9 @@ public class LookupTypeQueryActor(
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject.ToSubject();
         if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.ContainsKey(msgSubject.Verb))
+            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = _parseMap[msgSubject.Verb](message);
+        var query = messageParser.Invoke(message);
         IsArgumentNull.Check(query);
         context.SetMessageInfo(
             msgSubject.ThreadId,
@@ -79,10 +79,9 @@ public class LookupTypeQueryActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
-        var resultTask = _receiveMap.ContainsKey(qryName)
-            ? _receiveMap[qryName](context, dbFactory, query)
-            : throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await resultTask;
+        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
+            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        await receiveFunc.Invoke(context, dbFactory, query);
     }
 
     /// <summary>

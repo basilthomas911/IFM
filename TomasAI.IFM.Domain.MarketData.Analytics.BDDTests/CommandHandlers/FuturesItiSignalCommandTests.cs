@@ -61,7 +61,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Updated.Should().BeTrue();
         state.Events.Should().ContainSingle();
         var signal = LastSignal(state);
@@ -103,7 +103,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().HaveCount(2);
         LastSignal(state).IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendDirectionChanged);
     }
@@ -122,7 +122,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         var signal = LastSignal(state);
         signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
         signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendExtremeChanged);
@@ -149,7 +149,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         var signal = LastSignal(state);
         signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendReversalChanged);
         signal.TrendReversal.Should().Be(reversalPrice);
@@ -176,7 +176,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         var signal = LastSignal(state);
         signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.Trending);
         signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
@@ -202,7 +202,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         var signal = LastSignal(state);
         signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendDirectionChanged);
         signal.TradeState.Should().Be(IntrinsicTimeTradeState.Ready);
@@ -227,7 +227,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         var signal = LastSignal(state);
         signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
         signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendExtremeChanged);
@@ -257,7 +257,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         var signal = LastSignal(state);
         signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendReversalChanged);
         signal.TrendReversal.Should().Be(reversalPrice);
@@ -279,7 +279,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         LastSignal(state).TradeState.Should().Be(IntrinsicTimeTradeState.Hold);
     }
 
@@ -300,7 +300,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeFalse();
+        result.Success.Should().BeFalse();
         state.Events.Should().HaveCount(eventCountBefore);
         LastSignal(state).TradeState.Should().Be(IntrinsicTimeTradeState.Hold);
     }
@@ -316,7 +316,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeFalse();
+        result.Success.Should().BeFalse();
         state.Events.Should().BeEmpty();
     }
 
@@ -338,7 +338,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         LastSignal(state).TradeState.Should().Be(IntrinsicTimeTradeState.Ready);
     }
 
@@ -357,7 +357,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeFalse();
+        result.Success.Should().BeFalse();
         state.Events.Should().HaveCount(eventCountBefore);
     }
 
@@ -372,7 +372,7 @@ public class FuturesItiSignalCommandTests
         var result = command.Execute(state);
 
         // Then
-        result.Should().BeFalse();
+        result.Success.Should().BeFalse();
         state.Events.Should().BeEmpty();
     }
 

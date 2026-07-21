@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
