@@ -75,14 +75,12 @@ public class YieldCurveRateQueryActor(
     /// to their corresponding handler functions. Each handler executes the query against the yield curve rate query state and
     /// returns the appropriate result.</remarks>
     /// <param name="context">The context in which the query is being processed, providing access to actor-specific information.</param>
-    /// <param name="state">The current state of the actor, which must be of type <see cref="YieldCurveRateQueryState"/>.</param>
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
     {
         IsArgumentNull.Check(context);
-        IsArgumentNull.Check(state);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))

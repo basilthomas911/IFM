@@ -17,9 +17,7 @@ public interface IEventActor<TActor> : IActor<TActor>
     ValueTask OnStartup(IEventActorContext context);
     ValueTask OnShutdown(IEventActorContext context);
     ValueTask OnValidateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event);
-    ValueTask<IActorState> OnLoadStateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event);
-    ValueTask OnSaveStateAsync(IEventActorContext context, IActorState state, IEvent @event);
-    ValueTask ReceiveAsync(IEventActorContext context, IActorState state, IEvent @event);
+    ValueTask ReceiveAsync(IEventActorContext context, IEvent @event);
     ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex);
 }
 

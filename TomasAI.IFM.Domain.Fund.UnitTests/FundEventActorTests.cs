@@ -132,11 +132,9 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IActorState state, IEvent @event)
-            => await ReceiveAsync(context, state, @event);
+        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+            => await ReceiveAsync(context, @event);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event)
-            => await OnLoadStateAsync(context, threadId, @event);
 
         public async ValueTask InvokeOnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
             => await OnExceptionAsync(context, threadId, @event, ex);
@@ -194,7 +192,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
 
         var @event = SampleData.FundMaxProfitGeneratedEvent;
 
-        await actor.InvokeReceiveAsync(mockContext, default, @event);
+        await actor.InvokeReceiveAsync(mockContext, @event);
 
         await mockContext.Received(1).SendAsync<FundMaxProfitGeneratedCompleteEvent, FundId>(
             Arg.Is<FundMaxProfitGeneratedCompleteEvent>(e => e.FundMaxProfit != null));
@@ -215,7 +213,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
 
         var @event = SampleData.FundMaxProfitGeneratedEvent;
 
-        await actor.InvokeReceiveAsync(mockContext, default, @event);
+        await actor.InvokeReceiveAsync(mockContext, @event);
 
         await mockContext.Received(1).SendAsync<FundMaxProfitGeneratedFailEvent, FundId>(Arg.Any<FundMaxProfitGeneratedFailEvent>());
     }
@@ -229,7 +227,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
 
         var @event = SampleData.FundMaxProfitGeneratedEvent;
 
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, default, @event);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, @event);
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
@@ -241,7 +239,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
         var mockContext = Substitute.For<IEventActorContext>();
 
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, default, null!);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, null!);
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
@@ -256,7 +254,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var unknownEvent = Substitute.For<IEvent>();
         unknownEvent.Subject.Returns(new ActorSubject(ActorType.Event, FundEventActor.Actor, "UnknownVerb", "123"));
 
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, default, unknownEvent);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, unknownEvent);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FundEventActor.Actor} event from message:*");

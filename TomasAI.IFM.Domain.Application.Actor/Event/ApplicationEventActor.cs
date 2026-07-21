@@ -55,11 +55,10 @@ public class ApplicationEventActor(IActorSupervisor supervisor, ILogger<Applicat
     /// Handles the execution of a received event by invoking the corresponding processing function based on the event's
     /// </summary>
     /// <param name="context"></param>
-    /// <param name="state"></param>
     /// <param name="event"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IActorState state, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);

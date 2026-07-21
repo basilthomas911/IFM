@@ -76,14 +76,12 @@ public class EconomicCalendarQueryActor(
     /// to their corresponding handler functions. Each handler executes the query against the economic calendar query state and
     /// returns the appropriate result.</remarks>
     /// <param name="context">The context in which the query is being processed, providing access to actor-specific information.</param>
-    /// <param name="state">The current state of the actor, which must be of type <see cref="EconomicCalendarQueryState"/>.</param>
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported or cannot be processed by the actor.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
     {
         IsArgumentNull.Check(context);
-        IsArgumentNull.Check(state);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))

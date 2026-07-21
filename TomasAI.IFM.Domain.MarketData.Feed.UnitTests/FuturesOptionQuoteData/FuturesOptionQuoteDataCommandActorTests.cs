@@ -810,7 +810,13 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var refLookupService = Substitute.For<IReferenceLookupService>();
+        var contract = SampleData.FuturesOptionContracts[0];
+        refLookupService.SymbolExists(contract.Symbol).Returns(true);
+        refLookupService.CurrencyExists(contract.Currency).Returns(true);
+        refLookupService.ExchangeExists(contract.Exchange).Returns(true);
+        refLookupService.MultiplierExists(contract.Multiplier).Returns(true);
+        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger, refLookupService);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)

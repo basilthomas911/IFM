@@ -37,8 +37,8 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
@@ -161,7 +161,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         var query = CreateQuery();
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -185,7 +185,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         var query = CreateQuery();
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -204,7 +204,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         var unsupportedQuery = Substitute.For<IQuery>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, default!, unsupportedQuery);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, unsupportedQuery);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>();
@@ -219,7 +219,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         var query = CreateQuery();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, default!, query);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, query);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -234,7 +234,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         var context = CreateContext();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, default!, null!);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();

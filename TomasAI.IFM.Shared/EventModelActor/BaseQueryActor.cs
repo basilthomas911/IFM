@@ -90,11 +90,10 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     }
 
     /// <summary>
-    /// Handles an incoming message for the actor, performing validation, state management, and message processing.
+    /// Handles an incoming message for the actor, performing validation and message processing.
     /// </summary>
-    /// <remarks>This method validates the message to ensure it is intended for the current actor, processes
-    /// the message, and manages the actor's state by loading, updating, and saving it. If an exception occurs during
-    /// processing, it is handled by invoking the exception handler.</remarks>
+    /// <remarks>This method validates the message to ensure it is intended for the current actor and processes
+    /// the message. If an exception occurs during processing, it is handled by invoking the exception handler.</remarks>
     /// <param name="message">The message to be processed, containing the subject and entity information.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
@@ -121,15 +120,8 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
             /// check if the message is a command and validate it
             await OnValidateAsync(_context!, query);
 
-            /// load the current state, process the message, and save the updated state
-            var state = await OnLoadStateAsync(_context!, threadId, query);
-            state?.Id = threadId;
-
             /// process the message
-            await ReceiveAsync(_context!, state!, query);
-
-            /// save the updated state
-            await OnSaveStateAsync(_context!, state!, query);
+            await ReceiveAsync(_context!, query);
         }
         catch (Exception ex)
         {
@@ -141,27 +133,15 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     // Explicit interface implementations forwarding to protected hooks
     ValueTask IQueryActor<TActor>.OnStartup(IQueryActorContext context) => OnStartup(context);
     ValueTask IQueryActor<TActor>.OnShutdown(IQueryActorContext context) => OnShutdown(context);
-    ValueTask IQueryActor<TActor>.ReceiveAsync(IQueryActorContext context, IActorState state,IQuery query) => ReceiveAsync(context, state, query);
+    ValueTask IQueryActor<TActor>.ReceiveAsync(IQueryActorContext context, IQuery query) => ReceiveAsync(context, query);
     ValueTask IQueryActor<TActor>.OnValidateAsync(IQueryActorContext context, IQuery query) => OnValidateAsync(context, query);
-    ValueTask<IActorState> IQueryActor<TActor>.OnLoadStateAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query) => OnLoadStateAsync(context, threadId, query);
-    ValueTask IQueryActor<TActor>.OnSaveStateAsync(IQueryActorContext context, IActorState state, IQuery query) => OnSaveStateAsync(context, state, query);
     ValueTask IQueryActor<TActor>.OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex) => OnExceptionAsync(context, threadId, query, verb, ex);
 
     // Protected hooks for derived classes
     protected abstract IQuery ParseMessage(IQueryActorContext context, NatsMsg<byte[]> message);
     protected virtual ValueTask OnStartup(IQueryActorContext context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnShutdown(IQueryActorContext context) => ValueTask.CompletedTask;
-    protected abstract ValueTask ReceiveAsync(IQueryActorContext context, IActorState state, IQuery query);
+    protected abstract ValueTask ReceiveAsync(IQueryActorContext context, IQuery query);
     protected virtual ValueTask OnValidateAsync(IQueryActorContext context, IQuery query) => ValueTask.CompletedTask;
-    protected virtual ValueTask<IActorState> OnLoadStateAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query)
-    {
-        return ValueTask.FromResult<IActorState>(default!);
-    }
-
-    protected virtual ValueTask OnSaveStateAsync(IQueryActorContext context, IActorState state, IQuery query)
-    {
-        return ValueTask.CompletedTask;
-    }
-
     protected abstract  ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex);
 }

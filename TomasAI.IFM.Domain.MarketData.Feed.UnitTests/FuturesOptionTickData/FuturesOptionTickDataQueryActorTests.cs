@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
+using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -33,14 +33,13 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query)
-            => await OnLoadStateAsync(context, threadId, query);
+
     }
 
     #region ParseMessage Happy Path Tests
@@ -409,34 +408,31 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
         var context = Substitute.For<IQueryActorContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var db = Substitute.For<IMarketDataDbContext>();
+        dbFactory.MarketDataDb.Returns(db);
+        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger, dbFactory);
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
             SampleData.ValueDate);
 
-        var state = new FuturesOptionTickDataQueryState() { Id = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format()) };
+        db.GetLastFuturesOptionTickDataAsync(entityId.ContractId, entityId.ValueDate).Returns(SampleData.EsOptionTickData);
+
         var query = new GetLastFuturesOptionTickDataQuery(
             entityId.ContractId, entityId.ValueDate)
         {
             Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
         };
 
-        context.GetMessageInfo(state.Id, GetLastFuturesOptionTickDataQuery.Verb)
-            .Returns(new ActorMessageInfo(default, query));
-
         // Act
-        try
-        {
-            await actor.InvokeReceiveAsync(context, state, query);
-        }
-        catch (NullReferenceException)
-        {
-            // Query handler replies through NATS; with default msg this can throw during tests.
-        }
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        context.Received(1).GetMessageInfo(state.Id, GetLastFuturesOptionTickDataQuery.Verb);
+        await context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetLastFuturesOptionTickDataQuery.Verb,
+            Arg.Is<ServiceResult<FuturesOptionTickDataV2ReadModel?>>(r => r.Success && r.Value == SampleData.EsOptionTickData));
     }
 
     [Fact]
@@ -444,34 +440,29 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
         var context = Substitute.For<IQueryActorContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var db = Substitute.For<IMarketDataDbContext>();
+        dbFactory.MarketDataDb.Returns(db);
+        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger, dbFactory);
         var entityId = new GetLastFuturesOptionTickDataParameter(
             "NONEXISTENT_CONTRACT",
             SampleData.ValueDate);
 
-        var state = new FuturesOptionTickDataQueryState() { Id = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format()) };
         var query = new GetLastFuturesOptionTickDataQuery(
             entityId.ContractId, entityId.ValueDate)
         {
             Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
         };
 
-        context.GetMessageInfo(state.Id, GetLastFuturesOptionTickDataQuery.Verb)
-            .Returns(new ActorMessageInfo(default, query));
-
         // Act
-        try
-        {
-            await actor.InvokeReceiveAsync(context, state, query);
-        }
-        catch (NullReferenceException)
-        {
-            // Query handler replies through NATS; with default msg this can throw during tests.
-        }
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        context.Received(1).GetMessageInfo(state.Id, GetLastFuturesOptionTickDataQuery.Verb);
+        await context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetLastFuturesOptionTickDataQuery.Verb,
+            Arg.Is<ServiceResult<FuturesOptionTickDataV2ReadModel?>>(r => r.Success && r.Value == null));
     }
 
     [Fact]
@@ -479,33 +470,25 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
         var context = Substitute.For<IQueryActorContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var db = Substitute.For<IMarketDataDbContext>();
+        dbFactory.MarketDataDb.Returns(db);
+        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger, dbFactory);
         var contractId = "ES20240601P5400";
         var valueDate = new DateOnly(2024, 7, 1);
         var entityId = new GetLastFuturesOptionTickDataParameter(contractId, valueDate);
 
-        var state = new FuturesOptionTickDataQueryState() { Id = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format()) };
         var query = new GetLastFuturesOptionTickDataQuery(contractId, valueDate)
         {
             Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
         };
 
-        context.GetMessageInfo(state.Id, GetLastFuturesOptionTickDataQuery.Verb)
-            .Returns(new ActorMessageInfo(default, query));
-
         // Act
-        try
-        {
-            await actor.InvokeReceiveAsync(context, state, query);
-        }
-        catch (NullReferenceException)
-        {
-            // Query handler replies through NATS; with default msg this can throw during tests.
-        }
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        context.Received(1).GetMessageInfo(state.Id, GetLastFuturesOptionTickDataQuery.Verb);
+        await db.Received(1).GetLastFuturesOptionTickDataAsync(contractId, valueDate);
     }
 
     #endregion
@@ -522,7 +505,6 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
             SampleData.ValueDate);
-        var state = new FuturesOptionTickDataQueryState() { Id = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format()) };
         var query = new GetLastFuturesOptionTickDataQuery
         {
             Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
@@ -530,31 +512,9 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         };
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(null!, state, query);
+        var act = async () => await actor.InvokeReceiveAsync(null!, query);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("context");
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenStateIsNull()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetLastFuturesOptionTickDataParameter(
-            SampleData.EsOptionTickData.ContractId,
-            SampleData.ValueDate);
-        var query = new GetLastFuturesOptionTickDataQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, null!, query);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("state");
     }
 
     [Fact]
@@ -568,34 +528,11 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
             SampleData.ValueDate);
-        var state = new FuturesOptionTickDataQueryState() { Id = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format()) };
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, state, null!);
+        var act = async () => await actor.InvokeReceiveAsync(context, null!);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("query");
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenStateIsNotFuturesOptionTickDataQueryState()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var invalidState = Substitute.For<IActorState>();
-        var entityId = new GetLastFuturesOptionTickDataParameter(
-            SampleData.EsOptionTickData.ContractId,
-            SampleData.ValueDate);
-        var query = new GetLastFuturesOptionTickDataQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, invalidState, query);
-        await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
@@ -609,13 +546,12 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
             SampleData.ValueDate);
-        var state = new FuturesOptionTickDataQueryState() { Id = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format()) };
 
         var unsupportedQuery = Substitute.For<IQuery>();
         unsupportedQuery.Subject.Returns(new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, "UnsupportedVerb", entityId.Format()));
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, state, unsupportedQuery);
+        var act = async () => await actor.InvokeReceiveAsync(context, unsupportedQuery);
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"Unable to process {FuturesOptionTickDataQueryActor.ActorName} query: *");
     }
@@ -854,193 +790,5 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
 
     #endregion
 
-    #region OnLoadStateAsync Happy Path Tests
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldReturnState_Successfully()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetLastFuturesOptionTickDataParameter(
-            SampleData.EsOptionTickData.ContractId,
-            SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format());
-        var query = new GetLastFuturesOptionTickDataQuery(
-            entityId.ContractId, entityId.ValueDate)
-        {
-            Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
-        };
-
-        var db = Substitute.For<IDbContextFactory>();
-        var expectedState = new FuturesOptionTickDataQueryState() { Id = threadId };
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IQueryActorState<FuturesOptionTickDataQueryState>>().Returns(expectedState);
-        context.Container.Returns(container);
-
-        // Act
-        var result = await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<FuturesOptionTickDataQueryState>();
-        (result as FuturesOptionTickDataQueryState)!.Id.Should().Be(threadId);
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldSetThreadIdOnState()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetLastFuturesOptionTickDataParameter(
-            SampleData.EsOptionTickData.ContractId,
-            SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format());
-        var query = new GetLastFuturesOptionTickDataQuery(
-            entityId.ContractId, entityId.ValueDate)
-        {
-            Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
-        };
-
-        var db = Substitute.For<IDbContextFactory>();
-        var state = new FuturesOptionTickDataQueryState() { Id = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, "initial-thread") };
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IQueryActorState<FuturesOptionTickDataQueryState>>().Returns(state);
-        context.Container.Returns(container);
-
-        // Act
-        var result = await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        result.Should().NotBeNull();
-        var tickDataState = result as FuturesOptionTickDataQueryState;
-        tickDataState!.Id.Should().Be(threadId);
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldResolveFromContainer()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetLastFuturesOptionTickDataParameter(
-            SampleData.EsOptionTickData.ContractId,
-            SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format());
-        var query = new GetLastFuturesOptionTickDataQuery(
-            entityId.ContractId, entityId.ValueDate)
-        {
-            Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
-        };
-
-        var db = Substitute.For<IDbContextFactory>();
-        var expectedState = new FuturesOptionTickDataQueryState() { Id = threadId };
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IQueryActorState<FuturesOptionTickDataQueryState>>().Returns(expectedState);
-        context.Container.Returns(container);
-
-        // Act
-        await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        container.Received(1).Resolve<IQueryActorState<FuturesOptionTickDataQueryState>>();
-    }
-
-    #endregion
-
-    #region OnLoadStateAsync Edge Case Tests
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldThrowArgumentNullException_WhenContextIsNull()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
-        var entityId = new GetLastFuturesOptionTickDataParameter(
-            SampleData.EsOptionTickData.ContractId,
-            SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format());
-        var query = new GetLastFuturesOptionTickDataQuery(
-            entityId.ContractId, entityId.ValueDate)
-        {
-            Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
-        };
-
-        // Act & Assert
-        var act = async () => await actor.InvokeOnLoadStateAsync(null!, threadId, query);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldThrowArgumentNullException_WhenThreadIdIsNull()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetLastFuturesOptionTickDataParameter(
-            SampleData.EsOptionTickData.ContractId,
-            SampleData.ValueDate);
-        var query = new GetLastFuturesOptionTickDataQuery(
-            entityId.ContractId, entityId.ValueDate)
-        {
-            Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
-        };
-
-        // Act & Assert
-        var act = async () => await actor.InvokeOnLoadStateAsync(context, default, query);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("threadId");
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldThrowArgumentNullException_WhenQueryIsNull()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var threadId = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, "test-thread");
-
-        // Act & Assert
-        var act = async () => await actor.InvokeOnLoadStateAsync(context, threadId, null!);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("query");
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldThrowException_WhenContainerResolveThrows()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetLastFuturesOptionTickDataParameter(
-            SampleData.EsOptionTickData.ContractId,
-            SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, entityId.Format());
-        var query = new GetLastFuturesOptionTickDataQuery(
-            entityId.ContractId, entityId.ValueDate)
-        {
-            Subject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, entityId.Format()),
-        };
-
-        var container = Substitute.For<IContainerInstance>();
-        container.When(c => c.Resolve<IQueryActorState<FuturesOptionTickDataQueryState>>())
-            .Do(_ => throw new InvalidOperationException("Container resolution failed"));
-        context.Container.Returns(container);
-
-        // Act & Assert
-        var act = async () => await actor.InvokeOnLoadStateAsync(context, threadId, query);
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("Container resolution failed");
-    }
-
-    #endregion
 }
 

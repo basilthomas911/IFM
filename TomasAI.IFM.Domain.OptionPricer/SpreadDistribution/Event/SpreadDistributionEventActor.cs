@@ -40,11 +40,10 @@ public class SpreadDistributionEventActor(IActorSupervisor supervisor, ILogger<S
     /// If no handler is found for the event type, an <see cref="InvalidOperationException"/> is thrown.
     /// </summary>
     /// <param name="context">The event actor context in which the event is being processed.</param>
-    /// <param name="state">The current actor state.</param>
     /// <param name="event">The event to be processed.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IActorState state, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);

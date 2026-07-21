@@ -24,8 +24,8 @@ public class FundTransactionQueryTests
     class TestableFundTransactionQueryActor(IDbContextFactory dbFactory, ILogger<FundTransactionQueryActor> logger)
         : FundTransactionQueryActor(dbFactory, logger)
     {
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
     }
 
     static TestableFundTransactionQueryActor CreateActor(IDbContextFactory dbFactory)
@@ -71,7 +71,7 @@ public class FundTransactionQueryTests
         var query = WithSubject(new GetFundTransactionsQuery(SampleData.FundTransaction.FundId, startDate, endDate), GetFundTransactionsQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with the matching fund transactions
         await context.Received(1).ReplyAsync(
@@ -99,7 +99,7 @@ public class FundTransactionQueryTests
         var query = WithSubject(new GetFundTransactionsQuery(SampleData.FundTransaction.FundId, startDate, endDate), GetFundTransactionsQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with both fund transactions
         await context.Received(1).ReplyAsync(
@@ -124,7 +124,7 @@ public class FundTransactionQueryTests
         var query = WithSubject(new GetFundTransactionsQuery(9999, DateOnly.MinValue, DateOnly.MaxValue), GetFundTransactionsQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with an empty collection without throwing
         await context.Received(1).ReplyAsync(
@@ -146,7 +146,7 @@ public class FundTransactionQueryTests
         var query = WithSubject(new GetFundTransactionsQuery(SampleData.FundTransaction.FundId, singleDate, singleDate), GetFundTransactionsQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with the transaction found on that single day
         await context.Received(1).ReplyAsync(
@@ -169,7 +169,7 @@ public class FundTransactionQueryTests
             GetFundTransactionsQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with an empty collection without throwing
         await context.Received(1).ReplyAsync(

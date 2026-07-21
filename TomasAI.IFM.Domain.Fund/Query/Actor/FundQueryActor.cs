@@ -79,11 +79,10 @@ public class FundQueryActor(
     /// Asynchronously processes the specified query within the context of the actor, utilizing the provided state and
     /// </summary>
     /// <param name="context"></param>
-    /// <param name="state"></param>
     /// <param name="query"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);

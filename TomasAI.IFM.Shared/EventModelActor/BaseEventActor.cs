@@ -75,7 +75,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     }
 
     /// <summary>
-    /// Handles an incoming message by validating, loading state, receiving, and saving state.
+    /// Handles an incoming message by validating and receiving.
     /// </summary>
     public async ValueTask HandleMessageAsync(NatsMsg<byte[]> message)
     {
@@ -98,7 +98,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
             if (_context is null)
                 return;
 
-            
+
             @event =ParseMessage( _context!, message);
             if (@event == null)
                 return;
@@ -106,15 +106,8 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
             /// Check if the message is a command and validate it
             await OnValidateAsync(_context!, threadId, @event);
 
-            // Load state
-            var state = await OnLoadStateAsync(_context!, threadId, @event);
-            state?.Id = threadId;
-
             // Process message
-            await ReceiveAsync(_context!, state, @event);
-
-            // Save state
-            await OnSaveStateAsync(_context!, state, @event);
+            await ReceiveAsync(_context!, @event);
         }
         catch (Exception ex)
         {
@@ -125,21 +118,15 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     // Explicit interface implementations forwarding to protected hooks
     ValueTask IEventActor<TActor>.OnStartup(IEventActorContext context) => OnStartup(context);
     ValueTask IEventActor<TActor>.OnShutdown(IEventActorContext context) => OnShutdown(context);
-    ValueTask IEventActor<TActor>.ReceiveAsync(IEventActorContext context, IActorState state, IEvent @event) => ReceiveAsync(context, state, @event);
+    ValueTask IEventActor<TActor>.ReceiveAsync(IEventActorContext context, IEvent @event) => ReceiveAsync(context, @event);
     ValueTask IEventActor<TActor>.OnValidateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event) => OnValidateAsync(context, threadId, @event);
-    ValueTask<IActorState> IEventActor<TActor>.OnLoadStateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event) => OnLoadStateAsync(context, threadId, @event);
-    ValueTask IEventActor<TActor>.OnSaveStateAsync(IEventActorContext context, IActorState state, IEvent @event) => OnSaveStateAsync(context, state, @event);
     ValueTask IEventActor<TActor>.OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex) => OnExceptionAsync(context, threadId, @event, ex);
 
     // Protected hooks for derived classes
     protected abstract IEvent ParseMessage(IEventActorContext context, NatsMsg<byte[]> message);
     protected virtual ValueTask OnStartup(IEventActorContext context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnShutdown(IEventActorContext context) => ValueTask.CompletedTask;
-    protected abstract ValueTask ReceiveAsync(IEventActorContext context, IActorState state, IEvent @event);
+    protected abstract ValueTask ReceiveAsync(IEventActorContext context, IEvent @event);
     protected virtual ValueTask OnValidateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event) => ValueTask.CompletedTask;
-    protected virtual ValueTask<IActorState> OnLoadStateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event)
-        => ValueTask.FromResult<IActorState>(default!);
-    protected virtual ValueTask OnSaveStateAsync(IEventActorContext context, IActorState state, IEvent @event)
-        => ValueTask.CompletedTask;
     protected abstract ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex);
 }

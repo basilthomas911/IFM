@@ -37,14 +37,9 @@ public class TestEventActor(IActorSupervisor superisor, ILogger<TestEventActor> 
         @event.CheckForEmptyCommandId();
         return @event;
     }
-    protected override async ValueTask ReceiveAsync(IEventActorContext context,  IActorState state, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
         await Task.CompletedTask;
-    }
-
-    protected override async ValueTask<IActorState> OnLoadStateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event)
-    {
-        return await ValueTask.FromResult(new TestEventState());
     }
 
     protected override async ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)

@@ -459,8 +459,6 @@ public static class Startup
             _siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IEventSourceActorState<>), assemblies, Lifestyle.Transient);
-            _siContainer.Register(typeof(IEventActorState<>), assemblies, Lifestyle.Transient);
-            _siContainer.Register(typeof(IQueryActorState<>), assemblies, Lifestyle.Transient);
 
             //_siContainer.RegisterDecorator(typeof(ICommandContext<>), typeof(ValidationCommandDecorator<>), Lifestyle.Singleton);
             //_siContainer.RegisterDecorator(typeof(ICommandContext<>), typeof(CommandLoggerDecorator<>), Lifestyle.Singleton);

@@ -72,11 +72,10 @@ public class FundTransactionQueryActor(
     /// to their corresponding handler functions. Each handler executes the query against the fund transaction query state and
     /// returns the appropriate result.</remarks>
     /// <param name="context">The context for the current actor query operation. Provides access to the incoming message and related metadata.</param>
-    /// <param name="state">The current state of the actor. Must be a valid instance of FundTransactionQueryState.</param>
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);

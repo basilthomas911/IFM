@@ -33,14 +33,13 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query)
-            => await OnLoadStateAsync(context, threadId, query);
+
     }
 
     public static IEnumerable<object[]> TimePeriods()
@@ -261,7 +260,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
             .Returns((FuturesMacdSignalReadModel?)null);
 
         // Act
-        await actor.InvokeReceiveAsync(context, Substitute.For<IActorState>(), query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await db.Received(1).GetLastFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength);
@@ -288,7 +287,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
             .Returns(expected);
 
         // Act
-        await actor.InvokeReceiveAsync(context, Substitute.For<IActorState>(), query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await db.Received(1).GetLastFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength);
@@ -314,7 +313,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
             .Returns((FuturesMacdSignalReadModel?)null);
 
         // Act
-        await actor.InvokeReceiveAsync(context, Substitute.For<IActorState>(), query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await db.Received(1).GetLastFuturesMacdDailySignalAsync(SampleData.ContractId, timePeriod, SampleData.PeriodLength);
@@ -341,7 +340,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
             .Returns(expected);
 
         // Act
-        await actor.InvokeReceiveAsync(context, Substitute.For<IActorState>(), query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await db.Received(1).GetLastFuturesMacdDailySignalAsync(SampleData.ContractId, timePeriod, SampleData.PeriodLength);
@@ -363,7 +362,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(null!, default, query);
+        var act = async () => await actor.InvokeReceiveAsync(null!, query);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("context");
     }
@@ -377,7 +376,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, null!, query);
+        var act = async () => await actor.InvokeReceiveAsync(context, query);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("state");
     }
@@ -391,7 +390,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         var state = Substitute.For<IActorState>();
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, state, null!);
+        var act = async () => await actor.InvokeReceiveAsync(context, null!);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("query");
     }
@@ -407,7 +406,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         unknownQuery.Subject.Returns(new ActorSubject(ActorType.Query, FuturesMacdSignalQueryActor.ActorName, "UnknownVerb", "entity"));
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, state, unknownQuery);
+        var act = async () => await actor.InvokeReceiveAsync(context, unknownQuery);
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"Unable to process {FuturesMacdSignalQueryActor.ActorName} query: *");
     }

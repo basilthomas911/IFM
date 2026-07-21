@@ -834,7 +834,7 @@ public class FuturesEodDataCommandActorTests : IClassFixture<MarketDataFeedTestF
 
         // Assert
         await act.Should().ThrowAsync<CommandValidationException>()
-            .WithMessage("*FuturesTickData.ContractId*");
+            .WithMessage("*ContractId is required and cannot be empty*");
     }
 
     [Fact]

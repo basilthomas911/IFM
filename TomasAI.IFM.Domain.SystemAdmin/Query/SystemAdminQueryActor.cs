@@ -59,29 +59,26 @@ public class SystemAdminQueryActor(
     /// Handles incoming queries asynchronously and processes them based on their type.
     /// </summary>
     /// <param name="context">The context in which the query is being processed.</param>
-    /// <param name="state">The current state of the actor, which must be of type <see cref="SystemAdminQueryState"/>.</param>
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
     {
         IsArgumentNull.Check(context);
-        IsArgumentNull.Check(state);
         IsArgumentNull.Check(query);
-        var systemAdminQueryState = IsArgumentNull.Set(state as SystemAdminQueryState)!;
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, systemAdminQueryState, query);
+        await receiveFunc.Invoke(context, query);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding system admin query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, SystemAdminQueryState, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetDatabaseNamesQuery).Name] = (ctx, state, q) =>
+        [typeof(GetDatabaseNamesQuery).Name] = (ctx, q) =>
         {
             var query = (q as GetDatabaseNamesQuery)!;
             var result = SystemAdminQueryState.GetDatabaseNames();
@@ -119,23 +116,5 @@ public class SystemAdminQueryActor(
         {
             logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
-    }
-
-    /// <summary>
-    /// Asynchronously loads the current state for the actor associated with the specified query context and thread.
-    /// </summary>
-    /// <param name="context">The query actor context that provides access to the actor's container and related services.</param>
-    /// <param name="threadId">The identifier of the actor thread for which the state is being loaded.</param>
-    /// <param name="query">The query that triggered the state load operation.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains the loaded actor state.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-
-        var actorState = context.Container.Resolve<IQueryActorState<SystemAdminQueryState>>();
-        actorState.Id = threadId;
-        return await ValueTask.FromResult(actorState);
     }
 }

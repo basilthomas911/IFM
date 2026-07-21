@@ -36,14 +36,13 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query)
-            => await OnLoadStateAsync(context, threadId, query);
+
     }
 
     #region Helpers
@@ -366,7 +365,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
             .Returns(ValueTask.CompletedTask);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(query.ContractId, query.ValueDate);
@@ -395,7 +394,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
             .Returns(ValueTask.CompletedTask);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -428,7 +427,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
             .Returns(ValueTask.CompletedTask);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await marketDataDb.Received(1).GetLastFuturesItiSignalTrendDirectionChangeAsync(query.ContractId, query.ValueDate);
@@ -460,7 +459,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
             .Returns(ValueTask.CompletedTask);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await marketDataDb.Received(1).GetFuturesItiTrendDirectionChangedSignalsAsync(query.ContractId, query.ValueDate);
@@ -489,7 +488,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
             .Returns(ValueTask.CompletedTask);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -523,7 +522,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
             .Returns(ValueTask.CompletedTask);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(query.ContractId, query.ValueDate);
@@ -542,7 +541,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var state = new DummyQueryState { Id = query.Subject.ThreadId };
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, state, query);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, query);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -557,7 +556,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var context = Substitute.For<IQueryActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!, query);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -572,7 +571,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var context = Substitute.For<IQueryActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, null!);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -588,7 +587,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var unsupportedQuery = Substitute.For<IQuery>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, unsupportedQuery);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, unsupportedQuery);
 
         // Assert
         var exception = await act.Should().ThrowAsync<InvalidOperationException>();

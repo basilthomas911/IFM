@@ -60,14 +60,12 @@ public class FuturesAtrSignalEventActor(IActorSupervisor supervisor, IStatusCons
     /// Asynchronously processes an event received by the event actor using the appropriate event handler.
     /// </summary>
     /// <param name="context">The context in which the event actor is executing. Cannot be null.</param>
-    /// <param name="state">The current state of the actor, used to process the event. Cannot be null.</param>
     /// <param name="event">The event to be processed by the event actor. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous receive operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type.</exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IActorState state, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
         IsArgumentNull.Check(context);
-        IsArgumentNull.Check(state);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))

@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -139,50 +138,6 @@ internal static class FuturesTickDataEventExtensions
 			ReceivedOn = DateTime.UtcNow
 		};
 		await context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(updatedEvent);
-	}
-
-	internal static bool GetStreamingRequestId(
-		this IEventActorContext context,
-		FuturesTickDataEventState state,
-		string contractId,
-		out StreamingRequestId streamingRequestId)
-	{
-		streamingRequestId = state.BlackboardService.StreamingRequestId.Get(contractId)!;
-		return streamingRequestId.IsValid;
-	}
-
-	internal static async ValueTask<StreamingRequestId> GetStreamingRequestIdAsync(
-		this IEventActorContext context,
-		FuturesTickDataEventState state,
-		FuturesOptionContractReadModel optionContract,
-		FuturesContractV2ReadModel underlyingContract,
-		DateOnly valueDate,
-		DateOnly maturityDate,
-		double riskFreeRate)
-	{
-		var streamingRequestId = state.BlackboardService.StreamingRequestId.Get(optionContract.ContractId);
-		if (streamingRequestId.IsValid)
-			return streamingRequestId;
-		var entityId = new GetStreamingRequestIdParameter();
-		GetStreamingRequestIdQuery query = new()
-		{
-			Subject = new ActorSubject(ActorType.Query, GetStreamingRequestIdQuery.Actor, GetStreamingRequestIdQuery.Verb, entityId.Format()),
-			EntityId = entityId,
-			RequestKey = entityId.Format()
-		};
-		var result = await context.RequestAsync<ScalarValue<int>, GetStreamingRequestIdQuery>(query);
-		var requestId = result.Success
-			? result.Value!.Value
-			: throw new InvalidOperationException($"Failed to retrieve streaming request ID: {result.ErrorMessage}");
-		var newStreamingRequestId = new StreamingRequestId(
-			requestId,
-			optionContract,
-			underlyingContract,
-			valueDate,
-			maturityDate,
-			riskFreeRate);
-		state.BlackboardService.StreamingRequestId.Set(newStreamingRequestId);
-		return newStreamingRequestId;
 	}
 
 	internal static async ValueTask FuturesTickDataStreamingStartedCompleteAsync(this IEventActorContext context, FuturesTickDataStreamingStartedEvent e)

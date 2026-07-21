@@ -39,8 +39,8 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IActorState state, IEvent @event)
-            => await ReceiveAsync(context, state, @event);
+        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+            => await ReceiveAsync(context, @event);
 
         public async ValueTask InvokeOnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
             => await OnExceptionAsync(context, threadId, @event, ex);
@@ -127,7 +127,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
         var @event = CreateSampleEvent();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, default!, @event);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, @event);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -141,7 +141,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IEventActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, default!, null!);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -156,7 +156,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
         var @event = CreateSampleEvent();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, default!, @event);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, @event);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()

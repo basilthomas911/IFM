@@ -128,12 +128,13 @@ public class MarketDataFeedTestFixture : IDisposable
 
     public TestableFuturesOptionQuoteDataCommandActor CreateFuturesOptionQuoteDataCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,
-        ILogger<FuturesOptionQuoteDataCommandActor>? logger = null)
+        ILogger<FuturesOptionQuoteDataCommandActor>? logger = null,
+        IReferenceLookupService? refLookupService = null)
     {
         var db = dbEventSource ?? Substitute.For<IEventSourceActorDbContext>();
         var lg = logger ?? Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var refLookupService = Substitute.For<IReferenceLookupService>();
-        return new TestableFuturesOptionQuoteDataCommandActor(refLookupService, db, lg);
+        var refLookup = refLookupService ?? Substitute.For<IReferenceLookupService>();
+        return new TestableFuturesOptionQuoteDataCommandActor(refLookup, db, lg);
     }
 
     public TestableFuturesOptionQuoteDataEventActor CreateFuturesOptionQuoteDataEventActor(

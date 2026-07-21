@@ -32,11 +32,9 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IActorState state, IEvent @event)
-            => await ReceiveAsync(context, state, @event);
+        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+            => await ReceiveAsync(context, @event);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event)
-            => await OnLoadStateAsync(context, threadId, @event);
 
         public async ValueTask InvokeOnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
             => await OnExceptionAsync(context, threadId, @event, ex);
@@ -410,7 +408,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var @event = CreateMacdCompleteEvent(timePeriod);
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, mockState, @event);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, @event);
 
         // Assert
         await act.Should().NotThrowAsync();
@@ -429,8 +427,8 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         // Act
         Func<Task> act = async () =>
         {
-            await actor.InvokeReceiveAsync(mockContext, mockState, event1);
-            await actor.InvokeReceiveAsync(mockContext, mockState, event2);
+            await actor.InvokeReceiveAsync(mockContext, event1);
+            await actor.InvokeReceiveAsync(mockContext, event2);
         };
 
         // Assert
@@ -449,7 +447,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, default, @event);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, @event);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -464,7 +462,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, null!, @event);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, @event);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -478,7 +476,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var mockContext = Substitute.For<IEventActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, default, null!);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, null!);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -496,7 +494,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         unknownEvent.Subject.Returns(new ActorSubject(ActorType.Event, FuturesMacdSignalEventActor.Actor, "UnknownVerb", "123"));
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, mockState, unknownEvent);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, unknownEvent);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()

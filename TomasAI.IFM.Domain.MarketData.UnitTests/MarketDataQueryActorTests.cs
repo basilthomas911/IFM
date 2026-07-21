@@ -34,8 +34,8 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
@@ -400,7 +400,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -443,7 +443,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -484,7 +484,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -516,7 +516,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -547,7 +547,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         };
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(null!, default, query);
+        var act = async () => await actor.InvokeReceiveAsync(null!, query);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("context");
     }
@@ -563,7 +563,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, default, null!);
+        var act = async () => await actor.InvokeReceiveAsync(context, null!);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("query");
     }
@@ -584,7 +584,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         unsupportedQuery.Subject.Returns(new ActorSubject(ActorType.Query, MarketDataQueryActor.ActorName, "UnsupportedVerb", entityFormat));
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, default, unsupportedQuery);
+        var act = async () => await actor.InvokeReceiveAsync(context, unsupportedQuery);
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("Unable to process MarketDataQuery query: *");
     }

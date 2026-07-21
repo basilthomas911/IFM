@@ -23,8 +23,8 @@ public class FundQueryTests
     class TestableFundQueryActor(IDbContextFactory dbFactory, ILogger<FundQueryActor> logger)
         : FundQueryActor(dbFactory, logger)
     {
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
     }
 
     static TestableFundQueryActor CreateActor(IDbContextFactory dbFactory)
@@ -67,7 +67,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundBalanceQuery(SampleData.Fund.FundId), GetFundBalanceQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with the correct balance
         await context.Received(1).ReplyAsync(
@@ -87,7 +87,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundBalanceQuery(9999), GetFundBalanceQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with a zero balance without throwing
         await context.Received(1).ReplyAsync(
@@ -112,7 +112,7 @@ public class FundQueryTests
         var query = WithSubject(new GetClosingFundBalanceQuery(SampleData.Fund.FundId, valueDate), GetClosingFundBalanceQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -132,7 +132,7 @@ public class FundQueryTests
         var query = WithSubject(new GetClosingFundBalanceQuery(SampleData.Fund.FundId, DateOnly.MinValue), GetClosingFundBalanceQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -157,7 +157,7 @@ public class FundQueryTests
         var query = WithSubject(new GetOpeningFundBalanceQuery(SampleData.Fund.FundId, valueDate), GetOpeningFundBalanceQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -177,7 +177,7 @@ public class FundQueryTests
         var query = WithSubject(new GetOpeningFundBalanceQuery(9999, DateOnly.FromDateTime(DateTime.UtcNow)), GetOpeningFundBalanceQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -204,7 +204,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundDrawdownBalancesQuery(SampleData.Fund.FundId, startDate, endDate), GetFundDrawdownBalancesQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -227,7 +227,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundDrawdownBalancesQuery(SampleData.Fund.FundId, sameDate, sameDate), GetFundDrawdownBalancesQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -252,7 +252,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundIdFromOrderIdQuery(SampleData.FundOrder.OrderId), GetFundIdFromOrderIdQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -272,7 +272,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundIdFromOrderIdQuery(9999), GetFundIdFromOrderIdQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -297,7 +297,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundsQuery(), GetFundsQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -317,7 +317,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundsQuery(), GetFundsQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -342,7 +342,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundOrdersQuery(), GetFundOrdersQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -363,7 +363,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundOrdersQuery(), GetFundOrdersQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -388,7 +388,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundOrderTradesQuery(), GetFundOrderTradesQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -409,7 +409,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundOrderTradesQuery(), GetFundOrderTradesQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -442,7 +442,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundPnlReportQuery(SampleData.Fund.FundId, startDate, endDate), GetFundPnlReportQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with a report reflecting the win/loss orders
         await context.Received(1).ReplyAsync(
@@ -470,7 +470,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundPnlReportQuery(SampleData.Fund.FundId, startDate, endDate), GetFundPnlReportQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with a report with zeroed rates instead of throwing
         await context.Received(1).ReplyAsync(
@@ -500,7 +500,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundWinLossRatioQuery(SampleData.Fund.FundId, startDate, endDate), GetFundWinLossRatioQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -524,7 +524,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundWinLossRatioQuery(SampleData.Fund.FundId, startDate, endDate), GetFundWinLossRatioQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with a zero win/loss ratio instead of throwing
         await context.Received(1).ReplyAsync(
@@ -555,7 +555,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundMaxProfitGeneratedQuery(SampleData.Fund.FundId, tradeDate), GetFundMaxProfitGeneratedQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -586,7 +586,7 @@ public class FundQueryTests
         var query = WithSubject(new GetFundMaxProfitGeneratedQuery(SampleData.Fund.FundId, tradeDate), GetFundMaxProfitGeneratedQuery.Verb);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default!, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with empty order collections without throwing
         await context.Received(1).ReplyAsync(
@@ -610,7 +610,7 @@ public class FundQueryTests
         var unsupportedQuery = Substitute.For<IQuery>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, default!, unsupportedQuery);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, unsupportedQuery);
 
         // Assert - Then an InvalidOperationException is thrown identifying the actor and query
         await act.Should().ThrowAsync<InvalidOperationException>()

@@ -100,11 +100,10 @@ public class FuturesItiSignalEventActor(
     /// </summary>
     /// <param name="context">The context in which the event actor is executing. Provides access to actor state and services required
     /// for event handling. Cannot be null.</param>
-    /// <param name="state">The current state of the actor, used to process the event. Cannot be null.</param>
     /// <param name="event">The event to be processed by the event actor. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous receive operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type, or if the event cannot be resolved from the message.</exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IActorState state, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);

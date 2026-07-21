@@ -66,11 +66,10 @@ public class FundEventActor(IActorSupervisor supervisor, ILogger<FundEventActor>
     /// 
     /// </summary>
     /// <param name="context"></param>
-    /// <param name="state"></param>
     /// <param name="event"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IActorState state, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);

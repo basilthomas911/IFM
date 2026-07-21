@@ -34,14 +34,13 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query)
-            => await OnLoadStateAsync(context, threadId, query);
+
     }
 
     #region ParseMessage Happy Path Tests
@@ -320,7 +319,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         context.GetMessageInfo(threadId, GetFuturesTdiSignalQuery.Verb).Returns(new ActorMessageInfo(natsMsg, query));
 
         // Act
-        await actor.InvokeReceiveAsync(context, default, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await db.Received(1).GetLastFuturesTdiSignalAsync(SampleData.ContractId, SampleData.ValueDate);
@@ -361,7 +360,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         context.GetMessageInfo(threadId, GetFuturesTdiSignalQuery.Verb).Returns(new ActorMessageInfo(natsMsg, query));
 
         // Act
-        await actor.InvokeReceiveAsync(context, default, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await db.Received(1).GetLastFuturesTdiSignalAsync(SampleData.ContractId, SampleData.ValueDate);
@@ -388,7 +387,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         };
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(null!, default, query);
+        var act = async () => await actor.InvokeReceiveAsync(null!, query);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("context");
     }
@@ -410,7 +409,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         };
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, null!, query);
+        var act = async () => await actor.InvokeReceiveAsync(context, query);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("state");
     }
@@ -426,7 +425,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, default, null!);
+        var act = async () => await actor.InvokeReceiveAsync(context, null!);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("query");
     }
@@ -445,7 +444,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         unsupportedQuery.Subject.Returns(new ActorSubject(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, "UnsupportedVerb", entityId.Format()));
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, default, unsupportedQuery);
+        var act = async () => await actor.InvokeReceiveAsync(context, unsupportedQuery);
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("Unable to process FuturesTdiSignalQuery query: *");
     }

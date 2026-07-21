@@ -37,18 +37,14 @@ public class TestQueryActor(ILogger<TestQueryActor> logger)
 
     }
 
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context,  IActorState state, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
     {
         IsArgumentNull.Check(context);
-        IsArgumentNull.Check(state);
         IsArgumentNull.Check(query);
-        var msgInfo = IsArgumentNull.Set(context.GetMessageInfo(state.Id, query.Subject.Verb)).Value;
+        var msgInfo = IsArgumentNull.Set(context.GetMessageInfo(query.Subject.ThreadId, query.Subject.Verb)).Value;
         var qry = msgInfo.ActorMessage.AsQuery<TestQuery, string>();
         await msgInfo.ActorMessage.ReplyAsync(new ServiceResult<string>( "The rain in Spain stays mainly in the plain."));
     }
-
-    protected override async ValueTask<IActorState> OnLoadStateAsync(IQueryActorContext context, ActorThreadId threadI, IQuery query)
-        =>  await ValueTask.FromResult(new TestQueryState());
 
     protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {

@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Domain.SystemAdmin.Actor.Command.State;
 using TomasAI.IFM.Domain.SystemAdmin.Actor.Query;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -28,11 +27,9 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query)
-            => await OnLoadStateAsync(context, threadId, query);
 
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
@@ -328,21 +325,19 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
 
         var query = CreateQuery();
         var context = Substitute.For<IQueryActorContext>();
-        var state = new SystemAdminQueryState { Id = query.Subject.ThreadId };
 
-        context.GetMessageInfo(state.Id, GetDatabaseNamesQuery.Verb)
-            .Returns(new ActorMessageInfo(new NatsMsg<byte[]>(), query));
+        // Act
+        await actor.InvokeReceiveAsync(context, query);
 
-        // Act — handler serializes via MessagePack which is not registered in unit test resolver
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, query);
-
-        // Assert — dispatch reaches the handler (GetMessageInfo called), then fails at NatsReplyAsync serialization
-        await act.Should().ThrowAsync<MessagePack.MessagePackSerializationException>();
-        context.Received(1).GetMessageInfo(state.Id, GetDatabaseNamesQuery.Verb);
+        // Assert
+        await context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetDatabaseNamesQuery.Verb,
+            Arg.Is<ServiceOk<DatabaseNamesReadModel>>(r => r.Success && r.Value!.Names.Length == 7));
     }
 
     [Fact]
-    public async Task ReceiveAsync_GetDatabaseNamesQuery_CallsGetMessageInfoBeforeSerialization()
+    public async Task ReceiveAsync_GetDatabaseNamesQuery_CallsReplyAsyncWithCorrectThreadIdAndVerb()
     {
         // Arrange
         var logger = Substitute.For<ILogger<SystemAdminQueryActor>>();
@@ -350,19 +345,15 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
 
         var query = CreateQuery();
         var context = Substitute.For<IQueryActorContext>();
-        var state = new SystemAdminQueryState { Id = query.Subject.ThreadId };
 
-        context.GetMessageInfo(state.Id, GetDatabaseNamesQuery.Verb)
-            .Returns(new ActorMessageInfo(new NatsMsg<byte[]>(), query));
+        // Act
+        await actor.InvokeReceiveAsync(context, query);
 
-        // Act — handler serializes via MessagePack which is not registered in unit test resolver
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, query);
-
-        // Assert — verify GetMessageInfo was invoked with correct thread id and verb before serialization fails
-        await act.Should().ThrowAsync<MessagePack.MessagePackSerializationException>();
-        context.Received(1).GetMessageInfo(
-            Arg.Is<ActorThreadId>(tid => tid == state.Id),
-            Arg.Is(GetDatabaseNamesQuery.Verb));
+        // Assert
+        await context.Received(1).ReplyAsync(
+            Arg.Is<ActorThreadId>(tid => tid == query.Subject.ThreadId),
+            Arg.Is(GetDatabaseNamesQuery.Verb),
+            Arg.Any<ServiceOk<DatabaseNamesReadModel>>());
     }
 
     #endregion
@@ -376,26 +367,9 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
         var actor = _fixture.CreateQueryActor();
 
         var query = CreateQuery();
-        var state = new SystemAdminQueryState { Id = query.Subject.ThreadId };
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, state, query);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ThrowsArgumentNullException_WhenStateIsNull()
-    {
-        // Arrange
-        var actor = _fixture.CreateQueryActor();
-
-        var query = CreateQuery();
-        var context = Substitute.For<IQueryActorContext>();
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!, query);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, query);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -406,30 +380,10 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
     {
         // Arrange
         var actor = _fixture.CreateQueryActor();
-
-        var state = new SystemAdminQueryState { Id = new ActorThreadId(ActorType.Query, SystemAdminQueryActor.ActorName, "test-thread") };
         var context = Substitute.For<IQueryActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, null!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ThrowsArgumentNullException_WhenStateIsNotSystemAdminQueryState()
-    {
-        // Arrange
-        var actor = _fixture.CreateQueryActor();
-
-        var query = CreateQuery();
-        var invalidState = Substitute.For<IActorState>();
-        invalidState.Id.Returns(query.Subject.ThreadId);
-        var context = Substitute.For<IQueryActorContext>();
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, invalidState, query);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -440,141 +394,16 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
     {
         // Arrange
         var actor = _fixture.CreateQueryActor();
-
-        var state = new SystemAdminQueryState { Id = new ActorThreadId(ActorType.Query, SystemAdminQueryActor.ActorName, "test-thread") };
         var unsupportedQuery = Substitute.For<IQuery>();
         unsupportedQuery.Subject.Returns(new ActorSubject(ActorType.Query, SystemAdminQueryActor.ActorName, "UnknownVerb", "thread-id"));
         var context = Substitute.For<IQueryActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, unsupportedQuery);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, unsupportedQuery);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"Unable to process {SystemAdminQueryActor.ActorName} query:*");
-    }
-
-    #endregion
-
-    #region OnLoadStateAsync Happy Path Tests
-
-    [Fact]
-    public async Task OnLoadStateAsync_ReturnsState_WhenContainerResolvesSuccessfully()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<SystemAdminQueryActor>>();
-        var actor = _fixture.CreateQueryActor(logger);
-
-        var query = CreateQuery();
-        var threadId = query.Subject.ThreadId;
-
-        var expectedState = new SystemAdminQueryState { Id = threadId };
-
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IQueryActorState<SystemAdminQueryState>>().Returns(expectedState);
-
-        var context = Substitute.For<IQueryActorContext>();
-        context.Container.Returns(container);
-
-        // Act
-        var result = await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<SystemAdminQueryState>();
-        result.Id.Should().Be(threadId);
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_SetsThreadIdOnResolvedState()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<SystemAdminQueryActor>>();
-        var actor = _fixture.CreateQueryActor(logger);
-
-        var query = CreateQuery();
-        var threadId = query.Subject.ThreadId;
-
-        var resolvedState = new SystemAdminQueryState();
-
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IQueryActorState<SystemAdminQueryState>>().Returns(resolvedState);
-
-        var context = Substitute.For<IQueryActorContext>();
-        context.Container.Returns(container);
-
-        // Act
-        var result = await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Id.Should().Be(threadId);
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ResolvesFromContainer_ExactlyOnce()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<SystemAdminQueryActor>>();
-        var actor = _fixture.CreateQueryActor(logger);
-
-        var query = CreateQuery();
-        var threadId = query.Subject.ThreadId;
-
-        var expectedState = new SystemAdminQueryState();
-
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IQueryActorState<SystemAdminQueryState>>().Returns(expectedState);
-
-        var context = Substitute.For<IQueryActorContext>();
-        context.Container.Returns(container);
-
-        // Act
-        await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        container.Received(1).Resolve<IQueryActorState<SystemAdminQueryState>>();
-    }
-
-    #endregion
-
-    #region OnLoadStateAsync Edge Case Tests
-
-    [Fact]
-    public async Task OnLoadStateAsync_ThrowsArgumentNullException_WhenContextIsNull()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<SystemAdminQueryActor>>();
-        var actor = _fixture.CreateQueryActor(logger);
-
-        var query = CreateQuery();
-        var threadId = query.Subject.ThreadId;
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnLoadStateAsync(null!, threadId, query);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ThrowsArgumentNullException_WhenQueryIsNull()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<SystemAdminQueryActor>>();
-        var actor = _fixture.CreateQueryActor(logger);
-
-        var threadId = new ActorThreadId(ActorType.Query, SystemAdminQueryActor.ActorName, "test-thread");
-
-        var container = Substitute.For<IContainerInstance>();
-        var context = Substitute.For<IQueryActorContext>();
-        context.Container.Returns(container);
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnLoadStateAsync(context, threadId, null!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     #endregion

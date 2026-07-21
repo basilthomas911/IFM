@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.MarketDataFeed.Commands;
 using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Shared.Reference.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionTickData;
 
@@ -811,6 +812,15 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         };
 
         var context = Substitute.For<ICommandActorContext>();
+        var container = Substitute.For<IContainerInstance>();
+        var refLookupService = Substitute.For<IReferenceLookupService>();
+        var contract = SampleData.FuturesOptionContracts[0];
+        refLookupService.SymbolExists(contract.Symbol).Returns(true);
+        refLookupService.CurrencyExists(contract.Currency).Returns(true);
+        refLookupService.ExchangeExists(contract.Exchange).Returns(true);
+        refLookupService.MultiplierExists(contract.Multiplier).Returns(true);
+        container.Resolve<IReferenceLookupService>().Returns(refLookupService);
+        context.Container.Returns(container);
         var threadId = command.Subject.ThreadId;
 
         // Act

@@ -34,8 +34,8 @@ public class FuturesItiSignalQueryTests
     class TestableFuturesItiSignalQueryActor(IDbContextFactory dbFactory, ILogger<FuturesItiSignalQueryActor> logger)
         : FuturesItiSignalQueryActor(dbFactory, logger)
     {
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
     }
 
     static TestableFuturesItiSignalQueryActor CreateActor(IDbContextFactory dbFactory)
@@ -88,7 +88,7 @@ public class FuturesItiSignalQueryTests
         var query = WithSubject(new GetFuturesItiSignalQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod), GetFuturesItiSignalQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, DummyState, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with the matching signal
         await context.Received(1).ReplyAsync(
@@ -113,7 +113,7 @@ public class FuturesItiSignalQueryTests
         var query = WithSubject(new GetFuturesItiSignalQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod), GetFuturesItiSignalQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, DummyState, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with a successful result carrying a null value, without throwing
         await context.Received(1).ReplyAsync(
@@ -135,7 +135,7 @@ public class FuturesItiSignalQueryTests
         var query = WithSubject(new GetFuturesItiSignalQuery(otherContractId, SampleData.ValueDate, TradeTimePeriodType.Daily), GetFuturesItiSignalQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, DummyState, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then the correct contract is requested and returned
         await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(otherContractId, SampleData.ValueDate);
@@ -166,7 +166,7 @@ public class FuturesItiSignalQueryTests
         var query = WithSubject(new GetFuturesItiSignalDataQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod), GetFuturesItiSignalDataQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, DummyState, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with the aggregated data containing all three change signals
         await context.Received(1).ReplyAsync(
@@ -199,7 +199,7 @@ public class FuturesItiSignalQueryTests
         var query = WithSubject(new GetFuturesItiSignalDataQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod), GetFuturesItiSignalDataQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, DummyState, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply successfully with all change snapshots null, without throwing
         await context.Received(1).ReplyAsync(
@@ -228,7 +228,7 @@ public class FuturesItiSignalQueryTests
         var query = WithSubject(new GetFuturesItiSignalDataQuery(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.Daily), GetFuturesItiSignalDataQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, DummyState, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with only the trend direction change populated
         await context.Received(1).ReplyAsync(
@@ -261,7 +261,7 @@ public class FuturesItiSignalQueryTests
         var query = WithSubject(new GetFuturesItiTrendDirectionChangedSignalsQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod), GetFuturesItiTrendDirectionChangedSignalsQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, DummyState, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with both signals
         await context.Received(1).ReplyAsync(
@@ -286,7 +286,7 @@ public class FuturesItiSignalQueryTests
         var query = WithSubject(new GetFuturesItiTrendDirectionChangedSignalsQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod), GetFuturesItiTrendDirectionChangedSignalsQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, DummyState, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with an empty array without throwing
         await context.Received(1).ReplyAsync(
@@ -307,7 +307,7 @@ public class FuturesItiSignalQueryTests
         var query = WithSubject(new GetFuturesItiTrendDirectionChangedSignalsQuery(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.Weekly), GetFuturesItiTrendDirectionChangedSignalsQuery.Verb);
 
         // Act - When the query is executed
-        await actor.InvokeReceiveAsync(context, DummyState, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then reply with a single-element array
         await context.Received(1).ReplyAsync(

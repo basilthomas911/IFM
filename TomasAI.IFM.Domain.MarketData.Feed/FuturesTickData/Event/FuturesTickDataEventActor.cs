@@ -5,7 +5,6 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.MarketDataFeed.Events;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
@@ -87,16 +86,13 @@ public class FuturesTickDataEventActor(
     /// </summary>
     /// <param name="context">The context in which the event actor is executing. Provides access to actor state and services required
     /// for event handling. Cannot be null.</param>
-    /// <param name="state">The current state of the actor, used to process the event. Cannot be null.</param>
     /// <param name="event">The event to be processed by the event actor. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous receive operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type, or if the event cannot be resolved from the message.</exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IActorState state, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
         IsArgumentNull.Check(context);
-        IsArgumentNull.Check(state);
         IsArgumentNull.Check(@event);
-        var futuresTickDataEventState = IsArgumentNull.Set((state as FuturesTickDataEventState)!);
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
@@ -128,19 +124,5 @@ public class FuturesTickDataEventActor(
             await innerEx.SendErrorEventAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
             logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
-    }
-
-    /// <summary>
-    /// Asynchronously loads the actor state for the specified event actor context and thread.
-    /// </summary>
-    /// <param name="context">The event actor context used to resolve the actor state. Cannot be null.</param>
-    /// <param name="threadId">The identifier of the actor thread for which the state is being loaded.</param>
-    /// <param name="event">The event for which state is being loaded. Cannot be null.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains the loaded actor state.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event)
-    {
-        var actorState = IsArgumentNull.Set(context.Container.Resolve<IEventActorState<FuturesTickDataEventState>>());
-        actorState.Id = threadId;
-        return await ValueTask.FromResult(actorState);
     }
 }

@@ -34,8 +34,8 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
@@ -304,7 +304,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
-        await actor.InvokeReceiveAsync(context, default, q);
+        await actor.InvokeReceiveAsync(context, q);
 
         await context.Received(1)
             .ReplyAsync(Arg.Is<ActorThreadId>(id => id == q.Subject.ThreadId), Arg.Is<string>(v => v == GetClosingFundBalanceQuery.Verb), Arg.Is<ServiceResult<FundBalanceReadModel>>(r => r.Success && r.Value.Value == 123.45M));
@@ -330,7 +330,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
-        await actor.InvokeReceiveAsync(context, default, q);
+        await actor.InvokeReceiveAsync(context, q);
         await context.Received(1)
             .ReplyAsync(Arg.Is<ActorThreadId>(id => id == q.Subject.ThreadId), Arg.Is<string>(v => v == GetFundDrawdownBalancesQuery.Verb), 
                 Arg.Is<ServiceResult<FundDrawdownBalancesReadModel>>(r => r.Success && r.Value.StartBalance == 1000.00M && r.Value.EndBalance == 2000.00M));
@@ -354,7 +354,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
-        await actor.InvokeReceiveAsync(context, default, q);
+        await actor.InvokeReceiveAsync(context, q);
 
         await context.Received(1)
             .ReplyAsync(Arg.Is<ActorThreadId>(id => id == q.Subject.ThreadId), Arg.Is<string>(v => v == GetFundIdFromOrderIdQuery.Verb), 
@@ -380,7 +380,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
-        await actor.InvokeReceiveAsync(context, default, q);
+        await actor.InvokeReceiveAsync(context, q);
 
         await context.Received(1)
             .ReplyAsync(Arg.Is<ActorThreadId>(id => id == q.Subject.ThreadId), Arg.Is<string>(v => v == GetFundOrdersQuery.Verb), 
@@ -406,7 +406,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
-        await actor.InvokeReceiveAsync(context, default, q);
+        await actor.InvokeReceiveAsync(context, q);
 
         await context.Received(1)
             .ReplyAsync(Arg.Is<ActorThreadId>(id => id == q.Subject.ThreadId), Arg.Is<string>(v => v == GetFundOrderTradesQuery.Verb),
@@ -444,7 +444,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
-        await actor.InvokeReceiveAsync(context, default, q);
+        await actor.InvokeReceiveAsync(context, q);
 
         await context
             .Received(1).ReplyAsync(Arg.Is<ActorThreadId>(id => id == q.Subject.ThreadId), Arg.Is<string>(v => v == GetFundPnlReportQuery.Verb), 
@@ -474,7 +474,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
-        await actor.InvokeReceiveAsync(context, default, q);
+        await actor.InvokeReceiveAsync(context, q);
 
         await context
             .Received(1).ReplyAsync(Arg.Is<ActorThreadId>(id => id == q.Subject.ThreadId), Arg.Is<string>(v => v == GetFundWinLossRatioQuery.Verb), 
@@ -499,7 +499,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
-        await actor.InvokeReceiveAsync(context, default, q);
+        await actor.InvokeReceiveAsync(context, q);
 
         await context.Received(1)
             .ReplyAsync(Arg.Is<ActorThreadId>(id => id == q.Subject.ThreadId), Arg.Is<string>(v => v == GetOpeningFundBalanceQuery.Verb), 
@@ -537,7 +537,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
-        await actor.InvokeReceiveAsync(context, default, q);
+        await actor.InvokeReceiveAsync(context, q);
 
         await context.Received(1)
             .ReplyAsync(Arg.Is<ActorThreadId>(id => id == q.Subject.ThreadId), Arg.Is<string>(v => v == GetFundMaxProfitGeneratedQuery.Verb), 
@@ -567,7 +567,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -598,7 +598,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         // Act
-        await actor.InvokeReceiveAsync(context, default, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await context.Received(1).ReplyAsync(
@@ -620,7 +620,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         query = query with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetFundBalanceQuery.Verb, query.EntityId.Format()) };
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, default, query);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, query);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -640,7 +640,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var context = Substitute.For<IQueryActorContext>();
 
         // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, default, dummy);
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, dummy);
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>();

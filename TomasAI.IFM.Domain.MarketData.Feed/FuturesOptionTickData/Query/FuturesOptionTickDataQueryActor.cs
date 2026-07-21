@@ -7,7 +7,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.MarketDataFeed.Queries;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query;
 
@@ -61,16 +60,13 @@ public class FuturesOptionTickDataQueryActor(
     /// Handles incoming queries asynchronously and processes them based on their type.
     /// </summary>
     /// <param name="context">The context in which the query is being processed.</param>
-    /// <param name="state">The current state of the actor, which must be of type <see cref="FuturesOptionTickDataQueryState"/>.</param>
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
     {
         IsArgumentNull.Check(context);
-        IsArgumentNull.Check(state);
         IsArgumentNull.Check(query);
-        var futuresOptionTickDataQueryState = IsArgumentNull.Set(state as FuturesOptionTickDataQueryState)!;
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");

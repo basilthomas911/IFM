@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.ScyllaDb.TradeDb;
 using TomasAI.IFM.Domain.Trade.Actor.Queries;
-using TomasAI.IFM.Domain.Trade.Actor.Queries.State;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -30,26 +30,15 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IActorState state, IQuery query)
-            => await ReceiveAsync(context, state, query);
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => await ReceiveAsync(context, query);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query)
-            => await OnLoadStateAsync(context, threadId, query);
 
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
     }
 
     static readonly OptionTradeEntityId _entityId = SampleData.EntityId1; // orderId=100, tradeId=1
-
-    static TradeQueryState MakeState()
-    {
-        var db = Substitute.For<Application.Storage.ScyllaDb.TradeDb.ITradeDbContext>();
-        return new TradeQueryState(db)
-        {
-            Id = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format())
-        };
-    }
 
     // --- helpers ----------------------------------------------------------------
 
@@ -59,7 +48,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         return new NatsMsg<byte[]>(query.Subject.ToString(), string.Empty, 0, default!, data, default!, NatsMsgFlags.None);
     }
 
-    #region ParseMessage – Happy Path
+    #region ParseMessage ï¿½ Happy Path
 
     [Fact]
     public void ParseMessage_ShouldParseGetTradeHistoryQuery_Successfully()
@@ -213,7 +202,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
 
     #endregion
 
-    #region ParseMessage – Edge Cases
+    #region ParseMessage ï¿½ Edge Cases
 
     [Fact]
     public void ParseMessage_ShouldThrowArgumentNullException_WhenContextIsNull()
@@ -307,19 +296,18 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
 
     #endregion
 
-    #region ReceiveAsync – Happy Path
+    #region ReceiveAsync ï¿½ Happy Path
 
     [Fact]
     public async Task ReceiveAsync_ShouldProcessGetTradeHistoryQuery_Successfully()
     {
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
-        var tradeDb = Substitute.For<IObjectRepository<Application.Storage.ScyllaDb.TradeDb.TradeDbContext>>();
+        var tradeDb = Substitute.For<ITradeDbContext>();
         dbFactory.TradeDb.Returns(tradeDb);
 
         var actor = _fixture.CreateTradeQueryActor(dbFactory);
         var context = Substitute.For<IQueryActorContext>();
-        var state = MakeState();
 
         var query = new GetTradeHistoryQuery(orderId: 100)
         {
@@ -329,12 +317,12 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         var msgInfo = new ActorMessageInfo(
             new NatsMsg<byte[]>(query.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None),
             query);
-        context.GetMessageInfo(state.Id, GetTradeHistoryQuery.Verb).Returns(msgInfo);
+        context.GetMessageInfo(query.Subject.ThreadId, GetTradeHistoryQuery.Verb).Returns(msgInfo);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
-        // Assert – TradeDb repository was accessed during the query
+        // Assert ï¿½ TradeDb repository was accessed during the query
         _ = dbFactory.Received().TradeDb;
     }
 
@@ -343,12 +331,11 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
-        var tradeDb = Substitute.For<IObjectRepository<Application.Storage.ScyllaDb.TradeDb.TradeDbContext>>();
+        var tradeDb = Substitute.For<ITradeDbContext>();
         dbFactory.TradeDb.Returns(tradeDb);
 
         var actor = _fixture.CreateTradeQueryActor(dbFactory);
         var context = Substitute.For<IQueryActorContext>();
-        var state = MakeState();
 
         var query = new GetTradeLimitQuery(tradeId: 1)
         {
@@ -357,10 +344,10 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         var msgInfo = new ActorMessageInfo(
             new NatsMsg<byte[]>(query.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None),
             query);
-        context.GetMessageInfo(state.Id, GetTradeLimitQuery.Verb).Returns(msgInfo);
+        context.GetMessageInfo(query.Subject.ThreadId, GetTradeLimitQuery.Verb).Returns(msgInfo);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         _ = dbFactory.Received().TradeDb;
@@ -371,12 +358,11 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
-        var tradeDb = Substitute.For<IObjectRepository<Application.Storage.ScyllaDb.TradeDb.TradeDbContext>>();
+        var tradeDb = Substitute.For<ITradeDbContext>();
         dbFactory.TradeDb.Returns(tradeDb);
 
         var actor = _fixture.CreateTradeQueryActor(dbFactory);
         var context = Substitute.For<IQueryActorContext>();
-        var state = MakeState();
 
         var query = new GetTradePositionQuery(100, 1, TradeType.ShortIronCondor, new DateOnly(2025, 1, 15), 45, TradeStatus.Open)
         {
@@ -385,10 +371,10 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         var msgInfo = new ActorMessageInfo(
             new NatsMsg<byte[]>(query.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None),
             query);
-        context.GetMessageInfo(state.Id, GetTradePositionQuery.Verb).Returns(msgInfo);
+        context.GetMessageInfo(query.Subject.ThreadId, GetTradePositionQuery.Verb).Returns(msgInfo);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         _ = dbFactory.Received().TradeDb;
@@ -399,12 +385,11 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
-        var tradeDb = Substitute.For<IObjectRepository<Application.Storage.ScyllaDb.TradeDb.TradeDbContext>>();
+        var tradeDb = Substitute.For<ITradeDbContext>();
         dbFactory.TradeDb.Returns(tradeDb);
 
         var actor = _fixture.CreateTradeQueryActor(dbFactory);
         var context = Substitute.For<IQueryActorContext>();
-        var state = MakeState();
 
         var query = new GetTradeQuantityQuery(tradeId: 1)
         {
@@ -413,10 +398,10 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         var msgInfo = new ActorMessageInfo(
             new NatsMsg<byte[]>(query.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None),
             query);
-        context.GetMessageInfo(state.Id, GetTradeQuantityQuery.Verb).Returns(msgInfo);
+        context.GetMessageInfo(query.Subject.ThreadId, GetTradeQuantityQuery.Verb).Returns(msgInfo);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         _ = dbFactory.Received().TradeDb;
@@ -427,12 +412,11 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
-        var tradeDb = Substitute.For<IObjectRepository<Application.Storage.ScyllaDb.TradeDb.TradeDbContext>>();
+        var tradeDb = Substitute.For<ITradeDbContext>();
         dbFactory.TradeDb.Returns(tradeDb);
 
         var actor = _fixture.CreateTradeQueryActor(dbFactory);
         var context = Substitute.For<IQueryActorContext>();
-        var state = MakeState();
 
         var query = new GetTradeTypeLimitQuery(tradeId: 1, TradeType.ShortIronCondor)
         {
@@ -441,10 +425,10 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         var msgInfo = new ActorMessageInfo(
             new NatsMsg<byte[]>(query.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None),
             query);
-        context.GetMessageInfo(state.Id, GetTradeTypeLimitQuery.Verb).Returns(msgInfo);
+        context.GetMessageInfo(query.Subject.ThreadId, GetTradeTypeLimitQuery.Verb).Returns(msgInfo);
 
         // Act
-        await actor.InvokeReceiveAsync(context, state, query);
+        await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         _ = dbFactory.Received().TradeDb;
@@ -452,38 +436,21 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
 
     #endregion
 
-    #region ReceiveAsync – Edge Cases
+    #region ReceiveAsync ï¿½ Edge Cases
 
     [Fact]
     public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenContextIsNull()
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var state = MakeState();
         var query = new GetTradeHistoryQuery(orderId: 100)
         {
             Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeHistoryQuery.Verb, _entityId.Format())
         };
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(null!, state, query);
+        var act = async () => await actor.InvokeReceiveAsync(null!, query);
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenStateIsNull()
-    {
-        // Arrange
-        var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
-        var query = new GetTradeHistoryQuery(orderId: 100)
-        {
-            Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeHistoryQuery.Verb, _entityId.Format())
-        };
-
-        // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, null!, query);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("state");
     }
 
     [Fact]
@@ -492,10 +459,9 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var state = MakeState();
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, state, null!);
+        var act = async () => await actor.InvokeReceiveAsync(context, null!);
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("query");
     }
 
@@ -505,188 +471,18 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var state = MakeState();
         var unsupportedQuery = Substitute.For<IQuery>();
         unsupportedQuery.Subject.Returns(new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, "UnsupportedVerb", _entityId.Format()));
 
         // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, state, unsupportedQuery);
+        var act = async () => await actor.InvokeReceiveAsync(context, unsupportedQuery);
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"Unable to process {TradeQueryActor.ActorName} query: *");
     }
 
     #endregion
 
-    #region OnLoadStateAsync – Happy Path
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldLoadTradeQueryState_Successfully()
-    {
-        // Arrange
-        var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
-        var container = Substitute.For<IContainerInstance>();
-        var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
-        var realState = MakeState();
-
-        context.Container.Returns(container);
-        container.Resolve<IQueryActorState<TradeQueryState>>().Returns(realState);
-
-        var query = new GetTradeHistoryQuery(orderId: 100)
-        {
-            Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeHistoryQuery.Verb, _entityId.Format())
-        };
-
-        // Act
-        var result = await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeAssignableTo<IQueryActorState<TradeQueryState>>();
-        result.Id.Should().Be(threadId);
-        container.Received(1).Resolve<IQueryActorState<TradeQueryState>>();
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldSetCorrectThreadId_ForGetTradeLimitQuery()
-    {
-        // Arrange
-        var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
-        var container = Substitute.For<IContainerInstance>();
-        var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
-        var realState = MakeState();
-
-        context.Container.Returns(container);
-        container.Resolve<IQueryActorState<TradeQueryState>>().Returns(realState);
-
-        var query = new GetTradeLimitQuery(tradeId: 1)
-        {
-            Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeLimitQuery.Verb, _entityId.Format())
-        };
-
-        // Act
-        var result = await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        result.Id.Should().Be(threadId);
-        container.Received(1).Resolve<IQueryActorState<TradeQueryState>>();
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldSetCorrectThreadId_ForGetTradePositionQuery()
-    {
-        // Arrange
-        var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
-        var container = Substitute.For<IContainerInstance>();
-        var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
-        var realState = MakeState();
-
-        context.Container.Returns(container);
-        container.Resolve<IQueryActorState<TradeQueryState>>().Returns(realState);
-
-        var query = new GetTradePositionQuery(100, 1, TradeType.ShortIronCondor, new DateOnly(2025, 1, 15), 45, TradeStatus.Open)
-        {
-            Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradePositionQuery.Verb, _entityId.Format())
-        };
-
-        // Act
-        var result = await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        result.Id.Should().Be(threadId);
-        container.Received(1).Resolve<IQueryActorState<TradeQueryState>>();
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldSetCorrectThreadId_ForGetTradeQuantityQuery()
-    {
-        // Arrange
-        var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
-        var container = Substitute.For<IContainerInstance>();
-        var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
-        var realState = MakeState();
-
-        context.Container.Returns(container);
-        container.Resolve<IQueryActorState<TradeQueryState>>().Returns(realState);
-
-        var query = new GetTradeQuantityQuery(tradeId: 1)
-        {
-            Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeQuantityQuery.Verb, _entityId.Format())
-        };
-
-        // Act
-        var result = await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        result.Id.Should().Be(threadId);
-        container.Received(1).Resolve<IQueryActorState<TradeQueryState>>();
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldSetCorrectThreadId_ForGetTradeTypeLimitQuery()
-    {
-        // Arrange
-        var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
-        var container = Substitute.For<IContainerInstance>();
-        var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
-        var realState = MakeState();
-
-        context.Container.Returns(container);
-        container.Resolve<IQueryActorState<TradeQueryState>>().Returns(realState);
-
-        var query = new GetTradeTypeLimitQuery(tradeId: 1, TradeType.ShortIronCondor)
-        {
-            Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeTypeLimitQuery.Verb, _entityId.Format())
-        };
-
-        // Act
-        var result = await actor.InvokeOnLoadStateAsync(context, threadId, query);
-
-        // Assert
-        result.Id.Should().Be(threadId);
-        container.Received(1).Resolve<IQueryActorState<TradeQueryState>>();
-    }
-
-    #endregion
-
-    #region OnLoadStateAsync – Edge Cases
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldThrowArgumentNullException_WhenContextIsNull()
-    {
-        // Arrange
-        var actor = _fixture.CreateTradeQueryActor();
-        var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
-        var query = new GetTradeHistoryQuery(orderId: 100)
-        {
-            Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeHistoryQuery.Verb, _entityId.Format())
-        };
-
-        // Act & Assert
-        var act = async () => await actor.InvokeOnLoadStateAsync(null!, threadId, query);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("context");
-    }
-
-    [Fact]
-    public async Task OnLoadStateAsync_ShouldThrowArgumentNullException_WhenQueryIsNull()
-    {
-        // Arrange
-        var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
-        var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
-
-        // Act & Assert
-        var act = async () => await actor.InvokeOnLoadStateAsync(context, threadId, null!);
-        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("query");
-    }
-
-    #endregion
-
-    #region OnExceptionAsync – Happy Path
+    #region OnExceptionAsync ï¿½ Happy Path
 
     [Fact]
     public async Task OnExceptionAsync_ShouldHandleGetTradeHistoryQuery_Exception()
@@ -841,7 +637,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
 
     #endregion
 
-    #region OnExceptionAsync – Edge Cases
+    #region OnExceptionAsync ï¿½ Edge Cases
 
     [Fact]
     public async Task OnExceptionAsync_ShouldThrowArgumentNullException_WhenContextIsNull()
@@ -875,7 +671,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
             .Returns(x => throw new InvalidOperationException("reply failure"));
         var exception = new Exception("Original error");
 
-        // Act – inner exception is swallowed and logged; no outer throw
+        // Act ï¿½ inner exception is swallowed and logged; no outer throw
         var act = async () => await actor.InvokeOnExceptionAsync(context, threadId, query, GetTradeHistoryQuery.Verb, exception);
         await act.Should().NotThrowAsync();
     }
