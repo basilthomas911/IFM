@@ -1074,4 +1074,103 @@ public static class SampleData
     /// directional indicators from (returns PlusDI == MinusDI == AdxValue == 0).
     /// </summary>
     public static decimal[] AdxSinglePrice => [5500m];
+
+    // ───── ATR Signal sample data ──────────────────────────────────────────
+
+    public static FuturesAtrSignalEntityId AtrEntityId
+        => new(ContractId, ValueDate, TimePeriod, PeriodLength);
+
+    public static FuturesAtrSignalId AtrSignalId
+        => new(ContractId, ValueDate, TimePeriod, PeriodLength, TimeOnly.FromDateTime(Timestamp));
+
+    public static GenerateFuturesAtrSignalCommand AtrGenerateCommand
+        => new(AtrSignalId, FuturesPrice);
+
+    public static GenerateFuturesAtrDailySignalCommand AtrGenerateDailyCommand
+        => new(AtrSignalId, FuturesPrice);
+
+    /// <summary>
+    /// Builds a <see cref="FuturesAtrSignalGeneratedEvent"/> that can be applied directly to a
+    /// FuturesAtrSignalCommandState to seed prior ATR signal history for testing state transitions.
+    /// </summary>
+    public static FuturesAtrSignalGeneratedEvent CreateAtrHistoryEvent(
+        decimal price,
+        double atrValue = 0,
+        double trueRange = 0,
+        FuturesTrendDirectionType direction = FuturesTrendDirectionType.Init,
+        FuturesTrendDirectionStrengthType strength = FuturesTrendDirectionStrengthType.Low)
+        => new()
+        {
+            EntityId = AtrEntityId,
+            FuturesAtrSignal = new FuturesAtrSignalReadModel(
+                contractId: ContractId,
+                valueDate: ValueDate,
+                timePeriod: TimePeriod,
+                periodLength: PeriodLength,
+                timestamp: TimeOnly.FromDateTime(Timestamp),
+                futuresPrice: price,
+                atrValue: atrValue,
+                trueRange: trueRange,
+                atr: direction,
+                atrStrength: strength),
+            CreatedOn = Timestamp,
+            CreatedBy = "test"
+        };
+
+    /// <summary>
+    /// Builds a <see cref="FuturesAtrDailySignalGeneratedEvent"/> that can be applied directly to a
+    /// FuturesAtrSignalCommandState to seed prior ATR signal history for testing state transitions.
+    /// </summary>
+    public static FuturesAtrDailySignalGeneratedEvent CreateAtrDailyHistoryEvent(
+        decimal price,
+        double atrValue = 0,
+        double trueRange = 0,
+        FuturesTrendDirectionType direction = FuturesTrendDirectionType.Init,
+        FuturesTrendDirectionStrengthType strength = FuturesTrendDirectionStrengthType.Low)
+        => new()
+        {
+            EntityId = AtrSignalId.ToDailyEntityId(),
+            FuturesAtrSignal = new FuturesAtrSignalReadModel(
+                contractId: ContractId,
+                valueDate: ValueDate,
+                timePeriod: TimePeriod,
+                periodLength: PeriodLength,
+                timestamp: TimeOnly.FromDateTime(Timestamp),
+                futuresPrice: price,
+                atrValue: atrValue,
+                trueRange: trueRange,
+                atr: direction,
+                atrStrength: strength),
+            CreatedOn = Timestamp,
+            CreatedBy = "test"
+        };
+
+    /// <summary>
+    /// A price series (17 points) whose last step is a large jump (+50) after many small (+1) steps,
+    /// so the final True Range far exceeds the smoothed Average True Range (an up-trending / rising
+    /// volatility bias, per FuturesAtrSignalCompute.TrendDirection).
+    /// </summary>
+    public static decimal[] AtrRisingPrices
+        => [.. Enumerable.Range(0, 16).Select(i => 5500m + i), 5565m];
+
+    /// <summary>
+    /// A price series (17 points) that oscillates by a large amount (+/-50) for most steps, then
+    /// settles with a small final step (+1), so the final True Range falls far below the smoothed
+    /// Average True Range (a down-trending / falling volatility bias).
+    /// </summary>
+    public static decimal[] AtrFallingPrices
+        => [.. Enumerable.Range(0, 16).Select(i => 5500m + (i % 2 == 0 ? 0m : 50m)), 5551m];
+
+    /// <summary>
+    /// Flat price series (17 points, all identical) that yields TrueRange == AtrValue == 0
+    /// (a range-bound / no volatility-trend bias).
+    /// </summary>
+    public static decimal[] AtrFlatPrices
+        => [.. Enumerable.Repeat(5500m, 17)];
+
+    /// <summary>
+    /// A single-element price series, which is too short for FuturesAtrSignalCompute to derive
+    /// True Range / ATR from (returns TrueRange == AtrValue == 0).
+    /// </summary>
+    public static decimal[] AtrSinglePrice => [5500m];
 }

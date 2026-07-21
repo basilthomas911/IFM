@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
@@ -16,8 +17,9 @@ public static class GenerateFuturesAtrDailySignal
     /// <param name="e"></param>
     /// <param name="state"></param>
     /// <returns></returns>
-    public static bool Execute(this GenerateFuturesAtrDailySignalCommand e, FuturesAtrSignalCommandState state)
-        => e.Compute(state.AtrSignal, state.AtrSignals ,out var model) switch
+    public static ServiceResult<GuidResult> Execute(this GenerateFuturesAtrDailySignalCommand e, FuturesAtrSignalCommandState state)
+    {
+        var updated = e.Compute(state.AtrSignal, state.AtrSignals, out var model) switch
         {
             _ when model.IsSignalInitializing
                 => state.Update(e.CreateFuturesAtrDailySignalGeneratedEvent(FuturesTrendDirectionType.Init, model)),
@@ -27,6 +29,10 @@ public static class GenerateFuturesAtrDailySignal
                 => state.Update(e.CreateFuturesAtrDailySignalGeneratedEvent(FuturesTrendDirectionType.DownTrending, model)),
             _ => state.Update(e.CreateFuturesAtrDailySignalGeneratedEvent(FuturesTrendDirectionType.TrendReversal, model)),
         };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(e.CommandId))
+            : e.UpdateFailed($"{e.CommandName}: unable to apply generated ATR signal event");
+    }
 
     /// <summary>
     /// Attempts to create a new futures ATR signal compute model based on the specified command and read model.

@@ -88,17 +88,17 @@ public class FuturesAtrSignalCommandActor(
         IsArgumentNull.Check(cmd);
         var atrSignalState = IsArgumentNull.Set((state as FuturesAtrSignalCommandState)!);
         var cmdName = cmd.GetType().Name;
-        _ = _receiveMap.ContainsKey(cmdName)
+        var result = _receiveMap.ContainsKey(cmdName)
             ? _receiveMap[cmdName](cmd, context, atrSignalState)
             : throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return await ValueTask.FromResult(result);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures ATR signal
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesAtrSignalCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesAtrSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(GenerateFuturesAtrSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesAtrSignalCommand)!.Execute(state),
         [typeof(GenerateFuturesAtrDailySignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesAtrDailySignalCommand)!.Execute(state),

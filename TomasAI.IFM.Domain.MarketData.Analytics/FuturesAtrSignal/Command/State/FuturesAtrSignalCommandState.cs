@@ -34,17 +34,18 @@ public class FuturesAtrSignalCommandState
         {
             return domainEvent switch
             {
-                FuturesAtrSignalGeneratedEvent e => On(e),
+                FuturesAtrSignalGeneratedEvent e => On(e.FuturesAtrSignal),
+                FuturesAtrDailySignalGeneratedEvent e => On(e.FuturesAtrSignal),
                 _ => false
             };
         }
         catch { }
         return false;
 
-        bool On(FuturesAtrSignalGeneratedEvent e)
+        bool On(FuturesAtrSignalReadModel signal)
         {
-            _atrSignal = e.FuturesAtrSignal;
-            _atrSignals.Add(e.FuturesAtrSignal);
+            _atrSignal = signal;
+            _atrSignals.Add(signal);
             return true;
         }
     }
