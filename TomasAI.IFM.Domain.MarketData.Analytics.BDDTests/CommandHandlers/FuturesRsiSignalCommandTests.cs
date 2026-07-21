@@ -32,8 +32,8 @@ public class FuturesRsiSignalCommandTests
         return state;
     }
 
-    static GenerateFuturesRsiSignalCommand BuildCommand(TradeTimePeriodType timePeriod = TradeTimePeriodType.Daily)
-        => SampleData.RsiGenerateCommandFor(timePeriod) with { CommandId = Guid.NewGuid() };
+    static GenerateFuturesRsiSignalCommand BuildCommand(TradeTimePeriodType timePeriod = TradeTimePeriodType.Daily, decimal price = SampleData.FuturesPrice)
+        => SampleData.RsiGenerateCommandFor(timePeriod, price) with { CommandId = Guid.NewGuid() };
 
     #region Happy Path Tests
 
@@ -102,9 +102,10 @@ public class FuturesRsiSignalCommandTests
     [InlineData(TradeTimePeriodType.Monthly)]
     public void Execute_WhenPriorHistoryAtWindowSizeWithFallingPrices_ProducesLowRsiAndSignalsEvent(TradeTimePeriodType timePeriod)
     {
-        // Arrange
+        // Arrange - the new price must continue the down-trend (last seeded price is 4055); otherwise
+        // the single new data point can itself dominate the windowed average and mask the trend.
         var state = SeedState(SampleData.DownTrendingRsiSignals);
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod, price: 4050m);
 
         // Act
         var result = command.Execute(state);
@@ -120,9 +121,10 @@ public class FuturesRsiSignalCommandTests
     [Fact]
     public void Execute_WhenPriorHistoryAtWindowSizeWithFlatPrices_ProducesExpectedZeroRsi()
     {
-        // Arrange
+        // Arrange - the new price must match the flat seeded price (4100); otherwise the single new
+        // data point introduces an artificial gain/loss that the windowed average can't smooth out.
         var state = SeedState(SampleData.FlatRsiSignals);
-        var command = BuildCommand();
+        var command = BuildCommand(price: 4100m);
 
         // Act
         var result = command.Execute(state);

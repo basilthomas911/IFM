@@ -232,8 +232,8 @@ public static class SampleData
     public static FuturesRsiSignalId RsiSignalId
         => RsiSignalIdFor(TradeTimePeriodType.Daily);
 
-    public static GenerateFuturesRsiSignalCommand RsiGenerateCommandFor(TradeTimePeriodType timePeriod)
-        => new(RsiSignalIdFor(timePeriod), FuturesPrice);
+    public static GenerateFuturesRsiSignalCommand RsiGenerateCommandFor(TradeTimePeriodType timePeriod, decimal price = FuturesPrice)
+        => new(RsiSignalIdFor(timePeriod), price);
 
     public static GenerateFuturesRsiSignalCommand RsiGenerateCommand
         => RsiGenerateCommandFor(TradeTimePeriodType.Daily);
