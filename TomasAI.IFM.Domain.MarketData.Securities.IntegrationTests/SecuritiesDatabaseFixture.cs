@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using StackExchange.Redis;
 using TomasAI.IFM.Application.Blackboard;
@@ -11,7 +11,7 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
-namespace TomasAI.IFM.Domain.Securities.IntegrationTests;
+namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 
 public class SecuritiesDatabaseFixture : IDisposable
 {

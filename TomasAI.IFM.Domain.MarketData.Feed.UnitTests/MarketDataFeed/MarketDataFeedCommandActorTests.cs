@@ -14,6 +14,7 @@ using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.MarketDataFeed.Commands;
 using TomasAI.IFM.Shared.MarketDataFeed.Events;
 using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed;
 

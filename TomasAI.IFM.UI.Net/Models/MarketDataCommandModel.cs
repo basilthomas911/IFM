@@ -3,7 +3,7 @@ using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.MarketData.ServiceApi;
 using TomasAI.IFM.Shared.Extensions;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 /// <summary>
 /// Represents a model for executing market data commands, such as managing futures contracts, futures option contracts,

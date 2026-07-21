@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.SystemAdmin;
 using TomasAI.IFM.Shared.SystemAdmin.ViewModels;
 
-namespace TomasAI.IFM.Domain.SystemAdmin.Actor.BDDTests;
+namespace TomasAI.IFM.Domain.SystemAdmin.BDDTests;
 
 public class SystemAdminQueryHandlerTests 
 {

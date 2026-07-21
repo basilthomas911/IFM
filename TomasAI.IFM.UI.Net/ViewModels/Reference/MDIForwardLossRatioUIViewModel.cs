@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 
-namespace TomasAI.IFM.ViewModels.Reference
+namespace TomasAI.IFM.UI.Net.ViewModels.Reference
 {
     public class MDIForwardLossRatioUIViewModel
     {

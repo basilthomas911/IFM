@@ -1,7 +1,7 @@
-﻿using System.Windows;
+using System.Windows;
 using TomasAI.IFM.Shared.StatusConsole;
 
-namespace TomasAI.IFM.ServerManager;
+namespace TomasAI.IFM.Application.ServerManager;
 
 public interface IMainWindowViewModel
 {

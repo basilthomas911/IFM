@@ -10,6 +10,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesAdxSignal;
 

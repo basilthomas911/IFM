@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 
-namespace TomasAI.IFM.Extensions
+namespace TomasAI.IFM.UI.Net.Extensions
 {
     public static class ProgressBarExtension
     {

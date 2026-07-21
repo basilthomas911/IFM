@@ -1,8 +1,8 @@
-using TomasAI.IFM.Contracts;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.Reference.ViewModels;
-using TomasAI.IFM.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.ViewModels.Reference;
 
-namespace TomasAI.IFM.Views.Reference;
+namespace TomasAI.IFM.UI.Net.Views.Reference;
 
 public partial class LookupTypeEditorView
     : UserControl, IControlCommand, IFormControl

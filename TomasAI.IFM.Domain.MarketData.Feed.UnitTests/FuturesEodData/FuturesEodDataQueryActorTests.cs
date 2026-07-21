@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketDataFeed.Queries;
 using TomasAI.IFM.Shared.MarketDataFeed.QueryParameters;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesEodData;
 

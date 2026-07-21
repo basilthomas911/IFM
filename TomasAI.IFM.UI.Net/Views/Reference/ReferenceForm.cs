@@ -1,7 +1,7 @@
-﻿using TomasAI.IFM.Contracts;
-using TomasAI.IFM.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.ViewModels.Reference;
 
-namespace TomasAI.IFM.Views.Reference;
+namespace TomasAI.IFM.UI.Net.Views.Reference;
 
 public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 {

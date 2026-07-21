@@ -8,7 +8,7 @@ using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Application.Command.Client;
 using TomasAI.IFM.Application.Query.Client;
-using ScheduledTask.TrainFuturesItiPredictiveModel;
+using TomasAI.ScheduledTasks.SceduledTask.TrainFuturesItiPredictiveModel;
 using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend.ServiceApi;
 using TomasAI.IFM.Application.Command.Client.PredictiveModel.FuturesItiTrend;
 

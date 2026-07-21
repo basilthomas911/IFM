@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace TomasAI.IFM.Views.Trade
+namespace TomasAI.IFM.UI.Net.Views.Trade
 {
     public partial class DeleteFundOrderForm : Form
     {

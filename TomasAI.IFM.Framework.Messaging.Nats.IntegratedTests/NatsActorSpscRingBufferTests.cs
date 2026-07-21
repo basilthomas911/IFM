@@ -1,5 +1,6 @@
 using FluentAssertions;
 using NATS.Client.Core;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 namespace TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests;
 

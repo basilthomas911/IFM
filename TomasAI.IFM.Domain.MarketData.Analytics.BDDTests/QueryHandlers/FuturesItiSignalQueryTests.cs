@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query;
 using TomasAI.IFM.Application.Storage;
 using Xunit;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.QueryHandlers;
 

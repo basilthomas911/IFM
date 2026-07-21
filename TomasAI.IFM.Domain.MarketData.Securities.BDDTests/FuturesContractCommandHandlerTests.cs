@@ -16,7 +16,7 @@ using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions;
 
-namespace TomasAI.IFM.Domain.Securities.BDDTests;
+namespace TomasAI.IFM.Domain.MarketData.Securities.BDDTests;
 
 public class FuturesContractCommandHandlerTests
 {

@@ -3,8 +3,8 @@ using System.Linq;
 using System.Windows.Forms;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.Trade.Events;
@@ -13,7 +13,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.UI.Net.Models;
 
-namespace TomasAI.IFM.ViewModels.Trade;
+namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 
 public class EndOfDayProcessViewModel : BaseEditorViewModel
 {

@@ -1,8 +1,8 @@
-﻿using System.Text;
+using System.Text;
 using Newtonsoft.Json;
-using TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 
-namespace TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 
 /// <summary>
 /// Provides methods for serializing objects to JSON and deserializing JSON data to objects, using UTF-8 encoding for

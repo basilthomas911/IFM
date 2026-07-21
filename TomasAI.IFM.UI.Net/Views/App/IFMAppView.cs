@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 using System.Linq;
 using System.Diagnostics;
@@ -10,21 +10,21 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
-using TomasAI.IFM.Contracts;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Views.SystemAdmin;
-using TomasAI.IFM.Views.MarketData;
-using TomasAI.IFM.Views.Trade;
-using TomasAI.IFM.Views.Fund;
-using TomasAI.IFM.Views.Reference;
-using TomasAI.IFM.ViewModels.App;
-using TomasAI.IFM.ViewModels.MarketData;
-using TomasAI.IFM.ViewModels.Trade;
-using TomasAI.IFM.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.Views.SystemAdmin;
+using TomasAI.IFM.UI.Net.Views.MarketData;
+using TomasAI.IFM.UI.Net.Views.Trade;
+using TomasAI.IFM.UI.Net.Views.Fund;
+using TomasAI.IFM.UI.Net.Views.Reference;
+using TomasAI.IFM.UI.Net.ViewModels.App;
+using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.ViewModels.Trade;
+using TomasAI.IFM.UI.Net.ViewModels.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Fund;
-using TomasAI.IFM.ViewModels.SystemAdmin;
+using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 
-namespace TomasAI.IFM.Views.App;
+namespace TomasAI.IFM.UI.Net.Views.App;
 
 public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
 {

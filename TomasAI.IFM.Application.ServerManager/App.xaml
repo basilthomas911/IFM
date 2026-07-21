@@ -1,7 +1,7 @@
-﻿<Application x:Class="TomasAI.IFM.ServerManager.App"
+<Application x:Class="TomasAI.IFM.Application.ServerManager.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:TomasAI.IFM.ServerManager">
+             xmlns:local="clr-namespace:TomasAI.IFM.Application.ServerManager">
     <Application.Resources>
          
     </Application.Resources>

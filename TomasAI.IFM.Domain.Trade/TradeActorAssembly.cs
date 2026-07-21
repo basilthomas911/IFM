@@ -1,6 +1,6 @@
-﻿using System.Reflection;
+using System.Reflection;
 
-namespace TomasAI.IFM.Domain.Trade.Actor;
+namespace TomasAI.IFM.Domain.Trade;
 
 public static class TradeActorAssembly
 {

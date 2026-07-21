@@ -3,7 +3,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Application.ServiceApi;
 using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend.ServiceApi;
 
-namespace ScheduledTask.TrainFuturesItiPredictiveModel
+namespace TomasAI.ScheduledTasks.SceduledTask.TrainFuturesItiPredictiveModel
 {
     public class Worker : BackgroundService
     {

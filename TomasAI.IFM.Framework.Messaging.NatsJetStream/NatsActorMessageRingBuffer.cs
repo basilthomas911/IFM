@@ -1,12 +1,12 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using NATS.Client.Core;
 
-using TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 
-namespace TomasAI.IFM.Framework.Messaging.Nats;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 /// <summary>
 /// A high-performance, <b>single-producer single-consumer</b> (SPSC) ring buffer.

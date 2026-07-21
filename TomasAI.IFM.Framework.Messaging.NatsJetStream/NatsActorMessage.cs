@@ -1,10 +1,10 @@
 using NATS.Client.Core;
-using TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Framework.Messaging.Nats;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 /// <summary>
 /// Represents a message used in the NATS-based actor messaging system, encapsulating the underlying NATS message and

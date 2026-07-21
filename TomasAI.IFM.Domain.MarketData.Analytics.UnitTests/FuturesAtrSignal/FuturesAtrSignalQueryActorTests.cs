@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Query;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesAtrSignal;
 

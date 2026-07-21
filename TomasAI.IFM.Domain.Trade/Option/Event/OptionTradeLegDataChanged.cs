@@ -1,14 +1,14 @@
-﻿using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.OptionPricer;
 using TomasAI.IFM.Shared.OptionPricer.ViewModels;
 using TomasAI.IFM.Shared.Trade.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Domain.Trade.Actor.Option.Event.Extensions;
+using TomasAI.IFM.Domain.Trade.Option.Event.Extensions;
 using Microsoft.Extensions.Logging;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.Option.Event;
+namespace TomasAI.IFM.Domain.Trade.Option.Event;
 
 public static class OptionTradeLegDataChanged
 {

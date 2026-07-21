@@ -2,7 +2,7 @@ using System.Drawing;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Trade.Events;
 
-namespace TomasAI.IFM.ViewModels.MarketData
+namespace TomasAI.IFM.UI.Net.ViewModels.MarketData
 {
     public class PlaceTradeUIViewModel
     {

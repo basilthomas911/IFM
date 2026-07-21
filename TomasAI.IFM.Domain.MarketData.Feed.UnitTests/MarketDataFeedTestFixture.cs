@@ -23,7 +23,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Query;
 using TomasAI.IFM.Domain.MarketData.Feed.Query;
-using TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.MarketDataFeed;
@@ -48,6 +48,24 @@ using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesTickData.Future
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed.MarketDataFeedCommandActorTests;
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed.MarketDataFeedEventActorTests;
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed.MarketDataFeedQueryActorTests;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests;
 

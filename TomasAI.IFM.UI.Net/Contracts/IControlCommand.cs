@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace TomasAI.IFM.Contracts
+namespace TomasAI.IFM.UI.Net.Contracts
 {
     public interface IControlCommand
     {

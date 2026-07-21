@@ -12,8 +12,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Shared.MarketData.Queries;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query.Actor;
 
-namespace TomasAI.IFM.Domain.Securities.UnitTests.FuturesContract;
+namespace TomasAI.IFM.Domain.MarketData.Securities.UnitTests.FuturesContract;
 
 public class FuturesContractQueryActorTests : IClassFixture<SecuritiesFixture>
 {

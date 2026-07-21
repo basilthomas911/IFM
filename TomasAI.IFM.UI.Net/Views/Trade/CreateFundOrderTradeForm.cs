@@ -1,11 +1,11 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Reference.ViewModels;
-using TomasAI.IFM.ViewModels.Trade;
+using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
-namespace TomasAI.IFM.Views.Trade;
+namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTradeForm>, IFormControl
 {

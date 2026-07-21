@@ -11,7 +11,7 @@ using TomasAI.IFM.Application.Storage.ScyllaDb.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
-using TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.Serialization;

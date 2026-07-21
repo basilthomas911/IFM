@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace TomasAI.IFM.Domain.PredictiveModel.FuturesItiTrend.Model
+namespace TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend
 {
     public enum TrendModelState
     {

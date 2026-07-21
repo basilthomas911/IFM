@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventModelActor.Events;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Fund.Transaction.Event.Actor;
 
 namespace TomasAI.IFM.Domain.Fund.UnitTests.Transaction;
 

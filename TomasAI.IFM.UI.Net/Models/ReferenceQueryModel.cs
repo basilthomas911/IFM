@@ -9,7 +9,7 @@ using TomasAI.IFM.Shared.Reference.ServiceApi;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.Trade;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 public class ReferenceQueryModel : BaseModel<ReferenceQueryModel>
 {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.CompilerServices;
 using TomasAI.IFM.Shared.EventModelActor;
 
@@ -43,7 +43,7 @@ namespace TomasAI.IFM.Shared.Extensions
 }
 
 /*
-namespace System.Runtime.CompilerServices
+namespace TomasAI.IFM.Shared.Extensions
 {
     [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false, Inherited = false)]
     public sealed class CallerArgumentExpressionAttribute : Attribute

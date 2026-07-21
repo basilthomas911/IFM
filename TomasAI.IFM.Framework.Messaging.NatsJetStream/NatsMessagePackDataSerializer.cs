@@ -1,7 +1,7 @@
-﻿using TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Serialization;
 
-namespace TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 /// <summary>
 /// Provides functionality for serializing and deserializing objects using the MessagePack format.

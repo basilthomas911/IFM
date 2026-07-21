@@ -14,8 +14,9 @@ using TomasAI.IFM.Shared.MarketData.Events;
 using TomasAI.IFM.Shared.MarketData.Exceptions;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Actor;
 
-namespace TomasAI.IFM.Domain.Securities.UnitTests.FuturesOptionContract;
+namespace TomasAI.IFM.Domain.MarketData.Securities.UnitTests.FuturesOptionContract;
 
 public class FuturesOptionContractCommandActorTests : IClassFixture<SecuritiesFixture>
 {

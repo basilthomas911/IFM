@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.Kafka;
-using TomasAI.IFM.Framework.Messaging.Nats;
-using TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.Application.Events;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.EventModelActor;

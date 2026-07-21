@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketData.Queries;
 using TomasAI.IFM.Shared.MarketData.QueryParameters;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.UnitTests;
 

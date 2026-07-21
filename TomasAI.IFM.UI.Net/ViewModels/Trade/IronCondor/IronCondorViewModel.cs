@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.EventQueue;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
@@ -15,7 +15,7 @@ using TomasAI.IFM.Shared.Trade.Events;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
-namespace TomasAI.IFM.ViewModels.Trade.IronCondor;
+namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
 public class IronCondorViewModel
 {

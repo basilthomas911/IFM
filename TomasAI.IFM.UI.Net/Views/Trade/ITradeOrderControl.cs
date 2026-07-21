@@ -1,7 +1,7 @@
-﻿using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.ViewModels.Trade;
+using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.UI.Net.ViewModels.Trade;
 
-namespace TomasAI.IFM.Views.Trade;
+namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public interface ITradeOrderControl
 {

@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 
-namespace TomasAI.IFM.ViewModels.SystemAdmin
+namespace TomasAI.IFM.UI.Net.ViewModels.SystemAdmin
 {
     public class SystemAdminViewModel
     {

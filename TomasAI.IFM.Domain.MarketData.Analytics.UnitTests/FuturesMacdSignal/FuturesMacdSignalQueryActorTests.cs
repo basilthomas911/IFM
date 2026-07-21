@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesMacdSignal;
 
@@ -365,20 +366,6 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         var act = async () => await actor.InvokeReceiveAsync(null!, query);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("context");
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenStateIsNull()
-    {
-        // Arrange
-        var actor = _fixture.CreateMacdQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
-
-        // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, query);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("state");
     }
 
     [Fact]

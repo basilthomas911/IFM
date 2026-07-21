@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.UI.Angular.Server
+namespace TomasAI.IFM.UI.Angular.TomasAI.IFM.UI.Angular.Server
 {
     public class WeatherForecast
     {

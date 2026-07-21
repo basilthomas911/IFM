@@ -1,8 +1,9 @@
 using System;
 using Xunit;
 using FluentAssertions;
+using TomasAI.IFM.Shared.Util;
 
-namespace TomasAI.IFM.Shared.Util.UnitTests
+namespace TomasAI.IFM.Shared.UnitTests.Util
 {
     public class CsvDataReaderTests
     {

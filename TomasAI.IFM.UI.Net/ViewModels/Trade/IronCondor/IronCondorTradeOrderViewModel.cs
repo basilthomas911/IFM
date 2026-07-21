@@ -1,6 +1,6 @@
 using QLNet;
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed;
@@ -15,7 +15,7 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
-namespace TomasAI.IFM.ViewModels.Trade.IronCondor;
+namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
 /// <summary>
 /// Represents a view model for managing and executing iron condor trade orders.

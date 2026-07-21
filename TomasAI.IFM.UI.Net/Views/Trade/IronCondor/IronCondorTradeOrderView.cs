@@ -1,17 +1,17 @@
 using System.Globalization;
 using QLNet;
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Extensions;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.ViewModels.Trade;
-using TomasAI.IFM.ViewModels.Trade.IronCondor;
+using TomasAI.IFM.UI.Net.ViewModels.Trade;
+using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 using TomasAI.IFM.Domain.Fund.Shared;
 
-namespace TomasAI.IFM.Views.Trade.IronCondor;
+namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
 public partial class IronCondorTradeOrderView : UserControl, IFormControl, ITradeOrderControl
 {

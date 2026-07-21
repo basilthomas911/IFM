@@ -17,6 +17,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesItiSignal;
 

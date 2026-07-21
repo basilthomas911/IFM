@@ -2,3 +2,4 @@
 // This file adds commonly used namespaces across the project.
 
 global using TomasAI.IFM.Shared.EventModelActor;
+global using TomasAI.IFM.Shared.Application;

@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 
-namespace TomasAI.IFM.Service.TradePlan.HostedService
+namespace TomasAI.IFM.TradePlan.HostedService
 {
     public class TradePlanHostedService : IHostedService
     {

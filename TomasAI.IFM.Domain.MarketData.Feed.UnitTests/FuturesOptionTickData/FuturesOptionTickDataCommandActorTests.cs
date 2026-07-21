@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.MarketDataFeed.Commands;
 using TomasAI.IFM.Shared.MarketDataFeed.Events;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionTickData;
 

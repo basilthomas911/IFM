@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.MarketDataFeed.Events;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Event;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionQuoteData;
 

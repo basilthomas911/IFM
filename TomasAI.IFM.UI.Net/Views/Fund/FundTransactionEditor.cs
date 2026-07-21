@@ -1,10 +1,10 @@
 using System.Data;
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.ViewModels.Fund;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.ViewModels.Fund;
 using TomasAI.IFM.UI.Net.ViewModels.Fund;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
-namespace TomasAI.IFM.Views.Fund;
+namespace TomasAI.IFM.UI.Net.Views.Fund;
 
 public partial class FundTransactionEditor
     : Form, IForm<FundTransactionEditor>, IFormControl

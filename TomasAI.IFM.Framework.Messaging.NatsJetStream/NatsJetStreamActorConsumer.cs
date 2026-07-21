@@ -4,13 +4,13 @@ using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
-using TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 
-namespace TomasAI.IFM.Framework.Messaging.Nats;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 /// <summary>
 /// Represents a NATS JetStream consumer that subscribes to and processes actor event messages

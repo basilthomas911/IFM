@@ -9,6 +9,7 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTdiSignal;
 

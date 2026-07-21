@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.MarketData.ServiceApi;
@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 
-namespace TomasAI.IFM.Models
+namespace TomasAI.IFM.UI.Net.Models
 {
     public class MarketDataAnalyticsCommandModel : BaseModel<MarketDataAnalyticsCommandModel>
     {

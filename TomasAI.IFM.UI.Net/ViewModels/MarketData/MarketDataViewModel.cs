@@ -1,8 +1,8 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 
-namespace TomasAI.IFM.ViewModels.MarketData;
+namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 /// <summary>
 /// Represents a view model for managing market data definitions.

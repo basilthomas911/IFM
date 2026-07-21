@@ -5,7 +5,7 @@ using Newtonsoft.Json;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketData.Events;
 
-namespace TomasAI.IFM.Shared.MarketData.Exceptions
+namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions
 {
     /// <summary>
     /// change futures contract exception

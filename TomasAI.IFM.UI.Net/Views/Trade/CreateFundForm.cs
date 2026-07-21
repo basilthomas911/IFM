@@ -7,11 +7,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.ViewModels.Fund;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.ViewModels.Fund;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
-namespace TomasAI.IFM.Views.Trade;
+namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public partial class CreateFundForm : Form, IFormControl
 {

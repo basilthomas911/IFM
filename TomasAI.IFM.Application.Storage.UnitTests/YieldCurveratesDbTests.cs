@@ -17,7 +17,7 @@ public class YieldCurveRatesDbTests
     public async Task CreateYieldCurveRatesOk()
     {
         var dbConn = new DbConnectionSettings()
-            .Add("YieldCurveRatesDbConnection", @"Data Source = https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ&start_date=2018-10-16", "TomasAI.IFM.Storage");
+            .Add("YieldCurveRatesDbConnection", @"Data Source = https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ&start_date=2018-10-16", "TomasAI.IFM.Framework.Storage");
         var diContainer = new Dictionary<Type, YieldCurveRatesDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var dbFactory = new DbContextFactory(dbResolver);

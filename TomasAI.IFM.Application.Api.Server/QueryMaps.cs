@@ -25,6 +25,9 @@ using TomasAI.IFM.Shared.Trade.Queries;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query.Actor;
 
 namespace TomasAI.IFM.Application.Api.Server;
 

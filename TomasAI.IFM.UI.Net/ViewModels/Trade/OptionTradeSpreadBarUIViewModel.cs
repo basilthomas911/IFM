@@ -1,6 +1,6 @@
-﻿using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Shared.Trade.ViewModels;
 
-namespace TomasAI.IFM.ViewModels.Trade;
+namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 
 public class OptionTradeSpreadBarUIViewModel
 {

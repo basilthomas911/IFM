@@ -6,7 +6,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event;
-using TomasAI.IFM.Framework.Messaging.Nats;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -15,6 +15,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesTradeSignal;
 

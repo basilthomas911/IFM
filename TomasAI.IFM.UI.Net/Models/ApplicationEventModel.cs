@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.Application.Events;
 using TomasAI.IFM.UI.EventConsumer;
 
-namespace TomasAI.IFM.Models
+namespace TomasAI.IFM.UI.Net.Models
 {
     public class ApplicationEventModel : BaseModel<ApplicationEventModel>
     {

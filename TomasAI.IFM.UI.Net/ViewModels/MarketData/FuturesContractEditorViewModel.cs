@@ -1,13 +1,13 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Extensions;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Extensions;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.Extensions;
 
-namespace TomasAI.IFM.ViewModels.MarketData;
+namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 /// <summary>
 /// Represents a view model for managing and editing futures contracts.

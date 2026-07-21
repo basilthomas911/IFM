@@ -1,10 +1,10 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
-using TomasAI.IFM.Domain.SystemAdmin.Actor.Command;
-using TomasAI.IFM.Domain.SystemAdmin.Actor.Command.State;
+using TomasAI.IFM.Domain.SystemAdmin.Command;
+using TomasAI.IFM.Domain.SystemAdmin.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -12,8 +12,9 @@ using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.SystemAdmin;
 using TomasAI.IFM.Shared.SystemAdmin.Commands;
 using TomasAI.IFM.Shared.SystemAdmin.Events;
+using TomasAI.IFM.Domain.SystemAdmin.Command.Actor;
 
-namespace TomasAI.IFM.Domain.SystemAdmin.Actor.UnitTests;
+namespace TomasAI.IFM.Domain.SystemAdmin.UnitTests;
 
 public class SystemAdminCommandActorTests : IClassFixture<SystemAdminFixture>
 {

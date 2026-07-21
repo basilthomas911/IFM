@@ -1,10 +1,10 @@
-﻿using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.Queries.Model;
+namespace TomasAI.IFM.Domain.Trade.Queries.Model;
 
 internal static class TradeDbContext
 {

@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.MarketData.Commands;
 using TomasAI.IFM.Shared.MarketData.Events;

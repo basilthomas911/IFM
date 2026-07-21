@@ -1,6 +1,6 @@
-﻿using System.Reflection;
+using System.Reflection;
 
-namespace TomasAI.IFM.Domain.SystemAdmin.Actor;
+namespace TomasAI.IFM.Domain.SystemAdmin;
 
 public static class SystemAdminActorAssembly
 {

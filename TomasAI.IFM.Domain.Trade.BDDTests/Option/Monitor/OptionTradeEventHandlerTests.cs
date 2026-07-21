@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -15,7 +15,7 @@ using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.Events;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.BDDTests.Option.Monitor;
+namespace TomasAI.IFM.Domain.Trade.BDDTests.Option.Monitor;
 
 public class OptionTradeEventHandlerTests
 {

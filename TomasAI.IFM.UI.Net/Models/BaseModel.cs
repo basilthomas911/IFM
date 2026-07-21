@@ -1,7 +1,7 @@
-using TomasAI.IFM.Contracts;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 /// <summary>
 /// Provides a base implementation for models that support error handling and asynchronous execution of service

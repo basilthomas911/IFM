@@ -1,6 +1,6 @@
 using TomasAI.IFM.Shared.Reference.ViewModels;
 
-namespace TomasAI.IFM.Extensions;
+namespace TomasAI.IFM.UI.Net.Extensions;
 
 public static class LookupTypeListExtension
 {

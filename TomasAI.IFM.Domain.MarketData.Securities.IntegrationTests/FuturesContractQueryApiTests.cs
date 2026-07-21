@@ -5,7 +5,7 @@ using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Framework.Messaging.Nats;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -13,7 +13,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketData.Commands;
 using TomasAI.IFM.Shared.MarketData.Events;
 
-namespace TomasAI.IFM.Domain.Securities.IntegrationTests;
+namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 
 public class FuturesContractQueryApiTests(WebApplicationFactory<Program> factory, SecuritiesDatabaseFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<SecuritiesDatabaseFixture>

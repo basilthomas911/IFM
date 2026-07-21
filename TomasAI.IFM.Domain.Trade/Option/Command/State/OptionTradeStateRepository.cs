@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Application.Storage.ScyllaDb.TradeDb;
@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.Events;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.Option.Command.State;
+namespace TomasAI.IFM.Domain.Trade.Option.Command.State;
 
 /// <summary>
 /// Provides functionality to manage the state of option trades, including loading state from snapshots and saving

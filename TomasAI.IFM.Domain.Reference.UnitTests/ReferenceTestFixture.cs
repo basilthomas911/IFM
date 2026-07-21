@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
@@ -8,7 +8,7 @@ using TomasAI.IFM.Domain.Reference.EconomicCalendar.Query;
 using TomasAI.IFM.Domain.Reference.LookupType.Command;
 using TomasAI.IFM.Domain.Reference.LookupType.Query;
 using TomasAI.IFM.Domain.Reference.Query;
-using TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using static TomasAI.IFM.Domain.Reference.UnitTests.EconomicCalendar.EconomicCalendarCommandActorTests;
@@ -16,6 +16,11 @@ using static TomasAI.IFM.Domain.Reference.UnitTests.EconomicCalendar.EconomicCal
 using static TomasAI.IFM.Domain.Reference.UnitTests.LookupType.LookupTypeCommandActorTests;
 using static TomasAI.IFM.Domain.Reference.UnitTests.LookupType.LookupTypeQueryActorTests;
 using static TomasAI.IFM.Domain.Reference.UnitTests.Queries.ReferenceQueryActorTests;
+using TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Actor;
+using TomasAI.IFM.Domain.Reference.EconomicCalendar.Query.Actor;
+using TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
+using TomasAI.IFM.Domain.Reference.LookupType.Query.Actor;
+using TomasAI.IFM.Domain.Reference.Query.Actor;
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests;
 

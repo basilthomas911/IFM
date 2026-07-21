@@ -4,11 +4,11 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
-using TomasAI.IFM.Contracts;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.Reference.ViewModels;
-using TomasAI.IFM.ViewModels.App;
+using TomasAI.IFM.UI.Net.ViewModels.App;
 
-namespace TomasAI.IFM.Views.App;
+namespace TomasAI.IFM.UI.Net.Views.App;
 
 public partial class MarketEconomicCalendarView : UserControl, IFormControl
 {

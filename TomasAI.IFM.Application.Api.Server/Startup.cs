@@ -9,7 +9,7 @@ using StackExchange.Redis;
 using System.Buffers;
 using System.Reflection;
 using System.Text.Json.Serialization;
-using TomasAI.IFM.Application.Actor;
+using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Command;
@@ -33,14 +33,14 @@ using TomasAI.IFM.Domain.MarketData.Feed;
 using TomasAI.IFM.Domain.MarketData.Securities;
 using TomasAI.IFM.Domain.Reference;
 using TomasAI.IFM.Domain.Reference.Services;
-using TomasAI.IFM.Domain.SystemAdmin.Actor;
-using TomasAI.IFM.Domain.Trade.Actor;
+using TomasAI.IFM.Domain.SystemAdmin;
+using TomasAI.IFM.Domain.Trade;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.Kafka;
-using TomasAI.IFM.Framework.Messaging.Nats;
-using TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
@@ -48,8 +48,8 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Storage.Azure;
 using TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers;
-using TomasAI.IFM.Service.TradePlan;
-using TomasAI.IFM.Service.TradePlan.HostedService;
+using TomasAI.IFM.TradePlan;
+using TomasAI.IFM.TradePlan.HostedService;
 using TomasAI.IFM.Service.TradePosition;
 using TomasAI.IFM.Service.TradePosition.HostedService;
 using TomasAI.IFM.Shared.Application.ServiceApi;
@@ -290,8 +290,8 @@ public static class Startup
                 .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
                 .Add("SecuritiesDbConnection", config.GetConnectionString("SecuritiesDbConnection")!, "System.Data.ScyllaDb")
                 .Add("TradeDbConnection", config.GetConnectionString("TradeDbConnection")!, "System.Data.ScyllaDb")
-                .Add("YieldCurveRatesDbConnection", config.GetConnectionString("YieldCurveRatesDbConnection")!, "TomasAI.IFM.Storage")
-                .Add("EconomicCalendarsDbConnection", config.GetConnectionString("EconomicCalendarsDbConnection")!, "TomasAI.IFM.Storage")
+                .Add("YieldCurveRatesDbConnection", config.GetConnectionString("YieldCurveRatesDbConnection")!, "TomasAI.IFM.Framework.Storage")
+                .Add("EconomicCalendarsDbConnection", config.GetConnectionString("EconomicCalendarsDbConnection")!, "TomasAI.IFM.Framework.Storage")
             );
             services.AddSingleton<IDbCache, DbCache>();
             services.AddSingleton<IDbContextResolver>(_ => new DbContextResolver(e => GetContainerInstance(e)!));

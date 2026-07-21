@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Framework.Messaging.Nats;
-using TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 

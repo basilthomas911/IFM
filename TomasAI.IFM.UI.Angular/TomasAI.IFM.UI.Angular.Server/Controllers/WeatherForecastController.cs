@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 
-namespace TomasAI.IFM.UI.Angular.Server.Controllers
+namespace TomasAI.IFM.UI.Angular.TomasAI.IFM.UI.Angular.Server.Controllers
 {
     [ApiController]
     [Route("[controller]")]

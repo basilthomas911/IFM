@@ -1,7 +1,7 @@
-﻿using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Shared.Trade.Events;
 using TomasAI.IFM.UI.EventConsumer;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 public class TradePositionFeedEventModel(ITradePositionUIEventConsumer tradePositionEventConsumer) 
     : BaseModel<TradePositionFeedEventModel>

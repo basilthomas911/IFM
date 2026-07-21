@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesAdxSignal;
 

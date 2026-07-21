@@ -3,7 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Application.Actor;
+namespace TomasAI.IFM.Application.Actor.Client;
 
 /// <summary>
 /// Represents a query for retrieving test data using the specified actor, entity, and message parameters.

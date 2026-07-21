@@ -9,7 +9,7 @@ using TomasAI.IFM.Shared.SystemAdmin.Events;
 using TomasAI.IFM.Shared.SystemAdmin.ServiceApi;
 using TomasAI.IFM.UI.EventConsumer;
 
-namespace TomasAI.IFM.Models
+namespace TomasAI.IFM.UI.Net.Models
 {
     public class SystemAdminModel : BaseModel<SystemAdminModel>
     {

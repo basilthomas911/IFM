@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 
-namespace TomasAI.IFM.Contracts
+namespace TomasAI.IFM.UI.Net.Contracts
 {
     public interface IFormControl
     {

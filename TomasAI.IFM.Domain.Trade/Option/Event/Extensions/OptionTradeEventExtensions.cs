@@ -1,10 +1,10 @@
-﻿using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.OptionPricer;
 using TomasAI.IFM.Shared.OptionPricer.Commands;
 using TomasAI.IFM.Shared.OptionPricer.ViewModels;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.Option.Event.Extensions;
+namespace TomasAI.IFM.Domain.Trade.Option.Event.Extensions;
 
 internal static class OptionTradeEventExtensions
 {

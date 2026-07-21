@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.Views.MarketData
+namespace TomasAI.IFM.UI.Net.Views.MarketData
 {
     partial class YieldCurveRateEditorControl
     {

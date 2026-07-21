@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Storage.Json;
 
-namespace TomasAI.IFM.Framework.Storage.Csv
+namespace TomasAI.IFM.Framework.Storage.Json
 {
     public class JsonObjectDataReader<TResult> : ObjectDataReader<TResult>
     {

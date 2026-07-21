@@ -2,10 +2,11 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Query;
-using TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using static TomasAI.IFM.Domain.MarketData.UnitTests.MarketDataQueryActorTests;
+using TomasAI.IFM.Domain.MarketData.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.UnitTests;
 

@@ -3,18 +3,20 @@ using NSubstitute;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
-using TomasAI.IFM.Domain.Trade.Actor.Queries;
-using TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+using TomasAI.IFM.Domain.Trade.Queries;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
-using static TomasAI.IFM.Domain.Trade.Actor.UnitTests.Option.OptionTradeCommandActorTests;
-using static TomasAI.IFM.Domain.Trade.Actor.UnitTests.Option.OptionTradeQueryActorTests;
-using static TomasAI.IFM.Domain.Trade.Actor.UnitTests.Queries.TradeQueryActorTests;
-using TomasAI.IFM.Domain.Trade.Actor.Option.Command;
-using TomasAI.IFM.Domain.Trade.Actor.Option.Query;
+using static TomasAI.IFM.Domain.Trade.UnitTests.Option.OptionTradeCommandActorTests;
+using static TomasAI.IFM.Domain.Trade.UnitTests.Option.OptionTradeQueryActorTests;
+using static TomasAI.IFM.Domain.Trade.UnitTests.Queries.TradeQueryActorTests;
+using TomasAI.IFM.Domain.Trade.Option.Command;
+using TomasAI.IFM.Domain.Trade.Option.Query;
+using TomasAI.IFM.Domain.Trade.Option.Command.Actor;
+using TomasAI.IFM.Domain.Trade.Option.Query.Actor;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.UnitTests;
+namespace TomasAI.IFM.Domain.Trade.UnitTests;
 
 public class TradeFixture : IDisposable
 {

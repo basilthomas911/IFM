@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Framework.Messaging.Kafka;
 using TomasAI.IFM.Shared.Extensions;
 
-namespace TomasAI.IFM.Service.TradePlan.HostedService
+namespace TomasAI.IFM.TradePlan.HostedService
 {
     public class TradePlanEventConsumer : KafkaEventConsumer, ITradePlanEventConsumer
     {

@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "defaultMode": "auto",
+    "allow": [
+      "WebSearch",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe' OR Name='claude.exe'\")",
+      "PowerShell(\"--- node ---\"; \\(Get-Command node -ErrorAction SilentlyContinue\\).Source; node --version 2>$null; \"--- npm ---\"; \\(Get-Command npm -ErrorAction SilentlyContinue\\).Source; \"--- bundled cli exists? ---\"; Test-Path \"C:\\\\Users\\\\basil\\\\AppData\\\\Roaming\\\\Claude\\\\claude-code\\\\2.1.215\\\\claude.exe\")",
+      "PowerShell(npm install -g @anthropic-ai/claude-code)",
+      "PowerShell($claude = \"C:\\\\Users\\\\basil\\\\AppData\\\\Roaming\\\\npm\\\\claude.cmd\"; if \\(Test-Path $claude\\) { \"cmd exists: $claude\"; & $claude --version } else { \"claude.cmd NOT found in npm dir\" })",
+      "PowerShell(choco list nodejs 2>$null)",
+      "PowerShell(choco list nodejs-lts 2>$null)",
+      "PowerShell(\"--- node ---\"; $env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); \\(Get-Command node\\).Source; node --version; \"--- npm ---\"; npm --version; \"--- claude ---\"; claude --version)",
+      "Bash(timeout 60 find . -maxdepth 2 -iname \"*.csproj\" -not -path \"*/bin/*\" -not -path \"*/obj/*\")",
+      "Bash(python3 -c ' *)",
+      "Bash(awk '{gsub\\(/\\\\\\\\/,\"/\"\\); print}' /tmp/dotnet_sln_list.txt)",
+      "Bash(tr '\\\\\\\\' '/')",
+      "Bash(xxd)",
+      "Bash(grep -Fxvf /tmp/sln_norm.txt /tmp/disk_csprojs2.txt)",
+      "Bash(dotnet build *)",
+      "Bash(grep -n \"^TomasAI.IFM$\" /tmp/delete_list.txt)",
+      "Bash(xargs grep -l \"class CreateFundCommand\\\\b\")"
+    ]
+  }
+}

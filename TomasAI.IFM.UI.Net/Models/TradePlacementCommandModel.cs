@@ -1,7 +1,7 @@
-﻿using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Trade.ServiceApi;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 /// <summary>
 /// create trade command model

@@ -1,5 +1,5 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
@@ -7,9 +7,9 @@ using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
-using TomasAI.IFM.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
-namespace TomasAI.IFM.ViewModels.App;
+namespace TomasAI.IFM.UI.Net.ViewModels.App;
 
 public class IFMAppViewModel
 {

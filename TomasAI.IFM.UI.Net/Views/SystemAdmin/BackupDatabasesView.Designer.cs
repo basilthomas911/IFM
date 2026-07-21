@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Views.SystemAdmin
+namespace TomasAI.IFM.UI.Net.Views.SystemAdmin
 {
     partial class BackupDatabasesView
     {

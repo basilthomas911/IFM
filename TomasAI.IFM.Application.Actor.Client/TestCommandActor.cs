@@ -4,7 +4,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
-namespace TomasAI.IFM.Application.Actor;
+namespace TomasAI.IFM.Application.Actor.Client;
 
 /// <summary>
 /// Represents a command actor for handling and processing test commands within the actor system.

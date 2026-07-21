@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Models
+namespace TomasAI.IFM.UI.Net.Models
 {
     public class ReferenceCommandModel : BaseModel<ReferenceCommandModel>
     {

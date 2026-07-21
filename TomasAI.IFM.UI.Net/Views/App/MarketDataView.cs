@@ -1,7 +1,7 @@
 using System.Windows.Forms.DataVisualization.Charting;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 
-namespace TomasAI.IFM.Views.App;
+namespace TomasAI.IFM.UI.Net.Views.App;
 
 /// <summary>
 /// market data view for displaying futures bar data.

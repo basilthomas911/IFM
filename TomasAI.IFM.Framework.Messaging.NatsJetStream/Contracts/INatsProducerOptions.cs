@@ -1,6 +1,6 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 
-namespace TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 
 public interface INatsProducerOptions
 {

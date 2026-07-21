@@ -13,6 +13,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTradeSignal;
 

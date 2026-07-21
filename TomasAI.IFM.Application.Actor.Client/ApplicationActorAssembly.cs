@@ -1,6 +1,6 @@
-﻿using System.Reflection;
+using System.Reflection;
 
-namespace TomasAI.IFM.Application.Actor;
+namespace TomasAI.IFM.Application.Actor.Client;
 
 public static class ApplicationActorAssembly
 {

@@ -3,7 +3,7 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Service.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.Events;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 public class StatusConsoleModel : BaseModel<StatusConsoleModel>
 {

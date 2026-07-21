@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using System.Diagnostics;
 
-namespace TomasAI.IFM.ServerManager
+namespace TomasAI.IFM.Application.ServerManager
 {
     public class ServerLauncher : IDisposable
     {

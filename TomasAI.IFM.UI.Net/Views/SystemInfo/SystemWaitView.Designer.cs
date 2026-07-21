@@ -1,5 +1,5 @@
-﻿
-namespace TomasAI.IFM.Views.SystemInfo
+
+namespace TomasAI.IFM.UI.Net.Views.SystemInfo
 {
     partial class SystemWaitView
     {

@@ -13,6 +13,7 @@ using TomasAI.IFM.Shared.Reference.Queries;
 using TomasAI.IFM.Shared.Reference.QueryParameters;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Reference.Query.Actor;
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests.Queries;
 

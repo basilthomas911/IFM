@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State
 public class FuturesAdxSignalCommandState
     : BaseEventSourceActorState<FuturesAdxSignalCommandState>, IEventSourceActorState<FuturesAdxSignalCommandState>
 {
-    readonly List<FuturesAdxSignalReadModel> _adxSignals = [with(32)];
+    readonly List<FuturesAdxSignalReadModel> _adxSignals = new(32);
     FuturesAdxSignalReadModel? _adxSignal;
 
     /// <summary>

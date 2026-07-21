@@ -10,7 +10,7 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.EventService;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Service.TradePlan.EventHandlers
+namespace TomasAI.IFM.TradePlan.EventHandlers
 {
     public class TradePlanUpdatedEventHandler : BaseEventServiceHandler,
         IAsyncEventHandler<TradePlanUpdatedEvent, TradePlanService>

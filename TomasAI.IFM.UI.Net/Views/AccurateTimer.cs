@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using TomasAI.IFM.Shared.Extensions;
 
-namespace TomasAI.IFM.Views
+namespace TomasAI.IFM.UI.Net.Views
 {
     public class AccurateTimer
     {

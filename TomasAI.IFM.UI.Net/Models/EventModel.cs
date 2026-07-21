@@ -2,7 +2,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.UI.EventConsumer;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 /// <summary>
 /// Represents an event model that manages command response event consumption and tracks the associated site identifier.

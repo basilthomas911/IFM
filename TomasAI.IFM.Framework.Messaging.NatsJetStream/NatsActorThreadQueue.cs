@@ -1,10 +1,10 @@
-﻿using  NATS.Client.Core;
+using  NATS.Client.Core;
 using System.Runtime.CompilerServices;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 
-namespace TomasAI.IFM.Framework.Messaging.Nats;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 /// <summary>
 /// Represents a thread-safe queue for actor messages, designed to integrate with a single-producer, single-consumer

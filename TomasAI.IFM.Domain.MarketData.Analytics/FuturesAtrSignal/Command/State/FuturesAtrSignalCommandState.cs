@@ -16,7 +16,7 @@ public class FuturesAtrSignalCommandState
     : BaseEventSourceActorState<FuturesAtrSignalCommandState>, IEventSourceActorState<FuturesAtrSignalCommandState>
 {
     FuturesAtrSignalReadModel? _atrSignal;
-    readonly List<FuturesAtrSignalReadModel> _atrSignals = [with(32)];
+    readonly List<FuturesAtrSignalReadModel> _atrSignals = new(32);
 
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.

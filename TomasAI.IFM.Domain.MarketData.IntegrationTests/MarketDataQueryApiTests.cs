@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Framework.Messaging.Nats;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.MarketData;
@@ -51,7 +51,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
         await dbFixture.MarketDataDb.DeleteMarketHolidayAsync(holiday);
         await dbFixture.MarketDataDb.InsertMarketHolidayAsync(holiday);
 
-        // query a week that contains the holiday (Mon Jun 30 – Fri Jul 4, 2025)
+        // query a week that contains the holiday (Mon Jun 30 ï¿½ Fri Jul 4, 2025)
         var startDate = new DateOnly(2025, 6, 30);
         var endDate = new DateOnly(2025, 7, 4);
 
@@ -77,7 +77,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
         await dbFixture.MarketDataDb.DeleteMarketHolidayAsync(holiday);
         await dbFixture.MarketDataDb.InsertMarketHolidayAsync(holiday);
 
-        // query a week that contains the holiday (Mon Jun 30 – Fri Jul 4, 2025)
+        // query a week that contains the holiday (Mon Jun 30 ï¿½ Fri Jul 4, 2025)
         var startDate = new DateOnly(2025, 6, 30);
         var endDate = new DateOnly(2025, 7, 4);
 

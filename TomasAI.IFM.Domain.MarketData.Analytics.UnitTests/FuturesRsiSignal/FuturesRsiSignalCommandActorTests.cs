@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesRsiSignal;
 

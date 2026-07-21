@@ -1,6 +1,6 @@
-﻿using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Models;
 
-namespace TomasAI.IFM.Views.SystemInfo;
+namespace TomasAI.IFM.UI.Net.Views.SystemInfo;
 
 public partial class SystemWaitView : Form
 {

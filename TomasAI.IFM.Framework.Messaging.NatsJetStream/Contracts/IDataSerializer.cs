@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 
 /// <summary>
 /// Defines methods for serializing and deserializing objects to and from binary data.

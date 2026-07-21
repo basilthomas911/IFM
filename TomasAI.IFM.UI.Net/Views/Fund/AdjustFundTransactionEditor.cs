@@ -1,7 +1,7 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.ViewModels.Fund;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.ViewModels.Fund;
 
-namespace TomasAI.IFM.Views.Fund;
+namespace TomasAI.IFM.UI.Net.Views.Fund;
 
 public partial class AdjustFundTransactionEditor : Form, IForm<AdjustFundTransactionEditor>, IFormControl
 {

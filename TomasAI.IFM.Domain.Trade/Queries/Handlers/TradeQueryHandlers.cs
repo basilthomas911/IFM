@@ -1,11 +1,11 @@
-﻿using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Trade.Actor.Queries.Model;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.Trade.Queries.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Trade.Queries;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.Queries.Handlers;
+namespace TomasAI.IFM.Domain.Trade.Queries.Handlers;
 
 /// <summary>
 /// Provides internal extension methods that handle trade queries within the actor messaging pipeline.

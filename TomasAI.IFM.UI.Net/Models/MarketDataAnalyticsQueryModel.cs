@@ -2,7 +2,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ServiceApi;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 /// <summary>
 /// market data analytics query model constructor

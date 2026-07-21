@@ -1,8 +1,8 @@
 using TomasAI.IFM.Shared.MarketData.ViewModels;
-using TomasAI.IFM.Models;
-using TomasAI.IFM.Contracts;
+using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Contracts;
 
-namespace TomasAI.IFM.Views.MarketData;
+namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
 /// <summary>
 /// Represents a form for editing or adding yield curve rate data.

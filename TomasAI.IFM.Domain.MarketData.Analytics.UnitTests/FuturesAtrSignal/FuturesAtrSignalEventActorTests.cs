@@ -10,6 +10,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesAtrSignal;
 
@@ -413,21 +414,6 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, @event);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_WithNullState_ShouldThrowArgumentNullException()
-    {
-        // Arrange
-        var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
-        var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, @event);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();

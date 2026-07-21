@@ -5,7 +5,7 @@ using Newtonsoft.Json;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketData.Events;
 
-namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions;
+namespace TomasAI.IFM.Shared.MarketData.Exceptions;
 
 /// <summary>
 /// add yield curve rate exception

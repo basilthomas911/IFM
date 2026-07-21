@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradePlan.ServiceApi;
 using TomasAI.IFM.Shared.TradePlan.ViewModels;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 /// <summary>
 /// create strade plan query model

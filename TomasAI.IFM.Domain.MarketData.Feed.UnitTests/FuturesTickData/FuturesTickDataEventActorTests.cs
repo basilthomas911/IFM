@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.MarketDataFeed.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesTickData;
 

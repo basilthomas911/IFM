@@ -1,14 +1,14 @@
 using System.Data;
-using TomasAI.IFM.Contracts;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.TradePlan.ViewModels;
-using TomasAI.IFM.Extensions;
-using TomasAI.IFM.ViewModels.Trade;
-using TomasAI.IFM.ViewModels.Trade.IronCondor;
+using TomasAI.IFM.UI.Net.Extensions;
+using TomasAI.IFM.UI.Net.ViewModels.Trade;
+using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
-namespace TomasAI.IFM.Views.Trade.IronCondor;
+namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
 public partial class IronCondorView : UserControl, IFormControl
 {

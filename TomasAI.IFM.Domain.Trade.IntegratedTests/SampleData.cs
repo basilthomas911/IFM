@@ -1,10 +1,10 @@
-﻿using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.IntegratedTests;
+namespace TomasAI.IFM.Domain.Trade.IntegratedTests;
 
 public static class SampleData
 {

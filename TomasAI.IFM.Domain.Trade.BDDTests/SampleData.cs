@@ -1,10 +1,10 @@
-﻿using Shared = TomasAI.IFM.Shared;
+using Shared = TomasAI.IFM.Shared;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.BDDTests;
+namespace TomasAI.IFM.Domain.Trade.BDDTests;
 
 public static class SampleData
 {

@@ -14,6 +14,7 @@ using TomasAI.IFM.Shared.MarketDataFeed.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Exceptions;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesClosingPrice;
 

@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace System.Runtime.CompilerServices
+namespace TomasAI.IFM.Shared
 {
     public sealed class IsExternalInit
     {

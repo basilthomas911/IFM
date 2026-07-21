@@ -1,12 +1,12 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 
-namespace TomasAI.IFM.ViewModels.Fund;
+namespace TomasAI.IFM.UI.Net.ViewModels.Fund;
 
 public class AdjustFundTransactionReadModel : BaseEditorViewModel
 {

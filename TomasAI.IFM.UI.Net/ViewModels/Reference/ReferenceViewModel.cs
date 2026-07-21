@@ -1,10 +1,10 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.Trade;
 
-namespace TomasAI.IFM.ViewModels.Reference;
+namespace TomasAI.IFM.UI.Net.ViewModels.Reference;
 
 public class ReferenceViewModel(IAppRoot appRoot)
 {

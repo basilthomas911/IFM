@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Views.Fund
+namespace TomasAI.IFM.UI.Net.Views.Fund
 {
     partial class FundTransactionEditor
     {

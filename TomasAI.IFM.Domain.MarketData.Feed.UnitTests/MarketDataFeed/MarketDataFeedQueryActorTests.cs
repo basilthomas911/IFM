@@ -16,6 +16,7 @@ using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Query;
+using TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed;
 

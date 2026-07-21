@@ -1,12 +1,12 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.ViewModels.MarketData;
-using TomasAI.IFM.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.ViewModels.Reference;
 
-namespace TomasAI.IFM.ViewModels.App;
+namespace TomasAI.IFM.UI.Net.ViewModels.App;
 
 public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnly    valueDate)
 {

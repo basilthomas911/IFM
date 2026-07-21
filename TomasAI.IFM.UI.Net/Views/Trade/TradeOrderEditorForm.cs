@@ -1,16 +1,16 @@
 using System.Data;
-using TomasAI.IFM.Contracts;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
-using TomasAI.IFM.Views.Trade.IronCondor;
-using TomasAI.IFM.ViewModels.Fund;
-using TomasAI.IFM.ViewModels.Trade;
-using TomasAI.IFM.ViewModels.Trade.IronCondor;
+using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
+using TomasAI.IFM.UI.Net.ViewModels.Fund;
+using TomasAI.IFM.UI.Net.ViewModels.Trade;
+using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
-namespace TomasAI.IFM.Views.Trade;
+namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public partial class TradeOrderEditorForm 
     : Form, IForm<TradeOrderEditorForm>, IFormControl

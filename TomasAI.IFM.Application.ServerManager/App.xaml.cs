@@ -1,15 +1,15 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace TomasAI.IFM.ServerManager
+namespace TomasAI.IFM.Application.ServerManager
 {
     /// <summary>
     /// Interaction logic for App.xaml
     /// </summary>
-    public partial class App : Application
+    public partial class App : System.Windows.Application
     {
         public IServiceProvider ServiceProvider { get; private set; }
 

@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Windows;
 using TomasAI.IFM.Shared.StatusConsole;
 
-namespace TomasAI.IFM.ServerManager;
+namespace TomasAI.IFM.Application.ServerManager;
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml

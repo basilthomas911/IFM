@@ -10,7 +10,7 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.PredictiveModel;
 
-namespace TomasAI.IFM.Application.Query
+namespace TomasAI.IFM.Application.Query.PredictiveModel.FuturesItiTrend
 {
     public class FuturesItiTrendQueries :
         IAsyncQueryHandler<GetPredictedTrendDeltaQuery, ScalarValue<double>>

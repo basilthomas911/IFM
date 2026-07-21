@@ -1,10 +1,10 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
-namespace TomasAI.IFM.Framework.Messaging.Nats;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 /// <summary>
 /// High-performance Single-Producer / Single-Consumer (SPSC) blocking ring buffer backed by <see cref="ArrayPool{T}"/>.

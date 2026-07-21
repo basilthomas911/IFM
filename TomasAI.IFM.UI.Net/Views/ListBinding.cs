@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Views;
+namespace TomasAI.IFM.UI.Net.Views;
 
 /// <summary>
 /// Represents a binding between a data source and a display control, allowing for data display and interaction.

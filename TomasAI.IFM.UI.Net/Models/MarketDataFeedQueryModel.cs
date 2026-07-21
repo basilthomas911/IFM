@@ -4,7 +4,7 @@ using TomasAI.IFM.Shared.MarketDataFeed.ServiceApi;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 public class MarketDataFeedQueryModel(IMarketDataFeedQueryApi marketDataFeedQueryApi) : BaseModel<MarketDataFeedQueryModel>
 {

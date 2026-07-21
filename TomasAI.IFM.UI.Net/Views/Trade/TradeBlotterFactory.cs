@@ -1,11 +1,11 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Views.Trade.IronCondor;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.ViewModels.Trade.IronCondor;
+using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
-namespace TomasAI.IFM.Views.Trade;
+namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public static class TradeBlotterFactory
 {

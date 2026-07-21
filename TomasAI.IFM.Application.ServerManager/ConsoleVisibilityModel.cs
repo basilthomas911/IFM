@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,7 +7,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace TomasAI.IFM.ServerManager
+namespace TomasAI.IFM.Application.ServerManager
 {
     public class ConsoleVisibilityModel : ObservableObject
     {

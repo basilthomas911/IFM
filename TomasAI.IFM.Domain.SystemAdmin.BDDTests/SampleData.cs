@@ -1,6 +1,6 @@
 using TomasAI.IFM.Shared.SystemAdmin;
 
-namespace TomasAI.IFM.Domain.SystemAdmin.Actor.BDDTests;
+namespace TomasAI.IFM.Domain.SystemAdmin.BDDTests;
 
 public static class SampleData
 {

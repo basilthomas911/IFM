@@ -1,11 +1,11 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Framework.Messaging.Nats;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -15,7 +15,7 @@ using TomasAI.IFM.Shared.Trade.Commands;
 using TomasAI.IFM.Shared.Trade.Events;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.IntegratedTests.Option;
+namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Option;
 
 public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, TradeDatabaseFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<TradeDatabaseFixture>

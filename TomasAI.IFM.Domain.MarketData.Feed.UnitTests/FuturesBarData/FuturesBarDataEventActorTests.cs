@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.MarketDataFeed.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesBarData;
 

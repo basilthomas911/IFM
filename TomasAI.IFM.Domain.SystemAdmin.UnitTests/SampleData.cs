@@ -1,6 +1,6 @@
-﻿using TomasAI.IFM.Shared.SystemAdmin;
+using TomasAI.IFM.Shared.SystemAdmin;
 
-namespace TomasAI.IFM.Domain.SystemAdmin.Actor.UnitTests;
+namespace TomasAI.IFM.Domain.SystemAdmin.UnitTests;
 
 public static class SampleData
 {

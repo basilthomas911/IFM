@@ -5,7 +5,7 @@ using System.Drawing;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 
-namespace TomasAI.IFM.ViewModels.MarketData
+namespace TomasAI.IFM.UI.Net.ViewModels.MarketData
 {
     public class FuturesTradeStatusUIViewModel
     {

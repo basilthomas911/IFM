@@ -1,9 +1,9 @@
-﻿using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.SystemAdmin;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
-namespace TomasAI.IFM.ViewModels.SystemAdmin;
+namespace TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 
 public class BackupDatabasesViewModel
 {

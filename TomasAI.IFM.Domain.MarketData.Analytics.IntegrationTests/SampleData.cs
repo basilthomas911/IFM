@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.MarketDataFeed.Events;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests;
 

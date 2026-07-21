@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
-using TomasAI.IFM.Domain.Trade.Actor.Option.Command;
-using TomasAI.IFM.Domain.Trade.Actor.Option.Command.State;
+using TomasAI.IFM.Domain.Trade.Option.Command;
+using TomasAI.IFM.Domain.Trade.Option.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -12,8 +12,9 @@ using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.Commands;
 using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Domain.Trade.Option.Command.Actor;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.UnitTests.Option;
+namespace TomasAI.IFM.Domain.Trade.UnitTests.Option;
 
 public class OptionTradeCommandActorTests : IClassFixture<TradeFixture>
 {

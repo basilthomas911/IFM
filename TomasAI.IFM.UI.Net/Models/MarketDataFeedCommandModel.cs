@@ -8,7 +8,7 @@ using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.Trade.Events;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 public class MarketDataFeedCommandModel(
     IMarketDataFeedCommandApi marketDataFeedCommandApi,

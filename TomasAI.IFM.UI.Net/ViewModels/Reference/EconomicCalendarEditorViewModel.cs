@@ -1,10 +1,10 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.Reference;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
 
-namespace TomasAI.IFM.ViewModels.Reference;
+namespace TomasAI.IFM.UI.Net.ViewModels.Reference;
 
 /// <summary>
 /// Represents the view model for managing and editing economic calendar data, including country codes and economic

@@ -3,7 +3,7 @@ using TomasAI.IFM.Shared.Trade.Commands;
 using TomasAI.IFM.Shared.Trade.Validation;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.Option.Command.Validation;
+namespace TomasAI.IFM.Domain.Trade.Option.Command.Validation;
 
 public static  class OptionTradeValidationExtensions
 {

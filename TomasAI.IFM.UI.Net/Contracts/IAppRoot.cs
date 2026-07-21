@@ -1,6 +1,6 @@
-﻿using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
-namespace TomasAI.IFM.Contracts;
+namespace TomasAI.IFM.UI.Net.Contracts;
 
 public interface IAppRoot
 {

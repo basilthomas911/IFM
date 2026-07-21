@@ -1,16 +1,16 @@
-﻿using System;
+using System;
 using System.Text;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Diagnostics;
-using TomasAI.IFM.Views.App;
+using TomasAI.IFM.UI.Net.Views.App;
 using WinForms=System.Windows.Forms;
 
 using Microsoft.Extensions.Configuration;
 using TomasAI.IFM.UI.Net;
 
-namespace TomasAI.IFM
+namespace TomasAI.IFM.UI.Net
 {
     static class Program
     {

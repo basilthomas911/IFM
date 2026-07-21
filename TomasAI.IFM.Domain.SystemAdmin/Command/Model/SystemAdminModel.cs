@@ -2,7 +2,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.SystemAdmin.Commands;
 using TomasAI.IFM.Shared.SystemAdmin.Events;
 
-namespace TomasAI.IFM.Domain.SystemAdmin.Actor.Command.Model;
+namespace TomasAI.IFM.Domain.SystemAdmin.Command.Model;
 
 /// <summary>
 /// Provides command-to-event mapping helpers for SystemAdmin command handling.

@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.Shared.Application.Commands;
+namespace TomasAI.IFM.Shared.Application;
 
 public class ApplicationUriPath
 {

@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Domain.SystemAdmin.Actor.IntegrationTests
+namespace TomasAI.IFM.Domain.SystemAdmin.IntegrationTests
 {
     public class SystemAdminCommandApiTests
     {

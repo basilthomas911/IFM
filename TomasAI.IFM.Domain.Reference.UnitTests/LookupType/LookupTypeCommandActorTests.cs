@@ -13,6 +13,7 @@ using TomasAI.IFM.Shared.Reference.Commands;
 using TomasAI.IFM.Shared.Reference.Events;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests.LookupType;
 

@@ -1,7 +1,7 @@
 using TomasAI.IFM.Shared.SystemAdmin;
 using TomasAI.IFM.Shared.SystemAdmin.ViewModels;
 
-namespace TomasAI.IFM.Domain.SystemAdmin.Actor.Command.State;
+namespace TomasAI.IFM.Domain.SystemAdmin.Command.State;
 
 /// <summary>
 /// Provides lookups for system administration data such as database names.

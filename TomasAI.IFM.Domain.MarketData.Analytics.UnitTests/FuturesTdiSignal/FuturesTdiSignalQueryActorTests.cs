@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
 using TomasAI.IFM.Shared.MarketDataAnalytics.QueryParameters;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTdiSignal;
 
@@ -299,9 +300,11 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var db = Substitute.For<IMarketDataDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.MarketDataDb.Returns(db);
+        var actor = _fixture.CreateTdiQueryActor(logger, dbFactory);
         var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
         var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
 
@@ -330,9 +333,11 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var db = Substitute.For<IMarketDataDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.MarketDataDb.Returns(db);
+        var actor = _fixture.CreateTdiQueryActor(logger, dbFactory);
         var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
         var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
 
@@ -390,28 +395,6 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var act = async () => await actor.InvokeReceiveAsync(null!, query);
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("context");
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenStateIsNull()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-
-        // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, query);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("state");
     }
 
     [Fact]

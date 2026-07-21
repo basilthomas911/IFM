@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Service.TradePlan
+namespace TomasAI.IFM.TradePlan
 {
     public interface ITradePlanService
     {

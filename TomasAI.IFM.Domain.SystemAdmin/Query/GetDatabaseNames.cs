@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.SystemAdmin;
 using TomasAI.IFM.Shared.SystemAdmin.Queries;
 using TomasAI.IFM.Shared.SystemAdmin.ViewModels;
 
-namespace TomasAI.IFM.Domain.SystemAdmin.Actor.Query;
+namespace TomasAI.IFM.Domain.SystemAdmin.Query;
 
 public static class GetDatabaseNames
 {

@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Views.App
+namespace TomasAI.IFM.UI.Net.Views.App
 {
     partial class MarketOutlookView
     {

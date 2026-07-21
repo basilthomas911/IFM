@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using TomasAI.IFM.Shared.Application;
+using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -30,6 +31,9 @@ using TomasAI.IFM.Shared.Trade.Queries;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.MarketData.QueryParameters;
 using TomasAI.IFM.Shared.MarketDataAnalytics.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query.Actor;
 
 namespace TomasAI.IFM.Application.Actor.IntegrationTests;
 

@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 
-namespace TomasAI.IFM.Models
+namespace TomasAI.IFM.UI.Net.Models
 {
     public class FundQueryModel : BaseModel<FundQueryModel>
     {

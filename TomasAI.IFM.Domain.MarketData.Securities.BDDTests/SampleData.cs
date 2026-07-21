@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend.ViewModels;
 
-namespace TomasAI.IFM.Domain.Securities.BDDTests;
+namespace TomasAI.IFM.Domain.MarketData.Securities.BDDTests;
 
 public class SampleData
 {

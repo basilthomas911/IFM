@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 
 /// <summary>
 /// Represents configuration options for a NATS event listener.

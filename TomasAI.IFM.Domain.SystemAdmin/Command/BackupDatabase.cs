@@ -1,9 +1,9 @@
-﻿using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.SystemAdmin.Commands;
 using TomasAI.IFM.Shared.SystemAdmin.Events;
-using TomasAI.IFM.Domain.SystemAdmin.Actor.Command.State;
+using TomasAI.IFM.Domain.SystemAdmin.Command.State;
 
-namespace TomasAI.IFM.Domain.SystemAdmin.Actor.Command;
+namespace TomasAI.IFM.Domain.SystemAdmin.Command;
 
 public static class BackupDatabase
 {

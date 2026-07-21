@@ -1,5 +1,5 @@
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
@@ -9,7 +9,7 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 
-namespace TomasAI.IFM.ViewModels.Trade;
+namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 
 /// <summary>
 /// trade order editor view model

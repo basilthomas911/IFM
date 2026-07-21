@@ -1,7 +1,7 @@
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 
-namespace TomasAI.IFM.ViewModels.MarketData;
+namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 public class FuturesEodDataUIViewModel
 {

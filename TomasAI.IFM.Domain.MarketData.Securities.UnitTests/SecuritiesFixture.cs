@@ -9,20 +9,24 @@ using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 using static TomasAI.IFM.Domain.MarketData.Securities.UnitTests.FuturesContract.FuturesContractCommandActorTests;
-using static TomasAI.IFM.Domain.Securities.UnitTests.FuturesContract.FuturesContractQueryActorTests;
-using static TomasAI.IFM.Domain.Securities.UnitTests.FuturesOptionContract.FuturesOptionContractCommandActorTests;
-using static TomasAI.IFM.Domain.Securities.UnitTests.FuturesOptionContract.FuturesOptionContractQueryActorTests;
+using static TomasAI.IFM.Domain.MarketData.Securities.UnitTests.FuturesContract.FuturesContractQueryActorTests;
+using static TomasAI.IFM.Domain.MarketData.Securities.UnitTests.FuturesOptionContract.FuturesOptionContractCommandActorTests;
+using static TomasAI.IFM.Domain.MarketData.Securities.UnitTests.FuturesOptionContract.FuturesOptionContractQueryActorTests;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query.Actor;
 
-namespace TomasAI.IFM.Domain.Securities.UnitTests;
+namespace TomasAI.IFM.Domain.MarketData.Securities.UnitTests;
 
 public class SecuritiesFixture : IDisposable
 {

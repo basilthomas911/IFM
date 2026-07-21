@@ -13,7 +13,7 @@ using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 
-namespace TomasAI.IFM.Models;
+namespace TomasAI.IFM.UI.Net.Models;
 
 public class TradeCommandModel : BaseModel<TradeCommandModel>
 {

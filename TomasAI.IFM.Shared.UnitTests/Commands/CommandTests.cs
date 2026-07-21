@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Reflection;
 using System.Diagnostics;
 using Xunit;
 
-namespace TomasAI.IFM.Shared.UnitTests.EventSourcing
+namespace TomasAI.IFM.Shared.UnitTests.Commands
 {
     public class CommandTests
     {

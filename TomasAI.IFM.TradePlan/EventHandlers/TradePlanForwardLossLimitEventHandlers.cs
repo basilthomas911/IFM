@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.EventService;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.Blackboard;
 
-namespace TomasAI.IFM.Service.TradePlan.EventHandlers
+namespace TomasAI.IFM.TradePlan.EventHandlers
 {
     public class TradePlanForwardLossLimitEventHandlers : BaseEventServiceHandler,
         IAsyncEventHandler<TradePlanForwardLossLimitWarningUpdatedEvent, TradePlanService>,

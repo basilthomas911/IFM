@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 
-namespace TomasAI.IFM.Application.Actor;
+namespace TomasAI.IFM.Application.Actor.Client;
 
 /// <summary>
 /// Represents an actor responsible for processing <see cref="TestEvent"/> messages within the actor system.

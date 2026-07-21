@@ -25,7 +25,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Query;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query;
-using TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
@@ -50,6 +50,26 @@ using static TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTdiSignal.
 using static TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTradeSignal.FuturesTradeSignalCommandActorTests;
 using static TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTradeSignal.FuturesTradeSignalEventActorTests;
 using static TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTradeSignal.FuturesTradeSignalQueryActorTests;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests;
 

@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.SystemAdmin;
 using TomasAI.IFM.Shared.SystemAdmin.Events;
 
-namespace TomasAI.IFM.Domain.SystemAdmin.Actor.Command.State;
+namespace TomasAI.IFM.Domain.SystemAdmin.Command.State;
 
 /// <summary>
 /// Provides functionality to manage the state of system admin operations, including loading state from snapshots

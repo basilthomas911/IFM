@@ -3,7 +3,7 @@ using FluentValidation.Results;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Shared.Trade.Commands;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.Option.Command.Validation;
+namespace TomasAI.IFM.Domain.Trade.Option.Command.Validation;
 
 public class ProcessOptionTradeEndOfDayCommandValidationRules 
     : BaseValidationRules, IValidationRules<ProcessOptionTradeEndOfDayCommand>

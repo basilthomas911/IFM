@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.EventConsumer;
 
-namespace TomasAI.IFM.Models
+namespace TomasAI.IFM.UI.Net.Models
 {
     public interface IEventModel
     {

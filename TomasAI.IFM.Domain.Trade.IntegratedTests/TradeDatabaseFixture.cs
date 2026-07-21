@@ -14,7 +14,7 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.IntegratedTests;
+namespace TomasAI.IFM.Domain.Trade.IntegratedTests;
 
 public class TradeDatabaseFixture : IDisposable
 {

@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
 
-namespace TomasAI.IFM.Domain.Trade.Actor.UnitTests;
+namespace TomasAI.IFM.Domain.Trade.UnitTests;
 
 public static class SampleData
 {

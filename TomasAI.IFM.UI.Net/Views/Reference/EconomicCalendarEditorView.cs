@@ -5,11 +5,11 @@ using System.Drawing;
 using System.Data;
 using System.Linq;
 using System.Windows.Forms;
-using TomasAI.IFM.Contracts;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.Reference.ViewModels;
-using TomasAI.IFM.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.ViewModels.Reference;
 
-namespace TomasAI.IFM.Views.Reference
+namespace TomasAI.IFM.UI.Net.Views.Reference
 {
     /// <summary>
     /// futures contract editor

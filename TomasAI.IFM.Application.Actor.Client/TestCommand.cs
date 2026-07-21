@@ -3,14 +3,14 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Application.Actor;
+namespace TomasAI.IFM.Application.Actor.Client;
 
 /// <summary>
 /// MessagePack-serializable test command used in application actor tests and samples.
 /// </summary>
 /// <remarks>
 /// Follows the StopFuturesOptionTickDataStreamingCommand pattern:
-/// - Base keys 0–5 are reserved by BaseCommand{TEntityId}.
+/// - Base keys 0ï¿½5 are reserved by BaseCommand{TEntityId}.
 /// - Custom properties start at key 6.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]

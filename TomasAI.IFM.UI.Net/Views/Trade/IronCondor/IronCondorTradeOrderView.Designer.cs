@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Views.Trade.IronCondor
+namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
 {
     partial class IronCondorTradeOrderView
     {

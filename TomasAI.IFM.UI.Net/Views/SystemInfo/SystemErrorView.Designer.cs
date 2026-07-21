@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Views.SystemError
+namespace TomasAI.IFM.UI.Net.Views.SystemInfo
 {
     partial class SystemErrorView
     {

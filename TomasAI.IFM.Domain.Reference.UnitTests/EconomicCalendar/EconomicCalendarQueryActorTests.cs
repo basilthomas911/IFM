@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Reference;
 using TomasAI.IFM.Shared.Reference.Queries;
 using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.EconomicCalendar.Query.Actor;
 
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests.EconomicCalendar;

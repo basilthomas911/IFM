@@ -1,7 +1,7 @@
-﻿using System.Buffers;
+using System.Buffers;
 using NATS.Client.Core;
 
-namespace TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 
 /// <summary>
 /// Provides serialization and deserialization functionality for messages represented as byte arrays.

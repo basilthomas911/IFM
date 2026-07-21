@@ -6,7 +6,7 @@ using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Application.Storage.ScyllaDb.FundDb;
 using TomasAI.IFM.Framework.Storage;
 
-using TomasAI.IFM.Framework.Messaging.Nats.Serializers;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using static TomasAI.IFM.Domain.Fund.UnitTests.FundCommandActorTests;
@@ -21,6 +21,8 @@ using TomasAI.IFM.Domain.Fund.Query.Actor;
 using TomasAI.IFM.Domain.Fund.Event.Actor;
 using TomasAI.IFM.Domain.Fund.Command.Actor;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.Actor;
+using TomasAI.IFM.Domain.Fund.Transaction.Event.Actor;
+using TomasAI.IFM.Domain.Fund.Transaction.Query.Actor;
 
 namespace TomasAI.IFM.Domain.Fund.UnitTests;
 

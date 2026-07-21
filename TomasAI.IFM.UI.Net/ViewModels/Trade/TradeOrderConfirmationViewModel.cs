@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
 
-namespace TomasAI.IFM.ViewModels.Trade
+namespace TomasAI.IFM.UI.Net.ViewModels.Trade
 {
     public class TradeOrderConfirmationViewModel
     {

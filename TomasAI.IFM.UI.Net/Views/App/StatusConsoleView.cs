@@ -1,12 +1,12 @@
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
-using TomasAI.IFM.Extensions;
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.ViewModels.App;
-using TomasAI.IFM.ViewModels.MarketData;
-using TomasAI.IFM.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.Extensions;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.ViewModels.App;
+using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.ViewModels.Reference;
 
-namespace TomasAI.IFM.Views.App;
+namespace TomasAI.IFM.UI.Net.Views.App;
 
 public partial class StatusConsoleView : UserControl
 {

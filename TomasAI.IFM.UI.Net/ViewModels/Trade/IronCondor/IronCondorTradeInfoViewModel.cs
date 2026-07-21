@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Views.Trade.IronCondor;
+using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
-namespace TomasAI.IFM.ViewModels.Trade.IronCondor
+namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor
 {
     public class IronCondorTradeInfoReadModel
     {

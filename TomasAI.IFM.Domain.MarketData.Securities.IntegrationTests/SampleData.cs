@@ -1,6 +1,6 @@
 using TomasAI.IFM.Shared.MarketData.ViewModels;
 
-namespace TomasAI.IFM.Domain.Securities.IntegrationTests;
+namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 
 /// <summary>
 /// Provides sample data instances for use in securities integration tests.

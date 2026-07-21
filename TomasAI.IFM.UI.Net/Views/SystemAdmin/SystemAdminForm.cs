@@ -1,8 +1,8 @@
-﻿using TomasAI.IFM.Contracts;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.ViewModels.SystemAdmin;
+using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 
-namespace TomasAI.IFM.Views.SystemAdmin;
+namespace TomasAI.IFM.UI.Net.Views.SystemAdmin;
 
 public partial class SystemAdminForm : Form, IForm<SystemAdminForm>, IFormControl
 {

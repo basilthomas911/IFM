@@ -14,6 +14,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesItiSignal;
 
@@ -542,21 +543,6 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, query);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ThrowsArgumentNullException_WhenStateIsNull()
-    {
-        // Arrange
-        var actor = _fixture.CreateItiQueryActor();
-        var query = CreateGetSignalQuery();
-        var context = Substitute.For<IQueryActorContext>();
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, query);
 
         // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();

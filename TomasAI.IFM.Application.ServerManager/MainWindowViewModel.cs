@@ -1,9 +1,9 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Windows;
 using TomasAI.IFM.Shared.StatusConsole;
 using System.Collections.ObjectModel;
 
-namespace TomasAI.IFM.ServerManager;
+namespace TomasAI.IFM.Application.ServerManager;
 
 public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged
 {
@@ -39,7 +39,7 @@ public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public void AddServerLog(ServerLogType serverLogType, string? logEntry)
-        => Application.Current.Dispatcher.Invoke(() => ConsoleStatus.Insert(0, new StatusLog { LogEntry = $"{serverLogType} {logEntry}" }));
+        => System.Windows.Application.Current.Dispatcher.Invoke(() => ConsoleStatus.Insert(0, new StatusLog { LogEntry = $"{serverLogType} {logEntry}" }));
 
     void NotifyPropertyChanged(string info)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));

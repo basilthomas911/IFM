@@ -1,7 +1,7 @@
 using System.Text.Json;
 using NATS.Client.JetStream;
 
-namespace TomasAI.IFM.Framework.Messaging.Nats.Contracts;
+namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 
 /// <summary>
 /// Represents the configuration options for a NATS JetStream producer.

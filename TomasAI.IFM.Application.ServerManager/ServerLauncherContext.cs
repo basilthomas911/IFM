@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using System.Windows;
 using WinForms=System.Windows.Forms;
@@ -6,7 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Shared.StatusConsole;
 
-namespace TomasAI.IFM.ServerManager;
+namespace TomasAI.IFM.Application.ServerManager;
 
 public class ServerLauncherContext : WinForms.ApplicationContext
 {

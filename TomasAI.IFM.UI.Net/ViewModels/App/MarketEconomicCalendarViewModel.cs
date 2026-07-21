@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.Models;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.Reference;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 
-namespace TomasAI.IFM.ViewModels.App
+namespace TomasAI.IFM.UI.Net.ViewModels.App
 {
     public class MarketEconomicCalendarReadModel
     {

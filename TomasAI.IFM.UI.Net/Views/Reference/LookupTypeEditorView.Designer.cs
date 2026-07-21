@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Views.Reference
+namespace TomasAI.IFM.UI.Net.Views.Reference
 {
     partial class LookupTypeEditorView
     {

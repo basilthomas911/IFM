@@ -1,8 +1,8 @@
-﻿using TomasAI.IFM.Shared.StatusConsole;
-using TomasAI.IFM.Contracts;
-using TomasAI.IFM.ViewModels.MarketData;
+using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
-namespace TomasAI.IFM.Views.MarketData;
+namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
 /// <summary>
 /// Represents a user control for managing and editing yield curve rates.

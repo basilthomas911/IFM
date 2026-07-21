@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
 
-namespace TomasAI.IFM.Application.Actor;
+namespace TomasAI.IFM.Application.Actor.Client;
 
 public record TestEvent(string MsgString)
     : IEvent<TestId>

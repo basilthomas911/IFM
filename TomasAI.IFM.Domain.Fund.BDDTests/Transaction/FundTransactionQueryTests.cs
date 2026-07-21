@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.Fund.Transaction.Query;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Fund.Transaction.Query.Actor;
 
 namespace TomasAI.IFM.Domain.Fund.BDDTests.Transaction;
 

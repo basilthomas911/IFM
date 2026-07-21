@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
@@ -7,14 +7,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using TomasAI.IFM.Contracts;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Extensions;
-using TomasAI.IFM.ViewModels.SystemAdmin;
+using TomasAI.IFM.UI.Net.Extensions;
+using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 
-namespace TomasAI.IFM.Views.SystemAdmin
+namespace TomasAI.IFM.UI.Net.Views.SystemAdmin
 {
     public partial class BackupDatabasesView : UserControl, IFormControl
     {
