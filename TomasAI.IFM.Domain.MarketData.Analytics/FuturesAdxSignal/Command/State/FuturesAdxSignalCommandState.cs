@@ -33,17 +33,18 @@ public class FuturesAdxSignalCommandState
         {
             return domainEvent switch
             {
-                FuturesAdxSignalGeneratedEvent e => On(e),
+                FuturesAdxSignalGeneratedEvent e => On(e.FuturesAdxSignal),
+                FuturesAdxDailySignalGeneratedEvent e => On(e.FuturesAdxSignal),
                 _ => false
             };
         }
         catch { }
         return false;
 
-        bool On(FuturesAdxSignalGeneratedEvent e)
+        bool On(FuturesAdxSignalReadModel signal)
         {
-            _adxSignals.Add(e.FuturesAdxSignal);
-            _adxSignal = e.FuturesAdxSignal;
+            _adxSignals.Add(signal);
+            _adxSignal = signal;
             return true;
         }
     }

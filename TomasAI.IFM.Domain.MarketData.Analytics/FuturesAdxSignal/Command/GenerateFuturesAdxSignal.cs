@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
@@ -11,13 +12,14 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command;
 public static class GenerateFuturesAdxSignal
 {
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="e"></param>
     /// <param name="state"></param>
     /// <returns></returns>
-    public static bool Execute(this GenerateFuturesAdxSignalCommand e, FuturesAdxSignalCommandState state)
-        => e.Compute(state.AdxSignal, state.AdxSignals, out var model) switch
+    public static ServiceResult<GuidResult> Execute(this GenerateFuturesAdxSignalCommand e, FuturesAdxSignalCommandState state)
+    {
+        var updated = e.Compute(state.AdxSignal, state.AdxSignals, out var model) switch
         {
             _ when model.IsSignalInitializing
                 => state.Update(e.CreateFuturesAdxSignalGeneratedEvent(FuturesTrendDirectionType.Init, model)),
@@ -27,6 +29,10 @@ public static class GenerateFuturesAdxSignal
                 => state.Update(e.CreateFuturesAdxSignalGeneratedEvent(FuturesTrendDirectionType.DownTrending, model)),
             _ => state.Update(e.CreateFuturesAdxSignalGeneratedEvent(FuturesTrendDirectionType.TrendReversal, model)),
         };
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(e.CommandId))
+            : e.UpdateFailed($"{e.CommandName}: unable to apply generated ADX signal event");
+    }
 
     /// <summary>
     /// Attempts to create a new futures ADX signal compute model based on the specified command and read model.

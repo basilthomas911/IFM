@@ -69,7 +69,8 @@ public class FuturesAdxSignalCommandActor(
     /// </summary>
     static readonly Dictionary<string, Func<NatsMsg<byte[]>, ICommand>> _parseMap = new()
     {
-        [GenerateFuturesAdxSignalCommand.Verb] = msg => msg.AsCommand<GenerateFuturesAdxSignalCommand>()!
+        [GenerateFuturesAdxSignalCommand.Verb] = msg => msg.AsCommand<GenerateFuturesAdxSignalCommand>()!,
+        [GenerateFuturesAdxDailySignalCommand.Verb] = msg => msg.AsCommand<GenerateFuturesAdxDailySignalCommand>()!
     };
 
     /// <summary>
@@ -88,19 +89,20 @@ public class FuturesAdxSignalCommandActor(
         IsArgumentNull.Check(cmd);
         var adxSignalState = IsArgumentNull.Set((state as FuturesAdxSignalCommandState)!);
         var cmdName = cmd.GetType().Name;
-        _ = _receiveMap.ContainsKey(cmdName)
+        var result = _receiveMap.ContainsKey(cmdName)
             ? _receiveMap[cmdName](cmd, context, adxSignalState)
             : throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return await ValueTask.FromResult(result);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures ADX signal
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesAdxSignalCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesAdxSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
-        [typeof(GenerateFuturesAdxSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesAdxSignalCommand)!.Execute(state)
+        [typeof(GenerateFuturesAdxSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesAdxSignalCommand)!.Execute(state),
+        [typeof(GenerateFuturesAdxDailySignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesAdxDailySignalCommand)!.Execute(state)
     };
 
     /// <summary>

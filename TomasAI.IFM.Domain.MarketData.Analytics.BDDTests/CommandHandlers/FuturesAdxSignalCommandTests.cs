@@ -48,7 +48,7 @@ public class FuturesAdxSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Updated.Should().BeTrue();
         state.AdxSignal.Should().NotBeNull();
         state.AdxSignal.ADX.Should().Be(FuturesTrendDirectionType.Init);
@@ -66,7 +66,7 @@ public class FuturesAdxSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.AdxSignal.ADX.Should().Be(FuturesTrendDirectionType.UpTrending);
         state.AdxSignal.PlusDI.Should().BeGreaterThan(state.AdxSignal.MinusDI);
     }
@@ -82,7 +82,7 @@ public class FuturesAdxSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.AdxSignal.ADX.Should().Be(FuturesTrendDirectionType.UpTrending);
     }
 
@@ -97,7 +97,7 @@ public class FuturesAdxSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.AdxSignal.ADX.Should().Be(FuturesTrendDirectionType.DownTrending);
         state.AdxSignal.MinusDI.Should().BeGreaterThan(state.AdxSignal.PlusDI);
     }
@@ -113,7 +113,7 @@ public class FuturesAdxSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.AdxSignal.ADX.Should().Be(FuturesTrendDirectionType.DownTrending);
     }
 
@@ -179,7 +179,7 @@ public class FuturesAdxSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.AdxSignal.ADX.Should().Be(FuturesTrendDirectionType.TrendReversal);
     }
 
@@ -194,7 +194,7 @@ public class FuturesAdxSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.AdxSignal.ADX.Should().Be(FuturesTrendDirectionType.TrendReversal);
     }
 
@@ -211,7 +211,7 @@ public class FuturesAdxSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.AdxSignal.ADX.Should().Be(FuturesTrendDirectionType.TrendReversal);
         state.AdxSignal.PlusDI.Should().Be(0);
         state.AdxSignal.MinusDI.Should().Be(0);
@@ -230,7 +230,7 @@ public class FuturesAdxSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.AdxSignal.ADX.Should().Be(FuturesTrendDirectionType.TrendReversal);
         state.AdxSignal.PlusDI.Should().Be(state.AdxSignal.MinusDI);
     }
@@ -250,7 +250,7 @@ public class FuturesAdxSignalCommandTests
         var result = secondCommand.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.AdxSignals.Should().HaveCount(2);
         // Prior signal direction was Init, so neither up nor down trending criteria match -> reversal branch.
         state.AdxSignal.ADX.Should().Be(FuturesTrendDirectionType.TrendReversal);

@@ -176,6 +176,47 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         deserialized!.FuturesPrice.Should().Be(command.FuturesPrice);
     }
 
+    [Fact]
+    public void ParseMessage_DeserializesGenerateFuturesAdxDailySignalCommand_AndLogsToDatabase()
+    {
+        // Arrange
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        var logger = Substitute.For<ILogger<FuturesAdxSignalCommandActor>>();
+        var actor = _fixture.CreateAdxCommandActor(dbEventSource, logger);
+
+        var dailyId = SampleData.AdxSignalId;
+        var command = new GenerateFuturesAdxDailySignalCommand(dailyId, (decimal)SampleData.FuturesPrice) with
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxDailySignalCommand.Actor, GenerateFuturesAdxDailySignalCommand.Verb, dailyId.ToDailyEntityId().Format())
+        };
+
+        var payload = ActorExtensions.DataSerializer.Serialize(command);
+        var subject = command.Subject.ToString();
+        var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
+
+        var context = Substitute.For<ICommandActorContext>();
+
+        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+            .Returns(Task.CompletedTask);
+
+        // Act
+        var result = actor.InvokeParseMessage(context, natsMsg);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().BeOfType<GenerateFuturesAdxDailySignalCommand>();
+        var deserialized = result as GenerateFuturesAdxDailySignalCommand;
+        deserialized.Should().NotBeNull();
+        deserialized!.CommandId.Should().Be(command.CommandId);
+        deserialized.Subject.ToString().Should().Be(subject);
+
+        dbEventSource.Received(1).InsertCommandLogAsync(
+            Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
+            Arg.Any<DateTime>(),
+            Arg.Any<string>());
+    }
+
     #endregion
 
     #region ParseMessage Edge Case Tests
@@ -366,6 +407,34 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Assert
         result.Should().NotBeNull();
         result.Value.Guid.Should().Be(cmd.CommandId);
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_GenerateFuturesAdxDailySignalCommand_ExecutesHandler_ReturnsGuid()
+    {
+        // Arrange - previously this command type was validated but never registered for execution,
+        // so ReceiveAsync would throw InvalidOperationException; it must now execute successfully.
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        var logger = Substitute.For<ILogger<FuturesAdxSignalCommandActor>>();
+        var actor = _fixture.CreateAdxCommandActor(dbEventSource, logger);
+
+        var dailyId = SampleData.AdxSignalId;
+        var cmd = new GenerateFuturesAdxDailySignalCommand(dailyId, (decimal)SampleData.FuturesPrice) with
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxDailySignalCommand.Actor, GenerateFuturesAdxDailySignalCommand.Verb, dailyId.ToDailyEntityId().Format())
+        };
+        var state = new FuturesAdxSignalCommandState { Id = cmd.Subject.ThreadId };
+        var context = Substitute.For<ICommandActorContext>();
+
+        // Act
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Success.Should().BeTrue();
+        result.Value.Guid.Should().Be(cmd.CommandId);
+        state.AdxSignals.Should().HaveCount(1);
     }
 
     #endregion
