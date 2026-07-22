@@ -336,6 +336,41 @@ public static class SampleData
     public static FuturesTdiSignalEntityId TdiEntityIdFor(TradeTimePeriodType timePeriod)
         => new(ContractId, ValueDate, timePeriod);
 
+    public static GetFuturesTdiSignalQuery TdiSignalQueryFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        DateOnly? valueDate = null)
+    {
+        var queryDate = valueDate ?? ValueDate;
+        var entityId = new FuturesTdiSignalEntityId(contractId, queryDate, timePeriod);
+        return new GetFuturesTdiSignalQuery(contractId, queryDate, timePeriod)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetFuturesTdiSignalQuery.Actor,
+                GetFuturesTdiSignalQuery.Verb,
+                entityId.Format())
+        };
+    }
+
+    public static FuturesTdiSignalReadModel TdiReadModelFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        DateOnly? valueDate = null,
+        int upTrendCount = 8,
+        int downTrendCount = 2,
+        FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
+        FuturesTrendDirectionStrengthType strength = FuturesTrendDirectionStrengthType.High)
+        => new(
+            contractId: contractId,
+            valueDate: valueDate ?? ValueDate,
+            timePeriod: timePeriod,
+            timestamp: FuturesTdiSignalId.Timestamp,
+            upTrendCount: upTrendCount,
+            downTrendCount: downTrendCount,
+            tdi: direction,
+            tdiStrength: strength);
+
     public static GenerateFuturesTdiSignalCommand TdiGenerateCommandFor(
         TradeTimePeriodType timePeriod,
         FuturesRsiSignalReadModel[]? rsiSignals = null,
