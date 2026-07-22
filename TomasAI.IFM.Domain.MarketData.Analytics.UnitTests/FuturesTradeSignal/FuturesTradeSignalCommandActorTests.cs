@@ -53,8 +53,12 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
 
     #region ParseMessage Happy Path Tests
 
-    [Fact]
-    public async Task ParseMessage_DeserializesUpdateFuturesTradeSignalCommand_AndLogsToDatabase()
+    [Theory]
+    [InlineData(TradeTimePeriodType.Daily)]
+    [InlineData(TradeTimePeriodType.Weekly)]
+    [InlineData(TradeTimePeriodType.Monthly)]
+    public async Task ParseMessage_DeserializesUpdateFuturesTradeSignalCommand_AndLogsToDatabase(
+        TradeTimePeriodType timePeriod)
     {
         // Arrange
         _fixture.DataSerializer.Should().NotBeNull();
@@ -62,9 +66,9 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
 
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var command = SampleData.TradeSignalUpdateCommand;
+        var command = SampleData.CreateTradeSignalUpdateCommandFor(timePeriod);
 
         var payload = ActorExtensions.DataSerializer.Serialize(command);
         var subject = command.Subject.ToString();
@@ -84,6 +88,8 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         var deserializedCommand = result as UpdateFuturesTradeSignalCommand;
         deserializedCommand.Should().NotBeNull();
         deserializedCommand!.CommandId.Should().Be(command.CommandId);
+        deserializedCommand.TimePeriod.Should().Be(timePeriod);
+        deserializedCommand.EntityId.Should().Be(SampleData.TradeSignalEntityIdFor(timePeriod));
         deserializedCommand.FuturesEodData.ContractId.Should().Be(command.FuturesEodData.ContractId);
         deserializedCommand.FuturesEodData.ValueDate.Should().Be(command.FuturesEodData.ValueDate);
         deserializedCommand.Subject.ToString().Should().Be(subject);
@@ -103,7 +109,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
         var command = SampleData.CreateTradeSignalUpdateCommand() with { CommandId = expectedCommandId };
@@ -133,7 +139,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.CreateTradeSignalUpdateCommand();
 
@@ -171,7 +177,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.TradeSignalUpdateCommand;
         var payload = ActorExtensions.DataSerializer.Serialize(command);
@@ -195,7 +201,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.TradeSignalUpdateCommand;
         var payload = ActorExtensions.DataSerializer.Serialize(command);
@@ -219,7 +225,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.TradeSignalUpdateCommand;
         var payload = ActorExtensions.DataSerializer.Serialize(command);
@@ -243,7 +249,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.TradeSignalUpdateCommand;
         var payload = ActorExtensions.DataSerializer.Serialize(command);
@@ -263,7 +269,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.TradeSignalUpdateCommand;
         var corruptedPayload = new byte[] { 0x00, 0x01, 0x02, 0xFF, 0xFE };
@@ -288,7 +294,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.TradeSignalUpdateCommand;
         var emptyPayload = Array.Empty<byte>();
@@ -313,7 +319,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.TradeSignalUpdateCommand;
         var payload = ActorExtensions.DataSerializer.Serialize(command);
@@ -338,15 +344,19 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
 
     #region ReceiveAsync Happy Path Tests
 
-    [Fact]
-    public async Task ReceiveAsync_UpdateFuturesTradeSignalCommand_ExecutesHandler_ReturnsGuid()
+    [Theory]
+    [InlineData(TradeTimePeriodType.Daily)]
+    [InlineData(TradeTimePeriodType.Weekly)]
+    [InlineData(TradeTimePeriodType.Monthly)]
+    public async Task ReceiveAsync_UpdateFuturesTradeSignalCommand_ExecutesHandler_ReturnsGuid(
+        TradeTimePeriodType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var cmd = SampleData.CreateTradeSignalUpdateCommand();
+        var cmd = SampleData.CreateTradeSignalUpdateCommandFor(timePeriod);
 
         var state = new FuturesTradeSignalCommandState { Id = cmd.Subject.ThreadId };
         var context = Substitute.For<ICommandActorContext>();
@@ -358,6 +368,8 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         result.Should().NotBeNull();
         result.Value.Should().NotBeNull();
         result.Value.Guid.Should().Be(cmd.CommandId);
+        cmd.TimePeriod.Should().Be(timePeriod);
+        state.Events.Should().ContainSingle(e => e is FuturesTradeSignalUpdatedEvent);
     }
 
     [Fact]
@@ -366,7 +378,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
 
@@ -388,7 +400,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
 
@@ -419,7 +431,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
         var state = new FuturesTradeSignalCommandState { Id = cmd.Subject.ThreadId };
@@ -437,7 +449,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
         var context = Substitute.For<ICommandActorContext>();
@@ -455,7 +467,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = new FuturesTradeSignalCommandState { Id = new ActorThreadId(ActorType.Command, FuturesTradeSignalCommandActor.ActorName, "test-thread") };
         var context = Substitute.For<ICommandActorContext>();
@@ -473,7 +485,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = new FuturesTradeSignalCommandState { Id = new ActorThreadId(ActorType.Command, FuturesTradeSignalCommandActor.ActorName, "test-thread") };
 
@@ -497,7 +509,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
 
@@ -517,15 +529,18 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
 
     #region OnValidateAsync Happy Path Tests
 
-    [Fact]
-    public async Task OnValidateAsync_ValidCommand_DoesNotThrow()
+    [Theory]
+    [InlineData(TradeTimePeriodType.Daily)]
+    [InlineData(TradeTimePeriodType.Weekly)]
+    [InlineData(TradeTimePeriodType.Monthly)]
+    public async Task OnValidateAsync_ValidCommand_DoesNotThrow(TradeTimePeriodType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var cmd = SampleData.CreateTradeSignalUpdateCommand(vixFuturesPrice: 15.75m);
+        var cmd = SampleData.CreateTradeSignalUpdateCommandFor(timePeriod, vixFuturesPrice: 15.75m);
         var threadId = cmd.Subject.ThreadId;
         var context = Substitute.For<ICommandActorContext>();
 
@@ -546,7 +561,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand() with { CommandId = Guid.Empty };
         var threadId = cmd.Subject.ThreadId;
@@ -565,7 +580,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
         var threadId = cmd.Subject.ThreadId;
@@ -583,7 +598,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
         var context = Substitute.For<ICommandActorContext>();
@@ -601,7 +616,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var threadId = new ActorThreadId(ActorType.Command, FuturesTradeSignalCommandActor.ActorName, "test-thread");
         var context = Substitute.For<ICommandActorContext>();
@@ -619,7 +634,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = Substitute.For<ICommand>();
         cmd.CommandId.Returns(Guid.NewGuid());
@@ -642,7 +657,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand(vixFuturesPrice: 0m);
         var threadId = cmd.Subject.ThreadId;
@@ -662,7 +677,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand(vixFuturesPrice: -5.0m);
         var threadId = cmd.Subject.ThreadId;
@@ -682,7 +697,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand(vixFuturesPrice: 250m);
         var threadId = cmd.Subject.ThreadId;
@@ -702,7 +717,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand(vixFuturesPrice: 0.005m);
         var threadId = cmd.Subject.ThreadId;
@@ -722,7 +737,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand(vixFuturesPrice: 15.75m);
         var threadId = cmd.Subject.ThreadId;
@@ -741,7 +756,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidEodData = SampleData.EodData with { Volume = -100 };
         var cmd = SampleData.CreateTradeSignalUpdateCommand(eodData: invalidEodData, vixFuturesPrice: 15.75m);
@@ -762,7 +777,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidEodData = SampleData.EodData with { ContractId = string.Empty };
         var cmd = SampleData.CreateTradeSignalUpdateCommand(eodData: invalidEodData, vixFuturesPrice: 15.75m);
@@ -783,7 +798,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand(vixFuturesPrice: 15.75m);
         // Create command with invalid enum value by using reflection or direct cast
@@ -801,130 +816,20 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
 
     #endregion
 
-    #region OnStartup Happy Path Tests
-
-    [Fact]
-    public async Task OnStartup_WithValidContext_ResolvesRepository()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
-
-        var mockRepo = Substitute.For<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>();
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>().Returns(mockRepo);
-
-        var context = Substitute.For<ICommandActorContext>();
-        context.Container.Returns(container);
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnStartup(context);
-
-        // Assert
-        await act.Should().NotThrowAsync();
-        container.Received(1).Resolve<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>();
-    }
-
-    [Fact]
-    public async Task OnStartup_CalledMultipleTimes_ShouldNotThrow()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
-
-        var mockRepo = Substitute.For<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>();
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>().Returns(mockRepo);
-
-        var context = Substitute.For<ICommandActorContext>();
-        context.Container.Returns(container);
-
-        // Act
-        Func<Task> act = async () =>
-        {
-            await actor.InvokeOnStartup(context);
-            await actor.InvokeOnStartup(context);
-        };
-
-        // Assert
-        await act.Should().NotThrowAsync();
-        container.Received(2).Resolve<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>();
-    }
-
-    #endregion
-
-    #region OnStartup Edge Case Tests
-
-    [Fact]
-    public async Task OnStartup_ThrowsArgumentNullException_WhenContextIsNull()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnStartup(null!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    [Fact]
-    public async Task OnStartup_ThrowsNullReferenceException_WhenContainerIsNull()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
-
-        var context = Substitute.For<ICommandActorContext>();
-        context.Container.Returns((IContainerInstance)null!);
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnStartup(context);
-
-        // Assert
-        await act.Should().ThrowAsync<NullReferenceException>();
-    }
-
-    [Fact]
-    public async Task OnStartup_ThrowsArgumentNullException_WhenContainerReturnsNullRepo()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
-
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>()
-            .Returns((IEventSourceActorStateRepository<FuturesTradeSignalCommandState>)null!);
-
-        var context = Substitute.For<ICommandActorContext>();
-        context.Container.Returns(container);
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnStartup(context);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    #endregion
-
     #region OnLoadStateAsync Happy Path Tests
 
-    [Fact]
-    public async Task OnLoadStateAsync_LoadsState_FromRepository()
+    [Theory]
+    [InlineData(TradeTimePeriodType.Daily)]
+    [InlineData(TradeTimePeriodType.Weekly)]
+    [InlineData(TradeTimePeriodType.Monthly)]
+    public async Task OnLoadStateAsync_LoadsState_FromRepository(TradeTimePeriodType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var cmd = SampleData.CreateTradeSignalUpdateCommand();
+        var cmd = SampleData.CreateTradeSignalUpdateCommandFor(timePeriod);
         var threadId = cmd.Subject.ThreadId;
 
         var expectedState = new FuturesTradeSignalCommandState { Id = threadId };
@@ -959,7 +864,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
         var threadId = cmd.Subject.ThreadId;
@@ -977,7 +882,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var threadId = new ActorThreadId(ActorType.Command, FuturesTradeSignalCommandActor.ActorName, "test-thread");
         var context = Substitute.For<ICommandActorContext>();
@@ -995,7 +900,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
         var context = Substitute.For<ICommandActorContext>();
@@ -1011,15 +916,18 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
 
     #region OnSaveStateAsync Happy Path Tests
 
-    [Fact]
-    public async Task OnSaveStateAsync_SavesState_ToRepository()
+    [Theory]
+    [InlineData(TradeTimePeriodType.Daily)]
+    [InlineData(TradeTimePeriodType.Weekly)]
+    [InlineData(TradeTimePeriodType.Monthly)]
+    public async Task OnSaveStateAsync_SavesState_ToRepository(TradeTimePeriodType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var cmd = SampleData.CreateTradeSignalUpdateCommand();
+        var cmd = SampleData.CreateTradeSignalUpdateCommandFor(timePeriod);
         var threadId = cmd.Subject.ThreadId;
         var state = new FuturesTradeSignalCommandState { Id = threadId };
 
@@ -1053,7 +961,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
         var threadId = cmd.Subject.ThreadId;
@@ -1072,7 +980,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
         var threadId = cmd.Subject.ThreadId;
@@ -1091,7 +999,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
         var state = new FuturesTradeSignalCommandState { Id = cmd.Subject.ThreadId };
@@ -1110,7 +1018,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var threadId = new ActorThreadId(ActorType.Command, FuturesTradeSignalCommandActor.ActorName, "test-thread");
         var state = new FuturesTradeSignalCommandState { Id = threadId };
@@ -1129,7 +1037,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand();
         var threadId = cmd.Subject.ThreadId;
@@ -1155,15 +1063,19 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
 
     #region OnExceptionAsync Happy Path Tests
 
-    [Fact]
-    public async Task OnExceptionAsync_GenericException_SendsCommandExceptionEventAndReturnsFailedResult()
+    [Theory]
+    [InlineData(TradeTimePeriodType.Daily)]
+    [InlineData(TradeTimePeriodType.Weekly)]
+    [InlineData(TradeTimePeriodType.Monthly)]
+    public async Task OnExceptionAsync_GenericException_SendsCommandExceptionEventAndReturnsFailedResult(
+        TradeTimePeriodType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var command = SampleData.CreateTradeSignalUpdateCommand();
+        var command = SampleData.CreateTradeSignalUpdateCommandFor(timePeriod);
         var threadId = command.Subject.ThreadId;
         var exception = new InvalidOperationException("Unexpected error occurred");
 
@@ -1190,7 +1102,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.CreateTradeSignalUpdateCommand();
         var threadId = command.Subject.ThreadId;
@@ -1224,7 +1136,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.CreateTradeSignalUpdateCommand();
         var threadId = command.Subject.ThreadId;
@@ -1244,7 +1156,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.CreateTradeSignalUpdateCommand();
         var threadId = command.Subject.ThreadId;
@@ -1273,7 +1185,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.CreateTradeSignalUpdateCommand();
         var exception = new InvalidOperationException("Test error");
@@ -1299,7 +1211,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var threadId = new ActorThreadId(ActorType.Command, FuturesTradeSignalCommandActor.ActorName, "test-thread");
         var exception = new InvalidOperationException("Test error");
@@ -1325,7 +1237,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.CreateTradeSignalUpdateCommand();
         var threadId = command.Subject.ThreadId;
@@ -1353,7 +1265,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = _fixture.CreateTradeSignalCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var command = SampleData.CreateTradeSignalUpdateCommand();
         var threadId = command.Subject.ThreadId;

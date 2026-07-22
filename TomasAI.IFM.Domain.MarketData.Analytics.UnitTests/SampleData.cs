@@ -901,13 +901,11 @@ public static class SampleData
     public static FuturesTradeSignalEntityId TradeSignalEntityId
         => new(ContractId, ValueDate, TimePeriod);
 
+    public static FuturesTradeSignalEntityId TradeSignalEntityIdFor(TradeTimePeriodType timePeriod)
+        => new(ContractId, ValueDate, timePeriod);
+
     public static UpdateFuturesTradeSignalCommand TradeSignalUpdateCommand
-        => new(EodData)
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, FuturesTradeSignalCommandActor.ActorName, UpdateFuturesTradeSignalCommand.Verb, TradeSignalEntityId.Format()),
-            EntityId = TradeSignalEntityId
-        };
+        => CreateTradeSignalUpdateCommand();
 
     public static UpdateFuturesTradeSignalCommand CreateTradeSignalUpdateCommand(
         FuturesEodDataV2ReadModel? eodData = null,
@@ -915,13 +913,29 @@ public static class SampleData
         FuturesTdiSignalReadModel? tdiSignal = null,
         FuturesItiSignalDataReadModel? itiSignalData = null,
         decimal vixFuturesPrice = 0)
+        => CreateTradeSignalUpdateCommandFor(
+            TimePeriod,
+            eodData,
+            rsiSignal,
+            tdiSignal,
+            itiSignalData,
+            vixFuturesPrice);
+
+    public static UpdateFuturesTradeSignalCommand CreateTradeSignalUpdateCommandFor(
+        TradeTimePeriodType timePeriod,
+        FuturesEodDataV2ReadModel? eodData = null,
+        FuturesRsiSignalReadModel? rsiSignal = null,
+        FuturesTdiSignalReadModel? tdiSignal = null,
+        FuturesItiSignalDataReadModel? itiSignalData = null,
+        decimal vixFuturesPrice = 0)
     {
         var eod = eodData ?? EodData;
-        return new UpdateFuturesTradeSignalCommand(eod, rsiSignal, tdiSignal, itiSignalData, vixFuturesPrice)
+        var entityId = TradeSignalEntityIdFor(timePeriod);
+        return new UpdateFuturesTradeSignalCommand(eod, rsiSignal, tdiSignal, itiSignalData, vixFuturesPrice, timePeriod)
         {
             CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, FuturesTradeSignalCommandActor.ActorName, UpdateFuturesTradeSignalCommand.Verb, TradeSignalEntityId.Format()),
-            EntityId = TradeSignalEntityId
+            Subject = new ActorSubject(ActorType.Command, FuturesTradeSignalCommandActor.ActorName, UpdateFuturesTradeSignalCommand.Verb, entityId.Format()),
+            EntityId = entityId
         };
     }
 
