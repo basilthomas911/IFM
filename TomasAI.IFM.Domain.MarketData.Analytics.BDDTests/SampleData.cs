@@ -1161,6 +1161,101 @@ public static class SampleData
         };
     }
 
+    public static FuturesTradeSignalV2ReadModel TradeSignalReadModelFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        DateOnly? valueDate = null,
+        long sequenceId = 1,
+        FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending)
+        => new(
+            contractId: contractId,
+            valueDate: valueDate ?? ValueDate,
+            timePeriod: timePeriod,
+            sequenceId: sequenceId,
+            timestamp: TimeOnly.FromDateTime(Timestamp),
+            mean: FuturesMean,
+            stdDev: FuturesStdDev,
+            futuresPrice: Convert.ToDouble(FuturesPrice),
+            priceChangePercent: FuturesPercentChange,
+            fundRiskPercent: 0.9,
+            rsi: FuturesRSI,
+            rsiSlope: FuturesRSISlope,
+            trendType: direction == FuturesTrendDirectionType.DownTrending
+                ? FuturesTrendType.DownTrending
+                : FuturesTrendType.UpTrending,
+            trendStrength: FuturesTrendStrengthType.High,
+            tradeSignal: direction == FuturesTrendDirectionType.DownTrending
+                ? TradeSignalType.Buy
+                : TradeSignalType.Sell,
+            tdi: direction,
+            tdiStrength: FuturesTrendDirectionStrengthType.High,
+            mdi: FuturesMDI,
+            mdiTrend: direction == FuturesTrendDirectionType.DownTrending
+                ? FuturesMDITrendType.DownTrending
+                : FuturesMDITrendType.UpTrending,
+            mdiUpTrendLimit: 1.5,
+            mdiDownTrendLimit: 0.5,
+            upTrendingTrigger: Convert.ToDouble(FuturesPrice) + 20,
+            downTrendingTrigger: Convert.ToDouble(FuturesPrice) - 20,
+            entryTrigger: Convert.ToDouble(FuturesPrice) + 5,
+            exitTrigger: Convert.ToDouble(FuturesPrice) - 5,
+            trendDelta: 20,
+            trendExtreme: Convert.ToDouble(FuturesPrice) + 20,
+            trendReversal: Convert.ToDouble(FuturesPrice) - 10,
+            fiftyDMA: FuturesFiftyDMA,
+            twoHundredDMA: FuturesTwoHundredDMA,
+            tradeExecuteState: TradeExecuteState.Enter);
+
+    public static FuturesTradeSignalId TradeSignalIdFor(
+        TradeTimePeriodType timePeriod,
+        long sequenceId = 1,
+        string contractId = ContractId,
+        DateOnly? valueDate = null)
+        => new(contractId, valueDate ?? ValueDate, timePeriod, sequenceId);
+
+    public static GetFuturesTradeSignalQuery TradeSignalQueryFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        DateOnly? valueDate = null)
+    {
+        var queryDate = valueDate ?? ValueDate;
+        var threadEntity = new FuturesTradeSignalEntityId(contractId, queryDate, timePeriod);
+        return new GetFuturesTradeSignalQuery(contractId, queryDate)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetFuturesTradeSignalQuery.Actor,
+                GetFuturesTradeSignalQuery.Verb,
+                threadEntity.Format())
+        };
+    }
+
+    public static GetLastFuturesTradeSignalQuery LastTradeSignalQueryFor(
+        TradeTimePeriodType timePeriod)
+        => new()
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetLastFuturesTradeSignalQuery.Actor,
+                GetLastFuturesTradeSignalQuery.Verb,
+                TradeSignalEntityIdFor(timePeriod).Format())
+        };
+
+    public static GetFuturesTradeSignalIdsQuery TradeSignalIdsQueryFor(
+        TradeTimePeriodType timePeriod,
+        DateOnly? valueDate = null)
+    {
+        var queryDate = valueDate ?? ValueDate;
+        return new GetFuturesTradeSignalIdsQuery(queryDate)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetFuturesTradeSignalIdsQuery.Actor,
+                GetFuturesTradeSignalIdsQuery.Verb,
+                new FuturesTradeSignalEntityId(ContractId, queryDate, timePeriod).Format())
+        };
+    }
+
     // ───── ADX Signal sample data ──────────────────────────────────────────
 
     public static FuturesAdxSignalEntityId AdxEntityId
