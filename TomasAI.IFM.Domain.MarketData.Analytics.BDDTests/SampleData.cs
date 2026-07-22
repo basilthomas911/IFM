@@ -2,7 +2,10 @@ using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
+using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend.ViewModels;
 
@@ -329,6 +332,61 @@ public static class SampleData
         valueDate: ValueDate,
         timestamp: new TimeOnly(18, 50, 10, 451)
     );
+
+    public static FuturesTdiSignalEntityId TdiEntityIdFor(TradeTimePeriodType timePeriod)
+        => new(ContractId, ValueDate, timePeriod);
+
+    public static GenerateFuturesTdiSignalCommand TdiGenerateCommandFor(
+        TradeTimePeriodType timePeriod,
+        FuturesRsiSignalReadModel[]? rsiSignals = null,
+        Guid? commandId = null)
+    {
+        var entityId = TdiEntityIdFor(timePeriod);
+        var normalizedSignals = (rsiSignals ?? TdiUpTrendingRsiSignals)
+            .Select(signal => signal with { TimePeriod = timePeriod })
+            .ToArray();
+        return new GenerateFuturesTdiSignalCommand(FuturesTdiSignalId, normalizedSignals)
+        {
+            CommandId = commandId ?? Guid.NewGuid(),
+            EntityId = entityId,
+            Subject = new ActorSubject(
+                ActorType.Command,
+                GenerateFuturesTdiSignalCommand.Actor,
+                GenerateFuturesTdiSignalCommand.Verb,
+                entityId.Format())
+        };
+    }
+
+    public static FuturesTdiSignalGeneratedEvent CreateTdiHistoryEventFor(
+        TradeTimePeriodType timePeriod,
+        FuturesTrendDirectionType direction,
+        int upTrendCount = 3,
+        int downTrendCount = 3,
+        FuturesTrendDirectionStrengthType strength = FuturesTrendDirectionStrengthType.Medium)
+    {
+        var entityId = TdiEntityIdFor(timePeriod);
+        return new FuturesTdiSignalGeneratedEvent
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesTdiSignalGeneratedEvent.Actor,
+                FuturesTdiSignalGeneratedEvent.Verb,
+                entityId.Format()),
+            EntityId = entityId,
+            FuturesTdiSignal = new FuturesTdiSignalReadModel(
+                contractId: ContractId,
+                valueDate: ValueDate,
+                timePeriod: timePeriod,
+                timestamp: FuturesTdiSignalId.Timestamp,
+                upTrendCount: upTrendCount,
+                downTrendCount: downTrendCount,
+                tdi: direction,
+                tdiStrength: strength),
+            CreatedOn = Timestamp,
+            CreatedBy = "test"
+        };
+    }
 
     /// <summary>
     /// Rising RSI series – RSI >= 50 with positive slope → UpTrending TDI model direction.
@@ -1079,6 +1137,68 @@ public static class SampleData
 
     public static FuturesAtrSignalEntityId AtrEntityId
         => new(ContractId, ValueDate, TimePeriod, PeriodLength);
+
+    public static FuturesAtrSignalEntityId AtrEntityIdFor(TradeTimePeriodType timePeriod)
+        => new(ContractId, ValueDate, timePeriod, PeriodLength);
+
+    public static FuturesAtrDailySignalEntityId AtrDailyEntityIdFor(TradeTimePeriodType timePeriod)
+        => new(ContractId, timePeriod, PeriodLength);
+
+    public static GetFuturesAtrSignalQuery AtrSignalQueryFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        DateOnly? valueDate = null,
+        int periodLength = 14)
+    {
+        var queryDate = valueDate ?? ValueDate;
+        var entityId = new FuturesAtrSignalEntityId(contractId, queryDate, timePeriod, periodLength);
+        return new GetFuturesAtrSignalQuery(contractId, queryDate, timePeriod, periodLength)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetFuturesAtrSignalQuery.Actor,
+                GetFuturesAtrSignalQuery.Verb,
+                entityId.Format())
+        };
+    }
+
+    public static GetFuturesAtrDailySignalQuery AtrDailySignalQueryFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        int periodLength = 14)
+    {
+        var entityId = new FuturesAtrDailySignalEntityId(contractId, timePeriod, periodLength);
+        return new GetFuturesAtrDailySignalQuery(contractId, timePeriod, periodLength)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetFuturesAtrDailySignalQuery.Actor,
+                GetFuturesAtrDailySignalQuery.Verb,
+                entityId.Format())
+        };
+    }
+
+    public static FuturesAtrSignalReadModel AtrReadModelFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        DateOnly? valueDate = null,
+        int periodLength = 14,
+        decimal futuresPrice = FuturesPrice,
+        double atrValue = 12.5,
+        double trueRange = 15,
+        FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
+        FuturesTrendDirectionStrengthType strength = FuturesTrendDirectionStrengthType.Medium)
+        => new(
+            contractId: contractId,
+            valueDate: valueDate ?? ValueDate,
+            timePeriod: timePeriod,
+            periodLength: periodLength,
+            timestamp: TimeOnly.FromDateTime(Timestamp),
+            futuresPrice: futuresPrice,
+            atrValue: atrValue,
+            trueRange: trueRange,
+            atr: direction,
+            atrStrength: strength);
 
     public static FuturesAtrSignalId AtrSignalId
         => new(ContractId, ValueDate, TimePeriod, PeriodLength, TimeOnly.FromDateTime(Timestamp));
