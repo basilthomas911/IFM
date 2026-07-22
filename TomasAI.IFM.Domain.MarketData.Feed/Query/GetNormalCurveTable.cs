@@ -12,6 +12,6 @@ public static class GetNormalCurveTable
         this GetNormalCurveTableQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
     {
         var result = await dbFactory.MarketDataDb.GetNormalCurveTableAsync();
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb, new ServiceResult<NormalCurveTableReadModel>(result));
+        await context.ReplyAsync(q.Subject.ThreadId, GetNormalCurveTableQuery.Verb, new ServiceResult<NormalCurveTableReadModel>(result));
     }
 }

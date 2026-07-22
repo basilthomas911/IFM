@@ -20,7 +20,7 @@ public static class GetIronCondorMarketDataFeed
             q.ShortCallOptionContractId,
             q.LongCallOptionContractId,
             q.ValueDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb, new ServiceResult<IronCondorMarketDataFeedReadModel>(result));
+        await context.ReplyAsync(q.Subject.ThreadId, GetIronCondorMarketDataFeedQuery.Verb, new ServiceResult<IronCondorMarketDataFeedReadModel>(result));
 
         async ValueTask<IronCondorMarketDataFeedReadModel> GetIronCondorMarketDataFeedAsync(
             IMarketDataDbContext db,

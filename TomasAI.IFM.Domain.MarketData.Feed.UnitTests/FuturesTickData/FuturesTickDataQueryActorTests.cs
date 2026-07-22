@@ -49,7 +49,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public void ParseMessage_ShouldParseGetLastFuturesTickDataQuery_Successfully()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesTickDataParameter(SampleData.EsTickData.ContractId, SampleData.ValueDate);
         var query = new GetLastFuturesTickDataQuery(entityId.ContractId, entityId.ValueDate)
@@ -83,7 +83,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public void ParseMessage_ShouldParseGetLastFuturesTickDataByTickDateQuery_Successfully()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var tickDate = new DateTime(2024, 6, 15, 14, 30, 0, DateTimeKind.Utc);
         var entityId = new GetLastFuturesTickDataByTickDateParameter(SampleData.EsTickData.ContractId, tickDate);
@@ -122,7 +122,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public void ParseMessage_ShouldThrowArgumentNullException_WhenContextIsNull()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var entityId = new GetLastFuturesTickDataParameter(SampleData.EsTickData.ContractId, SampleData.ValueDate);
         var query = new GetLastFuturesTickDataQuery(entityId.ContractId, entityId.ValueDate)
         {
@@ -145,7 +145,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public void ParseMessage_ShouldThrowInvalidOperationException_WhenActorTypeIsNotQuery()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesTickDataParameter(SampleData.EsTickData.ContractId, SampleData.ValueDate);
         var invalidSubject = new ActorSubject(ActorType.Command, FuturesTickDataQueryActor.ActorName, GetLastFuturesTickDataQuery.Verb, entityId.Format());
@@ -165,7 +165,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public void ParseMessage_ShouldThrowInvalidOperationException_WhenActorNameIsIncorrect()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesTickDataParameter(SampleData.EsTickData.ContractId, SampleData.ValueDate);
         var invalidSubject = new ActorSubject(ActorType.Query, "WrongActor", GetLastFuturesTickDataQuery.Verb, entityId.Format());
@@ -185,7 +185,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public void ParseMessage_ShouldThrowInvalidOperationException_WhenVerbIsNotInParseMap()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesTickDataParameter(SampleData.EsTickData.ContractId, SampleData.ValueDate);
         var invalidSubject = new ActorSubject(ActorType.Query, FuturesTickDataQueryActor.ActorName, "UnknownVerb", entityId.Format());
@@ -205,7 +205,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public void ParseMessage_ShouldThrowArgumentNullException_WhenDeserializedQueryIsNull()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesTickDataParameter(SampleData.EsTickData.ContractId, SampleData.ValueDate);
         var validSubject = new ActorSubject(ActorType.Query, FuturesTickDataQueryActor.ActorName, GetLastFuturesTickDataQuery.Verb, entityId.Format());
@@ -224,7 +224,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public void ParseMessage_ShouldHandleEmptyEntityId_InSubject()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var query = new GetLastFuturesTickDataQuery(SampleData.EsTickData.ContractId, SampleData.ValueDate)
         {
@@ -249,7 +249,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public void ParseMessage_ShouldExtractThreadIdFromSubject_Correctly()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesTickDataParameter(SampleData.EsTickData.ContractId, SampleData.ValueDate);
         var query = new GetLastFuturesTickDataQuery(entityId.ContractId, entityId.ValueDate)
@@ -278,7 +278,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public void ParseMessage_ShouldSetMessageInfoCorrectly_WithAllComponents()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesTickDataParameter(SampleData.EsTickData.ContractId, SampleData.ValueDate);
         var query = new GetLastFuturesTickDataQuery(entityId.ContractId, entityId.ValueDate)
@@ -314,7 +314,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
-        var actor = _fixture.CreateFuturesTickDataQueryActor(dbFactory: dbFactory);
+        var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var contractId = SampleData.EsTickData.ContractId;
         var valueDate = SampleData.ValueDate;
 
@@ -343,7 +343,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
-        var actor = _fixture.CreateFuturesTickDataQueryActor(dbFactory: dbFactory);
+        var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var contractId = SampleData.EsTickData.ContractId;
         var tickDate = new DateTime(2024, 6, 15, 14, 30, 0, DateTimeKind.Utc);
         var entityId = new GetLastFuturesTickDataByTickDateParameter(contractId, tickDate);
@@ -365,15 +365,77 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
             Arg.Is<ServiceResult<FuturesTickDataV2ReadModel?>>(r => r.Success && r.Value == SampleData.EsTickData));
     }
 
+    [Fact]
+    public async Task ReceiveAsync_ShouldReplyWithSuccessfulNull_WhenNoTickDataExists()
+    {
+        var context = Substitute.For<IQueryActorContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var db = Substitute.For<IMarketDataDbContext>();
+        dbFactory.MarketDataDb.Returns(db);
+        db.GetLastFuturesTickDataAsync(SampleData.VixTickData.ContractId, SampleData.ValueDate)
+            .Returns((FuturesTickDataV2ReadModel?)null);
+        var actor = _fixture.CreateActor(
+            dbFactory, Substitute.For<ILogger<FuturesTickDataQueryActor>>());
+        var query = new GetLastFuturesTickDataQuery(
+            SampleData.VixTickData.ContractId, SampleData.ValueDate)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                FuturesTickDataQueryActor.ActorName,
+                GetLastFuturesTickDataQuery.Verb,
+                $"{SampleData.VixTickData.ContractId}.{SampleData.ValueDate:yyyy-MM-dd}")
+        };
+
+        await actor.InvokeReceiveAsync(context, query);
+
+        await context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetLastFuturesTickDataQuery.Verb,
+            Arg.Is<ServiceResult<FuturesTickDataV2ReadModel?>>(result =>
+                result.Success && result.Value == null));
+    }
+
     #endregion
 
     #region ReceiveAsync Edge Case Tests
 
     [Fact]
+    public async Task ReceiveAsync_ShouldPropagateDatabaseFailure()
+    {
+        var context = Substitute.For<IQueryActorContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var db = Substitute.For<IMarketDataDbContext>();
+        dbFactory.MarketDataDb.Returns(db);
+        var tickDate = SampleData.ValueDate.ToDateTime(
+            SampleData.EsTickData.TickTime, DateTimeKind.Utc);
+        db.GetLastFuturesTickDataByTickDateAsync(SampleData.EsTickData.ContractId, tickDate)
+            .Returns(Task.FromException<FuturesTickDataV2ReadModel?>(
+                new InvalidOperationException("database unavailable")));
+        var actor = _fixture.CreateActor(
+            dbFactory, Substitute.For<ILogger<FuturesTickDataQueryActor>>());
+        var entityId = new GetLastFuturesTickDataByTickDateParameter(
+            SampleData.EsTickData.ContractId, tickDate);
+        var query = new GetLastFuturesTickDataByTickDateQuery(
+            SampleData.EsTickData.ContractId, tickDate)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                FuturesTickDataQueryActor.ActorName,
+                GetLastFuturesTickDataByTickDateQuery.Verb,
+                entityId.Format())
+        };
+
+        Func<Task> act = () => actor.InvokeReceiveAsync(context, query).AsTask();
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("database unavailable");
+    }
+
+    [Fact]
     public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenContextIsNull()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var db = Substitute.For<IMarketDataDbContext>();
         var contractId = SampleData.EsTickData.ContractId;
         var threadId = new ActorThreadId(ActorType.Query, FuturesTickDataQueryActor.ActorName, $"{contractId}.{SampleData.ValueDate:yyyy-MM-dd}");
@@ -392,7 +454,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenQueryIsNull()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var db = Substitute.For<IMarketDataDbContext>();
         var contractId = SampleData.EsTickData.ContractId;
@@ -408,7 +470,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task ReceiveAsync_ShouldThrowInvalidOperationException_WhenQueryTypeIsNotSupported()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var db = Substitute.For<IMarketDataDbContext>();
         var contractId = SampleData.EsTickData.ContractId;
@@ -431,7 +493,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task OnExceptionAsync_ShouldHandleGetLastFuturesTickDataQuery_Exception()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var contractId = SampleData.EsTickData.ContractId;
         var threadId = new ActorThreadId(ActorType.Query, FuturesTickDataQueryActor.ActorName, $"{contractId}.{SampleData.ValueDate:yyyy-MM-dd}");
@@ -459,7 +521,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task OnExceptionAsync_ShouldHandleGetLastFuturesTickDataByTickDateQuery_Exception()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var contractId = SampleData.EsTickData.ContractId;
         var tickDate = new DateTime(2024, 6, 15, 14, 30, 0, DateTimeKind.Utc);
@@ -493,7 +555,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task OnExceptionAsync_ShouldThrowArgumentNullException_WhenContextIsNull()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var contractId = SampleData.EsTickData.ContractId;
         var threadId = new ActorThreadId(ActorType.Query, FuturesTickDataQueryActor.ActorName, $"{contractId}.{SampleData.ValueDate:yyyy-MM-dd}");
         var query = new GetLastFuturesTickDataQuery(contractId, SampleData.ValueDate)
@@ -512,7 +574,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task OnExceptionAsync_ShouldThrowArgumentNullException_WhenThreadIdIsNull()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var contractId = SampleData.EsTickData.ContractId;
         var query = new GetLastFuturesTickDataQuery(contractId, SampleData.ValueDate)
@@ -531,7 +593,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task OnExceptionAsync_ShouldThrowArgumentNullException_WhenQueryIsNull()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var contractId = SampleData.EsTickData.ContractId;
         var threadId = new ActorThreadId(ActorType.Query, FuturesTickDataQueryActor.ActorName, $"{contractId}.{SampleData.ValueDate:yyyy-MM-dd}");
@@ -545,7 +607,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task OnExceptionAsync_ShouldThrowArgumentNullException_WhenVerbIsNull()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var contractId = SampleData.EsTickData.ContractId;
         var threadId = new ActorThreadId(ActorType.Query, FuturesTickDataQueryActor.ActorName, $"{contractId}.{SampleData.ValueDate:yyyy-MM-dd}");
@@ -562,10 +624,37 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     }
 
     [Fact]
+    public async Task OnExceptionAsync_ShouldThrowArgumentNullException_WhenExceptionIsNull()
+    {
+        var actor = _fixture.CreateActor(
+            Substitute.For<IDbContextFactory>(),
+            Substitute.For<ILogger<FuturesTickDataQueryActor>>());
+        var context = Substitute.For<IQueryActorContext>();
+        var query = new GetLastFuturesTickDataQuery(
+            SampleData.EsTickData.ContractId, SampleData.ValueDate)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                FuturesTickDataQueryActor.ActorName,
+                GetLastFuturesTickDataQuery.Verb,
+                $"{SampleData.EsTickData.ContractId}.{SampleData.ValueDate:yyyy-MM-dd}")
+        };
+
+        Func<Task> act = () => actor.InvokeOnExceptionAsync(
+            context,
+            query.Subject.ThreadId,
+            query,
+            GetLastFuturesTickDataQuery.Verb,
+            null!).AsTask();
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
+
+    [Fact]
     public async Task OnExceptionAsync_ShouldHandleUnknownQueryType_WithDefaultResponse()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var contractId = SampleData.EsTickData.ContractId;
         var threadId = new ActorThreadId(ActorType.Query, FuturesTickDataQueryActor.ActorName, $"{contractId}.{SampleData.ValueDate:yyyy-MM-dd}");
@@ -593,7 +682,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task OnExceptionAsync_ShouldHandleNestedExceptions()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var contractId = SampleData.EsTickData.ContractId;
         var threadId = new ActorThreadId(ActorType.Query, FuturesTickDataQueryActor.ActorName, $"{contractId}.{SampleData.ValueDate:yyyy-MM-dd}");
@@ -622,7 +711,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task OnExceptionAsync_ShouldHandleExceptionWhenReplyAsyncThrows()
     {
         // Arrange
-        var actor = _fixture.CreateFuturesTickDataQueryActor();
+        var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
         var context = Substitute.For<IQueryActorContext>();
         var contractId = SampleData.EsTickData.ContractId;
         var threadId = new ActorThreadId(ActorType.Query, FuturesTickDataQueryActor.ActorName, $"{contractId}.{SampleData.ValueDate:yyyy-MM-dd}");

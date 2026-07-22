@@ -286,6 +286,11 @@ public class MarketDataFeedTestFixture : IDisposable
         return new TestableFuturesTickDataCommandActor(db, lg);
     }
 
+    public TestableFuturesTickDataCommandActor CreateActor(
+        IEventSourceActorDbContext dbEventSource,
+        ILogger<FuturesTickDataCommandActor> logger)
+        => new(dbEventSource, logger);
+
     public TestableFuturesTickDataQueryActor CreateFuturesTickDataQueryActor(
         ILogger<FuturesTickDataQueryActor>? logger = null,
         IDbContextFactory? dbFactory = null)
@@ -294,6 +299,11 @@ public class MarketDataFeedTestFixture : IDisposable
         var lg = logger ?? Substitute.For<ILogger<FuturesTickDataQueryActor>>();
         return new TestableFuturesTickDataQueryActor(db, lg);
     }
+
+    public TestableFuturesTickDataQueryActor CreateActor(
+        IDbContextFactory dbFactory,
+        ILogger<FuturesTickDataQueryActor> logger)
+        => new(dbFactory, logger);
 
     public TestableFuturesTickDataEventActor CreateFuturesTickDataEventActor(
         IActorSupervisor? supervisor = null,
@@ -309,6 +319,14 @@ public class MarketDataFeedTestFixture : IDisposable
         var lg = logger ?? Substitute.For<ILogger<FuturesTickDataEventActor>>();
         return new TestableFuturesTickDataEventActor(su, mda, bb, scw, lg);
     }
+
+    public TestableFuturesTickDataEventActor CreateActor(
+        IActorSupervisor supervisor,
+        IMarketDataApi marketDataApi,
+        IBlackboardService blackboardService,
+        IStatusConsoleWriter statusConsoleWriter,
+        ILogger<FuturesTickDataEventActor> logger)
+        => new(supervisor, marketDataApi, blackboardService, statusConsoleWriter, logger);
 
     public TestableFuturesEodDataCommandActor CreateActor(
         IEventSourceActorDbContext? dbEventSource = null,

@@ -58,7 +58,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
 
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -105,7 +105,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId ?? string.Empty, SampleData.ValueDate);
         var command = new StartFuturesTickDataStreamingCommand(SampleData.EsContract, SampleData.ValueDate, false)
@@ -152,7 +152,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId, SampleData.ValueDate);
         var command = new StopFuturesTickDataStreamingCommand(SampleData.EsContract.ContractId, SampleData.ValueDate)
@@ -199,7 +199,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
         var entityId = SampleData.EsTickData.DataId;
@@ -239,7 +239,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -271,7 +271,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -303,7 +303,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -335,7 +335,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -362,7 +362,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -395,7 +395,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -427,7 +427,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -466,7 +466,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -507,7 +507,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId ?? string.Empty, SampleData.ValueDate);
         var cmd = new StartFuturesTickDataStreamingCommand(SampleData.EsContract, SampleData.ValueDate, false)
@@ -547,7 +547,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId, SampleData.ValueDate);
         var cmd = new StopFuturesTickDataStreamingCommand(SampleData.EsContract.ContractId, SampleData.ValueDate)
@@ -585,7 +585,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -612,7 +612,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId1 = SampleData.EsTickData.DataId;
         var cmd1 = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -653,7 +653,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -678,7 +678,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -703,7 +703,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = new FuturesTickDataCommandState { Id = new ActorThreadId(ActorType.Command, FuturesTickDataCommandActor.ActorName, "test-thread") };
         var context = Substitute.For<ICommandActorContext>();
@@ -721,7 +721,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = new FuturesTickDataCommandState { Id = new ActorThreadId(ActorType.Command, FuturesTickDataCommandActor.ActorName, "test-thread") };
 
@@ -745,7 +745,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -777,7 +777,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -803,7 +803,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId ?? string.Empty, SampleData.ValueDate);
         var command = new StartFuturesTickDataStreamingCommand(SampleData.EsContract, SampleData.ValueDate, false)
@@ -829,7 +829,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId, SampleData.ValueDate);
         var command = new StopFuturesTickDataStreamingCommand(SampleData.EsContract.ContractId, SampleData.ValueDate)
@@ -859,7 +859,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -886,7 +886,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId ?? string.Empty, SampleData.ValueDate);
         var command = new StartFuturesTickDataStreamingCommand(SampleData.EsContract, SampleData.ValueDate, false)
@@ -913,7 +913,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidContract = SampleData.EsContract with { ContractId = string.Empty };
         var entityId = new FuturesDataId(string.Empty, SampleData.ValueDate);
@@ -941,7 +941,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidContract = SampleData.EsContract with { Symbol = string.Empty };
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId ?? string.Empty, SampleData.ValueDate);
@@ -969,7 +969,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidContract = SampleData.EsContract with { SecurityType = "INVALID" };
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId ?? string.Empty, SampleData.ValueDate);
@@ -997,7 +997,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId ?? string.Empty, DateOnly.MinValue);
         var command = new StartFuturesTickDataStreamingCommand(SampleData.EsContract, DateOnly.MinValue, false)
@@ -1024,7 +1024,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId ?? string.Empty, DateOnly.MaxValue);
         var command = new StartFuturesTickDataStreamingCommand(SampleData.EsContract, DateOnly.MaxValue, false)
@@ -1051,7 +1051,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new FuturesDataId(SampleData.EsContract.ContractId, SampleData.ValueDate);
         var command = new StopFuturesTickDataStreamingCommand(SampleData.EsContract.ContractId, SampleData.ValueDate)
@@ -1078,7 +1078,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1103,7 +1103,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1128,7 +1128,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var context = Substitute.For<ICommandActorContext>();
         var threadId = new ActorThreadId(ActorType.Command, FuturesTickDataCommandActor.ActorName, "test-thread");
@@ -1146,7 +1146,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = Substitute.For<ICommand>();
         cmd.CommandId.Returns(Guid.NewGuid());
@@ -1169,7 +1169,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidContract = SampleData.EsContract with { ContractId = string.Empty };
         var entityId = SampleData.EsTickData.DataId;
@@ -1197,7 +1197,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidContract = SampleData.EsContract with { Symbol = string.Empty };
         var entityId = SampleData.EsTickData.DataId;
@@ -1225,7 +1225,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidContract = SampleData.EsContract with { SecurityType = "INVALID" };
         var entityId = SampleData.EsTickData.DataId;
@@ -1253,7 +1253,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidTickData = SampleData.EsTickData with { ContractId = string.Empty };
         var entityId = invalidTickData.DataId;
@@ -1281,7 +1281,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidTickData = SampleData.EsTickData with { ValueDate = DateOnly.MinValue };
         var entityId = invalidTickData.DataId;
@@ -1309,7 +1309,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidTickData = SampleData.EsTickData with { TickId = 0L };
         var entityId = invalidTickData.DataId;
@@ -1337,7 +1337,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidTickData = SampleData.EsTickData with { Price = -10m };
         var entityId = invalidTickData.DataId;
@@ -1365,7 +1365,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var invalidTickData = SampleData.EsTickData with { Size = -5 };
         var entityId = invalidTickData.DataId;
@@ -1397,7 +1397,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1437,7 +1437,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1478,7 +1478,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1512,7 +1512,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1544,7 +1544,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var context = Substitute.For<ICommandActorContext>();
         var container = Substitute.For<IContainerInstance>();
@@ -1570,7 +1570,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1610,7 +1610,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1651,7 +1651,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1693,7 +1693,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1729,7 +1729,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1763,7 +1763,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1797,7 +1797,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = new FuturesTickDataCommandState { Id = new ActorThreadId(ActorType.Command, FuturesTickDataCommandActor.ActorName, "test-thread") };
 
@@ -1825,7 +1825,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1862,7 +1862,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var cmd = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1905,7 +1905,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -1941,7 +1941,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
         var entityId = SampleData.EsTickData.DataId;
@@ -1976,7 +1976,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -2015,7 +2015,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)
@@ -2052,7 +2052,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsTickData.DataId;
         var command = new InsertFuturesTickDataCommand(SampleData.EsContract, SampleData.EsTickData)

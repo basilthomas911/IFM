@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
+using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
@@ -19,11 +20,15 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
+using TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
+using TomasAI.IFM.Shared.MarketDataFeed;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests;
 
@@ -106,6 +111,58 @@ public sealed class MarketDataFeedBddFixture
         => new(
             dbFactory ?? Substitute.For<IDbContextFactory>(),
             logger ?? Substitute.For<ILogger<FuturesTickDataQueryActor>>());
+
+    public TestableMarketDataFeedCommandActor CreateMarketDataFeedCommandActor(
+        IEventSourceActorDbContext? dbEventSource = null,
+        ILogger<MarketDataFeedCommandActor>? logger = null)
+        => new(
+            dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
+            logger ?? Substitute.For<ILogger<MarketDataFeedCommandActor>>());
+
+    public TestableMarketDataFeedQueryActor CreateMarketDataFeedQueryActor(
+        IMarketDataSnapshotApi? snapshotApi = null,
+        IBlackboardService? blackboard = null,
+        IDbContextFactory? dbFactory = null,
+        ILogger<MarketDataFeedQueryActor>? logger = null)
+        => new(
+            snapshotApi ?? Substitute.For<IMarketDataSnapshotApi>(),
+            blackboard ?? Substitute.For<IBlackboardService>(),
+            dbFactory ?? Substitute.For<IDbContextFactory>(),
+            logger ?? Substitute.For<ILogger<MarketDataFeedQueryActor>>());
+}
+
+public sealed class TestableMarketDataFeedCommandActor(
+    IEventSourceActorDbContext dbEventSource,
+    ILogger<MarketDataFeedCommandActor> logger)
+    : MarketDataFeedCommandActor(dbEventSource, logger)
+{
+    public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
+    public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message) => ParseMessage(context, message);
+    public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand command)
+        => ReceiveAsync(context, state, command);
+    public ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        => OnValidateAsync(context, threadId, command);
+    public ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        => OnLoadStateAsync(context, threadId, command);
+    public ValueTask InvokeOnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
+        => OnSaveStateAsync(context, threadId, state, command);
+    public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
+        ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception exception)
+        => OnExceptionAsync(context, threadId, command, exception);
+}
+
+public sealed class TestableMarketDataFeedQueryActor(
+    IMarketDataSnapshotApi snapshotApi,
+    IBlackboardService blackboard,
+    IDbContextFactory dbFactory,
+    ILogger<MarketDataFeedQueryActor> logger)
+    : MarketDataFeedQueryActor(snapshotApi, blackboard, dbFactory, logger)
+{
+    public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message) => ParseMessage(context, message);
+    public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query) => ReceiveAsync(context, query);
+    public ValueTask InvokeOnExceptionAsync(
+        IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
+        => OnExceptionAsync(context, threadId, query, verb, exception);
 }
 
 public sealed class TestableFuturesBarDataCommandActor(

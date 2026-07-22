@@ -41,6 +41,7 @@
   <ItemGroup>
     <Folder Include="AlgoTrader\Commands\" />
     <Folder Include="AlgoTrader\Model\" />
+    <Folder Include="EventModelActor\Templates\" />
     <Folder Include="Fund\" />
     <Folder Include="Reference\Exceptions\" />
     <Folder Include="StatusConsole\Events\" />

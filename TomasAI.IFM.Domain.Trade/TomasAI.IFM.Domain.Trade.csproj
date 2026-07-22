@@ -14,13 +14,12 @@
 
   <ItemGroup>
     <Folder Include="Order\Execution\BrokerOrder\" />
-    <Folder Include="Position\Workflow\CandidateBuilder\Advisor\" />
-    <Folder Include="Position\Workflow\CandidateBuilder\Comparison\" />
+    <Folder Include="Position\Workflow\OrderComposer\Advisor\" />
     <Folder Include="Position\Monitor\Futures\Option\IronCondor\" />
     <Folder Include="Position\Monitor\Futures\Option\VerticalSpread\" />
     <Folder Include="Position\Workflow\ExitCondition\Advisor\" />
-    <Folder Include="Position\Workflow\ForwardLoss\" />
-    <Folder Include="Position\Workflow\RiskEvaluator\" />
+    <Folder Include="Position\Workflow\ForwardTradePrice\" />
+    <Folder Include="Position\Workflow\PortfolioRisk\" />
     <Folder Include="Strategy\IntrinsicTime\Futures\Option\IronCondor\Candidate\Advisor\" />
     <Folder Include="Strategy\IntrinsicTime\Futures\Option\IronCondor\Candidate\Builder\" />
     <Folder Include="Strategy\IntrinsicTime\Futures\Option\IronCondor\Candidate\Comparison\" />
