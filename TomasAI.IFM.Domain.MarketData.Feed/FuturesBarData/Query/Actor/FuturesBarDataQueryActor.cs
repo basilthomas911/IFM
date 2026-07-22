@@ -118,7 +118,7 @@ public class FuturesBarDataQueryActor(
                 _ when query is GetFuturesBarDataQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesBarDataReadModel[]>(query.ErrorCode, ex!.Message)),
                 _ when query is GetLastFuturesBarDataQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesBarDataReadModel[]>(query.ErrorCode, ex!.Message)),
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesBarDataReadModel>(query.ErrorCode, ex!.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
             };
             await serviceResultTask;

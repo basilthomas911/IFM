@@ -65,6 +65,13 @@ public static class SampleData
             volume: 100000 + i * 1000))
         .ToArray();
 
+    public static readonly FuturesEodClosingPriceReadModel[] EodClosingPrices =
+    [
+        new(Symbol, ValueDate.AddDays(-2), 5430.00m),
+        new(Symbol, ValueDate.AddDays(-1), 5440.00m),
+        new(Symbol, ValueDate, 5450.00m)
+    ];
+
     public static readonly NormalCurveTableReadModel NormCurveData = new(
         Enumerable.Range(0, 101)
             .Select(i => new NormalCurveDataReadModel(i / 100.0 * 6.0 - 3.0, 50.0 - Math.Abs(i - 50)))
@@ -129,6 +136,9 @@ public static class SampleData
         downTrendTrigger: -0.50);
 
     public static readonly FuturesBarDataId FuturesBarDataId1 = new("ESM4", "ES", ValueDate);
+
+    public static readonly DateTime FuturesBarWindowStart = FuturesBarData1.BarDate;
+    public static readonly DateTime FuturesBarWindowEnd = FuturesBarData1.BarDate.AddMinutes(1);
 
     public static readonly FuturesDataId FuturesClosingPriceId1 = new("ESM4", ValueDate);
     public const decimal ClosingPrice1 = 5450.25m;

@@ -60,7 +60,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
 
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -108,7 +108,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
         var entityId = SampleData.FuturesClosingPriceId1;
@@ -148,7 +148,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -180,7 +180,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -212,7 +212,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -244,7 +244,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -271,7 +271,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -304,7 +304,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -336,7 +336,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -375,7 +375,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -416,7 +416,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -448,7 +448,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -474,7 +474,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -499,7 +499,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = new ActorThreadId(ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "test-thread") };
@@ -518,7 +518,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = new ActorThreadId(ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "test-thread") };
@@ -543,7 +543,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -571,7 +571,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -605,7 +605,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -635,7 +635,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -662,7 +662,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var invalidId = new FuturesDataId(string.Empty, SampleData.ValueDate);
         var command = new InsertFuturesClosingPriceCommand(invalidId, SampleData.ClosingPrice1)
@@ -689,7 +689,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var invalidId = new FuturesDataId("ESM4", DateOnly.MinValue);
         var command = new InsertFuturesClosingPriceCommand(invalidId, SampleData.ClosingPrice1)
@@ -716,7 +716,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -741,7 +741,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -766,7 +766,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var context = Substitute.For<ICommandActorContext>();
         var threadId = new ActorThreadId(ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "test-thread");
@@ -784,7 +784,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var cmd = Substitute.For<ICommand>();
         cmd.CommandId.Returns(Guid.NewGuid());
@@ -811,7 +811,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -852,7 +852,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -894,7 +894,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -928,7 +928,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -960,7 +960,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var context = Substitute.For<ICommandActorContext>();
         var container = Substitute.For<IContainerInstance>();
@@ -986,7 +986,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1026,7 +1026,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1068,7 +1068,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1111,7 +1111,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1148,7 +1148,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1183,7 +1183,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1217,7 +1217,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = new ActorThreadId(ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "test-thread") };
@@ -1246,7 +1246,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1283,7 +1283,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var cmd = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1327,7 +1327,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1363,7 +1363,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1399,7 +1399,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
         var entityId = SampleData.FuturesClosingPriceId1;
@@ -1434,7 +1434,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1473,7 +1473,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)
@@ -1510,7 +1510,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
-        var actor = _fixture.CreateFuturesClosingPriceCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
         var entityId = SampleData.FuturesClosingPriceId1;
         var command = new InsertFuturesClosingPriceCommand(SampleData.FuturesClosingPriceId1, SampleData.ClosingPrice1)

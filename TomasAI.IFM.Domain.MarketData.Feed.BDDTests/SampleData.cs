@@ -53,6 +53,9 @@ public static class SampleData
         closePrice: 5448.75m,
         volume: 100000);
 
+    public static readonly FuturesEodDataV2ReadModel QueryableEodDataToday =
+        EodDataToday with { ContractId = "ES20250620" };
+
     public static readonly FuturesEodDataV2ReadModel[] EodDataRange = Enumerable.Range(0, 21)
         .Select(i => new FuturesEodDataV2ReadModel(
             contractId: "ES",
@@ -64,6 +67,29 @@ public static class SampleData
             closePrice: 5448.75m + i * 3,
             volume: 100000 + i * 1000))
         .ToArray();
+
+    public static readonly FuturesEodClosingPriceReadModel[] EodClosingPrices =
+    [
+        new("ES", ValueDate.AddDays(-2), 5430.00m),
+        new("ES", ValueDate.AddDays(-1), 5440.00m),
+        new("ES", ValueDate, 5450.00m)
+    ];
+
+    public static readonly VixFuturesEodDataReadModel VixEodDataToday = new(
+        contractId: "VX",
+        valueDate: ValueDate,
+        openPrice: 18.50m,
+        highPrice: 19.00m,
+        lowPrice: 18.00m,
+        closePrice: 18.75m,
+        volume: 50000);
+
+    public static IEnumerable<object[]> FuturesEodDataCases()
+    {
+        yield return [EodDataToday];
+        yield return [EodDataRange[7]];
+        yield return [EodDataRange[20]];
+    }
 
     public static readonly NormalCurveTableReadModel NormCurveData = new(
         Enumerable.Range(0, 101)
@@ -138,6 +164,26 @@ public static class SampleData
         upTrendTrigger: 19220.0,
         downTrendTrigger: 19180.0);
 
+    /// <summary>
+    /// Futures bars and their one-minute query windows, matching the current timer interval.
+    /// The entity ID intentionally has no time-period component yet.
+    /// </summary>
+    public static IEnumerable<object[]> FuturesBarDataCases()
+    {
+        yield return
+        [
+            FuturesBarData,
+            FuturesBarData.BarDate,
+            FuturesBarData.BarDate.AddMinutes(1)
+        ];
+        yield return
+        [
+            FuturesBarDataAlternate,
+            FuturesBarDataAlternate.BarDate,
+            FuturesBarDataAlternate.BarDate.AddMinutes(1)
+        ];
+    }
+
     public const int OrderId = 100;
     public const int TradeId = 200;
 
@@ -151,8 +197,8 @@ public static class SampleData
 
     public static readonly FuturesOptionContractReadModel[] FuturesOptionContracts =
     [
-        new FuturesOptionContractReadModel("ES20250601C5500", "ES Jun25 5500 Call", "ES", "ESM5 C5500", "OPT", "USD", "CME", "50", new DateOnly(2025, 6, 1), 5500.0, "Call"),
-        new FuturesOptionContractReadModel("ES20250601P5400", "ES Jun25 5400 Put", "ES", "ESM5 P5400", "OPT", "USD", "CME", "50", new DateOnly(2025, 6, 1), 5400.0, "Put"),
+        new FuturesOptionContractReadModel("ES20250601C5500", "ES Jun25 5500 Call", "ES", "ESM5 C5500", "FOP", "USD", "CME", "50", new DateOnly(2025, 6, 1), 5500.0, "Call"),
+        new FuturesOptionContractReadModel("ES20250601P5400", "ES Jun25 5400 Put", "ES", "ESM5 P5400", "FOP", "USD", "CME", "50", new DateOnly(2025, 6, 1), 5400.0, "Put"),
     ];
 
     public static readonly FuturesOptionTickDataV2ReadModel EsOptionTickData = new(

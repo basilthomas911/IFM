@@ -19,6 +19,6 @@ public static class GetLastFuturesBarData
        this GetLastFuturesBarDataQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
     {
         FuturesBarDataReadModel result = await dbFactory.MarketDataDb.GetLastFuturesBarDataAsync(q.ContractId, q.Symbol, q.ValueDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesBarDataQuery.Verb, new ServiceResult<FuturesBarDataReadModel>(result));
+        await context.ReplyAsync(q.Subject.ThreadId, GetLastFuturesBarDataQuery.Verb, new ServiceResult<FuturesBarDataReadModel>(result));
     }
 }

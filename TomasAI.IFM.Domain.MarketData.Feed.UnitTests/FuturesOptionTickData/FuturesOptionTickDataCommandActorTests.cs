@@ -58,7 +58,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
 
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -105,7 +105,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var command = new StartFuturesOptionTickDataStreamingCommand(
@@ -154,7 +154,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var command = new StopFuturesOptionTickDataStreamingCommand(SampleData.OptionTickStreamingFeedId, SampleData.FuturesOptionContracts[0].ContractId)
@@ -201,7 +201,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
         var entityId = SampleData.EsOptionTickData.EntityId;
@@ -241,7 +241,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -273,7 +273,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -305,7 +305,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -337,7 +337,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -364,7 +364,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -397,7 +397,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -429,7 +429,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -468,7 +468,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -504,7 +504,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var cmd = new StartFuturesOptionTickDataStreamingCommand(
@@ -546,7 +546,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var cmd = new StopFuturesOptionTickDataStreamingCommand(SampleData.OptionTickStreamingFeedId, SampleData.FuturesOptionContracts[0].ContractId)
@@ -582,7 +582,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -609,7 +609,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId1 = SampleData.EsOptionTickData.EntityId;
         var cmd1 = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -650,7 +650,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -675,7 +675,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -700,7 +700,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = new FuturesOptionTickDataCommandState { Id = new ActorThreadId(ActorType.Command, FuturesOptionTickDataCommandActor.ActorName, "test-thread") };
         var context = Substitute.For<ICommandActorContext>();
@@ -718,7 +718,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = new FuturesOptionTickDataCommandState { Id = new ActorThreadId(ActorType.Command, FuturesOptionTickDataCommandActor.ActorName, "test-thread") };
 
@@ -742,7 +742,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -774,7 +774,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -800,7 +800,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var command = new StartFuturesOptionTickDataStreamingCommand(
@@ -837,7 +837,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var command = new StopFuturesOptionTickDataStreamingCommand(SampleData.OptionTickStreamingFeedId, SampleData.FuturesOptionContracts[0].ContractId)
@@ -867,7 +867,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -894,7 +894,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var command = new StartFuturesOptionTickDataStreamingCommand(
@@ -923,7 +923,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var invalidContract = SampleData.FuturesOptionContracts[0] with { ContractId = string.Empty };
@@ -953,7 +953,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var invalidBaseContract = SampleData.EsContract with { ContractId = string.Empty };
@@ -983,7 +983,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var command = new StartFuturesOptionTickDataStreamingCommand(
@@ -1012,7 +1012,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var command = new StartFuturesOptionTickDataStreamingCommand(
@@ -1041,7 +1041,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var command = new StartFuturesOptionTickDataStreamingCommand(
@@ -1070,7 +1070,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var command = new StopFuturesOptionTickDataStreamingCommand(SampleData.OptionTickStreamingFeedId, SampleData.FuturesOptionContracts[0].ContractId)
@@ -1097,7 +1097,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.OptionTickStreamingFeedId;
         var command = new StopFuturesOptionTickDataStreamingCommand(SampleData.OptionTickStreamingFeedId, string.Empty)
@@ -1124,7 +1124,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var invalidContract = SampleData.EsContract with { ContractId = string.Empty };
@@ -1152,7 +1152,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var invalidTickData = SampleData.EsOptionTickData with { ContractId = string.Empty };
@@ -1180,7 +1180,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1205,7 +1205,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1231,7 +1231,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var context = Substitute.For<ICommandActorContext>();
         var threadId = new ActorThreadId(ActorType.Command, FuturesOptionTickDataCommandActor.ActorName, "test-thread");
@@ -1249,7 +1249,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = Substitute.For<ICommand>();
         cmd.CommandId.Returns(Guid.NewGuid());
@@ -1276,7 +1276,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1316,7 +1316,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1357,7 +1357,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1391,7 +1391,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1427,7 +1427,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var context = Substitute.For<ICommandActorContext>();
         var container = Substitute.For<IContainerInstance>();
@@ -1453,7 +1453,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1493,7 +1493,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1534,7 +1534,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1576,7 +1576,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1612,7 +1612,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1649,7 +1649,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1683,7 +1683,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = new FuturesOptionTickDataCommandState { Id = new ActorThreadId(ActorType.Command, FuturesOptionTickDataCommandActor.ActorName, "test-thread") };
 
@@ -1711,7 +1711,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1748,7 +1748,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var cmd = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1791,7 +1791,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1827,7 +1827,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
         var entityId = SampleData.EsOptionTickData.EntityId;
@@ -1862,7 +1862,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1901,7 +1901,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)
@@ -1938,7 +1938,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = SampleData.EsOptionTickData.EntityId;
         var command = new InsertFuturesOptionTickDataCommand(SampleData.EsContract, SampleData.EsOptionTickData)

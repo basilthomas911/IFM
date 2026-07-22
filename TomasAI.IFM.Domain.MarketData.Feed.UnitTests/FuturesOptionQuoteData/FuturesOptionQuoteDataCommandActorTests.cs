@@ -70,7 +70,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
 
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -116,7 +116,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StopFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId)
@@ -162,7 +162,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var contractId = SampleData.FuturesOptionQuotes[0].ContractId;
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -210,7 +210,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -250,7 +250,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -282,7 +282,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -314,7 +314,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -346,7 +346,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -373,7 +373,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -406,7 +406,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -438,7 +438,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -477,7 +477,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -516,7 +516,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StopFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId)
@@ -555,7 +555,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var contractId = SampleData.FuturesOptionQuotes[0].ContractId;
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -595,7 +595,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -627,7 +627,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -653,7 +653,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -678,7 +678,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = CreateState();
         state.Id = new ActorThreadId(ActorType.Command, FuturesOptionQuoteDataCommandActor.ActorName, "test-thread");
@@ -697,7 +697,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = CreateState();
         state.Id = new ActorThreadId(ActorType.Command, FuturesOptionQuoteDataCommandActor.ActorName, "test-thread");
@@ -722,7 +722,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -750,7 +750,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StopFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId)
@@ -778,7 +778,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var contractId = SampleData.FuturesOptionQuotes[0].ContractId;
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -817,7 +817,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         refLookupService.CurrencyExists(contract.Currency).Returns(true);
         refLookupService.ExchangeExists(contract.Exchange).Returns(true);
         refLookupService.MultiplierExists(contract.Multiplier).Returns(true);
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger, refLookupService);
+        var actor = _fixture.CreateActor(dbEventSource, logger, refLookupService);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -843,7 +843,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StopFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId)
@@ -869,7 +869,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var contractId = SampleData.FuturesOptionQuotes[0].ContractId;
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -900,7 +900,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -927,7 +927,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StopFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId)
@@ -954,7 +954,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(0); // Invalid: zero quote ID
         var command = new StopFuturesOptionQuoteDataStreamingCommand(0)
@@ -982,7 +982,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var contractId = SampleData.FuturesOptionQuotes[0].ContractId;
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -1010,7 +1010,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var contractId = SampleData.FuturesOptionQuotes[0].ContractId;
         var entityId = new QuoteId(0); // Invalid: zero quote ID
@@ -1038,7 +1038,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new InsertFuturesOptionQuoteDataCommand(SampleData.OptionQuoteStreamId, string.Empty, SampleData.AskPriceQuoteData)
@@ -1065,7 +1065,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var contractId = SampleData.FuturesOptionQuotes[0].ContractId;
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -1100,7 +1100,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(0); // Invalid: zero quote ID
         var command = new StartFuturesOptionQuoteDataStreamingCommand(0, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1127,7 +1127,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, Array.Empty<FuturesOptionQuoteReadModel>(), SampleData.FuturesOptionContracts)
@@ -1154,7 +1154,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, Array.Empty<FuturesOptionContractReadModel>())
@@ -1181,7 +1181,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1206,7 +1206,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1231,7 +1231,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var context = Substitute.For<ICommandActorContext>();
         var threadId = new ActorThreadId(ActorType.Command, FuturesOptionQuoteDataCommandActor.ActorName, "test-thread");
@@ -1249,7 +1249,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = Substitute.For<ICommand>();
         cmd.CommandId.Returns(Guid.NewGuid());
@@ -1276,7 +1276,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1317,7 +1317,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1359,7 +1359,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1393,7 +1393,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1425,7 +1425,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var context = Substitute.For<ICommandActorContext>();
         var container = Substitute.For<IContainerInstance>();
@@ -1451,7 +1451,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1491,7 +1491,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1533,7 +1533,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1576,7 +1576,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1613,7 +1613,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1648,7 +1648,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1682,7 +1682,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = CreateState();
         state.Id = new ActorThreadId(ActorType.Command, FuturesOptionQuoteDataCommandActor.ActorName, "test-thread");
@@ -1711,7 +1711,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1748,7 +1748,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var cmd = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1792,7 +1792,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1828,7 +1828,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -1864,7 +1864,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StopFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId)
@@ -1900,7 +1900,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var contractId = SampleData.FuturesOptionQuotes[0].ContractId;
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -1937,7 +1937,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -1972,7 +1972,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -2011,7 +2011,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)
@@ -2048,7 +2048,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var actor = _fixture.CreateFuturesOptionQuoteDataCommandActor(dbEventSource, logger);
+        var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var entityId = new QuoteId(SampleData.OptionQuoteStreamId);
         var command = new StartFuturesOptionQuoteDataStreamingCommand(SampleData.OptionQuoteStreamId, SampleData.FuturesOptionQuotes, SampleData.FuturesOptionContracts)

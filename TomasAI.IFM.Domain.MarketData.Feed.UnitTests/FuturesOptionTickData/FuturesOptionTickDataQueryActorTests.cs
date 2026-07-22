@@ -50,7 +50,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
@@ -87,7 +87,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
@@ -120,7 +120,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
@@ -152,7 +152,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter("ES20240601P5400", new DateOnly(2024, 3, 1));
         var originalQuery = new GetLastFuturesOptionTickDataQuery(
@@ -183,7 +183,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var subjectWithEmptyEntityId = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, string.Empty);
         var entityId = new GetLastFuturesOptionTickDataParameter(
@@ -214,7 +214,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
@@ -246,7 +246,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(string.Empty, DateOnly.MinValue);
         var query = new GetLastFuturesOptionTickDataQuery(
@@ -279,7 +279,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
             SampleData.ValueDate);
@@ -306,7 +306,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var invalidSubject = new ActorSubject(ActorType.Command, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, "entity-id");
         var message = new NatsMsg<byte[]>
@@ -326,7 +326,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var invalidSubject = new ActorSubject(ActorType.Query, "WrongActor", GetLastFuturesOptionTickDataQuery.Verb, "entity-id");
         var message = new NatsMsg<byte[]>
@@ -346,7 +346,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var invalidSubject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, "UnknownVerb", "entity-id");
         var message = new NatsMsg<byte[]>
@@ -366,7 +366,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var validSubject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, "entity-id");
         var message = new NatsMsg<byte[]>
@@ -385,7 +385,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var validSubject = new ActorSubject(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, GetLastFuturesOptionTickDataQuery.Verb, "entity-id");
         var corruptedPayload = new byte[] { 0x00, 0x01, 0x02, 0xFF, 0xFE };
@@ -413,7 +413,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger, dbFactory);
+        var actor = _fixture.CreateActor(logger, dbFactory);
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
             SampleData.ValueDate);
@@ -445,7 +445,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger, dbFactory);
+        var actor = _fixture.CreateActor(logger, dbFactory);
         var entityId = new GetLastFuturesOptionTickDataParameter(
             "NONEXISTENT_CONTRACT",
             SampleData.ValueDate);
@@ -475,7 +475,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger, dbFactory);
+        var actor = _fixture.CreateActor(logger, dbFactory);
         var contractId = "ES20240601P5400";
         var valueDate = new DateOnly(2024, 7, 1);
         var entityId = new GetLastFuturesOptionTickDataParameter(contractId, valueDate);
@@ -501,7 +501,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var db = Substitute.For<IDbContextFactory>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
@@ -523,7 +523,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var db = Substitute.For<IDbContextFactory>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
@@ -541,7 +541,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var db = Substitute.For<IDbContextFactory>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
@@ -566,7 +566,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
@@ -597,7 +597,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var threadId = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, "unknown-thread");
         var unknownQuery = Substitute.For<IQuery>();
@@ -623,7 +623,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
@@ -658,7 +658,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
             SampleData.ValueDate);
@@ -681,7 +681,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
@@ -704,7 +704,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var threadId = new ActorThreadId(ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, "test-thread");
         var exception = new Exception("Test error");
@@ -720,7 +720,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
@@ -744,7 +744,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
@@ -766,7 +766,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>();
-        var actor = _fixture.CreateFuturesOptionTickDataQueryActor(logger);
+        var actor = _fixture.CreateActor(logger);
         var context = Substitute.For<IQueryActorContext>();
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
