@@ -864,28 +864,37 @@ public static class SampleData
             CreatedBy = "UnitTest"
         };
 
-    public static FuturesTdiSignalGeneratedCompleteEvent CreateTdiSignalGeneratedCompleteEvent(Guid? commandId = null)
-        => new()
+    public static FuturesTdiSignalGeneratedCompleteEvent CreateTdiSignalGeneratedCompleteEventFor(
+        TradeTimePeriodType timePeriod,
+        FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
+        Guid? commandId = null)
+    {
+        var entityId = TdiEntityIdFor(timePeriod);
+        return new()
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesTdiSignalGeneratedCompleteEvent.Actor, FuturesTdiSignalGeneratedCompleteEvent.Verb, TdiEntityId.Format()),
+            Subject = new ActorSubject(ActorType.Event, FuturesTdiSignalGeneratedCompleteEvent.Actor, FuturesTdiSignalGeneratedCompleteEvent.Verb, entityId.Format()),
             Id = Guid.NewGuid(),
             CommandId = commandId ?? Guid.NewGuid(),
-            EntityId = TdiEntityId,
+            EntityId = entityId,
             EventId = 1,
             ReceivedOn = DateTime.UtcNow,
             EventSource = "test",
             FuturesTdiSignal = new FuturesTdiSignalReadModel(
                 contractId: ContractId,
                 valueDate: ValueDate,
-                timePeriod: TradeTimePeriodType.Daily,
-                timestamp: new TimeOnly(10, 0, 0),
+                timePeriod: timePeriod,
+                timestamp: TdiSignalId.Timestamp,
                 upTrendCount: 8,
                 downTrendCount: 7,
-                tdi: FuturesTrendDirectionType.UpTrending,
+                tdi: direction,
                 tdiStrength: FuturesTrendDirectionStrengthType.Medium),
             CreatedOn = Timestamp,
             CreatedBy = "UnitTest"
         };
+    }
+
+    public static FuturesTdiSignalGeneratedCompleteEvent CreateTdiSignalGeneratedCompleteEvent(Guid? commandId = null)
+        => CreateTdiSignalGeneratedCompleteEventFor(TradeTimePeriodType.Daily, commandId: commandId);
 
     // ── Trade Signal ────────────────────────────────────────────────────
 
