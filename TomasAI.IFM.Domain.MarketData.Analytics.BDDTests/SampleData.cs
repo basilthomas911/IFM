@@ -913,6 +913,9 @@ public static class SampleData
     public static FuturesTradeSignalEntityId TradeSignalEntityId
         => new(ContractId, ValueDate, TradeTimePeriodType.FifteenSeconds);
 
+    public static FuturesTradeSignalEntityId TradeSignalEntityIdFor(TradeTimePeriodType timePeriod)
+        => new(ContractId, ValueDate, timePeriod);
+
     /// <summary>
     /// Standard EOD data used as core input for trade signal tests.
     /// </summary>
@@ -1099,6 +1102,64 @@ public static class SampleData
         trendDirectionChange: null,
         trendExtremeChange: null,
         trendReversalChange: null);
+
+    public static FuturesRsiSignalReadModel TradeSignalRsiSignalFor(TradeTimePeriodType timePeriod)
+        => TradeSignalRsiSignal with { TimePeriod = timePeriod };
+
+    public static FuturesTdiSignalReadModel TradeSignalTdiSignalFor(
+        TradeTimePeriodType timePeriod,
+        FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending)
+        => (direction == FuturesTrendDirectionType.DownTrending
+                ? TradeSignalTdiSignalDownTrending
+                : TradeSignalTdiSignalUpTrending)
+            with { TimePeriod = timePeriod, TDI = direction };
+
+    public static FuturesItiSignalDataReadModel TradeSignalItiDataFor(
+        TradeTimePeriodType timePeriod,
+        bool downTrend = false)
+    {
+        var source = downTrend ? TradeSignalItiDataDownTrend : TradeSignalItiDataUpTrend;
+        return source with
+        {
+            TrendDirectionChange = source.TrendDirectionChange is null
+                ? null
+                : source.TrendDirectionChange with { TimePeriod = timePeriod, TradingDays = 1 },
+            TrendExtremeChange = source.TrendExtremeChange is null
+                ? null
+                : source.TrendExtremeChange with { TimePeriod = timePeriod, TradingDays = 1 },
+            TrendReversalChange = source.TrendReversalChange is null
+                ? null
+                : source.TrendReversalChange with { TimePeriod = timePeriod, TradingDays = 1 }
+        };
+    }
+
+    public static UpdateFuturesTradeSignalCommand TradeSignalUpdateCommandFor(
+        TradeTimePeriodType timePeriod,
+        FuturesEodDataV2ReadModel? eodData = null,
+        FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
+        bool includeIndicators = true,
+        decimal vixFuturesPrice = 25m,
+        Guid? commandId = null)
+    {
+        var entityId = TradeSignalEntityIdFor(timePeriod);
+        return new UpdateFuturesTradeSignalCommand(
+            eodData ?? TradeSignalEodData,
+            includeIndicators ? TradeSignalRsiSignalFor(timePeriod) : null,
+            includeIndicators ? TradeSignalTdiSignalFor(timePeriod, direction) : null,
+            includeIndicators ? TradeSignalItiDataFor(timePeriod, direction == FuturesTrendDirectionType.DownTrending) : null,
+            vixFuturesPrice,
+            timePeriod)
+        {
+            CommandId = commandId ?? Guid.NewGuid(),
+            Subject = new ActorSubject(
+                ActorType.Command,
+                UpdateFuturesTradeSignalCommand.Actor,
+                UpdateFuturesTradeSignalCommand.Verb,
+                entityId.Format()),
+            EntityId = entityId,
+            PostEvents = true
+        };
+    }
 
     // ───── ADX Signal sample data ──────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.State;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
@@ -41,6 +42,12 @@ public static class UpdateFuturesTradeSignal
         => new()
         {
             CommandId = e.CommandId,
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesTradeSignalUpdatedEvent.Actor,
+                FuturesTradeSignalUpdatedEvent.Verb,
+                e.EntityId.Format()),
+            EntityId = e.EntityId,
             FuturesTradeSignal = computed.FuturesTradeSignal,
             CreatedOn = e.OriginatedOn,
             CreatedBy = e.OriginatedBy
@@ -50,14 +57,31 @@ public static class UpdateFuturesTradeSignal
     /// Creates a new <see cref="FuturesItiSignalHoldTradeChangedEvent"/> using the specified command and computed trade signal.
     /// </summary>
     internal static FuturesItiSignalHoldTradeChangedEvent CreateFuturesItiSignalHoldTradeChangedEvent(this UpdateFuturesTradeSignalCommand e, FuturesTradeSignalCompute computed)
-        => new()
+    {
+        var entityId = new FuturesItiSignalEntityId(
+            e.EntityId.ContractId,
+            e.EntityId.ValueDate,
+            e.EntityId.TimePeriod);
+        var signalId = FuturesItiSignalId.Create(
+            e.EntityId.ContractId,
+            e.EntityId.ValueDate,
+            e.EntityId.TimePeriod,
+            e.OriginatedOn);
+        return new()
         {
             CommandId = e.CommandId,
-            FuturesItiSignalId = FuturesItiSignalId.Create(e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, e.OriginatedOn),
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesItiSignalHoldTradeChangedEvent.Actor,
+                FuturesItiSignalHoldTradeChangedEvent.Verb,
+                entityId.Format()),
+            EntityId = entityId,
+            FuturesItiSignalId = signalId,
             HoldTrade = computed.FuturesTradeSignal.TradeExecuteState == TradeExecuteState.Hold,
             CreatedOn = e.OriginatedOn,
             CreatedBy = e.OriginatedBy
         };
+    }
 
 
 }

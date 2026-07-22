@@ -53,7 +53,7 @@ internal class FuturesTradeSignalCompute
         return new FuturesTradeSignalV2ReadModel(
             _updateCmd.FuturesEodData.ContractId,
             _updateCmd.FuturesEodData.ValueDate,
-            TradeTimePeriodType.FifteenSeconds,
+            _updateCmd.TimePeriod,
             0,
             TimeOnly.FromDateTime(DateTime.Now),
             _updateCmd.FuturesEodData.Mean,

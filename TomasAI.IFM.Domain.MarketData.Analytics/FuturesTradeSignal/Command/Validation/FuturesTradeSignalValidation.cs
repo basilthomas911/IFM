@@ -49,18 +49,19 @@ internal static class FuturesTradeSignalValidation
             return validationErrors;
 
         var validator = new FuturesItiSignalV2ReadModelValidationRules();
-        var ruleErrors = validator.Execute(futuresItiSignals.TrendDirectionChange);
-        if (ruleErrors is not null)
-            validationErrors.AddRange(ruleErrors);
-
-        ruleErrors = validator.Execute(futuresItiSignals.TrendExtremeChange);
-        if (ruleErrors is not null)
-            validationErrors.AddRange(ruleErrors);
-
-        ruleErrors = validator.Execute(futuresItiSignals.TrendReversalChange);
-        if (ruleErrors is not null)
-            validationErrors.AddRange(ruleErrors);
+        AddErrors(futuresItiSignals.TrendDirectionChange);
+        AddErrors(futuresItiSignals.TrendExtremeChange);
+        AddErrors(futuresItiSignals.TrendReversalChange);
         return validationErrors;
+
+        void AddErrors(FuturesItiSignalV2ReadModel? signal)
+        {
+            if (signal is null)
+                return;
+            var ruleErrors = validator.Execute(signal);
+            if (ruleErrors is not null)
+                validationErrors.AddRange(ruleErrors);
+        }
     }
 
     /// <summary>
