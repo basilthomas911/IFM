@@ -8,7 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command;
 using Xunit;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.CommandHandlers;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesItiSignal;
 
 public class FuturesItiSignalCommandTests
 {

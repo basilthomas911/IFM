@@ -14,7 +14,7 @@ using TomasAI.IFM.Application.Storage;
 using Xunit;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query.Actor;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.QueryHandlers;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesItiSignal;
 
 /// <summary>
 /// BDD-style tests for <see cref="FuturesItiSignalQueryActor"/> query handlers, exercising the query dispatch

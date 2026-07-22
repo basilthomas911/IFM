@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.CommandHandlers;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesAtrSignal;
 
 /// <summary>
 /// BDD-style tests for the GenerateFuturesAtrSignal and GenerateFuturesAtrDailySignal command

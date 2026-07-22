@@ -282,6 +282,11 @@ public class MarketDataAnalyticsTestFixture : IDisposable
         return new TestableFuturesTradeSignalQueryActor(db, lg);
     }
 
+    public TestableFuturesTradeSignalQueryActor CreateActor(
+        IDbContextFactory dbFactory,
+        ILogger<FuturesTradeSignalQueryActor> logger)
+        => new(dbFactory, logger);
+
     public TestableFuturesTradeSignalEventActor CreateTradeSignalEventActor(
         IActorSupervisor? supervisor = null,
         ILogger<FuturesTradeSignalEventActor>? logger = null,
@@ -292,6 +297,12 @@ public class MarketDataAnalyticsTestFixture : IDisposable
         var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
         return new TestableFuturesTradeSignalEventActor(sv, scw, lg);
     }
+
+    public TestableFuturesTradeSignalEventActor CreateActor(
+        IActorSupervisor supervisor,
+        IStatusConsoleWriter statusConsoleWriter,
+        ILogger<FuturesTradeSignalEventActor> logger)
+        => new(supervisor, statusConsoleWriter, logger);
 
     public TestableFuturesAdxSignalCommandActor CreateAdxCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,

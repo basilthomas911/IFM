@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.CommandHandlers;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesAdxSignal;
 
 /// <summary>
 /// BDD-style tests for the GenerateFuturesAdxSignal command handler, verifying that executing a

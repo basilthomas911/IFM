@@ -14,6 +14,7 @@ using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests;
 
@@ -939,24 +940,135 @@ public static class SampleData
         };
     }
 
-    public static FuturesTradeSignalUpdatedCompleteEvent CreateTradeSignalUpdatedCompleteEvent(Guid? commandId = null)
+    public static FuturesTradeSignalV2ReadModel TradeSignalReadModelFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        DateOnly? valueDate = null,
+        long sequenceId = 1)
         => new()
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesTradeSignalEventActor.Actor, "TradeSignalUpdatedComplete", TradeSignalEntityId.Format()),
-            CommandId = commandId ?? Guid.NewGuid(),
-            FuturesTradeSignal = null,
-            CreatedOn = Timestamp,
-            CreatedBy = "UnitTest"
+            ContractId = contractId,
+            ValueDate = valueDate ?? ValueDate,
+            TimePeriod = timePeriod,
+            SequenceId = sequenceId,
+            Timestamp = TimeOnly.FromDateTime(Timestamp),
+            FuturesPrice = FuturesPrice,
+            RSI = 55.0,
+            TradeSignal = TradeSignalType.Buy,
+            TDI = FuturesTrendDirectionType.UpTrending,
+            TDIStrength = FuturesTrendDirectionStrengthType.Medium
         };
 
-    public static FuturesItiSignalHoldTradeChangedEvent CreateHoldTradeChangedEvent(Guid? commandId = null)
-        => new()
+    public static FuturesTradeSignalId TradeSignalIdFor(
+        TradeTimePeriodType timePeriod,
+        long sequenceId = 1,
+        string contractId = ContractId,
+        DateOnly? valueDate = null)
+        => new(contractId, valueDate ?? ValueDate, timePeriod, sequenceId);
+
+    public static GetFuturesTradeSignalQuery TradeSignalQueryFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        DateOnly? valueDate = null)
+    {
+        var queryDate = valueDate ?? ValueDate;
+        var entityId = new FuturesTradeSignalEntityId(contractId, queryDate, timePeriod);
+        return new GetFuturesTradeSignalQuery(contractId, queryDate)
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesTradeSignalEventActor.Actor, "HoldTradeChanged", EntityId.Format()),
+            Subject = new ActorSubject(
+                ActorType.Query,
+                FuturesTradeSignalQueryActor.ActorName,
+                GetFuturesTradeSignalQuery.Verb,
+                entityId.Format())
+        };
+    }
+
+    public static GetLastFuturesTradeSignalQuery LastTradeSignalQueryFor(
+        TradeTimePeriodType timePeriod)
+    {
+        var entityId = TradeSignalEntityIdFor(timePeriod);
+        return new GetLastFuturesTradeSignalQuery
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                FuturesTradeSignalQueryActor.ActorName,
+                GetLastFuturesTradeSignalQuery.Verb,
+                entityId.Format())
+        };
+    }
+
+    public static GetFuturesTradeSignalIdsQuery TradeSignalIdsQueryFor(
+        TradeTimePeriodType timePeriod,
+        DateOnly? valueDate = null)
+    {
+        var queryDate = valueDate ?? ValueDate;
+        var entityId = new FuturesTradeSignalEntityId(ContractId, queryDate, timePeriod);
+        return new GetFuturesTradeSignalIdsQuery(queryDate)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                FuturesTradeSignalQueryActor.ActorName,
+                GetFuturesTradeSignalIdsQuery.Verb,
+                entityId.Format())
+        };
+    }
+
+    public static FuturesTradeSignalUpdatedCompleteEvent CreateTradeSignalUpdatedCompleteEvent(Guid? commandId = null)
+        => CreateTradeSignalUpdatedCompleteEventFor(TimePeriod, commandId);
+
+    public static FuturesTradeSignalUpdatedCompleteEvent CreateTradeSignalUpdatedCompleteEventFor(
+        TradeTimePeriodType timePeriod,
+        Guid? commandId = null,
+        FuturesTradeSignalV2ReadModel? tradeSignal = null)
+    {
+        var entityId = TradeSignalEntityIdFor(timePeriod);
+        return new()
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesTradeSignalEventActor.Actor,
+                FuturesTradeSignalUpdatedCompleteEvent.Verb,
+                entityId.Format()),
+            EntityId = entityId,
+            Id = Guid.NewGuid(),
+            EventId = 1,
             CommandId = commandId ?? Guid.NewGuid(),
-            FuturesItiSignalId = new FuturesItiSignalId(ContractId, ValueDate, TimePeriod, Timestamp),
-            HoldTrade = true,
+            AggregateId = entityId.Format(),
+            EventSource = "UnitTest",
+            ReceivedOn = Timestamp,
+            FuturesTradeSignal = tradeSignal ?? TradeSignalReadModelFor(timePeriod),
             CreatedOn = Timestamp,
             CreatedBy = "UnitTest"
         };
+    }
+
+    public static FuturesItiSignalHoldTradeChangedEvent CreateHoldTradeChangedEvent(Guid? commandId = null)
+        => CreateHoldTradeChangedEventFor(TimePeriod, commandId);
+
+    public static FuturesItiSignalHoldTradeChangedEvent CreateHoldTradeChangedEventFor(
+        TradeTimePeriodType timePeriod,
+        Guid? commandId = null,
+        bool holdTrade = true)
+    {
+        var entityId = EntityIdFor(timePeriod);
+        return new()
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesTradeSignalEventActor.Actor,
+                FuturesItiSignalHoldTradeChangedEvent.Verb,
+                entityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            EventId = 1,
+            CommandId = commandId ?? Guid.NewGuid(),
+            AggregateId = entityId.Format(),
+            EventSource = "UnitTest",
+            ReceivedOn = Timestamp,
+            FuturesItiSignalId = new FuturesItiSignalId(ContractId, ValueDate, timePeriod, Timestamp),
+            HoldTrade = holdTrade,
+            CreatedOn = Timestamp,
+            CreatedBy = "UnitTest"
+        };
+    }
 }

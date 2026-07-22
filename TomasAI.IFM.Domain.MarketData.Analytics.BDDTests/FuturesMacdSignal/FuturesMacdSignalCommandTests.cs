@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.CommandHandlers;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesMacdSignal;
 
 /// <summary>
 /// BDD-style tests for the GenerateFuturesMacdSignal command handler, verifying that executing a

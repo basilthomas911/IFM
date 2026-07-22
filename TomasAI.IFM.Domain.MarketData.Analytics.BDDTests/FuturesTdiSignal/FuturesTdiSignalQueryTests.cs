@@ -13,7 +13,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.QueryHandlers;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesTdiSignal;
 
 /// <summary>
 /// BDD specifications for the complete <see cref="FuturesTdiSignalQueryActor"/> pipeline,

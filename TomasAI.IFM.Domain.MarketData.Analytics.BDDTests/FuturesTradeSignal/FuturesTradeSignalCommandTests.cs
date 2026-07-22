@@ -16,7 +16,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using ActorCommandExceptionEvent = TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.CommandHandlers;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesTradeSignal;
 
 /// <summary>
 /// BDD specifications for <see cref="FuturesTradeSignalCommandActor"/>, covering parsing, validation,

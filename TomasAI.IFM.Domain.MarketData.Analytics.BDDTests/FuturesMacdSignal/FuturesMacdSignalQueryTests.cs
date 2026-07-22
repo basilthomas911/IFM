@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using Xunit;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.QueryHandlers;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesMacdSignal;
 
 public class FuturesMacdSignalQueryTests
 {
