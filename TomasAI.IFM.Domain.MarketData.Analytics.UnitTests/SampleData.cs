@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
+using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.MarketDataFeed.Events;
@@ -746,6 +747,39 @@ public static class SampleData
 
     public static FuturesTdiSignalEntityId TdiEntityIdFor(TradeTimePeriodType timePeriod)
         => new(ContractId, ValueDate, timePeriod);
+
+    public static GetFuturesTdiSignalQuery TdiQueryFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        DateOnly? valueDate = null)
+    {
+        var queryDate = valueDate ?? ValueDate;
+        var entityId = new FuturesTdiSignalEntityId(contractId, queryDate, timePeriod);
+        return new GetFuturesTdiSignalQuery(contractId, queryDate, timePeriod)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetFuturesTdiSignalQuery.Actor,
+                GetFuturesTdiSignalQuery.Verb,
+                entityId.Format())
+        };
+    }
+
+    public static FuturesTdiSignalReadModel TdiReadModelFor(
+        TradeTimePeriodType timePeriod,
+        string contractId = ContractId,
+        DateOnly? valueDate = null,
+        FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
+        FuturesTrendDirectionStrengthType strength = FuturesTrendDirectionStrengthType.High)
+        => new(
+            contractId: contractId,
+            valueDate: valueDate ?? ValueDate,
+            timePeriod: timePeriod,
+            timestamp: TdiSignalId.Timestamp,
+            upTrendCount: 8,
+            downTrendCount: 2,
+            tdi: direction,
+            tdiStrength: strength);
 
     public static FuturesTdiSignalId TdiSignalId
         => new(ContractId, ValueDate, new TimeOnly(10, 0, 0));

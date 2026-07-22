@@ -237,6 +237,11 @@ public class MarketDataAnalyticsTestFixture : IDisposable
         return new TestableFuturesTdiSignalQueryActor(db, lg);
     }
 
+    public TestableFuturesTdiSignalQueryActor CreateActor(
+        IDbContextFactory dbFactory,
+        ILogger<FuturesTdiSignalQueryActor> logger)
+        => new(dbFactory, logger);
+
     public TestableFuturesTdiSignalEventActor CreateTdiEventActor(
         IActorSupervisor? supervisor = null,
         ILogger<FuturesTdiSignalEventActor>? logger = null,

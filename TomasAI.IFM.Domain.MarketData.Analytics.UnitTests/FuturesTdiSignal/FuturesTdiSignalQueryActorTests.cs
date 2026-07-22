@@ -4,15 +4,13 @@ using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Query;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Query.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
-using TomasAI.IFM.Shared.MarketDataAnalytics.QueryParameters;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTdiSignal;
 
@@ -20,638 +18,454 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 {
     readonly MarketDataAnalyticsTestFixture _fixture;
 
+    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    {
+        TradeTimePeriodType.Daily,
+        TradeTimePeriodType.Weekly,
+        TradeTimePeriodType.Monthly
+    };
+
     public FuturesTdiSignalQueryActorTests(MarketDataAnalyticsTestFixture fixture)
     {
         _fixture = fixture;
     }
 
-    public class TestableFuturesTdiSignalQueryActor : FuturesTdiSignalQueryActor
+    public sealed class TestableFuturesTdiSignalQueryActor(
+        IDbContextFactory dbFactory,
+        ILogger<FuturesTdiSignalQueryActor> logger)
+        : FuturesTdiSignalQueryActor(dbFactory, logger)
     {
-        public TestableFuturesTdiSignalQueryActor(IDbContextFactory dbFactory, ILogger<FuturesTdiSignalQueryActor> logger)
-            : base(dbFactory, logger)
-        {
-        }
-
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
-            => await ReceiveAsync(context, query);
+        public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+            => ReceiveAsync(context, query);
 
-        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-            => await OnExceptionAsync(context, threadId, query, verb, ex);
-
-
+        public ValueTask InvokeOnExceptionAsync(
+            IQueryActorContext context,
+            ActorThreadId threadId,
+            IQuery query,
+            string verb,
+            Exception exception)
+            => OnExceptionAsync(context, threadId, query, verb, exception);
     }
 
-    #region ParseMessage Happy Path Tests
+    sealed record Scenario(
+        TestableFuturesTdiSignalQueryActor Actor,
+        IDbContextFactory DbFactory,
+        IMarketDataDbContext Db,
+        ILogger<FuturesTdiSignalQueryActor> Logger,
+        IQueryActorContext Context);
 
-    [Fact]
-    public void ParseMessage_ShouldParseGetFuturesTdiSignalQuery_Successfully()
+    Scenario CreateScenario()
     {
-        // Arrange
+        var db = Substitute.For<IMarketDataDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.MarketDataDb.Returns(db);
         var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
+        var actor = _fixture.CreateActor(dbFactory, logger);
         var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-        var serializedData = _fixture.DataSerializer.Serialize(query);
-        var message = new NatsMsg<byte[]>
-        {
-            Subject = query.Subject.ToString(),
-            Data = serializedData
-        };
-
-        // Act
-        var result = actor.InvokeParseMessage(context, message);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<GetFuturesTdiSignalQuery>();
-        var parsedQuery = result as GetFuturesTdiSignalQuery;
-        parsedQuery!.Subject.Should().BeEquivalentTo(query.Subject);
-        context.Received(1).SetMessageInfo(
-            Arg.Any<ActorThreadId>(),
-            Arg.Is(GetFuturesTdiSignalQuery.Verb),
-            Arg.Any<ActorMessageInfo>());
+        context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>())
+            .Returns(true);
+        return new Scenario(actor, dbFactory, db, logger, context);
     }
 
-    #endregion
+    NatsMsg<byte[]> CreateMessage(
+        GetFuturesTdiSignalQuery query,
+        byte[]? payload = null,
+        string? subject = null)
+        => new(
+            subject ?? query.Subject.ToString(),
+            string.Empty,
+            0,
+            default!,
+            payload ?? _fixture.DataSerializer.Serialize(query),
+            default!,
+            NatsMsgFlags.None);
 
-    #region ParseMessage Edge Case Tests
+    // ParseMessage
 
-    [Fact]
-    public void ParseMessage_ShouldThrowArgumentNullException_WhenContextIsNull()
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public void ParseMessage_ValidQuery_DeserializesAllFieldsAndSetsMessageInfo(
+        TradeTimePeriodType timePeriod)
     {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-        var serializedData = _fixture.DataSerializer.Serialize(query);
-        var message = new NatsMsg<byte[]>
-        {
-            Subject = query.Subject.ToString(),
-            Data = serializedData
-        };
+        var scenario = CreateScenario();
+        var expected = SampleData.TdiQueryFor(timePeriod);
 
-        // Act & Assert
-        var act = () => actor.InvokeParseMessage(null!, message);
-        act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("context");
+        var result = scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(expected));
+
+        var parsed = result.Should().BeOfType<GetFuturesTdiSignalQuery>().Subject;
+        parsed.Should().BeEquivalentTo(expected);
+        scenario.Context.Received(1).SetMessageInfo(
+            expected.Subject.ThreadId,
+            GetFuturesTdiSignalQuery.Verb,
+            Arg.Is<ActorMessageInfo>(info => info.Query is GetFuturesTdiSignalQuery));
     }
 
     [Fact]
-    public void ParseMessage_ShouldThrowInvalidOperationException_WhenActorTypeIsNotQuery()
+    public void ParseMessage_NullContext_ThrowsArgumentNullException()
     {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var invalidSubject = new ActorSubject(ActorType.Command, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format());
-        var message = new NatsMsg<byte[]>
-        {
-            Subject = invalidSubject.ToString(),
-            Data = Array.Empty<byte>()
-        };
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(TradeTimePeriodType.Daily);
 
-        // Act & Assert
-        var act = () => actor.InvokeParseMessage(context, message);
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("Unable to resolve FuturesTdiSignalQuery query from message: *");
-    }
+        var act = () => scenario.Actor.InvokeParseMessage(null!, CreateMessage(query));
 
-    [Fact]
-    public void ParseMessage_ShouldThrowInvalidOperationException_WhenActorNameIsIncorrect()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var invalidSubject = new ActorSubject(ActorType.Query, "WrongActor", GetFuturesTdiSignalQuery.Verb, entityId.Format());
-        var message = new NatsMsg<byte[]>
-        {
-            Subject = invalidSubject.ToString(),
-            Data = Array.Empty<byte>()
-        };
-
-        // Act & Assert
-        var act = () => actor.InvokeParseMessage(context, message);
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("Unable to resolve FuturesTdiSignalQuery query from message: *");
-    }
-
-    [Fact]
-    public void ParseMessage_ShouldThrowInvalidOperationException_WhenVerbIsNotInParseMap()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var invalidSubject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, "UnknownVerb", entityId.Format());
-        var message = new NatsMsg<byte[]>
-        {
-            Subject = invalidSubject.ToString(),
-            Data = Array.Empty<byte>()
-        };
-
-        // Act & Assert
-        var act = () => actor.InvokeParseMessage(context, message);
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("Unable to resolve FuturesTdiSignalQuery query from message: *");
-    }
-
-    [Fact]
-    public void ParseMessage_ShouldThrowArgumentNullException_WhenDeserializedQueryIsNull()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var validSubject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format());
-        var message = new NatsMsg<byte[]>
-        {
-            Subject = validSubject.ToString(),
-            Data = Array.Empty<byte>()
-        };
-
-        // Act & Assert
-        var act = () => actor.InvokeParseMessage(context, message);
         act.Should().Throw<ArgumentNullException>();
     }
 
-    [Fact]
-    public void ParseMessage_ShouldHandleEmptyEntityId_InSubject()
+    [Theory]
+    [InlineData("Command", "FuturesTdiSignalQuery", "GetFuturesTdiSignal")]
+    [InlineData("Query", "WrongTdiQueryActor", "GetFuturesTdiSignal")]
+    [InlineData("Query", "FuturesTdiSignalQuery", "UnknownVerb")]
+    public void ParseMessage_UnroutableSubject_ThrowsInvalidOperationException(
+        string actorType,
+        string actorName,
+        string verb)
     {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var subjectWithEmptyEntityId = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, string.Empty);
-        var query = new GetFuturesTdiSignalQuery
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(TradeTimePeriodType.Daily);
+        var subject = $"{actorType}.{actorName}.{verb}.{query.Subject.ThreadId.EntityId}";
+
+        var act = () => scenario.Actor.InvokeParseMessage(
+            scenario.Context,
+            CreateMessage(query, subject: subject));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage($"Unable to resolve {FuturesTdiSignalQueryActor.ActorName} query from message: {subject}");
+        scenario.Context.DidNotReceiveWithAnyArgs().SetMessageInfo(default, default!, default!);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public void ParseMessage_CorruptedPayload_ThrowsDeserializationException(
+        TradeTimePeriodType timePeriod)
+    {
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(timePeriod);
+        byte[] corruptedPayload = [0x00, 0x01, 0x02, 0xff, 0xfe];
+
+        var act = () => scenario.Actor.InvokeParseMessage(
+            scenario.Context,
+            CreateMessage(query, corruptedPayload));
+
+        act.Should().Throw<Exception>();
+        scenario.Context.DidNotReceiveWithAnyArgs().SetMessageInfo(default, default!, default!);
+    }
+
+    [Fact]
+    public void ParseMessage_EmptyPayload_ThrowsDeserializationException()
+    {
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(TradeTimePeriodType.Monthly);
+
+        var act = () => scenario.Actor.InvokeParseMessage(
+            scenario.Context,
+            CreateMessage(query, []));
+
+        act.Should().Throw<Exception>();
+    }
+
+    [Fact]
+    public void ParseMessage_EmptyEntityId_ParsesQueryAndSetsMessageInfo()
+    {
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(TradeTimePeriodType.Weekly) with
         {
-            Subject = subjectWithEmptyEntityId,
-            EntityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate),
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-        var serializedData = _fixture.DataSerializer.Serialize(query);
-        var message = new NatsMsg<byte[]>
-        {
-            Subject = subjectWithEmptyEntityId.ToString(),
-            Data = serializedData
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetFuturesTdiSignalQuery.Actor,
+                GetFuturesTdiSignalQuery.Verb,
+                string.Empty)
         };
 
-        // Act
-        var result = actor.InvokeParseMessage(context, message);
+        var result = scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(query));
 
-        // Assert
-        result.Should().NotBeNull();
         result.Should().BeOfType<GetFuturesTdiSignalQuery>();
-    }
-
-    [Fact]
-    public void ParseMessage_ShouldExtractThreadIdFromSubject_Correctly()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-        var serializedData = _fixture.DataSerializer.Serialize(query);
-        var message = new NatsMsg<byte[]>
-        {
-            Subject = query.Subject.ToString(),
-            Data = serializedData
-        };
-
-        // Act
-        var result = actor.InvokeParseMessage(context, message);
-
-        // Assert
-        result.Should().NotBeNull();
-        context.Received(1).SetMessageInfo(
-            Arg.Is<ActorThreadId>(tid => tid == query.Subject.ThreadId),
-            Arg.Is(GetFuturesTdiSignalQuery.Verb),
-            Arg.Any<ActorMessageInfo>());
-    }
-
-    [Fact]
-    public void ParseMessage_ShouldSetMessageInfoCorrectly_WithAllComponents()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-        var serializedData = _fixture.DataSerializer.Serialize(query);
-        var message = new NatsMsg<byte[]>
-        {
-            Subject = query.Subject.ToString(),
-            Data = serializedData
-        };
-
-        // Act
-        var result = actor.InvokeParseMessage(context, message);
-
-        // Assert
-        context.Received(1).SetMessageInfo(
-            Arg.Any<ActorThreadId>(),
-            Arg.Is<string>(v => v == GetFuturesTdiSignalQuery.Verb),
-            Arg.Any<ActorMessageInfo>());
-    }
-
-    #endregion
-
-    #region ReceiveAsync Happy Path Tests
-
-    [Fact]
-    public async Task ReceiveAsync_ShouldProcessGetFuturesTdiSignalQuery_Successfully()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var context = Substitute.For<IQueryActorContext>();
-        var db = Substitute.For<IMarketDataDbContext>();
-        var dbFactory = Substitute.For<IDbContextFactory>();
-        dbFactory.MarketDataDb.Returns(db);
-        var actor = _fixture.CreateTdiQueryActor(logger, dbFactory);
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
-
-        db.GetLastFuturesTdiSignalAsync(SampleData.ContractId, SampleData.ValueDate)
-            .Returns((FuturesTdiSignalReadModel?)null);
-
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-        var natsMsg = new NatsMsg<byte[]> { Subject = query.Subject.ToString(), Data = _fixture.DataSerializer.Serialize(query) };
-        context.GetMessageInfo(threadId, GetFuturesTdiSignalQuery.Verb).Returns(new ActorMessageInfo(natsMsg, query));
-
-        // Act
-        await actor.InvokeReceiveAsync(context, query);
-
-        // Assert
-        await db.Received(1).GetLastFuturesTdiSignalAsync(SampleData.ContractId, SampleData.ValueDate);
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ShouldProcessGetFuturesTdiSignalQuery_WhenDataExists()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var context = Substitute.For<IQueryActorContext>();
-        var db = Substitute.For<IMarketDataDbContext>();
-        var dbFactory = Substitute.For<IDbContextFactory>();
-        dbFactory.MarketDataDb.Returns(db);
-        var actor = _fixture.CreateTdiQueryActor(logger, dbFactory);
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
-
-        var expectedViewModel = new FuturesTdiSignalReadModel(
-            contractId: SampleData.ContractId,
-            valueDate: SampleData.ValueDate,
-            timePeriod: TradeTimePeriodType.Daily,
-            timestamp: new TimeOnly(10, 0, 0),
-            upTrendCount: 8,
-            downTrendCount: 7,
-            tdi: FuturesTrendDirectionType.UpTrending,
-            tdiStrength: FuturesTrendDirectionStrengthType.Medium);
-
-        db.GetLastFuturesTdiSignalAsync(SampleData.ContractId, SampleData.ValueDate)
-            .Returns(expectedViewModel);
-
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-        var natsMsg = new NatsMsg<byte[]> { Subject = query.Subject.ToString(), Data = _fixture.DataSerializer.Serialize(query) };
-        context.GetMessageInfo(threadId, GetFuturesTdiSignalQuery.Verb).Returns(new ActorMessageInfo(natsMsg, query));
-
-        // Act
-        await actor.InvokeReceiveAsync(context, query);
-
-        // Assert
-        await db.Received(1).GetLastFuturesTdiSignalAsync(SampleData.ContractId, SampleData.ValueDate);
-    }
-
-    #endregion
-
-    #region ReceiveAsync Edge Case Tests
-
-    [Fact]
-    public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenContextIsNull()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var db = Substitute.For<IMarketDataDbContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-
-        // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(null!, query);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenQueryIsNull()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var db = Substitute.For<IMarketDataDbContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-
-        // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, null!);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("query");
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_ShouldThrowInvalidOperationException_WhenQueryTypeIsNotSupported()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var db = Substitute.For<IMarketDataDbContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-
-        var unsupportedQuery = Substitute.For<IQuery>();
-        unsupportedQuery.Subject.Returns(new ActorSubject(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, "UnsupportedVerb", entityId.Format()));
-
-        // Act & Assert
-        var act = async () => await actor.InvokeReceiveAsync(context, unsupportedQuery);
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("Unable to process FuturesTdiSignalQuery query: *");
-    }
-
-    #endregion
-
-    #region OnExceptionAsync Happy Path Tests
-
-    [Fact]
-    public async Task OnExceptionAsync_ShouldHandleGetFuturesTdiSignalQuery_Exception()
-    {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate,
-            ErrorCode = 500
-        };
-        var exception = new Exception("Database connection failed");
-
-        // Act
-        await actor.InvokeOnExceptionAsync(context, threadId, query, GetFuturesTdiSignalQuery.Verb, exception);
-
-        // Assert
-        await context.Received(1).ReplyAsync(
-            threadId,
+        scenario.Context.Received(1).SetMessageInfo(
+            query.Subject.ThreadId,
             GetFuturesTdiSignalQuery.Verb,
-            Arg.Is<ServiceResult<FuturesTdiSignalReadModel?>>(r =>
-                !r.Success &&
-                r.ErrorCode == 500 &&
-                r.ErrorMessage == "Database connection failed"));
+            Arg.Any<ActorMessageInfo>());
     }
 
-    #endregion
+    // ReceiveAsync
 
-    #region OnExceptionAsync Edge Case Tests
-
-    [Fact]
-    public async Task OnExceptionAsync_ShouldThrowArgumentNullException_WhenContextIsNull()
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task ReceiveAsync_ExistingSignal_QueriesStorageAndRepliesWithSignal(
+        TradeTimePeriodType timePeriod)
     {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-        var exception = new Exception("Test exception");
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(timePeriod);
+        var expected = SampleData.TdiReadModelFor(timePeriod);
+        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate)
+            .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(expected));
 
-        // Act & Assert
-        var act = async () => await actor.InvokeOnExceptionAsync(null!, threadId, query, GetFuturesTdiSignalQuery.Verb, exception);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("context");
+        await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
+
+        await scenario.Db.Received(1).GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate);
+        await scenario.Context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetFuturesTdiSignalQuery.Verb,
+            Arg.Is<ServiceResult<FuturesTdiSignalReadModel?>>(result =>
+                result.Success
+                && result.Value == expected
+                && result.Value.TimePeriod == timePeriod));
     }
 
-    [Fact]
-    public async Task OnExceptionAsync_ShouldThrowArgumentNullException_WhenThreadIdIsNull()
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task ReceiveAsync_MissingSignal_RepliesWithSuccessfulNullResult(
+        TradeTimePeriodType timePeriod)
     {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-        var exception = new Exception("Test exception");
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(timePeriod);
+        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate)
+            .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(null));
 
-        // Act & Assert
-        var act = async () => await actor.InvokeOnExceptionAsync(context, default, query, GetFuturesTdiSignalQuery.Verb, exception);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("threadId");
+        await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
+
+        await scenario.Context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetFuturesTdiSignalQuery.Verb,
+            Arg.Is<ServiceResult<FuturesTdiSignalReadModel?>>(result =>
+                result.Success && result.Value == null));
     }
 
     [Fact]
-    public async Task OnExceptionAsync_ShouldThrowArgumentNullException_WhenQueryIsNull()
+    public async Task ReceiveAsync_CustomContractAndDate_ForwardsBothDimensionsToStorage()
     {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
+        const string contractId = "NQZ27";
+        var valueDate = new DateOnly(2027, 12, 17);
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(
+            TradeTimePeriodType.Weekly,
+            contractId,
+            valueDate);
+        var expected = SampleData.TdiReadModelFor(
+            TradeTimePeriodType.Weekly,
+            contractId,
+            valueDate,
+            direction: FuturesTrendDirectionType.DownTrending);
+        scenario.Db.GetLastFuturesTdiSignalAsync(contractId, valueDate)
+            .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(expected));
 
-        // Act & Assert
-        var act = async () => await actor.InvokeOnExceptionAsync(context, threadId, null!, GetFuturesTdiSignalQuery.Verb, null!);
+        await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
+
+        await scenario.Db.Received(1).GetLastFuturesTdiSignalAsync(contractId, valueDate);
+        await scenario.Context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetFuturesTdiSignalQuery.Verb,
+            Arg.Is<ServiceResult<FuturesTdiSignalReadModel?>>(result => result.Value == expected));
+    }
+
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task ReceiveAsync_StorageFailure_PropagatesExceptionWithoutReply(
+        TradeTimePeriodType timePeriod)
+    {
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(timePeriod);
+        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate)
+            .Returns<Task<FuturesTdiSignalReadModel?>>(_ =>
+                throw new InvalidOperationException($"{timePeriod} storage unavailable"));
+
+        var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage($"{timePeriod} storage unavailable");
+        await scenario.Context.DidNotReceiveWithAnyArgs().ReplyAsync(
+            default,
+            default!,
+            default(ServiceResult<FuturesTdiSignalReadModel?>)!);
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_NullContext_ThrowsArgumentNullException()
+    {
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(TradeTimePeriodType.Daily);
+
+        var act = async () => await scenario.Actor.InvokeReceiveAsync(null!, query);
+
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task OnExceptionAsync_ShouldThrowArgumentNullException_WhenVerbIsNull()
+    public async Task ReceiveAsync_NullQuery_ThrowsArgumentNullException()
     {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate
-        };
-        var exception = new Exception("Test exception");
+        var scenario = CreateScenario();
 
-        // Act & Assert
-        var act = async () => await actor.InvokeOnExceptionAsync(context, threadId, query, null!, exception);
-        await act.Should().ThrowAsync<ArgumentNullException>()
-            .WithParameterName("verb");
+        var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, null!);
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task OnExceptionAsync_ShouldHandleUnknownQueryType_WithDefaultResponse()
+    public async Task ReceiveAsync_UnsupportedQuery_ThrowsInvalidOperationException()
     {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
+        var scenario = CreateScenario();
+        var query = Substitute.For<IQuery>();
 
-        var unknownQuery = Substitute.For<IQuery>();
-        unknownQuery.Subject.Returns(new ActorSubject(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, "UnknownVerb", entityId.Format()));
-        unknownQuery.ErrorCode.Returns(9999);
+        var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 
-        var exception = new Exception("Unknown query type");
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage($"Unable to process {FuturesTdiSignalQueryActor.ActorName} query: *");
+    }
 
-        // Act
-        await actor.InvokeOnExceptionAsync(context, threadId, unknownQuery, "UnknownVerb", exception);
+    // OnExceptionAsync
 
-        // Assert
-        await context.Received(1).ReplyAsync(
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task OnExceptionAsync_TdiQuery_RepliesWithTypedFailure(
+        TradeTimePeriodType timePeriod)
+    {
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(timePeriod);
+        var exception = new InvalidOperationException($"{timePeriod} lookup failed");
+
+        await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            query.Subject.ThreadId,
+            query,
+            GetFuturesTdiSignalQuery.Verb,
+            exception);
+
+        await scenario.Context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetFuturesTdiSignalQuery.Verb,
+            Arg.Is<ServiceResult<FuturesTdiSignalReadModel?>>(result =>
+                !result.Success
+                && result.ErrorCode == query.ErrorCode
+                && result.ErrorMessage == exception.Message));
+    }
+
+    [Fact]
+    public async Task OnExceptionAsync_UnsupportedQuery_RepliesWithGenericFailure()
+    {
+        var scenario = CreateScenario();
+        var query = Substitute.For<IQuery>();
+        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, "unsupported");
+        var exception = new InvalidOperationException("unsupported query failed");
+
+        await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            threadId,
+            query,
+            "UnknownVerb",
+            exception);
+
+        await scenario.Context.Received(1).ReplyAsync(
             threadId,
             "UnknownVerb",
-            Arg.Is<ServiceFailed<ActorEntityId>>(r =>
-                !r.Success &&
-                r.ErrorCode == 9999 &&
-                r.ErrorMessage == "Unknown query type"));
+            Arg.Is<ServiceFailed<ActorEntityId>>(result =>
+                !result.Success
+                && result.ErrorCode == 9999
+                && result.ErrorMessage == exception.Message));
     }
 
     [Fact]
-    public async Task OnExceptionAsync_ShouldHandleNestedExceptions()
+    public async Task OnExceptionAsync_NullContext_ThrowsArgumentNullException()
     {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate,
-            ErrorCode = 500
-        };
-        var innerException = new InvalidOperationException("Inner error");
-        var exception = new Exception("Outer error", innerException);
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(TradeTimePeriodType.Daily);
 
-        // Act
-        await actor.InvokeOnExceptionAsync(context, threadId, query, GetFuturesTdiSignalQuery.Verb, exception);
+        var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
+            null!,
+            query.Subject.ThreadId,
+            query,
+            query.Subject.Verb,
+            new Exception("failure"));
 
-        // Assert
-        await context.Received(1).ReplyAsync(
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task OnExceptionAsync_EmptyThreadId_ThrowsArgumentNullException()
+    {
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(TradeTimePeriodType.Daily);
+
+        var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            default,
+            query,
+            query.Subject.Verb,
+            new Exception("failure"));
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task OnExceptionAsync_NullQuery_ThrowsArgumentNullException()
+    {
+        var scenario = CreateScenario();
+        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, "null-query");
+
+        var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
             threadId,
+            null!,
             GetFuturesTdiSignalQuery.Verb,
-            Arg.Is<ServiceResult<FuturesTdiSignalReadModel?>>(r =>
-                !r.Success &&
-                r.ErrorCode == 500 &&
-                r.ErrorMessage == "Outer error"));
+            new Exception("failure"));
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task OnExceptionAsync_ShouldHandleExceptionWhenReplyAsyncThrows()
+    public async Task OnExceptionAsync_NullVerb_ThrowsArgumentNullException()
     {
-        // Arrange
-        var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
-        var actor = _fixture.CreateTdiQueryActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
-        var entityId = new GetFuturesTdiSignalParameter(SampleData.ContractId, SampleData.ValueDate);
-        var threadId = new ActorThreadId(ActorType.Query, FuturesTdiSignalQueryActor.ActorName, entityId.Format());
-        var query = new GetFuturesTdiSignalQuery
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ContractId = SampleData.ContractId,
-            ValueDate = SampleData.ValueDate,
-            ErrorCode = 500
-        };
-        var exception = new Exception("Original error");
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(TradeTimePeriodType.Daily);
 
-        context.ReplyAsync(threadId, GetFuturesTdiSignalQuery.Verb, Arg.Any<ServiceResult<FuturesTdiSignalReadModel?>>())
-            .Returns<ValueTask>(_ => throw new InvalidOperationException("Reply failed"));
+        var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            query.Subject.ThreadId,
+            query,
+            null!,
+            new Exception("failure"));
 
-        // Act - should not throw, should be caught and logged
-        var act = async () => await actor.InvokeOnExceptionAsync(context, threadId, query, GetFuturesTdiSignalQuery.Verb, exception);
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task OnExceptionAsync_NullException_ThrowsArgumentNullException()
+    {
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(TradeTimePeriodType.Daily);
+
+        var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            query.Subject.ThreadId,
+            query,
+            query.Subject.Verb,
+            null!);
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task OnExceptionAsync_ReplyFailure_IsCaughtAndContained()
+    {
+        var scenario = CreateScenario();
+        var query = SampleData.TdiQueryFor(TradeTimePeriodType.Monthly);
+        scenario.Context.ReplyAsync(
+                query.Subject.ThreadId,
+                GetFuturesTdiSignalQuery.Verb,
+                Arg.Any<ServiceResult<FuturesTdiSignalReadModel?>>())
+            .Returns<ValueTask>(_ => throw new InvalidOperationException("reply failed"));
+
+        var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            query.Subject.ThreadId,
+            query,
+            GetFuturesTdiSignalQuery.Verb,
+            new InvalidOperationException("query failed"));
+
         await act.Should().NotThrowAsync();
-
-        // Assert - verify ReplyAsync was called (and it threw, which was caught)
-        await context.Received(1).ReplyAsync(
-            threadId,
+        await scenario.Context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
             GetFuturesTdiSignalQuery.Verb,
             Arg.Any<ServiceResult<FuturesTdiSignalReadModel?>>());
     }
-
-    #endregion
-
 }
