@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -12,7 +12,8 @@ using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Actor;
+using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using ActorCommandExceptionEvent = TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTdiSignal;
 
@@ -20,1426 +21,761 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 {
     readonly MarketDataAnalyticsTestFixture _fixture;
 
+    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    {
+        TradeTimePeriodType.Daily,
+        TradeTimePeriodType.Weekly,
+        TradeTimePeriodType.Monthly
+    };
+
     public FuturesTdiSignalCommandActorTests(MarketDataAnalyticsTestFixture fixture)
     {
         _fixture = fixture;
     }
 
-    public class TestableFuturesTdiSignalCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesTdiSignalCommandActor> logger)
+    public sealed class TestableFuturesTdiSignalCommandActor(
+        IEventSourceActorDbContext dbEventSource,
+        ILogger<FuturesTdiSignalCommandActor> logger)
         : FuturesTdiSignalCommandActor(dbEventSource, logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
-            => await ReceiveAsync(context, state, cmd);
+        public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
+            ICommandActorContext context,
+            IActorState state,
+            ICommand command)
+            => ReceiveAsync(context, state, command);
 
-        public async ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
-            => await OnValidateAsync(context, threadId, cmd);
+        public ValueTask InvokeOnValidateAsync(
+            ICommandActorContext context,
+            ActorThreadId threadId,
+            ICommand command)
+            => OnValidateAsync(context, threadId, command);
 
-        public async ValueTask InvokeOnStartup(ICommandActorContext context)
-            => await OnStartup(context);
+        public ValueTask InvokeOnStartupAsync(ICommandActorContext context)
+            => OnStartup(context);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
-            => await OnLoadStateAsync(context, threadId, cmd);
+        public ValueTask<IActorState> InvokeOnLoadStateAsync(
+            ICommandActorContext context,
+            ActorThreadId threadId,
+            ICommand command)
+            => OnLoadStateAsync(context, threadId, command);
 
-        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
-            => await OnSaveStateAsync(context, threadId, state, cmd);
+        public ValueTask InvokeOnSaveStateAsync(
+            ICommandActorContext context,
+            ActorThreadId threadId,
+            IActorState state,
+            ICommand command)
+            => OnSaveStateAsync(context, threadId, state, command);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, Exception ex)
-            => await OnExceptionAsync(context, threadId, cmd, ex);
+        public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
+            ICommandActorContext context,
+            ActorThreadId threadId,
+            ICommand command,
+            Exception exception)
+            => OnExceptionAsync(context, threadId, command, exception);
     }
 
-    #region ParseMessage Happy Path Tests
+    sealed record Scenario(
+        TestableFuturesTdiSignalCommandActor Actor,
+        IEventSourceActorDbContext EventDb,
+        ILogger<FuturesTdiSignalCommandActor> Logger,
+        ICommandActorContext Context,
+        IEventSourceActorStateRepository<FuturesTdiSignalCommandState> Repository,
+        IContainerInstance Container);
 
-    [Fact]
-    public async Task ParseMessage_DeserializesGenerateFuturesTdiSignalCommand_AndLogsToDatabase()
+    Scenario CreateScenario()
     {
-        // Arrange
-        _fixture.DataSerializer.Should().NotBeNull();
-        _fixture.MsgSerializer.Should().NotBeNull();
-
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var payload = ActorExtensions.DataSerializer.Serialize(command!);
-        var subject = command!.Subject.ToString();
-        var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+        var eventDb = Substitute.For<IEventSourceActorDbContext>();
+        eventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
+        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
+        var actor = _fixture.CreateActor(eventDb, logger);
+        var repository = Substitute.For<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>();
+        var container = Substitute.For<IContainerInstance>();
+        container.Resolve<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>()
+            .Returns(repository);
+        var context = Substitute.For<ICommandActorContext>();
+        context.Container.Returns(container);
+        return new Scenario(actor, eventDb, logger, context, repository, container);
+    }
 
-        // Act
-        var result = actor.InvokeParseMessage(context, natsMsg);
+    static NatsMsg<byte[]> CreateMessage(
+        GenerateFuturesTdiSignalCommand command,
+        byte[]? payload = null,
+        string? subject = null)
+        => new(
+            subject ?? command.Subject.ToString(),
+            string.Empty,
+            0,
+            default!,
+            payload ?? ActorExtensions.DataSerializer.Serialize(command),
+            default!,
+            NatsMsgFlags.None);
 
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<GenerateFuturesTdiSignalCommand>();
-        var deserializedCommand = result as GenerateFuturesTdiSignalCommand;
-        deserializedCommand.Should().NotBeNull();
-        deserializedCommand!.CommandId.Should().Be(command.CommandId);
-        deserializedCommand.FuturesTdiSignalId.ContractId.Should().Be(command.FuturesTdiSignalId.ContractId);
-        deserializedCommand.Subject.ToString().Should().Be(subject);
+    static FuturesTdiSignalCommandState CreateState(GenerateFuturesTdiSignalCommand command)
+        => new() { Id = command.Subject.ThreadId };
 
-        await dbEventSource.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
+    async Task InitializeRepositoryAsync(Scenario scenario)
+        => await scenario.Actor.InvokeOnStartupAsync(scenario.Context);
+
+    // ParseMessage
+
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task ParseMessage_ValidCommand_DeserializesAndLogsCommand(
+        TradeTimePeriodType timePeriod)
+    {
+        var scenario = CreateScenario();
+        var expected = SampleData.TdiGenerateCommandFor(timePeriod);
+
+        var parsed = scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(expected));
+
+        parsed.Should().BeOfType<GenerateFuturesTdiSignalCommand>();
+        parsed.CommandId.Should().Be(expected.CommandId);
+        parsed.Subject.Should().Be(expected.Subject);
+        ((GenerateFuturesTdiSignalCommand)parsed).EntityId.TimePeriod.Should().Be(timePeriod);
+        await scenario.EventDb.Received(1).InsertCommandLogAsync(
+            Arg.Is<ICommand>(command => command.CommandId == expected.CommandId),
             Arg.Any<DateTime>(),
-            Arg.Any<string>()
-        );
-
-        await Task.CompletedTask;
+            Arg.Is<string>(json => json.Contains(expected.CommandId.ToString())));
     }
 
     [Fact]
-    public async Task ParseMessage_PreservesCommandIdAcrossSerialization()
+    public void ParseMessage_NullContext_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-        var expectedCommandId = Guid.NewGuid();
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = expectedCommandId,
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = () => scenario.Actor.InvokeParseMessage(null!, CreateMessage(command));
 
-        var payload = ActorExtensions.DataSerializer.Serialize(command!);
-        var subject = command!.Subject.ToString();
-        var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
-
-        // Act
-        var result = actor.InvokeParseMessage(context, natsMsg);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.CommandId.Should().Be(expectedCommandId);
-
-        await Task.CompletedTask;
-    }
-
-    #endregion
-
-    #region ParseMessage Edge Case Tests
-
-    [Fact]
-    public void ParseMessage_ThrowsInvalidOperationException_WhenActorTypeIsNotCommand()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var payload = ActorExtensions.DataSerializer.Serialize(command!);
-
-        var invalidSubject = $"Query.{FuturesTdiSignalCommandActor.ActorName}.{GenerateFuturesTdiSignalCommand.Verb}.{Guid.NewGuid()}";
-        var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        // Act
-        Action act = () => actor.InvokeParseMessage(context, natsMsg);
-
-        // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesTdiSignalCommandActor.ActorName} command from message: {invalidSubject}");
-    }
-
-    [Fact]
-    public void ParseMessage_ThrowsInvalidOperationException_WhenActorNameDoesNotMatch()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var payload = ActorExtensions.DataSerializer.Serialize(command!);
-
-        var invalidSubject = $"Command.DifferentActor.{GenerateFuturesTdiSignalCommand.Verb}.{Guid.NewGuid()}";
-        var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        // Act
-        Action act = () => actor.InvokeParseMessage(context, natsMsg);
-
-        // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesTdiSignalCommandActor.ActorName} command from message: {invalidSubject}");
-    }
-
-    [Fact]
-    public void ParseMessage_ThrowsInvalidOperationException_WhenVerbIsNotRecognized()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var payload = ActorExtensions.DataSerializer.Serialize(command!);
-
-        var invalidSubject = $"Command.{FuturesTdiSignalCommandActor.ActorName}.UnknownVerb.{Guid.NewGuid()}";
-        var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        // Act
-        Action act = () => actor.InvokeParseMessage(context, natsMsg);
-
-        // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesTdiSignalCommandActor.ActorName} command from message: {invalidSubject}");
-    }
-
-    [Fact]
-    public void ParseMessage_ThrowsArgumentNullException_WhenContextIsNull()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var payload = ActorExtensions.DataSerializer.Serialize(command!);
-        var subject = command!.Subject.ToString();
-        var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
-
-        // Act
-        Action act = () => actor.InvokeParseMessage(null!, natsMsg);
-
-        // Assert
         act.Should().Throw<ArgumentNullException>();
     }
 
-    [Fact]
-    public void ParseMessage_ThrowsException_WhenPayloadIsCorrupted()
+    [Theory]
+    [InlineData("Query", "FuturesTdiSignalCommand", "Generate")]
+    [InlineData("Command", "WrongTdiActor", "Generate")]
+    [InlineData("Command", "FuturesTdiSignalCommand", "UnknownVerb")]
+    public void ParseMessage_UnroutableSubject_ThrowsInvalidOperationException(
+        string actorType,
+        string actorName,
+        string verb)
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var subject = $"{actorType}.{actorName}.{verb}.{command.Subject.ThreadId.EntityId}";
 
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = () => scenario.Actor.InvokeParseMessage(
+            scenario.Context,
+            CreateMessage(command, subject: subject));
 
-        var corruptedPayload = new byte[] { 0x00, 0x01, 0x02, 0xFF, 0xFE };
-        var subject = command!.Subject.ToString();
-        var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, corruptedPayload, default!, NatsMsgFlags.None);
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage($"Unable to resolve {FuturesTdiSignalCommandActor.ActorName} command from message: {subject}");
+    }
 
-        var context = Substitute.For<ICommandActorContext>();
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public void ParseMessage_CorruptedPayload_ThrowsDeserializationException(
+        TradeTimePeriodType timePeriod)
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(timePeriod);
+        byte[] corruptedPayload = [0x00, 0x01, 0x02, 0xff, 0xfe];
 
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
+        var act = () => scenario.Actor.InvokeParseMessage(
+            scenario.Context,
+            CreateMessage(command, corruptedPayload));
 
-        // Act
-        Action act = () => actor.InvokeParseMessage(context, natsMsg);
-
-        // Assert
         act.Should().Throw<Exception>();
     }
 
     [Fact]
-    public void ParseMessage_ThrowsException_WhenPayloadIsEmpty()
+    public void ParseMessage_EmptyPayload_ThrowsDeserializationException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Monthly);
 
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = () => scenario.Actor.InvokeParseMessage(
+            scenario.Context,
+            CreateMessage(command, []));
 
-        var emptyPayload = Array.Empty<byte>();
-        var subject = command!.Subject.ToString();
-        var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, emptyPayload, default!, NatsMsgFlags.None);
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
-
-        // Act
-        Action act = () => actor.InvokeParseMessage(context, natsMsg);
-
-        // Assert
         act.Should().Throw<Exception>();
     }
 
     [Fact]
-    public async Task ParseMessage_DatabaseInsertFails_ThrowsException()
+    public void ParseMessage_CommandLogFailure_PropagatesException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Weekly);
+        scenario.EventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+            .Returns(Task.FromException(new InvalidOperationException("command log unavailable")));
 
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = () => scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(command));
 
-        var payload = ActorExtensions.DataSerializer.Serialize(command!);
-        var subject = command!.Subject.ToString();
-        var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
-            .Returns(Task.FromException(new Exception("Database connection failed")));
-
-        // Act
-        Action act = () => actor.InvokeParseMessage(context, natsMsg);
-
-        // Assert
-        act.Should().Throw<Exception>().WithMessage("Database connection failed");
-
-        await Task.CompletedTask;
+        act.Should().Throw<InvalidOperationException>().WithMessage("command log unavailable");
     }
 
-    #endregion
+    // ReceiveAsync
 
-    #region ReceiveAsync Happy Path Tests
-
-    [Fact]
-    public async Task ReceiveAsync_GenerateFuturesTdiSignalCommand_InitializingState_ExecutesHandler_ReturnsGuid()
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task ReceiveAsync_InitialState_ReturnsCommandIdAndGeneratesPeriodSpecificEvent(
+        TradeTimePeriodType timePeriod)
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(timePeriod);
+        var state = CreateState(command);
 
-        var entityId = SampleData.TdiEntityId;
-        var cmd = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var result = await scenario.Actor.InvokeReceiveAsync(scenario.Context, state, command);
 
-        cmd.Should().NotBeNull();
+        result.Success.Should().BeTrue();
+        result.Value!.Guid.Should().Be(command.CommandId);
+        var generatedEvent = state.Events.OfType<FuturesTdiSignalGeneratedEvent>().Should().ContainSingle().Subject;
+        generatedEvent.EntityId.TimePeriod.Should().Be(timePeriod);
+        generatedEvent.FuturesTdiSignal.TimePeriod.Should().Be(timePeriod);
+        generatedEvent.FuturesTdiSignal.TDI.Should().Be(FuturesTrendDirectionType.Init);
+    }
 
-        var state = new FuturesTdiSignalCommandState { Id = cmd!.Subject.ThreadId };
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task ReceiveAsync_ExistingState_ExecutesHandlerAndGeneratesNextSignal(
+        TradeTimePeriodType timePeriod)
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(timePeriod);
+        var state = CreateState(command);
+        state.Update(SampleData.CreateTdiSignalGeneratedEventFor(
+            timePeriod,
+            FuturesTrendDirectionType.UpTrending));
 
-        var context = Substitute.For<ICommandActorContext>();
+        var result = await scenario.Actor.InvokeReceiveAsync(scenario.Context, state, command);
 
-        // Act
-        var result = await actor.InvokeReceiveAsync(context, state, cmd!);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Value.Should().NotBeNull();
-        result.Value.Guid.Should().Be(cmd!.CommandId);
-
-        state.Events.Should().NotBeNull();
-        state.Events.Any(e => e is FuturesTdiSignalGeneratedEvent).Should().BeTrue();
+        result.Success.Should().BeTrue();
+        result.Value!.Guid.Should().Be(command.CommandId);
+        state.Events.OfType<FuturesTdiSignalGeneratedEvent>().Last().FuturesTdiSignal.TDI
+            .Should().Be(FuturesTrendDirectionType.UpTrending);
     }
 
     [Fact]
-    public async Task ReceiveAsync_GenerateFuturesTdiSignalCommand_WithExistingState_ExecutesHandler_ReturnsGuid()
+    public async Task ReceiveAsync_NullContext_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-        var entityId = SampleData.TdiEntityId;
-        var cmd = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = async () => await scenario.Actor.InvokeReceiveAsync(null!, CreateState(command), command);
 
-        var state = new FuturesTdiSignalCommandState { Id = cmd!.Subject.ThreadId };
-        var existingEvent = SampleData.CreateTdiSignalGeneratedEvent(Guid.NewGuid());
-        state.Apply(existingEvent).Should().BeTrue();
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        // Act
-        var result = await actor.InvokeReceiveAsync(context, state, cmd!);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Value.Should().NotBeNull();
-        result.Value.Guid.Should().Be(cmd!.CommandId);
-
-        state.Events.Should().NotBeNull();
-        state.Events.Any(e => e is FuturesTdiSignalGeneratedEvent).Should().BeTrue();
-    }
-
-    #endregion
-
-    #region ReceiveAsync Edge Case Tests
-
-    [Fact]
-    public async Task ReceiveAsync_ThrowsArgumentNullException_WhenContextIsNull()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var cmd = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var state = new FuturesTdiSignalCommandState { Id = cmd!.Subject.ThreadId };
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, state, cmd!);
-
-        // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task ReceiveAsync_ThrowsArgumentNullException_WhenStateIsNull()
+    public async Task ReceiveAsync_NullState_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-        var entityId = SampleData.TdiEntityId;
-        var cmd = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, null!, command);
 
-        var context = Substitute.For<ICommandActorContext>();
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!, cmd!);
-
-        // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task ReceiveAsync_ThrowsArgumentNullException_WhenCommandIsNull()
+    public async Task ReceiveAsync_NullCommand_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
 
-        var state = new FuturesTdiSignalCommandState { Id = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "test-thread") };
-        var context = Substitute.For<ICommandActorContext>();
+        var act = async () => await scenario.Actor.InvokeReceiveAsync(
+            scenario.Context,
+            new FuturesTdiSignalCommandState(),
+            null!);
 
-        // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, null!);
-
-        // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task ReceiveAsync_ThrowsInvalidOperationException_WhenCommandTypeNotInReceiveMap()
+    public async Task ReceiveAsync_WrongStateType_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-        var state = new FuturesTdiSignalCommandState { Id = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "test-thread") };
+        var act = async () => await scenario.Actor.InvokeReceiveAsync(
+            scenario.Context,
+            Substitute.For<IActorState>(),
+            command);
 
-        var cmd = Substitute.For<ICommand>();
-        cmd.CommandId.Returns(Guid.NewGuid());
-        cmd.Subject.Returns(new ActorSubject(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "UnknownVerb", "thread-id"));
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
 
-        var context = Substitute.For<ICommandActorContext>();
+    [Fact]
+    public async Task ReceiveAsync_UnsupportedCommand_ThrowsInvalidOperationException()
+    {
+        var scenario = CreateScenario();
+        var command = Substitute.For<ICommand>();
 
-        // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var act = async () => await scenario.Actor.InvokeReceiveAsync(
+            scenario.Context,
+            new FuturesTdiSignalCommandState(),
+            command);
 
-        // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesTdiSignalCommandActor.ActorName} command from message:*");
+            .WithMessage($"Unable to resolve {FuturesTdiSignalCommandActor.ActorName} command from message: *");
     }
 
-    [Fact]
-    public async Task ReceiveAsync_ThrowsException_WhenStateIsNotFuturesTdiSignalCommandState()
+    // OnValidateAsync
+
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task OnValidateAsync_ValidCommand_CompletesSuccessfully(
+        TradeTimePeriodType timePeriod)
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(timePeriod);
 
-        var entityId = SampleData.TdiEntityId;
-        var cmd = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command);
 
-        var state = Substitute.For<IActorState>();
-        state.Id.Returns(cmd!.Subject.ThreadId);
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd!);
-
-        // Assert
-        await act.Should().ThrowAsync<Exception>();
-    }
-
-    #endregion
-
-    #region OnValidateAsync Happy Path Tests
-
-    [Fact]
-    public async Task OnValidateAsync_GenerateFuturesTdiSignalCommand_ValidCommand_NoExceptionThrown()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var context = Substitute.For<ICommandActorContext>();
-        var threadId = command!.Subject.ThreadId;
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, command!);
-
-        // Assert
         await act.Should().NotThrowAsync();
     }
 
-    #endregion
-
-    #region OnValidateAsync Edge Case Tests
-
-    [Fact]
-    public async Task OnValidateAsync_GenerateFuturesTdiSignalCommand_EmptyCommandId_ThrowsCommandValidationException()
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task OnValidateAsync_EmptyCommandId_ThrowsCommandValidationException(
+        TradeTimePeriodType timePeriod)
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(timePeriod) with { CommandId = Guid.Empty };
 
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.Empty,
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command);
 
-        var context = Substitute.For<ICommandActorContext>();
-        var threadId = command!.Subject.ThreadId;
+        await act.Should().ThrowAsync<CommandValidationException>();
+    }
 
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, command!);
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task OnValidateAsync_EmptyRsiSignals_ThrowsCommandValidationException(
+        TradeTimePeriodType timePeriod)
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(timePeriod) with { FuturesRsiSignals = [] };
 
-        // Assert
-        await act.Should().ThrowAsync<CommandValidationException>()
-            .WithMessage("*CommandId*empty*");
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command);
+
+        await act.Should().ThrowAsync<CommandValidationException>();
     }
 
     [Fact]
-    public async Task OnValidateAsync_ThrowsArgumentNullException_WhenContextIsNull()
+    public async Task OnValidateAsync_DefaultSignalId_ThrowsCommandValidationException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Weekly) with
         {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
+            FuturesTdiSignalId = default
         };
 
-        var threadId = command!.Subject.ThreadId;
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command);
 
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnValidateAsync(null!, threadId, command!);
+        await act.Should().ThrowAsync<CommandValidationException>();
+    }
 
-        // Assert
+    [Fact]
+    public async Task OnValidateAsync_NullContext_ThrowsArgumentNullException()
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            null!,
+            command.Subject.ThreadId,
+            command);
+
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task OnValidateAsync_ThrowsArgumentNullException_WhenThreadIdIsNull()
+    public async Task OnValidateAsync_EmptyThreadId_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            scenario.Context,
+            default,
+            command);
 
-        var context = Substitute.For<ICommandActorContext>();
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, default, command!);
-
-        // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task OnValidateAsync_ThrowsArgumentNullException_WhenCommandIsNull()
+    public async Task OnValidateAsync_NullCommand_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var threadId = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "null-command");
 
-        var context = Substitute.For<ICommandActorContext>();
-        var threadId = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "test-thread");
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            scenario.Context,
+            threadId,
+            null!);
 
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, null!);
-
-        // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task OnValidateAsync_ThrowsInvalidOperationException_WhenCommandTypeNotInValidationMap()
+    public async Task OnValidateAsync_UnsupportedCommand_ThrowsInvalidOperationException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = Substitute.For<ICommand>();
+        var threadId = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "unsupported");
 
-        var cmd = Substitute.For<ICommand>();
-        cmd.CommandId.Returns(Guid.NewGuid());
-        cmd.Subject.Returns(new ActorSubject(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "UnknownVerb", "thread-id"));
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            scenario.Context,
+            threadId,
+            command);
 
-        var context = Substitute.For<ICommandActorContext>();
-        var threadId = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "test-thread");
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, cmd);
-
-        // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"Unable to validate {FuturesTdiSignalCommandActor.ActorName} commands from message:*");
+            .WithMessage($"Unable to validate {FuturesTdiSignalCommandActor.ActorName} commands from message: *");
     }
 
-    #endregion
+    // OnLoadStateAsync
 
-    #region OnStartup Happy Path Tests
-
-    [Fact]
-    public async Task OnStartup_WithValidContext_ResolvesRepository()
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task OnLoadStateAsync_PersistedState_ReturnsRepositoryState(
+        TradeTimePeriodType timePeriod)
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(timePeriod);
+        var expected = CreateState(command);
+        scenario.Repository.LoadStateAsync(command).Returns(ValueTask.FromResult(expected));
+        await InitializeRepositoryAsync(scenario);
 
-        var mockRepo = Substitute.For<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>();
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>().Returns(mockRepo);
+        var result = await scenario.Actor.InvokeOnLoadStateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command);
 
-        var context = Substitute.For<ICommandActorContext>();
-        context.Container.Returns(container);
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnStartup(context);
-
-        // Assert
-        await act.Should().NotThrowAsync();
-        container.Received(1).Resolve<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>();
+        result.Should().BeSameAs(expected);
+        await scenario.Repository.Received(1).LoadStateAsync(command);
     }
 
     [Fact]
-    public async Task OnStartup_CalledMultipleTimes_ShouldNotThrow()
+    public async Task OnLoadStateAsync_RepositoryFailure_PropagatesException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Monthly);
+        scenario.Repository.LoadStateAsync(command)
+            .Returns<ValueTask<FuturesTdiSignalCommandState>>(_ =>
+                throw new InvalidOperationException("load failed"));
+        await InitializeRepositoryAsync(scenario);
 
-        var mockRepo = Substitute.For<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>();
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>().Returns(mockRepo);
+        var act = async () => await scenario.Actor.InvokeOnLoadStateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command);
 
-        var context = Substitute.For<ICommandActorContext>();
-        context.Container.Returns(container);
-
-        // Act
-        Func<Task> act = async () =>
-        {
-            await actor.InvokeOnStartup(context);
-            await actor.InvokeOnStartup(context);
-        };
-
-        // Assert
-        await act.Should().NotThrowAsync();
-        container.Received(2).Resolve<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>();
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("load failed");
     }
 
-    #endregion
-
-    #region OnStartup Edge Case Tests
-
     [Fact]
-    public async Task OnStartup_ThrowsArgumentNullException_WhenContextIsNull()
+    public async Task OnLoadStateAsync_NullContext_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnStartup(null!);
+        var act = async () => await scenario.Actor.InvokeOnLoadStateAsync(
+            null!,
+            command.Subject.ThreadId,
+            command);
 
-        // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task OnStartup_ThrowsNullReferenceException_WhenContainerIsNull()
+    public async Task OnLoadStateAsync_EmptyThreadId_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-        var context = Substitute.For<ICommandActorContext>();
-        context.Container.Returns((IContainerInstance)null!);
+        var act = async () => await scenario.Actor.InvokeOnLoadStateAsync(
+            scenario.Context,
+            default,
+            command);
 
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnStartup(context);
-
-        // Assert
-        await act.Should().ThrowAsync<NullReferenceException>();
-    }
-
-    [Fact]
-    public async Task OnStartup_ThrowsArgumentNullException_WhenContainerReturnsNullRepo()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>()
-            .Returns((IEventSourceActorStateRepository<FuturesTdiSignalCommandState>)null!);
-
-        var context = Substitute.For<ICommandActorContext>();
-        context.Container.Returns(container);
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnStartup(context);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    #endregion
-
-    #region OnLoadStateAsync Happy Path Tests
-
-    [Fact]
-    public async Task OnLoadStateAsync_ReturnsState_WhenRepoIsConfigured()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-
-        var mockRepo = Substitute.For<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>();
-        var expectedState = new FuturesTdiSignalCommandState { Id = threadId };
-        mockRepo.LoadStateAsync(Arg.Any<ICommand>()).Returns(ValueTask.FromResult(expectedState));
-
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>().Returns(mockRepo);
-
-        var context = Substitute.For<ICommandActorContext>();
-        context.Container.Returns(container);
-
-        // Trigger OnStartup to set the repo
-        await actor.InvokeOnStartup(context);
-
-        // Act
-        var result = await actor.InvokeOnLoadStateAsync(context, threadId, command!);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<FuturesTdiSignalCommandState>();
-        result.Id.Should().Be(threadId);
-
-        await mockRepo.Received(1).LoadStateAsync(Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId));
-    }
-
-    #endregion
-
-    #region OnLoadStateAsync Edge Case Tests
-
-    [Fact]
-    public async Task OnLoadStateAsync_ThrowsArgumentNullException_WhenContextIsNull()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnLoadStateAsync(null!, threadId, command!);
-
-        // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task OnLoadStateAsync_ThrowsArgumentNullException_WhenThreadIdIsNull()
+    public async Task OnLoadStateAsync_NullCommand_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var threadId = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "null-command");
 
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = async () => await scenario.Actor.InvokeOnLoadStateAsync(
+            scenario.Context,
+            threadId,
+            null!);
 
-        var context = Substitute.For<ICommandActorContext>();
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
 
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnLoadStateAsync(context, default, command!);
+    // OnSaveStateAsync
 
-        // Assert
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task OnSaveStateAsync_ValidState_SavesThroughRepository(
+        TradeTimePeriodType timePeriod)
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(timePeriod);
+        var state = CreateState(command);
+        scenario.Repository.SaveStateAsync(scenario.Context, state, command)
+            .Returns(ValueTask.CompletedTask);
+        await InitializeRepositoryAsync(scenario);
+
+        await scenario.Actor.InvokeOnSaveStateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            state,
+            command);
+
+        await scenario.Repository.Received(1).SaveStateAsync(scenario.Context, state, command);
+    }
+
+    [Fact]
+    public async Task OnSaveStateAsync_RepositoryFailure_PropagatesException()
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Weekly);
+        var state = CreateState(command);
+        scenario.Repository.SaveStateAsync(scenario.Context, state, command)
+            .Returns(_ => throw new InvalidOperationException("save failed"));
+        await InitializeRepositoryAsync(scenario);
+
+        var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            state,
+            command);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("save failed");
+    }
+
+    [Fact]
+    public async Task OnSaveStateAsync_NullContext_ThrowsArgumentNullException()
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+
+        var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
+            null!,
+            command.Subject.ThreadId,
+            CreateState(command),
+            command);
+
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task OnLoadStateAsync_ThrowsArgumentNullException_WhenCommandIsNull()
+    public async Task OnSaveStateAsync_EmptyThreadId_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-        var context = Substitute.For<ICommandActorContext>();
-        var threadId = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "test-thread");
+        var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
+            scenario.Context,
+            default,
+            CreateState(command),
+            command);
 
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnLoadStateAsync(context, threadId, null!);
-
-        // Assert
         await act.Should().ThrowAsync<ArgumentNullException>();
     }
 
-    #endregion
+    [Fact]
+    public async Task OnSaveStateAsync_NullState_ThrowsArgumentNullException()
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-    #region OnSaveStateAsync Happy Path Tests
+        var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            null!,
+            command);
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
 
     [Fact]
-    public async Task OnSaveStateAsync_CallsRepoSaveStateAsync_WhenRepoIsConfigured()
+    public async Task OnSaveStateAsync_WrongStateType_ThrowsArgumentNullException()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            Substitute.For<IActorState>(),
+            command);
 
-        var threadId = command!.Subject.ThreadId;
-        var state = new FuturesTdiSignalCommandState { Id = threadId };
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
 
-        var mockRepo = Substitute.For<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>();
-        mockRepo.LoadStateAsync(Arg.Any<ICommand>()).Returns(ValueTask.FromResult(state));
-        mockRepo.SaveStateAsync(Arg.Any<ICommandActorContext>(), Arg.Any<FuturesTdiSignalCommandState>(), Arg.Any<ICommand>())
+    [Fact]
+    public async Task OnSaveStateAsync_NullCommand_ThrowsArgumentNullException()
+    {
+        var scenario = CreateScenario();
+        var threadId = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "null-command");
+
+        var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
+            scenario.Context,
+            threadId,
+            new FuturesTdiSignalCommandState { Id = threadId },
+            null!);
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
+
+    // OnExceptionAsync
+
+    [Theory]
+    [MemberData(nameof(AllTimePeriods))]
+    public async Task OnExceptionAsync_CommandFailure_SendsExceptionEventAndReturnsFailure(
+        TradeTimePeriodType timePeriod)
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(timePeriod);
+        scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>().Returns(mockRepo);
+        var result = await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command,
+            new InvalidOperationException($"{timePeriod} generation failed"));
 
-        var context = Substitute.For<ICommandActorContext>();
-        context.Container.Returns(container);
-
-        // Trigger OnStartup to set the repo
-        await actor.InvokeOnStartup(context);
-
-        // Act
-        await actor.InvokeOnSaveStateAsync(context, threadId, state, command!);
-
-        // Assert
-        await mockRepo.Received(1).SaveStateAsync(
-            Arg.Is<ICommandActorContext>(ctx => ctx == context),
-            Arg.Is<FuturesTdiSignalCommandState>(s => s.Id == threadId),
-            Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId));
-    }
-
-    #endregion
-
-    #region OnSaveStateAsync Edge Case Tests
-
-    [Fact]
-    public async Task OnSaveStateAsync_ThrowsArgumentNullException_WhenContextIsNull()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-        var state = new FuturesTdiSignalCommandState { Id = threadId };
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnSaveStateAsync(null!, threadId, state, command!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
+        result.Should().BeOfType<ServiceFailed<GuidResult>>();
+        result.Success.Should().BeFalse();
+        await scenario.Context.Received(1)
+            .SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>());
     }
 
     [Fact]
-    public async Task OnSaveStateAsync_ThrowsArgumentNullException_WhenThreadIdIsNull()
+    public async Task OnExceptionAsync_ValidationFailure_ReturnsFailedResult()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var state = new FuturesTdiSignalCommandState { Id = command!.Subject.ThreadId };
-        var context = Substitute.For<ICommandActorContext>();
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnSaveStateAsync(context, default, state, command!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    [Fact]
-    public async Task OnSaveStateAsync_ThrowsArgumentNullException_WhenStateIsNull()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-        var context = Substitute.For<ICommandActorContext>();
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnSaveStateAsync(context, threadId, null!, command!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    [Fact]
-    public async Task OnSaveStateAsync_ThrowsArgumentNullException_WhenCommandIsNull()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var threadId = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "test-thread");
-        var state = new FuturesTdiSignalCommandState { Id = threadId };
-        var context = Substitute.For<ICommandActorContext>();
-
-        // Act
-        Func<Task> act = async () => await actor.InvokeOnSaveStateAsync(context, threadId, state, null!);
-
-        // Assert
-        await act.Should().ThrowAsync<ArgumentNullException>();
-    }
-
-    #endregion
-
-    #region OnExceptionAsync Happy Path Tests
-
-    [Fact]
-    public async Task OnExceptionAsync_GenericException_SendsCommandExceptionEventAndReturnsFailedResult()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-        var exception = new InvalidOperationException("Unexpected error occurred");
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
-        // Act
-        var result = await actor.InvokeOnExceptionAsync(context, threadId, command, exception);
+        var result = await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command,
+            new CommandValidationException(command.ErrorCode, "validation failed"));
 
-        // Assert
-        result.Should().NotBeNull();
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        var failedResult = result as ServiceFailed<GuidResult>;
-        failedResult.Should().NotBeNull();
-        failedResult!.Success.Should().BeFalse();
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().NotBeNullOrEmpty();
     }
 
     [Fact]
-    public async Task OnExceptionAsync_CommandValidationException_SendsErrorEventAndReturnsFailedResult()
+    public async Task OnExceptionAsync_FirstEventSendFails_RetriesAndReturnsFailure()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-        var exception = new CommandValidationException(command.ErrorCode, "Validation failed");
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
-            .Returns(ValueTask.CompletedTask);
-
-        // Act
-        var result = await actor.InvokeOnExceptionAsync(context, threadId, command, exception);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        var failedResult = result as ServiceFailed<GuidResult>;
-        failedResult.Should().NotBeNull();
-        failedResult!.Success.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task OnExceptionAsync_PreservesErrorCodeInFailedResult()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-        var exception = new InvalidOperationException("Test exception");
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
-            .Returns(ValueTask.CompletedTask);
-
-        // Act
-        var result = await actor.InvokeOnExceptionAsync(context, threadId, command, exception);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        var failedResult = result as ServiceFailed<GuidResult>;
-        failedResult.Should().NotBeNull();
-        failedResult!.Success.Should().BeFalse();
-        failedResult.ErrorMessage.Should().NotBeNullOrEmpty();
-    }
-
-    #endregion
-
-    #region OnExceptionAsync Edge Case Tests
-
-    [Fact]
-    public async Task OnExceptionAsync_WhenSendAsyncFails_ReturnsFailedResultWithFallback()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-        var exception = new InvalidOperationException("Original error");
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
-            .Returns(x => throw new Exception("SendAsync failed"));
-
-        // Act
-        var result = await actor.InvokeOnExceptionAsync(context, threadId, command, exception);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        var failedResult = result as ServiceFailed<GuidResult>;
-        failedResult.Should().NotBeNull();
-        failedResult!.Success.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task OnExceptionAsync_NullPointerException_ReturnsFailedResult()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-        var exception = new NullReferenceException("Object reference not set");
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
-            .Returns(ValueTask.CompletedTask);
-
-        // Act
-        var result = await actor.InvokeOnExceptionAsync(context, threadId, command, exception);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        var failedResult = result as ServiceFailed<GuidResult>;
-        failedResult.Should().NotBeNull();
-        failedResult!.Success.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task OnExceptionAsync_WhenFirstSendAsyncFailsButSecondSucceeds_ReturnsFailedResult()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-        var exception = new InvalidOperationException("Original error");
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        // First call throws (enters catch), second call succeeds (inner try succeeds)
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Weekly);
+        scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns(
-                _ => throw new Exception("First SendAsync failed"),
+                _ => throw new InvalidOperationException("first send failed"),
                 _ => ValueTask.CompletedTask);
 
-        // Act
-        var result = await actor.InvokeOnExceptionAsync(context, threadId, command, exception);
+        var result = await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command,
+            new InvalidOperationException("generation failed"));
 
-        // Assert
-        result.Should().NotBeNull();
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        var failedResult = result as ServiceFailed<GuidResult>;
-        failedResult.Should().NotBeNull();
-        failedResult!.Success.Should().BeFalse();
+        await scenario.Context.Received(2)
+            .SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>());
     }
 
     [Fact]
-    public async Task OnExceptionAsync_WithNullContext_ReturnsFailedResult()
+    public async Task OnExceptionAsync_BothEventSendsFail_ReturnsCommandFailureFallback()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Monthly);
+        scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
+            .Returns<ValueTask>(_ => throw new InvalidOperationException("send failed"));
 
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var result = await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command,
+            new InvalidOperationException("generation failed"));
 
-        var threadId = command!.Subject.ThreadId;
-        var exception = new InvalidOperationException("Test error");
-
-        // Act - null context triggers ArgumentNullException in try, caught by catch block
-        var result = await actor.InvokeOnExceptionAsync(null!, threadId, command, exception);
-
-        // Assert
-        result.Should().NotBeNull();
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        var failedResult = result as ServiceFailed<GuidResult>;
-        failedResult.Should().NotBeNull();
-        failedResult!.Success.Should().BeFalse();
+        result.Success.Should().BeFalse();
     }
 
     [Fact]
-    public async Task OnExceptionAsync_WithNullThreadId_ReturnsFailedResult()
+    public async Task OnExceptionAsync_NullContext_ReturnsCommandFailureFallback()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
 
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
+        var result = await scenario.Actor.InvokeOnExceptionAsync(
+            null!,
+            command.Subject.ThreadId,
+            command,
+            new InvalidOperationException("generation failed"));
 
-        var exception = new InvalidOperationException("Test error");
-        var context = Substitute.For<ICommandActorContext>();
+        result.Should().BeOfType<ServiceFailed<GuidResult>>();
+        result.Success.Should().BeFalse();
+    }
 
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+    [Fact]
+    public async Task OnExceptionAsync_EmptyThreadId_UsesRetryPathAndReturnsFailure()
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
-        // Act - null threadId triggers ArgumentNullException in try, caught by catch block
-        var result = await actor.InvokeOnExceptionAsync(context, default, command, exception);
+        var result = await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            default,
+            command,
+            new InvalidOperationException("generation failed"));
 
-        // Assert
-        result.Should().NotBeNull();
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        var failedResult = result as ServiceFailed<GuidResult>;
-        failedResult.Should().NotBeNull();
-        failedResult!.Success.Should().BeFalse();
+        result.Success.Should().BeFalse();
     }
 
     [Fact]
-    public async Task OnExceptionAsync_WithNullCommand_ReturnsFailedResult()
+    public async Task OnExceptionAsync_NullCommand_UsesRetryPathAndReturnsFailure()
     {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var threadId = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "test-thread");
-        var exception = new InvalidOperationException("Test error");
-        var context = Substitute.For<ICommandActorContext>();
-
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        var scenario = CreateScenario();
+        var threadId = new ActorThreadId(ActorType.Command, FuturesTdiSignalCommandActor.ActorName, "null-command");
+        scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
-        // Act - null command triggers ArgumentNullException in try, caught by catch block
-        var result = await actor.InvokeOnExceptionAsync(context, threadId, null!, exception);
+        var result = await scenario.Actor.InvokeOnExceptionAsync(
+            scenario.Context,
+            threadId,
+            null!,
+            new InvalidOperationException("generation failed"));
 
-        // Assert
-        result.Should().NotBeNull();
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        var failedResult = result as ServiceFailed<GuidResult>;
-        failedResult.Should().NotBeNull();
-        failedResult!.Success.Should().BeFalse();
+        result.Success.Should().BeFalse();
     }
-
-    [Fact]
-    public async Task OnExceptionAsync_WithTimeoutException_ReturnsFailedResult()
-    {
-        // Arrange
-        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
-        var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
-        var actor = _fixture.CreateTdiCommandActor(dbEventSource, logger);
-
-        var entityId = SampleData.TdiEntityId;
-        var command = SampleData.TdiGenerateCommand with
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-
-        var threadId = command!.Subject.ThreadId;
-        var exception = new TimeoutException("Database operation timed out");
-
-        var context = Substitute.For<ICommandActorContext>();
-
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
-            .Returns(ValueTask.CompletedTask);
-
-        // Act
-        var result = await actor.InvokeOnExceptionAsync(context, threadId, command, exception);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        var failedResult = result as ServiceFailed<GuidResult>;
-        failedResult.Should().NotBeNull();
-        failedResult!.Success.Should().BeFalse();
-    }
-
-    #endregion
 }

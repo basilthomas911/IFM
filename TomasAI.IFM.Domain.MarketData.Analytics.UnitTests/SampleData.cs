@@ -744,11 +744,68 @@ public static class SampleData
     public static FuturesTdiSignalEntityId TdiEntityId
         => new(ContractId, ValueDate, TradeTimePeriodType.Daily);
 
+    public static FuturesTdiSignalEntityId TdiEntityIdFor(TradeTimePeriodType timePeriod)
+        => new(ContractId, ValueDate, timePeriod);
+
     public static FuturesTdiSignalId TdiSignalId
         => new(ContractId, ValueDate, new TimeOnly(10, 0, 0));
 
     public static GenerateFuturesTdiSignalCommand TdiGenerateCommand
         => new(TdiSignalId, AtrRsiSignals);
+
+    public static GenerateFuturesTdiSignalCommand TdiGenerateCommandFor(
+        TradeTimePeriodType timePeriod,
+        FuturesRsiSignalReadModel[]? rsiSignals = null,
+        Guid? commandId = null)
+    {
+        var entityId = TdiEntityIdFor(timePeriod);
+        var normalizedSignals = (rsiSignals ?? AtrRsiSignals)
+            .Select(signal => signal with { TimePeriod = timePeriod })
+            .ToArray();
+        return new GenerateFuturesTdiSignalCommand(TdiSignalId, normalizedSignals)
+        {
+            CommandId = commandId ?? Guid.NewGuid(),
+            EntityId = entityId,
+            Subject = new ActorSubject(
+                ActorType.Command,
+                GenerateFuturesTdiSignalCommand.Actor,
+                GenerateFuturesTdiSignalCommand.Verb,
+                entityId.Format())
+        };
+    }
+
+    public static FuturesTdiSignalGeneratedEvent CreateTdiSignalGeneratedEventFor(
+        TradeTimePeriodType timePeriod,
+        FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
+        Guid? commandId = null)
+    {
+        var entityId = TdiEntityIdFor(timePeriod);
+        return new FuturesTdiSignalGeneratedEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesTdiSignalGeneratedEvent.Actor,
+                FuturesTdiSignalGeneratedEvent.Verb,
+                entityId.Format()),
+            Id = Guid.NewGuid(),
+            CommandId = commandId ?? Guid.NewGuid(),
+            EntityId = entityId,
+            EventId = 1,
+            ReceivedOn = DateTime.UtcNow,
+            EventSource = "test",
+            FuturesTdiSignal = new FuturesTdiSignalReadModel(
+                contractId: ContractId,
+                valueDate: ValueDate,
+                timePeriod: timePeriod,
+                timestamp: TdiSignalId.Timestamp,
+                upTrendCount: 8,
+                downTrendCount: 7,
+                tdi: direction,
+                tdiStrength: FuturesTrendDirectionStrengthType.Medium),
+            CreatedOn = Timestamp,
+            CreatedBy = "UnitTest"
+        };
+    }
 
     public static FuturesTdiSignalGeneratedEvent CreateTdiSignalGeneratedEvent(Guid? commandId = null)
         => new()
