@@ -5,8 +5,6 @@ using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
 using TomasAI.IFM.Shared.MarketDataAnalytics;
 using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
 using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
-using Xunit;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.QueryHandlers;
 

@@ -26,10 +26,13 @@
     <Folder Include="Strategy\IntrinsicTime\Futures\Option\IronCondor\Candidate\Comparison\" />
     <Folder Include="Strategy\IntrinsicTime\Futures\Option\SpreadEngine\OptionChain\" />
     <Folder Include="Strategy\IntrinsicTime\Futures\Option\VerticalSpread\" />
-    <Folder Include="Strategy\IntrinsicTime\Workflow\CandidateBuilder\Advisor\" />
-    <Folder Include="Strategy\IntrinsicTime\Workflow\CandidateBuilder\Comparison\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\MarketCondition\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\Event\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\Query\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\OrderComposer\Advisor\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\OrderComposer\Comparison\" />
     <Folder Include="Strategy\IntrinsicTime\Workflow\RegimeDiscovery\Advisor\" />
-    <Folder Include="Strategy\IntrinsicTime\Workflow\RiskEvaluator\" />
+    <Folder Include="Strategy\IntrinsicTime\Workflow\PortfolioRisk\" />
     <Folder Include="Strategy\IntrinsicTime\Workflow\TradeSelector\Advisor\" />
   </ItemGroup>
 
