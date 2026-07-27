@@ -12,6 +12,9 @@ namespace TomasAI.IFM.Application.Blackboard;
 /// <param name="jsonSerializer"></param>
 public class EventProjectorStateModel(IRedisCache redisCache, IJsonSerializer jsonSerializer)
 {
+    /// <summary>
+    /// Gets the cache name for the event projector state.
+    /// </summary>
     readonly string CacheName = $"{DataCacheName.EventProjectorState}";
 
     /// <summary>
@@ -38,5 +41,15 @@ public class EventProjectorStateModel(IRedisCache redisCache, IJsonSerializer js
         var key = $"{CacheName}:{eventId}";
         var value = jsonSerializer.Serialize(eventProjectorState);
         redisCache.Set(key, value);
+    }
+
+    /// <summary>
+    /// Clears the event projector state from the cache for a given event ID.
+    /// </summary>
+    /// <param name="eventId"></param>
+    public void Clear(long eventId)
+    {
+        var key = $"{CacheName}:{eventId}";
+        redisCache.Remove(key);
     }
 }

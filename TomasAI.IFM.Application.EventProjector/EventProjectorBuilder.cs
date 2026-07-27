@@ -20,9 +20,18 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
     Func<IEvent, string, ValueTask> _failedEventAction = default;
 
     /// <summary>
-    /// Executes the event projector with the specified denormalize event and denormalizer action.
-    /// </summary> 
-    public async ValueTask<bool> RunAsync<TEvent, TComplete, TFail, TEntityId>(TEvent denormalizeEvent, Func<TEvent, Task> denormalizerAction, bool postDenormalizeEvent = true)
+    /// Runs the event projector with the specified projection event, projection action, and optional post-denormalization event flag.
+    /// </summary>
+    /// <typeparam name="TEvent"></typeparam>
+    /// <typeparam name="TComplete"></typeparam>
+    /// <typeparam name="TFail"></typeparam>
+    /// <typeparam name="TEntityId"></typeparam>
+    /// <param name="projectionEvent"></param>
+    /// <param name="projectionAction"></param>
+    /// <param name="postProjectionEvent"></param>
+    /// <returns></returns>
+    public async ValueTask<bool> RunAsync<TEvent, TComplete, TFail, TEntityId>(
+        TEvent projectionEvent, Func<TEvent, Task> projectionAction, bool postProjectionEvent = true)
         where TEvent : class, IEvent<TEntityId>
         where TComplete : class, ICompleteEvent<TEntityId>
         where TFail : class, IErrorEvent<TEntityId>
@@ -33,17 +42,17 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
             var currentState = _eventProjector.BlackboardService.EventProjectorState.Get(e.EventId);
             currentState = currentState with
             {
-                Outcome = EventProjectorOutcomeType.Retrying,
+                Outcome = EventProjectorOutcomeType.Failed,
                 ErrorMessage = $"Max {_eventProjector.DurableReplayQueue.GetMaxReplayAttemps(_eventProjector.DurableReplayQueueName)} attempts reached for event {e.EventId} of type {e.GetType().Name}"
             };
-            _eventProjector.BlackboardService.EventProjectorState.Set(e.EventId, currentState);
+            _eventProjector.BlackboardService.EventProjectorState.Clear(e.EventId);
             return _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
         });
 
         SetProjectionProcessingEvent<TEvent, TEntityId>(e =>
         {
             e.CheckForEmptyCommandId();
-            if (postDenormalizeEvent)
+            if (postProjectionEvent)
             {
                 EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event, e.Subject.Name
                     , e.Subject.Verb, e.EntityId.Format()));
@@ -52,12 +61,12 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
             return ValueTask.CompletedTask;
         });
 
-        SetProjectionProcessingAction<TEvent, TEntityId>(e => denormalizerAction(e));
+        SetProjectionProcessingAction<TEvent, TEntityId>(e => projectionAction(e));
 
         SetProjectionCompletedEventAction<TEntityId, TComplete>(e => 
         {
-            var denormalizerEvent = e as IEvent<TEntityId>;
-            var completedEvent = denormalizerEvent.ToCompleteEvent<TComplete, TEntityId>() as TComplete;
+            var projectionEvent = e as IEvent<TEntityId>;
+            var completedEvent = projectionEvent.ToCompleteEvent<TComplete, TEntityId>() as TComplete;
             if (completedEvent is not null)
             {
                 return _eventProjector.Context.SendAsync<TComplete, TEntityId>(completedEvent);
@@ -67,14 +76,19 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
         
         SetProjectionFailedEventAction<TEntityId, TFail>((e, errorMessage) => 
         {
-            var denormalizerEvent = e as IEvent<TEntityId>;
-            var failedEvent = denormalizerEvent.ToFailEvent<TFail, TEntityId>(new Exception(errorMessage)) as TFail;
+            var projectionEvent = e as IEvent<TEntityId>;
+            var failedEvent = projectionEvent.ToFailEvent<TFail, TEntityId>(new Exception(errorMessage)) as TFail;
             return (failedEvent is not null)
                 ? _eventProjector.Context.SendAsync<TFail, TEntityId>(failedEvent)
                 : ValueTask.CompletedTask;
         });
 
-        await ExecuteAsync<TEvent, TEntityId>(denormalizeEvent);
+        /// <summary>
+        /// Executes the event projector with the specified projection event.
+        /// </summary>
+        /// <param name="projectionEvent"></param>
+        /// <returns></returns>
+        await ExecuteAsync<TEvent, TEntityId>(projectionEvent);
         return true;
     }
 
@@ -150,7 +164,7 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
                 Stage = EventProjectorStageType.Completed,
                 Outcome = EventProjectorOutcomeType.Completed
             };
-            _eventProjector.BlackboardService.EventProjectorState.Set(domainEvent.EventId, currentState);
+            _eventProjector.BlackboardService.EventProjectorState.Clear(domainEvent.EventId);
             await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
             return currentState.Stage;
         }
@@ -163,7 +177,7 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
                 Stage = EventProjectorStageType.Completed,
                 Outcome = EventProjectorOutcomeType.Failed 
             };
-            _eventProjector.BlackboardService.EventProjectorState.Set(domainEvent.EventId, currentState);
+            _eventProjector.BlackboardService.EventProjectorState.Clear(domainEvent.EventId);
             await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
             return currentState.Stage;
         }

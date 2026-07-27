@@ -2,7 +2,7 @@
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Framework.Messaging;
+using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
@@ -29,7 +29,6 @@ namespace TomasAI.IFM.Application.EventProjector;
 public abstract class BaseEventProjector<TActor> (
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource,
-    IDbContextFactory dbFactory,
     IBlackboardService blackboardService,
     ICommandActorContext commandActorContext,
     ILogger logger): IEventProjector<TActor>
@@ -45,11 +44,6 @@ public abstract class BaseEventProjector<TActor> (
     /// Gets the database context for event sourcing operations.
     /// </summary>
     public IEventSourceActorDbContext DbEventSource { get; init; } = IsArgumentNull.Set(dbEventSource);
-
-    /// <summary>
-    /// Gets the database context factory for creating database contexts.
-    /// </summary>
-    public IDbContextFactory DbFactory { get; init; } = IsArgumentNull.Set(dbFactory);
 
     /// <summary>
     /// Gets the durable replay queue used for event replay operations.

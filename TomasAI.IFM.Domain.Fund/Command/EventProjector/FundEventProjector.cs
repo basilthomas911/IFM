@@ -2,27 +2,26 @@
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Fund.Command.Actor;
-using TomasAI.IFM.Domain.Fund.Shared;
-using TomasAI.IFM.Domain.Fund.Shared.Events;
-using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Fund.Shared;
+using TomasAI.IFM.Domain.Fund.Shared.Events;
+using TomasAI.IFM.Domain.Fund.Command.Actor;
 
 namespace TomasAI.IFM.Domain.Fund.Command.EventProjector;
 
 public class FundEventProjector(
+    IDbContextFactory dbFactory,
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource,
-    IDbContextFactory dbFactory,
     IBlackboardService blackboardService,
     ICommandActorContext commandActorContext,
     ILogger<FundEventProjector> logger) : BaseEventProjector<FundCommandActor>(
-       durableReplayQueue, dbEventSource,  dbFactory, blackboardService, commandActorContext, logger)
+       durableReplayQueue, dbEventSource, blackboardService, commandActorContext, logger)
 {
     EventProjectorBuilder ProjectionBuilder => CreateProjectionBuilder();
-    public override string DurableProcessQueueName => $"FundEventProjector.ProcessQueue";
-    public override string DurableReplayQueueName => $"FundEventProjector.ReplayQueue";
+    public override string DurableProcessQueueName => "FundEventProjector.ProcessQueue";
+    public override string DurableReplayQueueName => "FundEventProjector.ReplayQueue";
 
     /// <summary>
     /// Processes the domain event and projects it to the database.
@@ -33,7 +32,7 @@ public class FundEventProjector(
     {
         try
         {
-            var db = DbFactory.FundDb;
+            var db = dbFactory.FundDb;
             Logger.LogInformation("{ProcessQueue}: processing event projection for: {EventName}", DurableProcessQueueName, domainEvent.GetType().Name);
             _ = domainEvent switch
             {
