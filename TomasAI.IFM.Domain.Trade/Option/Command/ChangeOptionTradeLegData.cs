@@ -48,7 +48,7 @@ public static class ChangeOptionTradeLegData
             if (!state.TradePositionExists(tradePositionId))
             {
                 state.Update(state.TradePositions
-                            .GetAddedEvent(tradePositionId, state.TradeType, e.AssetPrice, e.RiskFreeRate, e.OriginatedOn, e.OriginatedBy), e);
+                            .GetTradePositionAddedEvent(tradePositionId, state.TradeType, e.AssetPrice, e.RiskFreeRate, e.OriginatedOn, e.OriginatedBy), e);
             }
 
             if (state.HasOptionLegDataChanged(e))
@@ -57,7 +57,7 @@ public static class ChangeOptionTradeLegData
 
                 return state
                     .Update(state.TradePositions
-                        .GetUpdatedEvent(tradePositionId, state.TradeType, e.OptionLegData.OptionLegId, e.OriginatedOn, e.OriginatedBy), e);
+                        .GetTradePositionUpdatedEvent(tradePositionId, state.TradeType, e.OptionLegData.OptionLegId, e.OriginatedOn, e.OriginatedBy), e);
             }
             return false;
         }

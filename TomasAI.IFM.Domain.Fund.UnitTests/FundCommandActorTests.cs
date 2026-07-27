@@ -2,7 +2,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -14,6 +13,7 @@ using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Command.Exceptions;
 using TomasAI.IFM.Domain.Fund.Command.State;
 using TomasAI.IFM.Domain.Fund.Command.Actor;
+using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.Fund.UnitTests;
 

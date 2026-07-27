@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Newtonsoft.Json;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

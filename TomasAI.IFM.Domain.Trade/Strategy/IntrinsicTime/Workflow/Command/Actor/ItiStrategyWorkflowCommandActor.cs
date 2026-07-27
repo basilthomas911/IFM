@@ -4,6 +4,6 @@ using System.Text;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.IntrinsicTime.Workflow.Command.Actor;
 
-public class ItiStrategyWorkflowActor
+public class ItiStrategyWorkflowCommandActor
 {
 }

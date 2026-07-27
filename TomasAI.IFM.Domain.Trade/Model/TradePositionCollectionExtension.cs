@@ -23,7 +23,7 @@ public static class TradePositionCollectionExtension
     /// <param name="updatedBy"></param>
     /// <returns></returns>
     /// <exception cref="NotImplementedException"></exception>
-    public static TradePositionAddedEvent GetAddedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType tradeType, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy)
+    public static TradePositionAddedEvent GetTradePositionAddedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType tradeType, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy)
         => tradeType switch {
             TradeType.ShortIronCondor or TradeType.LongIronCondor => CreateIronCondorTradePositionAddedEvent( tradePositions, key, assetPrice, riskFreeRate, updatedOn, updatedBy),
             _ => throw new NotImplementedException()
@@ -39,7 +39,7 @@ public static class TradePositionCollectionExtension
     /// <param name="updatedOn"></param>
     /// <param name="updatedBy"></param>
     /// <returns></returns>
-    public static TradePositionUpdatedEvent GetUpdatedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType baseTradeType,  string optionLegId, DateTime updatedOn, string updatedBy)
+    public static TradePositionUpdatedEvent GetTradePositionUpdatedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType baseTradeType,  string optionLegId, DateTime updatedOn, string updatedBy)
         => new()
         {
             OptionLegId = optionLegId,

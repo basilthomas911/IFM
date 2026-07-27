@@ -9,7 +9,7 @@ using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Storage;
-using CommandStatus = TomasAI.IFM.Application.Storage.Postgres.EventSourceDb.CommandStatus;
+using CommandStatus = TomasAI.IFM.Application.Storage.CommandStatus;
 
 namespace TomasAI.IFM.Application.Storage.ScyllaDb.EventSourceDb;
 

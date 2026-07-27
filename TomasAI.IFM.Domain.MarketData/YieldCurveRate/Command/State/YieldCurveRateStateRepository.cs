@@ -10,12 +10,12 @@ using TomasAI.IFM.Shared.MarketData.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
 
-internal class YieldCurveRateStateRepository(
+public class YieldCurveRateStateRepository(
     IDbContextFactory dbFactory,
     IEventSourceActorStateFactory aggregateFactory,
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
-    ILogger<BaseEventSourceRepository> logger)
+    ILogger<YieldCurveRateStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<YieldCurveRateCommandState>
 {
     /// <summary>

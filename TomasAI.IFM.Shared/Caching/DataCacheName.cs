@@ -51,7 +51,8 @@ namespace TomasAI.IFM.Shared.Caching
         SequenceCounter,
         RiskFreeRate,
         FuturesRsiSignal,
-        FuturesRsiDailySignal
+        FuturesRsiDailySignal,
+        EventProjectorState,
     }
 
     public static class DataCacheNameExtensions

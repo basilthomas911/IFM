@@ -2,7 +2,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Securities.UnitTests;
@@ -17,6 +16,7 @@ using TomasAI.IFM.Shared.MarketData.Exceptions;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Actor;
+using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.UnitTests.FuturesContract;
 

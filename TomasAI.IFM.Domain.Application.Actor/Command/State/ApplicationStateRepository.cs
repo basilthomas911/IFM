@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.Application.Events;

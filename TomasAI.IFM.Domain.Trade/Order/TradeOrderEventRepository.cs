@@ -16,7 +16,7 @@ public class TradeOrderEventRepository(
     IBoundedContextFactory aggFactory,
     IEventSourceDbContext dbEventSource,
     IEventDenormalizer<TradeOrderBoundedContextState> eventDenormalizer,
-    ILogger<BaseEventSourceRepository> logger) 
+    ILogger<TradeOrderEventRepository> logger) 
     : BaseEventSourceRepository(aggFactory, dbEventSource, eventDenormalizer, logger), IEventRepository<TradeOrderBoundedContextState>
 {
 

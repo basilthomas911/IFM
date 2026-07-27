@@ -24,14 +24,11 @@ public class IBMarketDataApi : MarketDataApi.IMarketDataApi
     IStatusConsoleWriter _statusConsoleWriter;
     IBClient _ibApi;
     Action<Guid, int, string>? _errorhandler;
-    IRequestIdCollection _requestIds;
-
     public IBMarketDataApi(MarketDataApi.IMarketDataApiOptions options, IStatusConsoleWriter statusConsoleWriter, IMarketDataFeedEventProducer marketDataFeedEventProducer)
     {
         _options = options;
         _statusConsoleWriter = statusConsoleWriter;
         _ibApi = new IBClient(marketDataFeedEventProducer);
-        _requestIds = new RequestIdCollection();
         InitMarketDataApi();
     }
 
@@ -39,7 +36,6 @@ public class IBMarketDataApi : MarketDataApi.IMarketDataApi
     {
         _stmFuturesTickDataMap = new();
         _statusMsgMap = new();
-        _requestIds = new RequestIdCollection();
     }
 
     /// <summary>

@@ -21,7 +21,7 @@ public class TradePlanForwardLossLimitEventRepository(
     IBoundedContextFactory aggFactory,
     IEventSourceDbContext dbEventSource,
     IEventDenormalizer<TradePlanForwardLossLimitBoundedContextState> eventDenormalizer,
-    ILogger<BaseEventSourceRepository> logger)
+    ILogger<TradePlanForwardLossLimitEventRepository> logger)
     : BaseEventSourceRepository(aggFactory, dbEventSource, eventDenormalizer, logger), IEventRepository<TradePlanForwardLossLimitBoundedContextState>
 {
     /// <summary>

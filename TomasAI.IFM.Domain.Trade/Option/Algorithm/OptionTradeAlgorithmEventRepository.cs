@@ -18,7 +18,7 @@ public class OptionTradeAlgorithmEventRepository(
     IBoundedContextFactory aggFactory,
     IEventSourceDbContext dbEventSource,
     IEventDenormalizer<TradePlanBoundedContextState> eventDenormalizer,
-    ILogger<BaseEventSourceRepository> logger) 
+    ILogger<OptionTradeAlgorithmEventRepository> logger) 
     : BaseEventSourceRepository(aggFactory, dbEventSource, eventDenormalizer, logger), IEventRepository<OptionTradeAlgorithmBoundedContextState>
 {
     /// <summary>

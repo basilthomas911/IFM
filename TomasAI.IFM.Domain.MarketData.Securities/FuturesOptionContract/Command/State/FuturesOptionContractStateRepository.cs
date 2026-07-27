@@ -26,7 +26,7 @@ public class FuturesOptionContractStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IDbContextFactory dbFactory,
     IActorService actorService,
-    ILogger<BaseEventSourceRepository> logger)
+    ILogger<FuturesOptionContractStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesOptionContractCommandState>
 {
     /// <summary>

@@ -56,6 +56,7 @@ public class BlackboardService : IBlackboardService
         RiskFreeRate = new(redisCache, jsonSerializer);
         FuturesRsiSignal = new(redisCache, jsonSerializer);
         FuturesRsiDailySignal = new(redisCache, jsonSerializer);
+        EventProjectorState = new(redisCache, jsonSerializer);
     }
 
     public OptionTradeModel OptionTrade { get; }
@@ -96,4 +97,5 @@ public class BlackboardService : IBlackboardService
     public RiskFreeRateModel RiskFreeRate { get; }
     public FuturesRsiSignalModel FuturesRsiSignal { get; }
     public FuturesRsiDailySignalModel FuturesRsiDailySignal { get; }
+    public EventProjectorStateModel EventProjectorState { get; }
 }

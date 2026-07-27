@@ -50,6 +50,7 @@
 		<ProjectReference Include="..\TomasAI.IFM.Application.Api.Client\TomasAI.IFM.Application.Api.Client.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Application.Blackboard\TomasAI.IFM.Application.Blackboard.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Application.Command\TomasAI.IFM.Application.Command.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Application.EventProjector\TomasAI.IFM.Application.EventProjector.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Application.Query\TomasAI.IFM.Application.Query.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.Fund\TomasAI.IFM.Domain.Fund.csproj" />

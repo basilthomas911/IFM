@@ -101,7 +101,6 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
         //if (md.TradingDays == 0) return new ServiceFailed<SpreadDistributionJobReadModel>(2008, $"SpreadDistributionJobFailed: Trading Days not found");
         var daysToMaturity = Math.Min(48, md.TradingDays);
 
-
         // get iron condor market data feed prices...
         var mdf = await _context.GetIronCondorMarketDataFeedAsync(
             underlyingContractId: optionTrade.UnderlyingContractId,

@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.State;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;

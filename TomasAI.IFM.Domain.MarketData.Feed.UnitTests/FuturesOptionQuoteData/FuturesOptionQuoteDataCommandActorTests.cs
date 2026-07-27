@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.State;
@@ -18,6 +17,7 @@ using TomasAI.IFM.Shared.MarketDataFeed.Events;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.Actor;
+using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionQuoteData;
 

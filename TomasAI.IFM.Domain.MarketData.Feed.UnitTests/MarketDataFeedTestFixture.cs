@@ -3,7 +3,6 @@ using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command;

@@ -2,7 +2,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Option.Command;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -13,6 +12,7 @@ using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.Commands;
 using TomasAI.IFM.Shared.Trade.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Actor;
+using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Option;
 

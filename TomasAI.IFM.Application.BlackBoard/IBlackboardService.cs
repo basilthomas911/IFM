@@ -40,4 +40,5 @@ public interface IBlackboardService
     RiskFreeRateModel RiskFreeRate { get; }
     FuturesRsiSignalModel FuturesRsiSignal { get; }
     FuturesRsiDailySignalModel FuturesRsiDailySignal { get; }
+    EventProjectorStateModel EventProjectorState { get; }
 }

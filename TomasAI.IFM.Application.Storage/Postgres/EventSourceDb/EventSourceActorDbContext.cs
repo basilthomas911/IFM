@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Storage;
@@ -163,7 +163,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <param name="domainEvents">The collection of domain events to be saved. Cannot be null or empty.</param>
     /// <returns>A <see cref="DomainEventCollection"/> containing the saved domain events, including their updated identifiers.</returns>
     /// <exception cref="StorageException">Thrown if a storage-related error occurs during the operation.</exception>
-    public async Task<DomainEventCollection> SaveEventsAsync( string eventStream, Guid commandId, DomainEventCollection domainEvents, Func<DomainEventCollection, ValueTask> denormalizer)
+    public async Task<DomainEventCollection> SaveEventsAsync( string eventStream, Guid commandId, DomainEventCollection domainEvents)
     {
         var savedEvents = new DomainEventCollection();
         List<(int EventNameId, IEvent DomainEvent)> eventLogParams = [];
@@ -184,7 +184,6 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 EventInitHelper.SetProperty(e.DomainEvent, nameof(IEvent.EventId), await InsertEventLogAsync(streamId, e.EventNameId, e.DomainEvent.ToEventData(), commandId, eventDate));
                 savedEvents.Add(e.DomainEvent);
             }
-            await denormalizer(savedEvents);
             tx?.Commit();
         }
         catch (ConcurrencyException)
@@ -226,6 +225,33 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                     commandData: commandData
                 ))
                 .ExecuteCommandAsync();
+
+    /// <summary>
+    /// Asynchronously inserts a log entry for the result of an event projector into the event source database.
+    /// </summary>
+    /// <param name="log"></param>
+    /// <returns></returns>
+    /// <exception cref="NotImplementedException"></exception>
+    public async Task InsertEventProjectorResultAsync(EventProjectorResultReadModel log)
+        => throw new NotImplementedException();
+    /*
+    => await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.InsertEventProjectorResultLog)
+            .SetParameters(new InsertEventProjectorResultLog(
+                eventId: log.EventId,
+                eventVersion: log.EventVersion,
+                projectorName: log.ProjectorName,
+                result: $"{log.Result}"
+            ))
+            .ExecuteCommandAsync();
+    }
+    */
+
+    public async Task InsertEventProjectorStateAsync(EventProjectorStateReadModel state)
+        => throw new NotImplementedException();
+
+     public async Task GetEventProjectorStateAsync(long eventId)
+        => throw new NotImplementedException();
 
     /// <summary>
     /// Asynchronously updates the log entry for a specified command with a new status and timestamp.

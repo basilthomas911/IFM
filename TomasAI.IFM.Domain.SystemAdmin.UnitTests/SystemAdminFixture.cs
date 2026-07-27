@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Domain.SystemAdmin.Command;
 using TomasAI.IFM.Domain.SystemAdmin.Query;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
@@ -12,6 +11,7 @@ using static TomasAI.IFM.Domain.SystemAdmin.UnitTests.SystemAdminCommandActorTes
 using static TomasAI.IFM.Domain.SystemAdmin.UnitTests.SystemAdminQueryActorTests;
 using TomasAI.IFM.Domain.SystemAdmin.Command.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.Query.Actor;
+using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.UnitTests;
 

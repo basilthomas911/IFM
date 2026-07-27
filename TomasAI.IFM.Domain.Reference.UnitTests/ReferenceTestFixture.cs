@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Domain.Reference.EconomicCalendar.Command;
 using TomasAI.IFM.Domain.Reference.EconomicCalendar.Query;
 using TomasAI.IFM.Domain.Reference.LookupType.Command;

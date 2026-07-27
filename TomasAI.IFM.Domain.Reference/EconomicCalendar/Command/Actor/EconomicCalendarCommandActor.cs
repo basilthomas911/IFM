@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Newtonsoft.Json;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -12,6 +11,7 @@ using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Exceptions;
 using TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.State;
 using TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Validation;
+using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Actor;
 

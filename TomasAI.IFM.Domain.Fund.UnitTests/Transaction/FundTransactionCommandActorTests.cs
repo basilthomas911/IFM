@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Application.Storage.ScyllaDb.FundDb;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -14,6 +13,7 @@ using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.Exceptions;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.State;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.Actor;
+using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.Fund.UnitTests.Transaction;
 

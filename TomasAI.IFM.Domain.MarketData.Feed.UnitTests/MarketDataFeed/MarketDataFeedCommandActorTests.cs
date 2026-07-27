@@ -2,7 +2,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Command;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -15,6 +14,7 @@ using TomasAI.IFM.Shared.MarketDataFeed.Commands;
 using TomasAI.IFM.Shared.MarketDataFeed.Events;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
+using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed;
 

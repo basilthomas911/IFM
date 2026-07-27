@@ -203,7 +203,8 @@ public abstract class BaseEventSourceActorRepository
             // check for any state change events...
             if (state!.Events.Count > 0)
             {
-                var domainEvents = await _dbEventSource.SaveEventsAsync(command.StreamId, command.CommandId, state.Events, async (e) => await DenormalizeEventsAsync(context, e));
+                var domainEvents = await _dbEventSource.SaveEventsAsync(command.StreamId, command.CommandId, state.Events);
+                await DenormalizeEventsAsync(context, domainEvents);
                 _logger.LogInformationEvent(_serviceId, "saving state: {StateName} with {EventsCount} domain events from command: {CommandName} to event stream: {StreamId}", stateName, domainEvents.Count, command.CommandName, command.StreamId);
             }
         }

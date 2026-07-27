@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Newtonsoft.Json;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.Validation;
