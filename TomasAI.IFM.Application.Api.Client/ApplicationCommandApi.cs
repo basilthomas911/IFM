@@ -1,6 +1,6 @@
-using TomasAI.IFM.Shared.Application.CommandParameters;
-using TomasAI.IFM.Shared.Application.Commands;
-using TomasAI.IFM.Shared.Application.ServiceApi;
+using TomasAI.IFM.Domain.Application.Shared.CommandParameters;
+using TomasAI.IFM.Domain.Application.Shared.Commands;
+using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Framework.Messaging;

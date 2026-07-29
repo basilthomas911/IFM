@@ -50,6 +50,7 @@
 		<ProjectReference Include="..\TomasAI.IFM.Service.TradePosition\TomasAI.IFM.Service.TradePosition.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Shared.EventProducers\TomasAI.IFM.Shared.EventProducers.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.Application.Shared\TomasAI.IFM.Domain.Application.Shared.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.TradePlan.HostedService\TomasAI.IFM.Service.TradePlan.HostedService.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.TradePlan\TomasAI.IFM.Service.TradePlan.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
@@ -58,6 +59,7 @@
 		<ProjectReference Include="..\TomasAI.IFM.Domain.SystemAdmin.Shared\TomasAI.IFM.Domain.SystemAdmin.Shared.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

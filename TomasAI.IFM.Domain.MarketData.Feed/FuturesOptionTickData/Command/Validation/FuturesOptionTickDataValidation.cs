@@ -1,11 +1,14 @@
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using TomasAI.IFM.Shared.MarketData.Validation;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.Validation;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
-using TomasAI.IFM.Shared.Reference.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Validation;

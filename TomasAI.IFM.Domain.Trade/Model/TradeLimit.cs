@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using FluentValidation;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Trade.Shared;

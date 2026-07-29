@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.AspNetCore.Mvc.Testing;
 using FluentAssertions;
 using TomasAI.IFM.Framework.Messaging.RestApi;

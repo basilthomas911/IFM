@@ -1,8 +1,9 @@
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Messaging.Kafka;
-using TomasAI.IFM.Shared.MarketData.Events;
-using TomasAI.IFM.Shared.MarketData.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.Events;

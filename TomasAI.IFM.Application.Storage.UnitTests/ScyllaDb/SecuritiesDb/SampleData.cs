@@ -1,5 +1,7 @@
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.SecuritiesDb
 {

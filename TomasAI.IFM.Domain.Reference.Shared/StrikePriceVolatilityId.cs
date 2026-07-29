@@ -1,6 +1,8 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
-using TomasAI.IFM.Shared.MarketData;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using Newtonsoft.Json;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

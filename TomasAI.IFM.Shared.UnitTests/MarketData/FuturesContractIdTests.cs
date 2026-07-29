@@ -1,9 +1,10 @@
-﻿using System;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Xunit;
 using FluentAssertions;
-using TomasAI.IFM.Shared.MarketData;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Shared.UnitTests.MarketData
 {

@@ -6,8 +6,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TomasAI.IFM.Shared.Reference.ViewModels;
-using TomasAI.IFM.Shared.Reference.ServiceApi;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.UI.Net.Models

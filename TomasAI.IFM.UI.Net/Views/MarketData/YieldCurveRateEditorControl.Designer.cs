@@ -107,7 +107,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             // 
             // yieldCurveRatesBindingSource
             // 
-            yieldCurveRatesBindingSource.DataSource = typeof(Shared.MarketData.ViewModels.YieldCurveRateReadModel);
+            yieldCurveRatesBindingSource.DataSource = typeof(global::TomasAI.IFM.Domain.MarketData.Shared.ViewModels.YieldCurveRateReadModel);
             // 
             // gridYieldCurveRates
             // 

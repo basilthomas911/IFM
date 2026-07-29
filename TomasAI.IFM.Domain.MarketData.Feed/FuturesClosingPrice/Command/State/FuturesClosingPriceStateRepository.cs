@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
@@ -5,7 +6,7 @@ using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Shared.MarketDataFeed;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 

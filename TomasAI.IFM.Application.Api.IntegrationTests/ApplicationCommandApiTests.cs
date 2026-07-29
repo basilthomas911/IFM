@@ -3,7 +3,7 @@ using FluentAssertions;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Shared.Application.CommandParameters;
+using TomasAI.IFM.Domain.Application.Shared.CommandParameters;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
 

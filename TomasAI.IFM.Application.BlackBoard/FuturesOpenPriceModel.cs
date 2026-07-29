@@ -1,8 +1,9 @@
-﻿using TomasAI.IFM.Framework.Caching;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Shared.MarketDataFeed;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 
 namespace TomasAI.IFM.Application.Blackboard;
 

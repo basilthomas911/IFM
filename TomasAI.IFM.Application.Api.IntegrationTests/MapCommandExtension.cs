@@ -2,7 +2,8 @@
 using Microsoft.AspNetCore.Http;
 using TomasAI.IFM.Application.Api.IntegrationTests.CommandApiResults;
 using TomasAI.IFM.Shared.Application;
-using TomasAI.IFM.Shared.Application.Commands;
+using TomasAI.IFM.Domain.Application.Shared;
+using TomasAI.IFM.Domain.Application.Shared.Commands;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
 

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.JobScheduler;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.ReferenceDb;
 

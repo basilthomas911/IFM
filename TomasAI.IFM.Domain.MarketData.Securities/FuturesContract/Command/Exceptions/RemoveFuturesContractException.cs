@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.MarketData.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions
 {

@@ -1,7 +1,9 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
 using System.Text.Json.Serialization;
-using TomasAI.IFM.Shared.MarketData;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.ViewModels;

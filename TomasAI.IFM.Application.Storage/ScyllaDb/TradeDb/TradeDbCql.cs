@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 namespace TomasAI.IFM.Application.Storage.ScyllaDb.TradeDb;
 
 internal class TradeDbCql

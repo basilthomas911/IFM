@@ -1,4 +1,5 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.UI.Net.Views.MarketData
 {
     partial class FuturesOptionContractEditorControl

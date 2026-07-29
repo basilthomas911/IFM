@@ -7,7 +7,7 @@ using TomasAI.IFM.Domain.Reference.LookupType.Command.Exceptions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
 using TomasAI.IFM.Application.Storage;

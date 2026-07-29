@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.MarketData;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Model;
 

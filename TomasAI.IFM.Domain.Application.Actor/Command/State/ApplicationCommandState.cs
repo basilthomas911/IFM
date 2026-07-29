@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.Application.Events;
+﻿using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

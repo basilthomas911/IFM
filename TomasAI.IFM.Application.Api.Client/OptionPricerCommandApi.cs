@@ -1,5 +1,5 @@
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Application.Commands;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Domain.OptionPricer.Shared.CommandParameters;

@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Reference.LookupType.Command.Validation;

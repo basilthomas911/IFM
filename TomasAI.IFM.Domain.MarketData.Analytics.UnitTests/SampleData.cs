@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event;
@@ -10,7 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Actor;

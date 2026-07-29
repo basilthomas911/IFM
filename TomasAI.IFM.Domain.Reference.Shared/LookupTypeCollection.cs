@@ -1,6 +1,6 @@
 using MessagePack;
 using System.Collections;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Reference.Shared;

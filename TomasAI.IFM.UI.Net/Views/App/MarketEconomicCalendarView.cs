@@ -6,7 +6,7 @@ using System.Data;
 using System.Drawing;
 using System.Linq;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 
 namespace TomasAI.IFM.UI.Net.Views.App;

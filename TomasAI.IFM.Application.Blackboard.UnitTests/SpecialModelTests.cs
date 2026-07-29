@@ -1,10 +1,14 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.Util;
@@ -405,7 +409,7 @@ public class FuturesContractModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
-        var contractId = new Shared.MarketData.FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
+        var contractId = new FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
         var expected = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns("{}");
@@ -422,7 +426,7 @@ public class FuturesContractModelTests
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        var contractId = new Shared.MarketData.FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
+        var contractId = new FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns((string?)null);
 
@@ -437,7 +441,7 @@ public class FuturesContractModelTests
     public void Set_SerializesAndCachesValue()
     {
         // Arrange
-        var contractId = new Shared.MarketData.FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
+        var contractId = new FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
         var data = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(data).Returns("value");

@@ -1,5 +1,7 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Model;
-using TomasAI.IFM.Shared.MarketData;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
 

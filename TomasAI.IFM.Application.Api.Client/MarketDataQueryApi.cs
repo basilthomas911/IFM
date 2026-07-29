@@ -1,12 +1,14 @@
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.MarketData;
-using TomasAI.IFM.Shared.MarketData.ServiceApi;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
-using TomasAI.IFM.Shared.MarketData.Queries;
-using TomasAI.IFM.Shared.MarketData.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 
 namespace TomasAI.IFM.Application.Api.Client;
 

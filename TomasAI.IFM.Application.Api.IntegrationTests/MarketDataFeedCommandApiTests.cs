@@ -1,14 +1,18 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using System;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Shared.MarketDataFeed;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
@@ -253,10 +257,10 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var contract = new FuturesContractV2ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", valueDate, true);
         var eodDataToday = new FuturesEodDataV2ReadModel(
             "TEST1", valueDate, "SYM", 1m, 1m, 1m, 1m, 1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-            TomasAI.IFM.Shared.MarketData.MarketDirectionType.NeutralDown,
-            TomasAI.IFM.Shared.MarketData.MarketVolatilityType.Normal,
-            TomasAI.IFM.Shared.MarketData.PriceDirectionType.Flat,
-            TomasAI.IFM.Shared.MarketData.PriceVolatilityType.Flat,
+            TomasAI.IFM.Domain.MarketData.Shared.MarketDirectionType.NeutralDown,
+            TomasAI.IFM.Domain.MarketData.Shared.MarketVolatilityType.Normal,
+            TomasAI.IFM.Domain.MarketData.Shared.PriceDirectionType.Flat,
+            TomasAI.IFM.Domain.MarketData.Shared.PriceVolatilityType.Flat,
             1.0, 1);
         var eodDataRange = new List<FuturesEodDataV2ReadModel> { eodDataToday };
         var normCurveData = new NormalCurveTableReadModel(new NormalCurveDataReadModel[0]);

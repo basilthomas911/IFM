@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.AspNetCore.Mvc.Testing;
 using FluentAssertions;
 using TomasAI.IFM.Framework.Messaging.RestApi;
@@ -86,7 +86,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory)
             fundId: 1,
             orderId: 1,
             tradeId: 1,
-            tradeType: TomasAI.IFM.Shared.Trade.TradeType.LongCall,
+            tradeType: TomasAI.IFM.Domain.Trade.Shared.TradeType.LongCall,
             tradeDate: DateOnly.FromDateTime(DateTime.Now),
             maturityDate: DateOnly.FromDateTime(DateTime.Now.AddDays(30)),
             tradeState: TradeState.NewTrade,
@@ -170,7 +170,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory)
             fundId: 1,
             orderId: 1,
             tradeId: 1,
-            tradeType: TomasAI.IFM.Shared.Trade.TradeType.LongCall,
+            tradeType: TomasAI.IFM.Domain.Trade.Shared.TradeType.LongCall,
             valueDate: DateOnly.FromDateTime(DateTime.Now),
             tradeStatus: TradeStatus.Open,
             description: "Test Transaction",
@@ -198,7 +198,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory)
                 fundId: 1,
                 orderId: 1,
                 tradeId: 1,
-                tradeType: TomasAI.IFM.Shared.Trade.TradeType.LongCall,
+                tradeType: TomasAI.IFM.Domain.Trade.Shared.TradeType.LongCall,
                 valueDate: DateOnly.FromDateTime(DateTime.Now),
                 tradeStatus: TradeStatus.Open,
                 description: "Test Transaction",
@@ -252,7 +252,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory)
             fundId: 1,
             orderId: 1,
             tradeId: 1,
-            tradeType: TomasAI.IFM.Shared.Trade.TradeType.LongCall,
+            tradeType: TomasAI.IFM.Domain.Trade.Shared.TradeType.LongCall,
             valueDate: DateOnly.FromDateTime(DateTime.Now),
             tradeStatus: TradeStatus.EndOfDay,
             description: "End of Day Transaction",

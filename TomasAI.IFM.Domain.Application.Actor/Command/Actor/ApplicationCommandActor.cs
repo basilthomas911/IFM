@@ -4,7 +4,7 @@ using Newtonsoft.Json;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Application.Actor.Command.Handlers;
 using TomasAI.IFM.Domain.Application.Actor.Command.State;
-using TomasAI.IFM.Shared.Application.Commands;
+using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -191,7 +191,7 @@ public class ApplicationCommandActor(
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(command);
-            var cmdErrorEvent = await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+            var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
             return new ServiceFailed<GuidResult>(cmdErrorEvent);
         }
         catch (Exception innerEx)
@@ -199,7 +199,7 @@ public class ApplicationCommandActor(
             logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             catch (Exception fatalEx)

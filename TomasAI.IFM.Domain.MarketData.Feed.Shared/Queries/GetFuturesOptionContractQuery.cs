@@ -1,6 +1,6 @@
 using MessagePack;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
-using TomasAI.IFM.Shared.MarketData.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

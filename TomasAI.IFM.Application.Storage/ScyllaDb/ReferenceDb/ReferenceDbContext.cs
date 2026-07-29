@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
 using Microsoft.Extensions.Logging;
@@ -7,7 +7,7 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.JobScheduler;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 

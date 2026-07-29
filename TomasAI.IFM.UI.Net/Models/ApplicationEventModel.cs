@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using TomasAI.IFM.Shared.Application.Events;
+using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.UI.EventConsumer;
 
 namespace TomasAI.IFM.UI.Net.Models

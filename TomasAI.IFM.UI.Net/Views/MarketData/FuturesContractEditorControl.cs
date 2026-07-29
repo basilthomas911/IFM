@@ -1,8 +1,12 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using System.Data;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
@@ -222,7 +226,7 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
                 dtmLastTradeDate.Value = DateTime.Now;
                 dtmLastTradeDate.Enabled = true;
                 txtLocalSymbol.Enabled = false;
-                ddlSecurityType.SelectedIndex = GetSelectedIndex(_viewModel.SecurityTypes, $"{Shared.MarketData.SecurityType.FUT}");
+                ddlSecurityType.SelectedIndex = GetSelectedIndex(_viewModel.SecurityTypes, $"{SecurityType.FUT}");
                 ddlSecurityType.Enabled = true;
                 ddlCurrency.SelectedIndex = 0;
                 ddlCurrency.Enabled = true;

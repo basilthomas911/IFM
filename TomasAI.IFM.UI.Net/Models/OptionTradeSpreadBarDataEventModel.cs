@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.EventConsumer;

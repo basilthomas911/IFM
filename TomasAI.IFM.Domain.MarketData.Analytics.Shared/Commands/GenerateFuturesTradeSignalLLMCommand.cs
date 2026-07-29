@@ -1,7 +1,6 @@
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;

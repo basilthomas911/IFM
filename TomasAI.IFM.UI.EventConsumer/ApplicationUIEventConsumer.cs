@@ -3,7 +3,7 @@ using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.Kafka;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
-using TomasAI.IFM.Shared.Application.Events;
+using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;

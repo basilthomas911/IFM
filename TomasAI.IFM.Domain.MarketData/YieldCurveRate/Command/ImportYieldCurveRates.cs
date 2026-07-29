@@ -1,6 +1,6 @@
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.MarketData.Commands;
-using TomasAI.IFM.Shared.MarketData.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command;

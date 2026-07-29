@@ -1,6 +1,6 @@
-using TomasAI.IFM.Shared.MarketData.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Application.ServiceApi;
+using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen
 {

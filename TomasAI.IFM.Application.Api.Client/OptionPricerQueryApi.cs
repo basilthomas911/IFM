@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Shared.Application;

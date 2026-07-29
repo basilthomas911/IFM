@@ -1,8 +1,8 @@
-using TomasAI.IFM.Shared.MarketData.ServiceApi;
-using TomasAI.IFM.Shared.MarketDataFeed;
-using TomasAI.IFM.Shared.MarketDataFeed.ServiceApi;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Application.ScheduledTask.SetClosingPrice
 {

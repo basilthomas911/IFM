@@ -10,7 +10,7 @@ using TomasAI.IFM.Shared.SystemAdmin;
 using TomasAI.IFM.Shared.SystemAdmin.ServiceApi;
 using TomasAI.IFM.Shared.EventQueue;
 using TomasAI.IFM.UI.EventConsumer;
-using TomasAI.IFM.Shared.Application.ServiceApi;
+using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose
 {

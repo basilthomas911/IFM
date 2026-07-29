@@ -1,2 +1,2 @@
-global using TomasAI.IFM.Shared.Reference.ServiceApi;
-global using TomasAI.IFM.Shared.Reference.ViewModels;
+global using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+global using TomasAI.IFM.Domain.Reference.Shared.ViewModels;

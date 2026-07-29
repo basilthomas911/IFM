@@ -1,11 +1,12 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Shared.MarketDataFeed;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 
 namespace TomasAI.IFM.Application.Blackboard.UnitTests;
 

@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using QLNet;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared;
 

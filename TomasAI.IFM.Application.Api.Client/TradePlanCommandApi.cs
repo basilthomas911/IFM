@@ -1,4 +1,5 @@
-using TomasAI.IFM.Shared.Application.Commands;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
@@ -7,7 +8,7 @@ using TomasAI.IFM.Domain.Trade.Shared.TradePlan.Commands;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;

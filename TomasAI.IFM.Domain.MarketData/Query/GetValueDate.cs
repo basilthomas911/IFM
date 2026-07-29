@@ -1,6 +1,6 @@
-﻿using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.MarketData.Queries;
+using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 
 namespace TomasAI.IFM.Domain.MarketData.Query;
 

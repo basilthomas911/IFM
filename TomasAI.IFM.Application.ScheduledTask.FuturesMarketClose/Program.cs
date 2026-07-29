@@ -16,7 +16,7 @@ using TomasAI.IFM.Application.Command.Client;
 using TomasAI.IFM.Application.Query.Client;
 using TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose;
 using TomasAI.IFM.UI.EventConsumer;
-using TomasAI.IFM.Shared.Application.ServiceApi;
+using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 
 try 
 { 

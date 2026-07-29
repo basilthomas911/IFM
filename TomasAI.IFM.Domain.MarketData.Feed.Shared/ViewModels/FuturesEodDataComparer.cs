@@ -1,4 +1,5 @@
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 public class FuturesEodDataComparer : IEqualityComparer<FuturesEodDataV2ReadModel>

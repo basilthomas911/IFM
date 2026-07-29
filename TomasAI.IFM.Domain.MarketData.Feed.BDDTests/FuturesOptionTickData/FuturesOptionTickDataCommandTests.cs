@@ -12,7 +12,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
-using TomasAI.IFM.Shared.Reference.ServiceApi;
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests.FuturesOptionTickData;
 

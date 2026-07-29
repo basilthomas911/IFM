@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.QueryParameters;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
@@ -7,8 +7,8 @@ using TomasAI.IFM.Domain.Reference.Shared;
 using System;
 using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Messaging;
-using TomasAI.IFM.Shared.Reference.ViewModels;
-using TomasAI.IFM.Shared.Reference.ServiceApi;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;

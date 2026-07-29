@@ -1,10 +1,11 @@
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Text;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Validation;

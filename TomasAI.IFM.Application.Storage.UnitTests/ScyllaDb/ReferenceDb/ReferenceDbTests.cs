@@ -10,7 +10,7 @@ using NSubstitute;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Application.Storage.ScyllaDb.ReferenceDb;
 using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Caching;

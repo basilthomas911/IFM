@@ -1,5 +1,3 @@
-using TomasAI.IFM.Shared.Reference.ViewModels;
-
 namespace TomasAI.IFM.Shared.JobScheduler;
 
 public interface IScheduledJobDaysOfWeek
@@ -13,5 +11,4 @@ public interface IScheduledJobDaysOfWeek
     bool Saturday { get; }
     bool Sunday { get; }
 
-    ScheduledJobDaysOfWeekReadModel ToViewModel();
 }

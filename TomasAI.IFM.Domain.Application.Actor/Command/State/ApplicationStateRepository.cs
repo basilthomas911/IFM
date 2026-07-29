@@ -2,7 +2,8 @@
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
 using TomasAI.IFM.Shared.Application;
-using TomasAI.IFM.Shared.Application.Events;
+using TomasAI.IFM.Domain.Application.Shared;
+using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 

@@ -1,4 +1,6 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
@@ -7,19 +9,19 @@ using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.MarketData;
-using TomasAI.IFM.Shared.MarketData.Queries;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Queries;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.Queries;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.QueryParameters;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ViewModels;
@@ -341,9 +343,9 @@ public static class MarketDataQueries
         // FuturesOptionContractQueryActor queries
         endpoints.MapGet(MarketDataQueryUriPath.GetFuturesOptionContract, async (IActorService e, string contractId) =>
         {
-            var query = new Shared.MarketData.Queries.GetFuturesOptionContractQuery(contractId);
-            query = query with { Subject = new ActorSubject(ActorType.Query, Shared.MarketData.Queries.GetFuturesOptionContractQuery.Actor, Shared.MarketData.Queries.GetFuturesOptionContractQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FuturesOptionContractReadModel, Shared.MarketData.Queries.GetFuturesOptionContractQuery>(query);
+            var query = new global::TomasAI.IFM.Domain.MarketData.Shared.Queries.GetFuturesOptionContractQuery(contractId);
+            query = query with { Subject = new ActorSubject(ActorType.Query, global::TomasAI.IFM.Domain.MarketData.Shared.Queries.GetFuturesOptionContractQuery.Actor, global::TomasAI.IFM.Domain.MarketData.Shared.Queries.GetFuturesOptionContractQuery.Verb, query.EntityId.Format()) };
+            return await e.RequestAsync<FuturesOptionContractReadModel, global::TomasAI.IFM.Domain.MarketData.Shared.Queries.GetFuturesOptionContractQuery>(query);
         });
 
         endpoints.MapGet(MarketDataQueryUriPath.GetFuturesOptionContracts, async (IActorService e, string symbol) =>

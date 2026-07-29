@@ -1,6 +1,6 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.QueryParameters;
 using TomasAI.IFM.Shared.EventModelActor;

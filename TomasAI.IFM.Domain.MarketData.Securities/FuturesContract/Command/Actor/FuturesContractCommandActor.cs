@@ -1,3 +1,7 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Newtonsoft.Json;
@@ -10,12 +14,13 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.MarketData;
-using TomasAI.IFM.Shared.MarketData.Commands;
-using TomasAI.IFM.Shared.MarketData.Events;
-using TomasAI.IFM.Shared.MarketData.Exceptions;
-using TomasAI.IFM.Shared.MarketData.Validation;
-using TomasAI.IFM.Shared.Reference.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
+using TomasAI.IFM.Domain.MarketData.Shared.Validation;
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Actor;
@@ -256,7 +261,7 @@ public class FuturesContractCommandActor(
             };
             if (errorEvent is null)
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             return CommandFailed(ex, command);
@@ -266,7 +271,7 @@ public class FuturesContractCommandActor(
             logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             catch (Exception fatalEx)

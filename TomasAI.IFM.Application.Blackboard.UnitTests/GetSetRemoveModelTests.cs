@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Framework.Caching;

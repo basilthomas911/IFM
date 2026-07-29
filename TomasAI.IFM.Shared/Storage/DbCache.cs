@@ -1,5 +1,4 @@
 using System.Linq.Expressions;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 
 namespace TomasAI.IFM.Shared.Storage;
 
@@ -15,9 +14,7 @@ public class DbCache : IDbCache
         _cache = new Dictionary<string, IDbSingleCache>
         {
             { "EntityTypeIdMap", new DbSingleCache<string, long>() },
-            { "EventTypeIdMap", new DbSingleCache<string, long>() },
-            { "FuturesEodDataMap", new DbSingleCache<string, FuturesEodDataV2ReadModel>() },
-            { "FuturesOptionTickDataMap", new DbSingleCache<string, FuturesOptionTickDataV2ReadModel>() }
+            { "EventTypeIdMap", new DbSingleCache<string, long>() }
         };
     }
 

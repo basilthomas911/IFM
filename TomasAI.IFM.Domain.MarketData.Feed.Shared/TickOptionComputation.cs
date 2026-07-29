@@ -1,5 +1,7 @@
 ﻿using MathNet.Numerics.Distributions;
 
+using TomasAI.IFM.Domain.MarketData.Shared;
+
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared;
 
 public class TickOptionComputation

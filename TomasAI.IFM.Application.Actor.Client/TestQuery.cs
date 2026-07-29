@@ -44,12 +44,12 @@ public class TestQuery : IQuery<string>
     }
 
     [SerializationConstructor]
-    public TestQuery(ActorSubject subject, IActorEntityId entityId, string? queryParams, int errorCode, string msgString)
+    public TestQuery(ActorSubject subject, IActorEntityId entityId, string msgString)
     {
         Subject = subject;
         EntityId = entityId;
-        QueryParams = queryParams;
-        ErrorCode = errorCode;
+        QueryParams = string.Empty;
+        ErrorCode = ErrorId;
         MsgString = msgString ?? string.Empty;
     }
 }

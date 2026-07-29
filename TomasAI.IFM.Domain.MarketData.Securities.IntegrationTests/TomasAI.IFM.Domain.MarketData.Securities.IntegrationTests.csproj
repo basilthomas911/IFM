@@ -55,6 +55,7 @@
 		<ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.TradePlan.HostedService\TomasAI.IFM.Service.TradePlan.HostedService.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.TradePlan\TomasAI.IFM.Service.TradePlan.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
 	</ItemGroup>
 
   <ItemGroup>

@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.SystemAdmin
 {

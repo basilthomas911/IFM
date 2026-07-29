@@ -1,7 +1,8 @@
 using TomasAI.IFM.Shared.Application;
-using TomasAI.IFM.Shared.Application.CommandParameters;
-using TomasAI.IFM.Shared.Application.Commands;
-using TomasAI.IFM.Shared.Application.ServiceApi;
+using TomasAI.IFM.Domain.Application.Shared;
+using TomasAI.IFM.Domain.Application.Shared.CommandParameters;
+using TomasAI.IFM.Domain.Application.Shared.Commands;
+using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -72,5 +73,3 @@ public class ApplicationCommandApi(IActorProducer actorProducer)
         return serviceResult;
     }
 }
-
-      

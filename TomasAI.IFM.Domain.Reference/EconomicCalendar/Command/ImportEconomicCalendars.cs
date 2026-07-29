@@ -3,7 +3,7 @@ using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Exceptions;
 using TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.State;
 

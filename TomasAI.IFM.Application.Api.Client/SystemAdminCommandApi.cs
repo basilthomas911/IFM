@@ -1,5 +1,5 @@
 using System;
-using TomasAI.IFM.Shared.Application.Commands;
+using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ServiceApi;

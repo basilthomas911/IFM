@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using Serilog;
 using Serilog.Extensions.Logging;
-using TomasAI.IFM.Shared.MarketData.ServiceApi;
-using TomasAI.IFM.Shared.Application.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.RestApi;

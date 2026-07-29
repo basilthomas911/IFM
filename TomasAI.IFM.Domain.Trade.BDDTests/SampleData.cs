@@ -1,4 +1,6 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 using Shared = TomasAI.IFM.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
@@ -192,10 +194,10 @@ public static class SampleData
         assetStdDev: 12.5,
         assetMean: 5390.0,
         assetPriceChange: 0.05,
-        marketTrend: global::TomasAI.IFM.Shared.MarketData.MarketDirectionType.Up,
-        marketVolatility: global::TomasAI.IFM.Shared.MarketData.MarketVolatilityType.Low,
-        marketDirection: global::TomasAI.IFM.Shared.MarketData.PriceDirectionType.Rising,
-        vixVolatility: global::TomasAI.IFM.Shared.MarketData.PriceVolatilityType.Falling,
+        marketTrend: global::TomasAI.IFM.Domain.MarketData.Shared.MarketDirectionType.Up,
+        marketVolatility: global::TomasAI.IFM.Domain.MarketData.Shared.MarketVolatilityType.Low,
+        marketDirection: global::TomasAI.IFM.Domain.MarketData.Shared.PriceDirectionType.Rising,
+        vixVolatility: global::TomasAI.IFM.Domain.MarketData.Shared.PriceVolatilityType.Falling,
         tradeRisk: global::TomasAI.IFM.Domain.Trade.Shared.TradeRiskType.Low,
         fiftyDayMA: 5350.0,
         fiveDayXMA: 5380.0,

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Model;
 

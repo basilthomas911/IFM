@@ -1,11 +1,13 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using Pipelines.Sockets.Unofficial.Arenas;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.Extensions;
-using TomasAI.IFM.Shared.MarketData;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -102,10 +104,10 @@ public class TradeDbContext(
         assetStdDev: e.GetDouble(21),
         assetMean: e.GetDouble(22),
         assetPriceChange: e.GetDouble(23),
-        marketTrend: e.GetEnum<Shared.MarketData.MarketDirectionType>(24),
-        marketVolatility: e.GetEnum<Shared.MarketData.MarketVolatilityType>(25),
-        marketDirection: e.GetEnum<Shared.MarketData.PriceDirectionType>(26),
-        vixVolatility: e.GetEnum<Shared.MarketData.PriceVolatilityType>(27),
+        marketTrend: e.GetEnum<MarketDirectionType>(24),
+        marketVolatility: e.GetEnum<MarketVolatilityType>(25),
+        marketDirection: e.GetEnum<PriceDirectionType>(26),
+        vixVolatility: e.GetEnum<PriceVolatilityType>(27),
         tradeRisk: e.GetEnum<TradeRiskType>(28),
         fiftyDayMA: e.GetDouble(29),
         fiveDayXMA: e.GetDouble(30),

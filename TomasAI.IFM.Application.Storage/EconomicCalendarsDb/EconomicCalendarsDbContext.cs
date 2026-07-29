@@ -2,7 +2,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Application.Storage.EconomicCalendarsDb;

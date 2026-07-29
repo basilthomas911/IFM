@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Shared.Reference.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.Reference;

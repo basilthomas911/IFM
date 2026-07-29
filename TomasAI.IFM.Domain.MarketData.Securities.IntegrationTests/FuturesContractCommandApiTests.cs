@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
@@ -10,8 +12,8 @@ using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.MarketData.Commands;
-using TomasAI.IFM.Shared.MarketData.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 

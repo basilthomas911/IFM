@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.YieldCurveRatesDb;

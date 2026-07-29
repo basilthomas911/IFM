@@ -1,12 +1,8 @@
-using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.MarketData.Events;
 
 namespace TomasAI.IFM.Shared.EventSourcing;
 
-// Register known derived event types for MessagePack polymorphic serialization.
-[Union(0, typeof(FuturesContractAddedEvent))]
 public interface IEvent
 {
     ActorSubject Subject { get; init; }

@@ -8,9 +8,9 @@ using TomasAI.IFM.Domain.MarketData.Query;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.MarketData.Queries;
-using TomasAI.IFM.Shared.MarketData.QueryParameters;
-using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.UnitTests;
@@ -422,7 +422,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var tradingDates = SampleData.TradingDates;
         var marketDataDbContext = Substitute.For<IMarketDataDbContext>();
-        marketDataDbContext.GetTradingDatesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<Shared.MarketData.MarketType>(), Arg.Any<Shared.MarketData.CurrencyType>())
+        marketDataDbContext.GetTradingDatesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<global::TomasAI.IFM.Domain.MarketData.Shared.MarketType>(), Arg.Any<global::TomasAI.IFM.Domain.MarketData.Shared.CurrencyType>())
             .Returns(ci => Task.FromResult(tradingDates));
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.MarketDataDb
@@ -463,7 +463,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var tradingDates = SampleData.TradingDates;
         var marketDataDbContext = Substitute.For<IMarketDataDbContext>();
-        marketDataDbContext.GetTradingDatesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<Shared.MarketData.MarketType>(), Arg.Any<Shared.MarketData.CurrencyType>())
+        marketDataDbContext.GetTradingDatesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<global::TomasAI.IFM.Domain.MarketData.Shared.MarketType>(), Arg.Any<global::TomasAI.IFM.Domain.MarketData.Shared.CurrencyType>())
             .Returns(ci => Task.FromResult(tradingDates));
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.MarketDataDb

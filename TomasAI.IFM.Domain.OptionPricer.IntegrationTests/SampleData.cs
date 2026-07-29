@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -13,7 +13,7 @@ public static class SampleData
     public static readonly DateOnly ValueDate = new(2025, 6, 20);
     public static readonly TradeType PutTradeType = TradeType.PutCreditSpread;
     public static readonly TradeType CallTradeType = TradeType.CallCreditSpread;
-    public static readonly TradeStatus TradeStatus = global::TomasAI.IFM.Shared.Trade.TradeStatus.Open;
+    public static readonly TradeStatus TradeStatus = global::TomasAI.IFM.Domain.Trade.Shared.TradeStatus.Open;
     public const int DaysToExpiry = 30;
 
     public static SpreadDistributionReadModel PutSpreadDistribution => new(
