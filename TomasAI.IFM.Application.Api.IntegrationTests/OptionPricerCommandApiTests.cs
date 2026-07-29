@@ -3,8 +3,8 @@ using FluentAssertions;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
-using TomasAI.IFM.Shared.OptionPricer;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Shared.Trade;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;

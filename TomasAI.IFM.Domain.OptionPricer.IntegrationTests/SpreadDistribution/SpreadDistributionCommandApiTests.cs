@@ -11,10 +11,10 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Application.Commands;
-using TomasAI.IFM.Shared.OptionPricer;
-using TomasAI.IFM.Shared.OptionPricer.CommandParameters;
-using TomasAI.IFM.Shared.OptionPricer.Commands;
-using TomasAI.IFM.Shared.OptionPricer.Events;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Domain.OptionPricer.Shared.CommandParameters;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 
 namespace TomasAI.IFM.Domain.OptionPricer.IntegrationTests.SpreadDistribution;
 
@@ -158,7 +158,7 @@ public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> fa
         insertResponse.Success.Should().BeTrue();
 
         // act...
-        var response = await optionPricerApi.DeleteSpreadDistributionAsync(entityId, Shared.Trade.TradeStatus.IntraDay,SampleData.DaysToExpiry);
+        var response = await optionPricerApi.DeleteSpreadDistributionAsync(entityId, global::TomasAI.IFM.Shared.Trade.TradeStatus.IntraDay,SampleData.DaysToExpiry);
 
         await Task.Delay(1000);
 

@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Http;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Trade;
 

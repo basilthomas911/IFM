@@ -5,8 +5,8 @@ using System.Text;
 using System.Threading.Tasks;
 
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.OptionPricer;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.OptionPricerDb
 {

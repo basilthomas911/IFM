@@ -4,7 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.OptionPricer.Events;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Actor;
@@ -99,11 +99,11 @@ public class SpreadDistributionJobEventActor(
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
         }
         catch (Exception innerEx)
         {
-            await innerEx.SendErrorEventAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
             logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }

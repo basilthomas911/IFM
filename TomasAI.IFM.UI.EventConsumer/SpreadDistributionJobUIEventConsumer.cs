@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Messaging.Kafka;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
-using TomasAI.IFM.Shared.OptionPricer.ServiceApi;
-using TomasAI.IFM.Shared.OptionPricer.Events;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 
 namespace TomasAI.IFM.UI.EventConsumer;
 

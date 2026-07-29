@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj" />
   </ItemGroup>
 
 </Project>

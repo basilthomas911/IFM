@@ -1,6 +1,6 @@
 ﻿using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.OptionPricer.Commands;
-using TomasAI.IFM.Shared.OptionPricer.Events;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Exceptions;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.State;

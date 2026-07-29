@@ -1,7 +1,7 @@
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.OptionPricer;
-using TomasAI.IFM.Shared.OptionPricer.Commands;
-using TomasAI.IFM.Shared.OptionPricer.Events;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.State;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command;

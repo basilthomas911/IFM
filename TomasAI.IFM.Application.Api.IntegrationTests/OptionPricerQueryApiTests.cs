@@ -4,8 +4,8 @@ using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
-using TomasAI.IFM.Shared.OptionPricer.ServiceApi;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Trade;
 using Xunit;
 

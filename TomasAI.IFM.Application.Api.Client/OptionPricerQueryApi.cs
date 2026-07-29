@@ -2,10 +2,10 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.OptionPricer.ServiceApi;
-using TomasAI.IFM.Shared.OptionPricer.Queries;
-using TomasAI.IFM.Shared.OptionPricer.QueryParameters;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Queries;
+using TomasAI.IFM.Domain.OptionPricer.Shared.QueryParameters;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Trade;
 

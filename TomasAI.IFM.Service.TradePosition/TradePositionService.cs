@@ -1,8 +1,9 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.Trade.ServiceApi;
 using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.OptionPricer.ServiceApi;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.Extensions;

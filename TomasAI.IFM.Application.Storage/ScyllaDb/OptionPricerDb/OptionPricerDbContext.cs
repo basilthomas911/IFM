@@ -3,8 +3,8 @@ using System.Data;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.OptionPricer;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Trade;
 

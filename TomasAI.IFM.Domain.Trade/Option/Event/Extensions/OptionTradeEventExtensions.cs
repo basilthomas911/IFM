@@ -1,8 +1,8 @@
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.OptionPricer;
-using TomasAI.IFM.Shared.OptionPricer.Commands;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Event.Extensions;
 

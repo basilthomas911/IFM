@@ -2,7 +2,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.MarketDataFeed.Events;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
-using TomasAI.IFM.Shared.OptionPricer;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Extensions;
 
@@ -22,7 +22,7 @@ public static class FuturesOptionTickBidAsk
         var source = $"FuturesOptionTickBidAskEvent for EntityId: {e.EntityId}";
 
         // Resolve the streaming request context using the event's request identifier.
-        // If no matching streaming request exists, exit early — the event cannot be processed.
+        // If no matching streaming request exists, exit early ï¿½ the event cannot be processed.
         var streamingRequestId = p.BlackboardService.StreamingRequestId.Get(e.RequestId);
         if (!streamingRequestId.IsValid)
             return false;
@@ -51,7 +51,7 @@ public static class FuturesOptionTickBidAsk
                         || Convert.ToDecimal(lastFuturesOptionTickPriceData.BidPrice) != Convert.ToDecimal(futuresOptionTickData.BidPrice)
                         || Convert.ToDecimal(lastFuturesOptionTickPriceData.AskPrice) != Convert.ToDecimal(futuresOptionTickData.AskPrice))
                     {
-                        // Price has changed — retrieve the current risk-free rate and the set
+                        // Price has changed ï¿½ retrieve the current risk-free rate and the set
                         // of live option trades linked to this contract for leg-data updates.
                         var riskFreeRate = p.BlackboardService.RiskFreeRate.Get(streamingRequestId.ValueDate);
                         var optionTrades = p.OptionTradeLiveFeedMap[streamingRequestId.OptionContract.ContractId];

@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
-using TomasAI.IFM.Shared.OptionPricer;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
 
 namespace TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers;
 

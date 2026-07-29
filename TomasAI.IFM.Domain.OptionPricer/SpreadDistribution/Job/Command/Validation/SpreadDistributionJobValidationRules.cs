@@ -1,7 +1,7 @@
 using FluentValidation;
 using FluentValidation.Results;
 using TomasAI.IFM.Shared.Validation;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Validation;
 

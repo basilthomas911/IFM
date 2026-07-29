@@ -27,7 +27,7 @@ using TomasAI.IFM.Shared.Application.ServiceApi;
 using TomasAI.IFM.Shared.MarketData.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.MarketDataFeed.ServiceApi;
-using TomasAI.IFM.Shared.OptionPricer.ServiceApi;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Trade.ServiceApi;

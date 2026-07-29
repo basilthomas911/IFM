@@ -68,11 +68,11 @@ public class SpreadDistributionEventActor(IActorSupervisor supervisor, ILogger<S
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
         }
         catch (Exception innerEx)
         {
-            await innerEx.SendErrorEventAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
             logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }

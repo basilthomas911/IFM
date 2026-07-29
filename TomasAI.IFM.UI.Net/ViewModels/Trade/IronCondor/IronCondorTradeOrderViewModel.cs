@@ -10,7 +10,7 @@ using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Shared.Reference.ViewModels;
-using TomasAI.IFM.Shared.OptionPricer;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;

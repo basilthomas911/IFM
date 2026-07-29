@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using System;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;

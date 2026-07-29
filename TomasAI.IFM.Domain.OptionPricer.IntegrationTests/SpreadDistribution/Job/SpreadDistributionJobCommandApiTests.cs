@@ -10,9 +10,9 @@ using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.OptionPricer;
-using TomasAI.IFM.Shared.OptionPricer.Commands;
-using TomasAI.IFM.Shared.OptionPricer.Events;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 
 namespace TomasAI.IFM.Domain.OptionPricer.IntegrationTests.SpreadDistribution.Job;
 

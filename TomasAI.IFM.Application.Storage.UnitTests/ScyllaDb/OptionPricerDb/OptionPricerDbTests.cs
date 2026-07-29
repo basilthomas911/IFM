@@ -11,7 +11,7 @@ using Xunit;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.MarketData;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Application.Storage.Postgres.SequenceIdDb;
 using TomasAI.IFM.Framework.SequenceId.Postgres;

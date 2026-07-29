@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.OptionPricer.ViewModels;
+﻿using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Validation;

@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
-using TomasAI.IFM.Shared.OptionPricer;
-using TomasAI.IFM.Shared.OptionPricer.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 
 namespace TomasAI.IFM.Framework.OptionPricer.Black76;
 
