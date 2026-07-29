@@ -22,9 +22,9 @@
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="11.11.0" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageReference Include="MessagePack" Version="3.1.7" />
-    <PackageReference Include="MessagePack.Annotations" Version="3.1.7" />
-    <PackageReference Include="MessagePackAnalyzer" Version="3.1.7">
+    <PackageReference Include="MessagePack" Version="3.1.8" />
+    <PackageReference Include="MessagePack.Annotations" Version="3.1.8" />
+    <PackageReference Include="MessagePackAnalyzer" Version="3.1.8">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -32,7 +32,7 @@
     <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
     <PackageReference Include="NATS.Net" Version="2.6.11" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.3" />
     <PackageReference Include="QLNet" Version="1.13.1" />
     <PackageReference Include="System.Runtime.Caching" Version="8.0.0" />
