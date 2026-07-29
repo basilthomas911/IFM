@@ -1,7 +1,9 @@
+using TomasAI.IFM.Domain.Reference.Shared.CommandParameters;
+using TomasAI.IFM.Domain.Reference.Shared.Commands;
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Shared.Application.Commands;
-using TomasAI.IFM.Shared.Reference;
-using TomasAI.IFM.Shared.Reference.Commands;
-using TomasAI.IFM.Shared.Reference.CommandParameters;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;

@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.Shared.Commands;
+using TomasAI.IFM.Domain.Reference.Shared;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Newtonsoft.Json;
@@ -6,7 +8,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Reference.Commands;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Exceptions;
 using TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.State;
@@ -250,20 +251,20 @@ public class EconomicCalendarCommandActor(
             IErrorEvent errorEvent = ex switch
             {
                 AddEconomicCalendarException
-                    => await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                        ErrorType.Command, context, command, ActorEntityId.Default, Actor, Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail),
+                    => await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                        ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail),
                 ChangeEconomicCalendarException
-                    => await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                        ErrorType.Command, context, command, ActorEntityId.Default, Actor, Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail),
+                    => await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                        ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail),
                 RemoveEconomicCalendarException
-                    => await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                        ErrorType.Command, context, command, ActorEntityId.Default, Actor, Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail),
+                    => await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                        ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail),
                 _ => default!
             };
             if (errorEvent is null)
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
+                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             return CommandFailed(ex);
@@ -273,8 +274,8 @@ public class EconomicCalendarCommandActor(
             logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", Actor, threadId, ex.Message);
             try
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
+                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             catch (Exception fatalEx)

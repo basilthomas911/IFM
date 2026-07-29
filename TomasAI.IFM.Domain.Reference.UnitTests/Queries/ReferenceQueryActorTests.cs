@@ -9,8 +9,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Shared.Reference.Queries;
-using TomasAI.IFM.Shared.Reference.QueryParameters;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Domain.Reference.Query.Actor;

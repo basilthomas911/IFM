@@ -1,6 +1,6 @@
-﻿using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.Reference.Commands;
-using TomasAI.IFM.Shared.Reference.Events;
+﻿using TomasAI.IFM.Domain.Reference.Shared.Commands;
+using TomasAI.IFM.Domain.Reference.Shared.Events;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Exceptions;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.State;
 

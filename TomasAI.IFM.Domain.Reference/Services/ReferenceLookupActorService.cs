@@ -1,9 +1,9 @@
-﻿using TomasAI.IFM.Shared.Caching;
+﻿using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using TomasAI.IFM.Domain.Reference.Shared;
+using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Reference.Queries;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.Reference;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.Extensions;
 

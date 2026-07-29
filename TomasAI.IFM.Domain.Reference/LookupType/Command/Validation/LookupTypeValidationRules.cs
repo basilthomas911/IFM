@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using FluentValidation;
 using FluentValidation.Results;
 using TomasAI.IFM.Shared.Validation;

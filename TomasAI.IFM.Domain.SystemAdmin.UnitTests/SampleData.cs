@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.UnitTests;
 

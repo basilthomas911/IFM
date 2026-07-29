@@ -1,10 +1,10 @@
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.SystemAdmin.Queries;
-using TomasAI.IFM.Shared.SystemAdmin.QueryParameters;
-using TomasAI.IFM.Shared.SystemAdmin.ServiceApi;
-using TomasAI.IFM.Shared.SystemAdmin.ViewModels;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Queries;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.QueryParameters;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ServiceApi;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 

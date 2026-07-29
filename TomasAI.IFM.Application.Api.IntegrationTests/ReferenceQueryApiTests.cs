@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared;
 using Microsoft.AspNetCore.Mvc.Testing;
 using FluentAssertions;
 using TomasAI.IFM.Framework.Messaging.RestApi;
@@ -7,7 +9,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Reference;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
 

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests;

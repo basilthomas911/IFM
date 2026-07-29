@@ -9,7 +9,7 @@ using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using TomasAI.IFM.Framework.Storage;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;

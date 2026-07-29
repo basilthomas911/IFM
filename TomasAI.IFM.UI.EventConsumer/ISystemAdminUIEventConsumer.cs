@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.SystemAdmin.Events;
+﻿using TomasAI.IFM.Domain.SystemAdmin.Shared.Events;
 
 namespace TomasAI.IFM.UI.EventConsumer;
 

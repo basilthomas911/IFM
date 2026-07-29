@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Http;
-using TomasAI.IFM.Shared.SystemAdmin.ViewModels;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests.QueryApiResults;
 

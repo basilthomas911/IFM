@@ -15,8 +15,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
-using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend;
-using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend.ViewModels;
+using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend;
+using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;

@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
 using Azure.Storage.Blobs;
-using TomasAI.IFM.Shared.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
 
 namespace TomasAI.IFM.Framework.Storage.Azure
 {

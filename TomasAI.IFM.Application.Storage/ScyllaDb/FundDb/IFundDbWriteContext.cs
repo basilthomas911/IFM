@@ -1,5 +1,5 @@
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 

@@ -1,8 +1,8 @@
 using FluentAssertions;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.SystemAdmin;
-using TomasAI.IFM.Shared.SystemAdmin.Commands;
-using TomasAI.IFM.Shared.SystemAdmin.Events;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Commands;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Events;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.BDDTests;
 

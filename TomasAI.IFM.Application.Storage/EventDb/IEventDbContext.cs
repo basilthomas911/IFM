@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
 
 namespace TomasAI.IFM.Application.Storage.EventDb
 {

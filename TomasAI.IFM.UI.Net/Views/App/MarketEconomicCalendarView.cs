@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;

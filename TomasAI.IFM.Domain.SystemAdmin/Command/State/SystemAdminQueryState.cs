@@ -1,5 +1,5 @@
-using TomasAI.IFM.Shared.SystemAdmin;
-using TomasAI.IFM.Shared.SystemAdmin.ViewModels;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.Command.State;
 

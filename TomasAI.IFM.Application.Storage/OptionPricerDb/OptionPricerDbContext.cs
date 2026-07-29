@@ -11,7 +11,7 @@ using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.OptionPricer;
 using TomasAI.IFM.Shared.OptionPricer.ViewModels;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Application.Storage.OptionPricerDb

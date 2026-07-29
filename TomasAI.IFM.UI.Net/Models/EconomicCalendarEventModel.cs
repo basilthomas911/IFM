@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.Events;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,7 +6,6 @@ using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
-using TomasAI.IFM.Shared.Reference.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.EventConsumer;
 

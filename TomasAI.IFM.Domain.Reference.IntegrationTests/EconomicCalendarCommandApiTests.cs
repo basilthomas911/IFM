@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.Reference.Shared.Commands;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
@@ -5,8 +8,6 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.Reference;
-using TomasAI.IFM.Shared.Reference.Commands;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests;

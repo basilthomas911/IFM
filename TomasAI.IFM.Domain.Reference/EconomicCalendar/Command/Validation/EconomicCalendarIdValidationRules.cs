@@ -1,7 +1,7 @@
+using TomasAI.IFM.Domain.Reference.Shared;
 using FluentValidation;
 using FluentValidation.Results;
 using TomasAI.IFM.Shared.Validation;
-using TomasAI.IFM.Shared.Reference;
 
 namespace TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Validation;
 

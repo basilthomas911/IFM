@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 using FluentAssertions;
 using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Shared.SystemAdmin.Queries;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Queries;
 using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Shared.SystemAdmin.ViewModels;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using Xunit;
 

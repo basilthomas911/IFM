@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.SystemAdmin;
-using TomasAI.IFM.Shared.SystemAdmin.Events;
-using TomasAI.IFM.Shared.SystemAdmin.ServiceApi;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Events;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ServiceApi;
 using TomasAI.IFM.UI.EventConsumer;
 
 namespace TomasAI.IFM.UI.Net.Models

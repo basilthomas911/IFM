@@ -1,7 +1,8 @@
-﻿using TomasAI.IFM.Application.Storage;
+﻿using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Reference.Queries;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 
 namespace TomasAI.IFM.Domain.Reference.Query;

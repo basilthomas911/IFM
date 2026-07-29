@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.PredictiveModel.Shared\TomasAI.IFM.Domain.PredictiveModel.Shared.csproj" />
   </ItemGroup>
 
 </Project>

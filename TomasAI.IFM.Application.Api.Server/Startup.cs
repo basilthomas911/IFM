@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Hazelcast;
 using Hazelcast.Caching;
 using Microsoft.Extensions.Caching.Distributed;

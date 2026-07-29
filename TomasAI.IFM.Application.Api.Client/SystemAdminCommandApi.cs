@@ -1,8 +1,8 @@
 using System;
 using TomasAI.IFM.Shared.Application.Commands;
-using TomasAI.IFM.Shared.SystemAdmin;
-using TomasAI.IFM.Shared.SystemAdmin.Commands;
-using TomasAI.IFM.Shared.SystemAdmin.ServiceApi;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Commands;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Framework.Messaging;

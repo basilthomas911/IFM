@@ -6,9 +6,9 @@ using TomasAI.IFM.Domain.SystemAdmin.Query;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.SystemAdmin;
-using TomasAI.IFM.Shared.SystemAdmin.Queries;
-using TomasAI.IFM.Shared.SystemAdmin.ViewModels;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Queries;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ViewModels;
 using TomasAI.IFM.Domain.SystemAdmin.Query.Actor;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.UnitTests;

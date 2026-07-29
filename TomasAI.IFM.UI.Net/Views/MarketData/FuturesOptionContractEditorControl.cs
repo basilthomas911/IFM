@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using System.Data;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.Reference.ViewModels;

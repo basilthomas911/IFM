@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.Reference.Shared.Commands;
+using TomasAI.IFM.Domain.Reference.Shared.Events;
+using TomasAI.IFM.Domain.Reference.Shared;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Newtonsoft.Json;
@@ -6,9 +9,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Reference;
-using TomasAI.IFM.Shared.Reference.Commands;
-using TomasAI.IFM.Shared.Reference.Events;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Exceptions;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.State;
@@ -253,8 +253,8 @@ public class LookupTypeCommandActor(
             };
             if (errorEvent is null)
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
+                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             return CommandFailed(ex);
@@ -264,8 +264,8 @@ public class LookupTypeCommandActor(
             logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", Actor, threadId, ex.Message);
             try
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
+                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             catch (Exception fatalEx)

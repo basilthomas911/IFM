@@ -8,9 +8,9 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
-using TomasAI.IFM.Shared.SystemAdmin;
-using TomasAI.IFM.Shared.SystemAdmin.Commands;
-using TomasAI.IFM.Shared.SystemAdmin.Events;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Commands;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Command.Actor;
 using TomasAI.IFM.Application.Storage;
 
@@ -893,8 +893,8 @@ public class SystemAdminCommandActorTests : IClassFixture<SystemAdminFixture>
 
         var context = Substitute.For<ICommandActorContext>();
 
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -923,8 +923,8 @@ public class SystemAdminCommandActorTests : IClassFixture<SystemAdminFixture>
 
         var context = Substitute.For<ICommandActorContext>();
 
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -952,8 +952,8 @@ public class SystemAdminCommandActorTests : IClassFixture<SystemAdminFixture>
 
         var context = Substitute.For<ICommandActorContext>();
 
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -1006,8 +1006,8 @@ public class SystemAdminCommandActorTests : IClassFixture<SystemAdminFixture>
         var context = Substitute.For<ICommandActorContext>();
 
         // Simulate SendAsync failure
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(x => throw new Exception("SendAsync failed"));
 
         // Act

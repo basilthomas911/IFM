@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.Fund;
 using TomasAI.IFM.Shared.Fund.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Application.Storage.FundDb

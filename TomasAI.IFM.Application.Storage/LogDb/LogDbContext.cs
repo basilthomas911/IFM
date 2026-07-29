@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Log.ViewModels;
-using TomasAI.IFM.Shared.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Telemetry.ViewModels;
 using Microsoft.Extensions.Logging;

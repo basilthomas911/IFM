@@ -1,9 +1,9 @@
-﻿using System;
+﻿using TomasAI.IFM.Domain.Reference.Shared;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Xunit;
 using FluentAssertions;
-using TomasAI.IFM.Shared.Reference;
 
 namespace TomasAI.IFM.Shared.UnitTests.Reference
 {

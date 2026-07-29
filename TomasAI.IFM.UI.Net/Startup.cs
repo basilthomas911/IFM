@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +29,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.MarketDataFeed.ServiceApi;
 using TomasAI.IFM.Shared.OptionPricer.ServiceApi;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
-using TomasAI.IFM.Shared.SystemAdmin.ServiceApi;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Trade.ServiceApi;
 using TomasAI.IFM.Shared.TradePlan.ServiceApi;
 using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;

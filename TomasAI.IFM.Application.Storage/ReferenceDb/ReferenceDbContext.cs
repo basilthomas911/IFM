@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,11 +8,10 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Configuration;
 using System.Data;
-using TomasAI.IFM.Shared.Reference;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.TaskScheduler;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Framework.Storage;

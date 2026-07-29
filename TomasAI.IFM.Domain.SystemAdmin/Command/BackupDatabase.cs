@@ -1,6 +1,6 @@
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.SystemAdmin.Commands;
-using TomasAI.IFM.Shared.SystemAdmin.Events;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Commands;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Command.State;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.Command;
