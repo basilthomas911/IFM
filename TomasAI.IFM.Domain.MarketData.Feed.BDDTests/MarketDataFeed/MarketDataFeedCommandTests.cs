@@ -5,12 +5,12 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Shared.Domain;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using global::TomasAI.IFM.Shared.EventModelActor;
+using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
-using TomasAI.IFM.Shared.MarketDataFeed.Commands;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests.MarketDataFeed;
 
@@ -240,8 +240,8 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var result = await actor.InvokeOnExceptionAsync(context, command.Subject.ThreadId, command, new Exception("feed failed"));
 
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        await context.Received(1).SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Is<Shared.EventModelActor.Events.CommandExceptionEvent>(value => value.ErrorMessage == "feed failed"));
+        await context.Received(1).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>(value => value.ErrorMessage == "feed failed"));
     }
 
     async Task<(TestableMarketDataFeedCommandActor Actor, ICommandActorContext Context,

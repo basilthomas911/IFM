@@ -7,13 +7,13 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
 using TomasAI.IFM.Shared.Domain;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using global::TomasAI.IFM.Shared.EventModelActor;
+using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
-using TomasAI.IFM.Shared.MarketDataFeed;
-using TomasAI.IFM.Shared.MarketDataFeed.Commands;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests.FuturesEodData;
 
@@ -308,8 +308,8 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
             context, command.Subject.ThreadId, command, new InvalidOperationException("unexpected failure"));
 
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        await context.Received(1).SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Is<Shared.EventModelActor.Events.CommandExceptionEvent>(value =>
+        await context.Received(1).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>(value =>
                 value.CommandId == command.CommandId && value.ErrorMessage == "unexpected failure"));
     }
 
@@ -327,8 +327,8 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
             context, command.Subject.ThreadId, command, new InsertFuturesEodDataException("insert failed"));
 
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
-        await context.Received(1).SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>());
+        await context.Received(1).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>());
     }
 
     async Task<(TestableFuturesEodDataCommandActor Actor, ICommandActorContext Context,

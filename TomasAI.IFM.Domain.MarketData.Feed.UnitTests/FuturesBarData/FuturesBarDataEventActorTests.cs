@@ -4,11 +4,11 @@ using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using global::TomasAI.IFM.Shared.EventModelActor;
+using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.MarketDataFeed;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesBarData;
@@ -252,16 +252,16 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = CreateActor();
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateInsertedEvent();
-        context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         await actor.InvokeOnExceptionAsync(
             context, @event.Subject.ThreadId, @event, new InvalidOperationException("event failed"));
 
         await context.Received(1)
-            .SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Is<Shared.EventModelActor.Events.EventExceptionEvent>(value =>
+            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(value =>
                     value.ErrorMessage == "event failed"));
     }
 
@@ -272,8 +272,8 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateDeletedEvent();
         var callCount = 0;
-        context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(_ =>
             {
                 callCount++;
@@ -286,8 +286,8 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             context, @event.Subject.ThreadId, @event, new Exception("original failure"));
 
         await context.Received(2)
-            .SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>());
+            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>());
     }
 
     [Fact]
@@ -296,8 +296,8 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = CreateActor();
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateDeletedEvent();
-        context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns<ValueTask>(_ => throw new InvalidOperationException("publish failed"));
 
         Func<Task> act = () => actor.InvokeOnExceptionAsync(

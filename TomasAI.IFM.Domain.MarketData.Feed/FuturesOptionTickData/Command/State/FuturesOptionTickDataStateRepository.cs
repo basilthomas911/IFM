@@ -6,8 +6,10 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Model;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.MarketDataFeed;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;

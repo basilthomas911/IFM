@@ -2,13 +2,14 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using global::TomasAI.IFM.Shared.EventModelActor;
+using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.Exceptions;
-using TomasAI.IFM.Shared.MarketDataFeed.Commands;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
@@ -1920,8 +1921,8 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
 
         var context = Substitute.For<ICommandActorContext>();
 
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -1957,9 +1958,9 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
 
         var context = Substitute.For<ICommandActorContext>();
 
-        Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Do<Shared.EventModelActor.Events.CommandExceptionEvent>(e => capturedEvent = e))
+        global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Do<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>(e => capturedEvent = e))
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -1992,9 +1993,9 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
 
         var context = Substitute.For<ICommandActorContext>();
 
-        Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Do<Shared.EventModelActor.Events.CommandExceptionEvent>(e => capturedEvent = e))
+        global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Do<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>(e => capturedEvent = e))
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -2031,8 +2032,8 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         var context = Substitute.For<ICommandActorContext>();
 
         // First call throws, second call (in catch) also throws, forcing CommandFailed path
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(_ => throw new Exception("SendAsync failed"));
 
         // Act
@@ -2067,8 +2068,8 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
 
         var context = Substitute.For<ICommandActorContext>();
 
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act

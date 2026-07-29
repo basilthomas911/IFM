@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.UI.EventConsumer;
 
 namespace TomasAI.IFM.UI.Net.Models

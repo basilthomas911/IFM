@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Shared.Trade.ViewModels;
 /// MessagePack-serializable view model representing a trade position snapshot on a given value date.
 /// </summary>
 /// <remarks>
-/// Pattern mirrors <see cref="TomasAI.IFM.Shared.MarketDataFeed.ViewModels.FuturesEodClosingPriceReadModel"/>:
+/// Pattern mirrors the <c>FuturesEodClosingPriceReadModel</c> serialization layout:
 /// - Explicit properties with sequential MessagePack keys
 /// - A parameterless constructor for serializers
 /// - A full constructor marked with <see cref="SerializationConstructorAttribute"/>

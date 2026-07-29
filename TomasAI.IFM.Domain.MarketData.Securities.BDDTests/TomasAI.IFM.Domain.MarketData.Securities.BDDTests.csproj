@@ -26,6 +26,7 @@
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Securities\TomasAI.IFM.Domain.MarketData.Securities.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.PredictiveModel.Shared\TomasAI.IFM.Domain.PredictiveModel.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

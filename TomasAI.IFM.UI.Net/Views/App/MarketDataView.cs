@@ -1,5 +1,5 @@
 using System.Windows.Forms.DataVisualization.Charting;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 

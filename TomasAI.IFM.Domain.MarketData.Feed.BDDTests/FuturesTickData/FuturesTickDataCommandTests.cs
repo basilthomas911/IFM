@@ -6,12 +6,12 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Shared.Domain;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using global::TomasAI.IFM.Shared.EventModelActor;
+using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
-using TomasAI.IFM.Shared.MarketDataFeed.Commands;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests.FuturesTickData;
 
@@ -323,8 +323,8 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
 
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
         result.Success.Should().BeFalse();
-        await context.Received(1).SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Is<Shared.EventModelActor.Events.CommandExceptionEvent>(value =>
+        await context.Received(1).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>(value =>
                 value.CommandId == command.CommandId && value.ErrorMessage == "tick failed"));
     }
 
@@ -335,8 +335,8 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         var context = Substitute.For<ICommandActorContext>();
         var command = CreateCommand("Insert");
         var attempts = 0;
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(_ => ++attempts == 1
                 ? ValueTask.FromException(new InvalidOperationException("first delivery failed"))
                 : ValueTask.CompletedTask);
@@ -354,8 +354,8 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         var actor = _fixture.CreateTickCommandActor(logger: Substitute.For<ILogger<FuturesTickDataCommandActor>>());
         var context = Substitute.For<ICommandActorContext>();
         var command = CreateCommand("Insert");
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns<ValueTask>(_ => throw new InvalidOperationException("delivery failed"));
 
         var result = await actor.InvokeOnExceptionAsync(
@@ -363,8 +363,8 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
 
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
         result.Success.Should().BeFalse();
-        await context.Received(2).SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>());
+        await context.Received(2).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>());
     }
 
     async Task<(TestableFuturesTickDataCommandActor Actor, ICommandActorContext Context,

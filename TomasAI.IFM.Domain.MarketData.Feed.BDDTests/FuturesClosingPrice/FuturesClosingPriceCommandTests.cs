@@ -7,13 +7,14 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
 using TomasAI.IFM.Shared.Domain;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using global::TomasAI.IFM.Shared.EventModelActor;
+using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.MarketDataFeed;
-using TomasAI.IFM.Shared.MarketDataFeed.Commands;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests.FuturesClosingPrice;
 
@@ -246,8 +247,8 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
         var actor = _fixture.CreateClosingPriceCommandActor();
         var context = Substitute.For<ICommandActorContext>();
         var command = CreateCommand();
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         var result = await actor.InvokeOnExceptionAsync(
@@ -256,8 +257,8 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
         result.Should().BeOfType<ServiceFailed<GuidResult>>();
         result.Success.Should().BeFalse();
         await context.Received(1)
-            .SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                Arg.Is<Shared.EventModelActor.Events.CommandExceptionEvent>(value =>
+            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>(value =>
                     value.CommandId == command.CommandId && value.ErrorMessage == "insert failed"));
     }
 

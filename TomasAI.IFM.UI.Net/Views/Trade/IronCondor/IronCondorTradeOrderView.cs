@@ -5,6 +5,7 @@ using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;

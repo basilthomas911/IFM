@@ -182,7 +182,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // esBindingSource
             // 
             this.esBindingSource.AllowNew = true;
-            this.esBindingSource.DataSource = typeof(TomasAI.IFM.Shared.MarketDataFeed.ViewModels.FuturesBarDataReadModel);
+            this.esBindingSource.DataSource = typeof(TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesBarDataReadModel);
             // 
             // MarketDataView
             // 

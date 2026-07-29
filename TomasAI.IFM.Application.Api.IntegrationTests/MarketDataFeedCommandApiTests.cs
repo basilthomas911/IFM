@@ -5,7 +5,9 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.MarketDataFeed;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 
@@ -283,7 +285,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var api = new MarketDataFeedCommandApi(commandServiceApi);
         var quoteId = 1;
         var contractId = "TEST1";
-        var quoteData = new QuoteData(DateTime.Now, TomasAI.IFM.Shared.MarketDataFeed.QuoteLevelType.LevelOne, 1, 1, TomasAI.IFM.Shared.MarketDataFeed.QuoteSide.Bid, TomasAI.IFM.Shared.MarketDataFeed.QuoteType.Price, 1.0, 1);
+        var quoteData = new QuoteData(DateTime.Now, TomasAI.IFM.Domain.MarketData.Feed.Shared.QuoteLevelType.LevelOne, 1, 1, TomasAI.IFM.Domain.MarketData.Feed.Shared.QuoteSide.Bid, TomasAI.IFM.Domain.MarketData.Feed.Shared.QuoteType.Price, 1.0, 1);
         var response = await api.InsertFuturesOptionQuoteDataAsync(quoteId, contractId, quoteData);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);

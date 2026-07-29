@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.MarketData;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;

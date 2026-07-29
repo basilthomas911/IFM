@@ -11,7 +11,7 @@ using NSubstitute;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.KafkaClient;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
 namespace TomasAI.IFM.Framework.KafkaClient.UnitTests
 {

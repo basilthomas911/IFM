@@ -3,7 +3,7 @@ using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.MarketDataFeed;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using TomasAI.IFM.Shared.Trade;

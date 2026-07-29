@@ -1,5 +1,5 @@
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.CommandParameters;
 

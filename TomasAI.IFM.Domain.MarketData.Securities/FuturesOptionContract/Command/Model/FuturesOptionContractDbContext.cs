@@ -4,7 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
-using TomasAI.IFM.Shared.MarketDataFeed.Queries;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Model;
 

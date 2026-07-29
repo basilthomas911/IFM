@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.MarketDataFeed.Events;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
 namespace TomasAI.IFM.UI.EventConsumer;
 

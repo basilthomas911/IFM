@@ -6,14 +6,14 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
 using TomasAI.IFM.Shared.Domain;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using global::TomasAI.IFM.Shared.EventModelActor;
+using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
-using TomasAI.IFM.Shared.MarketDataFeed;
-using TomasAI.IFM.Shared.MarketDataFeed.Commands;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests.FuturesBarData;
 
@@ -282,9 +282,9 @@ public class FuturesBarDataCommandTests : IClassFixture<MarketDataFeedBddFixture
         var actor = _fixture.CreateCommandActor();
         var context = Substitute.For<ICommandActorContext>();
         var command = CreateInsertCommand(SampleData.FuturesBarData);
-        Shared.EventModelActor.Events.CommandExceptionEvent? sentEvent = null;
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                Arg.Do<Shared.EventModelActor.Events.CommandExceptionEvent>(value => sentEvent = value))
+        global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent? sentEvent = null;
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                Arg.Do<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>(value => sentEvent = value))
             .Returns(ValueTask.CompletedTask);
 
         var result = await actor.InvokeOnExceptionAsync(
@@ -303,8 +303,8 @@ public class FuturesBarDataCommandTests : IClassFixture<MarketDataFeedBddFixture
         var actor = _fixture.CreateCommandActor();
         var context = Substitute.For<ICommandActorContext>();
         var command = CreateInsertCommand(SampleData.FuturesBarData);
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns<ValueTask>(_ => throw new InvalidOperationException("publish failed"));
 
         var result = await actor.InvokeOnExceptionAsync(

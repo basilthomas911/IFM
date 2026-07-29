@@ -6,13 +6,13 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Domain;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using global::TomasAI.IFM.Shared.EventModelActor;
+using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Shared.MarketDataFeed;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
-using TomasAI.IFM.Shared.MarketDataFeed.Commands;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
@@ -174,7 +174,7 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
 
         await act.Should().NotThrowAsync();
         await status.Received(1).WriteConsoleAsync(
-            Arg.Any<Shared.StatusConsole.LogSourceType>(), 6009, Arg.Any<string>());
+            Arg.Any<global::TomasAI.IFM.Shared.StatusConsole.LogSourceType>(), 6009, Arg.Any<string>());
     }
 
     [Fact]
@@ -295,8 +295,8 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
         await actor.InvokeOnExceptionAsync(
             context, @event.Subject.ThreadId, @event, new InvalidOperationException("event failed"));
 
-        await context.Received(1).SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Is<Shared.EventModelActor.Events.EventExceptionEvent>(value =>
+        await context.Received(1).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(value =>
                 value.ErrorMessage == "event failed"));
     }
 
@@ -307,8 +307,8 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateInsertedEvent();
         var attempts = 0;
-        context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(_ =>
             {
                 attempts++;
@@ -333,8 +333,8 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
         await actor.InvokeOnExceptionAsync(context, default, @event, new Exception("failure"));
         await actor.InvokeOnExceptionAsync(context, @event.Subject.ThreadId, null!, new Exception("failure"));
 
-        await context.Received(2).SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>());
+        await context.Received(2).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>());
     }
 
     TestableFuturesTickDataEventActor CreateActor(

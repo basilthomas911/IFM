@@ -12,8 +12,9 @@ using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Shared.MarketDataFeed.Queries;
-using TomasAI.IFM.Shared.MarketDataFeed.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Queries;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
@@ -435,9 +436,9 @@ public static class MarketDataFeedQueries
 
         endpoints.MapPost(MarketDataFeedQueryUriPath.GetFuturesOptionContract, async (IActorService e, [FromQuery] string contractId, [FromBody] GetFuturesOptionContractParameter queryParam) =>
         {
-            var query = new Shared.MarketDataFeed.Queries.GetFuturesOptionContractQuery(contractId, queryParam.QueryForContract!);
-            query.Subject = new ActorSubject(ActorType.Query, Shared.MarketDataFeed.Queries.GetFuturesOptionContractQuery.Actor, Shared.MarketDataFeed.Queries.GetFuturesOptionContractQuery.Verb, query.EntityId.Format());
-            return await e.RequestAsync<FuturesOptionContractReadModel, Shared.MarketDataFeed.Queries.GetFuturesOptionContractQuery>(query);
+            var query = new global::TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries.GetFuturesOptionContractQuery(contractId, queryParam.QueryForContract!);
+            query.Subject = new ActorSubject(ActorType.Query, global::TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries.GetFuturesOptionContractQuery.Actor, global::TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries.GetFuturesOptionContractQuery.Verb, query.EntityId.Format());
+            return await e.RequestAsync<FuturesOptionContractReadModel, global::TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries.GetFuturesOptionContractQuery>(query);
         });
 
         endpoints.MapPost(MarketDataFeedQueryUriPath.GetFuturesOptionSpreadData, async (IActorService e, DateOnly valueDate, DateOnly maturityDate, double assetPrice, double riskFreeRate, double timeValue, [FromBody] GetFuturesOptionSpreadDataParameter queryParam) =>

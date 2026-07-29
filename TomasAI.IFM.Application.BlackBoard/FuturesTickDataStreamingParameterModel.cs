@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Caching;
-using TomasAI.IFM.Shared.MarketDataFeed;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Framework.Caching;
 
 namespace TomasAI.IFM.Application.Blackboard;

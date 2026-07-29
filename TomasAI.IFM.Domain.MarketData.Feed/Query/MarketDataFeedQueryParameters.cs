@@ -1,6 +1,6 @@
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Shared.MarketDataFeed;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 

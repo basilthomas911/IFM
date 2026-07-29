@@ -3,13 +3,14 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using global::TomasAI.IFM.Shared.EventModelActor;
+using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.MarketDataFeed;
-using TomasAI.IFM.Shared.MarketDataFeed.Commands;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Exceptions;
@@ -584,7 +585,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         // Simulate that closing price already exists
         db.GetFuturesClosingPriceAsync(Arg.Any<FuturesDataId>())
-            .Returns(new Shared.MarketDataFeed.ViewModels.FuturesClosingPriceReadModel("ESM4", SampleData.ValueDate, SampleData.ClosingPrice1, DateTime.UtcNow, "test"));
+            .Returns(new global::TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesClosingPriceReadModel("ESM4", SampleData.ValueDate, SampleData.ClosingPrice1, DateTime.UtcNow, "test"));
         var state = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
         var context = Substitute.For<ICommandActorContext>();
 
@@ -1342,8 +1343,8 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
 
         var context = Substitute.For<ICommandActorContext>();
 
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -1415,9 +1416,9 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
 
         var context = Substitute.For<ICommandActorContext>();
 
-        Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Do<Shared.EventModelActor.Events.CommandExceptionEvent>(e => capturedEvent = e))
+        global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Do<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>(e => capturedEvent = e))
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -1450,9 +1451,9 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
 
         var context = Substitute.For<ICommandActorContext>();
 
-        Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Do<Shared.EventModelActor.Events.CommandExceptionEvent>(e => capturedEvent = e))
+        global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Do<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>(e => capturedEvent = e))
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -1489,8 +1490,8 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var context = Substitute.For<ICommandActorContext>();
 
         // First call throws, second call (in catch) also throws, forcing CommandFailed path
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(_ => throw new Exception("SendAsync failed"));
 
         // Act
@@ -1525,8 +1526,8 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
 
         var context = Substitute.For<ICommandActorContext>();
 
-        context.SendAsync<Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.CommandExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act

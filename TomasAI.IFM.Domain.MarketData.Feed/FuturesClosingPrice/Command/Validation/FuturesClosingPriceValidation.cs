@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.Validation;
 

@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels
     /// MessagePack-serializable view model containing ITI trend delta data for a futures symbol on a specific value date.
     /// </summary>
     /// <remarks>
-    /// Pattern mirrors <see cref="TomasAI.IFM.Shared.MarketDataFeed.ViewModels.FuturesEodClosingPriceReadModel"/>:
+    /// Pattern mirrors <see cref="TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesEodClosingPriceReadModel"/>:
     /// - Explicit properties with sequential MessagePack keys.
     /// - Parameterless constructor for serializers.
     /// - A full constructor annotated with <see cref="SerializationConstructorAttribute"/> for MessagePack deserialization.

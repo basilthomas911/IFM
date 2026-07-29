@@ -6,13 +6,13 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using global::TomasAI.IFM.Shared.EventModelActor;
+using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.MarketDataFeed;
-using TomasAI.IFM.Shared.MarketDataFeed.Events;
-using TomasAI.IFM.Shared.MarketDataFeed.Queries;
-using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
@@ -303,8 +303,8 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             context, @event.Subject.ThreadId, @event, new InvalidOperationException("event failed"));
 
         await context.Received(1)
-            .SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Is<Shared.EventModelActor.Events.EventExceptionEvent>(value =>
+            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(value =>
                     value.ErrorMessage == "event failed" && value.ErrorType == ErrorType.EventService));
     }
 
@@ -315,8 +315,8 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateVixFuturesEodDataInsertedCompleteEvent();
         var callCount = 0;
-        context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(_ =>
             {
                 if (++callCount == 1)
@@ -328,8 +328,8 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             context, @event.Subject.ThreadId, @event, new Exception("original failure"));
 
         await context.Received(2)
-            .SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>());
+            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>());
     }
 
     [Fact]
@@ -338,8 +338,8 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var harness = CreateHarness();
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateFuturesEodDataInsertedEvent();
-        context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns<ValueTask>(_ => throw new InvalidOperationException("publish failed"));
 
         Func<Task> act = () => harness.Actor.InvokeOnExceptionAsync(
@@ -361,8 +361,8 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             context, @event.Subject.ThreadId, null!, new Exception("failure"));
 
         await context.Received(2)
-            .SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>());
+            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>());
     }
 
     ActorHarness CreateHarness()

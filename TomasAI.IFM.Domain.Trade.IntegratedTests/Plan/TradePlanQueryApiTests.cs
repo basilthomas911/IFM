@@ -7,7 +7,7 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
-using TomasAI.IFM.Shared.MarketDataFeed;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.Trade;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Plan;

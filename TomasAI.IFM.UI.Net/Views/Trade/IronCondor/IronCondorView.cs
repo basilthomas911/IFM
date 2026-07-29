@@ -1,6 +1,7 @@
 using System.Data;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.TradePlan.ViewModels;

@@ -2,6 +2,7 @@ using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
@@ -588,10 +589,10 @@ public class FuturesOptionTickDataStreamingParameterModelTests
         // Arrange
         var contract = new Shared.MarketData.ViewModels.FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         var optionContract = new Shared.MarketData.ViewModels.FuturesOptionContractReadModel();
-        var expected = new Shared.MarketDataFeed.FuturesOptionTickDataStreamingParameter(100, new DateOnly(2024, 12, 1), new DateOnly(2024, 12, 20), 0.05, contract, optionContract);
+        var expected = new global::TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesOptionTickDataStreamingParameter(100, new DateOnly(2024, 12, 1), new DateOnly(2024, 12, 20), 0.05, contract, optionContract);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<Shared.MarketDataFeed.FuturesOptionTickDataStreamingParameter>("{}").Returns(expected);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesOptionTickDataStreamingParameter>("{}").Returns(expected);
 
         // Act
         var result = _sut.Get(123);
@@ -620,7 +621,7 @@ public class FuturesOptionTickDataStreamingParameterModelTests
         // Arrange
         var contract = new Shared.MarketData.ViewModels.FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         var optionContract = new Shared.MarketData.ViewModels.FuturesOptionContractReadModel();
-        var data = new Shared.MarketDataFeed.FuturesOptionTickDataStreamingParameter(100, new DateOnly(2024, 12, 1), new DateOnly(2024, 12, 20), 0.05, contract, optionContract);
+        var data = new global::TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesOptionTickDataStreamingParameter(100, new DateOnly(2024, 12, 1), new DateOnly(2024, 12, 20), 0.05, contract, optionContract);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(data).Returns("value");
 
