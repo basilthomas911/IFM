@@ -94,9 +94,9 @@ internal static class FuturesTradeSignalValidation
     /// <param name="timePeriod">The time period to validate.</param>
     /// <param name="commandName">The name of the command for error reporting.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateTimePeriod(this List<ValidationError> validationErrors, TradeTimePeriodType timePeriod, string commandName)
+    public static List<ValidationError> ValidateTimePeriod(this List<ValidationError> validationErrors, TimeFrameType timePeriod, string commandName)
     {
-        if (!Enum.IsDefined(typeof(TradeTimePeriodType), timePeriod))
+        if (!Enum.IsDefined(typeof(TimeFrameType), timePeriod))
             validationErrors.Add(new ValidationError($"{commandName}.TimePeriod has an invalid value"));
         return validationErrors;
     }

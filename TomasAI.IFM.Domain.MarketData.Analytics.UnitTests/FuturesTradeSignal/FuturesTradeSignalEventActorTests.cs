@@ -16,11 +16,11 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
 {
     readonly MarketDataAnalyticsTestFixture _fixture;
 
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     public FuturesTradeSignalEventActorTests(MarketDataAnalyticsTestFixture fixture)
@@ -81,7 +81,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_CompletionEvent_PreservesPeriodAndIdentity(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var expected = SampleData.CreateTradeSignalUpdatedCompleteEventFor(timePeriod);
@@ -100,7 +100,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_HoldTradeChangedEvent_PreservesPeriodAndPayload(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var expected = SampleData.CreateHoldTradeChangedEventFor(timePeriod);
@@ -120,7 +120,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     public void ParseMessage_NullContext_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TradeTimePeriodType.Daily);
+        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TimeFrameType.Daily);
 
         var act = () => scenario.Actor.InvokeParseMessage(null!, CreateMessage(@event));
 
@@ -137,7 +137,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
         string verb)
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TradeTimePeriodType.Weekly);
+        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TimeFrameType.Weekly);
         var subject = $"{actorType}.{actorName}.{verb}.{@event.EntityId.Format()}";
 
         var result = scenario.Actor.InvokeParseMessage(
@@ -149,7 +149,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
 
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
-    public void ParseMessage_EmptyCommandId_RejectsEvent(TradeTimePeriodType timePeriod)
+    public void ParseMessage_EmptyCommandId_RejectsEvent(TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(
@@ -167,7 +167,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateHoldTradeChangedEventFor(
-            TradeTimePeriodType.Monthly,
+            TimeFrameType.Monthly,
             commandId: Guid.Empty);
 
         var act = () => scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(@event));
@@ -179,7 +179,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_CorruptedPayload_ThrowsDeserializationException(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(timePeriod);
@@ -196,7 +196,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     public void ParseMessage_EmptyPayload_ThrowsDeserializationException()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateHoldTradeChangedEventFor(TradeTimePeriodType.Monthly);
+        var @event = SampleData.CreateHoldTradeChangedEventFor(TimeFrameType.Monthly);
 
         var act = () => scenario.Actor.InvokeParseMessage(
             scenario.Context,
@@ -209,7 +209,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     public void ParseMessage_MalformedSubject_ThrowsArgumentException()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TradeTimePeriodType.Daily);
+        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TimeFrameType.Daily);
 
         var act = () => scenario.Actor.InvokeParseMessage(
             scenario.Context,
@@ -223,7 +223,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_CompletionEvent_ProcessesEveryPeriod(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(timePeriod);
@@ -237,7 +237,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_HoldTradeChangedEvent_ProcessesEveryPeriod(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateHoldTradeChangedEventFor(timePeriod, holdTrade: false);
@@ -279,7 +279,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
             ActorType.Event,
             FuturesTradeSignalEventActor.Actor,
             "Unsupported",
-            SampleData.TradeSignalEntityIdFor(TradeTimePeriodType.Weekly).Format()));
+            SampleData.TradeSignalEntityIdFor(TimeFrameType.Weekly).Format()));
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, @event);
 
@@ -292,7 +292,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnExceptionAsync_CompletionEvent_PublishesTypedError(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(timePeriod);
@@ -318,7 +318,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnExceptionAsync_HoldTradeChangedEvent_PublishesTypedError(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateHoldTradeChangedEventFor(timePeriod);
@@ -345,7 +345,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_FirstErrorPublicationFails_PublishesFallback()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TradeTimePeriodType.Monthly);
+        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TimeFrameType.Monthly);
         scenario.Context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
                 Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(
@@ -399,7 +399,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_EmptyThreadId_PublishesValidationFailureAndLogsError()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateHoldTradeChangedEventFor(TradeTimePeriodType.Weekly);
+        var @event = SampleData.CreateHoldTradeChangedEventFor(TimeFrameType.Weekly);
         scenario.Context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
                 Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
@@ -421,7 +421,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_NullException_PublishesFallbackError()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TradeTimePeriodType.Daily);
+        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TimeFrameType.Daily);
         scenario.Context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
                 Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
@@ -442,7 +442,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_NullContext_ContainsValidationFailure()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TradeTimePeriodType.Daily);
+        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
             null!,

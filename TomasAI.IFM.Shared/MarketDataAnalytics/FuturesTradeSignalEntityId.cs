@@ -20,7 +20,7 @@ public record FuturesTradeSignalEntityId : IActorEntityId
     /// <summary>Value (trading) date for the trade signal.</summary>
     [Key(1)] public DateOnly ValueDate { get; init; }
     /// <summary>Time period granularity for the trade signal.</summary>
-    [Key(2)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(2)] public TimeFrameType TimePeriod { get; init; }
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.
@@ -33,7 +33,7 @@ public record FuturesTradeSignalEntityId : IActorEntityId
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period for the trade signal.</param>
-    public FuturesTradeSignalEntityId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public FuturesTradeSignalEntityId(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -43,7 +43,7 @@ public record FuturesTradeSignalEntityId : IActorEntityId
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesTradeSignalEntityId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod) 
+    public static FuturesTradeSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod) 
         => new(contractId, valueDate, timePeriod);
 
     /// <summary>

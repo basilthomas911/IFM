@@ -75,7 +75,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="timePeriod"></param>
     /// <param name="periodLength"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesRsiSignalAsync(FuturesEodDataV2ReadModel futuresEodData, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<Guid>> GenerateFuturesRsiSignalAsync(FuturesEodDataV2ReadModel futuresEodData, TimeFrameType timePeriod, int periodLength)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
@@ -106,7 +106,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="timePeriod"></param>
     /// <param name="periodLength" ></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesRsiDailySignalAsync(FuturesEodDataV2ReadModel futuresEodData, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<Guid>> GenerateFuturesRsiDailySignalAsync(FuturesEodDataV2ReadModel futuresEodData, TimeFrameType timePeriod, int periodLength)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
@@ -150,7 +150,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = new FuturesTradeSignalEntityId(futuresEodData.ContractId ?? string.Empty, futuresEodData.ValueDate, TradeTimePeriodType.Daily);
+            var entityId = new FuturesTradeSignalEntityId(futuresEodData.ContractId ?? string.Empty, futuresEodData.ValueDate, TimeFrameType.Daily);
             var cmd = new UpdateFuturesTradeSignalCommand(futuresEodData, futuresRsiSignal, futuresTdiSignal, futuresItiSignalData, vixFuturesPrice)
             {
                 CommandId = cmdId,
@@ -178,7 +178,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = new FuturesTdiSignalEntityId(futuresTdiSignalId.ContractId, futuresTdiSignalId.ValueDate, TradeTimePeriodType.Daily);
+            var entityId = new FuturesTdiSignalEntityId(futuresTdiSignalId.ContractId, futuresTdiSignalId.ValueDate, TimeFrameType.Daily);
             GenerateFuturesTdiSignalCommand cmd = new (futuresTdiSignalId, futuresRsiSignals)
             {
                 CommandId = cmdId,
@@ -204,7 +204,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="vixFuturesPrice"></param>
     /// <returns></returns>
     public async Task<ServiceResult<Guid>> GenerateFuturesItiSignalAsync(
-        string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, DateTime timestamp, double futuresPrice, double vixFuturesPrice)
+        string contractId, DateOnly valueDate, TimeFrameType timePeriod, DateTime timestamp, double futuresPrice, double vixFuturesPrice)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;

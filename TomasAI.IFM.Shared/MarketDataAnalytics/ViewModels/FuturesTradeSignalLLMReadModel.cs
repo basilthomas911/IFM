@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
 public record FuturesTradeSignalLLMReadModel  (
         string ContractId,
         DateOnly ValueDate,
-        TradeTimePeriodType TimePeriod,
+        TimeFrameType TimePeriod,
         long SequenceId,
         DateTime Timestamp,
         double OpenPrice,

@@ -24,11 +24,11 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesItiSignal;
 /// </summary>
 public class FuturesItiSignalQueryTests
 {
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     // Test helper to expose the protected ReceiveAsync method for BDD-style testing.
@@ -70,7 +70,7 @@ public class FuturesItiSignalQueryTests
         return query;
     }
 
-    static FuturesItiSignalV2ReadModel CreateReadModel(TradeTimePeriodType timePeriod)
+    static FuturesItiSignalV2ReadModel CreateReadModel(TimeFrameType timePeriod)
         => SampleData.StartOfDayEvent.FuturesItiSignal! with { TimePeriod = timePeriod };
 
     // ───── GetFuturesItiSignalQuery — happy paths ─────
@@ -78,7 +78,7 @@ public class FuturesItiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GetFuturesItiSignalQuery_GivenExistingSignal_WhenExecuted_ThenRepliesWithMatchingSignal(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Arrange - Given an ITI signal exists for the requested contract/value date
         var (dbFactory, marketDataDb) = CreateDbFactory();
@@ -103,7 +103,7 @@ public class FuturesItiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GetFuturesItiSignalQuery_GivenNoSignalExists_WhenExecuted_ThenRepliesWithNullValue(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Arrange - Given no ITI signal exists for the requested contract/value date (edge case)
         var (dbFactory, marketDataDb) = CreateDbFactory();
@@ -129,11 +129,11 @@ public class FuturesItiSignalQueryTests
         // Arrange - Given a different contract than the shared sample default
         const string otherContractId = "CLZ25";
         var (dbFactory, marketDataDb) = CreateDbFactory();
-        var expected = CreateReadModel(TradeTimePeriodType.Daily) with { ContractId = otherContractId };
+        var expected = CreateReadModel(TimeFrameType.Daily) with { ContractId = otherContractId };
         marketDataDb.GetLastFuturesItiSignalAsync(otherContractId, SampleData.ValueDate).Returns(expected);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
-        var query = WithSubject(new GetFuturesItiSignalQuery(otherContractId, SampleData.ValueDate, TradeTimePeriodType.Daily), GetFuturesItiSignalQuery.Verb);
+        var query = WithSubject(new GetFuturesItiSignalQuery(otherContractId, SampleData.ValueDate, TimeFrameType.Daily), GetFuturesItiSignalQuery.Verb);
 
         // Act - When the query is executed
         await actor.InvokeReceiveAsync(context, query);
@@ -152,7 +152,7 @@ public class FuturesItiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GetFuturesItiSignalDataQuery_GivenAllChangeTypesExist_WhenExecuted_ThenRepliesWithAggregatedData(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Arrange - Given trend direction, extreme, and reversal change signals all exist
         var (dbFactory, marketDataDb) = CreateDbFactory();
@@ -185,7 +185,7 @@ public class FuturesItiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GetFuturesItiSignalDataQuery_GivenNoChangesExist_WhenExecuted_ThenRepliesWithAllNullChanges(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Arrange - Given no change-event signals exist for the requested contract/value date (edge case)
         var (dbFactory, marketDataDb) = CreateDbFactory();
@@ -218,7 +218,7 @@ public class FuturesItiSignalQueryTests
     {
         // Arrange - Given only the trend direction change signal exists (edge case: partial data)
         var (dbFactory, marketDataDb) = CreateDbFactory();
-        var directionChange = CreateReadModel(TradeTimePeriodType.Daily) with { IntrinsicTimeMode = IntrinsicTimeModeType.TrendDirectionChanged };
+        var directionChange = CreateReadModel(TimeFrameType.Daily) with { IntrinsicTimeMode = IntrinsicTimeModeType.TrendDirectionChanged };
         marketDataDb.GetLastFuturesItiSignalTrendDirectionChangeAsync(SampleData.ContractId, SampleData.ValueDate).Returns(directionChange);
         marketDataDb.GetLastFuturesItiSignalTrendExtremeChangeAsync(SampleData.ContractId, SampleData.ValueDate)
             .Returns((FuturesItiSignalV2ReadModel?)null);
@@ -226,7 +226,7 @@ public class FuturesItiSignalQueryTests
             .Returns((FuturesItiSignalV2ReadModel?)null);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
-        var query = WithSubject(new GetFuturesItiSignalDataQuery(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.Daily), GetFuturesItiSignalDataQuery.Verb);
+        var query = WithSubject(new GetFuturesItiSignalDataQuery(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily), GetFuturesItiSignalDataQuery.Verb);
 
         // Act - When the query is executed
         await actor.InvokeReceiveAsync(context, query);
@@ -247,7 +247,7 @@ public class FuturesItiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GetFuturesItiTrendDirectionChangedSignalsQuery_GivenMultipleSignals_WhenExecuted_ThenRepliesWithAllSignals(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Arrange - Given multiple trend direction changed signals exist for the contract/value date
         var (dbFactory, marketDataDb) = CreateDbFactory();
@@ -276,7 +276,7 @@ public class FuturesItiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GetFuturesItiTrendDirectionChangedSignalsQuery_GivenNoSignalsExist_WhenExecuted_ThenRepliesWithEmptyArray(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Arrange - Given no trend direction changed signals exist (edge case)
         var (dbFactory, marketDataDb) = CreateDbFactory();
@@ -301,11 +301,11 @@ public class FuturesItiSignalQueryTests
     {
         // Arrange - Given exactly one trend direction changed signal exists (boundary edge case)
         var (dbFactory, marketDataDb) = CreateDbFactory();
-        ICollection<FuturesItiSignalV2ReadModel> signals = [CreateReadModel(TradeTimePeriodType.Weekly)];
+        ICollection<FuturesItiSignalV2ReadModel> signals = [CreateReadModel(TimeFrameType.Weekly)];
         marketDataDb.GetFuturesItiTrendDirectionChangedSignalsAsync(SampleData.ContractId, SampleData.ValueDate).Returns(signals);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
-        var query = WithSubject(new GetFuturesItiTrendDirectionChangedSignalsQuery(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.Weekly), GetFuturesItiTrendDirectionChangedSignalsQuery.Verb);
+        var query = WithSubject(new GetFuturesItiTrendDirectionChangedSignalsQuery(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Weekly), GetFuturesItiTrendDirectionChangedSignalsQuery.Verb);
 
         // Act - When the query is executed
         await actor.InvokeReceiveAsync(context, query);

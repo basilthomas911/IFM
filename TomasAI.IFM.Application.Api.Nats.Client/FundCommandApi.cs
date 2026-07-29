@@ -243,7 +243,7 @@ public class FundCommandApi(IActorProducer actorProducer)
     /// <param name="fundOrder"></param>
     /// <param name="timePeriod"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFundMaxProfitAsync(FundOrderReadModel fundOrder, TradeTimePeriodType timePeriod)
+    public async Task<ServiceResult<Guid>> GenerateFundMaxProfitAsync(FundOrderReadModel fundOrder, TimeFrameType timePeriod)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;

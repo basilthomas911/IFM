@@ -23,7 +23,7 @@ public record FuturesTradeSignalV2ReadModel
 
     /// <summary>Time period classification for the signal.</summary>
     [Key(2)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     /// <summary>Monotonic sequence number for ordering signals.</summary>
     [Key(3)]
@@ -151,7 +151,7 @@ public record FuturesTradeSignalV2ReadModel
     public FuturesTradeSignalV2ReadModel(
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         long sequenceId,
         TimeOnly timestamp,
         double mean,

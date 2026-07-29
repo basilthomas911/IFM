@@ -21,7 +21,7 @@ public class FuturesMacdSignalQueryTests
 
     static FuturesMacdSignalReadModel CreateReadModel(
         string contractId = SampleData.ContractId,
-        TradeTimePeriodType timePeriod = TradeTimePeriodType.Daily,
+        TimeFrameType timePeriod = TimeFrameType.Daily,
         double macdLine = 1.5,
         double signalLine = 1.2,
         double histogram = 0.3,
@@ -111,11 +111,11 @@ public class FuturesMacdSignalQueryTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
     public async Task GivenVariousTimePeriods_WhenGetLastFuturesMacdSignalAsyncIsCalled_ThenPassesThroughCorrectTimePeriod(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var dbFactory = CreateDbFactory(out var marketDataDb);
@@ -325,11 +325,11 @@ public class FuturesMacdSignalQueryTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
     public async Task GivenVariousTimePeriods_WhenGetLastFuturesMacdDailySignalAsyncIsCalled_ThenPassesThroughCorrectTimePeriod(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var dbFactory = CreateDbFactory(out var marketDataDb);

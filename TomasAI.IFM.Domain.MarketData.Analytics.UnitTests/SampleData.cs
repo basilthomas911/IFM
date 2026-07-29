@@ -22,7 +22,7 @@ public static class SampleData
 {
     public const string ContractId = "ESU25";
     public static readonly DateOnly ValueDate = new(2025, 6, 20);
-    public static readonly TradeTimePeriodType TimePeriod = TradeTimePeriodType.Daily;
+    public static readonly TimeFrameType TimePeriod = TimeFrameType.Daily;
     public static readonly int PeriodLength = 14;
     public static readonly DateTime Timestamp = new(2025, 6, 20, 10, 0, 0);
     public const string Symbol = "ES";
@@ -46,7 +46,7 @@ public static class SampleData
     /// Builds a <see cref="FuturesItiSignalEntityId"/> for the given time period, allowing ITI tests to exercise
     /// Daily, Weekly, and Monthly variants without mutating the shared <see cref="TimePeriod"/> default.
     /// </summary>
-    public static FuturesItiSignalEntityId EntityIdFor(TradeTimePeriodType timePeriod)
+    public static FuturesItiSignalEntityId EntityIdFor(TimeFrameType timePeriod)
         => new(ContractId, ValueDate, timePeriod);
 
     public static FuturesItiTrendCoastLineCountersReadModel CoastLineCounters
@@ -64,7 +64,7 @@ public static class SampleData
     /// <summary>
     /// Builds a <see cref="GenerateFuturesItiSignalCommand"/> for the given time period.
     /// </summary>
-    public static GenerateFuturesItiSignalCommand GenerateCommandFor(TradeTimePeriodType timePeriod)
+    public static GenerateFuturesItiSignalCommand GenerateCommandFor(TimeFrameType timePeriod)
         => new(
             contractId: ContractId,
             valueDate: ValueDate,
@@ -79,7 +79,7 @@ public static class SampleData
     /// <summary>
     /// Builds a <see cref="SetFuturesItiSignalHoldTradeCommand"/> for the given time period.
     /// </summary>
-    public static SetFuturesItiSignalHoldTradeCommand SetHoldTradeCommandFor(TradeTimePeriodType timePeriod)
+    public static SetFuturesItiSignalHoldTradeCommand SetHoldTradeCommandFor(TimeFrameType timePeriod)
         => new(ContractId, ValueDate, timePeriod, Timestamp);
 
     public static ClearFuturesItiSignalHoldTradeCommand ClearHoldTradeCommand
@@ -88,7 +88,7 @@ public static class SampleData
     /// <summary>
     /// Builds a <see cref="ClearFuturesItiSignalHoldTradeCommand"/> for the given time period.
     /// </summary>
-    public static ClearFuturesItiSignalHoldTradeCommand ClearHoldTradeCommandFor(TradeTimePeriodType timePeriod)
+    public static ClearFuturesItiSignalHoldTradeCommand ClearHoldTradeCommandFor(TimeFrameType timePeriod)
         => new(ContractId, ValueDate, timePeriod, Timestamp);
 
     public static FuturesItiSignalGeneratedEvent StartOfDayEvent
@@ -681,10 +681,10 @@ public static class SampleData
     // ── MACD Signal ─────────────────────────────────────────────────────
 
     public static FuturesMacdSignalEntityId MacdEntityId
-        => new(ContractId, ValueDate, TradeTimePeriodType.Daily, 14);
+        => new(ContractId, ValueDate, TimeFrameType.Daily, 14);
 
     public static FuturesMacdSignalId MacdSignalId
-        => new(ContractId, ValueDate, TradeTimePeriodType.Daily, 14, new TimeOnly(18, 50, 10));
+        => new(ContractId, ValueDate, TimeFrameType.Daily, 14, new TimeOnly(18, 50, 10));
 
     public static GenerateFuturesMacdSignalCommand MacdGenerateCommand
         => new(MacdSignalId, (decimal)FuturesPrice);
@@ -702,7 +702,7 @@ public static class SampleData
             FuturesMacdSignal = new FuturesMacdSignalReadModel(
                 contractId: ContractId,
                 valueDate: ValueDate,
-                timePeriod: TradeTimePeriodType.Daily,
+                timePeriod: TimeFrameType.Daily,
                 periodLength: 14,
                 futuresPrice: (decimal)FuturesPrice,
                 timestamp: new TimeOnly(18, 50, 10),
@@ -728,7 +728,7 @@ public static class SampleData
             FuturesMacdSignal = new FuturesMacdSignalReadModel(
                 contractId: ContractId,
                 valueDate: ValueDate,
-                timePeriod: TradeTimePeriodType.Daily,
+                timePeriod: TimeFrameType.Daily,
                 periodLength: 14,
                 futuresPrice: (decimal)FuturesPrice,    
                 timestamp: new TimeOnly(18, 50, 10),
@@ -744,13 +744,13 @@ public static class SampleData
     // ── TDI Signal ───────────────────────────────────────────────────────
 
     public static FuturesTdiSignalEntityId TdiEntityId
-        => new(ContractId, ValueDate, TradeTimePeriodType.Daily);
+        => new(ContractId, ValueDate, TimeFrameType.Daily);
 
-    public static FuturesTdiSignalEntityId TdiEntityIdFor(TradeTimePeriodType timePeriod)
+    public static FuturesTdiSignalEntityId TdiEntityIdFor(TimeFrameType timePeriod)
         => new(ContractId, ValueDate, timePeriod);
 
     public static GetFuturesTdiSignalQuery TdiQueryFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         string contractId = ContractId,
         DateOnly? valueDate = null)
     {
@@ -767,7 +767,7 @@ public static class SampleData
     }
 
     public static FuturesTdiSignalReadModel TdiReadModelFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         string contractId = ContractId,
         DateOnly? valueDate = null,
         FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
@@ -789,7 +789,7 @@ public static class SampleData
         => new(TdiSignalId, AtrRsiSignals);
 
     public static GenerateFuturesTdiSignalCommand TdiGenerateCommandFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         FuturesRsiSignalReadModel[]? rsiSignals = null,
         Guid? commandId = null)
     {
@@ -810,7 +810,7 @@ public static class SampleData
     }
 
     public static FuturesTdiSignalGeneratedEvent CreateTdiSignalGeneratedEventFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
         Guid? commandId = null)
     {
@@ -855,7 +855,7 @@ public static class SampleData
             FuturesTdiSignal = new FuturesTdiSignalReadModel(
                 contractId: ContractId,
                 valueDate: ValueDate,
-                timePeriod: TradeTimePeriodType.Daily,
+                timePeriod: TimeFrameType.Daily,
                 timestamp: new TimeOnly(10, 0, 0),
                 upTrendCount: 8,
                 downTrendCount: 7,
@@ -866,7 +866,7 @@ public static class SampleData
         };
 
     public static FuturesTdiSignalGeneratedCompleteEvent CreateTdiSignalGeneratedCompleteEventFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
         Guid? commandId = null)
     {
@@ -895,14 +895,14 @@ public static class SampleData
     }
 
     public static FuturesTdiSignalGeneratedCompleteEvent CreateTdiSignalGeneratedCompleteEvent(Guid? commandId = null)
-        => CreateTdiSignalGeneratedCompleteEventFor(TradeTimePeriodType.Daily, commandId: commandId);
+        => CreateTdiSignalGeneratedCompleteEventFor(TimeFrameType.Daily, commandId: commandId);
 
     // ── Trade Signal ────────────────────────────────────────────────────
 
     public static FuturesTradeSignalEntityId TradeSignalEntityId
         => new(ContractId, ValueDate, TimePeriod);
 
-    public static FuturesTradeSignalEntityId TradeSignalEntityIdFor(TradeTimePeriodType timePeriod)
+    public static FuturesTradeSignalEntityId TradeSignalEntityIdFor(TimeFrameType timePeriod)
         => new(ContractId, ValueDate, timePeriod);
 
     public static UpdateFuturesTradeSignalCommand TradeSignalUpdateCommand
@@ -923,7 +923,7 @@ public static class SampleData
             vixFuturesPrice);
 
     public static UpdateFuturesTradeSignalCommand CreateTradeSignalUpdateCommandFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         FuturesEodDataV2ReadModel? eodData = null,
         FuturesRsiSignalReadModel? rsiSignal = null,
         FuturesTdiSignalReadModel? tdiSignal = null,
@@ -941,7 +941,7 @@ public static class SampleData
     }
 
     public static FuturesTradeSignalV2ReadModel TradeSignalReadModelFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         string contractId = ContractId,
         DateOnly? valueDate = null,
         long sequenceId = 1)
@@ -960,14 +960,14 @@ public static class SampleData
         };
 
     public static FuturesTradeSignalId TradeSignalIdFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         long sequenceId = 1,
         string contractId = ContractId,
         DateOnly? valueDate = null)
         => new(contractId, valueDate ?? ValueDate, timePeriod, sequenceId);
 
     public static GetFuturesTradeSignalQuery TradeSignalQueryFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         string contractId = ContractId,
         DateOnly? valueDate = null)
     {
@@ -984,7 +984,7 @@ public static class SampleData
     }
 
     public static GetLastFuturesTradeSignalQuery LastTradeSignalQueryFor(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var entityId = TradeSignalEntityIdFor(timePeriod);
         return new GetLastFuturesTradeSignalQuery
@@ -998,7 +998,7 @@ public static class SampleData
     }
 
     public static GetFuturesTradeSignalIdsQuery TradeSignalIdsQueryFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         DateOnly? valueDate = null)
     {
         var queryDate = valueDate ?? ValueDate;
@@ -1017,7 +1017,7 @@ public static class SampleData
         => CreateTradeSignalUpdatedCompleteEventFor(TimePeriod, commandId);
 
     public static FuturesTradeSignalUpdatedCompleteEvent CreateTradeSignalUpdatedCompleteEventFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         Guid? commandId = null,
         FuturesTradeSignalV2ReadModel? tradeSignal = null)
     {
@@ -1046,7 +1046,7 @@ public static class SampleData
         => CreateHoldTradeChangedEventFor(TimePeriod, commandId);
 
     public static FuturesItiSignalHoldTradeChangedEvent CreateHoldTradeChangedEventFor(
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         Guid? commandId = null,
         bool holdTrade = true)
     {

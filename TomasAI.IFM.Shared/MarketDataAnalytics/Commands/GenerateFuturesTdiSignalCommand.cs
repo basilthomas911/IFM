@@ -65,7 +65,7 @@ public record GenerateFuturesTdiSignalCommand : ICommand<FuturesTdiSignalEntityI
         FuturesTdiSignalId = futuresTdiSignalId;
         FuturesRsiSignals = futuresRsiSignals ?? throw new ArgumentNullException(nameof(futuresRsiSignals));
 
-        EntityId = new FuturesTdiSignalEntityId(FuturesTdiSignalId.ContractId, FuturesTdiSignalId.ValueDate, TradeTimePeriodType.Daily);
+        EntityId = new FuturesTdiSignalEntityId(FuturesTdiSignalId.ContractId, FuturesTdiSignalId.ValueDate, TimeFrameType.Daily);
         ErrorCode = 20001;
         RouteTo = BoundedContextName.FuturesTdiSignalBoundedContext;
     }

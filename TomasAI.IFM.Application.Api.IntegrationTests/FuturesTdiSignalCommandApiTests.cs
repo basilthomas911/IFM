@@ -27,7 +27,7 @@ public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> fact
             new FuturesRsiSignalReadModel(
                 contractId: "CONTRACT1",
                 valueDate: DateOnly.FromDateTime(DateTime.Now),
-                timePeriod: TradeTimePeriodType.OneMinute,
+                timePeriod: TimeFrameType.OneMinute,
                 periodLength: 14,
                 timestamp: TimeOnly.FromDateTime(DateTime.Now),
                 price: 4500m,

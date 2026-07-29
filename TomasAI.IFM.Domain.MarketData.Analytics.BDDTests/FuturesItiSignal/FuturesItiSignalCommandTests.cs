@@ -13,17 +13,17 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesItiSignal;
 public class FuturesItiSignalCommandTests
 {
     // Trading-day lookup in the compute model only supports Weekly and Monthly; Daily is intentionally unsupported.
-    public static readonly TheoryData<TradeTimePeriodType> SupportedTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> SupportedTimePeriods = new()
     {
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     static FuturesItiSignalCommandState NewState() => new();
@@ -35,7 +35,7 @@ public class FuturesItiSignalCommandTests
     static FuturesItiSignalV2ReadModel LastSignal(FuturesItiSignalCommandState state)
         => ((FuturesItiSignalGeneratedEvent)state.Events[^1]).FuturesItiSignal!;
 
-    static FuturesItiSignalCommandState GivenStartOfDayState(TradeTimePeriodType timePeriod, double? futuresPrice = null)
+    static FuturesItiSignalCommandState GivenStartOfDayState(TimeFrameType timePeriod, double? futuresPrice = null)
     {
         var state = NewState();
         var command = SampleData.GenerateCommandFor(timePeriod) with
@@ -51,7 +51,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
     public void GivenNoExistingSignal_WhenGenerateFuturesItiSignalCommandIsExecuted_ThenStartOfDaySignalIsApplied(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var state = NewState();
@@ -75,7 +75,7 @@ public class FuturesItiSignalCommandTests
     {
         // Given
         var state = NewState();
-        var command = SampleData.GenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.GenerateCommandFor(TimeFrameType.Daily);
 
         // When
         var act = () => command.Execute(state);
@@ -89,7 +89,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
     public void GivenExistingUpTrendSignal_WhenPriceFallsBelowDownTrendTrigger_ThenTrendDirectionChangesToDownTrend(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var state = GivenStartOfDayState(timePeriod);
@@ -111,7 +111,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
     public void GivenExistingUpTrendSignal_WhenPriceExceedsTrendExtreme_ThenTrendExtremeIsUpdated(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var state = GivenStartOfDayState(timePeriod);
@@ -132,7 +132,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
     public void GivenExistingUpTrendSignal_WhenPriceFallsBelowTrendReversal_ButNotBelowDownTrendTrigger_ThenTrendReversalIsUpdated(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var state = GivenStartOfDayState(timePeriod);
@@ -158,7 +158,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
     public void GivenExistingUpTrendSignal_WhenPriceStaysWithinRange_ThenSignalIsTrending(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given: nudge the reversal level down slightly so a subsequent price between the reversal
         // and the extreme lands inside the "no change" range, since the initial start-of-day signal
@@ -187,7 +187,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
     public void GivenExistingDownTrendSignal_WhenPriceExceedsUpTrendTrigger_ThenTrendDirectionChangesToUpTrend(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given: force a down-trend by dropping the price below the initial down-trend trigger.
         var state = GivenStartOfDayState(timePeriod);
@@ -211,7 +211,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
     public void GivenExistingDownTrendSignal_WhenPriceFallsBelowTrendExtreme_ThenTrendExtremeIsUpdated(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var state = GivenStartOfDayState(timePeriod);
@@ -237,7 +237,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
     public void GivenExistingDownTrendSignal_WhenPriceExceedsTrendReversal_ButNotAboveUpTrendTrigger_ThenTrendReversalIsUpdated(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var state = GivenStartOfDayState(timePeriod);
@@ -268,7 +268,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void GivenSignalInReadyState_WhenSetFuturesItiSignalHoldTradeCommandIsExecuted_ThenTradeStateBecomesHold(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var state = NewState();
@@ -286,7 +286,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void GivenSignalAlreadyOnHold_WhenSetFuturesItiSignalHoldTradeCommandIsExecuted_ThenNoUpdateOccurs(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var state = NewState();
@@ -325,7 +325,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void GivenSignalOnHold_WhenClearFuturesItiSignalHoldTradeCommandIsExecuted_ThenTradeStateBecomesReady(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var state = NewState();
@@ -345,7 +345,7 @@ public class FuturesItiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void GivenSignalAlreadyReady_WhenClearFuturesItiSignalHoldTradeCommandIsExecuted_ThenNoUpdateOccurs(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var state = NewState();
@@ -380,7 +380,7 @@ public class FuturesItiSignalCommandTests
     /// Seeds the given state with a Ready trade state without invoking the Compute model's trading-day
     /// lookup, so hold-trade command tests can exercise Daily, Weekly, and Monthly periods uniformly.
     /// </summary>
-    static void SeedReadyState(FuturesItiSignalCommandState state, TradeTimePeriodType timePeriod)
+    static void SeedReadyState(FuturesItiSignalCommandState state, TimeFrameType timePeriod)
     {
         var entityId = SampleData.EntityIdFor(timePeriod);
         var seedEvent = new FuturesItiSignalGeneratedEvent

@@ -22,7 +22,7 @@ public class MarketDataAnalyticsCommandApiTests(WebApplicationFactory<Program> f
     {
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new MarketDataAnalyticsCommandApi(commandServiceApi);
-        var entityId = new FuturesRsiSignalEntityId("CONTRACT1", DateOnly.FromDateTime(DateTime.Now), TradeTimePeriodType.FifteenSeconds, 14);
+        var entityId = new FuturesRsiSignalEntityId("CONTRACT1", DateOnly.FromDateTime(DateTime.Now), TimeFrameType.FifteenSeconds, 14);
         var response = await api.StartFuturesRsiSignalAsync(entityId);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
@@ -33,7 +33,7 @@ public class MarketDataAnalyticsCommandApiTests(WebApplicationFactory<Program> f
     {
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new MarketDataAnalyticsCommandApi(commandServiceApi);
-        var entityId = new FuturesRsiSignalEntityId("CONTRACT1", DateOnly.FromDateTime(DateTime.Now), TradeTimePeriodType.FifteenSeconds, 14);
+        var entityId = new FuturesRsiSignalEntityId("CONTRACT1", DateOnly.FromDateTime(DateTime.Now), TimeFrameType.FifteenSeconds, 14);
         var response = await api.StopFuturesRsiSignalAsync(entityId);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
@@ -56,7 +56,7 @@ public class MarketDataAnalyticsCommandApiTests(WebApplicationFactory<Program> f
             PriceVolatilityType.Unknown,
             0.2, 500
         );
-        var response = await api.GenerateFuturesRsiSignalAsync(eodData, TradeTimePeriodType.Daily, 14);
+        var response = await api.GenerateFuturesRsiSignalAsync(eodData, TimeFrameType.Daily, 14);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
     }
@@ -78,7 +78,7 @@ public class MarketDataAnalyticsCommandApiTests(WebApplicationFactory<Program> f
             PriceVolatilityType.Unknown,
             0.2, 500
         );
-        var response = await api.GenerateFuturesRsiDailySignalAsync(eodData, TradeTimePeriodType.Daily, 14);
+        var response = await api.GenerateFuturesRsiDailySignalAsync(eodData, TimeFrameType.Daily, 14);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
     }
@@ -103,7 +103,7 @@ public class MarketDataAnalyticsCommandApiTests(WebApplicationFactory<Program> f
         var rsiSignal = new FuturesRsiSignalReadModel(
             "CONTRACT1",
             DateOnly.FromDateTime(DateTime.Now),
-            TradeTimePeriodType.None,
+            TimeFrameType.None,
             14,
             TimeOnly.FromDateTime(DateTime.Now),
             105, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -111,7 +111,7 @@ public class MarketDataAnalyticsCommandApiTests(WebApplicationFactory<Program> f
         var tdiSignal = new FuturesTdiSignalReadModel(
             "CONTRACT1",
             DateOnly.FromDateTime(DateTime.Now),
-            TradeTimePeriodType.FifteenSeconds,
+            TimeFrameType.FifteenSeconds,
             TimeOnly.FromDateTime(DateTime.Now),
             1, 1,
             FuturesTrendDirectionType.Init,
@@ -138,7 +138,7 @@ public class MarketDataAnalyticsCommandApiTests(WebApplicationFactory<Program> f
             new FuturesRsiSignalReadModel(
                 "CONTRACT1",
                 DateOnly.FromDateTime(DateTime.Now),
-                TradeTimePeriodType.None,
+                TimeFrameType.None,
                 14,
                 TimeOnly.FromDateTime(DateTime.Now),
                 105, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -157,7 +157,7 @@ public class MarketDataAnalyticsCommandApiTests(WebApplicationFactory<Program> f
         var contractId = "CONTRACT1";
         var valueDate = DateOnly.FromDateTime(DateTime.Now);
         var timestamp = DateTime.Now;
-        var timePeriod = TradeTimePeriodType.Weekly;
+        var timePeriod = TimeFrameType.Weekly;
         double futuresPrice = 100;
         double vixFuturesPrice = 0;
         var response = await api.GenerateFuturesItiSignalAsync(contractId, valueDate, timePeriod, timestamp, futuresPrice, vixFuturesPrice);
@@ -170,7 +170,7 @@ public class MarketDataAnalyticsCommandApiTests(WebApplicationFactory<Program> f
     {
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new MarketDataAnalyticsCommandApi(commandServiceApi);
-        var id = new FuturesItiSignalId("CONTRACT1", DateOnly.FromDateTime(DateTime.Now), TradeTimePeriodType.Weekly, DateTime.Now);
+        var id = new FuturesItiSignalId("CONTRACT1", DateOnly.FromDateTime(DateTime.Now), TimeFrameType.Weekly, DateTime.Now);
         var response = await api.SetFuturesItiSignalHoldTradeAsync(id);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
@@ -181,7 +181,7 @@ public class MarketDataAnalyticsCommandApiTests(WebApplicationFactory<Program> f
     {
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new MarketDataAnalyticsCommandApi(commandServiceApi);
-        var id = new FuturesItiSignalId("CONTRACT1", DateOnly.FromDateTime(DateTime.Now), TradeTimePeriodType.Weekly, DateTime.Now);
+        var id = new FuturesItiSignalId("CONTRACT1", DateOnly.FromDateTime(DateTime.Now), TimeFrameType.Weekly, DateTime.Now);
         var response = await api.ClearFuturesItiSignalHoldTradeAsync(id);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);

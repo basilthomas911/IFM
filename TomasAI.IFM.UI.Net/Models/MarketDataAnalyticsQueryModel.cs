@@ -35,7 +35,7 @@ public class MarketDataAnalyticsQueryModel(IMarketDataAnalyticsQueryApi queryApi
     /// <param name="contractId"></param>
     /// <param name="onCompleted"></param>
     /// <returns></returns>
-    public async Task GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, Action<FuturesItiSignalV2ReadModel[]> onCompleted)
+    public async Task GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, Action<FuturesItiSignalV2ReadModel[]> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetFuturesItiTrendDirectionChangedSignalsAsync(contractId, valueDate, timePeriod), onCompleted);
 
 }

@@ -29,7 +29,7 @@ public record FuturesAtrSignalId : IActorEntityId
     /// <remarks>The time period determines the duration over which the contract's terms apply. Understanding
     /// the time period is essential for analyzing contract performance and assessing market conditions.</remarks>
     [Key(2)]
-    public TradeTimePeriodType TimePeriod { get; init; } 
+    public TimeFrameType TimePeriod { get; init; } 
 
     [Key(3)]
     public int PeriodLength { get; init; } 
@@ -51,7 +51,7 @@ public record FuturesAtrSignalId : IActorEntityId
     /// <param name="timePeriod">Time period of the signal.</param>
     /// <param name="periodLength">ATR signal source type.</param>   
     /// <param name="timestamp">Intraday timestamp component.</param>
-    public FuturesAtrSignalId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength,  TimeOnly timestamp)
+    public FuturesAtrSignalId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength,  TimeOnly timestamp)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -63,7 +63,7 @@ public record FuturesAtrSignalId : IActorEntityId
     /// <summary>
     /// Factory method for creating a new identifier instance.
     /// </summary>
-    public static FuturesAtrSignalId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength, TimeOnly timestamp)
+    public static FuturesAtrSignalId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, TimeOnly timestamp)
         => new(contractId, valueDate, timePeriod, periodLength, timestamp);
 
     /// <summary>

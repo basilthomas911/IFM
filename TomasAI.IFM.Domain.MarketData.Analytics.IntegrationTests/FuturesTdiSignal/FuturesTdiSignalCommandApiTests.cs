@@ -48,7 +48,7 @@ public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> fact
         var valueDate = new DateOnly(2099, 12, 31);
         var timestamp = new TimeOnly(10, 0, 0);
         var futuresTdiSignalId = new FuturesTdiSignalId(SampleData.ContractId, valueDate, timestamp);
-        var entityId = new FuturesTdiSignalEntityId(SampleData.ContractId, valueDate, TradeTimePeriodType.Daily);
+        var entityId = new FuturesTdiSignalEntityId(SampleData.ContractId, valueDate, TimeFrameType.Daily);
         var subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format());
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
@@ -70,7 +70,7 @@ public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> fact
         futuresTdiSignalGeneratedEvent.FuturesTdiSignal.Should().NotBeNull();
         futuresTdiSignalGeneratedEvent.FuturesTdiSignal.ContractId.Should().Be(SampleData.ContractId);
         futuresTdiSignalGeneratedEvent.FuturesTdiSignal.ValueDate.Should().Be(valueDate);
-        futuresTdiSignalGeneratedEvent.FuturesTdiSignal.TimePeriod.Should().Be(TradeTimePeriodType.Daily);
+        futuresTdiSignalGeneratedEvent.FuturesTdiSignal.TimePeriod.Should().Be(TimeFrameType.Daily);
         futuresTdiSignalGeneratedEvent.FuturesTdiSignal.Timestamp.Should().Be(timestamp);
 
         var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesTdiSignalAsync(SampleData.ContractId, valueDate);

@@ -20,7 +20,7 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     static FuturesRsiSignalReadModel CreateRsiSignal(
-        TradeTimePeriodType signalType,
+        TimeFrameType signalType,
         TimeOnly timestamp,
         decimal price,
         double rsi = 55.0,
@@ -49,15 +49,15 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
 
         // OneMinute signal 1
         await dbFixture.MarketDataDb.InsertFuturesRsiSignalAsync(
-            CreateRsiSignal(TradeTimePeriodType.OneMinute, baseTime, (decimal)SampleData.FuturesPrice, rsi: 55.0));
+            CreateRsiSignal(TimeFrameType.OneMinute, baseTime, (decimal)SampleData.FuturesPrice, rsi: 55.0));
 
         // OneMinute signal 2
         await dbFixture.MarketDataDb.InsertFuturesRsiSignalAsync(
-            CreateRsiSignal(TradeTimePeriodType.OneMinute, baseTime.AddMinutes(1), (decimal)SampleData.FuturesPrice + 10m, rsi: 58.0));
+            CreateRsiSignal(TimeFrameType.OneMinute, baseTime.AddMinutes(1), (decimal)SampleData.FuturesPrice + 10m, rsi: 58.0));
 
         // Daily signal
         await dbFixture.MarketDataDb.InsertFuturesRsiSignalAsync(
-            CreateRsiSignal(TradeTimePeriodType.Daily, baseTime, (decimal)SampleData.FuturesPrice, rsi: 52.0, windowSize: 14));
+            CreateRsiSignal(TimeFrameType.Daily, baseTime, (decimal)SampleData.FuturesPrice, rsi: 52.0, windowSize: 14));
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
         _httpClientFactory.CreateClient();
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
-        var response = await analyticsApi.GetFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.Daily, 14);
+        var response = await analyticsApi.GetFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily, 14);
 
         // assert...
         response.Should().NotBeNull();
@@ -99,7 +99,7 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
         response.Value.Should().NotBeNull();
         response.Value!.ContractId.Should().Be(SampleData.ContractId);
         response.Value.ValueDate.Should().Be(SampleData.ValueDate);
-        response.Value.TimePeriod.Should().Be(TradeTimePeriodType.Daily);
+        response.Value.TimePeriod.Should().Be(TimeFrameType.Daily);
     }
 
     [Fact]

@@ -27,7 +27,7 @@ public record FuturesTdiSignalReadModel
     public DateOnly ValueDate { get; init; }
 
     [Key(2)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     /// <summary>Intraday timestamp (time component) when the signal was generated.</summary>
     [Key(3)]
@@ -82,7 +82,7 @@ public record FuturesTdiSignalReadModel
     public FuturesTdiSignalReadModel(
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         TimeOnly timestamp,
         int upTrendCount,
         int downTrendCount,

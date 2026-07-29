@@ -16,9 +16,9 @@ public static class SampleData
 {
     public const string ContractId = "ESU25";
     public static readonly DateOnly ValueDate = new(2025, 6, 20);
-    public static readonly TradeTimePeriodType TimePeriod = TradeTimePeriodType.Weekly;
+    public static readonly TimeFrameType TimePeriod = TimeFrameType.Weekly;
     public static readonly int PeriodLength = 14;
-    public static readonly TradeTimePeriodType RSITimePeriod = TradeTimePeriodType.FifteenSeconds;
+    public static readonly TimeFrameType RSITimePeriod = TimeFrameType.FifteenSeconds;
     public static readonly DateTime Timestamp = new(2025, 6, 20, 10, 0, 0);
     public const string Symbol = "ES";
     public const double FuturesPrice = 5500.0;

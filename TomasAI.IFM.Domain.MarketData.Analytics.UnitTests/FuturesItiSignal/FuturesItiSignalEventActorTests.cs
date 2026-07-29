@@ -57,9 +57,9 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
     public static IEnumerable<object[]> SupportedTimePeriods =>
     [
-        [TradeTimePeriodType.Daily],
-        [TradeTimePeriodType.Weekly],
-        [TradeTimePeriodType.Monthly]
+        [TimeFrameType.Daily],
+        [TimeFrameType.Weekly],
+        [TimeFrameType.Monthly]
     ];
 
     #endregion
@@ -122,7 +122,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
-    public void ParseMessage_WithItiSignalGeneratedCompleteEvent_AcrossTimePeriods_ShouldReturnEvent(TradeTimePeriodType timePeriod)
+    public void ParseMessage_WithItiSignalGeneratedCompleteEvent_AcrossTimePeriods_ShouldReturnEvent(TimeFrameType timePeriod)
     {
         // Arrange
         var actor = _fixture.CreateActor();
@@ -469,7 +469,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
-    public async Task ReceiveAsync_WithItiSignalGeneratedCompleteEvent_AcrossTimePeriods_ShouldNotThrow(TradeTimePeriodType timePeriod)
+    public async Task ReceiveAsync_WithItiSignalGeneratedCompleteEvent_AcrossTimePeriods_ShouldNotThrow(TimeFrameType timePeriod)
     {
         // Arrange
         var actor = _fixture.CreateActor();

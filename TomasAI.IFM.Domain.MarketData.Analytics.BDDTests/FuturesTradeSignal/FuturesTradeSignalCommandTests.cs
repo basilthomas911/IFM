@@ -24,11 +24,11 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesTradeSignal;
 /// </summary>
 public class FuturesTradeSignalCommandTests
 {
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     public FuturesTradeSignalCommandTests()
@@ -129,7 +129,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenNoPriorTradeSignal_WhenAnUpdateIsRequested_ThenANewPeriodSpecificSignalIsProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(timePeriod);
@@ -150,7 +150,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenDownTrendingInputs_WhenAnUpdateIsRequested_ThenABuySignalIsProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(
@@ -169,7 +169,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenNoOptionalIndicators_WhenAnUpdateIsRequested_ThenARangeBoundInitialSignalIsProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(timePeriod, includeIndicators: false);
@@ -186,7 +186,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenAnIdenticalExistingSignal_WhenTheSameUpdateIsRequested_ThenNoDuplicateEventIsProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(timePeriod);
@@ -202,7 +202,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenAChangedClosingPrice_WhenAnUpdateIsRequested_ThenAReplacementSignalIsProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var initial = SampleData.TradeSignalUpdateCommandFor(timePeriod);
@@ -224,7 +224,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenAValidTradeSignalCommandMessage_WhenItIsParsed_ThenAllInputsAreRestoredAndLogged(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var expected = SampleData.TradeSignalUpdateCommandFor(timePeriod);
@@ -249,7 +249,7 @@ public class FuturesTradeSignalCommandTests
     public void GivenANullContext_WhenACommandMessageIsParsed_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily);
 
         var act = () => scenario.Actor.InvokeParseMessage(null!, CreateMessage(command));
 
@@ -266,7 +266,7 @@ public class FuturesTradeSignalCommandTests
         string verb)
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily);
         var subject = $"{actorType}.{actorName}.{verb}.{command.Subject.ThreadId.EntityId}";
 
         var act = () => scenario.Actor.InvokeParseMessage(
@@ -280,7 +280,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void GivenACorruptedPayload_WhenACommandMessageIsParsed_ThenDeserializationFails(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(timePeriod);
@@ -297,7 +297,7 @@ public class FuturesTradeSignalCommandTests
     public void GivenCommandLoggingFails_WhenACommandMessageIsParsed_ThenTheFailureIsPropagated()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Monthly);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Monthly);
         scenario.EventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new InvalidOperationException("command log unavailable")));
 
@@ -312,7 +312,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenANullReceiveContext_WhenAnUpdateIsRequested_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(null!, CreateState(command), command);
 
@@ -323,7 +323,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenANullState_WhenAnUpdateIsRequested_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, null!, command);
 
@@ -347,7 +347,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenTheWrongStateType_WhenAnUpdateIsRequested_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Weekly);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Weekly);
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(
             scenario.Context,
@@ -375,7 +375,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenACompleteTradeSignalCommand_WhenItIsValidated_ThenNoErrorsAreReported(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(timePeriod);
@@ -391,7 +391,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenOnlyRequiredEodData_WhenTheCommandIsValidated_ThenNoErrorsAreReported(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(timePeriod, includeIndicators: false);
@@ -408,7 +408,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenAnEmptyCommandId_WhenTheCommandIsValidated_ThenAValidationErrorIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily) with
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily) with
         {
             CommandId = Guid.Empty
         };
@@ -425,7 +425,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenMissingEodData_WhenTheCommandIsValidated_ThenAValidationErrorIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Weekly) with
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Weekly) with
         {
             FuturesEodData = null!
         };
@@ -446,7 +446,7 @@ public class FuturesTradeSignalCommandTests
         double invalidVixPrice)
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Monthly) with
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Monthly) with
         {
             VixFuturesPrice = Convert.ToDecimal(invalidVixPrice)
         };
@@ -463,9 +463,9 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenAnInvalidIndicator_WhenTheCommandIsValidated_ThenAValidationErrorIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily) with
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily) with
         {
-            FuturesRsiSignal = SampleData.TradeSignalRsiSignalFor(TradeTimePeriodType.Daily) with
+            FuturesRsiSignal = SampleData.TradeSignalRsiSignalFor(TimeFrameType.Daily) with
             {
                 ContractId = string.Empty
             }
@@ -483,9 +483,9 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenAnUndefinedTimePeriod_WhenTheCommandIsValidated_ThenAValidationErrorIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily) with
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily) with
         {
-            TimePeriod = (TradeTimePeriodType)999
+            TimePeriod = (TimeFrameType)999
         };
 
         var act = async () => await scenario.Actor.InvokeOnValidateAsync(
@@ -519,7 +519,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenInvalidValidationArguments_WhenValidationRuns_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily);
 
         var nullContext = async () => await scenario.Actor.InvokeOnValidateAsync(
             null!, command.Subject.ThreadId, command);
@@ -571,7 +571,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenPersistedTradeSignalState_WhenACommandRuns_ThenStateCanBeLoadedAndSaved(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(timePeriod);
@@ -600,7 +600,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenInvalidLoadArguments_WhenStateIsLoaded_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily);
 
         var nullContext = async () => await scenario.Actor.InvokeOnLoadStateAsync(
             null!, command.Subject.ThreadId, command);
@@ -618,7 +618,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenInvalidSaveArguments_WhenStateIsSaved_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily);
         var state = CreateState(command);
 
         var nullContext = async () => await scenario.Actor.InvokeOnSaveStateAsync(
@@ -640,7 +640,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenTheWrongStateType_WhenStateIsSaved_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Weekly);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Weekly);
         await scenario.Actor.InvokeOnStartupAsync(scenario.Context);
 
         var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
@@ -657,7 +657,7 @@ public class FuturesTradeSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenATradeSignalCommandFailure_WhenTheActorHandlesIt_ThenAnExceptionEventAndFailedResultAreProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(timePeriod);
@@ -685,7 +685,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenTheFirstExceptionEventSendFails_WhenTheActorRetries_ThenTheSecondResultIsReturnedAndLogged()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Weekly);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Weekly);
         scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(
                 Arg.Any<ActorCommandExceptionEvent>())
             .Returns(
@@ -712,7 +712,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenBothExceptionEventSendsFail_WhenTheActorHandlesIt_ThenACommandFailureFallbackIsReturned()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Monthly);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Monthly);
         scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(
                 Arg.Any<ActorCommandExceptionEvent>())
             .Returns(_ => throw new InvalidOperationException("send failed"));
@@ -733,7 +733,7 @@ public class FuturesTradeSignalCommandTests
     public async Task GivenInvalidExceptionArguments_WhenTheActorHandlesThem_ThenFailedResultsAreReturned()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TradeSignalUpdateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Daily);
         scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(
                 Arg.Any<ActorCommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);

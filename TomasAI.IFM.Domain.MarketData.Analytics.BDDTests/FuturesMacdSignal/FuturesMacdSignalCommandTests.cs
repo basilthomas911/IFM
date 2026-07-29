@@ -21,7 +21,7 @@ public class FuturesMacdSignalCommandTests
     /// given price series. The last price in the series is stamped with <paramref name="lastDirection"/>
     /// so it becomes the "prior" MACD signal used by the command handler's trend-transition logic.
     /// </summary>
-    static FuturesMacdSignalCommandState SeedState(IReadOnlyList<decimal> prices, TradeTimePeriodType timePeriod, FuturesTrendDirectionType lastDirection)
+    static FuturesMacdSignalCommandState SeedState(IReadOnlyList<decimal> prices, TimeFrameType timePeriod, FuturesTrendDirectionType lastDirection)
     {
         var state = new FuturesMacdSignalCommandState();
         for (var i = 0; i < prices.Count; i++)
@@ -32,11 +32,11 @@ public class FuturesMacdSignalCommandTests
         return state;
     }
 
-    static GenerateFuturesMacdSignalCommand BuildCommand(TradeTimePeriodType timePeriod = TradeTimePeriodType.Daily)
+    static GenerateFuturesMacdSignalCommand BuildCommand(TimeFrameType timePeriod = TimeFrameType.Daily)
         => SampleData.MacdGenerateCommandFor(timePeriod) with { CommandId = Guid.NewGuid() };
 
-    static readonly TradeTimePeriodType[] AllTimePeriods =
-        [TradeTimePeriodType.Daily, TradeTimePeriodType.Weekly, TradeTimePeriodType.Monthly];
+    static readonly TimeFrameType[] AllTimePeriods =
+        [TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly];
 
     #region Happy Path Tests
 
@@ -59,10 +59,10 @@ public class FuturesMacdSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_WhenPriorSignalUpTrendingAndPricesRising_ProducesUpTrendingSignal(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_WhenPriorSignalUpTrendingAndPricesRising_ProducesUpTrendingSignal(TimeFrameType timePeriod)
     {
         // Arrange
         var state = SeedState(SampleData.MacdRisingPrices, timePeriod, FuturesTrendDirectionType.UpTrending);
@@ -78,10 +78,10 @@ public class FuturesMacdSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_WhenPriorSignalWasTrendReversalAndPricesRising_ProducesUpTrendingSignal(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_WhenPriorSignalWasTrendReversalAndPricesRising_ProducesUpTrendingSignal(TimeFrameType timePeriod)
     {
         // Arrange
         var state = SeedState(SampleData.MacdRisingPrices, timePeriod, FuturesTrendDirectionType.TrendReversal);
@@ -96,10 +96,10 @@ public class FuturesMacdSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_WhenPriorSignalDownTrendingAndPricesFalling_ProducesDownTrendingSignal(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_WhenPriorSignalDownTrendingAndPricesFalling_ProducesDownTrendingSignal(TimeFrameType timePeriod)
     {
         // Arrange
         var state = SeedState(SampleData.MacdFallingPrices, timePeriod, FuturesTrendDirectionType.DownTrending);
@@ -115,10 +115,10 @@ public class FuturesMacdSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_WhenPriorSignalWasTrendReversalAndPricesFalling_ProducesDownTrendingSignal(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_WhenPriorSignalWasTrendReversalAndPricesFalling_ProducesDownTrendingSignal(TimeFrameType timePeriod)
     {
         // Arrange
         var state = SeedState(SampleData.MacdFallingPrices, timePeriod, FuturesTrendDirectionType.TrendReversal);
@@ -166,10 +166,10 @@ public class FuturesMacdSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_EntityId_ReflectsRequestedTimePeriod(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_EntityId_ReflectsRequestedTimePeriod(TimeFrameType timePeriod)
     {
         // Arrange
         var state = new FuturesMacdSignalCommandState();
@@ -189,10 +189,10 @@ public class FuturesMacdSignalCommandTests
     #region Edge Case Tests
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_WhenPriorSignalUpTrendingButPricesFalling_ProducesFlatSignal(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_WhenPriorSignalUpTrendingButPricesFalling_ProducesFlatSignal(TimeFrameType timePeriod)
     {
         // Arrange - the prior signal (UpTrending) conflicts with the newly computed DownTrending
         // direction, and since the prior signal is neither DownTrending nor TrendReversal, the
@@ -209,10 +209,10 @@ public class FuturesMacdSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_WhenPriorSignalDownTrendingButPricesRising_ProducesFlatSignal(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_WhenPriorSignalDownTrendingButPricesRising_ProducesFlatSignal(TimeFrameType timePeriod)
     {
         // Arrange - the prior signal (DownTrending) conflicts with the newly computed UpTrending
         // direction, and since the prior signal is neither UpTrending nor TrendReversal, the
@@ -229,10 +229,10 @@ public class FuturesMacdSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_WhenPricesAreFlat_ProducesFlatSignal(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_WhenPricesAreFlat_ProducesFlatSignal(TimeFrameType timePeriod)
     {
         // Arrange
         var state = SeedState(SampleData.MacdFlatPrices, timePeriod, FuturesTrendDirectionType.Flat);
@@ -250,7 +250,7 @@ public class FuturesMacdSignalCommandTests
     public void Execute_WithSinglePriorPricePoint_DoesNotThrowAndProducesSignal()
     {
         // Arrange
-        var state = SeedState(SampleData.MacdSinglePrice, TradeTimePeriodType.Daily, FuturesTrendDirectionType.Init);
+        var state = SeedState(SampleData.MacdSinglePrice, TimeFrameType.Daily, FuturesTrendDirectionType.Init);
         var command = BuildCommand();
 
         // Act
@@ -267,7 +267,7 @@ public class FuturesMacdSignalCommandTests
         // Arrange - prior "Flat" is neither UpTrending, DownTrending nor TrendReversal, so the
         // handler falls back to the raw computed trend direction (which can still flip to Flat
         // if the histogram/MACD-vs-signal comparison does not clear the trending thresholds).
-        var state = SeedState(SampleData.MacdRisingPrices, TradeTimePeriodType.Daily, FuturesTrendDirectionType.Flat);
+        var state = SeedState(SampleData.MacdRisingPrices, TimeFrameType.Daily, FuturesTrendDirectionType.Flat);
         var command = BuildCommand();
 
         // Act
@@ -294,10 +294,10 @@ public class FuturesMacdSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_AcrossAllTimePeriods_AlwaysMarksStateAsUpdated(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_AcrossAllTimePeriods_AlwaysMarksStateAsUpdated(TimeFrameType timePeriod)
     {
         // Arrange
         var state = new FuturesMacdSignalCommandState();

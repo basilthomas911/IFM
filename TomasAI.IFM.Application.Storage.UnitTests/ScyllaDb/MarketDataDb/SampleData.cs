@@ -130,7 +130,7 @@ public class SampleData
     public static FuturesItiSignalV2ReadModel FuturesItiSignal1 => new (
         contractId: "SYM20251215",
         valueDate: new DateOnly(2025, 1, 15),
-        timePeriod: TradeTimePeriodType.Weekly,
+        timePeriod: TimeFrameType.Weekly,
         sequenceId: 1,
         intrinsicTime: DateTime.Now,
         intrinsicTimeGroupId: 1,
@@ -154,7 +154,7 @@ public class SampleData
     public static FuturesItiSignalV2ReadModel FuturesItiSignal2 => new (
         contractId: "SYM20251230",
         valueDate: new DateOnly(2025, 1, 20),
-        timePeriod: TradeTimePeriodType.Weekly,
+        timePeriod: TimeFrameType.Weekly,
         sequenceId: 2,
         intrinsicTime: DateTime.Now,
         intrinsicTimeGroupId: 2,
@@ -245,7 +245,7 @@ public class SampleData
     public static FuturesRsiSignalReadModel FuturesRsiSignal => new (
         contractId: "SYM20251230",
         valueDate: new DateOnly(2025, 2, 20),
-        timePeriod: TradeTimePeriodType.OneMinute,
+        timePeriod: TimeFrameType.OneMinute,
         periodLength: 14,
         timestamp: new TimeOnly(14, 30, 0),
         price: 150.0m,
@@ -263,7 +263,7 @@ public class SampleData
     public static FuturesTdiSignalReadModel FuturesTdiSignal => new (
         contractId: "SYM20251230",
         valueDate: new DateOnly(2025, 2, 20),
-        timePeriod: TradeTimePeriodType.FifteenSeconds,
+        timePeriod: TimeFrameType.FifteenSeconds,
         timestamp: TimeOnly.FromDateTime(DateTime.Now),
         upTrendCount: 5,
         downTrendCount: 3,
@@ -274,7 +274,7 @@ public class SampleData
     public static FuturesTradeSignalV2ReadModel FuturesTradeSignal => new (
         contractId: "SYM20251230",
         valueDate: new DateOnly(2025, 2, 20),
-        timePeriod: TradeTimePeriodType.FifteenSeconds,
+        timePeriod: TimeFrameType.FifteenSeconds,
         sequenceId: 123456,
         timestamp: new TimeOnly(14, 30, 0),
         mean: 100.5,

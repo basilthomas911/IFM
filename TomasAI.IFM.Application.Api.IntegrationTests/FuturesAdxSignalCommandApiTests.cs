@@ -23,13 +23,13 @@ public class FuturesAdxSignalCommandApiTests(WebApplicationFactory<Program> fact
         var adxSignalId = new FuturesAdxSignalId(
             "CONTRACT1",
             DateOnly.FromDateTime(DateTime.Now),
-            TradeTimePeriodType.Daily, 14,
+            TimeFrameType.Daily, 14,
             TimeOnly.FromDateTime(DateTime.Now));
         var itiSignals = new[] {
             new FuturesItiSignalV2ReadModel(
                 contractId: "CONTRACT1",
                 valueDate: DateOnly.FromDateTime(DateTime.Now),
-                timePeriod: TradeTimePeriodType.Weekly,
+                timePeriod: TimeFrameType.Weekly,
                 sequenceId: 0,
                 intrinsicTime: DateTime.Now,
                 intrinsicTimeGroupId: 0,

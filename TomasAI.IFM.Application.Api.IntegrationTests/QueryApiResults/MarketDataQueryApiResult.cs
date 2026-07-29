@@ -29,7 +29,7 @@ public static class MarketDataQueryApiResult
         => resp.SetResult(new FuturesTradeSignalV2ReadModel(
             "ES20251010",
             new System.DateOnly(2025, 10, 10),
-            TradeTimePeriodType.FifteenSeconds,
+            TimeFrameType.FifteenSeconds,
             1L,
             new System.TimeOnly(9, 30),
             100.0, 2.0, 101.0, 0.5, 0.1, 55.0, 0.2,

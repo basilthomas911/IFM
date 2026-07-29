@@ -25,7 +25,7 @@ public record FuturesAdxSignalId : IActorEntityId
     public DateOnly ValueDate { get; init; }
 
     [Key(2)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(3)]
     public int PeriodLength { get; init; }
@@ -47,7 +47,7 @@ public record FuturesAdxSignalId : IActorEntityId
     /// <param name="timePeriod">Futures time period type.</param>
     /// <param name="periodLength">The length of the time period.</param>
     /// <param name="timestamp">Intraday timestamp component.</param>
-    public FuturesAdxSignalId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength, TimeOnly timestamp)
+    public FuturesAdxSignalId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, TimeOnly timestamp)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -59,7 +59,7 @@ public record FuturesAdxSignalId : IActorEntityId
     /// <summary>
     /// Factory method for creating a new identifier instance.
     /// </summary>
-    public static FuturesAdxSignalId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength, TimeOnly timestamp)
+    public static FuturesAdxSignalId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, TimeOnly timestamp)
         => new(contractId, valueDate, timePeriod, periodLength, timestamp);
 
     /// <summary>
@@ -100,7 +100,7 @@ public static class FuturesAdxSignalIdExtensions
             validationErrors.Add(new ($"{commandName}.ValueDate must be greater than DateOnly.MinValue"));
         if (futuresAdxSignalId.ValueDate == DateOnly.MaxValue)
             validationErrors.Add(new ($"{commandName}.ValueDate must be less than DateOnly.MaxValue"));
-        if (futuresAdxSignalId.TimePeriod == TradeTimePeriodType.None)
+        if (futuresAdxSignalId.TimePeriod == TimeFrameType.None)
             validationErrors.Add(new ($"{commandName}.TimePeriod is invalid"));
         if (futuresAdxSignalId.PeriodLength <= 0)
             validationErrors.Add(new ($"{commandName}.PeriodLength must be a positive integer   "));

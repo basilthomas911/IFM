@@ -101,10 +101,10 @@ public class FuturesAdxSignalQueryTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
     public async Task GivenVariousTimePeriods_WhenGetLastFuturesAdxSignalAsyncIsCalled_ThenPassesThroughCorrectTimePeriod(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var dbFactory = CreateDbFactory(out var marketDataDb);

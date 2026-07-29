@@ -22,11 +22,11 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesAtrSignal;
 /// </summary>
 public class FuturesAtrSignalQueryTests
 {
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     public FuturesAtrSignalQueryTests()
@@ -86,7 +86,7 @@ public class FuturesAtrSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void GivenAnAtrSignalMessage_WhenItIsParsed_ThenTheQueryAndMessageContextAreRestored(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, _, context) = CreateScenario();
         var expected = SampleData.AtrSignalQueryFor(timePeriod);
@@ -103,7 +103,7 @@ public class FuturesAtrSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void GivenAnAtrDailySignalMessage_WhenItIsParsed_ThenTheQueryAndMessageContextAreRestored(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, _, context) = CreateScenario();
         var expected = SampleData.AtrDailySignalQueryFor(timePeriod);
@@ -123,7 +123,7 @@ public class FuturesAtrSignalQueryTests
     public void GivenANullContext_WhenAnAtrMessageIsParsed_ThenArgumentNullIsReported()
     {
         var (actor, _, _) = CreateScenario();
-        var query = SampleData.AtrSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.AtrSignalQueryFor(TimeFrameType.Daily);
 
         var act = () => actor.InvokeParseMessage(null!, CreateMessage(query));
 
@@ -140,7 +140,7 @@ public class FuturesAtrSignalQueryTests
         string verb)
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.AtrSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.AtrSignalQueryFor(TimeFrameType.Daily);
         var subject = $"{actorType}.{actorName}.{verb}.{query.Subject.ThreadId.EntityId}";
 
         var act = () => actor.InvokeParseMessage(context, CreateMessage(query, subject: subject));
@@ -153,7 +153,7 @@ public class FuturesAtrSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void GivenACorruptedPayload_WhenAnAtrMessageIsParsed_ThenDeserializationFails(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, _, context) = CreateScenario();
         var query = SampleData.AtrSignalQueryFor(timePeriod);
@@ -170,7 +170,7 @@ public class FuturesAtrSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenAnExistingAtrSignal_WhenTheQueryIsReceived_ThenTheMatchingSignalIsReturned(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrSignalQueryFor(timePeriod);
@@ -195,7 +195,7 @@ public class FuturesAtrSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenNoCurrentAtrSignal_WhenTheQueryIsReceived_ThenASuccessfulNullResultIsReturned(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrSignalQueryFor(timePeriod);
@@ -219,7 +219,7 @@ public class FuturesAtrSignalQueryTests
         var valueDate = new DateOnly(2026, 12, 18);
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrSignalQueryFor(
-            TradeTimePeriodType.Weekly,
+            TimeFrameType.Weekly,
             contractId,
             valueDate,
             periodLength);
@@ -229,7 +229,7 @@ public class FuturesAtrSignalQueryTests
         await db.Received(1).GetLastFuturesAtrSignalAsync(
             contractId,
             valueDate,
-            TradeTimePeriodType.Weekly,
+            TimeFrameType.Weekly,
             periodLength);
     }
 
@@ -238,7 +238,7 @@ public class FuturesAtrSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenAnExistingDailyAtrSignal_WhenTheQueryIsReceived_ThenTheMatchingSignalIsReturned(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrDailySignalQueryFor(timePeriod);
@@ -262,7 +262,7 @@ public class FuturesAtrSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenNoDailyAtrSignal_WhenTheQueryIsReceived_ThenASuccessfulNullResultIsReturned(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrDailySignalQueryFor(timePeriod);
@@ -285,7 +285,7 @@ public class FuturesAtrSignalQueryTests
         const int periodLength = 7;
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrDailySignalQueryFor(
-            TradeTimePeriodType.Monthly,
+            TimeFrameType.Monthly,
             contractId,
             periodLength);
 
@@ -293,7 +293,7 @@ public class FuturesAtrSignalQueryTests
 
         await db.Received(1).GetLastFuturesAtrDailySignalAsync(
             contractId,
-            TradeTimePeriodType.Monthly,
+            TimeFrameType.Monthly,
             periodLength);
     }
 
@@ -303,7 +303,7 @@ public class FuturesAtrSignalQueryTests
     public async Task GivenANullContext_WhenAQueryIsReceived_ThenArgumentNullIsReported()
     {
         var (actor, _, _) = CreateScenario();
-        var query = SampleData.AtrSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.AtrSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await actor.InvokeReceiveAsync(null!, query);
 
@@ -336,7 +336,7 @@ public class FuturesAtrSignalQueryTests
     public async Task GivenStorageFails_WhenTheCurrentAtrQueryIsReceived_ThenTheFailureIsPropagated()
     {
         var (actor, db, context) = CreateScenario();
-        var query = SampleData.AtrSignalQueryFor(TradeTimePeriodType.Weekly);
+        var query = SampleData.AtrSignalQueryFor(TimeFrameType.Weekly);
         db.GetLastFuturesAtrSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.PeriodLength)
             .Returns<Task<FuturesAtrSignalReadModel?>>(_ => throw new InvalidOperationException("storage unavailable"));
 
@@ -351,7 +351,7 @@ public class FuturesAtrSignalQueryTests
     public async Task GivenStorageFails_WhenTheDailyAtrQueryIsReceived_ThenTheFailureIsPropagated()
     {
         var (actor, db, context) = CreateScenario();
-        var query = SampleData.AtrDailySignalQueryFor(TradeTimePeriodType.Monthly);
+        var query = SampleData.AtrDailySignalQueryFor(TimeFrameType.Monthly);
         db.GetLastFuturesAtrDailySignalAsync(query.ContractId, query.TimePeriod, query.PeriodLength)
             .Returns<Task<FuturesAtrSignalReadModel?>>(_ => throw new InvalidOperationException("daily storage unavailable"));
 
@@ -367,7 +367,7 @@ public class FuturesAtrSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenACurrentAtrQueryFailure_WhenTheActorHandlesIt_ThenATypedFailureIsReturned(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, _, context) = CreateScenario();
         var query = SampleData.AtrSignalQueryFor(timePeriod);
@@ -392,7 +392,7 @@ public class FuturesAtrSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenADailyAtrQueryFailure_WhenTheActorHandlesIt_ThenAGenericFailureIsReturned(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, _, context) = CreateScenario();
         var query = SampleData.AtrDailySignalQueryFor(timePeriod);
@@ -437,7 +437,7 @@ public class FuturesAtrSignalQueryTests
     public async Task GivenANullContext_WhenAFailureIsHandled_ThenArgumentNullIsReported()
     {
         var (actor, _, _) = CreateScenario();
-        var query = SampleData.AtrSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.AtrSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await actor.InvokeOnExceptionAsync(
             null!, query.Subject.ThreadId, query, query.Subject.Verb, new Exception("failure"));
@@ -449,7 +449,7 @@ public class FuturesAtrSignalQueryTests
     public async Task GivenAnEmptyThreadId_WhenAFailureIsHandled_ThenArgumentNullIsReported()
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.AtrSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.AtrSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await actor.InvokeOnExceptionAsync(
             context, default, query, query.Subject.Verb, new Exception("failure"));
@@ -473,7 +473,7 @@ public class FuturesAtrSignalQueryTests
     public async Task GivenANullVerb_WhenAFailureIsHandled_ThenArgumentNullIsReported()
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.AtrSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.AtrSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await actor.InvokeOnExceptionAsync(
             context, query.Subject.ThreadId, query, null!, new Exception("failure"));
@@ -485,7 +485,7 @@ public class FuturesAtrSignalQueryTests
     public async Task GivenANullException_WhenAFailureIsHandled_ThenArgumentNullIsReported()
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.AtrSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.AtrSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await actor.InvokeOnExceptionAsync(
             context, query.Subject.ThreadId, query, query.Subject.Verb, null!);
@@ -497,7 +497,7 @@ public class FuturesAtrSignalQueryTests
     public async Task GivenTheFailureReplyAlsoFails_WhenTheActorHandlesIt_ThenTheSecondaryFailureIsContained()
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.AtrSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.AtrSignalQueryFor(TimeFrameType.Daily);
         context.ReplyAsync(
                 query.Subject.ThreadId,
                 GetFuturesAtrSignalQuery.Verb,

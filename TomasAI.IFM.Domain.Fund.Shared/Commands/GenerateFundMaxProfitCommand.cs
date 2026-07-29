@@ -48,7 +48,7 @@ public record GenerateFundMaxProfitCommand : ICommand<FundId>
     /// Gets or sets the trade time period for the fund.
     /// </summary>
     /// <remarks>Serialized with key 7.</remarks>
-    [Key(7)] public TradeTimePeriodType FundTimePeriod { get; init; }
+    [Key(7)] public TimeFrameType FundTimePeriod { get; init; }
 
     /// <summary>
     /// Parameterless constructor used by MessagePack for property-based deserialization.
@@ -60,7 +60,7 @@ public record GenerateFundMaxProfitCommand : ICommand<FundId>
     /// </summary>
     /// <param name="fundOrder">The fund order to evaluate.</param>
     /// <param name="fundTimePeriod">The trade time period for the fund.</param>
-    public GenerateFundMaxProfitCommand(FundOrderReadModel fundOrder, TradeTimePeriodType fundTimePeriod)
+    public GenerateFundMaxProfitCommand(FundOrderReadModel fundOrder, TimeFrameType fundTimePeriod)
     {
         FundOrder = fundOrder ?? throw new ArgumentNullException(nameof(fundOrder));
         FundTimePeriod = fundTimePeriod;
@@ -89,7 +89,7 @@ public record GenerateFundMaxProfitCommand : ICommand<FundId>
         int errorCode,
         BoundedContextName routeTo,
         FundOrderReadModel fundOrder,
-        TradeTimePeriodType fundTimePeriod)
+        TimeFrameType fundTimePeriod)
     {
         CommandId = commandId;
         Subject = subject;

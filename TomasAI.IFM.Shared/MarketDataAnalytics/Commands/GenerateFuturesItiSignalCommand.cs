@@ -43,7 +43,7 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
     public DateOnly ValueDate { get; init; }
 
     [Key(8)]
-    public TradeTimePeriodType TimePeriod { get; init; }    
+    public TimeFrameType TimePeriod { get; init; }    
 
     /// <summary>The timestamp of the source data used to generate the signal.</summary>
     [Key(9)]
@@ -65,7 +65,7 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
     public GenerateFuturesItiSignalCommand(
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         DateTime timestamp,
         double futuresPrice,
         double vixFuturesPrice)
@@ -92,7 +92,7 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
         BoundedContextName routeTo,                  // Key(5)
         string contractId,                           // Key(6)
         DateOnly valueDate,                          // Key(7)
-        TradeTimePeriodType timePeriod,              // Key(8)
+        TimeFrameType timePeriod,              // Key(8)
         DateTime timestamp,                          // Key(9)
         double futuresPrice,                         // Key(10)
         double vixFuturesPrice                       // Key(11)

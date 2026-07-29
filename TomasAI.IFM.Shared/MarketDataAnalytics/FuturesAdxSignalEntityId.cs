@@ -23,7 +23,7 @@ public record FuturesAdxSignalEntityId : IActorEntityId
     public DateOnly ValueDate { get; init; }
 
     [Key(2)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(3)]
     public int PeriodLength { get; init; }
@@ -40,7 +40,7 @@ public record FuturesAdxSignalEntityId : IActorEntityId
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period.</param>
     /// <param name="periodLength">Period length.</param>
-    public FuturesAdxSignalEntityId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public FuturesAdxSignalEntityId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -51,7 +51,7 @@ public record FuturesAdxSignalEntityId : IActorEntityId
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesAdxSignalEntityId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength) 
+    public static FuturesAdxSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) 
         => new(contractId, valueDate, timePeriod, periodLength   );
 
     /// <summary>

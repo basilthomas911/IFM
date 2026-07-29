@@ -35,13 +35,13 @@ public static class FuturesItiSignalGeneratedComplete
             var contractId = e.EntityId.ContractId;
             var valueDate = e.EntityId.ValueDate;
             var futuresEodData = await context.GetFuturesEodDataAsync(contractId, valueDate);
-            var futuresRsiSignal = await context.GetFuturesRsiSignalAsync(contractId, valueDate, TradeTimePeriodType.Daily, 14);
+            var futuresRsiSignal = await context.GetFuturesRsiSignalAsync(contractId, valueDate, TimeFrameType.Daily, 14);
             var futuresTdiSignal = await context.GetFuturesTdiSignalAsync(contractId, valueDate);
             var futuresItiSignalData = await context.GetFuturesItiSignalDataAsync(contractId, valueDate, e.EntityId.TimePeriod);
             var vixFuturesPrice = await context.GetVixFuturesEodDataClosePriceAsync(valueDate);
             if (futuresEodData is null || futuresRsiSignal is null || futuresTdiSignal is null || futuresItiSignalData is null || vixFuturesPrice == 0)
                 return false;
-            await context.UpdateFuturesTradeSignalAsync(futuresEodData!, futuresRsiSignal!, futuresTdiSignal!, futuresItiSignalData!, vixFuturesPrice, TradeTimePeriodType.FifteenSeconds);
+            await context.UpdateFuturesTradeSignalAsync(futuresEodData!, futuresRsiSignal!, futuresTdiSignal!, futuresItiSignalData!, vixFuturesPrice, TimeFrameType.FifteenSeconds);
             return true;
         }
         catch (Exception ex)

@@ -23,7 +23,7 @@ public record FuturesMacdSignalEntityId : IActorEntityId
     public DateOnly ValueDate { get; init; }
 
     [Key(2)]
-    public TradeTimePeriodType TimePeriod {  get; init; }
+    public TimeFrameType TimePeriod {  get; init; }
 
     [Key(3)]
     public int PeriodLength { get; init; }
@@ -40,7 +40,7 @@ public record FuturesMacdSignalEntityId : IActorEntityId
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period type.</param>
     /// <param name="periodLength">Length of the time period.</param>
-    public FuturesMacdSignalEntityId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public FuturesMacdSignalEntityId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -51,7 +51,7 @@ public record FuturesMacdSignalEntityId : IActorEntityId
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesMacdSignalEntityId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength) => new(contractId, valueDate, timePeriod, periodLength);
+    public static FuturesMacdSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => new(contractId, valueDate, timePeriod, periodLength);
 
     /// <summary>
     /// Formats the identifier into a stable string key: ContractId.yyyyMMdd.TimePeriod.PeriodLength

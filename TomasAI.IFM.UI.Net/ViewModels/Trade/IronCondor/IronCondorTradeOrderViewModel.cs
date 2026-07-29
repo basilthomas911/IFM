@@ -203,7 +203,7 @@ public class IronCondorTradeOrderReadModel
             model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Setting Fund Max Profit Error Error"));
             await model.StartFundRiskMarginEventConsumerAsync(FundMaxProfitChanged, FundMaxProfitFailed);
             await Task.Delay(TimeSpan.FromSeconds(1));
-            await model.GenerateFundRiskMarginAsync(_fundOrder, Shared.MarketDataAnalytics.TradeTimePeriodType.FifteenSeconds);
+            await model.GenerateFundRiskMarginAsync(_fundOrder, Shared.MarketDataAnalytics.TimeFrameType.FifteenSeconds);
         });
 
     /// <summary>

@@ -39,7 +39,7 @@ public class FuturesAtrSignalQueryApiTests(WebApplicationFactory<Program> factor
         _httpClientFactory.CreateClient();
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
-        var response = await analyticsApi.GetFuturesAtrSignalAsync(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.Daily, SampleData.PeriodLength);
+        var response = await analyticsApi.GetFuturesAtrSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily, SampleData.PeriodLength);
 
         // assert...
         response.Should().NotBeNull();

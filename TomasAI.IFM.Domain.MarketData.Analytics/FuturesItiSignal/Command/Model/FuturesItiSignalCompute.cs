@@ -62,11 +62,11 @@ public class FuturesItiSignalCompute
             : minTargetDelta;
     }
 
-    static int DefaultTradingDays(TradeTimePeriodType timePeriod)
+    static int DefaultTradingDays(TimeFrameType timePeriod)
         => timePeriod switch
         {
-            TradeTimePeriodType.Weekly => 5,
-            TradeTimePeriodType.Monthly => 20,
+            TimeFrameType.Weekly => 5,
+            TimeFrameType.Monthly => 20,
             _ => throw new ArgumentOutOfRangeException(nameof(timePeriod), $"Unsupported time period: {timePeriod}")
         };
 

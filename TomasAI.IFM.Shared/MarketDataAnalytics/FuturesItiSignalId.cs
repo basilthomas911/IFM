@@ -16,7 +16,7 @@ public record FuturesItiSignalId : IActorEntityId
 {
     [Key(0)] public string ContractId { get; init; }
     [Key(1)] public DateOnly ValueDate { get; init; }
-    [Key(2)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(2)] public TimeFrameType TimePeriod { get; init; }
     [Key(3)] public DateTime IntrinsicTime { get; init; }
 
     /// <summary>
@@ -31,7 +31,7 @@ public record FuturesItiSignalId : IActorEntityId
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period type.</param>
     /// <param name="intrinsicTime">Intrinsic (timestamp) time.</param>
-    public FuturesItiSignalId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, DateTime intrinsicTime)
+    public FuturesItiSignalId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, DateTime intrinsicTime)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -48,7 +48,7 @@ public record FuturesItiSignalId : IActorEntityId
     /// <param name="timePeriod">The time period that defines the duration of the trade.</param>
     /// <param name="intrinsicTime">The date and time when the intrinsic value is determined.</param>
     /// <returns>A new FuturesItiSignalId instance initialized with the provided parameters.</returns>
-    public static FuturesItiSignalId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, DateTime intrinsicTime)
+    public static FuturesItiSignalId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, DateTime intrinsicTime)
         => new(contractId, valueDate, timePeriod, intrinsicTime);
 
     /// <summary>

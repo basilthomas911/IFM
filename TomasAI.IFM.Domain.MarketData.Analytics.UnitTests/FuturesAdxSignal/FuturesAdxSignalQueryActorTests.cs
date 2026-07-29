@@ -315,7 +315,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var dbFactory = Substitute.For<IDbContextFactory>();
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        marketDataDb.GetLastFuturesAdxSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TradeTimePeriodType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAdxSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
             .Returns(Task.FromResult<FuturesAdxSignalReadModel?>(SampleData.FuturesAdxSignal));
 
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
@@ -346,7 +346,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var dbFactory = Substitute.For<IDbContextFactory>();
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        marketDataDb.GetLastFuturesAdxDailySignalAsync(Arg.Any<string>(), Arg.Any<TradeTimePeriodType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAdxDailySignalAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
             .Returns(Task.FromResult<FuturesAdxSignalReadModel?>(SampleData.FuturesAdxSignal));
 
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
@@ -377,7 +377,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var dbFactory = Substitute.For<IDbContextFactory>();
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        marketDataDb.GetLastFuturesAdxSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TradeTimePeriodType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAdxSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
             .Returns(Task.FromResult<FuturesAdxSignalReadModel?>(null));
 
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();

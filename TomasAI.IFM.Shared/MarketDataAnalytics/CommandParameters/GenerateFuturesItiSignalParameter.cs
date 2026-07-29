@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Shared.MarketDataAnalytics.CommandParameters;
 public record GenerateFuturesItiSignalParameter(
     string ContractId,
     DateOnly ValueDate,
-    TradeTimePeriodType TimePeriod,
+    TimeFrameType TimePeriod,
     DateTime Timestamp,
     double FuturesPrice,
     double VixFuturesPrice,

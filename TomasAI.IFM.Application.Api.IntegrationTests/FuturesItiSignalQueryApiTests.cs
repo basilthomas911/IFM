@@ -19,7 +19,7 @@ public class FuturesItiSignalQueryApiTests(WebApplicationFactory<Program> factor
     {
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var queryApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
-        var response = await queryApi.GetFuturesItiSignalAsync("ESU25", new DateOnly(2025, 9, 10), TradeTimePeriodType.Weekly);
+        var response = await queryApi.GetFuturesItiSignalAsync("ESU25", new DateOnly(2025, 9, 10), TimeFrameType.Weekly);
         response.Success.Should().BeTrue();
         response.Value.Should().BeAssignableTo<FuturesItiSignalV2ReadModel>();
     }
@@ -29,7 +29,7 @@ public class FuturesItiSignalQueryApiTests(WebApplicationFactory<Program> factor
     {
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var queryApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
-        var response = await queryApi.GetFuturesItiTrendDirectionChangedSignalsAsync("ESU25", new DateOnly(2025, 9, 10), TradeTimePeriodType.Weekly);
+        var response = await queryApi.GetFuturesItiTrendDirectionChangedSignalsAsync("ESU25", new DateOnly(2025, 9, 10), TimeFrameType.Weekly);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
     }
@@ -39,7 +39,7 @@ public class FuturesItiSignalQueryApiTests(WebApplicationFactory<Program> factor
     {
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var queryApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
-        var response = await queryApi.GetFuturesItiSignalDataAsync("ESU25", new DateOnly(2025, 9, 10), TradeTimePeriodType.Weekly);
+        var response = await queryApi.GetFuturesItiSignalDataAsync("ESU25", new DateOnly(2025, 9, 10), TimeFrameType.Weekly);
         response.Success.Should().BeTrue();
         response.Value.Should().BeAssignableTo<FuturesItiSignalDataReadModel>();
     }

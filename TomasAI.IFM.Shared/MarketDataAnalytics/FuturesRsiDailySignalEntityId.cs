@@ -23,7 +23,7 @@ public record FuturesRsiDailySignalEntityId : IActorEntityId
 
     /// <summary>Value date associated with the RSI signal.</summary>
     [Key(1)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(2)]
     public int PeriodLength { get; init; }  
@@ -39,7 +39,7 @@ public record FuturesRsiDailySignalEntityId : IActorEntityId
     /// <param name="contractId">The futures contract identifier.</param>
     /// <param name="timePeriod">The type of RSI signal.</param>
     /// <param name="periodLength"></param>
-    public FuturesRsiDailySignalEntityId(string contractId, TradeTimePeriodType timePeriod, int periodLength)
+    public FuturesRsiDailySignalEntityId(string contractId, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId;
         TimePeriod = timePeriod;
@@ -52,7 +52,7 @@ public record FuturesRsiDailySignalEntityId : IActorEntityId
     /// <param name="contractId">The futures contract identifier.</param>
     /// <param name="timePeriod">The type of RSI signal.</param>
     /// <param name="periodLength">The length of the RSI period.</param>
-    public static FuturesRsiDailySignalEntityId Create(string contractId, TradeTimePeriodType timePeriod, int periodLength) 
+    public static FuturesRsiDailySignalEntityId Create(string contractId, TimeFrameType timePeriod, int periodLength) 
         => new(contractId, timePeriod, periodLength);
 
     /// <summary>
@@ -83,7 +83,7 @@ public class FuturesRsiDailySignalEntityIdValidationRules : BaseValidationRules,
         {
             RuleFor(x => x.ContractId).NotEmpty().WithMessage(ContractIdErrorMessage);
             RuleFor(x => x.PeriodLength).GreaterThan(0).WithMessage("FuturesRsiSignalEntityId: PeriodLength must be a positive integer");
-            RuleFor(x => x.TimePeriod).IsInEnum().NotEqual(TradeTimePeriodType.None).WithMessage(TimePeriodErrorMessage);
+            RuleFor(x => x.TimePeriod).IsInEnum().NotEqual(TimeFrameType.None).WithMessage(TimePeriodErrorMessage);
         }
 
         public override ValidationResult Validate(ValidationContext<FuturesRsiDailySignalEntityId> context)

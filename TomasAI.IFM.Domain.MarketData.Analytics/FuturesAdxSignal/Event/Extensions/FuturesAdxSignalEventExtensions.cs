@@ -16,7 +16,7 @@ internal static class FuturesAdxSignalEventExtensions
     /// <param name="futuresEodData">The end-of-day futures data used as input for RSI signal generation.</param>
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
-    public static async ValueTask GenerateFuturesAdxSignalAsync(this IEventActorContext context, FuturesEodDataV2ReadModel futuresEodData,TradeTimePeriodType timePeriod, int periodLength, decimal futuresPrice)
+    public static async ValueTask GenerateFuturesAdxSignalAsync(this IEventActorContext context, FuturesEodDataV2ReadModel futuresEodData,TimeFrameType timePeriod, int periodLength, decimal futuresPrice)
     {
         var signalId = new FuturesAdxSignalId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength, TimeOnly.FromDateTime(DateTime.Now));
         var entityId = signalId.ToEntityId();
@@ -38,7 +38,7 @@ internal static class FuturesAdxSignalEventExtensions
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask GenerateFuturesTdiSignalAsync(
-        this IEventActorContext context, FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals, TradeTimePeriodType timePeriod)
+        this IEventActorContext context, FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals, TimeFrameType timePeriod)
     {
         var entityId = new FuturesTdiSignalEntityId(futuresTdiSignalId.ContractId, futuresTdiSignalId.ValueDate, timePeriod);
         GenerateFuturesTdiSignalCommand cmd = new(futuresTdiSignalId, futuresRsiSignals)

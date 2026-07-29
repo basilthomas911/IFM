@@ -16,11 +16,11 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
 {
     readonly MarketDataAnalyticsTestFixture _fixture;
 
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     public FuturesTdiSignalEventActorTests(MarketDataAnalyticsTestFixture fixture)
@@ -80,7 +80,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_GivenValidCompletionEvent_WhenParsed_ThenPreservesPeriodAndIdentity(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var expected = SampleData.CreateTdiSignalGeneratedCompleteEventFor(timePeriod);
@@ -116,7 +116,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         string verb)
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TradeTimePeriodType.Weekly);
+        var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TimeFrameType.Weekly);
         var subject = $"{actorType}.{actorName}.{verb}.{@event.EntityId.Format()}";
 
         var result = scenario.Actor.InvokeParseMessage(
@@ -129,7 +129,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_GivenEmptyCommandId_WhenParsed_ThenRejectsEvent(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(
@@ -145,7 +145,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_GivenCorruptedPayload_WhenParsed_ThenThrowsDeserializationException(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(timePeriod);
@@ -162,7 +162,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     public void ParseMessage_GivenEmptyPayload_WhenParsed_ThenThrowsDeserializationException()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TradeTimePeriodType.Monthly);
+        var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TimeFrameType.Monthly);
 
         var act = () => scenario.Actor.InvokeParseMessage(
             scenario.Context,
@@ -175,7 +175,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     public void ParseMessage_GivenMalformedSubject_WhenParsed_ThenThrowsArgumentException()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TradeTimePeriodType.Daily);
+        var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TimeFrameType.Daily);
 
         var act = () => scenario.Actor.InvokeParseMessage(
             scenario.Context,
@@ -189,7 +189,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_GivenCompletionEvent_WhenReceived_ThenProcessesPeriodSuccessfully(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(timePeriod);
@@ -223,7 +223,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_GivenUnsupportedGeneratedEvent_WhenReceived_ThenRejectsEvent(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTdiSignalGeneratedEventFor(timePeriod);
@@ -239,7 +239,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnExceptionAsync_GivenProcessingFailure_WhenHandled_ThenPublishesTypedError(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(timePeriod);
@@ -266,7 +266,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     public async Task OnExceptionAsync_GivenFirstErrorPublicationFails_WhenHandled_ThenPublishesFallback()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TradeTimePeriodType.Monthly);
+        var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TimeFrameType.Monthly);
         scenario.Context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
                 Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(
@@ -317,7 +317,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     public async Task OnExceptionAsync_GivenBothErrorPublicationsFail_WhenHandled_ThenContainsFailures()
     {
         var scenario = CreateScenario();
-        var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TradeTimePeriodType.Weekly);
+        var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TimeFrameType.Weekly);
         scenario.Context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
                 Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(_ => throw new InvalidOperationException("publication unavailable"));

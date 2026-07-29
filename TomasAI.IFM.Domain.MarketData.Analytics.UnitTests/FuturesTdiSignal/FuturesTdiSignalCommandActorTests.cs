@@ -21,11 +21,11 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 {
     readonly MarketDataAnalyticsTestFixture _fixture;
 
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     public FuturesTdiSignalCommandActorTests(MarketDataAnalyticsTestFixture fixture)
@@ -125,7 +125,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ParseMessage_ValidCommand_DeserializesAndLogsCommand(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var expected = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -146,7 +146,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public void ParseMessage_NullContext_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = () => scenario.Actor.InvokeParseMessage(null!, CreateMessage(command));
 
@@ -163,7 +163,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         string verb)
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
         var subject = $"{actorType}.{actorName}.{verb}.{command.Subject.ThreadId.EntityId}";
 
         var act = () => scenario.Actor.InvokeParseMessage(
@@ -177,7 +177,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_CorruptedPayload_ThrowsDeserializationException(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -194,7 +194,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public void ParseMessage_EmptyPayload_ThrowsDeserializationException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Monthly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Monthly);
 
         var act = () => scenario.Actor.InvokeParseMessage(
             scenario.Context,
@@ -207,7 +207,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public void ParseMessage_CommandLogFailure_PropagatesException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Weekly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Weekly);
         scenario.EventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new InvalidOperationException("command log unavailable")));
 
@@ -221,7 +221,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_InitialState_ReturnsCommandIdAndGeneratesPeriodSpecificEvent(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -240,7 +240,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_ExistingState_ExecutesHandlerAndGeneratesNextSignal(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -261,7 +261,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task ReceiveAsync_NullContext_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(null!, CreateState(command), command);
 
@@ -272,7 +272,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task ReceiveAsync_NullState_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, null!, command);
 
@@ -296,7 +296,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task ReceiveAsync_WrongStateType_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(
             scenario.Context,
@@ -326,7 +326,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnValidateAsync_ValidCommand_CompletesSuccessfully(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -342,7 +342,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnValidateAsync_EmptyCommandId_ThrowsCommandValidationException(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod) with { CommandId = Guid.Empty };
@@ -358,7 +358,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnValidateAsync_EmptyRsiSignals_ThrowsCommandValidationException(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod) with { FuturesRsiSignals = [] };
@@ -375,7 +375,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnValidateAsync_DefaultSignalId_ThrowsCommandValidationException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Weekly) with
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Weekly) with
         {
             FuturesTdiSignalId = default
         };
@@ -392,7 +392,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnValidateAsync_NullContext_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnValidateAsync(
             null!,
@@ -406,7 +406,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnValidateAsync_EmptyThreadId_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnValidateAsync(
             scenario.Context,
@@ -451,7 +451,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnLoadStateAsync_PersistedState_ReturnsRepositoryState(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -472,7 +472,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnLoadStateAsync_RepositoryFailure_PropagatesException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Monthly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Monthly);
         scenario.Repository.LoadStateAsync(command)
             .Returns<ValueTask<FuturesTdiSignalCommandState>>(_ =>
                 throw new InvalidOperationException("load failed"));
@@ -490,7 +490,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnLoadStateAsync_NullContext_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnLoadStateAsync(
             null!,
@@ -504,7 +504,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnLoadStateAsync_EmptyThreadId_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnLoadStateAsync(
             scenario.Context,
@@ -533,7 +533,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnSaveStateAsync_ValidState_SavesThroughRepository(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -555,7 +555,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnSaveStateAsync_RepositoryFailure_PropagatesException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Weekly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Weekly);
         var state = CreateState(command);
         scenario.Repository.SaveStateAsync(scenario.Context, state, command)
             .Returns(_ => throw new InvalidOperationException("save failed"));
@@ -574,7 +574,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnSaveStateAsync_NullContext_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
             null!,
@@ -589,7 +589,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnSaveStateAsync_EmptyThreadId_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
             scenario.Context,
@@ -604,7 +604,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnSaveStateAsync_NullState_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
             scenario.Context,
@@ -619,7 +619,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnSaveStateAsync_WrongStateType_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnSaveStateAsync(
             scenario.Context,
@@ -650,7 +650,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnExceptionAsync_CommandFailure_SendsExceptionEventAndReturnsFailure(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -673,7 +673,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_ValidationFailure_ReturnsFailedResult()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
         scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
@@ -692,7 +692,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_FirstEventSendFails_RetriesAndReturnsFailure()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Weekly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Weekly);
         scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns(
                 _ => throw new InvalidOperationException("first send failed"),
@@ -713,7 +713,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_BothEventSendsFail_ReturnsCommandFailureFallback()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Monthly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Monthly);
         scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns<ValueTask>(_ => throw new InvalidOperationException("send failed"));
 
@@ -731,7 +731,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_NullContext_ReturnsCommandFailureFallback()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var result = await scenario.Actor.InvokeOnExceptionAsync(
             null!,
@@ -747,7 +747,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_EmptyThreadId_UsesRetryPathAndReturnsFailure()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
         scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 

@@ -24,7 +24,7 @@ public class FuturesAtrSignalQueryApiTests(WebApplicationFactory<Program> factor
     {
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var queryApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
-        var response = await queryApi.GetFuturesAtrSignalAsync("ESU25", new DateOnly(2025, 9, 10), Shared.MarketDataAnalytics.TradeTimePeriodType.FifteenSeconds, 14);
+        var response = await queryApi.GetFuturesAtrSignalAsync("ESU25", new DateOnly(2025, 9, 10), Shared.MarketDataAnalytics.TimeFrameType.FifteenSeconds, 14);
         response.Success.Should().BeTrue();
         response.Value.Should().BeAssignableTo<FuturesAtrSignalReadModel>();
     }

@@ -75,7 +75,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Gets the futures RSI signal for a contract and value date (default signal type).
     /// </summary>
-    public async Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         var entityId = new GetFuturesRsiSignalParameter(contractId, valueDate, timePeriod, periodLength);
         GetFuturesRsiSignalQuery query = new(contractId, valueDate, timePeriod, periodLength)
@@ -116,7 +116,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Gets the futures ITI signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public async Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         var entityId = new GetFuturesItiSignalParameter(contractId, valueDate, timePeriod);
         GetFuturesItiSignalQuery query = new(contractId, valueDate, timePeriod)
@@ -129,7 +129,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Gets the futures ITI trend direction changed signals for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         var entityId = new GetFuturesItiTrendDirectionChangedSignalsParameter(contractId, valueDate, timePeriod);
         GetFuturesItiTrendDirectionChangedSignalsQuery query = new(contractId, valueDate, timePeriod)
@@ -142,7 +142,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Gets the futures ITI signal data for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesItiSignalDataReadModel>> GetFuturesItiSignalDataAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public async Task<ServiceResult<FuturesItiSignalDataReadModel>> GetFuturesItiSignalDataAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         var entityId = new GetFuturesItiSignalDataParameter(contractId, valueDate, timePeriod);
         GetFuturesItiSignalDataQuery query = new(contractId, valueDate, timePeriod)
@@ -207,7 +207,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Gets the futures ATR signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         var entityId = new GetFuturesAtrSignalParameter(contractId, valueDate, timePeriod, periodLength);
         GetFuturesAtrSignalQuery query = new(contractId, valueDate, timePeriod, periodLength)
@@ -220,7 +220,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Gets the futures ADX signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         var entityId = new GetFuturesAdxSignalParameter(contractId, valueDate, timePeriod, periodLength);
         GetFuturesAdxSignalQuery query = new(contractId, valueDate, timePeriod, periodLength)
@@ -233,7 +233,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Gets the futures MACD signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         var entityId = new GetFuturesMacdSignalParameter(contractId, valueDate, timePeriod, periodLength);
         GetFuturesMacdSignalQuery query = new(contractId, valueDate, timePeriod, periodLength)

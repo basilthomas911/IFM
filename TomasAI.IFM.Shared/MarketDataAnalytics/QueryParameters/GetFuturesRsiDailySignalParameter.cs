@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Shared.MarketDataAnalytics.QueryParameters;
 public record GetFuturesRsiDailySignalParameter : IActorEntityId, IQueryParameter
 {
     [Key(0)] public string ContractId { get; init; } = string.Empty;
-    [Key(1)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(1)] public TimeFrameType TimePeriod { get; init; }
     [Key(2)] public int PeriodLength { get; init; }
 
     [IgnoreMember]
@@ -20,7 +20,7 @@ public record GetFuturesRsiDailySignalParameter : IActorEntityId, IQueryParamete
     public GetFuturesRsiDailySignalParameter() { }
 
     [SerializationConstructor]
-    public GetFuturesRsiDailySignalParameter(string contractId, TradeTimePeriodType timePeriod, int periodLength)
+    public GetFuturesRsiDailySignalParameter(string contractId, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId;
         TimePeriod = timePeriod;

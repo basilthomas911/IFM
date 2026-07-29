@@ -588,14 +588,14 @@ public static class MarketDataAnalyticsQueries
 {
     public static IEndpointRouteBuilder MapMarketDataAnalyticsQueries(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignal, async (IActorService e, string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod) =>
+        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignal, async (IActorService e, string contractId, DateOnly valueDate, TimeFrameType timePeriod) =>
         {
             var query = new GetFuturesItiSignalQuery(contractId, valueDate, timePeriod);
             query = query with { Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalQuery.Actor, GetFuturesItiSignalQuery.Verb, query.EntityId.Format()) };
             return await e.RequestAsync<FuturesItiSignalV2ReadModel, GetFuturesItiSignalQuery>(query);
         });
 
-        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalData, async (IActorService e, string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod) =>
+        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalData, async (IActorService e, string contractId, DateOnly valueDate, TimeFrameType timePeriod) =>
         {
             var query = new GetFuturesItiSignalDataQuery(contractId, valueDate, timePeriod);
             query = query with { Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalDataQuery.Actor, GetFuturesItiSignalDataQuery.Verb, query.EntityId.Format()) };
@@ -616,14 +616,14 @@ public static class MarketDataAnalyticsQueries
             return await e.RequestAsync<FuturesItiSignalMDIV2ReadModel[], GetFuturesItiSignalMDIByTrendQuery>(query);
         });
 
-        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiTrendDirectionChangedSignals, async (IActorService e, string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod) =>
+        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiTrendDirectionChangedSignals, async (IActorService e, string contractId, DateOnly valueDate, TimeFrameType timePeriod) =>
         {
             var query = new GetFuturesItiTrendDirectionChangedSignalsQuery(contractId, valueDate, timePeriod);
             query = query with { Subject = new ActorSubject(ActorType.Query, GetFuturesItiTrendDirectionChangedSignalsQuery.Actor, GetFuturesItiTrendDirectionChangedSignalsQuery.Verb, query.EntityId.Format()) };
             return await e.RequestAsync<FuturesItiSignalV2ReadModel[], GetFuturesItiTrendDirectionChangedSignalsQuery>(query);
         });
 
-        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesAtrSignal, async (IActorService e, string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength) =>
+        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesAtrSignal, async (IActorService e, string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) =>
         {
             var entityId = new FuturesAtrSignalEntityId(contractId!, valueDate, timePeriod, periodLength);
             var query = new GetFuturesAtrSignalQuery(contractId!, valueDate, timePeriod, periodLength)
@@ -633,7 +633,7 @@ public static class MarketDataAnalyticsQueries
             return await e.RequestAsync<FuturesAtrSignalReadModel, GetFuturesAtrSignalQuery>(query);
         });
 
-        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesAdxSignal, async (IActorService e, string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength) =>
+        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesAdxSignal, async (IActorService e, string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) =>
         {
             var entityId = new FuturesAdxSignalEntityId(contractId!, valueDate, timePeriod, periodLength);
             var query = new GetFuturesAdxSignalQuery(contractId!, valueDate, timePeriod, periodLength)
@@ -643,7 +643,7 @@ public static class MarketDataAnalyticsQueries
             return await e.RequestAsync<FuturesAdxSignalReadModel, GetFuturesAdxSignalQuery>(query);
         });
 
-        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesMacdSignal, async (IActorService e, string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength) =>
+        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesMacdSignal, async (IActorService e, string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) =>
         {
             var entityId = new FuturesMacdSignalEntityId(contractId!, valueDate, timePeriod, periodLength);
             var query = new GetFuturesMacdSignalQuery(contractId!, valueDate, timePeriod, periodLength)

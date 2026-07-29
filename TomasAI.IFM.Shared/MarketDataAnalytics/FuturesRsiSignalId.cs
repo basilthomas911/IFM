@@ -23,7 +23,7 @@ public record FuturesRsiSignalId : IActorEntityId
     public DateOnly ValueDate { get; init; }
     /// <summary>Value date associated with the RSI signal.</summary>
     [Key(2)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
     [Key(3)]
     public int PeriodLength { get; init; }
     /// <summary>Intraday timestamp (time component) when the signal was generated.</summary>
@@ -43,7 +43,7 @@ public record FuturesRsiSignalId : IActorEntityId
     /// <param name="timePeriod">Time period type.</param>
     /// <param name="periodLength">Length of the period.</param>
     /// <param name="timestamp">Intraday timestamp component.</param>
-    public FuturesRsiSignalId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength, TimeOnly timestamp)
+    public FuturesRsiSignalId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, TimeOnly timestamp)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -55,7 +55,7 @@ public record FuturesRsiSignalId : IActorEntityId
     /// <summary>
     /// Factory method for creating a new identifier instance.
     /// </summary>
-    public static FuturesRsiSignalId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength, TimeOnly timestamp)
+    public static FuturesRsiSignalId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, TimeOnly timestamp)
         => new(contractId, valueDate, timePeriod, periodLength, timestamp);
 
     /// <summary>

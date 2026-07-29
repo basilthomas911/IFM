@@ -291,7 +291,7 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
         var expectedReadModel = CreateAtrSignalReadModel();
-        marketDataDb.GetLastFuturesAtrSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TradeTimePeriodType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAtrSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
             .Returns(Task.FromResult<FuturesAtrSignalReadModel?>(expectedReadModel));
 
         var actor = _fixture.CreateAtrQueryActor(dbFactory: dbFactory);
@@ -322,7 +322,7 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
         var expectedReadModel = CreateAtrSignalReadModel();
-        marketDataDb.GetLastFuturesAtrDailySignalAsync(Arg.Any<string>(), Arg.Any<TradeTimePeriodType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAtrDailySignalAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
             .Returns(Task.FromResult<FuturesAtrSignalReadModel?>(expectedReadModel));
 
         var actor = _fixture.CreateAtrQueryActor(dbFactory: dbFactory);
@@ -352,7 +352,7 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var dbFactory = Substitute.For<IDbContextFactory>();
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        marketDataDb.GetLastFuturesAtrSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TradeTimePeriodType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAtrSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
             .Returns(Task.FromResult<FuturesAtrSignalReadModel?>(null));
 
         var actor = _fixture.CreateAtrQueryActor(dbFactory: dbFactory);

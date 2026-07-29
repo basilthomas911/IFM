@@ -339,7 +339,7 @@ public class IFMAppViewModel
             var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
             if (esContract is not null && _valueDate.HasValue)
             {
-                var entityId = FuturesRsiSignalEntityId.Create(esContract.ContractId, _valueDate.Value,  TradeTimePeriodType.Daily, 14);
+                var entityId = FuturesRsiSignalEntityId.Create(esContract.ContractId, _valueDate.Value,  TimeFrameType.Daily, 14);
                 await model.StartFuturesRsiSignalServiceAsync(entityId);
                 WriteStatusConsole("Starting Futures Rsi Signal Service...");
             }
@@ -354,7 +354,7 @@ public class IFMAppViewModel
             var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
             if (esContract is not null && _valueDate.HasValue)
             {
-                var entityId = FuturesRsiSignalEntityId.Create(esContract.ContractId,  _valueDate.Value, TradeTimePeriodType.Daily, 14);
+                var entityId = FuturesRsiSignalEntityId.Create(esContract.ContractId,  _valueDate.Value, TimeFrameType.Daily, 14);
                 await model.StopFuturesRsiSignalServiceAsync(entityId);
                 WriteStatusConsole("Stopping Futures Rsi Signal Service...");
             }

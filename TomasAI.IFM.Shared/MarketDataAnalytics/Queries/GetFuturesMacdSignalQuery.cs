@@ -29,14 +29,14 @@ public record GetFuturesMacdSignalQuery : IQuery<FuturesMacdSignalReadModel>
     public DateOnly ValueDate { get; init; }
 
     [Key(4)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(5)]
     public int PeriodLength { get; init; }
 
     public GetFuturesMacdSignalQuery() { }
 
-    public GetFuturesMacdSignalQuery(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod , int periodLength)
+    public GetFuturesMacdSignalQuery(string contractId, DateOnly valueDate, TimeFrameType timePeriod , int periodLength)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
@@ -55,7 +55,7 @@ public record GetFuturesMacdSignalQuery : IQuery<FuturesMacdSignalReadModel>
         IActorEntityId entityId,
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         int periodLength)
     {
         Subject = subject;

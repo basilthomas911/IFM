@@ -20,7 +20,7 @@ public record FuturesTradeSignalId : IActorEntityId
 {
     [Key(0)] public string ContractId { get; init; } 
     [Key(1)] public DateOnly ValueDate { get; init; }
-    [Key(2)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(2)] public TimeFrameType TimePeriod { get; init; }
     [Key(3)] public long SequenceId { get; init; }
 
     /// <summary>
@@ -30,7 +30,7 @@ public record FuturesTradeSignalId : IActorEntityId
     /// <param name="valueDate">The value date of the signal.</param>
     /// <param name="timePeriod">The time period of the signal.</param>
     /// <param name="sequenceId">The sequence ID of the signal.</param>
-    public FuturesTradeSignalId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, long sequenceId)
+    public FuturesTradeSignalId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, long sequenceId)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;

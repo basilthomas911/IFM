@@ -15,7 +15,7 @@ public record FuturesItiSignalEntityId : IActorEntityId
 {
     [Key(0)] public string ContractId { get; init; }
     [Key(1)] public DateOnly ValueDate { get; init; }
-    [Key(2)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(2)] public TimeFrameType TimePeriod { get; init; }
 
     /// <summary>
     public FuturesItiSignalEntityId() { }
@@ -26,7 +26,7 @@ public record FuturesItiSignalEntityId : IActorEntityId
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period type.</param>
-    public FuturesItiSignalEntityId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public FuturesItiSignalEntityId(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -39,7 +39,7 @@ public record FuturesItiSignalEntityId : IActorEntityId
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period type.</param>
-    public static FuturesItiSignalEntityId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod) 
+    public static FuturesItiSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod) 
         => new(contractId, valueDate, timePeriod);
 
     /// <summary>

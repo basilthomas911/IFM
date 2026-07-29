@@ -45,12 +45,12 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
 
     public static IEnumerable<object[]> TimePeriods()
     {
-        yield return new object[] { TradeTimePeriodType.Daily };
-        yield return new object[] { TradeTimePeriodType.Weekly };
-        yield return new object[] { TradeTimePeriodType.Monthly };
+        yield return new object[] { TimeFrameType.Daily };
+        yield return new object[] { TimeFrameType.Weekly };
+        yield return new object[] { TimeFrameType.Monthly };
     }
 
-    private static GetFuturesMacdSignalQuery CreateMacdSignalQuery(TradeTimePeriodType timePeriod)
+    private static GetFuturesMacdSignalQuery CreateMacdSignalQuery(TimeFrameType timePeriod)
     {
         var entityId = new FuturesMacdSignalEntityId(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength);
         return new GetFuturesMacdSignalQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength)
@@ -59,7 +59,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         };
     }
 
-    private static GetFuturesMacdDailySignalQuery CreateMacdDailySignalQuery(TradeTimePeriodType timePeriod)
+    private static GetFuturesMacdDailySignalQuery CreateMacdDailySignalQuery(TimeFrameType timePeriod)
     {
         var entityId = new FuturesMacdDailySignalEntityId(SampleData.ContractId, timePeriod, SampleData.PeriodLength);
         return new GetFuturesMacdDailySignalQuery(SampleData.ContractId, timePeriod, SampleData.PeriodLength)
@@ -68,7 +68,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         };
     }
 
-    private static FuturesMacdSignalReadModel CreateReadModel(TradeTimePeriodType timePeriod)
+    private static FuturesMacdSignalReadModel CreateReadModel(TimeFrameType timePeriod)
         => new(
             contractId: SampleData.ContractId,
             valueDate: SampleData.ValueDate,
@@ -86,7 +86,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public void ParseMessage_ShouldParseGetFuturesMacdSignalQuery_Successfully(TradeTimePeriodType timePeriod)
+    public void ParseMessage_ShouldParseGetFuturesMacdSignalQuery_Successfully(TimeFrameType timePeriod)
     {
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
@@ -113,7 +113,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public void ParseMessage_ShouldParseGetFuturesMacdDailySignalQuery_Successfully(TradeTimePeriodType timePeriod)
+    public void ParseMessage_ShouldParseGetFuturesMacdDailySignalQuery_Successfully(TimeFrameType timePeriod)
     {
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
@@ -144,7 +144,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
+        var query = CreateMacdSignalQuery(TimeFrameType.Daily);
         var message = new NatsMsg<byte[]> { Subject = query.Subject.ToString(), Data = _fixture.DataSerializer.Serialize(query) };
 
         // Act
@@ -166,7 +166,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
     {
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
+        var query = CreateMacdSignalQuery(TimeFrameType.Daily);
         var message = new NatsMsg<byte[]> { Subject = query.Subject.ToString(), Data = _fixture.DataSerializer.Serialize(query) };
 
         // Act & Assert
@@ -181,7 +181,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var entityId = new FuturesMacdSignalEntityId(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.Daily, SampleData.PeriodLength);
+        var entityId = new FuturesMacdSignalEntityId(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily, SampleData.PeriodLength);
         var invalidSubject = new ActorSubject(ActorType.Command, GetFuturesMacdSignalQuery.Actor, GetFuturesMacdSignalQuery.Verb, entityId.Format());
         var message = new NatsMsg<byte[]> { Subject = invalidSubject.ToString(), Data = Array.Empty<byte>() };
 
@@ -197,7 +197,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var entityId = new FuturesMacdSignalEntityId(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.Daily, SampleData.PeriodLength);
+        var entityId = new FuturesMacdSignalEntityId(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily, SampleData.PeriodLength);
         var invalidSubject = new ActorSubject(ActorType.Query, "WrongActor", GetFuturesMacdSignalQuery.Verb, entityId.Format());
         var message = new NatsMsg<byte[]> { Subject = invalidSubject.ToString(), Data = Array.Empty<byte>() };
 
@@ -213,7 +213,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var entityId = new FuturesMacdSignalEntityId(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.Daily, SampleData.PeriodLength);
+        var entityId = new FuturesMacdSignalEntityId(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily, SampleData.PeriodLength);
         var invalidSubject = new ActorSubject(ActorType.Query, FuturesMacdSignalQueryActor.ActorName, "UnknownVerb", entityId.Format());
         var message = new NatsMsg<byte[]> { Subject = invalidSubject.ToString(), Data = Array.Empty<byte>() };
 
@@ -230,7 +230,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         var actor = _fixture.CreateMacdQueryActor();
         var context = Substitute.For<IQueryActorContext>();
         var subjectWithEmptyEntityId = new ActorSubject(ActorType.Query, GetFuturesMacdSignalQuery.Actor, GetFuturesMacdSignalQuery.Verb, string.Empty);
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily) with { Subject = subjectWithEmptyEntityId };
+        var query = CreateMacdSignalQuery(TimeFrameType.Daily) with { Subject = subjectWithEmptyEntityId };
         var message = new NatsMsg<byte[]> { Subject = subjectWithEmptyEntityId.ToString(), Data = _fixture.DataSerializer.Serialize(query) };
 
         // Act
@@ -247,7 +247,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task ReceiveAsync_ShouldProcessGetFuturesMacdSignalQuery_WhenNoDataExists(TradeTimePeriodType timePeriod)
+    public async Task ReceiveAsync_ShouldProcessGetFuturesMacdSignalQuery_WhenNoDataExists(TimeFrameType timePeriod)
     {
         // Arrange
         var db = Substitute.For<IMarketDataDbContext>();
@@ -273,7 +273,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task ReceiveAsync_ShouldProcessGetFuturesMacdSignalQuery_WhenDataExists(TradeTimePeriodType timePeriod)
+    public async Task ReceiveAsync_ShouldProcessGetFuturesMacdSignalQuery_WhenDataExists(TimeFrameType timePeriod)
     {
         // Arrange
         var db = Substitute.For<IMarketDataDbContext>();
@@ -300,7 +300,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task ReceiveAsync_ShouldProcessGetFuturesMacdDailySignalQuery_WhenNoDataExists(TradeTimePeriodType timePeriod)
+    public async Task ReceiveAsync_ShouldProcessGetFuturesMacdDailySignalQuery_WhenNoDataExists(TimeFrameType timePeriod)
     {
         // Arrange
         var db = Substitute.For<IMarketDataDbContext>();
@@ -326,7 +326,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task ReceiveAsync_ShouldProcessGetFuturesMacdDailySignalQuery_WhenDataExists(TradeTimePeriodType timePeriod)
+    public async Task ReceiveAsync_ShouldProcessGetFuturesMacdDailySignalQuery_WhenDataExists(TimeFrameType timePeriod)
     {
         // Arrange
         var db = Substitute.For<IMarketDataDbContext>();
@@ -360,7 +360,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
     {
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
+        var query = CreateMacdSignalQuery(TimeFrameType.Daily);
 
         // Act & Assert
         var act = async () => await actor.InvokeReceiveAsync(null!, query);
@@ -408,7 +408,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
+        var query = CreateMacdSignalQuery(TimeFrameType.Daily);
         var exception = new InvalidOperationException("boom");
 
         // Act
@@ -427,7 +427,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var query = CreateMacdDailySignalQuery(TradeTimePeriodType.Daily);
+        var query = CreateMacdDailySignalQuery(TimeFrameType.Daily);
         var exception = new InvalidOperationException("daily boom");
 
         // Act
@@ -449,7 +449,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
     {
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
+        var query = CreateMacdSignalQuery(TimeFrameType.Daily);
         var exception = new InvalidOperationException("boom");
 
         // Act & Assert
@@ -464,7 +464,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
+        var query = CreateMacdSignalQuery(TimeFrameType.Daily);
         var exception = new InvalidOperationException("boom");
 
         // Act & Assert
@@ -479,7 +479,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
+        var query = CreateMacdSignalQuery(TimeFrameType.Daily);
         var exception = new InvalidOperationException("boom");
 
         // Act & Assert
@@ -494,7 +494,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
         var context = Substitute.For<IQueryActorContext>();
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
+        var query = CreateMacdSignalQuery(TimeFrameType.Daily);
 
         // Act & Assert
         var act = async () => await actor.InvokeOnExceptionAsync(context, query.Subject.ThreadId, query, GetFuturesMacdSignalQuery.Verb, null!);
@@ -508,7 +508,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         var logger = Substitute.For<ILogger<FuturesMacdSignalQueryActor>>();
         var actor = _fixture.CreateMacdQueryActor(logger: logger);
         var context = Substitute.For<IQueryActorContext>();
-        var query = CreateMacdSignalQuery(TradeTimePeriodType.Daily);
+        var query = CreateMacdSignalQuery(TimeFrameType.Daily);
         var exception = new InvalidOperationException("boom");
 
         context.ReplyAsync(

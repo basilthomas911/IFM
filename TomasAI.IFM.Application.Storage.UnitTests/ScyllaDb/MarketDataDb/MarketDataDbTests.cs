@@ -1727,7 +1727,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             => new(
                 contractId: e.GetString(ref start),
                 valueDate: e.GetDateOnly(ref start),
-                timePeriod: TradeTimePeriodType.FifteenSeconds,
+                timePeriod: TimeFrameType.FifteenSeconds,
                 sequenceId: e.GetLong(ref start),
                 timestamp: e.GetTimeOnly(ref start),
                 mean: e.GetDouble(ref start),

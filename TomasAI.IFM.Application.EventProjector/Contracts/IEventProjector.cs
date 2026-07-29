@@ -9,6 +9,8 @@ namespace TomasAI.IFM.Application.EventProjector.Contracts;
 
 public interface IEventProjector
 {
+    public string ActorName { get; }
+    public string ProjectorName { get; }
     public string DurableProcessQueueName { get; }
     public string DurableReplayQueueName { get; }
 

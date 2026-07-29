@@ -25,7 +25,7 @@ public class FuturesRsiSignalQueryTests
 
     static FuturesRsiSignalReadModel CreateReadModel(
         string contractId = SampleData.ContractId,
-        TradeTimePeriodType timePeriod = TradeTimePeriodType.Daily,
+        TimeFrameType timePeriod = TimeFrameType.Daily,
         decimal price = SampleData.FuturesPrice,
         double rsi = 55.0,
         double rsiAverage = 52.0,
@@ -118,11 +118,11 @@ public class FuturesRsiSignalQueryTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
     public async Task GivenVariousTimePeriods_WhenGetLastFuturesRsiSignalAsyncIsCalled_ThenPassesThroughCorrectTimePeriod(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var dbFactory = CreateDbFactory(out var marketDataDb);
@@ -269,11 +269,11 @@ public class FuturesRsiSignalQueryTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
     public async Task GivenVariousTimePeriods_WhenGetLastFuturesRsiDailySignalAsyncIsCalled_ThenPassesThroughCorrectTimePeriod(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Given
         var dbFactory = CreateDbFactory(out var marketDataDb);

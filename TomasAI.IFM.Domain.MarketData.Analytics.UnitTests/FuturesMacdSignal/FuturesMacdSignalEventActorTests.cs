@@ -49,12 +49,12 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
 
     public static IEnumerable<object[]> TimePeriods()
     {
-        yield return new object[] { TradeTimePeriodType.Daily };
-        yield return new object[] { TradeTimePeriodType.Weekly };
-        yield return new object[] { TradeTimePeriodType.Monthly };
+        yield return new object[] { TimeFrameType.Daily };
+        yield return new object[] { TimeFrameType.Weekly };
+        yield return new object[] { TimeFrameType.Monthly };
     }
 
-    private static FuturesMacdSignalGeneratedCompleteEvent CreateMacdCompleteEvent(TradeTimePeriodType timePeriod, Guid? commandId = null)
+    private static FuturesMacdSignalGeneratedCompleteEvent CreateMacdCompleteEvent(TimeFrameType timePeriod, Guid? commandId = null)
     {
         var entityId = SampleData.MacdEntityId with { TimePeriod = timePeriod };
         return new FuturesMacdSignalGeneratedCompleteEvent
@@ -87,7 +87,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public void ParseMessage_WithValidMacdSignalGeneratedCompleteEvent_ShouldReturnEvent(TradeTimePeriodType timePeriod)
+    public void ParseMessage_WithValidMacdSignalGeneratedCompleteEvent_ShouldReturnEvent(TimeFrameType timePeriod)
     {
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
@@ -120,7 +120,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
         var mockContext = Substitute.For<IEventActorContext>();
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var subject = $"Event.{FuturesMacdSignalEventActor.Actor}.{FuturesMacdSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
         var message = new NatsMsg<byte[]>
@@ -146,7 +146,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
         var mockContext = Substitute.For<IEventActorContext>();
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var subject = $"Event.{FuturesMacdSignalEventActor.Actor}.{FuturesMacdSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
         var message = new NatsMsg<byte[]>
@@ -184,7 +184,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var actor2 = _fixture.CreateMacdEventActor(mockSupervisor, logger: mockLogger2);
 
         var mockContext = Substitute.For<IEventActorContext>();
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var subject = $"Event.{FuturesMacdSignalEventActor.Actor}.{FuturesMacdSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
         var message = new NatsMsg<byte[]>
@@ -211,7 +211,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
     {
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var message = new NatsMsg<byte[]>
         {
             Subject = $"Event.{FuturesMacdSignalEventActor.Actor}.{FuturesMacdSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}",
@@ -231,7 +231,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
         var mockContext = Substitute.For<IEventActorContext>();
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var invalidSubject = $"Command.{FuturesMacdSignalEventActor.Actor}.{FuturesMacdSignalGeneratedCompleteEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
         {
@@ -252,7 +252,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
         var mockContext = Substitute.For<IEventActorContext>();
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var invalidSubject = $"Event.WrongActor.{FuturesMacdSignalGeneratedCompleteEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
         {
@@ -273,7 +273,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
         var mockContext = Substitute.For<IEventActorContext>();
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var invalidSubject = $"Event.{FuturesMacdSignalEventActor.Actor}.UnknownVerb.123";
         var message = new NatsMsg<byte[]>
         {
@@ -294,7 +294,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
         var mockContext = Substitute.For<IEventActorContext>();
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily, commandId: Guid.Empty);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily, commandId: Guid.Empty);
 
         var subject = $"Event.{FuturesMacdSignalEventActor.Actor}.{FuturesMacdSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
@@ -322,7 +322,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var message = new NatsMsg<byte[]>
         {
             Subject = malformedSubject,
-            Data = _fixture.DataSerializer.Serialize(CreateMacdCompleteEvent(TradeTimePeriodType.Daily))
+            Data = _fixture.DataSerializer.Serialize(CreateMacdCompleteEvent(TimeFrameType.Daily))
         };
 
         // Act
@@ -400,7 +400,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task ReceiveAsync_WithMacdSignalGeneratedCompleteEvent_ShouldNotThrow(TradeTimePeriodType timePeriod)
+    public async Task ReceiveAsync_WithMacdSignalGeneratedCompleteEvent_ShouldNotThrow(TimeFrameType timePeriod)
     {
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
@@ -422,8 +422,8 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var actor = _fixture.CreateMacdEventActor();
         var mockContext = Substitute.For<IEventActorContext>();
         var mockState = Substitute.For<IActorState>();
-        var event1 = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
-        var event2 = CreateMacdCompleteEvent(TradeTimePeriodType.Weekly);
+        var event1 = CreateMacdCompleteEvent(TimeFrameType.Daily);
+        var event2 = CreateMacdCompleteEvent(TimeFrameType.Weekly);
 
         // Act
         Func<Task> act = async () =>
@@ -445,7 +445,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
     {
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(null!, @event);
@@ -498,7 +498,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var actor = _fixture.CreateMacdEventActor();
         var mockContext = Substitute.For<IEventActorContext>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesMacdSignalEventActor.Actor, "1");
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var exception = new InvalidOperationException("Test exception message");
 
         mockContext.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
@@ -522,7 +522,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var actor = _fixture.CreateMacdEventActor();
         var mockContext = Substitute.For<IEventActorContext>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesMacdSignalEventActor.Actor, "1");
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var exception = new ArgumentNullException("paramName", "Parameter cannot be null");
 
         mockContext.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
@@ -546,7 +546,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var actor = _fixture.CreateMacdEventActor();
         var mockContext = Substitute.For<IEventActorContext>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesMacdSignalEventActor.Actor, "1");
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var exception = new TimeoutException("Database operation timed out");
 
         mockContext.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
@@ -565,7 +565,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task OnExceptionAsync_ForEachTimePeriod_SendsEventExceptionEvent(TradeTimePeriodType timePeriod)
+    public async Task OnExceptionAsync_ForEachTimePeriod_SendsEventExceptionEvent(TimeFrameType timePeriod)
     {
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
@@ -596,7 +596,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var actor = _fixture.CreateMacdEventActor();
         var threadId = new ActorThreadId(ActorType.Event, FuturesMacdSignalEventActor.Actor, "1");
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var exception = new InvalidOperationException("boom");
 
         // Act
@@ -638,7 +638,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var actor = _fixture.CreateMacdEventActor(logger: logger);
         var mockContext = Substitute.For<IEventActorContext>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesMacdSignalEventActor.Actor, "1");
-        var @event = CreateMacdCompleteEvent(TradeTimePeriodType.Daily);
+        var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var exception = new InvalidOperationException("boom");
 
         mockContext.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(

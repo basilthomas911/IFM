@@ -23,7 +23,7 @@ public record FuturesTdiSignalEntityId : IActorEntityId
     public DateOnly ValueDate { get; init; }
 
     [Key(2)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.
@@ -36,7 +36,7 @@ public record FuturesTdiSignalEntityId : IActorEntityId
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period for the TDI signal.</param>
-    public FuturesTdiSignalEntityId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public FuturesTdiSignalEntityId(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -46,7 +46,7 @@ public record FuturesTdiSignalEntityId : IActorEntityId
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesTdiSignalEntityId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod) => new(contractId, valueDate, timePeriod);
+    public static FuturesTdiSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod) => new(contractId, valueDate, timePeriod);
 
     /// <summary>
     /// Formats the identifier into a stable string key: ContractId.yyyyMMdd.TimePeriod

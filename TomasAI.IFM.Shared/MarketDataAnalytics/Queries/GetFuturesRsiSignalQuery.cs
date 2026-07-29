@@ -30,14 +30,14 @@ public record GetFuturesRsiSignalQuery : IQuery<FuturesRsiSignalReadModel>
     public DateOnly ValueDate { get; init; }
 
     [Key(4)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(5)]
     public int PeriodLength { get; init; }
 
     public GetFuturesRsiSignalQuery() { }
 
-    public GetFuturesRsiSignalQuery(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public GetFuturesRsiSignalQuery(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
@@ -56,7 +56,7 @@ public record GetFuturesRsiSignalQuery : IQuery<FuturesRsiSignalReadModel>
         IActorEntityId entityId,          // Key(1)
         string contractId,               // Key(2)
         DateOnly valueDate,              // Key(3)
-        TradeTimePeriodType timePeriod,  // Key(4)
+        TimeFrameType timePeriod,  // Key(4)
         int periodLength) // Key(5)
     {
         Subject = subject;

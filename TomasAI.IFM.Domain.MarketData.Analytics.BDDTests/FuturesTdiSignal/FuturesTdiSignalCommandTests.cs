@@ -24,11 +24,11 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesTdiSignal;
 /// </summary>
 public class FuturesTdiSignalCommandTests
 {
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     public FuturesTdiSignalCommandTests()
@@ -138,7 +138,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenNoPriorTdiSignal_WhenGenerationIsRequested_ThenAnInitialSignalIsProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -155,7 +155,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenAnUpTrend_WhenThePriorSignalIsUpTrending_ThenTheTrendContinuesAtHighStrength(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod, SampleData.TdiUpTrendingRsiSignals);
@@ -171,7 +171,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenADownTrend_WhenThePriorSignalIsDownTrending_ThenTheTrendContinuesAtHighStrength(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod, SampleData.TdiDownTrendingRsiSignals);
@@ -187,7 +187,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenADownTrendAfterAnUpTrend_WhenGenerationIsRequested_ThenATrendReversalIsProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod, SampleData.TdiDownTrendingRsiSignals);
@@ -201,7 +201,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenAnUpTrendAfterADownTrend_WhenGenerationIsRequested_ThenATrendReversalIsProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod, SampleData.TdiUpTrendingRsiSignals);
@@ -215,7 +215,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenRangeBoundInputsAndAFlatPriorSignal_WhenGenerationIsRequested_ThenAFlatLowStrengthSignalIsProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod, SampleData.TdiRangeBoundRsiSignals);
@@ -230,7 +230,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenOneUpTrendingRsiInput_WhenGenerationIsRequested_ThenMediumStrengthIsProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var signal = SampleData.TdiSingleRsiSignal[0] with { RSI = 65, RSISlope = 1 };
@@ -247,7 +247,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenUnorderedRsiInputs_WhenGenerationIsRequested_ThenTheLatestTimestampDeterminesTheTrend(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var inputs = SampleData.TdiUpTrendingRsiSignals.Reverse().ToArray();
@@ -266,7 +266,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenAValidTdiCommandMessage_WhenItIsParsed_ThenTheCommandIsRestoredAndLogged(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var expected = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -287,7 +287,7 @@ public class FuturesTdiSignalCommandTests
     public void GivenANullContext_WhenACommandMessageIsParsed_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = () => scenario.Actor.InvokeParseMessage(null!, CreateMessage(command));
 
@@ -304,7 +304,7 @@ public class FuturesTdiSignalCommandTests
         string verb)
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
         var subject = $"{actorType}.{actorName}.{verb}.{command.Subject.ThreadId.EntityId}";
 
         var act = () => scenario.Actor.InvokeParseMessage(
@@ -319,7 +319,7 @@ public class FuturesTdiSignalCommandTests
     public void GivenACorruptedPayload_WhenACommandMessageIsParsed_ThenDeserializationFails()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Weekly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Weekly);
         byte[] corruptedPayload = [0x00, 0x01, 0x02, 0xff, 0xfe];
 
         var act = () => scenario.Actor.InvokeParseMessage(
@@ -333,7 +333,7 @@ public class FuturesTdiSignalCommandTests
     public void GivenCommandLoggingFails_WhenACommandMessageIsParsed_ThenTheFailureIsPropagated()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Monthly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Monthly);
         scenario.EventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new InvalidOperationException("command log unavailable")));
 
@@ -348,7 +348,7 @@ public class FuturesTdiSignalCommandTests
     public async Task GivenANullReceiveContext_WhenGenerationIsRequested_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(null!, CreateState(command), command);
 
@@ -359,7 +359,7 @@ public class FuturesTdiSignalCommandTests
     public async Task GivenANullState_WhenGenerationIsRequested_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, null!, command);
 
@@ -381,7 +381,7 @@ public class FuturesTdiSignalCommandTests
     public async Task GivenTheWrongStateType_WhenGenerationIsRequested_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
         var state = Substitute.For<IActorState>();
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, state, command);
@@ -405,7 +405,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenAValidTdiCommand_WhenItIsValidated_ThenNoValidationErrorsAreReported(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -422,7 +422,7 @@ public class FuturesTdiSignalCommandTests
     public async Task GivenAnEmptyCommandId_WhenTheCommandIsValidated_ThenAValidationErrorIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily) with { CommandId = Guid.Empty };
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily) with { CommandId = Guid.Empty };
 
         var act = async () => await scenario.Actor.InvokeOnValidateAsync(
             scenario.Context,
@@ -435,7 +435,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenNoRsiInputs_WhenTheCommandIsValidated_ThenAValidationErrorIsReported(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod) with { FuturesRsiSignals = [] };
@@ -465,7 +465,7 @@ public class FuturesTdiSignalCommandTests
     public async Task GivenInvalidValidationArguments_WhenValidationRuns_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var nullContext = async () => await scenario.Actor.InvokeOnValidateAsync(null!, command.Subject.ThreadId, command);
         var emptyThread = async () => await scenario.Actor.InvokeOnValidateAsync(scenario.Context, default, command);
@@ -502,7 +502,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenPersistedState_WhenACommandIsProcessed_ThenStateCanBeLoadedAndSaved(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -531,7 +531,7 @@ public class FuturesTdiSignalCommandTests
     public async Task GivenInvalidLoadArguments_WhenStateIsLoaded_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
 
         var nullContext = async () => await scenario.Actor.InvokeOnLoadStateAsync(null!, command.Subject.ThreadId, command);
         var emptyThread = async () => await scenario.Actor.InvokeOnLoadStateAsync(scenario.Context, default, command);
@@ -546,7 +546,7 @@ public class FuturesTdiSignalCommandTests
     public async Task GivenInvalidSaveArguments_WhenStateIsSaved_ThenArgumentNullIsReported()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Daily);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Daily);
         var state = CreateState(command);
 
         var nullContext = async () => await scenario.Actor.InvokeOnSaveStateAsync(null!, command.Subject.ThreadId, state, command);
@@ -565,7 +565,7 @@ public class FuturesTdiSignalCommandTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenACommandFailure_WhenTheActorHandlesIt_ThenAnExceptionEventAndFailedResultAreProduced(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(timePeriod);
@@ -588,7 +588,7 @@ public class FuturesTdiSignalCommandTests
     public async Task GivenTheFirstExceptionEventSendFails_WhenTheActorRetries_ThenTheSecondResultIsReturned()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Weekly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Weekly);
         scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns(
                 _ => throw new InvalidOperationException("first send failed"),
@@ -610,7 +610,7 @@ public class FuturesTdiSignalCommandTests
     public async Task GivenBothExceptionEventSendsFail_WhenTheActorHandlesIt_ThenACommandFailureFallbackIsReturned()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TradeTimePeriodType.Monthly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Monthly);
         scenario.Context.SendAsync<ActorCommandExceptionEvent, ActorEntityId>(Arg.Any<ActorCommandExceptionEvent>())
             .Returns<ValueTask>(_ => throw new InvalidOperationException("send failed"));
 

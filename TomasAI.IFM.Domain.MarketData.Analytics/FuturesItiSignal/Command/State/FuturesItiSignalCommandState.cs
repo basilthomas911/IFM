@@ -64,7 +64,7 @@ public class FuturesItiSignalCommandState
     /// <summary>
     /// Gets the trade time period type for the signal.
     /// </summary>
-    internal TradeTimePeriodType TimePeriod => _futuresItiSignal!.TimePeriod;
+    internal TimeFrameType TimePeriod => _futuresItiSignal!.TimePeriod;
 
     /// <summary>
     /// Gets the intrinsic time timestamp of the signal.

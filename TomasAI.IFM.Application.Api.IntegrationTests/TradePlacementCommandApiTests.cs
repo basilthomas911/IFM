@@ -29,7 +29,7 @@ public class TradePlacementCommandApiTests(WebApplicationFactory<Program> factor
         var futuresSignal = new TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels.FuturesTradeSignalV2ReadModel(
             contractId: "ES20251010",
             valueDate: new DateOnly(2025, 10, 10),
-            timePeriod: TomasAI.IFM.Shared.MarketDataAnalytics.TradeTimePeriodType.FifteenSeconds,
+            timePeriod: TomasAI.IFM.Shared.MarketDataAnalytics.TimeFrameType.FifteenSeconds,
             sequenceId: 1,
             timestamp: new TimeOnly(10, 0),
             mean: 0,

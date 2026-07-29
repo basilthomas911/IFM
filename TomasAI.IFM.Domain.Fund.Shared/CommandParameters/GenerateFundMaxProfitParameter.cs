@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.Fund.Shared.CommandParameters;
 /// <param name="FundOrder">The fund order details to evaluate for maximum profit. Cannot be null.</param>
 /// <param name="TimePeriod">The time period for evaluating the maximum profit. Specifies the granularity of the analysis.</param>
 /// <param name="ErrorCode">The error code associated with the generate max profit operation. Used to indicate specific error conditions or statuses.</param>
-public record GenerateFundMaxProfitParameter(FundOrderReadModel FundOrder, TradeTimePeriodType TimePeriod, int ErrorCode)
+public record GenerateFundMaxProfitParameter(FundOrderReadModel FundOrder, TimeFrameType TimePeriod, int ErrorCode)
     : ICommandParameter
 {
 }

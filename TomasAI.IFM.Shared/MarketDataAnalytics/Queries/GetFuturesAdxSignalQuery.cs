@@ -29,7 +29,7 @@ public record GetFuturesAdxSignalQuery : IQuery<FuturesAdxSignalReadModel>
     public DateOnly ValueDate { get; init; }
 
     [Key(4)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(5)]
     public int PeriodLength { get; init; }
@@ -39,7 +39,7 @@ public record GetFuturesAdxSignalQuery : IQuery<FuturesAdxSignalReadModel>
         ErrorCode = ErrorId;
     }
 
-    public GetFuturesAdxSignalQuery(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public GetFuturesAdxSignalQuery(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
@@ -58,7 +58,7 @@ public record GetFuturesAdxSignalQuery : IQuery<FuturesAdxSignalReadModel>
         IActorEntityId entityId,
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         int periodLength)
     {
         Subject = subject;

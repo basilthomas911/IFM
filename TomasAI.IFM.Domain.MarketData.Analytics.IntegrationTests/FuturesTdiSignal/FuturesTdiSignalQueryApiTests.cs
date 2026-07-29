@@ -21,7 +21,7 @@ public class FuturesTdiSignalQueryApiTests(WebApplicationFactory<Program> factor
         var expectedSignal = new FuturesTdiSignalReadModel(
             contractId: SampleData.ContractId,
             valueDate: new DateOnly(2099, 12, 30),
-            timePeriod: TradeTimePeriodType.Daily,
+            timePeriod: TimeFrameType.Daily,
             timestamp: new TimeOnly(10, 0, 0),
             upTrendCount: 3,
             downTrendCount: 0,

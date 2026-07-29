@@ -20,7 +20,7 @@ public record FuturesAdxDailySignalEntityId : IActorEntityId
     public string ContractId { get; init; }
 
     [Key(1)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(2)]
     public int PeriodLength { get; init; }
@@ -36,7 +36,7 @@ public record FuturesAdxDailySignalEntityId : IActorEntityId
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="timePeriod">Time period.</param>
     /// <param name="periodLength">Period length.</param>
-    public FuturesAdxDailySignalEntityId(string contractId, TradeTimePeriodType timePeriod, int periodLength)
+    public FuturesAdxDailySignalEntityId(string contractId, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId;
         TimePeriod = timePeriod;
@@ -46,7 +46,7 @@ public record FuturesAdxDailySignalEntityId : IActorEntityId
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesAdxDailySignalEntityId Create(string contractId, TradeTimePeriodType timePeriod, int periodLength) 
+    public static FuturesAdxDailySignalEntityId Create(string contractId, TimeFrameType timePeriod, int periodLength) 
         => new(contractId, timePeriod, periodLength);
 
     /// <summary>

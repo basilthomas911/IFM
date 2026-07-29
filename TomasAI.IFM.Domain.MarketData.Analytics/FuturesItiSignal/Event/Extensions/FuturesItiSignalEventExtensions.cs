@@ -58,7 +58,7 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="timePeriod"></param>
     /// <param name="periodLength"></param>
     /// <returns></returns>
-    public static async ValueTask<FuturesRsiSignalReadModel?> GetFuturesRsiSignalAsync(this IEventActorContext context,  string contractId , DateOnly valueDate,TradeTimePeriodType timePeriod, int periodLength)
+    public static async ValueTask<FuturesRsiSignalReadModel?> GetFuturesRsiSignalAsync(this IEventActorContext context,  string contractId , DateOnly valueDate,TimeFrameType timePeriod, int periodLength)
     {
         var rsiSignal = default(FuturesRsiSignalReadModel);
         var entityId = new FuturesRsiSignalEntityId(contractId, valueDate, timePeriod, periodLength);
@@ -86,7 +86,7 @@ public static class FuturesItiSignalEventExtensions
     public static async ValueTask<FuturesTdiSignalReadModel?> GetFuturesTdiSignalAsync(this IEventActorContext context, string contractId, DateOnly valueDate)
     {
         var tdiSignal = default(FuturesTdiSignalReadModel);
-        var entityId = new FuturesTdiSignalEntityId(contractId, valueDate, TradeTimePeriodType.Daily);
+        var entityId = new FuturesTdiSignalEntityId(contractId, valueDate, TimeFrameType.Daily);
         GetFuturesTdiSignalQuery query = new(contractId, valueDate)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
@@ -109,7 +109,7 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="timePeriod">The time period classification for the ITI signal data, such as daily or weekly.</param>
     /// <returns>A task representing the asynchronous operation. The result contains the ITI signal data view model,
     /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesItiSignalDataReadModel?> GetFuturesItiSignalDataAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public static async ValueTask<FuturesItiSignalDataReadModel?> GetFuturesItiSignalDataAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         var itiSignalData = default(FuturesItiSignalDataReadModel);
         var entityId = new GetFuturesItiSignalDataParameter(contractId, valueDate, timePeriod);
@@ -135,7 +135,7 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="valueDate">The date for which the ITI signal is retrieved.</param>
     /// <returns>A task representing the asynchronous operation. The result contains the ITI signal view model,
     /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesItiSignalV2ReadModel?> GetFuturesItiSignalAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public static async ValueTask<FuturesItiSignalV2ReadModel?> GetFuturesItiSignalAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         var itiSignal = default(FuturesItiSignalV2ReadModel);
         var entityId = new GetFuturesItiSignalParameter(contractId, valueDate, timePeriod);
@@ -301,7 +301,7 @@ public static class FuturesItiSignalEventExtensions
         FuturesTdiSignalReadModel? futuresTdiSignal,
         FuturesItiSignalDataReadModel? futuresItiSignalData,
         decimal vixFuturesPrice,
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var entityId = new FuturesTradeSignalEntityId(futuresEodData.ContractId ?? string.Empty, futuresEodData.ValueDate, timePeriod);
         UpdateFuturesTradeSignalCommand cmd = new(futuresEodData, futuresRsiSignal, futuresTdiSignal, futuresItiSignalData, vixFuturesPrice)
@@ -332,7 +332,7 @@ public static class FuturesItiSignalEventExtensions
         this IEventActorContext context,
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         DateTime timestamp,
         double futuresPrice,
         double vixFuturesPrice)
@@ -402,7 +402,7 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="contractId">The unique identifier for the futures contract whose MDI distribution is being retrieved.</param>
     /// <param name="valueDate">The date for which the MDI distribution is requested, represented as a DateOnly value.</param>
     /// <returns>A FuturesItiMDIDistributionReadModel containing the MDI distribution data, or null if no data is found.</returns>
-    public static async Task<FuturesItiMDIDistributionReadModel?> GetFuturesItiMDIDistributionAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public static async Task<FuturesItiMDIDistributionReadModel?> GetFuturesItiMDIDistributionAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         var intrinsicTimeGroupId = 0;
         var itiSignal = await context.GetFuturesItiSignalAsync(contractId, valueDate, timePeriod);

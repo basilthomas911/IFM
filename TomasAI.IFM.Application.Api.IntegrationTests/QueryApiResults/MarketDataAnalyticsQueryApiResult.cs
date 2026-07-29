@@ -9,7 +9,7 @@ public static class MarketDataAnalyticsQueryApiResult
 {
     public static Task FromGetFuturesTradeSignalAsync(HttpResponse resp)
         => resp.SetResult(new FuturesTradeSignalV2ReadModel(
-            "ESU25", new DateOnly(2025, 9, 10), TradeTimePeriodType.FifteenSeconds, 1, new TimeOnly(14, 30), 100.0, 2.0, 4500.0, 0.5, 1.2, 60.0, 0.3,
+            "ESU25", new DateOnly(2025, 9, 10), TimeFrameType.FifteenSeconds, 1, new TimeOnly(14, 30), 100.0, 2.0, 4500.0, 0.5, 1.2, 60.0, 0.3,
             FuturesTrendType.UpTrend, FuturesTrendStrengthType.High, TradeSignalType.Buy, FuturesTrendDirectionType.UpTrending, FuturesTrendDirectionStrengthType.High,
             1.1, FuturesMDITrendType.UpTrending, 1.2, 1.0, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 200m, 400m, TradeExecuteState.InTrade));
 
@@ -20,11 +20,11 @@ public static class MarketDataAnalyticsQueryApiResult
         => FromGetFuturesTradeSignalAsync(resp);
 
     public static Task FromGetFuturesTradeSignalIdsAsync(HttpResponse resp)
-        => resp.SetResult(new[] { new FuturesTradeSignalId("ESU25", new DateOnly(2025, 9, 10), TradeTimePeriodType.FifteenSeconds, 1) });
+        => resp.SetResult(new[] { new FuturesTradeSignalId("ESU25", new DateOnly(2025, 9, 10), TimeFrameType.FifteenSeconds, 1) });
 
     public static Task FromGetFuturesRsiSignalAsync(HttpResponse resp)
         => resp.SetResult(new FuturesRsiSignalReadModel(
-            "ESU25", new DateOnly(2025, 9, 10), TradeTimePeriodType.OneMinute, 14, new TimeOnly(14, 30), 4500m, 0.5m, 0.5m, 0.2m, 0.3m, 1.1m, 60.0, 59.0, 0.3, 30));
+            "ESU25", new DateOnly(2025, 9, 10), TimeFrameType.OneMinute, 14, new TimeOnly(14, 30), 4500m, 0.5m, 0.5m, 0.2m, 0.3m, 1.1m, 60.0, 59.0, 0.3, 30));
 
     public static Task FromGetFuturesRsiSignalWithTypeAsync(HttpResponse resp)
         => FromGetFuturesRsiSignalAsync(resp);
@@ -35,13 +35,13 @@ public static class MarketDataAnalyticsQueryApiResult
 
     public static Task FromGetFuturesTdiSignalAsync(HttpResponse resp)
         => resp.SetResult(new FuturesTdiSignalReadModel(
-            "ESU25", new DateOnly(2025, 9, 10), TradeTimePeriodType.FifteenSeconds, new TimeOnly(14, 30), 10, 5, FuturesTrendDirectionType.UpTrending, FuturesTrendDirectionStrengthType.High));
+            "ESU25", new DateOnly(2025, 9, 10), TimeFrameType.FifteenSeconds, new TimeOnly(14, 30), 10, 5, FuturesTrendDirectionType.UpTrending, FuturesTrendDirectionStrengthType.High));
 
     public static Task FromGetFuturesItiSignalAsync(HttpResponse resp)
         => resp.SetResult(new FuturesItiSignalV2ReadModel(
             contractId: "SYM20251215",
             valueDate: new DateOnly(2025, 1, 15),
-            timePeriod: TradeTimePeriodType.Weekly,
+            timePeriod: TimeFrameType.Weekly,
             sequenceId: 1,
             intrinsicTime: DateTime.Now,
             intrinsicTimeGroupId: 1,
@@ -66,7 +66,7 @@ public static class MarketDataAnalyticsQueryApiResult
         => resp.SetResult(new[] { new FuturesItiSignalV2ReadModel(
         contractId: "SYM20251215",
         valueDate: new DateOnly(2025, 1, 15),
-        timePeriod: TradeTimePeriodType.Weekly,
+        timePeriod: TimeFrameType.Weekly,
         sequenceId: 1,
         intrinsicTime: DateTime.Now,
         intrinsicTimeGroupId: 1,
@@ -92,7 +92,7 @@ public static class MarketDataAnalyticsQueryApiResult
             new FuturesItiSignalV2ReadModel(
         contractId: "SYM20251215",
         valueDate: new DateOnly(2025, 1, 15),
-        timePeriod: TradeTimePeriodType.Weekly,
+        timePeriod: TimeFrameType.Weekly,
         sequenceId: 1,
         intrinsicTime: DateTime.Now,
         intrinsicTimeGroupId: 1,
@@ -129,11 +129,11 @@ public static class MarketDataAnalyticsQueryApiResult
 
     public static Task FromGetFuturesAtrSignalAsync(HttpResponse resp)
         => resp.SetResult(new FuturesAtrSignalReadModel(
-            "ESU25", new DateOnly(2025, 9, 10), TradeTimePeriodType.FifteenSeconds, 14,
+            "ESU25", new DateOnly(2025, 9, 10), TimeFrameType.FifteenSeconds, 14,
             new TimeOnly(14, 30), 5500m, 1.5, 2.0, FuturesTrendDirectionType.UpTrending, FuturesTrendDirectionStrengthType.High));
 
     public static Task FromGetFuturesAdxSignalAsync(HttpResponse resp)
         => resp.SetResult(new FuturesAdxSignalReadModel(
-            "ESU25", new DateOnly(2025, 9, 10), TradeTimePeriodType.FifteenSeconds, 14, new TimeOnly(14, 30), 5500,
+            "ESU25", new DateOnly(2025, 9, 10), TimeFrameType.FifteenSeconds, 14, new TimeOnly(14, 30), 5500,
             25.0, 15.0, 30.0, FuturesTrendDirectionType.UpTrending, FuturesTrendDirectionStrengthType.High));
 }

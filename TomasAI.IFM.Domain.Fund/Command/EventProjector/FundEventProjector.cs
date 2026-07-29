@@ -20,8 +20,11 @@ public class FundEventProjector(
        durableReplayQueue, dbEventSource, blackboardService, commandActorContext, logger)
 {
     EventProjectorBuilder ProjectionBuilder => CreateProjectionBuilder();
-    public override string DurableProcessQueueName => "FundEventProjector.ProcessQueue";
-    public override string DurableReplayQueueName => "FundEventProjector.ReplayQueue";
+
+    public override string ActorName => $"{typeof(FundCommandActor).Name}";
+    public override string ProjectorName => $"{typeof(FundEventProjector).Name}";
+    public override string DurableProcessQueueName => $"{ActorName}.{ProjectorName}.ProcessQueue";
+    public override string DurableReplayQueueName => $"{ActorName}.{ProjectorName}.ReplayQueue";
 
     /// <summary>
     /// Processes the domain event and projects it to the database.

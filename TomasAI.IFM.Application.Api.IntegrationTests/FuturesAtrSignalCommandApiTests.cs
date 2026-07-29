@@ -23,14 +23,14 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
         var atrSignalId = new FuturesAtrSignalId(
             "CONTRACT1",
             DateOnly.FromDateTime(DateTime.Now),
-            TradeTimePeriodType.FifteenSeconds,
+            TimeFrameType.FifteenSeconds,
             14,
             TimeOnly.FromDateTime(DateTime.Now));
         var itiSignals = new[] {
             new FuturesItiSignalV2ReadModel(
                 contractId: "CONTRACT1",
                 valueDate: DateOnly.FromDateTime(DateTime.Now),
-                timePeriod: TradeTimePeriodType.FifteenSeconds,
+                timePeriod: TimeFrameType.FifteenSeconds,
                 sequenceId: 1,
                 intrinsicTime: DateTime.Now,
                 intrinsicTimeGroupId: 1,
@@ -63,7 +63,7 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
         var atrSignalId = new FuturesAtrSignalId(
             "CONTRACT1",
             DateOnly.FromDateTime(DateTime.Now),
-            TradeTimePeriodType.FifteenSeconds,
+            TimeFrameType.FifteenSeconds,
             14,
             TimeOnly.FromDateTime(DateTime.Now));
         var intraDayData = new[] {

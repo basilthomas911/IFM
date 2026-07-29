@@ -16,12 +16,12 @@ public record GetFuturesItiSignalDataParameter : IActorEntityId, IQueryParameter
     [IgnoreMember]
     public string? QueryParams { get; private set; }
 
-    [Key(2)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(2)] public TimeFrameType TimePeriod { get; init; }
 
     public GetFuturesItiSignalDataParameter() { }
 
     [SerializationConstructor]
-    public GetFuturesItiSignalDataParameter(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public GetFuturesItiSignalDataParameter(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;

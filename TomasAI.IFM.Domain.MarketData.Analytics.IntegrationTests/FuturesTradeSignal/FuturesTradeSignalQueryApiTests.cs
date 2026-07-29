@@ -77,14 +77,14 @@ public class FuturesTradeSignalQueryApiTests(WebApplicationFactory<Program> fact
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
-        response.Value.Should().Contain(id => id.ContractId == contractId && id.ValueDate == valueDate && id.TimePeriod == TradeTimePeriodType.FifteenSeconds);
+        response.Value.Should().Contain(id => id.ContractId == contractId && id.ValueDate == valueDate && id.TimePeriod == TimeFrameType.FifteenSeconds);
     }
 
     static FuturesTradeSignalV2ReadModel CreateTradeSignalViewModel(string contractId, DateOnly valueDate, long sequenceId)
         => new(
             contractId,
             valueDate,
-            TradeTimePeriodType.FifteenSeconds,
+            TimeFrameType.FifteenSeconds,
             sequenceId,
             TimeOnly.FromDateTime(SampleData.Timestamp.AddSeconds(sequenceId)),
             SampleData.FuturesMean,

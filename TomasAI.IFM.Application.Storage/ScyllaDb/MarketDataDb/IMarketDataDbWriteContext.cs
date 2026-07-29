@@ -20,7 +20,7 @@ public interface IMarketDataDbWriteContext
     Task DeleteMarketHolidaysAsync(CurrencyType  currencyType);
     Task DeleteFuturesOptionQuotesAsync(int QuoteId);
     Task DeleteRateOfReturnAsync(string symbol, DateOnly valueDate);
-    Task DeleteFuturesItiSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod);
+    Task DeleteFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod);
     Task DeleteFuturesOptionTickDataAsync(string contractId, DateOnly valueDate);
     Task DeleteFuturesOptionTickPriceDataAsync(string contractId, DateOnly valueDate);
     Task DeleteFuturesClosingPriceAsync(string contractId, DateOnly valueDate);

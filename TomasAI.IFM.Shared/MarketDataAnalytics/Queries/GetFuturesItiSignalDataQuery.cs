@@ -29,11 +29,11 @@ public record GetFuturesItiSignalDataQuery : IQuery<FuturesItiSignalDataReadMode
     public DateOnly ValueDate { get; init; }
 
     [Key(4)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     public GetFuturesItiSignalDataQuery() { }
 
-    public GetFuturesItiSignalDataQuery(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public GetFuturesItiSignalDataQuery(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
@@ -51,7 +51,7 @@ public record GetFuturesItiSignalDataQuery : IQuery<FuturesItiSignalDataReadMode
         IActorEntityId entityId, // Key(1)
         string contractId,       // Key(2)
         DateOnly valueDate,      // Key(3)
-        TradeTimePeriodType timePeriod) // Key(4)
+        TimeFrameType timePeriod) // Key(4)
     {
         Subject = subject;
         EntityId = new GetFuturesItiSignalDataParameter(contractId, valueDate, timePeriod);

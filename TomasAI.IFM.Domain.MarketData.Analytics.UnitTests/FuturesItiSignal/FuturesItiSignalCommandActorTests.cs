@@ -51,21 +51,21 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
 
     // Time periods supported end-to-end by the ITI compute model's default trading-day lookup.
-    public static readonly TheoryData<TradeTimePeriodType> SupportedTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> SupportedTimePeriods = new()
     {
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     // All three time periods requested for coverage; Daily is intentionally unsupported by the ITI compute model.
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
-    private static GenerateFuturesItiSignalCommand CreateGenerateCommand(Guid? commandId = null, TradeTimePeriodType? timePeriod = null)
+    private static GenerateFuturesItiSignalCommand CreateGenerateCommand(Guid? commandId = null, TimeFrameType? timePeriod = null)
     {
         var entityId = timePeriod.HasValue ? SampleData.EntityIdFor(timePeriod.Value) : SampleData.EntityId;
         var baseCommand = timePeriod.HasValue ? SampleData.GenerateCommandFor(timePeriod.Value) : SampleData.GenerateCommand;
@@ -77,7 +77,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         };
     }
 
-    private static SetFuturesItiSignalHoldTradeCommand CreateSetHoldTradeCommand(Guid? commandId = null, TradeTimePeriodType? timePeriod = null)
+    private static SetFuturesItiSignalHoldTradeCommand CreateSetHoldTradeCommand(Guid? commandId = null, TimeFrameType? timePeriod = null)
     {
         var entityId = timePeriod.HasValue ? SampleData.EntityIdFor(timePeriod.Value) : SampleData.EntityId;
         var baseCommand = timePeriod.HasValue ? SampleData.SetHoldTradeCommandFor(timePeriod.Value) : SampleData.SetHoldTradeCommand;
@@ -89,7 +89,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         };
     }
 
-    private static ClearFuturesItiSignalHoldTradeCommand CreateClearHoldTradeCommand(Guid? commandId = null, TradeTimePeriodType? timePeriod = null)
+    private static ClearFuturesItiSignalHoldTradeCommand CreateClearHoldTradeCommand(Guid? commandId = null, TimeFrameType? timePeriod = null)
     {
         var entityId = timePeriod.HasValue ? SampleData.EntityIdFor(timePeriod.Value) : SampleData.EntityId;
         var baseCommand = timePeriod.HasValue ? SampleData.ClearHoldTradeCommandFor(timePeriod.Value) : SampleData.ClearHoldTradeCommand;
@@ -210,7 +210,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
-    public void ParseMessage_PreservesCommandId_AcrossSerialization_ForAllTimePeriods(TradeTimePeriodType timePeriod)
+    public void ParseMessage_PreservesCommandId_AcrossSerialization_ForAllTimePeriods(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -364,7 +364,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var logger = Substitute.For<ILogger<FuturesItiSignalCommandActor>>();
         var actor = _fixture.CreateCommandActor(dbEventSource, logger);
 
-        var cmd = CreateGenerateCommand(timePeriod: TradeTimePeriodType.Weekly);
+        var cmd = CreateGenerateCommand(timePeriod: TimeFrameType.Weekly);
         var state = new FuturesItiSignalCommandState { Id = cmd.Subject.ThreadId };
         var context = Substitute.For<ICommandActorContext>();
 
@@ -379,7 +379,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
-    public async Task ReceiveAsync_GenerateFuturesItiSignalCommand_UpdatesState_ForSupportedTimePeriods(TradeTimePeriodType timePeriod)
+    public async Task ReceiveAsync_GenerateFuturesItiSignalCommand_UpdatesState_ForSupportedTimePeriods(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -560,7 +560,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
-    public async Task OnValidateAsync_ValidGenerateFuturesItiSignalCommand_DoesNotThrow_ForAllTimePeriods(TradeTimePeriodType timePeriod)
+    public async Task OnValidateAsync_ValidGenerateFuturesItiSignalCommand_DoesNotThrow_ForAllTimePeriods(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -761,7 +761,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var logger = Substitute.For<ILogger<FuturesItiSignalCommandActor>>();
         var actor = _fixture.CreateCommandActor(dbEventSource, logger);
 
-        var cmd = CreateGenerateCommand() with { TimePeriod = (TradeTimePeriodType)999 };
+        var cmd = CreateGenerateCommand() with { TimePeriod = (TimeFrameType)999 };
         var threadId = cmd.Subject.ThreadId;
         var context = Substitute.For<ICommandActorContext>();
 
@@ -931,7 +931,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
-    public async Task OnLoadStateAsync_ReturnsState_FromRepository_ForAllTimePeriods(TradeTimePeriodType timePeriod)
+    public async Task OnLoadStateAsync_ReturnsState_FromRepository_ForAllTimePeriods(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -1056,7 +1056,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
-    public async Task OnSaveStateAsync_SavesState_ToRepository_ForAllTimePeriods(TradeTimePeriodType timePeriod)
+    public async Task OnSaveStateAsync_SavesState_ToRepository_ForAllTimePeriods(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();

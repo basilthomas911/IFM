@@ -24,10 +24,10 @@ public static class FuturesRsiSignalTimer
         static TimeSpan GetTimerPeriod(FuturesRsiSignalEntityId rsiSignalId)
             => rsiSignalId.TimePeriod switch
             {
-                TradeTimePeriodType.Daily => TimeSpan.FromMinutes(1),
-                TradeTimePeriodType.Weekly => TimeSpan.FromMinutes(15),
-                TradeTimePeriodType.WeekMonthBridge => TimeSpan.FromHours(1),
-                TradeTimePeriodType.Monthly => TimeSpan.FromDays(1),
+                TimeFrameType.Daily => TimeSpan.FromMinutes(1),
+                TimeFrameType.Weekly => TimeSpan.FromMinutes(15),
+                TimeFrameType.WeekMonthBridge => TimeSpan.FromHours(1),
+                TimeFrameType.Monthly => TimeSpan.FromDays(1),
                 _ => TimeSpan.FromMinutes(1)
             };
     }

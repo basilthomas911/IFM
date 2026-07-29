@@ -139,7 +139,7 @@ public class FundCommandModel : BaseModel<FundCommandModel>
     /// </summary>
     /// <param name="fundOrder"></param>
     /// <param name="timePeriod"></param>
-    public async Task GenerateFundRiskMarginAsync(FundOrderReadModel fundOrder, TradeTimePeriodType timePeriod)
+    public async Task GenerateFundRiskMarginAsync(FundOrderReadModel fundOrder, TimeFrameType timePeriod)
         => await ExecuteCommandAsync(() => _commandApi.GenerateFundMaxProfitAsync(fundOrder, timePeriod));
 
     /// <summary>

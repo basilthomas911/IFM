@@ -18,11 +18,11 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
 {
     readonly MarketDataAnalyticsTestFixture _fixture;
 
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     public FuturesTradeSignalQueryActorTests(MarketDataAnalyticsTestFixture fixture)
@@ -89,7 +89,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_GetSignalQuery_DeserializesAndSetsMessageInfo(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var expected = SampleData.TradeSignalQueryFor(timePeriod);
@@ -107,7 +107,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_GetLastSignalQuery_DeserializesAndSetsMessageInfo(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var expected = SampleData.LastTradeSignalQueryFor(timePeriod);
@@ -125,7 +125,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_GetSignalIdsQuery_DeserializesAndSetsMessageInfo(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var expected = SampleData.TradeSignalIdsQueryFor(timePeriod);
@@ -144,7 +144,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public void ParseMessage_NullContext_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TradeSignalQueryFor(TimeFrameType.Daily);
 
         var act = () => scenario.Actor.InvokeParseMessage(null!, CreateMessage(query));
 
@@ -161,7 +161,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
         string verb)
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalQueryFor(TradeTimePeriodType.Weekly);
+        var query = SampleData.TradeSignalQueryFor(TimeFrameType.Weekly);
         var subject = $"{actorType}.{actorName}.{verb}.{query.Subject.ThreadId.EntityId}";
 
         var act = () => scenario.Actor.InvokeParseMessage(
@@ -176,7 +176,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void ParseMessage_CorruptedPayload_ThrowsDeserializationException(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalQueryFor(timePeriod);
@@ -194,7 +194,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public void ParseMessage_EmptyPayload_ThrowsDeserializationException()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalIdsQueryFor(TradeTimePeriodType.Monthly);
+        var query = SampleData.TradeSignalIdsQueryFor(TimeFrameType.Monthly);
 
         var act = () => scenario.Actor.InvokeParseMessage(
             scenario.Context,
@@ -208,7 +208,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_GetSignalQuery_ExistingSignalRepliesWithPeriodSpecificResult(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalQueryFor(timePeriod);
@@ -231,7 +231,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_GetSignalQuery_MissingSignalRepliesWithSuccessfulNull(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalQueryFor(timePeriod);
@@ -250,7 +250,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_GetLastSignalQuery_RepliesWithPeriodSpecificResult(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var query = SampleData.LastTradeSignalQueryFor(timePeriod);
@@ -274,7 +274,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task ReceiveAsync_GetLastSignalQuery_MissingSignalRepliesWithSuccessfulNull()
     {
         var scenario = CreateScenario();
-        var query = SampleData.LastTradeSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.LastTradeSignalQueryFor(TimeFrameType.Daily);
         scenario.Db.GetLastFuturesTradeSignalAsync()
             .Returns(Task.FromResult<FuturesTradeSignalV2ReadModel?>(null));
 
@@ -290,7 +290,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_GetSignalIdsQuery_RepliesWithPeriodSpecificIds(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalIdsQueryFor(timePeriod);
@@ -319,7 +319,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task ReceiveAsync_GetSignalIdsQuery_EmptyStorageResultRepliesWithEmptyArray()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalIdsQueryFor(TradeTimePeriodType.Monthly);
+        var query = SampleData.TradeSignalIdsQueryFor(TimeFrameType.Monthly);
         scenario.Db.GetFuturesTradeSignalIdByValueDateAsync(query.ValueDate)
             .Returns(Task.FromResult<ICollection<FuturesTradeSignalId>>([]));
 
@@ -339,11 +339,11 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
         var valueDate = new DateOnly(2027, 12, 17);
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalQueryFor(
-            TradeTimePeriodType.Weekly,
+            TimeFrameType.Weekly,
             contractId,
             valueDate);
         var expected = SampleData.TradeSignalReadModelFor(
-            TradeTimePeriodType.Weekly,
+            TimeFrameType.Weekly,
             contractId,
             valueDate);
         scenario.Db.GetLastFuturesTradeSignalAsync(contractId, valueDate)
@@ -361,7 +361,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_GetSignalQuery_StorageFailurePropagatesWithoutReply(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalQueryFor(timePeriod);
@@ -383,7 +383,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task ReceiveAsync_GetLastSignalQuery_StorageFailurePropagates()
     {
         var scenario = CreateScenario();
-        var query = SampleData.LastTradeSignalQueryFor(TradeTimePeriodType.Weekly);
+        var query = SampleData.LastTradeSignalQueryFor(TimeFrameType.Weekly);
         scenario.Db.GetLastFuturesTradeSignalAsync()
             .Returns<Task<FuturesTradeSignalV2ReadModel?>>(_ =>
                 throw new TimeoutException("latest signal timed out"));
@@ -398,7 +398,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task ReceiveAsync_GetSignalIdsQuery_StorageFailurePropagates()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalIdsQueryFor(TradeTimePeriodType.Monthly);
+        var query = SampleData.TradeSignalIdsQueryFor(TimeFrameType.Monthly);
         scenario.Db.GetFuturesTradeSignalIdByValueDateAsync(query.ValueDate)
             .Returns<Task<ICollection<FuturesTradeSignalId>>>(_ =>
                 throw new InvalidOperationException("ids unavailable"));
@@ -413,8 +413,8 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task ReceiveAsync_ReplyFailurePropagates()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalQueryFor(TradeTimePeriodType.Daily);
-        var expected = SampleData.TradeSignalReadModelFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TradeSignalQueryFor(TimeFrameType.Daily);
+        var expected = SampleData.TradeSignalReadModelFor(TimeFrameType.Daily);
         scenario.Db.GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate)
             .Returns(Task.FromResult<FuturesTradeSignalV2ReadModel?>(expected));
         scenario.Context.ReplyAsync(
@@ -433,7 +433,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task ReceiveAsync_NullContext_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TradeSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(null!, query);
 
@@ -467,7 +467,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnExceptionAsync_GetSignalQuery_RepliesWithTypedFailure(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalQueryFor(timePeriod);
@@ -492,7 +492,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnExceptionAsync_GetLastSignalQuery_RepliesWithTypedFailure(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var query = SampleData.LastTradeSignalQueryFor(timePeriod);
@@ -517,7 +517,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnExceptionAsync_GetSignalIdsQuery_RepliesWithTypedFailure(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalIdsQueryFor(timePeriod);
@@ -570,7 +570,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_NullContext_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TradeSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
             null!,
@@ -586,7 +586,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_EmptyThreadId_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TradeSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
             scenario.Context,
@@ -621,7 +621,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_NullVerb_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TradeSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
             scenario.Context,
@@ -637,7 +637,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_NullException_ThrowsArgumentNullException()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TradeSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
             scenario.Context,
@@ -653,7 +653,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public async Task OnExceptionAsync_ReplyFailure_IsCaughtAndContained()
     {
         var scenario = CreateScenario();
-        var query = SampleData.TradeSignalQueryFor(TradeTimePeriodType.Monthly);
+        var query = SampleData.TradeSignalQueryFor(TimeFrameType.Monthly);
         scenario.Context.ReplyAsync(
                 query.Subject.ThreadId,
                 GetFuturesTradeSignalQuery.Verb,

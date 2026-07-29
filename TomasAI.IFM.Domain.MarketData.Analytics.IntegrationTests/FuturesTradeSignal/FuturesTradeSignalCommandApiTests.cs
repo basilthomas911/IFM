@@ -43,7 +43,7 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
             },
             EventHandlerAsync);
 
-        var entityId = new FuturesTradeSignalEntityId(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.FifteenSeconds);
+        var entityId = new FuturesTradeSignalEntityId(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.FifteenSeconds);
         var subject = new ActorSubject(ActorType.Command, UpdateFuturesTradeSignalCommand.Actor, UpdateFuturesTradeSignalCommand.Verb, entityId.Format());
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
@@ -118,7 +118,7 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
         => new(
             SampleData.ContractId,
             SampleData.ValueDate,
-            TradeTimePeriodType.FifteenSeconds,
+            TimeFrameType.FifteenSeconds,
             TimeOnly.FromDateTime(SampleData.Timestamp),
             2,
             1,

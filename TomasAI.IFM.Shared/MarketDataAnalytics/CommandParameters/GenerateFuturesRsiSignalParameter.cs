@@ -9,13 +9,13 @@ namespace TomasAI.IFM.Shared.MarketDataAnalytics.CommandParameters;
 public record GenerateFuturesRsiSignalParameter : ICommandParameter
 {
     public FuturesEodDataV2ReadModel FuturesEodData { get; init; }
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
     public int PeriodLength { get; init; } 
     public int ErrorCode { get; init; }
 
     public GenerateFuturesRsiSignalParameter(
         FuturesEodDataV2ReadModel futuresEodData,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         int periodLength,
         int errorCode)
     {

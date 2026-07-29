@@ -43,7 +43,7 @@ public class MarketDataAnalyticsCommandApi(ICommandServiceApi commandSvc)
     /// </summary>
     /// <param name="futuresEodData"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesRsiSignalAsync(FuturesEodDataV2ReadModel futuresEodData, TradeTimePeriodType timePeriod, int periodLength) 
+    public async Task<ServiceResult<Guid>> GenerateFuturesRsiSignalAsync(FuturesEodDataV2ReadModel futuresEodData, TimeFrameType timePeriod, int periodLength) 
         => await new GenerateFuturesRsiSignalParameter(IsArgumentNull.Set(futuresEodData), timePeriod, periodLength, GenerateFuturesRsiSignalCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.GenerateFuturesRsiSignal, e));
 
@@ -52,7 +52,7 @@ public class MarketDataAnalyticsCommandApi(ICommandServiceApi commandSvc)
     /// </summary>
     /// <param name="futuresEodData"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesRsiDailySignalAsync(FuturesEodDataV2ReadModel futuresEodData, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<Guid>> GenerateFuturesRsiDailySignalAsync(FuturesEodDataV2ReadModel futuresEodData, TimeFrameType timePeriod, int periodLength)
         => await new GenerateFuturesRsiDailySignalParameter(IsArgumentNull.Set(futuresEodData), timePeriod, periodLength, GenerateFuturesRsiDailySignalCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.GenerateFuturesRsiDailySignal, e));
 
@@ -94,7 +94,7 @@ public class MarketDataAnalyticsCommandApi(ICommandServiceApi commandSvc)
     /// <param name="vixFuturesPrice"></param>
     /// <returns></returns>
     public async Task<ServiceResult<Guid>> GenerateFuturesItiSignalAsync(
-        string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, DateTime timestamp, double futuresPrice, double vixFuturesPrice)
+        string contractId, DateOnly valueDate, TimeFrameType timePeriod, DateTime timestamp, double futuresPrice, double vixFuturesPrice)
         => await new GenerateFuturesItiSignalParameter(
             contractId, valueDate, timePeriod, timestamp, futuresPrice, vixFuturesPrice, GenerateFuturesItiSignalCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.GenerateFuturesItiSignal, e));

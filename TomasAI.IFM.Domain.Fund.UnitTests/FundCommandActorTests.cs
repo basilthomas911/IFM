@@ -1138,7 +1138,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         state.Apply(new FundCreatedEvent { NewFund = fund }).Should().BeTrue();
 
         var entityId = new FundId(SampleData.FundOrder.FundId);
-        var cmd = new GenerateFundMaxProfitCommand(SampleData.FundOrder, TomasAI.IFM.Shared.MarketDataAnalytics.TradeTimePeriodType.Daily)
+        var cmd = new GenerateFundMaxProfitCommand(SampleData.FundOrder, TomasAI.IFM.Shared.MarketDataAnalytics.TimeFrameType.Daily)
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(ActorType.Command, GenerateFundMaxProfitCommand.Actor, GenerateFundMaxProfitCommand.Verb, entityId.Format()),
@@ -1165,7 +1165,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
 
         var state = new FundCommandState();
         var entityId = new FundId(SampleData.FundOrder.FundId);
-        var cmd = new GenerateFundMaxProfitCommand(SampleData.FundOrder, TomasAI.IFM.Shared.MarketDataAnalytics.TradeTimePeriodType.Daily)
+        var cmd = new GenerateFundMaxProfitCommand(SampleData.FundOrder, TomasAI.IFM.Shared.MarketDataAnalytics.TimeFrameType.Daily)
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(ActorType.Command, GenerateFundMaxProfitCommand.Actor, GenerateFundMaxProfitCommand.Verb, entityId.Format()),

@@ -26,7 +26,7 @@ public record FuturesRsiSignalEntityId : IActorEntityId
 
     /// <summary>Value date associated with the RSI signal.</summary>
     [Key(2)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(3)]
     public int PeriodLength { get; init; }  
@@ -43,7 +43,7 @@ public record FuturesRsiSignalEntityId : IActorEntityId
     /// <param name="valueDate">The value date for the RSI signal.</param>
     /// <param name="timePeriod">The type of RSI signal.</param>
     /// <param name="periodLength"></param>
-    public FuturesRsiSignalEntityId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public FuturesRsiSignalEntityId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -58,7 +58,7 @@ public record FuturesRsiSignalEntityId : IActorEntityId
     /// <param name="valueDate">The value date for the RSI signal.</param>
     /// <param name="timePeriod">The type of RSI signal.</param>
     /// <param name="periodLength">The length of the RSI period.</param>
-    public static FuturesRsiSignalEntityId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength) => new(contractId, valueDate, timePeriod, periodLength);
+    public static FuturesRsiSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => new(contractId, valueDate, timePeriod, periodLength);
 
     /// <summary>
     /// Formats the identifier into a stable string key: ContractId.yyyyMMdd.SignalType
@@ -92,7 +92,7 @@ public class FuturesRsiSignalEntityIdValidationRules : BaseValidationRules, IVal
             RuleFor(x => x.ValueDate).LessThan(DateOnly.MaxValue).WithMessage(ValueDateMaxErrorMessage);
             RuleFor(x => x.ValueDate).GreaterThan(DateOnly.MinValue).WithMessage(ValueDateMinErrorMessage);    
             RuleFor(x => x.PeriodLength).GreaterThan(0).WithMessage("FuturesRsiSignalEntityId: PeriodLength must be a positive integer");
-            RuleFor(x => x.TimePeriod).IsInEnum().NotEqual(TradeTimePeriodType.None).WithMessage(TimePeriodErrorMessage);
+            RuleFor(x => x.TimePeriod).IsInEnum().NotEqual(TimeFrameType.None).WithMessage(TimePeriodErrorMessage);
         }
 
         public override ValidationResult Validate(ValidationContext<FuturesRsiSignalEntityId> context)

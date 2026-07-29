@@ -38,7 +38,7 @@ public record ClearFuturesItiSignalHoldTradeCommand : ICommand<FuturesItiSignalE
 
     [Key(6)] public string ContractId { get; init; } = string.Empty;
     [Key(7)] public DateOnly ValueDate { get; init; }
-    [Key(8)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(8)] public TimeFrameType TimePeriod { get; init; }
     [Key(9)] public DateTime Timestamp { get; init; }
 
     /// <summary>
@@ -53,7 +53,7 @@ public record ClearFuturesItiSignalHoldTradeCommand : ICommand<FuturesItiSignalE
     /// <param name="valueDate">The value date of the signal.</param>
     /// <param name="timePeriod">The time period type for the signal.</param>
     /// <param name="timestamp">The timestamp of the hold-trade state to clear.</param>
-    public ClearFuturesItiSignalHoldTradeCommand(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, DateTime timestamp)
+    public ClearFuturesItiSignalHoldTradeCommand(string contractId, DateOnly valueDate, TimeFrameType timePeriod, DateTime timestamp)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
@@ -87,7 +87,7 @@ public record ClearFuturesItiSignalHoldTradeCommand : ICommand<FuturesItiSignalE
         BoundedContextName routeTo,
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         DateTime timestamp)
     {
         CommandId = commandId;

@@ -641,7 +641,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var logger = Substitute.For<ILogger<FuturesAdxSignalCommandActor>>();
         var actor = _fixture.CreateAdxCommandActor(dbEventSource, logger);
 
-        var invalidId = SampleData.AdxSignalId with { TimePeriod = TradeTimePeriodType.None };
+        var invalidId = SampleData.AdxSignalId with { TimePeriod = TimeFrameType.None };
         var cmd = new GenerateFuturesAdxSignalCommand(invalidId, (decimal)SampleData.FuturesPrice) with
         {
             Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxSignalCommand.Actor, GenerateFuturesAdxSignalCommand.Verb, invalidId.ToEntityId().Format())

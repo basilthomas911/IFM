@@ -21,7 +21,7 @@ public record FuturesMacdSignalId : IActorEntityId
 {
     [Key(0)] public string ContractId { get; init; }
     [Key(1)] public DateOnly ValueDate { get; init; }
-    [Key(2)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(2)] public TimeFrameType TimePeriod { get; init; }
     [Key(3)] public int PeriodLength { get; init; }
     [Key(4)] public TimeOnly Timestamp { get; init; }
 
@@ -38,7 +38,7 @@ public record FuturesMacdSignalId : IActorEntityId
     /// <param name="timePeriod">Futures time period type.</param>
     /// <param name="periodLength">The length of the time period.</param>
     /// <param name="timestamp">Intraday timestamp component.</param>
-    public FuturesMacdSignalId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength, TimeOnly timestamp)
+    public FuturesMacdSignalId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, TimeOnly timestamp)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -50,7 +50,7 @@ public record FuturesMacdSignalId : IActorEntityId
     /// <summary>
     /// Factory method for creating a new identifier instance.
     /// </summary>
-    public static FuturesMacdSignalId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength, TimeOnly timestamp)
+    public static FuturesMacdSignalId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, TimeOnly timestamp)
         => new(contractId, valueDate, timePeriod, periodLength, timestamp);
 
     /// <summary>

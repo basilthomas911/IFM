@@ -34,6 +34,8 @@ public abstract class BaseEventProjector<TActor> (
     ILogger logger): IEventProjector<TActor>
     where TActor : ICommandActor<TActor>
 {
+    public abstract string ActorName { get; }
+    public abstract string ProjectorName { get; }
     public abstract string DurableProcessQueueName { get; }
     public abstract string DurableReplayQueueName { get; }
 
@@ -77,6 +79,8 @@ public abstract class BaseEventProjector<TActor> (
         {
             var projectionState = new EventProjectorStateReadModel(
                 eventId: domainEvent.EventId,
+                actorName: ActorName,
+                projectorName: ProjectorName,
                 isReplay: false,
                 attemptNumber: 0,
                 stage: EventProjectorStageType.PublishProcessingEvent,

@@ -24,7 +24,7 @@ public record FuturesItiSignalV2ReadModel
     /// <summary>Value (trading) date for the signal.</summary>
     [Key(1)] public DateOnly ValueDate { get; init; }
 
-    [Key(2)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(2)] public TimeFrameType TimePeriod { get; init; }
 
     /// <summary>Sequential intrinsic time sequence identifier.</summary>
     [Key(3)] public long SequenceId { get; init; }
@@ -98,7 +98,7 @@ public record FuturesItiSignalV2ReadModel
     public FuturesItiSignalV2ReadModel(
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         long sequenceId,
         DateTime intrinsicTime,
         int intrinsicTimeGroupId,
@@ -196,7 +196,7 @@ public class FuturesItiSignalV2ReadModelValidationRules : BaseValidationRules, I
             // Enum validation
             RuleFor(x => x.TimePeriod)
                 .IsInEnum()
-                .NotEqual(TradeTimePeriodType.None)
+                .NotEqual(TimeFrameType.None)
                 .WithMessage("FuturesItiSignalV2.TimePeriod must be a valid value other than None");
 
             // Numeric validations - SequenceId should be positive

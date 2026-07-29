@@ -24,7 +24,7 @@ public record
     public DateOnly ValueDate { get; init; }
 
     [Key(2)]
-    public TradeTimePeriodType TimePeriod {  get; init; }
+    public TimeFrameType TimePeriod {  get; init; }
 
     [Key(3)]
     public int  PeriodLength { get; init; }
@@ -41,7 +41,7 @@ public record
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period type.</param>
     /// <param name="periodLength">ATR signal source type.</param>
-    public FuturesAtrSignalEntityId(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)            
+    public FuturesAtrSignalEntityId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)            
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -52,7 +52,7 @@ public record
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesAtrSignalEntityId Create(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength) 
+    public static FuturesAtrSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) 
         => new(contractId, valueDate, timePeriod, periodLength);
 
     /// <summary>

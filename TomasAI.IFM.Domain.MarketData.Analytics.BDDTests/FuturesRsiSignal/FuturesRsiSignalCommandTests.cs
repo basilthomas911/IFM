@@ -17,8 +17,8 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesRsiSignal;
 /// </summary>
 public class FuturesRsiSignalCommandTests
 {
-    static readonly TradeTimePeriodType[] AllTimePeriods =
-        [TradeTimePeriodType.Daily, TradeTimePeriodType.Weekly, TradeTimePeriodType.Monthly];
+    static readonly TimeFrameType[] AllTimePeriods =
+        [TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly];
 
     /// <summary>
     /// Builds a FuturesRsiSignalCommandState seeded with prior RSI signal history by replaying the
@@ -32,7 +32,7 @@ public class FuturesRsiSignalCommandTests
         return state;
     }
 
-    static GenerateFuturesRsiSignalCommand BuildCommand(TradeTimePeriodType timePeriod = TradeTimePeriodType.Daily, decimal price = SampleData.FuturesPrice)
+    static GenerateFuturesRsiSignalCommand BuildCommand(TimeFrameType timePeriod = TimeFrameType.Daily, decimal price = SampleData.FuturesPrice)
         => SampleData.RsiGenerateCommandFor(timePeriod, price) with { CommandId = Guid.NewGuid() };
 
     #region Happy Path Tests
@@ -56,10 +56,10 @@ public class FuturesRsiSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_WhenPriorHistoryBelowWindowSize_ProducesSignalWithoutRsiValue(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_WhenPriorHistoryBelowWindowSize_ProducesSignalWithoutRsiValue(TimeFrameType timePeriod)
     {
         // Arrange
         var state = SeedState(SampleData.SingleRsiSignal);
@@ -76,10 +76,10 @@ public class FuturesRsiSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_WhenPriorHistoryAtWindowSizeWithRisingPrices_ProducesHighRsiAndSignalsEvent(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_WhenPriorHistoryAtWindowSizeWithRisingPrices_ProducesHighRsiAndSignalsEvent(TimeFrameType timePeriod)
     {
         // Arrange
         var state = SeedState(SampleData.UpTrendingRsiSignals);
@@ -97,10 +97,10 @@ public class FuturesRsiSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_WhenPriorHistoryAtWindowSizeWithFallingPrices_ProducesLowRsiAndSignalsEvent(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_WhenPriorHistoryAtWindowSizeWithFallingPrices_ProducesLowRsiAndSignalsEvent(TimeFrameType timePeriod)
     {
         // Arrange - the new price must continue the down-trend (last seeded price is 4055); otherwise
         // the single new data point can itself dominate the windowed average and mask the trend.
@@ -169,10 +169,10 @@ public class FuturesRsiSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_EntityId_ReflectsRequestedTimePeriod(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_EntityId_ReflectsRequestedTimePeriod(TimeFrameType timePeriod)
     {
         // Arrange
         var state = new FuturesRsiSignalCommandState();
@@ -257,10 +257,10 @@ public class FuturesRsiSignalCommandTests
     }
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public void Execute_SignalsGeneratedEvent_ContainsExpectedPeriodLength(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Execute_SignalsGeneratedEvent_ContainsExpectedPeriodLength(TimeFrameType timePeriod)
     {
         // Arrange
         var state = SeedState(SampleData.UpTrendingRsiSignals);

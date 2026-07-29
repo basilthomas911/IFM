@@ -153,7 +153,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
     static FuturesTradeSignalV2ReadModel CreateTradeSignal() => new(
         contractId: "ESU9",
         valueDate: DateOnly.FromDateTime(DateTime.UtcNow),
-        timePeriod: TradeTimePeriodType.Daily,
+        timePeriod: TimeFrameType.Daily,
         sequenceId: 1,
         timestamp: TimeOnly.FromDateTime(DateTime.UtcNow),
         mean: 0, stdDev: 0, futuresPrice: 0, priceChangePercent: 0,

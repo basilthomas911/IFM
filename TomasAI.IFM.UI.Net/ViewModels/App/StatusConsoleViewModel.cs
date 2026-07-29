@@ -26,7 +26,7 @@ public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnl
         => _appRoot.GetModel<MarketDataAnalyticsQueryModel>().Execute(async model => {
                 model.OnError((_, errorMessage) => OnErrorMessage?.Invoke(errorMessage));
                 await model.GetFuturesItiTrendDirectionChangedSignalsAsync(
-                     _contractId, _valueDate, TradeTimePeriodType.Weekly, futuresItiSignals => {
+                     _contractId, _valueDate, TimeFrameType.Weekly, futuresItiSignals => {
                          if (futuresItiSignals is not null)
                          {
                              _futuresItiSignals.Clear();

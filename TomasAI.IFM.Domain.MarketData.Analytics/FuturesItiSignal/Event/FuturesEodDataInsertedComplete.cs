@@ -42,7 +42,7 @@ public static class FuturesEodDataInsertedComplete
             await context.GenerateFuturesItiSignalAsync(
                 futuresEodData.ContractId,
                 futuresEodData.ValueDate,
-                TradeTimePeriodType.Weekly,
+                TimeFrameType.Weekly,
                 DateTime.Now,
                 Convert.ToDouble(futuresEodData.ClosePrice),
                 Convert.ToDouble(vixFuturesEodData.ClosePrice));

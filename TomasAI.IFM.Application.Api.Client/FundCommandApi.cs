@@ -103,7 +103,7 @@ public class FundCommandApi(ICommandServiceApi commandSvc) : IFundCommandApi
     /// <param name="fundOrder"></param>
     /// <param name="timePeriod"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFundMaxProfitAsync(FundOrderReadModel fundOrder, TradeTimePeriodType timePeriod)
+    public async Task<ServiceResult<Guid>> GenerateFundMaxProfitAsync(FundOrderReadModel fundOrder, TimeFrameType timePeriod)
         => await new GenerateFundMaxProfitParameter(IsArgumentNull.Set(fundOrder), timePeriod, GenerateFundMaxProfitCommand.ErrorId)
         .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(FundUriPath.GenerateFundMaxProfit, e));
 

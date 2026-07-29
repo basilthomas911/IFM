@@ -23,7 +23,7 @@ public interface IFundCommandApi
     Task<ServiceResult<Guid>> CloseFundOrderAsync(FundOrderId fundOrderId);
     Task<ServiceResult<Guid>> ChangeFundOrderTradeStateAsync(FundOrderTradeId fundOrderTradeId, TradeState tradeState, Guid correlationId);
     Task<ServiceResult<Guid>> ChangeFundOrderTradeStateAsync(FundOrderTradeId fundOrderTradeId, TradeState tradeState);
-    Task<ServiceResult<Guid>> GenerateFundMaxProfitAsync(FundOrderReadModel fundOrder, TradeTimePeriodType timePeriod);
+    Task<ServiceResult<Guid>> GenerateFundMaxProfitAsync(FundOrderReadModel fundOrder, TimeFrameType timePeriod);
 
     Task<ServiceResult<Guid>> CreateFundTransactionAsync(FundTransactionReadModel fundTransaction);
     Task<ServiceResult<Guid>> CreateFundTransactionsAsync(FundTransactionEntityId transactionsId, FundTransactionReadModel[] fundTransaction, Guid correlationId);

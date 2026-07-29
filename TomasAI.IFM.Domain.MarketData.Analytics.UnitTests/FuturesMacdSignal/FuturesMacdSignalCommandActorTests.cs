@@ -59,7 +59,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
             => await OnExceptionAsync(context, threadId, cmd, ex);
     }
 
-    private static GenerateFuturesMacdSignalCommand CreateMacdCommand(Guid? commandId = null, TradeTimePeriodType? timePeriod = null)
+    private static GenerateFuturesMacdSignalCommand CreateMacdCommand(Guid? commandId = null, TimeFrameType? timePeriod = null)
     {
         var entityId = timePeriod is null
             ? SampleData.MacdEntityId
@@ -79,9 +79,9 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
 
     public static IEnumerable<object[]> TimePeriods()
     {
-        yield return new object[] { TradeTimePeriodType.Daily };
-        yield return new object[] { TradeTimePeriodType.Weekly };
-        yield return new object[] { TradeTimePeriodType.Monthly };
+        yield return new object[] { TimeFrameType.Daily };
+        yield return new object[] { TimeFrameType.Weekly };
+        yield return new object[] { TimeFrameType.Monthly };
     }
 
     #region ParseMessage Happy Path Tests
@@ -181,7 +181,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public void ParseMessage_DeserializesCommand_ForEachTimePeriod(TradeTimePeriodType timePeriod)
+    public void ParseMessage_DeserializesCommand_ForEachTimePeriod(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -325,7 +325,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task ReceiveAsync_ExecutesCommand_ForEachTimePeriod(TradeTimePeriodType timePeriod)
+    public async Task ReceiveAsync_ExecutesCommand_ForEachTimePeriod(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -492,7 +492,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task OnValidateAsync_ValidCommand_DoesNotThrow_ForEachTimePeriod(TradeTimePeriodType timePeriod)
+    public async Task OnValidateAsync_ValidCommand_DoesNotThrow_ForEachTimePeriod(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -680,7 +680,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task OnLoadStateAsync_ReturnsStateFromRepository_ForEachTimePeriod(TradeTimePeriodType timePeriod)
+    public async Task OnLoadStateAsync_ReturnsStateFromRepository_ForEachTimePeriod(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -804,7 +804,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task OnSaveStateAsync_SavesState_ForEachTimePeriod(TradeTimePeriodType timePeriod)
+    public async Task OnSaveStateAsync_SavesState_ForEachTimePeriod(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -1005,7 +1005,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
 
     [Theory]
     [MemberData(nameof(TimePeriods))]
-    public async Task OnExceptionAsync_ReturnsFailedResult_ForEachTimePeriod(TradeTimePeriodType timePeriod)
+    public async Task OnExceptionAsync_ReturnsFailedResult_ForEachTimePeriod(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();

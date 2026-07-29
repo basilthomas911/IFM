@@ -187,7 +187,7 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         _httpClientFactory.CreateClient();
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
-        var response = await marketDataAnalyticsApi.GenerateFuturesRsiSignalAsync(futuresEodData, TradeTimePeriodType.FifteenMinutes, 14);
+        var response = await marketDataAnalyticsApi.GenerateFuturesRsiSignalAsync(futuresEodData, TimeFrameType.FifteenMinutes, 14);
 
         await Task.Delay(1000);
 
@@ -201,7 +201,7 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         futuresRsiSignalGeneratedEvent.FuturesRsiSignal.ValueDate.Should().Be(SampleData.ValueDate);
         futuresRsiSignalGeneratedEvent.FuturesRsiSignal.Price.Should().Be((decimal)SampleData.FuturesPrice);
 
-        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.OneMinute, 14);
+        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.OneMinute, 14);
         lastSignal.Should().NotBeNull();
         lastSignal!.ContractId.Should().Be(SampleData.ContractId);
         lastSignal.ValueDate.Should().Be(SampleData.ValueDate);
@@ -254,7 +254,7 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         _httpClientFactory.CreateClient();
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
-        var response = await marketDataAnalyticsApi.GenerateFuturesRsiDailySignalAsync(futuresEodData, TradeTimePeriodType.Daily, 14);
+        var response = await marketDataAnalyticsApi.GenerateFuturesRsiDailySignalAsync(futuresEodData, TimeFrameType.Daily, 14);
 
         await Task.Delay(1000);
 
@@ -268,7 +268,7 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         futuresRsiDailySignalGeneratedEvent.FuturesRsiSignal.ValueDate.Should().Be(SampleData.ValueDate);
         futuresRsiDailySignalGeneratedEvent.FuturesRsiSignal.Price.Should().Be((decimal)SampleData.FuturesPrice);
 
-        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TradeTimePeriodType.Daily, 14);
+        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily, 14);
         lastSignal.Should().NotBeNull();
         lastSignal!.ContractId.Should().Be(SampleData.ContractId);
         lastSignal.ValueDate.Should().Be(SampleData.ValueDate);

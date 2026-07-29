@@ -23,7 +23,7 @@ public record FuturesAdxSignalReadModel
     public DateOnly ValueDate { get; init; }
 
     [Key(2)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
     [Key(3)]
     public int PeriodLength { get; init; }
 
@@ -90,7 +90,7 @@ public record FuturesAdxSignalReadModel
     public FuturesAdxSignalReadModel(
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         int periodLength,
         TimeOnly timestamp,
         decimal futuresPrice,

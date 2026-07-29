@@ -22,11 +22,11 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesTdiSignal;
 /// </summary>
 public class FuturesTdiSignalQueryTests
 {
-    public static readonly TheoryData<TradeTimePeriodType> AllTimePeriods = new()
+    public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TradeTimePeriodType.Daily,
-        TradeTimePeriodType.Weekly,
-        TradeTimePeriodType.Monthly
+        TimeFrameType.Daily,
+        TimeFrameType.Weekly,
+        TimeFrameType.Monthly
     };
 
     public FuturesTdiSignalQueryTests()
@@ -88,7 +88,7 @@ public class FuturesTdiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void GivenATdiQueryMessage_WhenItIsParsed_ThenTheQueryAndMessageContextAreRestored(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, _, context) = CreateScenario();
         var expected = SampleData.TdiSignalQueryFor(timePeriod);
@@ -106,7 +106,7 @@ public class FuturesTdiSignalQueryTests
     public void GivenANullContext_WhenATdiMessageIsParsed_ThenArgumentNullIsReported()
     {
         var (actor, _, _) = CreateScenario();
-        var query = SampleData.TdiSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TdiSignalQueryFor(TimeFrameType.Daily);
 
         var act = () => actor.InvokeParseMessage(null!, CreateMessage(query));
 
@@ -123,7 +123,7 @@ public class FuturesTdiSignalQueryTests
         string verb)
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.TdiSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TdiSignalQueryFor(TimeFrameType.Daily);
         var subject = $"{actorType}.{actorName}.{verb}.{query.Subject.ThreadId.EntityId}";
 
         var act = () => actor.InvokeParseMessage(context, CreateMessage(query, subject: subject));
@@ -136,7 +136,7 @@ public class FuturesTdiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public void GivenACorruptedPayload_WhenATdiMessageIsParsed_ThenDeserializationFails(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, _, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(timePeriod);
@@ -152,7 +152,7 @@ public class FuturesTdiSignalQueryTests
     public void GivenAnEmptyPayload_WhenATdiMessageIsParsed_ThenDeserializationFails()
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.TdiSignalQueryFor(TradeTimePeriodType.Monthly);
+        var query = SampleData.TdiSignalQueryFor(TimeFrameType.Monthly);
 
         var act = () => actor.InvokeParseMessage(context, CreateMessage(query, []));
 
@@ -164,7 +164,7 @@ public class FuturesTdiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenAnExistingTdiSignal_WhenTheQueryIsReceived_ThenTheMatchingSignalIsReturned(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(timePeriod);
@@ -187,7 +187,7 @@ public class FuturesTdiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenNoTdiSignal_WhenTheQueryIsReceived_ThenASuccessfulNullResultIsReturned(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(timePeriod);
@@ -210,11 +210,11 @@ public class FuturesTdiSignalQueryTests
         var valueDate = new DateOnly(2027, 12, 17);
         var (actor, db, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(
-            TradeTimePeriodType.Weekly,
+            TimeFrameType.Weekly,
             contractId,
             valueDate);
         var expected = SampleData.TdiReadModelFor(
-            TradeTimePeriodType.Weekly,
+            TimeFrameType.Weekly,
             contractId,
             valueDate,
             direction: FuturesTrendDirectionType.DownTrending);
@@ -233,7 +233,7 @@ public class FuturesTdiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenStorageFails_WhenTheTdiQueryIsReceived_ThenTheFailureIsPropagated(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(timePeriod);
@@ -255,7 +255,7 @@ public class FuturesTdiSignalQueryTests
     public async Task GivenANullContext_WhenATdiQueryIsReceived_ThenArgumentNullIsReported()
     {
         var (actor, _, _) = CreateScenario();
-        var query = SampleData.TdiSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TdiSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await actor.InvokeReceiveAsync(null!, query);
 
@@ -289,7 +289,7 @@ public class FuturesTdiSignalQueryTests
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task GivenATdiQueryFailure_WhenTheActorHandlesIt_ThenATypedFailureIsReturned(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         var (actor, _, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(timePeriod);
@@ -334,7 +334,7 @@ public class FuturesTdiSignalQueryTests
     public async Task GivenANullContext_WhenAFailureIsHandled_ThenArgumentNullIsReported()
     {
         var (actor, _, _) = CreateScenario();
-        var query = SampleData.TdiSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TdiSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await actor.InvokeOnExceptionAsync(
             null!, query.Subject.ThreadId, query, query.Subject.Verb, new Exception("failure"));
@@ -346,7 +346,7 @@ public class FuturesTdiSignalQueryTests
     public async Task GivenAnEmptyThreadId_WhenAFailureIsHandled_ThenArgumentNullIsReported()
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.TdiSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TdiSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await actor.InvokeOnExceptionAsync(
             context, default, query, query.Subject.Verb, new Exception("failure"));
@@ -370,7 +370,7 @@ public class FuturesTdiSignalQueryTests
     public async Task GivenANullVerb_WhenAFailureIsHandled_ThenArgumentNullIsReported()
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.TdiSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TdiSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await actor.InvokeOnExceptionAsync(
             context, query.Subject.ThreadId, query, null!, new Exception("failure"));
@@ -382,7 +382,7 @@ public class FuturesTdiSignalQueryTests
     public async Task GivenANullException_WhenAFailureIsHandled_ThenArgumentNullIsReported()
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.TdiSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TdiSignalQueryFor(TimeFrameType.Daily);
 
         var act = async () => await actor.InvokeOnExceptionAsync(
             context, query.Subject.ThreadId, query, query.Subject.Verb, null!);
@@ -394,7 +394,7 @@ public class FuturesTdiSignalQueryTests
     public async Task GivenTheFailureReplyAlsoFails_WhenTheActorHandlesIt_ThenTheSecondaryFailureIsContained()
     {
         var (actor, _, context) = CreateScenario();
-        var query = SampleData.TdiSignalQueryFor(TradeTimePeriodType.Daily);
+        var query = SampleData.TdiSignalQueryFor(TimeFrameType.Daily);
         context.ReplyAsync(
                 query.Subject.ThreadId,
                 GetFuturesTdiSignalQuery.Verb,

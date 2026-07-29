@@ -58,7 +58,7 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     /// <summary>
     /// Gets the futures RSI signal for a contract and value date (default signal type).
     /// </summary>
-    public async Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         var qryParam = new GetFuturesRsiSignalParameter(contractId, valueDate, timePeriod, periodLength);
         return await _querySvc.ExecuteQueryAsync<FuturesRsiSignalReadModel>(MarketDataAnalyticsQueryUriPath.GetFuturesRsiSignal, qryParam, GetFuturesRsiSignalQuery.ErrorId);
@@ -87,7 +87,7 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     /// <summary>
     /// Gets the futures ITI signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public async Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         var qryParam = new GetFuturesItiSignalParameter(contractId, valueDate, timePeriod);
         return await _querySvc.ExecuteQueryAsync<FuturesItiSignalV2ReadModel>(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignal, qryParam, 1021);
@@ -96,7 +96,7 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     /// <summary>
     /// Gets the futures ITI trend direction changed signals for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         var qryParam = new GetFuturesItiTrendDirectionChangedSignalsParameter(contractId, valueDate, timePeriod);
         return await _querySvc.ExecuteQueryAsync<FuturesItiSignalV2ReadModel[]>(MarketDataAnalyticsQueryUriPath.GetFuturesItiTrendDirectionChangedSignals, qryParam, 1022);
@@ -105,7 +105,7 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     /// <summary>
     /// Gets the futures ITI signal data for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesItiSignalDataReadModel>> GetFuturesItiSignalDataAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public async Task<ServiceResult<FuturesItiSignalDataReadModel>> GetFuturesItiSignalDataAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         var qryParam = new GetFuturesItiSignalDataParameter(contractId, valueDate, timePeriod);
         return await _querySvc.ExecuteQueryAsync<FuturesItiSignalDataReadModel>(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalData, qryParam, 1022);
@@ -150,7 +150,7 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     /// <summary>
     /// Gets the futures ATR signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         var qryParam = new GetFuturesAtrSignalParameter(contractId, valueDate, timePeriod, periodLength);
         return await _querySvc.ExecuteQueryAsync<FuturesAtrSignalReadModel>(MarketDataAnalyticsQueryUriPath.GetFuturesAtrSignal, qryParam, GetFuturesAtrSignalQuery.ErrorId);
@@ -159,7 +159,7 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     /// <summary>
     /// Gets the futures ADX signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         var qryParam = new GetFuturesAdxSignalParameter(contractId, valueDate, timePeriod, periodLength);
         return await _querySvc.ExecuteQueryAsync<FuturesAdxSignalReadModel>(MarketDataAnalyticsQueryUriPath.GetFuturesAdxSignal, qryParam, GetFuturesAdxSignalQuery.ErrorId);
@@ -168,7 +168,7 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     /// <summary>
     /// Gets the futures MACD signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         var qryParam = new GetFuturesMacdSignalParameter(contractId, valueDate, timePeriod, periodLength);
         return await _querySvc.ExecuteQueryAsync<FuturesMacdSignalReadModel>(MarketDataAnalyticsQueryUriPath.GetFuturesMacdSignal, qryParam, GetFuturesMacdSignalQuery.ErrorId);

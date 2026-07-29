@@ -23,7 +23,7 @@ public record FuturesMacdDailySignalEntityId : IActorEntityId
 
     /// <summary>Value (trading) date for the MACD signal.</summary>
     [Key(1)]
-    public TradeTimePeriodType TimePeriod {  get; init; }
+    public TimeFrameType TimePeriod {  get; init; }
 
     [Key(2)]
     public int PeriodLength { get; init; }
@@ -39,7 +39,7 @@ public record FuturesMacdDailySignalEntityId : IActorEntityId
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="timePeriod">Time period type.</param>
     /// <param name="periodLength">Length of the time period.</param>
-    public FuturesMacdDailySignalEntityId(string contractId,  TradeTimePeriodType timePeriod, int periodLength)
+    public FuturesMacdDailySignalEntityId(string contractId,  TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId;
         TimePeriod = timePeriod;
@@ -49,7 +49,7 @@ public record FuturesMacdDailySignalEntityId : IActorEntityId
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesMacdDailySignalEntityId Create(string contractId, TradeTimePeriodType timePeriod, int periodLength) 
+    public static FuturesMacdDailySignalEntityId Create(string contractId, TimeFrameType timePeriod, int periodLength) 
         => new(contractId, timePeriod, periodLength);
 
     /// <summary>

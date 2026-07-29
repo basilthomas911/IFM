@@ -29,7 +29,7 @@ public record GetFuturesAtrSignalQuery : IQuery<FuturesAtrSignalReadModel>
     public DateOnly ValueDate { get; init; }
 
     [Key(4)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
     
     [Key(5)]
     public int  PeriodLength { get; init; }
@@ -42,7 +42,7 @@ public record GetFuturesAtrSignalQuery : IQuery<FuturesAtrSignalReadModel>
     /// <summary>
     /// Convenience constructor for API endpoints.
     /// </summary>
-    public GetFuturesAtrSignalQuery(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod, int periodLength)
+    public GetFuturesAtrSignalQuery(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -61,7 +61,7 @@ public record GetFuturesAtrSignalQuery : IQuery<FuturesAtrSignalReadModel>
         IActorEntityId entityId,
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         int periodLength)
     {
         Subject = subject;

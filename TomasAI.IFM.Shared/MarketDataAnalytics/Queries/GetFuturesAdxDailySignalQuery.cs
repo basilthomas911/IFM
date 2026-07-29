@@ -26,7 +26,7 @@ public record GetFuturesAdxDailySignalQuery : IQuery<FuturesAdxSignalReadModel>
     public string ContractId { get; init; } 
 
     [Key(3)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(4)]
     public int PeriodLength { get; init; }
@@ -36,7 +36,7 @@ public record GetFuturesAdxDailySignalQuery : IQuery<FuturesAdxSignalReadModel>
         ErrorCode = ErrorId;
     }
 
-    public GetFuturesAdxDailySignalQuery(string contractId, TradeTimePeriodType timePeriod, int periodLength)
+    public GetFuturesAdxDailySignalQuery(string contractId, TimeFrameType timePeriod, int periodLength)
     {
         ContractId = contractId ?? string.Empty;
         TimePeriod = timePeriod;
@@ -53,7 +53,7 @@ public record GetFuturesAdxDailySignalQuery : IQuery<FuturesAdxSignalReadModel>
         ActorSubject subject,
         IActorEntityId entityId,
         string contractId,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         int periodLength)
     {
         Subject = subject;

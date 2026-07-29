@@ -27,7 +27,7 @@ public record FuturesRsiSignalReadModel
     public DateOnly ValueDate { get; init; }
 
     [Key(3)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(4)]
     public int PeriodLength { get; init; }
@@ -118,7 +118,7 @@ public record FuturesRsiSignalReadModel
     public FuturesRsiSignalReadModel(
         string contractId,
         DateOnly valueDate,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         int periodLength,
         TimeOnly timestamp,
         decimal price,

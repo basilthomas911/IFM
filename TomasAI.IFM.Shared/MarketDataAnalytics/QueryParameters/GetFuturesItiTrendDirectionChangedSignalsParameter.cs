@@ -12,7 +12,7 @@ public record GetFuturesItiTrendDirectionChangedSignalsParameter : IActorEntityI
 {
     [Key(0)] public string ContractId { get; init; }
     [Key(1)] public DateOnly ValueDate { get; init; }
-    [Key(2)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(2)] public TimeFrameType TimePeriod { get; init; }
 
     [IgnoreMember]
     public string? QueryParams { get; private set; }
@@ -20,7 +20,7 @@ public record GetFuturesItiTrendDirectionChangedSignalsParameter : IActorEntityI
     public GetFuturesItiTrendDirectionChangedSignalsParameter() { }
 
     [SerializationConstructor]
-    public GetFuturesItiTrendDirectionChangedSignalsParameter(string contractId, DateOnly valueDate, TradeTimePeriodType timePeriod)
+    public GetFuturesItiTrendDirectionChangedSignalsParameter(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;

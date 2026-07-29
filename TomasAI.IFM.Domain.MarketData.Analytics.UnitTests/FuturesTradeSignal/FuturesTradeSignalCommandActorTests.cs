@@ -54,11 +54,11 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
     #region ParseMessage Happy Path Tests
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
     public async Task ParseMessage_DeserializesUpdateFuturesTradeSignalCommand_AndLogsToDatabase(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Arrange
         _fixture.DataSerializer.Should().NotBeNull();
@@ -345,11 +345,11 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
     #region ReceiveAsync Happy Path Tests
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
     public async Task ReceiveAsync_UpdateFuturesTradeSignalCommand_ExecutesHandler_ReturnsGuid(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -530,10 +530,10 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
     #region OnValidateAsync Happy Path Tests
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public async Task OnValidateAsync_ValidCommand_DoesNotThrow(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public async Task OnValidateAsync_ValidCommand_DoesNotThrow(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -802,7 +802,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
 
         var cmd = SampleData.CreateTradeSignalUpdateCommand(vixFuturesPrice: 15.75m);
         // Create command with invalid enum value by using reflection or direct cast
-        var invalidCmd = cmd with { TimePeriod = (TradeTimePeriodType)999 };
+        var invalidCmd = cmd with { TimePeriod = (TimeFrameType)999 };
         var threadId = invalidCmd.Subject.ThreadId;
         var context = Substitute.For<ICommandActorContext>();
 
@@ -819,10 +819,10 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
     #region OnLoadStateAsync Happy Path Tests
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public async Task OnLoadStateAsync_LoadsState_FromRepository(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public async Task OnLoadStateAsync_LoadsState_FromRepository(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -917,10 +917,10 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
     #region OnSaveStateAsync Happy Path Tests
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
-    public async Task OnSaveStateAsync_SavesState_ToRepository(TradeTimePeriodType timePeriod)
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public async Task OnSaveStateAsync_SavesState_ToRepository(TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -1064,11 +1064,11 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
     #region OnExceptionAsync Happy Path Tests
 
     [Theory]
-    [InlineData(TradeTimePeriodType.Daily)]
-    [InlineData(TradeTimePeriodType.Weekly)]
-    [InlineData(TradeTimePeriodType.Monthly)]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
     public async Task OnExceptionAsync_GenericException_SendsCommandExceptionEventAndReturnsFailedResult(
-        TradeTimePeriodType timePeriod)
+        TimeFrameType timePeriod)
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();

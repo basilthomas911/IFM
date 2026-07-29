@@ -68,7 +68,7 @@ public record UpdateFuturesTradeSignalCommand
     public decimal VixFuturesPrice { get; init; }
     
     [Key(11)]
-    public TradeTimePeriodType TimePeriod { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
@@ -90,7 +90,7 @@ public record UpdateFuturesTradeSignalCommand
         FuturesTdiSignalReadModel? futuresTdiSignal = null,
         FuturesItiSignalDataReadModel? futuresItiSignalData = null,
         decimal vixFuturesPrice = 0,
-        TradeTimePeriodType timePeriod = TradeTimePeriodType.FifteenSeconds )
+        TimeFrameType timePeriod = TimeFrameType.FifteenSeconds )
     {
         FuturesEodData = futuresEodData ?? throw new ArgumentNullException(nameof(futuresEodData));
         FuturesRsiSignal = futuresRsiSignal;
@@ -118,7 +118,7 @@ public record UpdateFuturesTradeSignalCommand
         FuturesTdiSignalReadModel? futuresTdiSignal,// Key(8)
         FuturesItiSignalDataReadModel? futuresItiSignalData, // Key(9)
         decimal vixFuturesPrice, // Key(10)
-        TradeTimePeriodType timePeriod // Key(11)
+        TimeFrameType timePeriod // Key(11)
         )
     {
         CommandId = commandId;

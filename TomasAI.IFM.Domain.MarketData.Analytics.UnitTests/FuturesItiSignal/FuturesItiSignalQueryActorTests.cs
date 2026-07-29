@@ -85,9 +85,9 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
     public static IEnumerable<object[]> SupportedTimePeriods =>
     [
-        [TradeTimePeriodType.Daily],
-        [TradeTimePeriodType.Weekly],
-        [TradeTimePeriodType.Monthly]
+        [TimeFrameType.Daily],
+        [TimeFrameType.Weekly],
+        [TimeFrameType.Monthly]
     ];
 
     #endregion
@@ -220,7 +220,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
-    public void ParseMessage_DeserializesGetFuturesItiSignalQuery_AcrossTimePeriods(TradeTimePeriodType timePeriod)
+    public void ParseMessage_DeserializesGetFuturesItiSignalQuery_AcrossTimePeriods(TimeFrameType timePeriod)
     {
         // Arrange
         var actor = _fixture.CreateItiQueryActor();
@@ -500,7 +500,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
-    public async Task ReceiveAsync_GetFuturesItiSignalQuery_ExecutesHandler_AcrossTimePeriods(TradeTimePeriodType timePeriod)
+    public async Task ReceiveAsync_GetFuturesItiSignalQuery_ExecutesHandler_AcrossTimePeriods(TimeFrameType timePeriod)
     {
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
@@ -788,7 +788,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
-    public async Task OnExceptionAsync_GetFuturesItiSignalQuery_RepliesWithErrorDetails_AcrossTimePeriods(TradeTimePeriodType timePeriod)
+    public async Task OnExceptionAsync_GetFuturesItiSignalQuery_RepliesWithErrorDetails_AcrossTimePeriods(TimeFrameType timePeriod)
     {
         // Arrange
         var actor = _fixture.CreateItiQueryActor();

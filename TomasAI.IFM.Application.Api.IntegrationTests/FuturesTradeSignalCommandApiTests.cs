@@ -36,7 +36,7 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
         var rsiSignal = new FuturesRsiSignalReadModel(
             "CONTRACT1",
             DateOnly.FromDateTime(DateTime.Now),
-            TradeTimePeriodType.None,
+            TimeFrameType.None,
             14,
             TimeOnly.FromDateTime(DateTime.Now),
             105, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -44,7 +44,7 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
         var tdiSignal = new FuturesTdiSignalReadModel(
             "CONTRACT1",
             DateOnly.FromDateTime(DateTime.Now),
-            TradeTimePeriodType.FifteenSeconds,
+            TimeFrameType.FifteenSeconds,
             TimeOnly.FromDateTime(DateTime.Now),
             1, 1,
             FuturesTrendDirectionType.Init,

@@ -40,7 +40,7 @@ public record GenerateFuturesTradeSignalLLMCommand : ICommand<FuturesTradeSignal
     /// </summary>
     [Key(6)] public FuturesEodDataV2ReadModel FuturesEodData { get; init; }
     
-    [Key(7)] public TradeTimePeriodType TimePeriod { get; init; }
+    [Key(7)] public TimeFrameType TimePeriod { get; init; }
 
     /// <summary>
     /// External or model-derived price volatility factor influencing trade signal logic.
@@ -59,7 +59,7 @@ public record GenerateFuturesTradeSignalLLMCommand : ICommand<FuturesTradeSignal
     /// <param name="priceVolatility">Volatility metric applied in signal generation.</param>
     public GenerateFuturesTradeSignalLLMCommand(
         FuturesEodDataV2ReadModel futuresEodData,
-        TradeTimePeriodType timePeriod,
+        TimeFrameType timePeriod,
         double priceVolatility)
     {
         FuturesEodData = futuresEodData ?? throw new ArgumentNullException(nameof(futuresEodData));
@@ -82,7 +82,7 @@ public record GenerateFuturesTradeSignalLLMCommand : ICommand<FuturesTradeSignal
         int errorCode,                           // Key(4)
         BoundedContextName routeTo,              // Key(5)
         FuturesEodDataV2ReadModel futuresEodData, // Key(6)
-        TradeTimePeriodType timePeriod,           // Key(7)
+        TimeFrameType timePeriod,           // Key(7)
         double priceVolatility)                  // Key(8)
     {
         CommandId = commandId;
