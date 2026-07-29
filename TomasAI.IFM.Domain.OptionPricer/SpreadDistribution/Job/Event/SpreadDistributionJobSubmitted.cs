@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Shared.Trade;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -6,7 +7,7 @@ using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Extensions;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Services;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Services.Contracts;

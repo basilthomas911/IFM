@@ -8,7 +8,7 @@ using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.MarketData;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using Xunit;
 
 namespace TomasAI.IFM.Domain.MarketData.IntegrationTests;

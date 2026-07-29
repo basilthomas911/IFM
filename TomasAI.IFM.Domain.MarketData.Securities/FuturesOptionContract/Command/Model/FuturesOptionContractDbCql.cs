@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Model;
 
 internal static class FuturesOptionContractDbCql

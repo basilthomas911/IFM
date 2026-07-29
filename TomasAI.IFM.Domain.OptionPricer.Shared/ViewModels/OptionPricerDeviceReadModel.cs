@@ -1,7 +1,7 @@
+using TomasAI.IFM.Shared.Trade;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using TomasAI.IFM.Shared.Trade;
 using Newtonsoft.Json;
 using MessagePack;
 

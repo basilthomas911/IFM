@@ -1,7 +1,8 @@
+using TomasAI.IFM.Shared.Trade;
 using FluentValidation;
 using FluentValidation.Results;
 using TomasAI.IFM.Shared.Validation;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Command.Validation;
 

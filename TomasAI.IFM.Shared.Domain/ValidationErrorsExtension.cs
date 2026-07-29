@@ -1,7 +1,8 @@
-﻿using System.Text;
+using TomasAI.IFM.Shared.Trade;
+using System.Text;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.MarketData;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Shared.Domain;

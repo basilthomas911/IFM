@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.EventService;
 using TomasAI.IFM.Shared.EventSourcing;

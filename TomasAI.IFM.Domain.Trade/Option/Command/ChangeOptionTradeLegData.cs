@@ -1,7 +1,8 @@
-using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.Commands;
-using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;

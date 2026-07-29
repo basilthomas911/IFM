@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 

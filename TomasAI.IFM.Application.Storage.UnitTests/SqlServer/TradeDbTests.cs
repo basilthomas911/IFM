@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -5,9 +6,9 @@ using System.Linq;
 using Xunit;
 using FluentAssertions;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.ViewModels;
-using TomasAI.IFM.Shared.TradeOrder;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Framework.Storage;
 using Microsoft.Extensions.Logging;

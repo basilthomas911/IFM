@@ -1,5 +1,5 @@
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared.CommandParameters;
 

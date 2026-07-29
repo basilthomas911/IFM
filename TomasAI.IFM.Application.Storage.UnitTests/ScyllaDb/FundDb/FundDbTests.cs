@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,7 +16,7 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage.Extensions;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
@@ -389,11 +390,11 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         await db.Use($"delete from fund_order_trade where FundId = {fundId} and OrderId = {orderId} and TradeId = {tradeId}").ExecuteCommandAsync();
         await db.InsertFundOrderTradeAsync(SampleData.FundOrderTrade);
         var oldState = SampleData.FundOrderTrade.TradeState;
-        await db.UpdateFundOrderTradeStateAsync(fundId, orderId, tradeId, Shared.Trade.TradeState.OrderCompleted, DateTime.Now, "basilt");
+        await db.UpdateFundOrderTradeStateAsync(fundId, orderId, tradeId, global::TomasAI.IFM.Domain.Trade.Shared.TradeState.OrderCompleted, DateTime.Now, "basilt");
         var fundOrderTrades = await db.GetFundOrderTradesAsync();
         var fundOrderTrade = fundOrderTrades.Where(e => e.FundId == fundId && e.OrderId == orderId && e.TradeId == tradeId).SingleOrDefault();
         fundOrderTrade.TradeState.Should().NotBe(oldState);
-        fundOrderTrade.TradeState.Should().Be(Shared.Trade.TradeState.OrderCompleted);
+        fundOrderTrade.TradeState.Should().Be(global::TomasAI.IFM.Domain.Trade.Shared.TradeState.OrderCompleted);
     }
 
     [Fact]

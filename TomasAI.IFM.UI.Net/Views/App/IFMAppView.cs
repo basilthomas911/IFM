@@ -11,7 +11,7 @@ using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Views.SystemAdmin;
 using TomasAI.IFM.UI.Net.Views.MarketData;
 using TomasAI.IFM.UI.Net.Views.Trade;

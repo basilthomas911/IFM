@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
@@ -9,7 +10,7 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.UI.Net.Models;
 

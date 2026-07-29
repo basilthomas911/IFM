@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventService;
-using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Application.Blackboard;

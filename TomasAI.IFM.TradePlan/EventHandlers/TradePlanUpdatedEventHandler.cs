@@ -1,11 +1,12 @@
+using TomasAI.IFM.Shared.Trade;
 using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.Events;
-using TomasAI.IFM.Shared.TradePlan.ServiceApi;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.EventService;
 using TomasAI.IFM.Shared.EventSourcing;

@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.TradeOrder;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Decorators;

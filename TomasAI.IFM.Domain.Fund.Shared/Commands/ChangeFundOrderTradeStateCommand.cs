@@ -1,7 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Fund.Shared.Commands;
 
@@ -38,7 +38,7 @@ public record ChangeFundOrderTradeStateCommand : ICommand<FundId>
     /// <summary>
     /// Gets or sets the identifier of the fund order trade whose state is to be changed.
     /// </summary>
-    /// <remarks>Serialized with key 6 (base command reserves keys 0–5).</remarks>
+    /// <remarks>Serialized with key 6 (base command reserves keys 0ï¿½5).</remarks>
     [Key(6)]
     public FundOrderTradeId FundOrderTradeId { get; init; }
 
@@ -69,7 +69,7 @@ public record ChangeFundOrderTradeStateCommand : ICommand<FundId>
     }
 
     /// <summary>
-    /// Full deserializing constructor used by MessagePack (parameters must align with keys 0–7 in order).
+    /// Full deserializing constructor used by MessagePack (parameters must align with keys 0ï¿½7 in order).
     /// </summary>
     /// <param name="commandId">Command identifier (key 0).</param>
     /// <param name="subject">Actor subject for routing (key 1).</param>

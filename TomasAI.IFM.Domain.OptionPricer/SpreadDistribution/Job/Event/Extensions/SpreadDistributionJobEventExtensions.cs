@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Shared.MarketData.Queries;
@@ -10,12 +11,12 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.Commands;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
-using TomasAI.IFM.Shared.Trade.Queries;
-using TomasAI.IFM.Shared.Trade.QueryParameters;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Queries;
+using TomasAI.IFM.Domain.Trade.Shared.QueryParameters;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Extensions;
 

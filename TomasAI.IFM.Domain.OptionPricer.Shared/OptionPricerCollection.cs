@@ -1,9 +1,9 @@
-﻿using System;
+using TomasAI.IFM.Shared.Trade;
+using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
-using TomasAI.IFM.Shared.Trade;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared
 {

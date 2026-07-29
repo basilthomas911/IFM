@@ -1,16 +1,18 @@
+using TomasAI.IFM.Shared.Trade;
 using Microsoft.Extensions.Logging;
 using Pipelines.Sockets.Unofficial.Arenas;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
-using TomasAI.IFM.Shared.TradeOrder;
-using TomasAI.IFM.Shared.TradeOrder.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.ScyllaDb.TradeDb;
 

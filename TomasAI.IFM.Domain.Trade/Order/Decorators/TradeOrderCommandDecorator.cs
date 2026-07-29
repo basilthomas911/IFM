@@ -1,5 +1,6 @@
-﻿using TomasAI.IFM.Shared.Domain;
-using TomasAI.IFM.Shared.TradeOrder.Commands;
+using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Commands;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Decorators;

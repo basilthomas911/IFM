@@ -1,8 +1,9 @@
+using TomasAI.IFM.Shared.Trade;
 using System;
 using System.Collections.Generic;
 using System.Text;
 using TomasAI.IFM.Shared.MarketData;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Reference.Shared
 {

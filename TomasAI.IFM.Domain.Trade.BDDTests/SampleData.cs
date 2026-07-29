@@ -1,8 +1,9 @@
-using Shared = TomasAI.IFM.Shared;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.ViewModels;
-using TomasAI.IFM.Shared.TradeOrder;
-using TomasAI.IFM.Shared.TradeOrder.ViewModels;
+using Shared = TomasAI.IFM.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.BDDTests;
@@ -175,9 +176,9 @@ public static class SampleData
         tradeDate: TradeDate,
         maturityDate: MaturityDate,
         tradeType: TradeType.ShortIronCondor,
-        actionType: global::TomasAI.IFM.Shared.Trade.ActionType.HoldTradePosition,
-        actionSubType: global::TomasAI.IFM.Shared.Trade.ActionSubType.None,
-        actionState: global::TomasAI.IFM.Shared.Trade.ActionState.Normal,
+        actionType: global::TomasAI.IFM.Domain.Trade.Shared.ActionType.HoldTradePosition,
+        actionSubType: global::TomasAI.IFM.Domain.Trade.Shared.ActionSubType.None,
+        actionState: global::TomasAI.IFM.Domain.Trade.Shared.ActionState.Normal,
         actionReason: "Market update",
         tradePnl: 0m,
         forwardLossRatio: 0.15,
@@ -195,14 +196,14 @@ public static class SampleData
         marketVolatility: global::TomasAI.IFM.Shared.MarketData.MarketVolatilityType.Low,
         marketDirection: global::TomasAI.IFM.Shared.MarketData.PriceDirectionType.Rising,
         vixVolatility: global::TomasAI.IFM.Shared.MarketData.PriceVolatilityType.Falling,
-        tradeRisk: global::TomasAI.IFM.Shared.Trade.TradeRiskType.Low,
+        tradeRisk: global::TomasAI.IFM.Domain.Trade.Shared.TradeRiskType.Low,
         fiftyDayMA: 5350.0,
         fiveDayXMA: 5380.0,
         putOTMProbability: 0.85,
         callOTMProbability: 0.82,
         shortPutGamma: 0.03,
         shortCallGamma: 0.03,
-        gammaRisk: global::TomasAI.IFM.Shared.Trade.GammaRiskType.None,
+        gammaRisk: global::TomasAI.IFM.Domain.Trade.Shared.GammaRiskType.None,
         netPrice: 2.50m,
         forwardPrice: 2.75m,
         forwardDelta: 0.026,

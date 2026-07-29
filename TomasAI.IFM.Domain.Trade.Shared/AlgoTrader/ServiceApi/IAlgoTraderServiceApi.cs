@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 

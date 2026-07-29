@@ -14,10 +14,10 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
-using TomasAI.IFM.Shared.Trade.Contracts;
+using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Shared.Caching;
-using TomasAI.IFM.Shared.Trade.Events;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests.FuturesOptionTickData;

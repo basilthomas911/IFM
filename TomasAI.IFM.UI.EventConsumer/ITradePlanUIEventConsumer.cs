@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.UI.EventConsumer;

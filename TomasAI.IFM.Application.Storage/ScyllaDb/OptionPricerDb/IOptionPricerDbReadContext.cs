@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.ScyllaDb.OptionPricerDb;

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Trade.Contracts;
+using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 

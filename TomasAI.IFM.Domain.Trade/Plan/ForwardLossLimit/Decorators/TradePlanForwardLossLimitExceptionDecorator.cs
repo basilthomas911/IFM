@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Trade.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.Trade.Plan.ForwardLossLimit.Decorators;
 

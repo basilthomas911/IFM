@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
@@ -10,10 +11,10 @@ using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.Commands;
-using TomasAI.IFM.Shared.Trade.Events;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Option;
 

@@ -26,7 +26,7 @@ using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using Xunit;
 using TomasAI.IFM.Shared.Application.Commands;
 using TomasAI.IFM.Framework.Storage.Extensions;

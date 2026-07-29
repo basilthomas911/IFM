@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Extensions;

@@ -11,9 +11,9 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
-using TomasAI.IFM.Shared.Trade.Queries;
-using TomasAI.IFM.Shared.Trade.QueryParameters;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Queries;
+using TomasAI.IFM.Domain.Trade.Shared.QueryParameters;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 

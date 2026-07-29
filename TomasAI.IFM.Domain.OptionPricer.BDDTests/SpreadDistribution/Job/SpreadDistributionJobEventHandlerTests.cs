@@ -12,9 +12,9 @@ using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.Queries;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Queries;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.State;
 
 namespace TomasAI.IFM.Domain.OptionPricer.BDDTests.SpreadDistribution.Job;

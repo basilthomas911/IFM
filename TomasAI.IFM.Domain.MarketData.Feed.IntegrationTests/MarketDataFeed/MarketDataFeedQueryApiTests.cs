@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
@@ -9,7 +10,7 @@ using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using Xunit;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.MarketDataFeed;

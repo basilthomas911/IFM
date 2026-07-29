@@ -1,9 +1,10 @@
-﻿using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Queries;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Query;
 

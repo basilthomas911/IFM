@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 namespace TomasAI.IFM.Domain.Trade.Queries.Model;
 
 internal static class TradeDbCql

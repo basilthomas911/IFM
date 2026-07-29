@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Shared.Trade;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared;
 

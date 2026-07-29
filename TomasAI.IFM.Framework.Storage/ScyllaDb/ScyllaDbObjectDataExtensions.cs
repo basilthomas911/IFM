@@ -1,11 +1,11 @@
-﻿using Cassandra;
+using Cassandra;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
-using TomasAI.IFM.Shared.Trade.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Commands;
 
 namespace TomasAI.IFM.Framework.Storage.ScyllaDb
 {

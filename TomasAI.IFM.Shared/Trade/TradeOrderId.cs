@@ -48,6 +48,5 @@ public record TradeOrderId : IActorEntityId
     /// </summary>
     public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
 
-    // Preserved for compatibility with existing code referencing OptionTradeEntityId.Empty
-    public static OptionTradeEntityId Empty => new(0, 0);
+    public static TradeOrderId Empty => new(0, 0);
 }

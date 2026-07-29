@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using System.Threading.Tasks.Dataflow;
 using IBApi;
 using TomasAI.IFM.Shared.MarketData.ViewModels;

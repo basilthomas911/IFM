@@ -1,9 +1,10 @@
+using TomasAI.IFM.Shared.Trade;
 using Microsoft.AspNetCore.Mvc.Testing;
 using FluentAssertions;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
@@ -89,7 +90,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory)
             tradeDate: DateOnly.FromDateTime(DateTime.Now),
             maturityDate: DateOnly.FromDateTime(DateTime.Now.AddDays(30)),
             tradeState: TradeState.NewTrade,
-            tradeAction: TomasAI.IFM.Shared.Trade.TradeAction.Buy,
+            tradeAction: TomasAI.IFM.Domain.Trade.Shared.TradeAction.Buy,
             reference: "Test Reference",
             primaryTrade: true,
             baseContractSymbol: "CONTRACT1",

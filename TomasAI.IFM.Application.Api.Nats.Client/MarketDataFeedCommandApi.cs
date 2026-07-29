@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Shared.Application.Commands;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -12,7 +13,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 

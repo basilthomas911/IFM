@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -15,7 +16,7 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;

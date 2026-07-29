@@ -1,4 +1,5 @@
-﻿namespace TomasAI.IFM.Application.Storage.ScyllaDb.ReferenceDb;
+using TomasAI.IFM.Shared.Trade;
+namespace TomasAI.IFM.Application.Storage.ScyllaDb.ReferenceDb;
 
 internal class ReferenceDbCql
 {

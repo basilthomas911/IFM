@@ -1,8 +1,9 @@
+using TomasAI.IFM.Shared.Trade;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using TomasAI.IFM.Shared.Trade.ViewModels;
-using TomasAI.IFM.Shared.TradeOrder.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 
 using TomasAI.IFM.Shared.EventSourcing;

@@ -1,4 +1,5 @@
-﻿namespace TomasAI.IFM.Application.Storage.ScyllaDb.FundDb;
+using TomasAI.IFM.Shared.Trade;
+namespace TomasAI.IFM.Application.Storage.ScyllaDb.FundDb;
 
 internal class FundDbCql
 {

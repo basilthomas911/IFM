@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -18,8 +19,8 @@ using TomasAI.IFM.Framework.Storage.Extensions;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.TradeDb;

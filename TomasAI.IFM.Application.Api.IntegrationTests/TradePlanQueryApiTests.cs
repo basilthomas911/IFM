@@ -1,12 +1,13 @@
+using TomasAI.IFM.Shared.Trade;
 using Microsoft.AspNetCore.Mvc.Testing;
 using FluentAssertions;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Shared.TradePlan.ViewModels;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
 

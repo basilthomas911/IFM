@@ -11,7 +11,7 @@ using Newtonsoft.Json;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.EventQueue;
 
 namespace TomasAI.IFM.Framework.Messaging.Kafka

@@ -1,9 +1,10 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.TradeOrder;
-using TomasAI.IFM.Shared.TradeOrder.ViewModels;
-using TomasAI.IFM.Shared.TradeOrder.Events;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events;
 
 namespace TomasAI.IFM.Domain.Trade.Order;
 

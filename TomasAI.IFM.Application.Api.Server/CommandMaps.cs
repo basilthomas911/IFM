@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Domain.Reference.Shared.CommandParameters;
 using TomasAI.IFM.Domain.Reference.Shared.Commands;
 using TomasAI.IFM.Domain.Reference.Shared;
@@ -23,8 +24,8 @@ using TomasAI.IFM.Domain.OptionPricer.Shared.CommandParameters;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.Commands;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.Commands;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Shared.WebService;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.CommandParameters;

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using FluentValidation;
 using FluentValidation.Results;
 using MessagePack;

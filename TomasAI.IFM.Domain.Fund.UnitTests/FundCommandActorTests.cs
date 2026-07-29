@@ -5,7 +5,7 @@ using NSubstitute;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
@@ -1015,7 +1015,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
 
         var tradeId = new FundOrderTradeId(SampleData.FundOrderTrade.FundId, SampleData.FundOrderTrade.OrderId, SampleData.FundOrderTrade.TradeId);
         var entityId = new FundId(tradeId.FundId);
-        var cmd = new ChangeFundOrderTradeStateCommand(tradeId, TomasAI.IFM.Shared.Trade.TradeState.TradeToClose)
+        var cmd = new ChangeFundOrderTradeStateCommand(tradeId, TomasAI.IFM.Domain.Trade.Shared.TradeState.TradeToClose)
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(ActorType.Command, ChangeFundOrderTradeStateCommand.Actor, ChangeFundOrderTradeStateCommand.Verb, entityId.Format()),
@@ -1047,7 +1047,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
 
         var tradeId = new FundOrderTradeId(SampleData.FundOrderTrade.FundId, SampleData.FundOrderTrade.OrderId, 9999);
         var entityId = new FundId(tradeId.FundId);
-        var cmd = new ChangeFundOrderTradeStateCommand(tradeId, TomasAI.IFM.Shared.Trade.TradeState.TradeToClose)
+        var cmd = new ChangeFundOrderTradeStateCommand(tradeId, TomasAI.IFM.Domain.Trade.Shared.TradeState.TradeToClose)
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(ActorType.Command, ChangeFundOrderTradeStateCommand.Actor, ChangeFundOrderTradeStateCommand.Verb, entityId.Format()),

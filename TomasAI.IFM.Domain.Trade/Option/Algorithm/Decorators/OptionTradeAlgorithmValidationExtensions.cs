@@ -1,5 +1,5 @@
-using TomasAI.IFM.Shared.Trade.Validation;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared.Validation;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Trade.Option.Algorithm.ValidationRules;
 using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Commands;

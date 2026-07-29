@@ -1,5 +1,5 @@
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Option.Algorithm.Model;
 using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events;

@@ -1,6 +1,6 @@
+using TomasAI.IFM.Shared.Trade;
 using MessagePack;
 using Newtonsoft.Json;
-using TomasAI.IFM.Shared.Trade;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 

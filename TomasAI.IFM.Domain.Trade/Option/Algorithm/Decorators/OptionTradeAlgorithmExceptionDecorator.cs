@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.TradeAlgorithm.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.ServiceApi;
 using TomasAI.IFM.Shared.Domain;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Algorithm.Decorators;

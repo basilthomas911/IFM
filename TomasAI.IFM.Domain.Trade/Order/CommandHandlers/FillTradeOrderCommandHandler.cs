@@ -1,7 +1,8 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.TradeOrder.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Commands;
 using TomasAI.IFM.Domain.Trade.Order.Exceptions;
-using TomasAI.IFM.Shared.TradeOrder.Events;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events;
 
 namespace TomasAI.IFM.Domain.Trade.Order.CommandHandlers;
 

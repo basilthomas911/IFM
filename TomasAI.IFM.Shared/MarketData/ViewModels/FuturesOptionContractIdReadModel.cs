@@ -1,7 +1,7 @@
+using TomasAI.IFM.Shared.Trade;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using TomasAI.IFM.Shared.Trade;
 
 namespace TomasAI.IFM.Shared.MarketData.ViewModels
 {

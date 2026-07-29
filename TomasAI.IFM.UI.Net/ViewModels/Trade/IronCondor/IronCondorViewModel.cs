@@ -1,8 +1,10 @@
+using TomasAI.IFM.Shared.Trade;
 using System.Collections.Concurrent;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.EventQueue;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
@@ -12,10 +14,10 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 

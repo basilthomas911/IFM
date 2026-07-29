@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using System.Data;
 using TomasAI.IFM.UI.Net.Contracts;

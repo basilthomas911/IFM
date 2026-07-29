@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -33,6 +33,7 @@
     <ProjectReference Include="..\TomasAI.IFM.Application.Actor.IntegrationTests\TomasAI.IFM.Application.Actor.IntegrationTests.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer\TomasAI.IFM.Domain.OptionPricer.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj" />
+      <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,5 +1,5 @@
-using System.Collections.Generic;
 using TomasAI.IFM.Shared.Trade;
+using System.Collections.Generic;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared
 {

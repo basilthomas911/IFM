@@ -1,6 +1,6 @@
+using TomasAI.IFM.Shared.Trade;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Trade;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared;
 

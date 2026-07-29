@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Framework.Caching;
@@ -284,11 +285,11 @@ public class TradeOrderModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
-        var entityId = new Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
-        var expected = new Shared.TradeOrder.ViewModels.TradeOrderReadModel();
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
+        var expected = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel();
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<Shared.TradeOrder.ViewModels.TradeOrderReadModel>("{}").Returns(expected);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel>("{}").Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
@@ -301,7 +302,7 @@ public class TradeOrderModelTests
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        var entityId = new Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns((string?)null);
 
@@ -316,8 +317,8 @@ public class TradeOrderModelTests
     public void Set_SerializesAndCachesValue()
     {
         // Arrange
-        var entityId = new Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
-        var data = new Shared.TradeOrder.ViewModels.TradeOrderReadModel();
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
+        var data = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel();
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(data).Returns("value");
 
@@ -344,11 +345,11 @@ public class TradePositionActionModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
-        var entityId = new Shared.Trade.TradePositionEntityId();
-        var expected = new Shared.Trade.ViewModels.TradePositionActionReadModel(Shared.Trade.ActionSource.TradePosition, Shared.Trade.ActionType.PlaceOpenOrder, Shared.Trade.ActionSubType.None, Shared.Trade.ActionState.Normal, "test");
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
+        var expected = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionActionReadModel(global::TomasAI.IFM.Domain.Trade.Shared.ActionSource.TradePosition, global::TomasAI.IFM.Domain.Trade.Shared.ActionType.PlaceOpenOrder, global::TomasAI.IFM.Domain.Trade.Shared.ActionSubType.None, global::TomasAI.IFM.Domain.Trade.Shared.ActionState.Normal, "test");
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<Shared.Trade.ViewModels.TradePositionActionReadModel>("{}").Returns(expected);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionActionReadModel>("{}").Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
@@ -361,7 +362,7 @@ public class TradePositionActionModelTests
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        var entityId = new Shared.Trade.TradePositionEntityId();
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns((string?)null);
 
@@ -376,8 +377,8 @@ public class TradePositionActionModelTests
     public void Set_SerializesAndCachesValue()
     {
         // Arrange
-        var entityId = new Shared.Trade.TradePositionEntityId();
-        var data = new Shared.Trade.ViewModels.TradePositionActionReadModel(Shared.Trade.ActionSource.TradePosition, Shared.Trade.ActionType.PlaceOpenOrder, Shared.Trade.ActionSubType.None, Shared.Trade.ActionState.Normal, "test");
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
+        var data = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionActionReadModel(global::TomasAI.IFM.Domain.Trade.Shared.ActionSource.TradePosition, global::TomasAI.IFM.Domain.Trade.Shared.ActionType.PlaceOpenOrder, global::TomasAI.IFM.Domain.Trade.Shared.ActionSubType.None, global::TomasAI.IFM.Domain.Trade.Shared.ActionState.Normal, "test");
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(data).Returns("value");
 
@@ -404,11 +405,11 @@ public class HedgePositionTradeIdModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
-        var entityId = new Shared.Trade.TradePositionEntityId();
-        var expected = new Shared.Trade.OptionTradeEntityId(1, 2);
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
+        var expected = new global::TomasAI.IFM.Shared.Trade.OptionTradeEntityId(1, 2);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<Shared.Trade.OptionTradeEntityId>("{}").Returns(expected);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Shared.Trade.OptionTradeEntityId>("{}").Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
@@ -421,7 +422,7 @@ public class HedgePositionTradeIdModelTests
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        var entityId = new Shared.Trade.TradePositionEntityId();
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns((string?)null);
 
@@ -436,8 +437,8 @@ public class HedgePositionTradeIdModelTests
     public void Set_SerializesAndCachesValue()
     {
         // Arrange
-        var entityId = new Shared.Trade.TradePositionEntityId();
-        var optionTradeId = new Shared.Trade.OptionTradeEntityId(1, 2);
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
+        var optionTradeId = new global::TomasAI.IFM.Shared.Trade.OptionTradeEntityId(1, 2);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(optionTradeId).Returns("value");
 
@@ -464,11 +465,11 @@ public class StopLossLimitModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
-        var entityId = new Shared.Trade.OptionTradeEntityId(1, 2);
-        var expected = new Shared.Trade.ViewModels.TradePlanStopLossLimitReadModel(1.5);
+        var entityId = new global::TomasAI.IFM.Shared.Trade.OptionTradeEntityId(1, 2);
+        var expected = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanStopLossLimitReadModel(1.5);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<Shared.Trade.ViewModels.TradePlanStopLossLimitReadModel>("{}").Returns(expected);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanStopLossLimitReadModel>("{}").Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
@@ -481,7 +482,7 @@ public class StopLossLimitModelTests
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        var entityId = new Shared.Trade.OptionTradeEntityId(1, 2);
+        var entityId = new global::TomasAI.IFM.Shared.Trade.OptionTradeEntityId(1, 2);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns((string?)null);
 
@@ -496,8 +497,8 @@ public class StopLossLimitModelTests
     public void Set_SerializesAndCachesValue()
     {
         // Arrange
-        var entityId = new Shared.Trade.OptionTradeEntityId(1, 2);
-        var data = new Shared.Trade.ViewModels.TradePlanStopLossLimitReadModel(2.0);
+        var entityId = new global::TomasAI.IFM.Shared.Trade.OptionTradeEntityId(1, 2);
+        var data = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanStopLossLimitReadModel(2.0);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(data).Returns("value");
 
@@ -524,12 +525,12 @@ public class IronCondorMDILimitModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
-        var entityId = new Shared.Trade.OptionTradeEntityId(1, 2);
+        var entityId = new global::TomasAI.IFM.Shared.Trade.OptionTradeEntityId(1, 2);
         var valueDate = new DateOnly(2024, 12, 1);
-        var expected = new Shared.Trade.ViewModels.IronCondorMDILimitDataModel(entityId, valueDate, 1.0, 0.8, 1.5);
+        var expected = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.IronCondorMDILimitDataModel(entityId, valueDate, 1.0, 0.8, 1.5);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<Shared.Trade.ViewModels.IronCondorMDILimitDataModel>("{}").Returns(expected);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.IronCondorMDILimitDataModel>("{}").Returns(expected);
 
         // Act
         var result = _sut.Get(entityId, valueDate);
@@ -542,7 +543,7 @@ public class IronCondorMDILimitModelTests
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        var entityId = new Shared.Trade.OptionTradeEntityId(1, 2);
+        var entityId = new global::TomasAI.IFM.Shared.Trade.OptionTradeEntityId(1, 2);
         var valueDate = new DateOnly(2024, 12, 1);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns((string?)null);
@@ -558,9 +559,9 @@ public class IronCondorMDILimitModelTests
     public void Set_SerializesAndCachesValue()
     {
         // Arrange
-        var entityId = new Shared.Trade.OptionTradeEntityId(1, 2);
+        var entityId = new global::TomasAI.IFM.Shared.Trade.OptionTradeEntityId(1, 2);
         var valueDate = new DateOnly(2024, 12, 1);
-        var data = new Shared.Trade.ViewModels.IronCondorMDILimitDataModel(entityId, valueDate, 1.0, 0.8, 1.5);
+        var data = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.IronCondorMDILimitDataModel(entityId, valueDate, 1.0, 0.8, 1.5);
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(data).Returns("value");
 

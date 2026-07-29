@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using Microsoft.Extensions.Logging;
 using System.Data;
 using TomasAI.IFM.Framework.SequenceId;
@@ -6,7 +7,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Storage.ScyllaDb.OptionPricerDb;
 

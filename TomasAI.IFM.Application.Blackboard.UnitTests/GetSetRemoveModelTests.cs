@@ -1,11 +1,12 @@
+using TomasAI.IFM.Shared.Trade;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Blackboard.UnitTests;
 
@@ -114,10 +115,10 @@ public class TradePlanForwardLossLimitModelTests
     {
         // Arrange
         var entityId = new TradePlanForwardLossLimitEntityId(1, 2, new DateOnly(2024, 12, 1), TradeType.Unknown);
-        var expected = new Shared.Trade.ViewModels.TradePlanForwardLossLimitReadModel();
+        var expected = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanForwardLossLimitReadModel();
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<Shared.Trade.ViewModels.TradePlanForwardLossLimitReadModel>("{}").Returns(expected);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanForwardLossLimitReadModel>("{}").Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
@@ -146,7 +147,7 @@ public class TradePlanForwardLossLimitModelTests
     {
         // Arrange
         var entityId = new TradePlanForwardLossLimitEntityId(1, 2, new DateOnly(2024, 12, 1), TradeType.Unknown);
-        var data = new Shared.Trade.ViewModels.TradePlanForwardLossLimitReadModel();
+        var data = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanForwardLossLimitReadModel();
         _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(data).Returns("value");
 

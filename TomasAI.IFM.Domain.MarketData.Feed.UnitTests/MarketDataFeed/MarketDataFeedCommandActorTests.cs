@@ -12,7 +12,7 @@ using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 using TomasAI.IFM.Application.Storage;
 

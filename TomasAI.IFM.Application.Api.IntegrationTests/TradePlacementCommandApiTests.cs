@@ -76,7 +76,7 @@ public class TradePlacementCommandApiTests(WebApplicationFactory<Program> factor
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new TradePlacementCommandApi(commandServiceApi);
 
-        var id = new TomasAI.IFM.Shared.Trade.TradePlacementId("ES20251010", new DateOnly(2025, 10, 10));
+        var id = new TomasAI.IFM.Domain.Trade.Shared.TradePlacementId("ES20251010", new DateOnly(2025, 10, 10));
         var response = await api.StartTradePlacementAsync(id);
 
         response.Success.Should().BeTrue();
@@ -92,7 +92,7 @@ public class TradePlacementCommandApiTests(WebApplicationFactory<Program> factor
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new TradePlacementCommandApi(commandServiceApi);
 
-        var id = new TomasAI.IFM.Shared.Trade.TradePlacementId("ES20251010", new DateOnly(2025, 10, 10));
+        var id = new TomasAI.IFM.Domain.Trade.Shared.TradePlacementId("ES20251010", new DateOnly(2025, 10, 10));
         var response = await api.StopTradePlacementAsync(id);
 
         response.Success.Should().BeTrue();

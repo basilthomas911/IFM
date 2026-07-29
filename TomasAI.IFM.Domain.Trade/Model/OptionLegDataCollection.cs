@@ -1,5 +1,6 @@
-﻿using System.Collections;
 using TomasAI.IFM.Shared.Trade;
+using System.Collections;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Model;
 

@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Forms;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade

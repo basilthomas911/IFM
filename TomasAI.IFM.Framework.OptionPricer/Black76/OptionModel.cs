@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using TomasAI.IFM.Shared.Trade;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 

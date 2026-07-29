@@ -1,7 +1,8 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 

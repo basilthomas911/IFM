@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using MessagePack;
 using System.Text.Json.Serialization;
 using TomasAI.IFM.Shared.MarketData;

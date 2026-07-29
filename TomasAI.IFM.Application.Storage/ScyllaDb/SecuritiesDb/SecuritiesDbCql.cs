@@ -1,4 +1,5 @@
-﻿namespace TomasAI.IFM.Application.Storage.ScyllaDb.SecuritiesDb;
+using TomasAI.IFM.Shared.Trade;
+namespace TomasAI.IFM.Application.Storage.ScyllaDb.SecuritiesDb;
 
 internal class SecuritiesDbCql
 {

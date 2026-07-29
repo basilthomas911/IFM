@@ -12,8 +12,8 @@ using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.MarketData.Queries;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.Domain.Trade.BDDTests.Option.Monitor;
 

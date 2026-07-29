@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TomasAI.IFM.Shared.Trade.ViewModels;
-using TomasAI.IFM.Shared.TradePlan.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.TradePlanDb
 {

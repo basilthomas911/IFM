@@ -1,5 +1,6 @@
-﻿using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;

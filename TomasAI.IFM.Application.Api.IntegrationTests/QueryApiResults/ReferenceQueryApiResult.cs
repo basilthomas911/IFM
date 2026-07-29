@@ -1,9 +1,10 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using Microsoft.AspNetCore.Http;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests.QueryApiResults;
 

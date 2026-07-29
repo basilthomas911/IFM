@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using TomasAI.IFM.Application.Actor.IntegrationTests;

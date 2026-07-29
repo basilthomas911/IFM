@@ -28,7 +28,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Shared.Trade.Contracts;
+using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesBarData.FuturesBarDataCommandActorTests;
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesBarData.FuturesBarDataEventActorTests;
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesBarData.FuturesBarDataQueryActorTests;

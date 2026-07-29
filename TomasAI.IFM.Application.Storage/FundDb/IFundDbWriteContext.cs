@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.Fund;
 using TomasAI.IFM.Shared.Fund.ViewModels;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.SystemAdmin.Shared;
 
 namespace TomasAI.IFM.Application.Storage.FundDb

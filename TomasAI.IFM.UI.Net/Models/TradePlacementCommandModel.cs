@@ -1,5 +1,5 @@
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Trade.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.UI.Net.Models;

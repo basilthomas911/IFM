@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Plan.ForwardLossLimit.Validation;

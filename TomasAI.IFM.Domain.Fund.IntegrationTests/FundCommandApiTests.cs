@@ -13,7 +13,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Fund.IntegrationTests;
 

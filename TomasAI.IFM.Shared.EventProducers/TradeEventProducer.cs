@@ -1,10 +1,11 @@
+using TomasAI.IFM.Shared.Trade;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Messaging.Kafka;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.Events;
-using TomasAI.IFM.Shared.Trade.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.Shared.EventProducers;

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Shared.Application;
@@ -7,7 +8,7 @@ using TomasAI.IFM.Domain.OptionPricer.Shared.Queries;
 using TomasAI.IFM.Domain.OptionPricer.Shared.QueryParameters;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Api.Client;
 

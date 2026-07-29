@@ -1,7 +1,7 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
-using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;

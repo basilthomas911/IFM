@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Shared.Trade.Contracts;
+using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;

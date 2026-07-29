@@ -1,6 +1,6 @@
-﻿using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.Validation;
-using TomasAI.IFM.Shared.Trade.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Plan.ForwardLossLimit.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Plan.ForwardLossLimit.Decorators;

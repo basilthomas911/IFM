@@ -1,4 +1,5 @@
-﻿namespace TomasAI.IFM.Application.Storage.ScyllaDb.OptionPricerDb;
+using TomasAI.IFM.Shared.Trade;
+namespace TomasAI.IFM.Application.Storage.ScyllaDb.OptionPricerDb;
 
 internal class OptionPricerDbCql
 {

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
@@ -22,9 +23,9 @@ using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.Queries;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.QueryParameters;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ViewModels;
-using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.Queries;
-using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Queries;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query.Actor;

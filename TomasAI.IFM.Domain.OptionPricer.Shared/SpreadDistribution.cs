@@ -1,6 +1,6 @@
+using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
-using TomasAI.IFM.Shared.Trade.ViewModels;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared;
 

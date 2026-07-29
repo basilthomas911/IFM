@@ -1,6 +1,7 @@
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.Trade.ViewModels;
-using TomasAI.IFM.Shared.TradeOrder.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Model.Strategy;
 

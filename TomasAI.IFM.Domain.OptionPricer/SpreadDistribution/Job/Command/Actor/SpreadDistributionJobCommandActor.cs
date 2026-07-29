@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Trade;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Newtonsoft.Json;
@@ -7,7 +8,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
-using TomasAI.IFM.Shared.Trade;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.State;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Validation;

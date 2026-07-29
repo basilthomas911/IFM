@@ -1,2 +1,2 @@
-global using TomasAI.IFM.Shared.Trade;
-global using TomasAI.IFM.Shared.TradeAlgorithm;
+global using TomasAI.IFM.Domain.Trade.Shared;
+global using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm;
