@@ -1,6 +1,6 @@
-using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Model;

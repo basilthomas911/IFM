@@ -9,6 +9,9 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Shared.TradePlan.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 
 namespace TomasAI.IFM.Application.Api.Client;
 

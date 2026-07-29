@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Shared.Reference;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 namespace TomasAI.IFM.Application.Storage.ReferenceDb
 {

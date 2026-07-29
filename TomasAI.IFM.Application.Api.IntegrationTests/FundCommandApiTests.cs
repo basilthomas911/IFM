@@ -232,7 +232,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory)
             updatedOn: DateTime.Now,
             updatedBy: "TestUser"
         );
-        var response = await fundApi.GenerateFundMaxProfitAsync(fundOrder, Shared.MarketDataAnalytics.TimeFrameType.Daily);
+        var response = await fundApi.GenerateFundMaxProfitAsync(fundOrder, Domain.MarketData.Analytics.Shared.TimeFrameType.Daily);
 
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);

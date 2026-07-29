@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.MarketData.ServiceApi;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ServiceApi;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.UI.EventConsumer;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 namespace TomasAI.IFM.UI.Net.Models
 {

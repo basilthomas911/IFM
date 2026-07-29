@@ -1,7 +1,7 @@
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Model;
 

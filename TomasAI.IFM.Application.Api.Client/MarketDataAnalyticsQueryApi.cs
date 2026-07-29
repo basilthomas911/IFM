@@ -2,11 +2,11 @@ using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ServiceApi;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
-using TomasAI.IFM.Shared.MarketDataAnalytics.QueryParameters;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
-using TomasAI.IFM.Shared.MarketDataAnalytics; // For FuturesTradeSignalId, FuturesRsiSignalType
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared; // For FuturesTradeSignalId, FuturesRsiSignalType
 
 namespace TomasAI.IFM.Application.Api.Client;
 

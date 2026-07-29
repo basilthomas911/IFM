@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.Trade.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.EventConsumer;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.UI.Net.Models
 {

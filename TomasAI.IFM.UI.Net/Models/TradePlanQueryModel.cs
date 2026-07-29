@@ -4,6 +4,8 @@ using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradePlan.ServiceApi;
 using TomasAI.IFM.Shared.TradePlan.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 
 namespace TomasAI.IFM.UI.Net.Models;
 

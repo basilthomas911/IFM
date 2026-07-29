@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.BDDTests;
 
@@ -174,9 +175,9 @@ public static class SampleData
         tradeDate: TradeDate,
         maturityDate: MaturityDate,
         tradeType: TradeType.ShortIronCondor,
-        actionType: Shared.Trade.ActionType.HoldTradePosition,
-        actionSubType: Shared.Trade.ActionSubType.None,
-        actionState: Shared.Trade.ActionState.Normal,
+        actionType: global::TomasAI.IFM.Shared.Trade.ActionType.HoldTradePosition,
+        actionSubType: global::TomasAI.IFM.Shared.Trade.ActionSubType.None,
+        actionState: global::TomasAI.IFM.Shared.Trade.ActionState.Normal,
         actionReason: "Market update",
         tradePnl: 0m,
         forwardLossRatio: 0.15,
@@ -190,28 +191,28 @@ public static class SampleData
         assetStdDev: 12.5,
         assetMean: 5390.0,
         assetPriceChange: 0.05,
-        marketTrend: Shared.MarketData.MarketDirectionType.Up,
-        marketVolatility: Shared.MarketData.MarketVolatilityType.Low,
-        marketDirection: Shared.MarketData.PriceDirectionType.Rising,
-        vixVolatility: Shared.MarketData.PriceVolatilityType.Falling,
-        tradeRisk: Shared.Trade.TradeRiskType.Low,
+        marketTrend: global::TomasAI.IFM.Shared.MarketData.MarketDirectionType.Up,
+        marketVolatility: global::TomasAI.IFM.Shared.MarketData.MarketVolatilityType.Low,
+        marketDirection: global::TomasAI.IFM.Shared.MarketData.PriceDirectionType.Rising,
+        vixVolatility: global::TomasAI.IFM.Shared.MarketData.PriceVolatilityType.Falling,
+        tradeRisk: global::TomasAI.IFM.Shared.Trade.TradeRiskType.Low,
         fiftyDayMA: 5350.0,
         fiveDayXMA: 5380.0,
         putOTMProbability: 0.85,
         callOTMProbability: 0.82,
         shortPutGamma: 0.03,
         shortCallGamma: 0.03,
-        gammaRisk: Shared.Trade.GammaRiskType.None,
+        gammaRisk: global::TomasAI.IFM.Shared.Trade.GammaRiskType.None,
         netPrice: 2.50m,
         forwardPrice: 2.75m,
         forwardDelta: 0.026,
         stopLossLimit: 0.10,
-        trendType: Shared.MarketDataAnalytics.FuturesTrendType.UpTrend,
-        trendStrength: Shared.MarketDataAnalytics.FuturesTrendStrengthType.Low,
+        trendType: Domain.MarketData.Analytics.Shared.FuturesTrendType.UpTrend,
+        trendStrength: Domain.MarketData.Analytics.Shared.FuturesTrendStrengthType.Low,
         rsi: 55.0,
         rsiSlope: 1.5,
-        tdi: Shared.MarketDataAnalytics.FuturesTrendDirectionType.UpTrending,
-        tdiStrength: Shared.MarketDataAnalytics.FuturesTrendDirectionStrengthType.Low,
+        tdi: Domain.MarketData.Analytics.Shared.FuturesTrendDirectionType.UpTrending,
+        tdiStrength: Domain.MarketData.Analytics.Shared.FuturesTrendDirectionStrengthType.Low,
         createdOn: CreatedOn,
         createdBy: "basilt"
     );

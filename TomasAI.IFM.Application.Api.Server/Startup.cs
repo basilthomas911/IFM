@@ -65,7 +65,7 @@ using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.Model;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.MarketData.ServiceApi;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.MarketDataFeed.ServiceApi;
 using TomasAI.IFM.Shared.OptionPricer.ServiceApi;
@@ -76,6 +76,8 @@ using TomasAI.IFM.Shared.Trade.Contracts;
 using TomasAI.IFM.Shared.Trade.ServiceApi;
 using TomasAI.IFM.Shared.TradePlan.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 
 namespace TomasAI.IFM.Application.Api.Server;
 

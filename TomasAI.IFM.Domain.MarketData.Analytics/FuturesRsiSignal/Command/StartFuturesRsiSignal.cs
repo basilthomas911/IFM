@@ -1,6 +1,6 @@
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command;

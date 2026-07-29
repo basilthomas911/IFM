@@ -10,9 +10,9 @@ using TomasAI.IFM.Shared.MarketData.CommandParameters;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Domain.Fund.Shared.CommandParameters;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
-using TomasAI.IFM.Shared.MarketDataAnalytics.CommandParameters;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.CommandParameters;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.MarketDataFeed.Commands;
 using TomasAI.IFM.Shared.MarketDataFeed.CommandParameters;
@@ -28,6 +28,7 @@ using TomasAI.IFM.Shared.SystemAdmin.Commands;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.Commands;
 using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Commands;
 
 namespace TomasAI.IFM.Application.Actor.IntegrationTests;
 

@@ -10,6 +10,9 @@ using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.TradePlan.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Queries;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 
 namespace TomasAI.IFM.Application.Api.Client;
 

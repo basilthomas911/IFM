@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Trade.ServiceApi;
 using TomasAI.IFM.Shared.Trade.Events;
 using TomasAI.IFM.Application.Storage.ScyllaDb.TradeDb;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.Domain.Trade.Plan;
 

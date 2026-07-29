@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.JobScheduler;
 using TomasAI.IFM.Shared.Reference.ViewModels;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Shared.Trade;
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests;

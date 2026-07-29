@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.MarketData;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder;
@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.SystemAdmin;
 using TomasAI.IFM.Framework.Storage;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb
 {

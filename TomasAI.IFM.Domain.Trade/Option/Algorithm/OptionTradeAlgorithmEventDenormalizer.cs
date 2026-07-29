@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Trade.ServiceApi;
-using TomasAI.IFM.Shared.TradeAlgorithm.Events;
+using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Algorithm;
 

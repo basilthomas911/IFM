@@ -4,10 +4,11 @@ using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.MarketData;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Trade.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.TradeOrder;
 using TomasAI.IFM.Shared.TradeOrder.ViewModels;
 
@@ -115,12 +116,12 @@ public class TradeDbContext(
         forwardPrice: e.GetDecimal(37),
         forwardDelta: e.GetDouble(38),
         stopLossLimit: e.GetDouble(39),
-        trendType: e.GetEnum<Shared.MarketDataAnalytics.FuturesTrendType>(40),
-        trendStrength: e.GetEnum<Shared.MarketDataAnalytics.FuturesTrendStrengthType>(41),
+        trendType: e.GetEnum<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendType>(40),
+        trendStrength: e.GetEnum<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendStrengthType>(41),
         rsi: e.GetDouble(42),
         rsiSlope: e.GetDouble(43),
-        tdi: e.GetEnum<Shared.MarketDataAnalytics.FuturesTrendDirectionType>(44),
-        tdiStrength: e.GetEnum<Shared.MarketDataAnalytics.FuturesTrendDirectionStrengthType>(45),
+        tdi: e.GetEnum<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendDirectionType>(44),
+        tdiStrength: e.GetEnum<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendDirectionStrengthType>(45),
         createdOn: e.GetDateTime(46),
         createdBy: e.GetString(47)
     );

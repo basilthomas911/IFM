@@ -1,14 +1,14 @@
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.Validation;
-using TomasAI.IFM.Shared.TradeAlgorithm.Commands;
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Validation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Validation;
 using TomasAI.IFM.Shared.MarketData.Validation;
 using TomasAI.IFM.Shared.Reference.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Commands;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Algorithm.Decorators;
 

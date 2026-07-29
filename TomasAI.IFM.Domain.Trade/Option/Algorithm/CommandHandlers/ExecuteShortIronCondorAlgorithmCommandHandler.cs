@@ -1,8 +1,8 @@
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.TradeAlgorithm.Commands;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Domain.Trade.Option.Algorithm.Model;
-using TomasAI.IFM.Shared.TradeAlgorithm.Events;
+using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Algorithm.CommandHandlers;
 

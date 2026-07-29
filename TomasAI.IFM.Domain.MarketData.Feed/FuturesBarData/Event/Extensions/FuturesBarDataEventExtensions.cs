@@ -1,8 +1,8 @@
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Queries;
-using TomasAI.IFM.Shared.MarketDataAnalytics.QueryParameters;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.MarketDataFeed.Commands;
 using TomasAI.IFM.Shared.MarketDataFeed.Events;

@@ -1,8 +1,8 @@
-﻿using TomasAI.IFM.Shared.Trade.Validation;
+using TomasAI.IFM.Shared.Trade.Validation;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Validation;
-using TomasAI.IFM.Shared.TradeAlgorithm.Commands;
 using TomasAI.IFM.Domain.Trade.Option.Algorithm.ValidationRules;
+using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Commands;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Algorithm.Decorators;
 

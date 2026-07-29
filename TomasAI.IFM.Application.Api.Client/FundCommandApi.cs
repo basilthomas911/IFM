@@ -1,7 +1,7 @@
 using TomasAI.IFM.Shared.Application.Commands;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Trade;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Domain.Fund.Shared;

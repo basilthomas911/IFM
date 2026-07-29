@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics\TomasAI.IFM.Domain.MarketData.Analytics.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.NatsJetStream\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

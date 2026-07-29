@@ -14,7 +14,7 @@ using TomasAI.IFM.Shared.SystemAdmin;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Application.Storage.ReferenceDb

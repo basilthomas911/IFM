@@ -1,12 +1,13 @@
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Trade.ViewModels;
-using TomasAI.IFM.Shared.TradeAlgorithm.Commands;
 using TomasAI.IFM.Shared.TradeAlgorithm;
-using TomasAI.IFM.Shared.TradeAlgorithm.Events;
 using TomasAI.IFM.Domain.Trade.Option.Algorithm.Model;
 using TomasAI.IFM.Domain.Trade.Option.Algorithm.Model.LongIronCondor;
 using TomasAI.IFM.Domain.Trade.Option.Algorithm.Model.ShortIronCondor;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Algorithm;
 

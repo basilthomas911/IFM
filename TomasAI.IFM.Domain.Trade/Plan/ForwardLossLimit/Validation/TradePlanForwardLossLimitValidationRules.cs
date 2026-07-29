@@ -24,7 +24,7 @@ public class TradePlanForwardLossLimitValidationRules
             RuleFor(x => x.OrderId).Must(e => e > 0).WithMessage(OrderIdErrorMessage);
             RuleFor(x => x.TradeId).Must(e => e > 0).WithMessage(TradeIdErrorMessage);
             RuleFor(x => x.ValueDate).NotEmpty().WithMessage(ValueDateErrorMessage);
-            RuleFor(x => x.LimitType).Must(e => e != Shared.Trade.ForwardLossLimitType.Unknown ).WithMessage(LimitTypeErrorMessage);
+            RuleFor(x => x.LimitType).Must(e => e != global::TomasAI.IFM.Shared.Trade.ForwardLossLimitType.Unknown ).WithMessage(LimitTypeErrorMessage);
         }
 
         public override ValidationResult Validate(ValidationContext<TradePlanForwardLossLimitReadModel> context)

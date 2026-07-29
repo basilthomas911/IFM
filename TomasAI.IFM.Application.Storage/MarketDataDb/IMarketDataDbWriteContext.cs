@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.MarketData.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.SystemAdmin;
 using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend;
 using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend.ViewModels;

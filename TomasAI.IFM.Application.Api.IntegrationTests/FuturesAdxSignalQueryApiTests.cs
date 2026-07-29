@@ -3,7 +3,7 @@ using FluentAssertions;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
 
@@ -24,7 +24,7 @@ public class FuturesAdxSignalQueryApiTests(WebApplicationFactory<Program> factor
     {
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var queryApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
-        var response = await queryApi.GetFuturesAdxSignalAsync("ESU25", new DateOnly(2025, 9, 10), Shared.MarketDataAnalytics.TimeFrameType.FifteenSeconds, 14);
+        var response = await queryApi.GetFuturesAdxSignalAsync("ESU25", new DateOnly(2025, 9, 10), Domain.MarketData.Analytics.Shared.TimeFrameType.FifteenSeconds, 14);
         response.Success.Should().BeTrue();
         response.Value.Should().BeAssignableTo<FuturesAdxSignalReadModel>();
     }

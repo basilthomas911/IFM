@@ -6,9 +6,9 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Actor;
 
@@ -501,16 +501,16 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var exception = new InvalidOperationException("Test exception message");
 
-        mockContext.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        mockContext.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
         await actor.InvokeOnExceptionAsync(mockContext, threadId, @event, exception);
 
         // Assert
-        await mockContext.Received(1).SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Is<Shared.EventModelActor.Events.EventExceptionEvent>(e =>
+        await mockContext.Received(1).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(e =>
                 e.ErrorMessage == exception.Message &&
                 e.ErrorType == ErrorType.EventService));
     }
@@ -525,16 +525,16 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var exception = new ArgumentNullException("paramName", "Parameter cannot be null");
 
-        mockContext.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        mockContext.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
         await actor.InvokeOnExceptionAsync(mockContext, threadId, @event, exception);
 
         // Assert
-        await mockContext.Received(1).SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Is<Shared.EventModelActor.Events.EventExceptionEvent>(e =>
+        await mockContext.Received(1).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(e =>
                 e.ErrorMessage.Contains("paramName") &&
                 e.ErrorType == ErrorType.EventService));
     }
@@ -549,16 +549,16 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var exception = new TimeoutException("Database operation timed out");
 
-        mockContext.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        mockContext.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
         await actor.InvokeOnExceptionAsync(mockContext, threadId, @event, exception);
 
         // Assert
-        await mockContext.Received(1).SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Is<Shared.EventModelActor.Events.EventExceptionEvent>(e =>
+        await mockContext.Received(1).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(e =>
                 e.ErrorMessage == exception.Message &&
                 e.ErrorType == ErrorType.EventService));
     }
@@ -574,16 +574,16 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var @event = CreateMacdCompleteEvent(timePeriod);
         var exception = new InvalidOperationException($"Failure for {timePeriod}");
 
-        mockContext.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        mockContext.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
         await actor.InvokeOnExceptionAsync(mockContext, threadId, @event, exception);
 
         // Assert
-        await mockContext.Received(1).SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Is<Shared.EventModelActor.Events.EventExceptionEvent>(e => e.ErrorMessage == exception.Message));
+        await mockContext.Received(1).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(e => e.ErrorMessage == exception.Message));
     }
 
     #endregion
@@ -616,8 +616,8 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var threadId = new ActorThreadId(ActorType.Event, FuturesMacdSignalEventActor.Actor, "1");
         var exception = new InvalidOperationException("boom");
 
-        mockContext.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        mockContext.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -626,8 +626,8 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         await actor.InvokeOnExceptionAsync(mockContext, threadId, null!, exception);
 
         // Assert
-        await mockContext.Received().SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Is<Shared.EventModelActor.Events.EventExceptionEvent>(e => e.ErrorMessage.Contains("@event")));
+        await mockContext.Received().SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(e => e.ErrorMessage.Contains("@event")));
     }
 
     [Fact]
@@ -641,8 +641,8 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         var @event = CreateMacdCompleteEvent(TimeFrameType.Daily);
         var exception = new InvalidOperationException("boom");
 
-        mockContext.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        mockContext.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(_ => throw new InvalidOperationException("send failed"), _ => ValueTask.CompletedTask);
 
         // Act
@@ -650,8 +650,8 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
 
         // Assert
         await act.Should().NotThrowAsync();
-        await mockContext.Received(2).SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-            Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>());
+        await mockContext.Received(2).SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+            Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>());
     }
 
     #endregion

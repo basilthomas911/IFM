@@ -5,6 +5,7 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Application.Api.Client;
 using Xunit;
 using System;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
 
@@ -26,10 +27,10 @@ public class TradePlacementCommandApiTests(WebApplicationFactory<Program> factor
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new TradePlacementCommandApi(commandServiceApi);
 
-        var futuresSignal = new TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels.FuturesTradeSignalV2ReadModel(
+        var futuresSignal = new TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesTradeSignalV2ReadModel(
             contractId: "ES20251010",
             valueDate: new DateOnly(2025, 10, 10),
-            timePeriod: TomasAI.IFM.Shared.MarketDataAnalytics.TimeFrameType.FifteenSeconds,
+            timePeriod: TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.FifteenSeconds,
             sequenceId: 1,
             timestamp: new TimeOnly(10, 0),
             mean: 0,
@@ -39,13 +40,13 @@ public class TradePlacementCommandApiTests(WebApplicationFactory<Program> factor
             fundRiskPercent: 0,
             rsi: 50,
             rsiSlope: 0,
-            trendType: TomasAI.IFM.Shared.MarketDataAnalytics.FuturesTrendType.RangeBound,
-            trendStrength: TomasAI.IFM.Shared.MarketDataAnalytics.FuturesTrendStrengthType.Low,
-            tradeSignal: TomasAI.IFM.Shared.MarketDataAnalytics.TradeSignalType.None,
-            tdi: TomasAI.IFM.Shared.MarketDataAnalytics.FuturesTrendDirectionType.Init,
-            tdiStrength: TomasAI.IFM.Shared.MarketDataAnalytics.FuturesTrendDirectionStrengthType.Low,
+            trendType: TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendType.RangeBound,
+            trendStrength: TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendStrengthType.Low,
+            tradeSignal: TomasAI.IFM.Domain.MarketData.Analytics.Shared.TradeSignalType.None,
+            tdi: TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendDirectionType.Init,
+            tdiStrength: TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendDirectionStrengthType.Low,
             mdi: 0,
-            mdiTrend: TomasAI.IFM.Shared.MarketDataAnalytics.FuturesMDITrendType.RangeBound,
+            mdiTrend: TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesMDITrendType.RangeBound,
             mdiUpTrendLimit: 0,
             mdiDownTrendLimit: 0,
             upTrendingTrigger: 0,
@@ -57,7 +58,7 @@ public class TradePlacementCommandApiTests(WebApplicationFactory<Program> factor
             trendReversal: 0,
             fiftyDMA: 0m,
             twoHundredDMA: 0m,
-            tradeExecuteState: TomasAI.IFM.Shared.MarketDataAnalytics.TradeExecuteState.No
+            tradeExecuteState: TomasAI.IFM.Domain.MarketData.Analytics.Shared.TradeExecuteState.No
         );
 
         var response = await api.SignalTradePlacementAsync(futuresSignal);

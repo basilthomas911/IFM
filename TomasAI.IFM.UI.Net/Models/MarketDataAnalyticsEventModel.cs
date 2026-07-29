@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.UI.EventConsumer;
 

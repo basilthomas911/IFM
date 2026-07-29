@@ -6,8 +6,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTdiSignal;
@@ -244,8 +244,8 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         var scenario = CreateScenario();
         var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(timePeriod);
         var exception = new InvalidOperationException($"{timePeriod} event processing failed");
-        scenario.Context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        scenario.Context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         await scenario.Actor.InvokeOnExceptionAsync(
@@ -255,8 +255,8 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
             exception);
 
         await scenario.Context.Received(1)
-            .SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Is<Shared.EventModelActor.Events.EventExceptionEvent>(error =>
+            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(error =>
                     error.ErrorType == ErrorType.EventService
                     && error.ErrorMessage == exception.Message
                     && error.ErrorData.Contains(nameof(InvalidOperationException))));
@@ -267,8 +267,8 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TimeFrameType.Monthly);
-        scenario.Context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        scenario.Context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(
                 _ => throw new InvalidOperationException("primary publication failed"),
                 _ => ValueTask.CompletedTask);
@@ -281,8 +281,8 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
         await act.Should().NotThrowAsync();
         await scenario.Context.Received(2)
-            .SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>());
+            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>());
         scenario.Logger.ReceivedCalls().Should().BeEmpty();
     }
 
@@ -291,8 +291,8 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         var scenario = CreateScenario();
         var threadId = new ActorThreadId(ActorType.Event, FuturesTdiSignalEventActor.Actor, "null-event");
-        scenario.Context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        scenario.Context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
 
         var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
@@ -303,8 +303,8 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
         await act.Should().NotThrowAsync();
         await scenario.Context.Received(1)
-            .SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Is<Shared.EventModelActor.Events.EventExceptionEvent>(error =>
+            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(error =>
                     error.ErrorType == ErrorType.EventService
                     && error.ErrorData.Contains(nameof(ArgumentNullException))));
         scenario.Logger.ReceivedCalls()
@@ -318,8 +318,8 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTdiSignalGeneratedCompleteEventFor(TimeFrameType.Weekly);
-        scenario.Context.SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>())
+        scenario.Context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
             .Returns(_ => throw new InvalidOperationException("publication unavailable"));
 
         var act = async () => await scenario.Actor.InvokeOnExceptionAsync(
@@ -330,8 +330,8 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
         await act.Should().NotThrowAsync();
         await scenario.Context.Received(2)
-            .SendAsync<Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<Shared.EventModelActor.Events.EventExceptionEvent>());
+            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>());
         scenario.Logger.ReceivedCalls().Should().BeEmpty();
     }
 }

@@ -8,9 +8,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.MarketData;
 using TomasAI.IFM.Shared.MarketData.CommandParameters;
 using TomasAI.IFM.Shared.MarketData.Commands;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
-using TomasAI.IFM.Shared.MarketDataAnalytics.CommandParameters;
-using TomasAI.IFM.Shared.MarketDataAnalytics.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.CommandParameters;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Shared.MarketDataFeed;
 using TomasAI.IFM.Shared.MarketDataFeed.CommandParameters;
 using TomasAI.IFM.Shared.MarketDataFeed.Commands;
@@ -29,6 +29,7 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.CommandParameters;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.Trade.Shared.Commands;
 
 namespace TomasAI.IFM.Application.Api.Server;
 

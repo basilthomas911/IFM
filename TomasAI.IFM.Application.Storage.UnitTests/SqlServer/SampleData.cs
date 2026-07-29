@@ -13,7 +13,8 @@ using TomasAI.IFM.Shared.Fund.ViewModels;
 using TomasAI.IFM.Shared.Reference.ViewModels;
 using TomasAI.IFM.Shared.OptionPricer;
 using TomasAI.IFM.Shared.OptionPricer.ViewModels;
-using TomasAI.IFM.Shared.MarketDataAnalytics;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.UnitTests.SqlServer
 {

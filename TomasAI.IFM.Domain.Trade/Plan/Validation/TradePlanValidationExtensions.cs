@@ -1,5 +1,6 @@
 using TomasAI.IFM.Shared.Trade.ViewModels;
 using TomasAI.IFM.Shared.Validation;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Plan.Validation;
 

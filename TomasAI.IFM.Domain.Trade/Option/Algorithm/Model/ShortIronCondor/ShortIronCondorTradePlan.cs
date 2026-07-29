@@ -5,9 +5,12 @@ using TomasAI.IFM.Shared.Util;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Trade.Events;
 using TomasAI.IFM.Shared.AlgoTrader;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.Trade.Option.Algorithm.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.AlgoTrader;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Algorithm.Model.ShortIronCondor;
 

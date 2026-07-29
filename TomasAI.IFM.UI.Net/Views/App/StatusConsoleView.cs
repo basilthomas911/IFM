@@ -1,5 +1,5 @@
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.App;

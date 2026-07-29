@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.TradePlan.ViewModels;
 using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 

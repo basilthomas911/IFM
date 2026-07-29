@@ -941,7 +941,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
 
         // generate fund max profit...
         subject = new ActorSubject(ActorType.Command, GenerateFundMaxProfitCommand.Actor, GenerateFundMaxProfitCommand.Verb, fund.Id.Format());
-        response = await fundApi.GenerateFundMaxProfitAsync(fundOrder, IFM.Shared.MarketDataAnalytics.TimeFrameType.Daily);
+        response = await fundApi.GenerateFundMaxProfitAsync(fundOrder, IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily);
         await Task.Delay(1000);
 
         // assert...

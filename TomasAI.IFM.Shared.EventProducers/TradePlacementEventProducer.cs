@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.Events;
 using TomasAI.IFM.Shared.Trade.Events;
 using TomasAI.IFM.Shared.Trade.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.Shared.EventProducers;
 

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TomasAI.IFM.Shared.MarketDataAnalytics.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketDataFeed.ViewModels;
 using TomasAI.IFM.Shared.Trade;
 using TomasAI.IFM.Shared.Extensions;
@@ -20,6 +20,7 @@ using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Option.Algorithm.Model.LongIronCondor;
 using TomasAI.IFM.Domain.Trade.Option.Algorithm.Model.ShortIronCondor;
+using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Algorithm.Model;
 

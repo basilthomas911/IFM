@@ -1,6 +1,7 @@
 using System.Drawing;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Trade.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.MarketData
 {

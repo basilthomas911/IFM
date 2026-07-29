@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Kafka\TomasAI.IFM.Framework.Messaging.Kafka.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.TradePlan\TomasAI.IFM.Service.TradePlan.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
   </ItemGroup>
 
 </Project>
