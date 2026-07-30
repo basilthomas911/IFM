@@ -75,6 +75,11 @@ public abstract class BaseEventProjector<TActor> (
     /// <returns></returns>
     public async ValueTask DomainEventsProjectionAsync(DomainEventCollection domainEvents)
     {
+        await DurableReplayQueue.DequeueAsync(
+            ProjectorName,
+            domainEvent => ProcessDomainEventAsync(domainEvent).AsTask());
+        await DurableReplayQueue.StartAsync(ProjectorName, TimeSpan.FromSeconds(30));
+
         foreach (var domainEvent in domainEvents)
         {
             var projectionState = new EventProjectorStateReadModel(
@@ -87,7 +92,7 @@ public abstract class BaseEventProjector<TActor> (
                 outcome: EventProjectorOutcomeType.Processing
             );
             BlackboardService.EventProjectorState.Set(domainEvent.EventId, projectionState);
-            DurableReplayQueue.Enqueue(DurableReplayQueueName, domainEvent);
+            DurableReplayQueue.Enqueue(ProjectorName, domainEvent);
         }
     }
 

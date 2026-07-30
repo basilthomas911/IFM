@@ -42,6 +42,7 @@ using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.Kafka;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
+using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
@@ -232,6 +233,7 @@ public static class Startup
             services.AddTransient<IActorConsumer, NatsActorConsumer>();
             services.AddSingleton<INatsJetStreamProducerOptions, NatsJetStreamProducerOptions>();
             services.AddSingleton<INatsJetStreamConsumerOptions, NatsJetStreamConsumerOptions>();
+            services.AddSingleton<IDurableReplayQueue, NatsJSDurableReplayQueue>();
             services.AddTransient<IJSActorProducer, NatsJetStreamActorProducer>();
             services.AddTransient<IJSActorConsumer, NatsJetStreamActorConsumer>();
             services.AddSingleton<IContainerInstance>(provider => new ContainerInstance(type => {

@@ -37,13 +37,13 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
         where TFail : class, IErrorEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
-        _eventProjector.DurableReplayQueue.SetMaxAttemptsReachedAction(_eventProjector.DurableReplayQueueName, e =>
+        _eventProjector.DurableReplayQueue.SetMaxAttemptsReachedAction(_eventProjector.ProjectorName, e =>
         {
             var currentState = _eventProjector.BlackboardService.EventProjectorState.Get(e.EventId);
             currentState = currentState with
             {
                 Outcome = EventProjectorOutcomeType.Failed,
-                ErrorMessage = $"Max {_eventProjector.DurableReplayQueue.GetMaxReplayAttemps(_eventProjector.DurableReplayQueueName)} attempts reached for event {e.EventId} of type {e.GetType().Name}"
+                ErrorMessage = $"Max {_eventProjector.DurableReplayQueue.GetMaxReplayAttemps(_eventProjector.ProjectorName)} attempts reached for event {e.EventId} of type {e.GetType().Name}"
             };
             _eventProjector.BlackboardService.EventProjectorState.Clear(e.EventId);
             return _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
@@ -127,6 +127,7 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
                 ErrorMessage = ex.Message };
             _eventProjector.BlackboardService.EventProjectorState.Set(domainEvent.EventId, currentState);
             await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
+            throw;
         }
 
         /// <summary>
@@ -220,16 +221,8 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
             IsArgumentNull.Check(processingAction);
             _processingAction = async e =>
             {
-                var domainEvent = e as TEvent;
-                try
-                {
-                    await processingAction(domainEvent);
-                    return new ServiceResult(true, 0, string.Empty);
-                }
-                catch (Exception ex)
-                {
-                    return new ServiceResult(false, 9999, ex.Message);
-                }
+                await processingAction(e as TEvent);
+                return new ServiceResult(true, 0, string.Empty);
             };
         }
         else if (_processingAction is null)
@@ -237,16 +230,8 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
             IsArgumentNull.Check(processingAction);
             _processingAction = async e =>
             {
-                var domainEvent = e as TEvent;
-                try
-                {
-                    await processingAction(domainEvent);
-                    return new ServiceResult(true, 0, string.Empty);
-                }
-                catch (Exception ex)
-                {
-                    return new ServiceResult(false, 9999, ex.Message);
-                }
+                await processingAction(e as TEvent);
+                return new ServiceResult(true, 0, string.Empty);
             };
         }
     }

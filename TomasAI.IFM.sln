@@ -115,6 +115,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Prompts", "Prompts", "{719E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Messaging.Nats", "TomasAI.IFM.Framework.Messaging.NatsJetStream\TomasAI.IFM.Framework.Messaging.Nats.csproj", "{5523824A-782D-4579-BF45-B6B1E018E991}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Messaging.Nats.UnitTests", "TomasAI.IFM.Framework.Messaging.NatsJetStream.UnitTests\TomasAI.IFM.Framework.Messaging.Nats.UnitTests.csproj", "{E8986D94-5AAB-4676-B833-C9F8C6E654B4}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests", "TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests\TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests.csproj", "{14F012BD-FCCF-449E-B5FD-7E7E2705035F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests", "TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests\TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests.csproj", "{628836FA-269A-47B0-9EEF-932492846F10}"
@@ -1075,6 +1077,26 @@ Global
 		{5523824A-782D-4579-BF45-B6B1E018E991}.Release|x64.Build.0 = Release|Any CPU
 		{5523824A-782D-4579-BF45-B6B1E018E991}.Release|x86.ActiveCfg = Release|Any CPU
 		{5523824A-782D-4579-BF45-B6B1E018E991}.Release|x86.Build.0 = Release|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Debug|ARM.Build.0 = Debug|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Debug|x64.Build.0 = Debug|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Debug|x86.Build.0 = Debug|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Release|ARM.ActiveCfg = Release|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Release|ARM.Build.0 = Release|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Release|ARM64.Build.0 = Release|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Release|x64.ActiveCfg = Release|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Release|x64.Build.0 = Release|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Release|x86.ActiveCfg = Release|Any CPU
+		{E8986D94-5AAB-4676-B833-C9F8C6E654B4}.Release|x86.Build.0 = Release|Any CPU
 		{14F012BD-FCCF-449E-B5FD-7E7E2705035F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{14F012BD-FCCF-449E-B5FD-7E7E2705035F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{14F012BD-FCCF-449E-B5FD-7E7E2705035F}.Debug|ARM.ActiveCfg = Debug|Any CPU

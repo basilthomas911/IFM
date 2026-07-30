@@ -60,7 +60,7 @@ public class FundEventProjector(
         catch(Exception ex)
         {
             Logger.LogError(ex, "{ProcessQueue}: error processing event projection for: {EventName}", DurableProcessQueueName, domainEvent.GetType().Name);
-            await LogExceptionAsync(ex, domainEvent);
+            throw;
         }
     }
 }
