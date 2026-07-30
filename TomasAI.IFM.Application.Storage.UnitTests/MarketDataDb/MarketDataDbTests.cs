@@ -30,7 +30,7 @@ using Xunit;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Framework.Storage.Extensions;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.MarketDataDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.MarketDataDb;
 
 public class MarketDataFixture : IDisposable
 {

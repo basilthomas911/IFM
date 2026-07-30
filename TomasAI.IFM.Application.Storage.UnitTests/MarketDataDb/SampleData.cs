@@ -14,7 +14,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.MarketDataDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.MarketDataDb;
 
 public class SampleData
 {

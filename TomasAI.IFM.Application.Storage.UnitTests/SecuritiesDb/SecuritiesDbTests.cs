@@ -13,7 +13,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
-using TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.ReferenceDb;
+using TomasAI.IFM.Application.Storage.UnitTests.ReferenceDb;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
@@ -22,7 +22,7 @@ using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using Xunit;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.SecuritiesDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.SecuritiesDb;
 
 public class SecuritiesDatabaseFixture : IDisposable
 {

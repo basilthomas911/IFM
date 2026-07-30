@@ -25,7 +25,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.TradeDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.TradeDb;
 
 public class TradeDbFixture : IDisposable
 {

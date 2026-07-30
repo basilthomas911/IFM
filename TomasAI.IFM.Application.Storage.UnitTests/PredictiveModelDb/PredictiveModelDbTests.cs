@@ -12,7 +12,7 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.PredictiveModelDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.PredictiveModelDb;
 
 public class PredictiveModelFixture : IDisposable
 {

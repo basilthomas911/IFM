@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.Telemetry.ViewModels;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.Postgres.LogDb
+namespace TomasAI.IFM.Application.Storage.UnitTests.LogDb
 {
     public static class SampleData
     {

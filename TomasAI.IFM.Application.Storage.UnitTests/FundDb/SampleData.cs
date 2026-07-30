@@ -4,7 +4,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.FundDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.FundDb;
 
 public static class SampleData
 {

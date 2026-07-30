@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Shared.JobScheduler;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.ReferenceDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.ReferenceDb;
 
 
 public static class SampleData

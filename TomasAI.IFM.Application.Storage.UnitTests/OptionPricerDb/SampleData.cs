@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.OptionPricerDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.OptionPricerDb;
 
 public static class SampleData
 {

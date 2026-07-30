@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.PredictiveModelDb
+namespace TomasAI.IFM.Application.Storage.UnitTests.PredictiveModelDb
 {
     internal class SampleData
     {

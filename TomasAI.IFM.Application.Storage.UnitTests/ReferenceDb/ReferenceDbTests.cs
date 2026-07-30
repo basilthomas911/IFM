@@ -15,7 +15,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Caching;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.ReferenceDb
+namespace TomasAI.IFM.Application.Storage.UnitTests.ReferenceDb
 {
     public class ReferenceDatabaseFixture : IDisposable
     {

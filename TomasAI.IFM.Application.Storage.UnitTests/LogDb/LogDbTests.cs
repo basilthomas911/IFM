@@ -17,7 +17,7 @@ using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.SequenceId;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.Postgres.LogDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.LogDb;
 
 public class LogFixture : IDisposable
 {

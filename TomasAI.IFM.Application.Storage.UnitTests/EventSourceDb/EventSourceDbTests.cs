@@ -22,7 +22,7 @@ using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.Postgres.EventSourceDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.EventSourceDb;
 
 public class EventSourceFixture : IDisposable
 {
@@ -74,7 +74,7 @@ public class EventSourceDbTests : IClassFixture<EventSourceFixture>
     public async Task InsertCommandLogAsyncOk()
     {
         var db = _testFixture.DbFactory.EventSourceDb as EventSourceDbContext;
-        var createFundCmd = new CreateFundCommand( ScyllaDb.FundDb.SampleData.Fund)
+        var createFundCmd = new CreateFundCommand( FundDb.SampleData.Fund)
         ;
         await db.Use($"delete from command_log").ExecuteCommandAsync();
         var options = new JsonSerializerOptions
@@ -149,12 +149,12 @@ public class EventSourceDbTests : IClassFixture<EventSourceFixture>
         var eventStream = "TestStreamId";
         var eventStreamId = await db.GetEventStreamIdAsync(eventStream);
         eventStreamId.Should().BeGreaterThan(0);
-        var createFundCmd = new CreateFundCommand( ScyllaDb.FundDb.SampleData.Fund);
+        var createFundCmd = new CreateFundCommand( FundDb.SampleData.Fund);
 
         // Create a FundCreatedEvent with the sample FundReadModel
         var fundCreatedEvent = new FundCreatedEvent
         {
-            NewFund = ScyllaDb.FundDb.SampleData.Fund
+            NewFund = FundDb.SampleData.Fund
         };
         fundCreatedEvent.RoutedFrom(createFundCmd);
 
@@ -176,11 +176,11 @@ public class EventSourceDbTests : IClassFixture<EventSourceFixture>
     {
         var db = _testFixture.DbFactory.EventSourceDb as EventSourceDbContext;
   
-        var createFundCmd = new CreateFundCommand( ScyllaDb.FundDb.SampleData.Fund);
+        var createFundCmd = new CreateFundCommand( FundDb.SampleData.Fund);
 
         // Create a FundCreatedEvent with the sample FundReadModel
         var fundCreatedEvent = new FundCreatedEvent();
-        EventInitHelper.SetProperty(fundCreatedEvent, nameof(FundCreatedEvent.NewFund), ScyllaDb.FundDb.SampleData.Fund);
+        EventInitHelper.SetProperty(fundCreatedEvent, nameof(FundCreatedEvent.NewFund), FundDb.SampleData.Fund);
         fundCreatedEvent.RoutedFrom(createFundCmd);
 
         var fundOrder = new FundOrderReadModel(
@@ -254,11 +254,11 @@ public class EventSourceDbTests : IClassFixture<EventSourceFixture>
     {
         var db = _testFixture.DbFactory.EventSourceDb as EventSourceDbContext;
 
-        var createFundCmd = new CreateFundCommand(ScyllaDb.FundDb.SampleData.Fund);
+        var createFundCmd = new CreateFundCommand(FundDb.SampleData.Fund);
 
         // Create a FundCreatedEvent with the sample FundReadModel
         var fundCreatedEvent = new FundCreatedEvent();
-        EventInitHelper.SetProperty(fundCreatedEvent, nameof(FundCreatedEvent.NewFund), ScyllaDb.FundDb.SampleData.Fund);
+        EventInitHelper.SetProperty(fundCreatedEvent, nameof(FundCreatedEvent.NewFund), FundDb.SampleData.Fund);
         fundCreatedEvent.RoutedFrom(createFundCmd);
 
         var fundOrder = new FundOrderReadModel(
@@ -358,12 +358,12 @@ public class EventSourceDbTests : IClassFixture<EventSourceFixture>
 
         var createFundTransactionCmd = new CreateFundTransactionCommand( fundTransaction);
 
-        var createFundCmd = new CreateFundCommand(ScyllaDb.FundDb.SampleData.Fund);
+        var createFundCmd = new CreateFundCommand(FundDb.SampleData.Fund);
 
         // Create a FundCreatedEvent with the sample FundReadModel
         var fundCreatedEvent = new FundCreatedEvent
         {
-            NewFund = ScyllaDb.FundDb.SampleData.Fund
+            NewFund = FundDb.SampleData.Fund
         };
         fundCreatedEvent.RoutedFrom(createFundCmd);
 

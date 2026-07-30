@@ -11,7 +11,7 @@ using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Shared.Storage;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.Postgres.SequenceIdDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.SequenceIdDb;
 
 public class SequenceIdFixture : IDisposable
 {

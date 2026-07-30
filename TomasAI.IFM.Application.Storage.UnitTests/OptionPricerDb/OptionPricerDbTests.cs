@@ -22,7 +22,7 @@ using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.OptionPricerDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.OptionPricerDb;
 
 public class OptionPricerFixture : IDisposable
 {

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.Postgres.EventSourceDb;
+namespace TomasAI.IFM.Application.Storage.UnitTests.EventSourceDb;
 
 public static class SampleData
 {

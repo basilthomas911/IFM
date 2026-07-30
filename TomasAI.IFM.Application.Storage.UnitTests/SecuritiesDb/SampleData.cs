@@ -3,7 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
-namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.SecuritiesDb
+namespace TomasAI.IFM.Application.Storage.UnitTests.SecuritiesDb
 {
     public static class SampleData
     {
