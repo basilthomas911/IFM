@@ -138,8 +138,8 @@ public static class Startup
                                .WriteTo.File("Logs/ifm-apiserver-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7)
                                //.WriteTo.Http(requestUri: telemetryServerBaseUri, httpClient: new SerilogHttpClient(), queueLimitBytes: 10000)
                                .CreateLogger();
-                       })
-                       .UseSerilog();
+                       });
+        _ = builder.Host.UseSerilog();
 
         // configure api server...
         var serviceProvider = builder.Services.BuildServiceProvider();

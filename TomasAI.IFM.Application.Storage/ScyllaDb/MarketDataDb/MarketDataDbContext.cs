@@ -4,7 +4,6 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MathNet.Numerics.Distributions;
 using Microsoft.Extensions.Logging;
-using Pipelines.Sockets.Unofficial.Arenas;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.ScyllaDb.FundDb;
 using TomasAI.IFM.Application.Storage.ScyllaDb.SecuritiesDb;
