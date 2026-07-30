@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events;
 
 namespace TomasAI.IFM.Domain.Trade.Order;

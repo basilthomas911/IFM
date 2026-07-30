@@ -1,13 +1,13 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
-using TomasAI.IFM.Application.Storage.ScyllaDb.FundDb;
+using TomasAI.IFM.Application.Storage.FundDb;
 
 namespace TomasAI.IFM.Domain.Fund.Transaction.Command.State;
 

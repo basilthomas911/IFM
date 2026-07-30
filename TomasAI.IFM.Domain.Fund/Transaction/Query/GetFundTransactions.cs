@@ -1,5 +1,5 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.ScyllaDb.FundDb;
+using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;

@@ -2,7 +2,7 @@ using FluentAssertions;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.ScyllaDb.ReferenceDb;
+using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

@@ -4,7 +4,7 @@ using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Shared.Domain;

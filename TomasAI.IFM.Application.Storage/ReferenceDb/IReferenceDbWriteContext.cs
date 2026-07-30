@@ -1,31 +1,26 @@
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Domain.SystemAdmin.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 
-namespace TomasAI.IFM.Application.Storage.ReferenceDb
+namespace TomasAI.IFM.Application.Storage.ReferenceDb;
+
+public interface IReferenceDbWriteContext 
 {
-    public interface IReferenceDbWriteContext : IReferenceDbContext
-    {
-        Task DeleteLookupTypeAsync(LookupTypeId lookupTypeId);
-        Task DeleteScheduledJobAsync(int jobId);
-        Task DeleteStrikePriceVolatilityAsync(StrikePriceVolatilityId id);
-        Task DeleteEconomicCalendarAsync(EconomicCalendarId id);
-        Task InsertLookupTypeAsync(LookupTypeReadModel lookupType);
-        Task InsertScheduledJobAsync(ScheduledJobReadModel scheduledJob);
-        Task InsertStrikePriceVolatilityAsync(StrikePriceVolatilityReadModel strikePriceVolatility);
-        Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar);
-        Task InsertEconomicCalendarsAsync(ICollection<EconomicCalendarReadModel> economicCalendars);
-        Task UpdateScheduledJobAsync(ScheduledJobReadModel scheduledJob);
-        Task UpdateStrikePriceVolatilityAsync(StrikePriceVolatilityId id, StrikePriceVolatilityReadModel strikePriceVolatility);
-        Task UpdateEconomicCalendarAsync(EconomicCalendarId id, EconomicCalendarReadModel e);
-        Task UpdateLookupTypeAsync(LookupTypeId id, LookupTypeReadModel e);
-        new Task BackupDatabaseAsync(DatabaseBackupType backupType, int commandTimeout, Action<string> onInfoMessage);
-
-    }
+    Task DeleteLookupTypeAsync(LookupTypeId lookupTypeId);
+    Task DeleteScheduledJobAsync(int jobId);
+    Task DeleteEconomicCalendarAsync(EconomicCalendarId id);
+    Task DeleteMDIForwardLossRatioAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType);
+    Task InsertLookupTypeAsync(LookupTypeReadModel lookupType);
+    Task InsertScheduledJobAsync(ScheduledJobReadModel scheduledJob);
+    Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar);
+    Task InsertEconomicCalendarsAsync(ICollection<EconomicCalendarReadModel> economicCalendars);
+    Task InsertMDIForwardLossRatioAsync(MDIForwardLossRatioReadModel mdiForwardLossRatio);
+    Task InsertMDIForwardLossRatiosAsync(ICollection<MDIForwardLossRatioReadModel> mdiForwardLossRatios);
+    Task UpdateScheduledJobAsync(ScheduledJobReadModel scheduledJob);
+    Task UpdateEconomicCalendarAsync(EconomicCalendarId id, EconomicCalendarReadModel e);
+    Task UpdateLookupTypeAsync(LookupTypeId id, LookupTypeReadModel e);
+    Task UpdateMDIForwardLossRatioAsync(MDIForwardLossRatioReadModel mdiForwardLossRatio);
 }

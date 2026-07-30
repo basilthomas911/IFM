@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Model;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

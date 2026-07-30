@@ -3,7 +3,7 @@ using NATS.Client.Core;
 using NSubstitute;
 using NSubstitute.Extensions;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.ScyllaDb.OptionPricerDb;
+using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

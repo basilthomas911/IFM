@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.ScyllaDb.SecuritiesDb;
+using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.State;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query;
 using TomasAI.IFM.Shared.EventModelActor;

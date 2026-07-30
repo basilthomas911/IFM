@@ -7,13 +7,13 @@ using FluentAssertions;
 using NSubstitute;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.Postgres.LogDb;
+using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Application.Storage.Postgres.SequenceIdDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.FundDb;
+using TomasAI.IFM.Application.Storage.SequenceIdDb;
+using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.SequenceId;
 

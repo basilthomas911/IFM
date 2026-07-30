@@ -1,16 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TomasAI.IFM.Domain.SystemAdmin.Shared;
+﻿using TomasAI.IFM.Framework.Storage;
 
-namespace TomasAI.IFM.Application.Storage.FundDb
+namespace TomasAI.IFM.Application.Storage.FundDb;
+
+public interface IFundDbContext: IObjectRepository<FundDbContext>, IFundDbReadContext, IFundDbWriteContext
 {
-    public interface IFundDbContext
-    {
-        IFundDbReadContext DbReader { get; }
-        IFundDbWriteContext DbWriter { get; }
-        Task BackupDatabaseAsync(DatabaseBackupType backupType, int commandTimeout, Action<string> onInfoMessage);
-    }
 }

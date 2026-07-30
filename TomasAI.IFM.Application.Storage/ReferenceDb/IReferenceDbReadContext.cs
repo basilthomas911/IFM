@@ -12,23 +12,22 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 namespace TomasAI.IFM.Application.Storage.ReferenceDb
 {
-    public interface IReferenceDbReadContext : IReferenceDbContext
+    public interface IReferenceDbReadContext 
     {
         Task<int> GetNextSeedIdAsync(string seedType);
         Task<int> GetCurrentSeedIdAsync(string seedType);
-        Task<LookupTypeReadModel> GetLookupTypeAsync(LookupTypeId lookupTypeId);
-        Task<IReadOnlyList<LookupTypeReadModel>> GetLookupTypeAsync(string lookupTypeName);
-        Task<IReadOnlyList<LookupTypeReadModel>> GetLookupTypesAsync();
-        Task<IReadOnlyList<string>> GetLookupTypeNamesAsync();
-        Task<IReadOnlyList<LookupTypeShortCodeReadModel>> GetLookupTypeShortCodesAsync(string lookupTypeName);
-        Task<IReadOnlyList<ScheduledJobReadModel>> GetScheduledJobsAsync();
+        Task<LookupTypeReadModel?> GetLookupTypeAsync(LookupTypeId lookupTypeId);
+        Task<ICollection<LookupTypeReadModel>> GetLookupTypeAsync(string lookupTypeName);
+        Task<ICollection<LookupTypeReadModel>> GetLookupTypesAsync();
+        Task<ICollection<string>> GetLookupTypeNamesAsync();
+        Task<ICollection<LookupTypeShortCodeReadModel>> GetLookupTypeShortCodesAsync(string lookupTypeName);
+        Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync();
         Task<int> GetScheduledJobIdAsync(string jobName);
-        Task<IReadOnlyList<StrikePriceVolatilityReadModel>> GetStrikePriceVolatilityAsync(string symbol, TradeType tradeType);
-        Task<EconomicCalendarReadModel> GetEconomicCalendarAsync(EconomicCalendarId economicCalendarId);
-        Task<IReadOnlyList<EconomicCalendarReadModel>> GetEconomicCalendarAsync(DateTime eventDate, string countryCode);
-        Task<IReadOnlyList<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode);
-        Task<IReadOnlyList<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync();
-        Task<IReadOnlyList<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync();
-        Task<IReadOnlyList<MDIForwardLossRatioReadModel>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType);
+        Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId economicCalendarId);
+        Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode);
+        Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode);
+        Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync();
+        Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync();
+        Task<ICollection<MDIForwardLossRatioReadModel>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType);
     }
 }

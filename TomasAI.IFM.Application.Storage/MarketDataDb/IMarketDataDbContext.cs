@@ -1,17 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TomasAI.IFM.Domain.SystemAdmin.Shared;
+﻿using TomasAI.IFM.Application.Storage.FundDb;
+using TomasAI.IFM.Framework.Storage;
 
-namespace TomasAI.IFM.Application.Storage.MarketDataDb
+namespace TomasAI.IFM.Application.Storage.MarketDataDb;
+
+public interface IMarketDataDbContext : IObjectRepository<MarketDataDbContext> ,IMarketDataDbReadContext, IMarketDataDbWriteContext
 {
-    public interface IMarketDataDbContext
-    {
-        IMarketDataDbReadContext DbReader { get; }
-        IMarketDataDbWriteContext DbWriter { get; }
-
-        Task BackupDatabaseAsync(DatabaseBackupType backupType, int commandTimeout, Action<string> onInfoMessage);
-    }
+    IMarketDataDbReadContext DbReader { get; }
+    IMarketDataDbWriteContext DbWriter { get; }
 }

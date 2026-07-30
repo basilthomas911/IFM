@@ -1,14 +1,14 @@
 ﻿using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
-using TomasAI.IFM.Application.Storage.Postgres.LogDb;
-using TomasAI.IFM.Application.Storage.Postgres.SequenceIdDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.FundDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.OptionPricerDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.PredictiveModelDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.ReferenceDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.SecuritiesDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.TradeDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.LogDb;
+using TomasAI.IFM.Application.Storage.SequenceIdDb;
+using TomasAI.IFM.Application.Storage.FundDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.OptionPricerDb;
+using TomasAI.IFM.Application.Storage.PredictiveModelDb;
+using TomasAI.IFM.Application.Storage.ReferenceDb;
+using TomasAI.IFM.Application.Storage.SecuritiesDb;
+using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 using TomasAI.IFM.Application.Storage.YieldCurveRatesDb;
 

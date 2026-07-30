@@ -7,8 +7,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
-using TomasAI.IFM.Application.Storage.Postgres.SequenceIdDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.FundDb;
+using TomasAI.IFM.Application.Storage.SequenceIdDb;
+using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
@@ -26,7 +26,7 @@ namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.FundDb;
 
 public class FundDatabaseFixture : IDisposable
 {
-    public Storage.ScyllaDb.FundDb.FundDbContext FundDb { get; private set; }
+    public Storage.FundDb.FundDbContext FundDb { get; private set; }
     public SequenceIdDbContext SeqIdDatabase { get; private set; }
     public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
 
@@ -43,7 +43,7 @@ public class FundDatabaseFixture : IDisposable
         var dbConn = new DbConnectionSettings()
                          .Add("FundDbConnection", "Contact Points=localhost;Port=9042;Username=ifmapp;Password=monkey35907;Default Keyspace=fund_test_db", "System.Data.ScyllaDb");
 
-        var diContainer = new Dictionary<Type, Storage.ScyllaDb.FundDb.FundDbContext>();
+        var diContainer = new Dictionary<Type, Storage.FundDb.FundDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
@@ -54,8 +54,8 @@ public class FundDatabaseFixture : IDisposable
         var blackboardServce = new BlackboardService(redisCache, new SystemTextJsonSerializer());
         DbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<Storage.ScyllaDb.FundDb.FundDbContext>), new Storage.ScyllaDb.FundDb.FundDbContext(dbConn, DbFactory, SequenceIdGenerator, logger));
-        FundDb = DbFactory.FundDb as Storage.ScyllaDb.FundDb.FundDbContext;
+        diContainer.Add(typeof(IObjectRepository<Storage.FundDb.FundDbContext>), new Storage.FundDb.FundDbContext(dbConn, DbFactory, SequenceIdGenerator, logger));
+        FundDb = DbFactory.FundDb as Storage.FundDb.FundDbContext;
 
     }
 

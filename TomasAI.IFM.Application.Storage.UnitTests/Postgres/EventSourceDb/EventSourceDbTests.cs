@@ -10,7 +10,7 @@ using FluentAssertions;
 using NSubstitute;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Serialization;

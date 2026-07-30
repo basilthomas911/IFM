@@ -5,12 +5,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.ScyllaDb.PredictiveModelDb;
+using TomasAI.IFM.Application.Storage.PredictiveModelDb;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Application.Storage.Postgres.SequenceIdDb;
+using TomasAI.IFM.Application.Storage.SequenceIdDb;
 
 namespace TomasAI.IFM.Application.Storage.UnitTests.ScyllaDb.PredictiveModelDb;
 

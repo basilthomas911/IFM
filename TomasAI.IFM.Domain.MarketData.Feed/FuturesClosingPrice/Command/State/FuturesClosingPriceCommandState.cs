@@ -1,5 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

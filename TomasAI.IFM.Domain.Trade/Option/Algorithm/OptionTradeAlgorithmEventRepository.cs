@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Plan;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Commands;

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.ScyllaDb.TradeDb;
+using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Domain.Trade.Queries;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;

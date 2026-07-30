@@ -5,7 +5,7 @@ using Xunit;
 using FluentAssertions;
 using NSubstitute;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Storage.Postgres.SequenceIdDb;
+using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;

@@ -4,7 +4,7 @@ using Xunit;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.BDDTests;

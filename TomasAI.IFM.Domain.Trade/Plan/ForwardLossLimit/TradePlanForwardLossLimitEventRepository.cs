@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 
 namespace TomasAI.IFM.Domain.Trade.Plan.ForwardLossLimit;
 

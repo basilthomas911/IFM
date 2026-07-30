@@ -2,7 +2,7 @@ using FluentAssertions;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.ScyllaDb.TradeDb;
+using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Queries;
 using TomasAI.IFM.Shared.EventModelActor;

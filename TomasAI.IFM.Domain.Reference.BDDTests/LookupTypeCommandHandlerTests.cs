@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Reference.LookupType;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Exceptions;
 using TomasAI.IFM.Shared.EventModelActor;

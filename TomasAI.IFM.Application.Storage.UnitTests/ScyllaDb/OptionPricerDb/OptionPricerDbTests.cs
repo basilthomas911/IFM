@@ -14,11 +14,11 @@ using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Application.Storage.Postgres.SequenceIdDb;
+using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.ScyllaDb.OptionPricerDb;
+using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 
@@ -37,7 +37,7 @@ public class OptionPricerFixture : IDisposable
         // Do "global" teardown here; Only called once.
     }
 
-    public Storage.ScyllaDb.OptionPricerDb.OptionPricerDbContext DevDatabase { get; private set; }
+    public Storage.OptionPricerDb.OptionPricerDbContext DevDatabase { get; private set; }
     public SequenceIdDbContext SeqIdDatabase { get; private set; }
     public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
     public DbContextFactory DbFactory { get; private set; }
@@ -46,7 +46,7 @@ public class OptionPricerFixture : IDisposable
     {
         var dbConn = new DbConnectionSettings()
             .Add("OptionPricerDbConnection", "Contact Points=localhost;Port=9042;Username=ifmapp;Password=monkey35907;Default Keyspace=option_pricer_test_db", "System.Data.ScyllaDb");
-        var diContainer = new Dictionary<Type, Storage.ScyllaDb.OptionPricerDb.OptionPricerDbContext>();
+        var diContainer = new Dictionary<Type, Storage.OptionPricerDb.OptionPricerDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var redisCache = Substitute.For<IRedisCache>();
         var redisCacheMap = new Dictionary<string, string>();
@@ -57,8 +57,8 @@ public class OptionPricerFixture : IDisposable
         logger.When(_ => { }).Do(_ => { });
         DbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<Storage.ScyllaDb.OptionPricerDb.OptionPricerDbContext>), new Storage.ScyllaDb.OptionPricerDb.OptionPricerDbContext(dbConn, DbFactory, SequenceIdGenerator, logger));
-        DevDatabase = DbFactory.OptionPricerDb as Storage.ScyllaDb.OptionPricerDb.OptionPricerDbContext;
+        diContainer.Add(typeof(IObjectRepository<Storage.OptionPricerDb.OptionPricerDbContext>), new Storage.OptionPricerDb.OptionPricerDbContext(dbConn, DbFactory, SequenceIdGenerator, logger));
+        DevDatabase = DbFactory.OptionPricerDb as Storage.OptionPricerDb.OptionPricerDbContext;
     }
 
     void SetSeqIdDatabase()

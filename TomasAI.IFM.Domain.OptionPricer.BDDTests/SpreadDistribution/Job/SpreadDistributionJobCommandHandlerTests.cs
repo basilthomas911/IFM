@@ -1,6 +1,6 @@
 using FluentAssertions;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.ScyllaDb.OptionPricerDb;
+using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Exceptions;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;

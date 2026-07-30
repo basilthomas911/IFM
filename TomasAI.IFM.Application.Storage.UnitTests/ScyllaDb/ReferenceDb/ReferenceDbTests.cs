@@ -8,7 +8,7 @@ using Xunit;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Application.Storage.ScyllaDb.ReferenceDb;
+using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Application.Blackboard;

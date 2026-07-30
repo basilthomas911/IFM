@@ -2,7 +2,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Application.Storage.ScyllaDb.TradeDb;
+using TomasAI.IFM.Application.Storage.TradeDb;
 
 namespace TomasAI.IFM.Domain.Trade.Plan.QueryHandlers;
 

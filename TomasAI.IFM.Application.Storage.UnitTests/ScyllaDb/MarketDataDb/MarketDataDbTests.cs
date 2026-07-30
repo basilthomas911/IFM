@@ -7,10 +7,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.Postgres.SequenceIdDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.MarketDataDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.SecuritiesDb;
-using TomasAI.IFM.Application.Storage.ScyllaDb.TradeDb;
+using TomasAI.IFM.Application.Storage.SequenceIdDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.SecuritiesDb;
+using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
@@ -48,11 +48,11 @@ public class MarketDataFixture : IDisposable
         // Do "global" teardown here; Only called once.
     }
 
-    public Storage.ScyllaDb.MarketDataDb.MarketDataDbContext DevDatabase { get; private set; }
-    public Storage.ScyllaDb.SecuritiesDb.SecuritiesDbContext SecDatabase { get; private set; }
-    public Storage.ScyllaDb.PredictiveModelDb.PredictiveModelDbContext PMDatabase { get; private set; }
-    public Storage.ScyllaDb.MarketDataDb.MarketDataDbContext ProdDatabase { get; private set; }
-    public Storage.Postgres.SequenceIdDb.SequenceIdDbContext SeqIdDatabase { get; private set; }
+    public Storage.MarketDataDb.MarketDataDbContext DevDatabase { get; private set; }
+    public Storage.SecuritiesDb.SecuritiesDbContext SecDatabase { get; private set; }
+    public Storage.PredictiveModelDb.PredictiveModelDbContext PMDatabase { get; private set; }
+    public Storage.MarketDataDb.MarketDataDbContext ProdDatabase { get; private set; }
+    public Storage.SequenceIdDb.SequenceIdDbContext SeqIdDatabase { get; private set; }
     public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
 
     void SetDevDatabase()
@@ -80,30 +80,30 @@ public class MarketDataFixture : IDisposable
         var dbCache = new DbCache();
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        diContainer.Add(typeof(IObjectRepository<Storage.ScyllaDb.MarketDataDb.MarketDataDbContext>), new Storage.ScyllaDb.MarketDataDb.MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
+        diContainer.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), new Storage.MarketDataDb.MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), SecDatabase );
 
-        DevDatabase = dbFactory.MarketDataDb as Storage.ScyllaDb.MarketDataDb.MarketDataDbContext;
+        DevDatabase = dbFactory.MarketDataDb as Storage.MarketDataDb.MarketDataDbContext;
     }
 
     void SetPMDatabase()
     {
         var dbConn = new DbConnectionSettings()
             .Add("PredictiveModelDbConnection", "Contact Points=localhost;Port=9042;Username=ifmapp;Password=monkey35907;Default Keyspace=predictive_model_test_db", "System.Data.ScyllaDb");
-        var diContainer = new Dictionary<Type, Storage.ScyllaDb.PredictiveModelDb.PredictiveModelDbContext>();
+        var diContainer = new Dictionary<Type, Storage.PredictiveModelDb.PredictiveModelDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var dbFactory = new DbContextFactory(dbResolver);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        diContainer.Add(typeof(IObjectRepository<Storage.ScyllaDb.PredictiveModelDb.PredictiveModelDbContext>), new Storage.ScyllaDb.PredictiveModelDb.PredictiveModelDbContext(dbConn, dbFactory, logger));
-        PMDatabase = dbFactory.PredictiveModelDb as Storage.ScyllaDb.PredictiveModelDb.PredictiveModelDbContext;
+        diContainer.Add(typeof(IObjectRepository<Storage.PredictiveModelDb.PredictiveModelDbContext>), new Storage.PredictiveModelDb.PredictiveModelDbContext(dbConn, dbFactory, logger));
+        PMDatabase = dbFactory.PredictiveModelDb as Storage.PredictiveModelDb.PredictiveModelDbContext;
     }
 
     void SetProdDatabase()
     {
         var dbConn = new DbConnectionSettings()
             .Add("MarketDataDbConnection", @"Data Source=DEV-SERVER;Initial Catalog=marketdatadb;Integrated Security=True;MultipleActiveResultSets=True;TrustServerCertificate=True", "System.Data.SqlClient");
-        var diContainer = new Dictionary<Type, Storage.ScyllaDb.MarketDataDb.MarketDataDbContext>();
+        var diContainer = new Dictionary<Type, Storage.MarketDataDb.MarketDataDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var dbFactory = new DbContextFactory(dbResolver);
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -111,8 +111,8 @@ public class MarketDataFixture : IDisposable
         var redisCache = Substitute.For<IRedisCache>();
         redisCache.When(_ => { }).Do(_ => { });
         var blackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
-        diContainer.Add(typeof(IObjectRepository<Storage.ScyllaDb.MarketDataDb.MarketDataDbContext>), new Storage.ScyllaDb.MarketDataDb.MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
-        ProdDatabase = dbFactory.MarketDataDb as Storage.ScyllaDb.MarketDataDb.MarketDataDbContext;
+        diContainer.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), new Storage.MarketDataDb.MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
+        ProdDatabase = dbFactory.MarketDataDb as Storage.MarketDataDb.MarketDataDbContext;
     }
 
     void SetSeqIdDatabase()

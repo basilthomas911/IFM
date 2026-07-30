@@ -7,7 +7,7 @@ using FluentAssertions;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.Postgres.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Framework.Storage.IntegratedTests;

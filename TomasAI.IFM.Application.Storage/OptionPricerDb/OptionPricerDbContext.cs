@@ -1,343 +1,263 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
-using System.Configuration;
+using Microsoft.Extensions.Logging;
 using System.Data;
+using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.SystemAdmin.Shared;
-using Microsoft.Extensions.Logging;
 
-namespace TomasAI.IFM.Application.Storage.OptionPricerDb
+namespace TomasAI.IFM.Application.Storage.OptionPricerDb;
+
+public class OptionPricerDbContext(
+    IDbConnectionSettings connectionSettings,
+    IDbContextFactory dbFactory,
+    ISequenceIdGenerator sequenceIdGenerator,
+    ILogger<DbProvider> logger) 
+    : ObjectDataRepository<OptionPricerDbContext>(connectionSettings[ConnectionName], logger    ), IOptionPricerDbContext
 {
+    readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
+    readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
+    public const string ConnectionName = "OptionPricerDbConnection";
+
     /// <summary>
-    /// option pricer database
+    /// Gets the database context.
     /// </summary>
-    public class OptionPricerDbContext : ObjectDataRepository<OptionPricerDbContext>, IOptionPricerDbContext, IOptionPricerDbReadContext, IOptionPricerDbWriteContext
+    public override OptionPricerDbContext Database => this;
+
+    /// <summary>
+    /// initialize option pricer view model mappings
+    /// </summary>
+    /// <param name="model"></param>
+    public override void OnCreateModel(DbModel<OptionPricerDbContext> model)
     {
-        public const string ConnectionName = "OptionPricerDbConnection";
-        readonly IDbContextFactory _dbFactory;
-
-        /// <summary>
-        /// option pricer database constructor
-        /// </summary>
-        /// <param name="connectionSettings"></param>
-        /// <param name="dbFactory"></param>
-        public OptionPricerDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<OptionPricerDbContext> logger) 
-            :base(connectionSettings[ConnectionName], logger    )
-        {
-            _dbFactory = dbFactory;
-        }
-
-        /// <summary>
-        /// initialize option pricer view model mappings
-        /// </summary>
-        /// <param name="model"></param>
-        public override void OnCreateModel(DbModel<OptionPricerDbContext> model)
-        {
-            OptionPricerDevice = model.Map(e => e.OptionPricerDevice)
-                .Parameters(e =>
-                    e.Set(o => o.DeviceId)
-                        .Set(o => o.DeviceName)
-                        .Set(o => o.SpreadPaths)
-                        .Set(o => o.VolatilityPaths)
-                        .Set(o => o.MaxBatchSize)
-                        .Set(o => o.OptionType, o => o.AsEnum<OptionType>())
-                        .Set(o => o.Enabled)
-                );
-
-            SpreadDistribution = model.Map(e => e.SpreadDistribution)
-                .Parameters(e =>
-                    e.Set(o => o.Id)
-                     .Set(o => o.TradeId)
-                     .Set(o => o.TradeType, o => o.AsEnum<TradeType>())
-                     .Set(o => o.TradeStatus, o => o.AsEnum<TradeStatus>())
-                     //.Set(o => o.ValueDate)
-                     .Set(o => o.DaysToExpiry)
-                     .Set(o => o.ShortVolatility)
-                     .Set(o => o.LongVolatility)
-                     .Set(o => o.ForwardPrice)
-                     .Set(o => o.LossProbability)
-                     .Set(o => o.LossThreshold)
-                     .Set(o => o.LossThresholdCount)
-                     .Set(o => o.CreatedOn)
-                );
-
-            SpreadDistributionPaths = model.Map(e => e.SpreadDistributionPaths)
-                .Parameters(e =>
-                    e.Set(o => o.Id)
-                     .Set(o => o.SpreadDistributionId)
-                     .Set(o => o.DaysToMaturity)
-                     .Set(o => o.AveragePrice)
-                );
-
-            SpreadDistributionPathValues = model.Map(e => e.SpreadDistributionPathValues)
-                .Parameters(e =>
-                    e.Set(o => o.Id)
-                     .Set(o => o.SpreadDistributionId)
-                     .Set(o => o.DaysToMaturity)
-                     .Set(o => o.SpreadValue)
-                );
-
-            SpreadDistributionJob = model.Map(e => e.SpreadDistributionJob)
-                .Parameters(e =>
-                    e.Set(o => o.JobId)
-                     .Set(o => o.OrderId)
-                     .Set(o => o.TradeId)
-                     .Set(o => o.TradeType, o => o.AsEnum<TradeType>())
-                     .Set(o => o.TradeStatus, o => o.AsEnum<TradeStatus>())
-                     //.Set(o => o.ValueDate)
-                     .Set(o => o.DaysToExpiry)
-                     .Set(o => o.OptionStyle, o => o.AsEnum<OptionStyle>())
-                     .Set(o => o.OptionType, o => o.AsEnum<OptionType>())
-                     .Set(o => o.JobSubmitted)
-                     .Set(o => o.JobStatus)
-                     .Set(o => o.JobCompleted)
-                     .Set(o => o.JobFailed)
-                     .Set(o => o.InProgress)
-                     .Set(o => o.LossProbabilityFactor)
-                );
-        }
-
-        /// <summary>
-        /// return db reader/writer properties
-        /// </summary>
-        public IOptionPricerDbReadContext DbReader => this;
-        public IOptionPricerDbWriteContext DbWriter => this;
-
-        /// <summary>
-        /// db resultset to table mappings
-        /// </summary>
-        public DbMap<OptionPricerDeviceReadModel> OptionPricerDevice { get; private set; }
-        public DbMap<SpreadDistributionReadModel> SpreadDistribution { get; private set; }
-        public DbMap<SpreadDistributionPathReadModel> SpreadDistributionPaths { get; private set; }
-        public DbMap<SpreadDistributionPathValueReadModel> SpreadDistributionPathValues { get; private set; }
-        public DbMap<SpreadDistributionJobReadModel> SpreadDistributionJob { get; private set; }
-
-        public enum StoredProcedure
-        {
-            spBackupDatabase,
-             spDeleteSpreadDistributionJobs,
-            spDeleteSpreadDistributionJobsInProgress,
-            spGetOptionPricerDevices,
-            spGetSpreadDistributionId,
-            spGetSpreadDistribution,
-            spGetSpreadDistributionPaths,
-            spGetSpreadDistributionPathValues,
-            spGetSpreadDistributionJobInProgressCount,
-            spInsertOptionPricerDevice,
-            spInsertSpreadDistribution,
-            spInsertSpreadDistributionPath,
-            spInsertSpreadDistributionPathValue,
-            spInsertSpreadDistributionJob,
-            spUpdateSpreadDistributionJobStatus,
-            spUpdateSpreadDistributionJobFailed
-        }
-
-        /// <summary>
-        /// delete all spread distribution jobs in progress
-        /// </summary>
-        /// <returns></returns>
-        public async Task DeleteSpreadDistributionJobsInProgressAsync()
-        {
-            var db = _dbFactory.OptionPricerDb;
-             await db.Use(StoredProcedure.spDeleteSpreadDistributionJobsInProgress)
-                .ExecuteCommandAsync();
-        }
-
-        /// <summary>
-        /// delete all spread distribution jobs for selected trade
-        /// </summary>
-        /// <param name="orderId"></param>
-        /// <param name="tradeId"></param>
-        /// <returns></returns>
-        public async Task DeleteSpreadDistributionJobsAsync(int orderId, int tradeId)
-        {
-            var db = _dbFactory.OptionPricerDb;
-            await db.Use(StoredProcedure.spDeleteSpreadDistributionJobs)
-                .SetParameters(new {
-                    orderId,
-                    tradeId })
-                .ExecuteCommandAsync();
-        }
-
-        /// <summary>
-        /// return all enabled option pricer devices
-        /// </summary>
-        /// <returns></returns>
-        public async Task<IReadOnlyList<OptionPricerDeviceReadModel>> GetOptionPricerDevicesAsync()
-        {
-            var db = _dbFactory.OptionPricerDb;
-            return await db.Use(StoredProcedure.spGetOptionPricerDevices)
-                .ExecuteQueryAsync<OptionPricerDeviceReadModel>();
-        }
-
-        /// <summary>
-        /// return count of spread distribution jobs in progress
-        /// </summary>
-        /// <returns></returns>
-        public async Task<int> GetSpreadDistributionJobInProgressCountAsync(int orderId, int tradeId)
-        {
-            var db = _dbFactory.OptionPricerDb;
-            return await db.Use(StoredProcedure.spGetSpreadDistributionJobInProgressCount)
-                .SetParameters(new {
-                    orderId,
-                    tradeId })
-                 .ExecuteScalarAsync<int>();
-        }
-
-        /// <summary>
-        /// return spread distribution
-        /// </summary>
-        /// <param name="tradeId"></param>
-        /// <param name="tradeStatus"></param>
-        /// <param name="valueDate"></param>
-        /// <param name="daysToExpiry"></param>
-        /// <returns></returns>
-        public async Task<SpreadDistributionReadModel> GetSpreadDistributionAsync(
-            int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateTime valueDate, int daysToExpiry)
-        {
-            var db = _dbFactory.OptionPricerDb;
-            return await db.Use(StoredProcedure.spGetSpreadDistribution)
-                .SetParameters(new {
-                    tradeId,
-                    tradeType = $"{tradeType}",
-                    tradeStatus = $"{tradeStatus}",
-                    valueDate,
-                    daysToExpiry })
-                .ExecuteSingleAsync<SpreadDistributionReadModel>();
-        }
-
-
-        /// <summary>
-        /// insert option pricer device configuration
-        /// </summary>
-        /// <returns></returns>
-        public async Task InsertOptionPricerDeviceAsync(OptionPricerDeviceReadModel e)
-        {
-            var db = _dbFactory.OptionPricerDb;
-            await db.Use(StoredProcedure.spInsertOptionPricerDevice)
-                .SetParameters(new {
-                    deviceId = e.DeviceId,
-                    deviceName = e.DeviceName,
-                    spreadPaths = e.SpreadPaths,
-                    volatilityPaths = e.VolatilityPaths,
-                    maxBatchSize = e.MaxBatchSize,
-                    enabled = e.Enabled })
-                .ExecuteCommandAsync();
-        }
-
-        /// <summary>
-        /// insert spread distribution
-        /// </summary>
-        /// <param name="e"></param>
-        /// <returns></returns>
-        public async Task InsertSpreadDistributionsAsync(SpreadDistributionReadModel ePut, SpreadDistributionReadModel eCall)
-        {
-            var queuedCommands = new List<object>();
-            var db = _dbFactory.OptionPricerDb;
-                queuedCommands.Add(db.Use(StoredProcedure.spInsertSpreadDistribution)
-                    .SetParameters(new {
-                        tradeId = ePut.TradeId,
-                        tradeType = $"{ePut.TradeType}",
-                        tradeStatus = $"{ePut.TradeStatus}",
-                        valueDate = ePut.ValueDate,
-                        daysToExpiry = ePut.DaysToExpiry,
-                        forwardPrice = ePut.ForwardPrice,
-                        lossProbability = ePut.LossProbability,
-                        shortVolatility = ePut.ShortVolatility,
-                        longVolatility = ePut.LongVolatility,
-                        lossThreshold = ePut.LossThreshold,
-                        lossThresholdCount = ePut.LossThresholdCount })
-                    .QueueCommand());
-
-            // insert call spread distribution...
-            queuedCommands.Add(
-                db.Use(StoredProcedure.spInsertSpreadDistribution)
-                   .SetParameters(new {
-                       tradeId = eCall.TradeId,
-                       tradeType = $"{eCall.TradeType}",
-                       tradeStatus = $"{eCall.TradeStatus}",
-                       valueDate = eCall.ValueDate,
-                       daysToExpiry = eCall.DaysToExpiry,
-                       forwardPrice = eCall.ForwardPrice,
-                       lossProbability = eCall.LossProbability,
-                       shortVolatility = eCall.ShortVolatility,
-                       longVolatility = eCall.LongVolatility,
-                       lossThreshold = eCall.LossThreshold,
-                       lossThresholdCount = eCall.LossThresholdCount })
-                   .QueueCommand());
-
-            await db.ExecuteQueuedCommandsAsync(queuedCommands);
-        }
-
-
-        /// <summary>
-        /// insert spread distribution job
-        /// </summary>
-        /// <param name="e">spread distribution job</param>
-        /// <returns></returns>
-        public async Task InsertSpreadDistributionJobAsync(SpreadDistributionJobReadModel e)
-        {
-            var db = _dbFactory.OptionPricerDb;
-             await db.Use(StoredProcedure.spInsertSpreadDistributionJob)
-                    .SetParameters(new {
-                        jobId = e.JobId,
-                        orderId = e.OrderId,
-                        tradeId = e.TradeId,
-                        tradeType = $"{e.TradeType}",
-                        tradeStatus = $"{e.TradeStatus}",
-                        valueDate = e.ValueDate,
-                        daysToExpiry = e.DaysToExpiry,
-                        optionStyle = $"{e.OptionStyle}",
-                        optionType = $"{e.OptionType}",
-                        jobSubmitted = e.JobSubmitted,
-                        jobStatus = $"{SpreadDistributionJobStatus.InProgress}",
-                        lossProbabilityFactor = e.LossProbabilityFactor })
-                     .ExecuteCommandAsync();
-        }
-
-        /// <summary>
-        /// update spread distribution job when completed
-        /// </summary>
-        /// <param name="jobId">job id</param>
-        /// <param name="jobCompleted">job completion date</param>
-        /// <param name="jobStatus">job status</param>
-        /// <returns></returns>
-        public async Task UpdateSpreadDistributionJobStatusAsync(int jobId, DateTime jobCompleted, SpreadDistributionJobStatus jobStatus)
-        {
-            var db = _dbFactory.OptionPricerDb;
-             await db.Use(StoredProcedure.spUpdateSpreadDistributionJobStatus)
-                .SetParameters(new {
-                    jobId,
-                    jobCompleted,
-                    jobStatus = $"{jobStatus}" })
-                .ExecuteCommandAsync();
-        }
-
-        /// <summary>
-        /// backup option pricer database
-        /// </summary>
-        /// <param name="backupType"></param>
-        /// <returns></returns>
-        public async Task BackupDatabaseAsync(DatabaseBackupType backupType, int commandTimeout, Action<string> onInfoMessage)
-        {
-            var db = _dbFactory.OptionPricerDb;
-            await db.Use(StoredProcedure.spBackupDatabase)
-                .SetParameters(new { backupType = $"{backupType}" })
-                .WithNoTransaction()
-                .SetCommandTimeout(commandTimeout)
-                .ExecuteCommandAsync(onInfoMessage);
-        }
-
     }
+
+    static OptionPricerDeviceReadModel MapToOptionPricerDevice<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+        => new (
+            deviceId: e.GetInt(0),
+            deviceName: e.GetString(1),
+            spreadPaths: e.GetInt(2),
+            volatilityPaths: e.GetInt(3),
+            maxBatchSize: e.GetInt(4),
+            optionType: e.GetEnum<OptionType>(5),
+            enabled: e.GetBool(6)
+        );
+
+    static SpreadDistributionReadModel MapToSpreadDistribution<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+        => new(
+            id: e.GetLong(0),
+            tradeId: e.GetInt(1),
+            valueDate: e.GetDateOnly(2),
+            tradeType: e.GetEnum<TradeType>(3),
+            tradeStatus: e.GetEnum<TradeStatus>(4),
+            daysToExpiry: e.GetInt(5),
+            forwardPrice: e.GetDouble(6),
+            lossProbability: e.GetDouble(7),
+            lossThreshold: e.GetDecimal(8),
+            lossThresholdCount: e.GetInt(9),
+            shortVolatility: e.GetDouble(10),
+            longVolatility: e.GetDouble(11),
+            forwardLossRatio: e.GetDouble(12),
+            createdOn: e.GetDateTime(13)
+        );
+
+    static SpreadDistributionJobReadModel MapToSpreadDistributionJob<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+        => new(
+            orderId: e.GetInt(0),
+            tradeId: e.GetInt(1),
+            tradeType: e.GetEnum<TradeType>(2),
+            tradeStatus: e.GetEnum<TradeStatus>(3),
+            valueDate: e.GetDateOnly(4),
+            daysToExpiry: e.GetInt(5),
+            jobSubmitted: e.GetDateTime(6),
+            jobStatus: e.GetEnum<SpreadDistributionJobStatus>(7),
+            jobCompleted: e.GetDateTime(8),
+            jobFailed: e.GetDateTime(9),
+            inProgress: e.GetBool(10),
+            lossProbabilityFactor: e.GetDouble(11)
+        );
+
+    static SpreadDistributionJobEntityId MapToSpreadDistributionJobId<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+        => new(
+            OrderId: e.GetInt(0),
+            TradeId: e.GetInt(1),
+            ValueDate: e.GetDateOnly(2)
+        );
+
+    /// <summary>
+    /// return db reader/writer properties
+    /// </summary>
+    public IOptionPricerDbReadContext DbReader => this;
+    public IOptionPricerDbWriteContext DbWriter => this;
+
+    /// <summary>
+    /// delete option pricer device
+    /// </summary>
+    /// <param name="e"></param>
+    /// <returns></returns>
+    public async Task DeleteOptionPricerDeviceAsync(OptionPricerDeviceEntityId e)
+        => await _dbFactory.OptionPricerDb
+            .Use(OptionPricerDbCql.DeleteOptionPricerDevice)
+            .SetParameters(new DeleteOptionPricerDevice(e.DeviceId, e.DeviceName))
+            .ExecuteCommandAsync();
+
+    /// <summary>
+    /// delete spread distribution
+    /// </summary>
+    /// <param name="tradeId"></param>
+    /// <param name="valueDate"></param>
+    /// <returns></returns>
+    public async Task DeleteSpreadDistributionAsync(int tradeId, DateOnly valueDate)
+        => await _dbFactory.OptionPricerDb
+            .Use(OptionPricerDbCql.DeleteSpreadDistribution)
+            .SetParameters(new DeleteSpreadDistribution(tradeId, valueDate))
+            .ExecuteCommandAsync();
+
+    /// <summary>
+    /// delete all spread distribution jobs in progress
+    /// </summary>
+    /// <returns></returns>
+    public async Task DeleteSpreadDistributionJobsInProgressAsync()
+    {
+        var db = _dbFactory.OptionPricerDb;
+        var spreadDistributionJobIds = (await db
+            .Use(OptionPricerDbCql.GetSpreadDistributionIJobIds)
+            .ExecuteQueryAsync<SpreadDistributionJobEntityId>(MapToSpreadDistributionJobId!)).ToList();
+        var spreadDistributionJobsToDelete = new List<SpreadDistributionJobEntityId>();
+        foreach (var e in spreadDistributionJobIds)
+        {
+            spreadDistributionJobIds.AddRange([.. (await db.Use(OptionPricerDbCql.GetSpreadDistributionJobs)
+                .SetParameters(new GetSpreadDistributionJobs(e.OrderId, e.TradeId))
+                 .ExecuteQueryAsync<SpreadDistributionJobReadModel>(MapToSpreadDistributionJob!)).Where(e =>
+                    e.JobStatus == SpreadDistributionJobStatus.InProgress
+                    || e.InProgress).Select(e => new SpreadDistributionJobEntityId(e.OrderId, e.TradeId, e.ValueDate) )]);
+        }
+        foreach(var e in spreadDistributionJobsToDelete)
+        {
+            await db.Use(OptionPricerDbCql.DeleteSpreadDistributionJobs)
+                .SetParameters(new DeleteSpreadDistributionJobs(e.OrderId, e.TradeId))
+                .ExecuteCommandAsync();
+        }
+    }
+
+    /// <summary>
+    /// delete all spread distribution jobs for selected trade
+    /// </summary>
+    /// <param name="orderId"></param>
+    /// <param name="tradeId"></param>
+    /// <returns></returns>
+    public async Task DeleteSpreadDistributionJobsAsync(int orderId, int tradeId)
+         => await _dbFactory.OptionPricerDb
+                .Use(OptionPricerDbCql.DeleteSpreadDistributionJobs)
+                .SetParameters(new DeleteSpreadDistributionJobs(orderId, tradeId))
+                .ExecuteCommandAsync();
+
+    /// <summary>
+    /// return all enabled option pricer devices
+    /// </summary>
+    /// <returns></returns>
+    public async Task<ICollection<OptionPricerDeviceReadModel>> GetOptionPricerDevicesAsync()
+        => await _dbFactory.OptionPricerDb
+            .Use(OptionPricerDbCql.GetOptionPricerDevices)
+            .ExecuteQueryAsync<OptionPricerDeviceReadModel>(MapToOptionPricerDevice!);
+
+    /// <summary>
+    /// return count of spread distribution jobs in progress
+    /// </summary>
+    /// <param name="orderId"></param>
+    /// <param name="tradeId"></param>
+    /// <returns></returns>
+    public async Task<int> GetSpreadDistributionJobInProgressCountAsync(int orderId, int tradeId)
+    {
+        var db = _dbFactory.OptionPricerDb;
+        var spreadDistributionJobs = await db.Use(OptionPricerDbCql.GetSpreadDistributionJobs)
+            .SetParameters(new GetSpreadDistributionJobs(orderId, tradeId))
+             .ExecuteQueryAsync<SpreadDistributionJobReadModel>(MapToSpreadDistributionJob!);
+        return spreadDistributionJobs.Count(e => 
+            e.JobStatus == SpreadDistributionJobStatus.InProgress
+            || e.InProgress);
+    }
+
+    /// <summary>
+    /// return spread distribution
+    /// </summary>
+    /// <param name="tradeId"></param>
+    /// <param name="tradeType"
+    /// <param name="tradeStatus"></param>
+    /// <param name="valueDate"></param>
+    /// <param name="daysToExpiry"></param>
+    /// <returns></returns>
+    public async Task<SpreadDistributionReadModel?> GetSpreadDistributionAsync(
+        int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry)
+        => await _dbFactory.OptionPricerDb
+                .Use(OptionPricerDbCql.GetSpreadDistribution)
+                .SetParameters(new GetSpreadDistribution(tradeId, tradeType.ToStringFast(), tradeStatus.ToStringFast(), valueDate, daysToExpiry))
+                .ExecuteSingleAsync<SpreadDistributionReadModel>(MapToSpreadDistribution!);
+
+    /// <summary>
+    /// insert option pricer device configuration
+    /// </summary>
+    /// <returns></returns>
+    public async Task InsertOptionPricerDeviceAsync(OptionPricerDeviceReadModel e)
+        => await _dbFactory.OptionPricerDb
+            .Use(OptionPricerDbCql.InsertIOptionPricerDevice)
+            .SetParameters(new InsertOptionPricerDevice(e.DeviceId, e.DeviceName, e.SpreadPaths, e.VolatilityPaths, e.MaxBatchSize, e.OptionType.ToStringFast(), e.Enabled))
+            .ExecuteCommandAsync();
+
+    /// <summary>
+    /// insert spread distribution
+    /// </summary>
+    /// <param name="e"></param>
+    /// <returns></returns>
+    public async Task InsertSpreadDistributionsAsync(SpreadDistributionReadModel ePut, SpreadDistributionReadModel eCall)
+    {
+        var putId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
+        var callId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
+        var queuedCommands = new List<object>();
+        var db = _dbFactory.OptionPricerDb;
+            queuedCommands.Add(db.Use(OptionPricerDbCql.InsertSpreadDistribution)
+                .SetParameters(new InsertSpreadDistribution(putId, ePut.TradeId, ePut.TradeType.ToStringFast(), ePut.TradeStatus.ToStringFast(), ePut.ValueDate, ePut.DaysToExpiry, ePut.ForwardPrice, ePut.LossProbability, ePut.ShortVolatility, ePut.LongVolatility, ePut.LossThreshold, ePut.LossThresholdCount, ePut.ForwardLossRatio, ePut.CreatedOn))
+                .QueueCommand());
+
+        // insert call spread distribution...
+        queuedCommands.Add(
+            db.Use(OptionPricerDbCql.InsertSpreadDistribution)
+               .SetParameters(new InsertSpreadDistribution(callId, eCall.TradeId, eCall.TradeType.ToStringFast(), eCall.TradeStatus.ToStringFast(), eCall.ValueDate, eCall.DaysToExpiry, eCall.ForwardPrice, eCall.LossProbability, eCall.ShortVolatility, eCall.LongVolatility, eCall.LossThreshold, eCall.LossThresholdCount, eCall.ForwardLossRatio, eCall.CreatedOn))
+               .QueueCommand());
+
+        await db.ExecuteQueuedCommandsAsync(queuedCommands);
+    }
+
+    /// <summary>
+    /// insert spread distribution job
+    /// </summary>
+    /// <param name="e">spread distribution job</param>
+    /// <returns></returns>
+    public async Task InsertSpreadDistributionJobAsync(SpreadDistributionJobReadModel e)
+        => await _dbFactory.OptionPricerDb
+                    .Use(OptionPricerDbCql.InsertSpreadDistributionJob)
+                    .SetParameters(new InsertSpreadDistributionJob(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.TradeStatus.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.JobSubmitted, e.JobStatus.ToStringFast(), e.JobCompleted, e.JobFailed, e.JobStatus == SpreadDistributionJobStatus.InProgress, e.LossProbabilityFactor))
+                 .ExecuteCommandAsync();
+
+    /// <summary>
+    /// update spread distribution job when completed
+    /// </summary>
+    /// <param name="orderId"></param>
+    /// <param name="tradeId"></param>
+    /// <param name="jobId"></param>
+    /// <param name="jobStatus">job status</param>
+    /// <param name="jobCompleted">job completion date</param>
+    /// <param name="jobFailed"></param>
+    /// <returns></returns>
+    public async Task UpdateSpreadDistributionJobStatusAsync(int orderId, int tradeId, SpreadDistributionJobStatus jobStatus, DateTime jobCompleted, DateTime? jobFailed)
+        => await _dbFactory.OptionPricerDb
+            .Use(OptionPricerDbCql.UpdateSreadDistributionJobStatus)
+            .SetParameters(new UpdateSpreadDistributionJobStatus(orderId, tradeId, jobStatus.ToStringFast(), jobCompleted, jobFailed, jobStatus == SpreadDistributionJobStatus.InProgress))
+            .ExecuteCommandAsync();
+
 }
