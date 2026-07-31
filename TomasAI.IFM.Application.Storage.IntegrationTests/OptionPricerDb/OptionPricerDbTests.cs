@@ -55,6 +55,8 @@ public class OptionPricerFixture : IDisposable
         var blackboardServce = new BlackboardService(redisCache, new SystemTextJsonSerializer());
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
+        new TomasAI.IFM.Application.Storage.OptionPricerDb.Schema.OptionPricerSchemaDb(dbConn, logger)
+            .CreateAllAsync().GetAwaiter().GetResult();
         DbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
         diContainer.Add(typeof(IObjectRepository<Storage.OptionPricerDb.OptionPricerDbContext>), new Storage.OptionPricerDb.OptionPricerDbContext(dbConn, DbFactory, SequenceIdGenerator, logger));
@@ -73,7 +75,7 @@ public class OptionPricerFixture : IDisposable
         var dbCache = new DbCache();
         diContainer.Add(typeof(IObjectRepository<SequenceIdDbContext>), new SequenceIdDbContext(dbConn, dbFactory, logger));
         SeqIdDatabase = dbFactory.SequenceIdDb as SequenceIdDbContext;
-        SequenceIdDatabaseInitializer.EnsureInitialized(SeqIdDatabase);
+        SequenceIdDatabaseInitializer.EnsureInitialized(new TomasAI.IFM.Application.Storage.SequenceIdDb.Schema.SequenceIdSchemaDb(dbConn, logger));
         SequenceIdGenerator = new PostgresSequenceIdGenerator(dbFactory.SequenceIdDb as SequenceIdDbContext);
     }
 

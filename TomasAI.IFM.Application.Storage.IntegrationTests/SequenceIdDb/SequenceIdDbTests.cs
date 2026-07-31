@@ -28,7 +28,7 @@ public class SequenceIdFixture : IDisposable
         var dbCache = new DbCache();
         diContainer.Add(typeof(IObjectRepository<SequenceIdDbContext>), new SequenceIdDbContext(dbConn, DbFactory,  logger));
         Db = DbFactory.SequenceIdDb as SequenceIdDbContext;
-        SequenceIdDatabaseInitializer.EnsureInitialized(Db);
+        SequenceIdDatabaseInitializer.EnsureInitialized(new TomasAI.IFM.Application.Storage.SequenceIdDb.Schema.SequenceIdSchemaDb(dbConn, logger));
         SequenceIdGenerator = new PostgresSequenceIdGenerator(Db);
     }
     public SequenceIdDbContext Db { get; }

@@ -1,0 +1,33 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.Storage.Schema;
+using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
+
+namespace TomasAI.IFM.Application.Storage.TradeDb.Schema;
+
+public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger)
+    : SchemaDbContext<TradeSchemaDb>(connectionSettings[TradeDbContext.TradeDbConnection], logger)
+{
+    static readonly SchemaObjectDefinition[] Objects =
+    [
+        new("option_leg", TradeSchemaCql.CreateOptionLegTable, "DROP TABLE IF EXISTS option_leg;"),
+        new("option_leg_data", TradeSchemaCql.CreateOptionLegDataTable, "DROP TABLE IF EXISTS option_leg_data;"),
+        new("option_trade", TradeSchemaCql.CreateOptionTradeTable, "DROP TABLE IF EXISTS option_trade;"),
+        new("option_trade_spread_bar_data", TradeSchemaCql.CreateOptionTradeSpreadBarDataTable, "DROP TABLE IF EXISTS option_trade_spread_bar_data;"),
+        new("option_trade_spread_data", TradeSchemaCql.CreateOptionTradeSpreadDataTable, "DROP TABLE IF EXISTS option_trade_spread_data;"),
+        new("trade_fill", TradeSchemaCql.CreateTradeFillTable, "DROP TABLE IF EXISTS trade_fill;"),
+        new("trade_fill_data", TradeSchemaCql.CreateTradeFillDataTable, "DROP TABLE IF EXISTS trade_fill_data;"),
+        new("trade_limit", TradeSchemaCql.CreateTradeLimitTable, "DROP TABLE IF EXISTS trade_limit;"),
+        new("trade_live_feed", TradeSchemaCql.CreateTradeLiveFeedTable, "DROP TABLE IF EXISTS trade_live_feed;"),
+        new("trade_order", TradeSchemaCql.CreateTradeOrderTable, "DROP TABLE IF EXISTS trade_order;"),
+        new("trade_placement_signal", TradeSchemaCql.CreateTradePlacementSignalTable, "DROP TABLE IF EXISTS trade_placement_signal;"),
+        new("trade_plan", TradeSchemaCql.CreateTradePlanTable, "DROP TABLE IF EXISTS trade_plan;"),
+        new("trade_plan_forward_loss_limit", TradeSchemaCql.CreateTradePlanForwardLossLimitTable, "DROP TABLE IF EXISTS trade_plan_forward_loss_limit;"),
+        new("trade_plan_forward_loss_ratio", TradeSchemaCql.CreateTradePlanForwardLossRatioTable, "DROP TABLE IF EXISTS trade_plan_forward_loss_ratio;"),
+        new("trade_position", TradeSchemaCql.CreateTradePositionTable, "DROP TABLE IF EXISTS trade_position;"),
+        new("trade_position_state", TradeSchemaCql.CreateTradePositionStateTable, "DROP TABLE IF EXISTS trade_position_state;"),
+        new("trade_type_limit", TradeSchemaCql.CreateTradeTypeLimitTable, "DROP TABLE IF EXISTS trade_type_limit;")
+    ];
+
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
+}

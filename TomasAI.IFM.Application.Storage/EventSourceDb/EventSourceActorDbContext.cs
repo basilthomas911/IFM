@@ -34,8 +34,6 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     readonly ConcurrentDictionary<string, EventNameIdReadModel> _eventNameIdCache = new();
-    readonly SemaphoreSlim _eventProjectorStateInitialization = new(1, 1);
-    bool _eventProjectorStateInitialized;
 
     /// <summary>
     /// Gets the database context.
@@ -271,8 +269,6 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentException.ThrowIfNullOrWhiteSpace(state.ProjectorName);
-        await EnsureEventProjectorStateStorageAsync().ConfigureAwait(false);
-
         var now = DateTime.UtcNow;
         var createdTimestamp = state.CreatedTimestamp == default ? now : state.CreatedTimestamp;
         await _dbFactory.ActorEventSourceDb
@@ -300,7 +296,6 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         string projectorName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
-        await EnsureEventProjectorStateStorageAsync().ConfigureAwait(false);
         return await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.GetEventProjectorState)
             .SetParameters(new GetEventProjectorState(eventId, projectorName))
@@ -320,7 +315,6 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         if (eventNames.Count == 0)
             return [];
 
-        await EnsureEventProjectorStateStorageAsync().ConfigureAwait(false);
         return await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.GetUncompletedEventProjectorEvents)
             .SetParameters(new GetUncompletedEventProjectorEvents(
@@ -328,29 +322,6 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 string.Join(',', eventNames)))
             .ExecuteQueryAsync<EventLogReadModel>(MapToEventLog)
             .ConfigureAwait(false);
-    }
-
-    async Task EnsureEventProjectorStateStorageAsync()
-    {
-        if (Volatile.Read(ref _eventProjectorStateInitialized))
-            return;
-
-        await _eventProjectorStateInitialization.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            if (Volatile.Read(ref _eventProjectorStateInitialized))
-                return;
-
-            await _dbFactory.ActorEventSourceDb
-                .Use(EventSourceDbSql.CreateEventProjectorState)
-                .ExecuteCommandAsync()
-                .ConfigureAwait(false);
-            Volatile.Write(ref _eventProjectorStateInitialized, true);
-        }
-        finally
-        {
-            _eventProjectorStateInitialization.Release();
-        }
     }
 
     /// <summary>

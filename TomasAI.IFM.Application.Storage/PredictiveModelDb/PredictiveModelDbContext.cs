@@ -11,11 +11,10 @@ namespace TomasAI.IFM.Application.Storage.PredictiveModelDb;
 /// <param name="connectionSettings"></param>
 /// <param name="dbFactory"></param>
 /// <param name="logger"></param>
-public class PredictiveModelDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger) 
+public class PredictiveModelDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger)
     : ObjectDataRepository<PredictiveModelDbContext>(connectionSettings[PredictiveModelDbConnection], logger), IPredictiveModelDbContext
 {
     public const string PredictiveModelDbConnection = "PredictiveModelDbConnection";
-    readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 
     /// <summary>
     /// Gets the database context.
@@ -24,22 +23,5 @@ public class PredictiveModelDbContext(IDbConnectionSettings connectionSettings, 
 
     public IPredictiveModelDbReadContext DbReader => this;
     public IPredictiveModelDbWriteContext DbWriter => this;
-
-    /// <summary>
-    /// Create predictive model database tables 
-    /// </summary>
-    /// <returns></returns>
-    public async Task CreatePredictiveModelDbTablesAsync()
-    {
-        var db = _dbFactory.PredictiveModelDb;
-        var queuedCommands = new List<object>();
-        queuedCommands.AddRange([
-            db.Use(PredictiveModelDbCql.CreateFuturesItiTrendDeltaModelTable).QueueCommand(),
-            db.Use(PredictiveModelDbCql.CreateFuturesItiTrendDeltaDataTable).QueueCommand(),
-            db.Use(PredictiveModelDbCql.CreateFuturesItiTrendClassModelTable).QueueCommand(),
-            db.Use(PredictiveModelDbCql.CreateFuturesItiTrendClassDataTable).QueueCommand()
-        ]);
-        await db.ExecuteQueuedCommandsAsync(queuedCommands);
-    }
 
 }

@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
@@ -56,7 +57,7 @@ public sealed class EventProjectorStatePersistenceTests
     [Fact]
     public void Projector_state_schema_uses_event_and_projector_as_composite_key()
     {
-        EventSourceDbSql.CreateEventProjectorState.Should()
+        EventSourceSchemaSql.CreateEventProjectorState.Should()
             .Contain("CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_event_version")
             .And.Contain("ON event_log (EventVersion)")
             .And.Contain("PRIMARY KEY (EventId, ProjectorName)");

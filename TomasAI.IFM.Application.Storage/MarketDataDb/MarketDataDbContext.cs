@@ -551,65 +551,6 @@ public class MarketDataDbContext(
         );
 
     /// <summary>
-    /// Asynchronously creates the 'futures_trade_signal' table in the market data database if it does not already exist. 
-    /// The table is designed to store trade signal data for futures contracts, including various technical indicators and trend information. 
-    /// The primary key is a composite of contractId, valueDate, timePeriod, timestamp, and sequenceId, with clustering order specified for efficient querying by date and time. 
-    /// Ensure that the database connection settings are properly configured before invoking this method.
-    /// </summary>
-    /// <returns></returns>
-    public async Task CreateFuturesTradeSignalTableAsync()
-        => await _dbFactory.MarketDataDb
-                .Use("""
-                    CREATE TABLE IF NOT EXISTS futures_trade_signal (
-                    contractId text,
-                    valueDate date,
-                    timePeriod text,
-                    timestamp time,
-                    sequenceId bigint,
-                    mean double,
-                    stdDev double,
-                    futuresPrice double,
-                    priceChangePercent double,
-                    fundRiskPercent double,
-                    rsi double,
-                    rsiSlope double,
-                    trendType text,
-                    trendStrength text,
-                    tradeSignal text,
-                    tdi text,
-                    tdiStrength text,
-                    mdi double,
-                    mdiTrend text,
-                    mdiUpTrendLimit double,
-                    mdiDownTrendLimit double,
-                    upTrendingTrigger double,
-                    downTrendingTrigger double,
-                    entryTrigger double,
-                    exitTrigger double,
-                    trendDelta double,
-                    trendExtreme double,
-                    trendReversal double,
-                    fiftyDMA decimal,
-                    twoHundredDMA decimal,
-                    tradeExecuteState text,
-                    PRIMARY KEY (contractId, valueDate, timePeriod, timestamp, sequenceId)
-                ) WITH CLUSTERING ORDER BY (valueDate DESC, timePeriod DESC, timestamp DESC, sequenceId DESC);
-                """)
-                .ExecuteCommandAsync();
-
-    /// <summary>
-    /// Asynchronously deletes the 'futures_trade_signal' table from the market data database if it exists. 
-    /// This operation will remove all trade signal data for futures contracts stored in the table. 
-    /// Use with caution, as this action is irreversible and will result in the loss of all data contained within the 'futures_trade_signal' table. 
-    /// Ensure that you have backed up any necessary data before executing this method.
-    /// </summary>
-    /// <returns></returns>
-    public async Task DeleteFuturesTradeSignalTableAsync()
-        => await _dbFactory.MarketDataDb
-                .Use("DROP TABLE IF EXISTS futures_trade_signal")
-                .ExecuteCommandAsync();
-
-    /// <summary>
     /// Deletes a futures bar data record from the database.
     /// </summary>
     /// <param name="e">The identifier of the futures bar data to delete.</param>

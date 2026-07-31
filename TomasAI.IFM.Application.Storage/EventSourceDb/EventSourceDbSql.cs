@@ -8,44 +8,6 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 public static class EventSourceDbSql
 {
     /// <summary>
-    /// Creates the durable, per-projector state table used to resume event projections from the event log.
-    /// </summary>
-    public const string CreateEventProjectorState = """
-        CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_event_version
-            ON event_log (EventVersion);
-
-        CREATE TABLE IF NOT EXISTS event_projector_state (
-            EventId bigint NOT NULL,
-            ActorName varchar(255) NOT NULL,
-            ProjectorName varchar(255) NOT NULL,
-            IsReplay boolean NOT NULL,
-            AttemptNumber integer NOT NULL,
-            Outcome varchar(50) NOT NULL,
-            Stage varchar(50) NOT NULL,
-            ErrorMessage text NOT NULL DEFAULT '',
-            CreatedTimestamp text NOT NULL,
-            UpdatedTimestamp text NOT NULL,
-            CONSTRAINT pk_event_projector_state PRIMARY KEY (EventId, ProjectorName),
-            CONSTRAINT fk_event_projector_state_event_log
-                FOREIGN KEY (EventId) REFERENCES event_log(EventVersion) ON DELETE CASCADE
-        );
-
-        CREATE INDEX IF NOT EXISTS ix_event_projector_state_projector_outcome
-            ON event_projector_state (ProjectorName, Outcome);
-    """;
-
-    public const string CreateCommandLog = """
-        create table if not exists command_log (
-            CommandId uuid primary key,
-            StreamId text  not null,
-            ActorName text not null,
-            CommandName varchar(255) not null,
-            CommandTimestamp text not null,
-            CommandStatus varchar(50) not null,
-            CommandData text not null
-        );
-    """;
-    /// <summary>
     /// SQL to delete an event log by event version
     /// </summary>
     public const string DeleteEventLog = """

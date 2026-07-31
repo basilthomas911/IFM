@@ -35,6 +35,8 @@ public class EventSourceFixture : IDisposable
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
+        new TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaDb(dbConn, logger)
+            .CreateAllAsync().GetAwaiter().GetResult();
         var redisCache = Substitute.For<IRedisCache>();
         var redisCacheMap = new Dictionary<string, string>();
         redisCache.Get(Arg.Any<string>()).Returns(callInfo => redisCacheMap[callInfo.Arg<string>()]);

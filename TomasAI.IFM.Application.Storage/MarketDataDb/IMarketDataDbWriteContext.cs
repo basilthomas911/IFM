@@ -11,7 +11,6 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbWriteContext
 {
-    Task CreateFuturesTradeSignalTableAsync();
     Task DeleteFuturesBarDataAsync(FuturesBarDataId e);
     Task DeleteFuturesEodDataAsync(string contractId, DateOnly valueDate);
     Task DeleteFuturesTickDataAsync(string contractId, DateOnly valueDate);

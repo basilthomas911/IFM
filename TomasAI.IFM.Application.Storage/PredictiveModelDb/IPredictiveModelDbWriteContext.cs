@@ -8,6 +8,5 @@ namespace TomasAI.IFM.Application.Storage.PredictiveModelDb
 {
     public interface IPredictiveModelDbWriteContext
     {
-        Task CreatePredictiveModelDbTablesAsync();
     }
 }

@@ -43,9 +43,13 @@ public class PredictiveModelFixture : IDisposable
         var dbCache = new DbCache();
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
+        SchemaDatabase = new TomasAI.IFM.Application.Storage.PredictiveModelDb.Schema.PredictiveModelSchemaDb(dbConn, logger);
+        SchemaDatabase.CreateAllAsync().GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<PredictiveModelDbContext>), new PredictiveModelDbContext(dbConn, dbFactory, logger));
         DevDatabase = dbFactory.PredictiveModelDb as PredictiveModelDbContext;
     }
+
+    public TomasAI.IFM.Application.Storage.PredictiveModelDb.Schema.PredictiveModelSchemaDb SchemaDatabase { get; private set; }
 
 }
 
@@ -56,7 +60,6 @@ public class PredictiveModelDbTests(PredictiveModelFixture testFixture) : IClass
     [Fact]
     public async Task CreatePredictiveModelTablesAsync()
     {
-        var db = TestFixture.DevDatabase;
-        await db.CreatePredictiveModelDbTablesAsync();
+        await TestFixture.SchemaDatabase.CreateAllAsync();
     }
 }

@@ -2,264 +2,6 @@
 
 internal static class MarketDataDbCql
 {
-
-    public const string CreateTradeLiveFeedTable = """
-        CREATE TABLE IF NOT EXISTS trade_live_feed (
-            orderId int,
-            tradeId int,
-            tradeLiveFeedState text,
-            PRIMARY KEY (orderId, tradeId)
-        );
-    """;
-
-    public const string CreateFuturesitiSignalTable = """
-        CREATE TABLE IF NOT EXISTS futures_iti_signal (
-            contractId text,
-            valueDate date,
-            timePeriod text,
-            sequenceId bigint,
-            intrinsicTime timestamp,
-            intrinsicTimeGroupId int,
-            intrinsicTimeLength double,
-            intrinsicPrice double,
-            intrinsicTimeTrend text,
-            intrinsicTimeMode text,
-            trendPrice double,
-            trendExtreme double,
-            trendReversal double,
-            trendDelta double,
-            targetDelta double,
-            lambda double,
-            tradingDays int,
-            threshold double,
-            upTrendTrigger double,
-            downTrendTrigger double,
-            tradeState text,
-            PRIMARY KEY (contractId, valueDate, timePeriod, intrinsicTimeMode, intrinsicTimeTrend, intrinsicTimeGroupId, sequenceId)
-        ) WITH CLUSTERING ORDER BY (valueDate desc, timePeriod desc, intrinsicTimeMode desc, intrinsicTimeTrend desc,intrinsicTimeGroupId desc, sequenceId desc);
-    """;
-
-    public const string CreateFuturesTickDataTable = """
-        CREATE TABLE IF NOT EXISTS futures_tick_data (
-            contractId text,
-            valueDate date,
-            tickId bigint,
-            tickTime time,
-            price decimal,
-            size int,
-            PRIMARY KEY (contractId, valueDate, tickId)
-        ) WITH CLUSTERING ORDER BY (valueDate ASC, tickId ASC);
-    """;
-    public const string CreateFuturesOptionTickDataTable = """
-        CREATE TABLE IF NOT EXISTS futures_option_tick_data (
-            contractId text,
-            valueDate date,
-            tickId bigint,
-            tickTime time,
-            optionPrice decimal,
-            bidPrice decimal,
-            askPrice decimal,
-            bidSize int,
-            askSize int,
-            impliedVolatility double,
-            underlyingPrice decimal,
-            delta double,
-            gamma double,
-            vega double,
-            theta double,
-            rho double,
-            PRIMARY KEY (contractId, valueDate, tickId)
-        ) WITH CLUSTERING ORDER BY (valueDate ASC, tickId ASC);
-    """;
-
-    public const string CreateFuturesOptionTickPriceDataTable = """
-        CREATE TABLE IF NOT EXISTS futures_option_tick_price_data (
-            contractId text,
-            valueDate date,
-            tickId bigint,
-            tickTime time,
-            optionPrice decimal,
-            bidPrice decimal,
-            askPrice decimal,
-            bidSize int,
-            askSize int,
-            impliedVolatility double,
-            underlyingPrice decimal,
-            delta double,
-            gamma double,
-            vega double,
-            theta double,
-            rho double,
-            PRIMARY KEY (contractId, valueDate, tickId)
-        ) WITH CLUSTERING ORDER BY (valueDate ASC, tickId ASC);
-    """;
-
-    public const string CreateFuturesBaraDataTable = """
-        CREATE TABLE IF NOT EXISTS futures_bar_data (
-            contractId text,
-            symbol text,
-            valueDate date,
-            barDate timestamp,
-            barRateType text,
-            barValue decimal,
-            upTrendTrigger double,
-            downTrendTrigger double,
-            PRIMARY KEY (contractId, symbol, valueDate, barDate)
-        ) WITH CLUSTERING ORDER BY (symbol ASC, valueDate DESC,barDate ASC);
-    """;
-
-    public const string CreateFuturesClosingPriceTable = """
-        CREATE TABLE IF NOT EXISTS futures_closing_price (
-            contractId text,
-            valueDate date,
-            closingPrice decimal,
-            createdOn timestamp,
-            createdBy text,
-            PRIMARY KEY (contractId, valueDate)
-        );
-    """;
-
-    public const string CreateFuturesEodDataTable = """
-      CREATE TABLE IF NOT EXISTS futures_eod_data (
-        contractId text,
-        valueDate date,
-        symbol text,
-        openPrice decimal,
-        highPrice decimal,
-        lowPrice decimal,
-        closePrice decimal,
-        volume int,
-        dailyPercentChange double,
-        dailyStdDev double,
-        dailyStdDevAmount double,
-        upperBand double,
-        mean double,
-        lowerBand double,
-        marketDirection text,
-        marketVolatility text,
-        priceDirection text,
-        priceVolatility text,
-        marketDirectionIndicator double,
-        windowSize int,
-        PRIMARY KEY (contractId, valueDate, symbol)
-    ) WITH CLUSTERING ORDER BY (valueDate DESC, symbol ASC);
-    """;
-
-    public const string CreateFuturesIntraDayDataTable = """
-      CREATE TABLE IF NOT EXISTS futures_intra_day_data (
-        contractId text,
-        valueDate date,
-        sequenceId bigint,
-        symbol text,
-        openPrice decimal,
-        highPrice decimal,
-        lowPrice decimal,
-        closePrice decimal,
-        volume int,
-        dailyPercentChange double,
-        dailyStdDev double,
-        dailyStdDevAmount double,
-        upperBand double,
-        mean double,
-        lowerBand double,
-        marketDirection text,
-        marketVolatility text,
-        priceDirection text,
-        priceVolatility text,
-        marketDirectionIndicator double,
-        windowSize int,
-        PRIMARY KEY (contractId, valueDate, sequenceId)
-    ) WITH CLUSTERING ORDER BY (valueDate DESC, sequenceId DESC);
-    """;
-
-    public const string CreateVixFuturesEodDataTable = """
-        CREATE TABLE IF NOT EXISTS vix_futures_eod_data (
-            contractId text,
-            valueDate date,
-            openPrice decimal,
-            highPrice decimal,
-            lowPrice decimal,
-            closePrice decimal,
-            volume int,
-            PRIMARY KEY (contractId, valueDate)
-        ) WITH CLUSTERING ORDER BY (valueDate DESC);
-    """;
-
-    public const string CreateFuturesItiSignalTable = """
-        CREATE TABLE IF NOT EXISTS futures_iti_signal (
-        contractId text,
-        valueDate date,
-        sequenceId bigint,
-        intrinsicTime timestamp,
-        intrinsicTimeGroupId int,
-        intrinsicTimeLength double,
-        intrinsicPrice double,
-        intrinsicTimeTrend text,
-        intrinsicTimeMode text,
-        trendPrice double,
-        trendExtreme double,
-        trendReversal double,
-        lambda double,
-        targetDelta double,
-        predictedDelta double,
-        trendDelta double,
-        upTrendTrigger double,
-        downTrendTrigger double,
-        futuresPercentChange double,
-        futuresMean double,
-        futuresStdDev double,
-        futuresMDI double,
-        futuresMDITrend text,
-        futuresMDIUpTrendLimit double,
-        futuresMDIDownTrendLimit double,
-        futuresRSI double,
-        futuresRSISlope double,
-        futuresFiftyDMA decimal,
-        futuresTwoHundredDMA decimal,
-        tradeState text,
-        upTrendCoastLineCounter int,
-        downTrendCoastLineCounter int,
-        PRIMARY KEY (contractId, valueDate, intrinsicTimeGroupId, sequenceId)
-    ) WITH CLUSTERING ORDER BY (valueDate desc, intrinsicTimeGroupId desc, sequenceId desc);
-    """;
-
-    public const string CreateFuturesTradeSignalTable = """
-        CREATE TABLE IF NOT EXISTS futures_trade_signal (
-        contractId text,
-        valueDate date,
-        timePeriod text,
-        timestamp time,
-        sequenceId bigint,
-        mean double,
-        stdDev double,
-        futuresPrice double,
-        priceChangePercent double,
-        fundRiskPercent double,
-        rsi double,
-        rsiSlope double,
-        trendType text,
-        trendStrength text,
-        tradeSignal text,
-        tdi text,
-        tdiStrength text,
-        mdi double,
-        mdiTrend text,
-        mdiUpTrendLimit double,
-        mdiDownTrendLimit double,
-        upTrendingTrigger double,
-        downTrendingTrigger double,
-        entryTrigger double,
-        exitTrigger double,
-        trendDelta double,
-        trendExtreme double,
-        trendReversal double,
-        fiftyDMA decimal,
-        twoHundredDMA decimal,
-        tradeExecuteState text,
-        PRIMARY KEY (contractId, valueDate, timePeriod, timestamp, sequenceId)
-    ) WITH CLUSTERING ORDER BY (valueDate DESC, timePeriod DESC, timestamp DESC, sequenceId DESC);
-    """;
-
     public const string DeleteFuturesBarData = """
         DELETE FROM futures_bar_data
         WHERE contractId = :contractId AND symbol = :symbol AND valueDate = :valueDate;
@@ -704,15 +446,6 @@ internal static class MarketDataDbCql
         VALUES (:contractId, :valueDate, :tickId, :tickTime, :price, :size);
     """;
 
-    public const string CreateFuturesTickIdCounterTable = """
-        CREATE TABLE IF NOT EXISTS futures_tick_id_counter(
-            contractId text,
-            valueDate date,
-            nextTickId counter,
-            PRIMARY KEY ((contractId, valueDate))
-        );
-    """;
-
     public const string UpdateNextFuturesTickId = """
         UPDATE futures_tick_id_counter
         SET nextTickId = nextTickId + 1
@@ -1030,14 +763,6 @@ internal static class MarketDataDbCql
         GROUP BY ContractId, ValueDate;
     """;
 
-    public const string CreateFuturesEodDataIndexTable = """
-        CREATE TABLE IF NOT EXISTS futures_eod_data_index(
-            valueDate date,
-            contractId text,
-            PRIMARY KEY (valueDate, contractId)
-        );
-    """;
-
     public const string InsertFuturesEodDataIndex = """
         INSERT INTO futures_eod_data_index (valueDate, contractId)
         VALUES (:valueDate, :contractId);
@@ -1164,14 +889,6 @@ internal static class MarketDataDbCql
             contractId AS "ContractId"
         FROM futures_iti_signal_index
         WHERE token(valueDate) >= token(:startDate) AND token(valueDate) <= token(:endDate);
-    """;
-
-    public const string CreateFuturesItiSignalIndexTable = """
-        CREATE TABLE IF NOT EXISTS futures_iti_signal_index(
-            valueDate date,
-            contractId text,
-            PRIMARY KEY (valueDate, contractId)
-        );
     """;
 
     public const string InsertFuturesItiSignalIndex = """
@@ -1326,21 +1043,6 @@ internal static class MarketDataDbCql
         ALLOW FILTERING;
     """;
 
-    public const string CreateFuturesItiTrendClassDataTable = """
-        CREATE TABLE IF NOT EXISTS futures_iti_trend_class_data (
-            symbol TEXT,
-            valueDate DATE,
-            timestamp TIMESTAMP,
-            sequenceId BIGINT,
-            trendClass FLOAT,
-            trendDirection FLOAT,
-            trendDirectionMode FLOAT,
-            trendDelta FLOAT,
-            futuresRSI FLOAT,
-            PRIMARY KEY (symbol, valueDate, sequenceId)
-        ) WITH CLUSTERING ORDER BY (valueDate ASC, sequenceId ASC);
-    """;
-
     public const string InsertFuturesItiTrendClassData = """
         INSERT INTO futures_iti_trend_class_data (
             symbol,
@@ -1389,22 +1091,6 @@ internal static class MarketDataDbCql
         AND valueDate <= :endDate;
     """;
 
-    public const string CreateFuturesItiTrendDeltaDataTable = """
-        CREATE TABLE IF NOT EXISTS futures_iti_trend_delta_data (
-            symbol text,
-            valueDate date,
-            timestamp timestamp,
-            sequenceId bigint,
-            trendDelta float,
-            trendDirection float,
-            trendDirectionMode float,
-            futuresPrice float,
-            trendExtreme float,
-            futuresRSI float,
-            PRIMARY KEY (symbol, valueDate, sequenceId)
-        ) WITH CLUSTERING ORDER BY (valueDate ASC, sequenceId ASC);
-    """;
-
     public const string InsertFuturesItiTrendDeltaData = """
         INSERT INTO futures_iti_trend_delta_data (
             symbol, valueDate, timestamp, sequenceId, trendDelta, trendDirection, trendDirectionMode, futuresPrice, trendExtreme, futuresRSI
@@ -1436,30 +1122,6 @@ internal static class MarketDataDbCql
         WHERE symbol = :symbol
         AND valueDate >= :startDate
         AND valueDate <= :endDate;
-    """;
-
-    public const string CreateFuturesItiTrendClassModelTable = """
-        CREATE TABLE IF NOT EXISTS futures_iti_trend_class_model (
-            symbol text,
-            valueDate date,
-            startDate date,
-            endDate date,
-            count int,
-            maximum double,
-            mean double,
-            median double,
-            minimum double,
-            skewness double,
-            stdDev double,
-            variance double,
-            accuracy double,
-            areaUnderPrecisionRecallCurve double,
-            areaUnderRocCurve double,
-            entropy double,
-            f1Score double,
-            modelData blob,
-            PRIMARY KEY (symbol, valueDate)
-        );
     """;
 
     public const string InsertFuturesItiTrendClassModel = """
@@ -1765,10 +1427,6 @@ internal static class MarketDataDbCql
         Allow Filtering;
     """;
 
-    public const string CreateFuturesItiSignal_IntrinsicTimeModeIndex = """
-        CREATE INDEX IF NOT EXISTS futures_iti_signal_intrinsictimemode ON futures_iti_signal(intrinsicTimeMode);
-    """;
-
     public const string GetMaxFuturesItiSignalSequenceIdByTrendDirectionChanged = """
         SELECT sequenceid AS "Value"
         FROM futures_iti_signal
@@ -1891,10 +1549,6 @@ internal static class MarketDataDbCql
         LIMIT 1;
     """;
 
-
-    public const string CreateFuturesRsiSignal_SignalTypeIndex = """
-        CREATE INDEX IF NOT EXISTS futures_rsi_signal_signaltype ON futures_rsi_signal(signalType);
-    """;
 
     public const string GetLastFuturesRsiSignal = """
         SELECT contractid AS "ContractId",
@@ -2206,15 +1860,6 @@ internal static class MarketDataDbCql
         LIMIT 1;
     """;
 
-    public const string CreateRateOfReturn = """
-        CREATE TABLE IF NOT EXISTS rate_of_return (
-            symbol TEXT,
-            valueDate DATE,
-            rateOfReturn DOUBLE,
-            PRIMARY KEY (symbol, valueDate)
-        ) WITH CLUSTERING ORDER BY (valueDate DESC);
-    """;
-
     public const string GetLastRateOfReturn = """
         SELECT 
             symbol AS "Symbol", 
@@ -2296,24 +1941,6 @@ internal static class MarketDataDbCql
             AND valueDate = :valueDate;
     """;
 
-    public const string CreateYieldCurveRateTable = """
-        CREATE TABLE IF NOT EXISTS yield_curve_rates (
-            valueDate date PRIMARY KEY,
-            oneMonth double,
-            twoMonth double,
-            threeMonth double,
-            sixMonth double,
-            oneYear double,
-            twoYear double,
-            threeYear double,
-            fiveYear double,
-            sevenYear double,
-            tenYear double,
-            twentyYear double,
-            thirtyYear double
-        );
-    """;
-
     public const string InsertYieldCurveRate = """
         INSERT INTO yield_curve_rates (
             id,
@@ -2389,10 +2016,6 @@ internal static class MarketDataDbCql
             twentyYear AS "TwentyYear",
             thirtyYear AS "ThirtyYear"
         FROM yield_curve_rates WHERE id = 1;
-    """;
-
-    public const string CreateYieldCurveRates_ValueDateIndex = """
-        CREATE INDEX ON yield_curve_rates (valueDate);
     """;
 
     public const string GetYieldCurveRates = """

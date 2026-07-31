@@ -8,20 +8,6 @@ namespace TomasAI.IFM.Application.Storage.LogDb;
 public static class LogDbSql
 {
     /// <summary>
-    /// SQL to create the telemetry log table
-    /// </summary>
-    public const string CreateTelemetryLogTable = """
-CREATE TABLE IF NOT EXISTS public.telemetry_log (
-    sequenceId BIGINT,
-    timestamp TIMESTAMP,
-    logLevel VARCHAR(50),
-    message TEXT,
-    serviceId VARCHAR(100),
-    PRIMARY KEY (sequenceId, timestamp)
-);
-""";
-
-    /// <summary>
     /// SQL to get telemetry logs by date range
     /// </summary>
     public const string GetTelemtryLogsByDateRange = """

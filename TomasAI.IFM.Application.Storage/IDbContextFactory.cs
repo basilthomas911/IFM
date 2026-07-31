@@ -11,6 +11,16 @@ using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 using TomasAI.IFM.Application.Storage.YieldCurveRatesDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
+using TomasAI.IFM.Application.Storage.FundDb.Schema;
+using TomasAI.IFM.Application.Storage.LogDb.Schema;
+using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
+using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
+using TomasAI.IFM.Application.Storage.PredictiveModelDb.Schema;
+using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
+using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
+using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
+using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 
 namespace TomasAI.IFM.Application.Storage;
 
@@ -35,5 +45,16 @@ public interface IDbContextFactory
     ITradeDbContext TradeDb { get; }
     IObjectRepository<EconomicCalendarsDbContext> EconomicCalendarsDb { get; }
     IYieldCurveRatesDbContext YieldCurveRatesDb { get; }
+
+    EventSourceSchemaDb EventSourceSchema { get; }
+    LogSchemaDb LogSchema { get; }
+    SequenceIdSchemaDb SequenceIdSchema { get; }
+    FundSchemaDb FundSchema { get; }
+    MarketDataSchemaDb MarketDataSchema { get; }
+    OptionPricerSchemaDb OptionPricerSchema { get; }
+    PredictiveModelSchemaDb PredictiveModelSchema { get; }
+    ReferenceSchemaDb ReferenceSchema { get; }
+    SecuritiesSchemaDb SecuritiesSchema { get; }
+    TradeSchemaDb TradeSchema { get; }
 
 }

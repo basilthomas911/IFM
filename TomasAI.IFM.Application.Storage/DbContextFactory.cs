@@ -11,6 +11,16 @@ using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 using TomasAI.IFM.Application.Storage.YieldCurveRatesDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
+using TomasAI.IFM.Application.Storage.FundDb.Schema;
+using TomasAI.IFM.Application.Storage.LogDb.Schema;
+using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
+using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
+using TomasAI.IFM.Application.Storage.PredictiveModelDb.Schema;
+using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
+using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
+using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
+using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 
 namespace TomasAI.IFM.Application.Storage;
 
@@ -37,6 +47,17 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public ITradeDbContext TradeDb => _dbContextResolver.Resolve<TradeDbContext>() as ITradeDbContext;
     public IYieldCurveRatesDbContext YieldCurveRatesDb => _dbContextResolver.Resolve<YieldCurveRatesDbContext>() as IYieldCurveRatesDbContext;
     public IObjectRepository<EconomicCalendarsDbContext> EconomicCalendarsDb => _dbContextResolver.Resolve<EconomicCalendarsDbContext>();
+
+    public EventSourceSchemaDb EventSourceSchema => (_dbContextResolver.Resolve<EventSourceSchemaDb>() as EventSourceSchemaDb)!;
+    public LogSchemaDb LogSchema => (_dbContextResolver.Resolve<LogSchemaDb>() as LogSchemaDb)!;
+    public SequenceIdSchemaDb SequenceIdSchema => (_dbContextResolver.Resolve<SequenceIdSchemaDb>() as SequenceIdSchemaDb)!;
+    public FundSchemaDb FundSchema => (_dbContextResolver.Resolve<FundSchemaDb>() as FundSchemaDb)!;
+    public MarketDataSchemaDb MarketDataSchema => (_dbContextResolver.Resolve<MarketDataSchemaDb>() as MarketDataSchemaDb)!;
+    public OptionPricerSchemaDb OptionPricerSchema => (_dbContextResolver.Resolve<OptionPricerSchemaDb>() as OptionPricerSchemaDb)!;
+    public PredictiveModelSchemaDb PredictiveModelSchema => (_dbContextResolver.Resolve<PredictiveModelSchemaDb>() as PredictiveModelSchemaDb)!;
+    public ReferenceSchemaDb ReferenceSchema => (_dbContextResolver.Resolve<ReferenceSchemaDb>() as ReferenceSchemaDb)!;
+    public SecuritiesSchemaDb SecuritiesSchema => (_dbContextResolver.Resolve<SecuritiesSchemaDb>() as SecuritiesSchemaDb)!;
+    public TradeSchemaDb TradeSchema => (_dbContextResolver.Resolve<TradeSchemaDb>() as TradeSchemaDb)!;
 
     public IDbContextPool<ReferenceDbContext> ReferencePool => GetPool<ReferenceDbContext>();
 

@@ -28,6 +28,15 @@ using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.YieldCurveRatesDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
+using TomasAI.IFM.Application.Storage.FundDb.Schema;
+using TomasAI.IFM.Application.Storage.LogDb.Schema;
+using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
+using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
+using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
+using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
+using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
+using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Domain.Fund;
 using TomasAI.IFM.Domain.MarketData;
 using TomasAI.IFM.Domain.MarketData.Analytics;
@@ -316,6 +325,15 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(TradeDbContext))!)?.Resolve<TradeDbContext>() as ITradeDbContext)!);
             services.AddSingleton<IYieldCurveRatesDbContext, YieldCurveRatesDbContext>();
             services.AddSingleton<IEconomicCalendarsDbContext, EconomicCalendarsDbContext>();
+            services.AddSingleton<EventSourceSchemaDb>();
+            services.AddSingleton<LogSchemaDb>();
+            services.AddSingleton<SequenceIdSchemaDb>();
+            services.AddSingleton<FundSchemaDb>();
+            services.AddSingleton<MarketDataSchemaDb>();
+            services.AddSingleton<OptionPricerSchemaDb>();
+            services.AddSingleton<ReferenceSchemaDb>();
+            services.AddSingleton<SecuritiesSchemaDb>();
+            services.AddSingleton<TradeSchemaDb>();
             services.AddSingleton(_ =>
                    new StorageUrlSettings()
                         .Add("DomainData", config.GetValue<string>("AppSettings:DomainDataStorageBaseUri")!)

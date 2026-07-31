@@ -80,11 +80,12 @@ public class MarketDataFixture : IDisposable
         var dbCache = new DbCache();
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
+        new TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaDb(dbConn, logger)
+            .CreateAllAsync().GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), new Storage.MarketDataDb.MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), SecDatabase );
 
         DevDatabase = dbFactory.MarketDataDb as Storage.MarketDataDb.MarketDataDbContext;
-        MarketDataSchemaInitializer.EnsureInitialized(DevDatabase);
     }
 
     void SetPMDatabase()
@@ -96,6 +97,8 @@ public class MarketDataFixture : IDisposable
         var dbFactory = new DbContextFactory(dbResolver);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
+        new TomasAI.IFM.Application.Storage.PredictiveModelDb.Schema.PredictiveModelSchemaDb(dbConn, logger)
+            .CreateAllAsync().GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<Storage.PredictiveModelDb.PredictiveModelDbContext>), new Storage.PredictiveModelDb.PredictiveModelDbContext(dbConn, dbFactory, logger));
         PMDatabase = dbFactory.PredictiveModelDb as Storage.PredictiveModelDb.PredictiveModelDbContext;
     }
@@ -128,7 +131,7 @@ public class MarketDataFixture : IDisposable
         var dbCache = new DbCache();
         diContainer.Add(typeof(IObjectRepository<SequenceIdDbContext>), new SequenceIdDbContext(dbConn, dbFactory, logger));
         SeqIdDatabase  = dbFactory.SequenceIdDb as SequenceIdDbContext;
-        SequenceIdDatabaseInitializer.EnsureInitialized(SeqIdDatabase);
+        SequenceIdDatabaseInitializer.EnsureInitialized(new TomasAI.IFM.Application.Storage.SequenceIdDb.Schema.SequenceIdSchemaDb(dbConn, logger));
         SequenceIdGenerator = new PostgresSequenceIdGenerator(dbFactory.SequenceIdDb as SequenceIdDbContext);
         
     }
@@ -142,6 +145,8 @@ public class MarketDataFixture : IDisposable
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
         var dbFactory  = new DbContextFactory(dbResolver);
+        new TomasAI.IFM.Application.Storage.SecuritiesDb.Schema.SecuritiesSchemaDb(dbConn, logger)
+            .CreateAllAsync().GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), new SecuritiesDbContext(dbConn, dbFactory, logger));
         SecDatabase = dbFactory.SecuritiesDb as SecuritiesDbContext;
     }
