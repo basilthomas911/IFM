@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Framework.Storage.IntegratedTests
 
     public class AzureStorageTests
     {
-        [Fact]
+        [Fact(Skip = "Requires an Azure Storage connection.")]
         public async Task AzureStorage_UploadFileAsync()
         {
             var curDir = Directory.GetCurrentDirectory();

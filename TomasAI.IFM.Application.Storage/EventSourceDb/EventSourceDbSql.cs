@@ -95,14 +95,19 @@ DELETE FROM event_stream_id WHERE EventStream = $1;
     /// </summary>
     public const string GetCommandLog = """
     select
-      CommandId as "CommandId",
-      StreamId as "StreamId",
-      ActorName as "ActorName",
-      CommandName as "CommandName",
-      CommandTimestamp as "CommandTimestamp",
-      CommandStatus as "CommandStatus",
-      CommandData as "CommandData"
-    from public.fn_get_command_log($1)
+      cl.CommandId as "CommandId",
+      cl.StreamId as "StreamId",
+      coalesce(
+        to_jsonb(cl) ->> 'aggregatename',
+        to_jsonb(cl) ->> 'AggregateName',
+        to_jsonb(cl) ->> 'actorname',
+        to_jsonb(cl) ->> 'ActorName'
+      ) as "AggregateName",
+      cl.CommandName as "CommandName",
+      cl.CommandTimestamp::timestamp as "CommandTimestamp",
+      cl.CommandData as "CommandData"
+    from command_log cl
+    where cl.CommandId = $1
     """;
 
     /// <summary>
@@ -110,7 +115,7 @@ DELETE FROM event_stream_id WHERE EventStream = $1;
     /// </summary>
     /// <remarks>The statement uses positional parameters ($1 through $7) for parameterized query execution.
     /// Ensure that parameter values are supplied in the correct order to match the columns: CommandId, StreamId,
-    /// ActorName, CommandName, CommandTimestamp, CommandStatus, and CommandData.</remarks>
+    /// AggregateName, CommandName, CommandTimestamp, CommandStatus, and CommandData.</remarks>
     public const string InsertCommandLog = """
         insert into command_log (
             CommandId,

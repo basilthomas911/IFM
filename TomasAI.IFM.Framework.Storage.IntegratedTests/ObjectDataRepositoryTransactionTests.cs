@@ -44,55 +44,81 @@ public class ObjectDataRepositoryTransactionTests(EventDatabaseFixture fixture) 
 {
     readonly EventDatabaseFixture _fixture = fixture;
 
-  
     [Fact]
-    [Trait("UnitTest","Create transaction and commit data successfully")]
+    [Trait("IntegrationTest", "Create transaction and commit data successfully")]
     public async Task ObjectDataRepository_CommitOk()
     {
         var db = _fixture.Db;
-        await db.Use("delete from event_log").ExecuteCommandAsync();
-        var rowCount = await db.Use($"select count(*) from event_log").ExecuteScalarAsync(MapToInt);
-        rowCount.Should().Be(0);
-        var tx = db.BeginTransaction();
-        tx.Should().NotBeNull();
-        await InsertEventLogAsync(1, 2, Guid.NewGuid());
-        tx.Commit();
-        rowCount = await db.Use($"select count(*) from event_log").ExecuteScalarAsync(MapToInt);
-        rowCount.Should().Be(1);
-        await db.Use("delete from event_log").ExecuteCommandAsync();
-        return;
+        var commandId = Guid.NewGuid();
 
-        async Task InsertEventLogAsync(long eventSourceId, long eventSourceVersion, Guid commandId)
+        try
         {
-            var sql = $"exec spInsertEventLog @eventSourceId = {eventSourceId}, @eventSourceVersion = {eventSourceVersion},  @eventTypeId = 99, @eventData = 'The Rain In Spain', @eventDate = '{DateTime.Now:yyyy-MM-dd}', @commandId = '{commandId}'";
-            await db.Use(sql).ExecuteCommandAsync();
+            (await CountCommandAsync(commandId)).Should().Be(0);
+
+            var tx = db.BeginTransaction();
+            tx.Should().NotBeNull();
+            var transactionCompleted = false;
+            try
+            {
+                await InsertCommandAsync(commandId);
+                tx!.Commit();
+                transactionCompleted = true;
+            }
+            finally
+            {
+                if (!transactionCompleted)
+                    tx?.Rollback();
+            }
+
+            (await CountCommandAsync(commandId)).Should().Be(1);
+        }
+        finally
+        {
+            await DeleteCommandAsync(commandId);
         }
     }
 
     [Fact]
-    [Trait("UnitTest", "Create transaction and rollback data successfully")]
+    [Trait("IntegrationTest", "Create transaction and rollback data successfully")]
     public async Task ObjectDataRepository_RollbackOk()
     {
         var db = _fixture.Db;
-        await db.Use("delete from event_log").ExecuteCommandAsync();
-        await InsertEventLogAsync(1, 2, Guid.NewGuid());
-        var rowCount = await db.Use($"select count(*) from event_log").ExecuteScalarAsync(MapToInt);
-        rowCount.Should().Be(1);
-        var tx = db.BeginTransaction();
-        tx.Should().NotBeNull();
-        await InsertEventLogAsync(2, 3, Guid.NewGuid());
-        tx.Rollback();
-        rowCount = await db.Use($"select count(*) from event_log").ExecuteScalarAsync(MapToInt);
-        rowCount.Should().Be(1);
-        await db.Use("delete from event_log").ExecuteCommandAsync();
-        return;
+        var commandId = Guid.NewGuid();
 
-        async Task InsertEventLogAsync(long eventSourceId, long eventSourceVersion, Guid commandId)
+        try
         {
-            var sql = $"exec spInsertEventLog @eventSourceId = {eventSourceId}, @eventSourceVersion = {eventSourceVersion},  @eventTypeId = 99, @eventData = 'The Rain In Spain', @eventDate = '{DateTime.Now:yyyy-MM-dd}', @commandId = '{commandId}'";
-            await db.Use(sql).ExecuteCommandAsync();
+            (await CountCommandAsync(commandId)).Should().Be(0);
+
+            var tx = db.BeginTransaction();
+            tx.Should().NotBeNull();
+            await InsertCommandAsync(commandId);
+            tx!.Rollback();
+
+            (await CountCommandAsync(commandId)).Should().Be(0);
+        }
+        finally
+        {
+            await DeleteCommandAsync(commandId);
         }
     }
+
+    async Task InsertCommandAsync(Guid commandId)
+        => await _fixture.Db.Use($"""
+            insert into command_log (
+                commandid, streamid, actorname, commandname,
+                commandtimestamp, commandstatus, commanddata
+            ) values (
+                '{commandId}', 'storage-integrated-tests', 'StorageTests', 'TestTransaction',
+                '{DateTime.UtcNow:o}', 'Processing', 'test-data'
+            )
+            """).ExecuteCommandAsync();
+
+    async Task DeleteCommandAsync(Guid commandId)
+        => await _fixture.Db.Use($"delete from command_log where commandid = '{commandId}'").ExecuteCommandAsync();
+
+    Task<int> CountCommandAsync(Guid commandId)
+        => _fixture.Db.Use($"select count(*) from command_log where commandid = '{commandId}'")
+            .ExecuteScalarAsync(MapToInt);
 
     static int MapToInt(IObjectDataRecord record)
         => record.GetInt(0);

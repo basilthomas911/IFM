@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using System.Collections.Concurrent;
 using System.Data;
+using System.Reflection;
 using System.Text;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
@@ -23,6 +24,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     readonly ILogger<DbProvider> _logger;
     readonly ScyllaDbConnection _conn;
     readonly ConcurrentDictionary<string, PreparedStatement> _preparedStatementCache = [];
+    static readonly ConcurrentDictionary<Type, IReadOnlyDictionary<string, PropertyInfo>> _bindPropertyCache = [];
 
     /// <summary>
     /// Creates or retrieves an <see cref="IObjectRepositoryProvider"/> instance for the specified context.
@@ -56,6 +58,48 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// </summary>
     PreparedStatement GetOrPrepare(ISession session, string cql)
         => _preparedStatementCache.GetOrAdd(cql, static (key, s) => s.Prepare(key), session);
+
+    /// <summary>
+    /// Binds a parameter object by matching its public properties to the prepared statement's named markers.
+    /// The Cassandra driver otherwise treats a record or anonymous object as one scalar parameter.
+    /// </summary>
+    static BoundStatement Bind(PreparedStatement statement, object? parameterValue)
+    {
+        if (parameterValue is null)
+            return statement.Bind();
+        if (parameterValue is object[] values)
+            return statement.Bind(values);
+
+        var parameterType = parameterValue.GetType();
+        var properties = _bindPropertyCache.GetOrAdd(parameterType, static type =>
+            type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .ToDictionary(property => property.Name, StringComparer.OrdinalIgnoreCase));
+
+        if (properties.Count == 0)
+            return statement.Bind(parameterValue);
+
+        var bindValues = new object?[statement.Variables.Columns.Length];
+        for (var index = 0; index < statement.Variables.Columns.Length; index++)
+        {
+            var column = statement.Variables.Columns[index];
+            var markerName = column.Name;
+            if (!properties.TryGetValue(markerName, out var property))
+            {
+                bindValues[index] = null;
+                continue;
+            }
+            var value = property.GetValue(parameterValue);
+            bindValues[index] = value switch
+            {
+                DateOnly date when column.Type == typeof(DateTime) =>
+                    date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+                DateOnly date when column.Type == typeof(DateTimeOffset) =>
+                    new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)),
+                _ => value
+            };
+        }
+        return statement.Bind(bindValues);
+    }
 
     /// <summary>
     /// execute command 
@@ -112,9 +156,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 batchStatement.SetSerialConsistencyLevel(ConsistencyLevel.Serial);
                 foreach (var bindValues in items)
                 {
-                    var boundStatement = bindValues is not null
-                        ? ps.Bind(bindValues)
-                        : ps.Bind();
+                    var boundStatement = Bind(ps, bindValues);
                     batchStatement.Add(boundStatement);
                 }
                 await session.ExecuteAsync(batchStatement);
@@ -126,9 +168,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         {
             var ps = GetOrPrepare(session, ctx.CommandText);
             var bindValues = ctx.ParameterValues[0];
-            var boundStatement = bindValues is not null
-                ? ps.Bind(bindValues)
-                : ps.Bind();
+            var boundStatement = Bind(ps, bindValues);
             await session.ExecuteAsync(boundStatement);
         }
     }
@@ -183,9 +223,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                     var ps = GetOrPrepare(session, commandText);
                     foreach (var bindValues in cmd.BindValues)
                     {
-                        var boundStatement = bindValues is not null
-                            ? ps.Bind(bindValues)
-                            : ps.Bind();
+                        var boundStatement = Bind(ps, bindValues);
                         await session.ExecuteAsync(boundStatement);
                     }
                 }
@@ -207,9 +245,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 _logger.LogInformationEvent(ClassName, "ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", cmd.CommandText, cmd.BindValues?.Count ?? 0);
                 var ps = GetOrPrepare(session, cmd.CommandText);
                 var bindValues = cmd.BindValues!.Count == 1 ? cmd.BindValues[0]: default;
-                var boundStatement = bindValues is not null
-                            ? ps.Bind(cmd.BindValues[0])
-                            : ps.Bind();
+                var boundStatement = Bind(ps, bindValues);
                 batchStatement.Add(boundStatement);
             }
             await session.ExecuteAsync(batchStatement);
@@ -239,9 +275,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 var ps = GetOrPrepare(session, ctx.CommandText);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
-                    var boundStatement = bindValues is not null
-                        ? ps.Bind(bindValues)
-                        : ps.Bind();
+                    var boundStatement = Bind(ps, bindValues);
                     using var rowSet = await session.ExecuteAsync(boundStatement);
                     foreach (var row in rowSet)
                     {
@@ -305,9 +339,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 var ps = GetOrPrepare(session, ctx.CommandText);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
-                    var boundStatement = bindValues is not null
-                        ? ps.Bind(bindValues)
-                        : ps.Bind();
+                    var boundStatement = Bind(ps, bindValues);
                     using var rowSet = await session.ExecuteAsync(boundStatement);
                     resultSet = GetResultSet(rowSet, dataMapper);
                 }
@@ -350,9 +382,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             if (ctx.ParameterValues.Count == 1)
             {
                 var ps = GetOrPrepare(session, ctx.CommandText);
-                var boundStatement = ctx.ParameterValues[0] is not null
-                    ? ps.Bind(ctx.ParameterValues[0])
-                    : ps.Bind();
+                var boundStatement = Bind(ps, ctx.ParameterValues[0]);
                 rowSet = await session.ExecuteAsync(boundStatement);
             }
             else
@@ -398,9 +428,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             if (ctx.ParameterValues.Count == 1)
             {
                 var ps = GetOrPrepare(session, ctx.CommandText);
-                var boundStatement = ctx.ParameterValues[0] is not null
-                    ? ps.Bind(ctx.ParameterValues[0])
-                    : ps.Bind();
+                var boundStatement = Bind(ps, ctx.ParameterValues[0]);
                 rowSet = await session.ExecuteAsync(boundStatement);
             }
             else
@@ -446,9 +474,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 var ps = GetOrPrepare(session, ctx.CommandText);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
-                    var boundStatement = bindValues is not null
-                        ? ps.Bind(bindValues)
-                        : ps.Bind();
+                    var boundStatement = Bind(ps, bindValues);
                     using var rowSet = await session.ExecuteAsync(boundStatement);
                     dataReducer.Invoke(GetReducer(rowSet));
                 }
@@ -532,9 +558,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 var ps = GetOrPrepare(session, ctx.CommandText);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
-                    var boundStatement = bindValues is not null
-                        ? ps.Bind(bindValues)
-                        : ps.Bind();
+                    var boundStatement = Bind(ps, bindValues);
                     using var rowSet = await session.ExecuteAsync(boundStatement);
                     resultSet = GetResultSet(rowSet, dataMapper);
                 }
@@ -574,9 +598,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 var ps = GetOrPrepare(session, ctx.CommandText);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
-                    var boundStatement = bindValues is not null
-                        ? ps.Bind(bindValues)
-                        : ps.Bind();
+                    var boundStatement = Bind(ps, bindValues);
                     using var rowSet = await session.ExecuteAsync(boundStatement);
                     return ScyllaDbResultSetMaterializer.GetResultSet(rowSet, dataMapper);
                 }
@@ -615,9 +637,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             if (ctx.ParameterValues.Count == 1)
             {
                 var ps = GetOrPrepare(session, ctx.CommandText);
-                var boundStatement = ctx.ParameterValues[0] is not null
-                    ? ps.Bind(ctx.ParameterValues[0])
-                    : ps.Bind();
+                var boundStatement = Bind(ps, ctx.ParameterValues[0]);
                 rowSet = await session.ExecuteAsync(boundStatement);
             }
             else
@@ -650,9 +670,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             if (ctx.ParameterValues.Count == 1)
             {
                 var ps = GetOrPrepare(session, ctx.CommandText);
-                var boundStatement = ctx.ParameterValues[0] is not null
-                    ? ps.Bind(ctx.ParameterValues[0])
-                    : ps.Bind();
+                var boundStatement = Bind(ps, ctx.ParameterValues[0]);
                 rowSet = await session.ExecuteAsync(boundStatement);
             }
             else

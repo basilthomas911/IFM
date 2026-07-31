@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-	  <InternalsVisibleTo Include="$(MSBuildProjectName).UnitTests" />
+	  <InternalsVisibleTo Include="$(MSBuildProjectName).IntegrationTests" />
 
   </ItemGroup>
 

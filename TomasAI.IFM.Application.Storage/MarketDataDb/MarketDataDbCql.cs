@@ -1221,12 +1221,11 @@ internal static class MarketDataDbCql
             ValueDate AS "ValueDate",
             IntrinsicTime AS "IntrinsicTime",
             IntrinsicTimeTrend AS "TrendType",
-            FuturesMDI AS "MDI"
+            IntrinsicPrice AS "MDI"
         FROM futures_iti_signal
         WHERE ContractId = :contractId
         AND ValueDate = :maxValueDate
         AND IntrinsicTimeMode IN :intrinsicTimeModes
-        AND FuturesRSI > 0
         ALLOW FILTERING;
     """;
 
@@ -1256,7 +1255,7 @@ internal static class MarketDataDbCql
             ValueDate AS "ValueDate",
             IntrinsicTime AS "IntrinsicTime",
             IntrinsicTimeTrend AS "TrendType",
-            FuturesMDI AS "MDI"
+            IntrinsicPrice AS "MDI"
         FROM futures_iti_signal
         WHERE ContractId = :contractId
         AND ValueDate = :maxValueDate
@@ -1333,7 +1332,7 @@ internal static class MarketDataDbCql
             valueDate DATE,
             timestamp TIMESTAMP,
             sequenceId BIGINT,
-            trendClass BOOLEAN,
+            trendClass FLOAT,
             trendDirection FLOAT,
             trendDirectionMode FLOAT,
             trendDelta FLOAT,
@@ -1616,9 +1615,10 @@ internal static class MarketDataDbCql
     public const string GetFuturesItiTrendDirectionChangedSignals = """
         SELECT contractid AS "ContractId",
             valuedate AS "ValueDate",
+            timePeriod AS "TimePeriod",
+            sequenceid AS "SequenceId",
             intrinsictime AS "IntrinsicTime",
             intrinsictimegroupid AS "IntrinsicTimeGroupId",
-            sequenceid AS "SequenceId",
             intrinsictimelength AS "IntrinsicTimeLength",
             intrinsicprice AS "IntrinsicPrice",
             intrinsictimetrend AS "IntrinsicTimeTrend",
@@ -1626,26 +1626,14 @@ internal static class MarketDataDbCql
             trendprice AS "TrendPrice",
             trendextreme AS "TrendExtreme",
             trendreversal AS "TrendReversal",
-            lambda AS "Lambda",
-            targetdelta AS "TargetDelta",
-            predicteddelta AS "PredictedDelta",
             trenddelta AS "TrendDelta",
+            targetdelta AS "TargetDelta",
+            lambda AS "Lambda",
+            tradingDays AS "TradingDays",
+            threshold AS "Threshold",
             uptrendtrigger AS "UpTrendTrigger",
             downtrendtrigger AS "DownTrendTrigger",
-            futurespercentchange AS "FuturesPercentChange",
-            futuresmean AS "FuturesMean",
-            futuresstddev AS "FuturesStdDev",
-            futuresmdi AS "FuturesMDI",
-            futuresmditrend AS "FuturesMDITrend",
-            futuresmdiuptrendlimit AS "FuturesMDIUpTrendLimit",
-            futuresmdidowntrendlimit AS "FuturesMDIDownTrendLimit",
-            futuresrsi AS "FuturesRSI",
-            futuresrsislope AS "FuturesRSISlope",
-            futuresfiftydma AS "FuturesFiftyDMA",
-            futurestwohundreddma AS "FuturesTwoHundredDMA",
-            tradestate AS "TradeState",
-            uptrendcoastlinecounter AS "UpTrendCoastLineCounter",
-            downtrendcoastlinecounter AS "DownTrendCoastLineCounter"
+            tradestate AS "TradeState"
         FROM futures_iti_signal
         WHERE contractid = :contractid
         AND valuedate = :valuedate
@@ -1740,14 +1728,17 @@ internal static class MarketDataDbCql
             tradeState AS "TradeState"
         FROM futures_iti_signal
         WHERE contractId = :contractId 
-        AND valueDate = :valueDate 
-        LIMIT 1;
+        AND valueDate = :valueDate
+        AND intrinsicTimeMode = 'TrendReversalChanged'
+        LIMIT 1
+        ALLOW FILTERING;
     """;
 
     public const string GetLastFuturesItiSignalTrendDirectionChange = """
         SELECT 
             contractId AS "ContractId",
             valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod",
             sequenceId AS "SequenceId",
             intrinsicTime AS "IntrinsicTime",
             intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
@@ -1758,26 +1749,14 @@ internal static class MarketDataDbCql
             trendPrice AS "TrendPrice",
             trendExtreme AS "TrendExtreme",
             trendReversal AS "TrendReversal",
-            lambda AS "Lambda",
-            targetDelta AS "TargetDelta",
-            predictedDelta AS "PredictedDelta",
             trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta",
+            lambda AS "Lambda",
+            tradingDays AS "TradingDays",
+            threshold AS "Threshold",
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
-            futuresPercentChange AS "FuturesPercentChange",
-            futuresMean AS "FuturesMean",
-            futuresStdDev AS "FuturesStdDev",
-            futuresMDI AS "FuturesMDI",
-            futuresMDITrend AS "FuturesMDITrend",
-            futuresMDIUpTrendLimit AS "FuturesMDIUpTrendLimit",
-            futuresMDIDownTrendLimit AS "FuturesMDIDownTrendLimit",
-            futuresRSI AS "FuturesRSI",
-            futuresRSISlope AS "FuturesRSISlope",
-            futuresFiftyDMA AS "FuturesFiftyDMA",
-            futuresTwoHundredDMA AS "FuturesTwoHundredDMA",
-            tradeState AS "TradeState",
-            upTrendCoastLineCounter AS "UpTrendCoastLineCounter",
-            downTrendCoastLineCounter AS "DownTrendCoastLineCounter"
+            tradeState AS "TradeState"
         FROM futures_iti_signal
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
@@ -1804,6 +1783,7 @@ internal static class MarketDataDbCql
         SELECT 
             contractId AS "ContractId",
             valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod",
             sequenceId AS "SequenceId",
             intrinsicTime AS "IntrinsicTime",
             intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
@@ -1814,26 +1794,14 @@ internal static class MarketDataDbCql
             trendPrice AS "TrendPrice",
             trendExtreme AS "TrendExtreme",
             trendReversal AS "TrendReversal",
-            lambda AS "Lambda",
-            targetDelta AS "TargetDelta",
-            predictedDelta AS "PredictedDelta",
             trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta",
+            lambda AS "Lambda",
+            tradingDays AS "TradingDays",
+            threshold AS "Threshold",
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
-            futuresPercentChange AS "FuturesPercentChange",
-            futuresMean AS "FuturesMean",
-            futuresStdDev AS "FuturesStdDev",
-            futuresMDI AS "FuturesMDI",
-            futuresMDITrend AS "FuturesMDITrend",
-            futuresMDIUpTrendLimit AS "FuturesMDIUpTrendLimit",
-            futuresMDIDownTrendLimit AS "FuturesMDIDownTrendLimit",
-            futuresRSI AS "FuturesRSI",
-            futuresRSISlope AS "FuturesRSISlope",
-            futuresFiftyDMA AS "FuturesFiftyDMA",
-            futuresTwoHundredDMA AS "FuturesTwoHundredDMA",
-            tradeState AS "TradeState",
-            upTrendCoastLineCounter AS "UpTrendCoastLineCounter",
-            downTrendCoastLineCounter AS "DownTrendCoastLineCounter"
+            tradeState AS "TradeState"
         FROM futures_iti_signal
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
@@ -1847,6 +1815,7 @@ internal static class MarketDataDbCql
         SELECT 
             contractId AS "ContractId",
             valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod",
             sequenceId AS "SequenceId",
             intrinsicTime AS "IntrinsicTime",
             intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
@@ -1857,26 +1826,14 @@ internal static class MarketDataDbCql
             trendPrice AS "TrendPrice",
             trendExtreme AS "TrendExtreme",
             trendReversal AS "TrendReversal",
-            lambda AS "Lambda",
-            targetDelta AS "TargetDelta",
-            predictedDelta AS "PredictedDelta",
             trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta",
+            lambda AS "Lambda",
+            tradingDays AS "TradingDays",
+            threshold AS "Threshold",
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
-            futuresPercentChange AS "FuturesPercentChange",
-            futuresMean AS "FuturesMean",
-            futuresStdDev AS "FuturesStdDev",
-            futuresMDI AS "FuturesMDI",
-            futuresMDITrend AS "FuturesMDITrend",
-            futuresMDIUpTrendLimit AS "FuturesMDIUpTrendLimit",
-            futuresMDIDownTrendLimit AS "FuturesMDIDownTrendLimit",
-            futuresRSI AS "FuturesRSI",
-            futuresRSISlope AS "FuturesRSISlope",
-            futuresFiftyDMA AS "FuturesFiftyDMA",
-            futuresTwoHundredDMA AS "FuturesTwoHundredDMA",
-            tradeState AS "TradeState",
-            upTrendCoastLineCounter AS "UpTrendCoastLineCounter",
-            downTrendCoastLineCounter AS "DownTrendCoastLineCounter"
+            tradeState AS "TradeState"
         FROM futures_iti_signal
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
@@ -1945,7 +1902,7 @@ internal static class MarketDataDbCql
             timePeriod AS "TimePeriod",
             periodLength AS "PeriodLength",
             timestamp AS "Timestamp",
-            futuresPrice AS "FuturesPrice",
+            price AS "FuturesPrice",
             pricechange AS "PriceChange",
             pricegain AS "PriceGain",
             priceloss AS "PriceLoss",
@@ -1961,7 +1918,8 @@ internal static class MarketDataDbCql
         AND timePeriod = :timePeriod
         AND periodLength = :periodLength
         AND valuedate = :valueDate
-        LIMIT 1;
+        LIMIT 1
+        ALLOW FILTERING;
     """;
 
     public const string GetLastFuturesRsiDailySignal = """
@@ -1970,7 +1928,7 @@ internal static class MarketDataDbCql
             timePeriod AS "TimePeriod",
             periodLength AS "PeriodLength",
             timestamp AS "Timestamp",
-            futuresPrice AS "FuturesPrice",
+            price AS "FuturesPrice",
             pricechange AS "PriceChange",
             pricegain AS "PriceGain",
             priceloss AS "PriceLoss",
@@ -1985,7 +1943,8 @@ internal static class MarketDataDbCql
            WHERE contractid = :contractId
         AND timePeriod = :timePeriod
         AND periodLength = :periodLength
-        LIMIT 1;
+        LIMIT 1
+        ALLOW FILTERING;
     """;
 
     public const string InsertFuturesTdiSignal = """
@@ -2020,6 +1979,7 @@ internal static class MarketDataDbCql
     public const string GetLastFuturesTdiSignal = """
         SELECT ContractId AS "ContractId",
             ValueDate AS "ValueDate",
+            TimePeriod AS "TimePeriod",
             Timestamp AS "Timestamp",
             UpTrendCount AS "UpTrendCount",
             DownTrendCount AS "DownTrendCount",
@@ -2033,6 +1993,7 @@ internal static class MarketDataDbCql
         INSERT INTO futures_trade_signal (
             contractId,
             valueDate,
+            timePeriod,
             sequenceId,
             timestamp,
             mean,
@@ -2064,6 +2025,7 @@ internal static class MarketDataDbCql
         ) VALUES (
             :contractId,
             :valueDate,
+            :timePeriod,
             :sequenceId,
             :timestamp,
             :mean,

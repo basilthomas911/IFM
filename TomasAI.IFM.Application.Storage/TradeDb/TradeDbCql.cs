@@ -585,6 +585,24 @@ WHERE orderId = :orderId
         WHERE tradeId = :tradeId;
         """;
 
+    public const string GetOptionLegsByOrderAndTrade = """
+        SELECT
+            orderId AS "OrderId",
+            tradeId AS "TradeId",
+            contractId AS "ContractId",
+            quantity AS "Quantity",
+            strikePrice AS "StrikePrice",
+            optionLegType AS "OptionLegType",
+            optionLegAction AS "OptionLegAction",
+            createdOn AS "CreatedOn",
+            createdBy AS "CreatedBy",
+            updatedOn AS "UpdatedOn",
+            updatedBy AS "UpdatedBy"
+        FROM option_leg
+        WHERE orderId = :orderId
+          AND tradeId = :tradeId;
+        """;
+
     public const string GetOptionLegsAll = """
         SELECT 
             orderId AS "OrderId",
@@ -751,8 +769,8 @@ order by valueDate desc
         SELECT TradeId AS "TradeId",
  TradeType AS "TradeType",
     MaxLossLimit AS "MaxLossLimit",
-    MaxProfitLimit as "MaxProfitLimit",
-    MinProfitLimit AS "MinProfitLimit"
+    MinProfitLimit AS "MinProfitLimit",
+    MaxProfitLimit as "MaxProfitLimit"
 FROM trade_type_limit
 WHERE TradeId = :tradeId 
 AND TradeType = :tradeType;
@@ -899,9 +917,7 @@ AND FillDate >= :fillDate;
        CreatedOn AS "CreatedOn",
        CreatedBy AS "CreatedBy"
 FROM trade_plan
-WHERE OrderId = :orderId
-AND TradeId = :tradeId
-AND ValueDate = :valueDate;
+WHERE OrderId = :orderId;
 """;
 
     public const string GetLastTradePlans = """

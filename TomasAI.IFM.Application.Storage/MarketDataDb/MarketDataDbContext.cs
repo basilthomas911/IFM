@@ -2020,6 +2020,7 @@ public class MarketDataDbContext(
             .SetParameters(new InsertFuturesTradeSignal(
                 contractId: FuturesTradeSignalV2ReadModel.ContractId,
                 valueDate: FuturesTradeSignalV2ReadModel.ValueDate,
+                timePeriod: FuturesTradeSignalV2ReadModel.TimePeriod.ToStringFast(),
                 sequenceId,
                 timestamp: FuturesTradeSignalV2ReadModel.Timestamp,
                 mean: FuturesTradeSignalV2ReadModel.Mean,
@@ -2065,6 +2066,7 @@ public class MarketDataDbContext(
            .SetParameters(ftsQuery.Select(e => new InsertFuturesTradeSignal(
                contractId: e.ContractId,
                valueDate: e.ValueDate,
+               timePeriod: e.TimePeriod.ToStringFast(),
                sequenceId: e.SequenceId,
                timestamp: e.Timestamp,
                mean: e.Mean,
@@ -2115,6 +2117,7 @@ public class MarketDataDbContext(
            .SetParameters(ftsQuery.Select(e => new InsertFuturesTradeSignal(
                contractId: e.ContractId,
                valueDate: e.ValueDate,
+               timePeriod: e.TimePeriod.ToStringFast(),
                sequenceId: e.SequenceId,
                timestamp: e.Timestamp,
                mean: e.Mean,
@@ -2194,24 +2197,34 @@ public class MarketDataDbContext(
     /// <param name="e"></param>
     public async Task<FuturesItiTrendModelDataStatistics> LoadFuturesItiTrendClassDataAsync(string symbol, DateOnly startDate, DateOnly endDate)
     {
-        var trendDeltaDataStats = new FuturesItiTrendModelDataStatistics();
         var db = _dbFactory.MarketDataDb;
         var dbReader = db as IMarketDataDbReadContext;
         var futuresItiSignals = await dbReader!.GetFuturesItiSignalTrendClassDataAsync(symbol, startDate, endDate);
-        if (futuresItiSignals?.Count > 0)
-        {
-            var queuedCommands = new List<object>
+        var sourceSignals = futuresItiSignals
+            .GroupBy(e => (e.ContractId, e.ValueDate, e.IntrinsicTimeGroupId))
+            .Select(e => e.OrderByDescending(signal => signal.SequenceId).First())
+            .ToArray();
+        if (sourceSignals.Length == 0)
+            return FuturesItiTrendModelDataStatistics.Empty;
+
+        await db.Use(MarketDataDbCql.DeleteFuturesItiTrendClassData)
+            .SetParameters(new DeleteFuturesItiTrendClassData(symbol, startDate, endDate))
+            .ExecuteCommandAsync();
+        await db.Use(MarketDataDbCql.InsertFuturesItiTrendClassData)
+            .SetParameters(sourceSignals.Select(e => new
             {
-                db.Use(MarketDataDbCql.DeleteFuturesItiTrendClassData)
-                  .SetParameters(new DeleteFuturesItiTrendClassData(symbol, startDate, endDate))
-                  .QueueCommand()
-            };
-            await db.ExecuteQueuedCommandsAsync(queuedCommands);
-        }
-
-        return trendDeltaDataStats;
-
-
+                symbol,
+                valueDate = e.ValueDate,
+                timestamp = e.IntrinsicTime,
+                sequenceId = e.SequenceId,
+                trendClass = (float)e.IntrinsicTimeGroupId,
+                trendDirection = (float)e.IntrinsicTimeTrend,
+                trendDirectionMode = (float)e.IntrinsicTimeMode,
+                trendDelta = (float)e.TrendDelta,
+                futuresRsi = 0f
+            }))
+            .ExecuteCommandAsync();
+        return CalculateStatistics(sourceSignals.Select(e => (double)e.IntrinsicTimeGroupId));
     }
 
     /// <summary>
@@ -2220,24 +2233,61 @@ public class MarketDataDbContext(
     /// <param name="e"></param>
     public async Task<FuturesItiTrendModelDataStatistics> LoadFuturesItiTrendDeltaDataAsync(string symbol, DateOnly startDate, DateOnly endDate)
     {
-        var trendDeltaDataStats = new FuturesItiTrendModelDataStatistics();
         var db = _dbFactory.MarketDataDb;
         var dbReader = db as IMarketDataDbReadContext;
         var futuresItiSignals = await dbReader!.GetFuturesItiSignalTrendDeltaDataAsync(symbol, startDate, endDate);
-        if (futuresItiSignals?.Count > 0)
-        {
-            var queuedCommands = new List<object>
+        var sourceSignals = futuresItiSignals
+            .GroupBy(e => (e.ContractId, e.ValueDate, e.IntrinsicTimeGroupId))
+            .Select(e => e.OrderByDescending(signal => signal.SequenceId).First())
+            .ToArray();
+        if (sourceSignals.Length == 0)
+            return FuturesItiTrendModelDataStatistics.Empty;
+
+        await db.Use(MarketDataDbCql.DeleteFuturesItiTrendDeltaData)
+            .SetParameters(new DeleteFuturesItiTrendDeltaData(symbol, startDate, endDate))
+            .ExecuteCommandAsync();
+        await db.Use(MarketDataDbCql.InsertFuturesItiTrendDeltaData)
+            .SetParameters(sourceSignals.Select(e => new
             {
-                db.Use(MarketDataDbCql.DeleteFuturesItiTrendDeltaData)
-                  .SetParameters(new DeleteFuturesItiTrendDeltaData(symbol, startDate, endDate))
-                  .QueueCommand()
-            };
+                symbol,
+                valueDate = e.ValueDate,
+                timestamp = e.IntrinsicTime,
+                sequenceId = e.SequenceId,
+                trendDelta = (float)e.TrendDelta,
+                trendDirection = (float)e.IntrinsicTimeTrend,
+                trendDirectionMode = (float)e.IntrinsicTimeMode,
+                futuresPrice = (float)e.IntrinsicPrice,
+                trendExtreme = (float)e.TrendExtreme,
+                futuresRsi = 0f
+            }))
+            .ExecuteCommandAsync();
+        return CalculateStatistics(sourceSignals.Select(e => e.TrendDelta));
+    }
 
-            await db.ExecuteQueuedCommandsAsync(queuedCommands);
-        }
-        return trendDeltaDataStats;
+    static FuturesItiTrendModelDataStatistics CalculateStatistics(IEnumerable<double> source)
+    {
+        var values = source.OrderBy(e => e).ToArray();
+        if (values.Length == 0)
+            return FuturesItiTrendModelDataStatistics.Empty;
 
-
+        var mean = values.Average();
+        var variance = values.Average(e => Math.Pow(e - mean, 2));
+        var stdDev = Math.Sqrt(variance);
+        var median = values.Length % 2 == 0
+            ? (values[values.Length / 2 - 1] + values[values.Length / 2]) / 2
+            : values[values.Length / 2];
+        var skewness = stdDev == 0
+            ? 0
+            : values.Average(e => Math.Pow((e - mean) / stdDev, 3));
+        return new FuturesItiTrendModelDataStatistics(
+            values.Length,
+            values[^1],
+            mean,
+            median,
+            values[0],
+            skewness,
+            stdDev,
+            variance);
     }
 
     /// <summary>
@@ -2535,13 +2585,6 @@ public class MarketDataDbContext(
     {
         var db = _dbFactory.MarketDataDb;
         var maxValueDate = await GetFuturesItiSignalMaxTrendValueDate(IntrinsicTimeTrendType.UpTrend);
-        var maxDownTrendValueDate = await GetFuturesItiSignalMaxTrendValueDate(IntrinsicTimeTrendType.DownTrend);
-
-        var maxUpTrendSequenceId = await GetFuturesItiSignalMaxTrendSequenceId(IntrinsicTimeTrendType.UpTrend, IntrinsicTimeModeType.TrendDirectionChanged);
-        var maxDownTrendSequenceId = await GetFuturesItiSignalMaxTrendSequenceId(IntrinsicTimeTrendType.DownTrend, IntrinsicTimeModeType.TrendDirectionChanged);
-
-        var avgUpTrendInfo = await GetFuturesItiSignalAverageInfo(maxUpTrendSequenceId, IntrinsicTimeTrendType.UpTrend, GetIntrinsicTimeModes());
-        var avgDownTrendInfo = await GetFuturesItiSignalAverageInfo(maxDownTrendSequenceId, IntrinsicTimeTrendType.DownTrend, GetIntrinsicTimeModes());
 
         return await db.Use(MarketDataDbCql.GetFuturesItiSignalMDI)
             .SetParameters(new GetFuturesItiSignalMDI(
@@ -2560,27 +2603,6 @@ public class MarketDataDbContext(
                     intrinsicTimeTrend: intrinsicTimeTrendType.ToStringFast()
                 ))
                 .ExecuteScalarAsync<DateOnly>(MapToMaxValueDate!);
-
-        async Task<long> GetFuturesItiSignalMaxTrendSequenceId(IntrinsicTimeTrendType intrinsicTimeTrendType, IntrinsicTimeModeType intrinsicTimeModeType)
-            => await db.Use(MarketDataDbCql.GetFuturesItiSignalMaxTrendSequenceId)
-                .SetParameters(new GetFuturesItiSignalMaxTrendSequenceId(
-                    contractId,
-                    maxTrendValueDate: valueDate,
-                    intrinsicTimeTrend: intrinsicTimeTrendType.ToStringFast(),
-                    intrinsicTimeMode: intrinsicTimeModeType.ToStringFast()
-                ))
-                .ExecuteScalarAsync<long>(MapToMaxSequenceId!);
-
-        async Task<FuturesItiSignalAverageInfoDataModel?> GetFuturesItiSignalAverageInfo(long maxSequenceId, IntrinsicTimeTrendType intrinsicTimeTrendType, List<string> intrinsicTimeModes)
-            => await db.Use(MarketDataDbCql.GetFuturesItiSignalAverageInfo)
-                    .SetParameters(new GetFuturesItiSignalAverageInfo(
-                        contractId,
-                        valueDate,
-                        maxSequenceId,
-                        intrinsicTimeTrend: intrinsicTimeTrendType.ToStringFast(),
-                        intrinsicTimeModes
-                    ))
-                    .ExecuteSingleAsync(MapToFuturesItiSignalAverageInfo!);
 
     }
 
@@ -2865,7 +2887,7 @@ public class MarketDataDbContext(
     public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesRsiDailySignal)
-            .SetParameters(new { contractId, timePeriod, periodLength })
+            .SetParameters(new { contractId, timePeriod = timePeriod.ToStringFast(), periodLength })
             .ExecuteSingleAsync(MapToFuturesRsiSignal);
 
     /// <summary>

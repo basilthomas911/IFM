@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Framework.Storage.IntegratedTests
     public class StringReaderTests
     {
 
-        [Fact]
+        [Fact(Skip = "Requires a licensed HTTP data feed connection.")]
         public void ReadToEndAsyncOk()
         {
             var dataUri = new Uri(@"https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ");

@@ -123,8 +123,6 @@ internal class OptionPricerDbCql
         tradeStatus AS "TradeStatus",
         valueDate AS "ValueDate",
         daysToExpiry AS "DaysToExpiry",
-        optionStyle AS "OptionStyle",
-        optionType AS "OptionType",
         jobSubmitted AS "JobSubmitted",
         jobStatus AS "JobStatus",
         jobCompleted AS "JobCompleted",
@@ -177,11 +175,11 @@ internal class OptionPricerDbCql
     public const string InsertSpreadDistributionJob = """
         INSERT INTO spread_distribution_job (
         orderId, tradeId, tradeType, tradeStatus, valueDate, daysToExpiry, 
-        optionStyle, optionType, jobSubmitted, jobStatus, jobCompleted, jobFailed, 
+        jobSubmitted, jobStatus, jobCompleted, jobFailed,
         inProgress, lossProbabilityFactor
         ) VALUES (
         :orderId, :tradeId, :tradeType, :tradeStatus, :valueDate, :daysToExpiry, 
-        :optionStyle, :optionType, :jobSubmitted, :jobStatus, :jobCompleted, :jobFailed, 
+        :jobSubmitted, :jobStatus, :jobCompleted, :jobFailed,
         :inProgress, :lossProbabilityFactor
         ) IF NOT EXISTS;
         """;

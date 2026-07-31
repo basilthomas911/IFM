@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Framework.Storage.IntegratedTests
 {
     public class CsvDataReaderTests
     {
-        [Fact]
+        [Fact(Skip = "Requires a licensed HTTP data feed connection.")]
         public void CreateCsvDataReaderOk()
         {
             var dataUri = new Uri(@"https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ");
@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Framework.Storage.IntegratedTests
             (dr.FieldCount > 0).Should().BeTrue();
         }
 
-        [Fact]
+        [Fact(Skip = "Requires a licensed HTTP data feed connection.")]
         public void GetThisObjectByIndexOk()
         {
             var dataUri = new Uri(@"https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ");
@@ -30,7 +30,7 @@ namespace TomasAI.IFM.Framework.Storage.IntegratedTests
             value.Should().NotBeNull();
         }
 
-        [Fact]
+        [Fact(Skip = "Requires a licensed HTTP data feed connection.")]
         public void GetThisObjectByPropertyNameOk()
         {
             var dataUri = new Uri(@"https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ");

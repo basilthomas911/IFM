@@ -358,10 +358,11 @@ public class EventSourceDbContext(IDbConnectionSettings connectionSettings, IDbC
                 .SetParameters(new InsertCommandLogSetParameter(
                     CommandId: command.CommandId,
                     StreamId: command.StreamId,
-                    ActorName: $"{command.Subject.Name}",
+                    AggregateName: $"{command.RouteTo}",
                     CommandName: command.CommandName,
                     CommandTimestamp: $"{commandTimestamp:o}",
-                    CommandData: JsonConvert.SerializeObject(command)
+                    CommandStatus: $"{CommandStatus.InProgress}",
+                    CommandData: commandData
                 ))
                 .ExecuteCommandAsync())[0];
 

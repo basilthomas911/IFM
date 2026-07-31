@@ -64,43 +64,40 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         var cmd = _ctx.Repository.InTransaction();
         if (cmd is not null)
-        {
-            await ExecuteSqlCommandAsync(cmd as NpgsqlCommand);
-            return [-1L];
-        }
+            return await ExecuteSqlCommandAsync(cmd as NpgsqlCommand);
         using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
         await conn.OpenAsync();
-        if (_ctx.UseTransaction)
-            await UseTransactionAsync(conn);
-        else
-            await UseNoTransactionAsync(conn);
+        var affectedRows = _ctx.UseTransaction
+            ? await UseTransactionAsync(conn)
+            : await UseNoTransactionAsync(conn);
         conn.Close();
-        return [-1L];
+        return affectedRows;
 
-        async Task UseTransactionAsync(NpgsqlConnection conn)
+        async Task<long[]> UseTransactionAsync(NpgsqlConnection conn)
         {
             using var tx = conn.BeginTransaction();
             using var cmd = conn.CreateCommand();
             try
             {
                 cmd.Transaction = tx;
-                await ExecuteSqlCommandAsync(cmd);
+                var result = await ExecuteSqlCommandAsync(cmd);
                 tx.Commit();
+                return result;
             }
             catch (Exception ex)
             {
-                tx.Rollback();
+                TryRollback(tx);
                 var errorMessage = $"{ProviderTypeName}.ExecuteCommandAsync: {cmd.CommandText} {ex.Message}";
                 throw new StorageException(errorMessage, ex);
             }
         }
 
-        async Task UseNoTransactionAsync(NpgsqlConnection conn)
+        async Task<long[]> UseNoTransactionAsync(NpgsqlConnection conn)
         {
             using var cmd = conn.CreateCommand();
             try
             {
-                    await ExecuteSqlCommandAsync(cmd);
+                return await ExecuteSqlCommandAsync(cmd);
             }
             catch (Exception ex)
             {
@@ -109,8 +106,9 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
             }
         }
 
-        async Task ExecuteSqlCommandAsync(NpgsqlCommand cmd)
+        async Task<long[]> ExecuteSqlCommandAsync(NpgsqlCommand cmd)
         {
+            List<long> affectedRows = [];
             if (_ctx.CommandTimeout > 0)
                 cmd.CommandTimeout = _ctx.CommandTimeout;
             _ctx.SetCommand(cmd);
@@ -132,20 +130,21 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
                     {
                         var returnParameter = cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, default);
                         returnParameter.Direction = ParameterDirection.Output;
-                        await cmd.ExecuteNonQueryAsync();
+                        affectedRows.Add(await cmd.ExecuteNonQueryAsync());
                     }
                     else
-                        await cmd.ExecuteNonQueryAsync();
+                        affectedRows.Add(await cmd.ExecuteNonQueryAsync());
                 }
             }
             else if (cmd.CommandType == CommandType.StoredProcedure)
             {
                 var returnParameter = cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, default);
                 returnParameter.Direction = ParameterDirection.Output;
-                await cmd.ExecuteNonQueryAsync();
+                affectedRows.Add(await cmd.ExecuteNonQueryAsync());
             }
             else
-                await cmd.ExecuteNonQueryAsync();
+                affectedRows.Add(await cmd.ExecuteNonQueryAsync());
+            return [.. affectedRows];
         }
     }
 
@@ -191,19 +190,35 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
                 cmd.Parameters.Clear();
                 if (queuedCommand.Parameters is not null && queuedCommand.Parameters.Length > 0)
                     foreach (var spParameter in queuedCommand.Parameters)
-                        cmd.Parameters.Add(spParameter);
-                            await cmd.ExecuteNonQueryAsync();
+                    {
+                        var parameter = (NpgsqlParameter)spParameter;
+                        cmd.Parameters.AddWithValue(parameter.NpgsqlDbType, parameter.NpgsqlValue);
+                    }
+                await cmd.ExecuteNonQueryAsync();
              }
              tx.Commit();
             conn.Close();
         }
         catch (Exception ex)
         {
-            tx.Rollback();
+            TryRollback(tx);
             conn.Close();
             while (ex.InnerException != null) ex = ex.InnerException;
                var errorMessage = $"{ProviderTypeName}.ExecuteQueuedCommandAsync: {commandText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
+        }
+    }
+
+    static void TryRollback(NpgsqlTransaction transaction)
+    {
+        try
+        {
+            if (transaction.Connection is not null)
+                transaction.Rollback();
+        }
+        catch
+        {
+            // Preserve the database exception that caused the rollback attempt.
         }
     }
 

@@ -23,6 +23,10 @@ internal readonly record struct GetOptionLegs(int tradeId) : IBindValue
 {
     public object Bind() => new { tradeId };
 }
+internal readonly record struct GetOptionLegsByOrderAndTrade(int orderId, int tradeId) : IBindValue
+{
+    public object Bind() => new { orderId, tradeId };
+}
 internal readonly record struct GetOptionLegsWithValueDate(int tradeId, DateOnly valueDate) : IBindValue
 {
     public object Bind() => new { tradeId, valueDate };

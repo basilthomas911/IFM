@@ -240,8 +240,8 @@ public class TradeDbContext(
         => new(
             orderId: e.GetInt(0),
             tradeId: e.GetInt(1),
-            valueDate: e.GetDateOnly(2),
-            tradeType: e.GetEnum<TradeType>(3),
+            valueDate: e.GetDateOnly(3),
+            tradeType: e.GetEnum<TradeType>(2),
             barDate: e.GetDateTime(4),
             lossLimit: e.GetDecimal(5),
             winLimit: e.GetDecimal(6),
@@ -293,11 +293,11 @@ public class TradeDbContext(
         => new(
             orderId: e.GetInt(0),
             tradeId: e.GetInt(1),
-            valueDate: e.GetDateOnly(2),
-            optionLegId: e.GetString(3),
-            tradeType: e.GetEnum<TradeType>(4),
-            daysToExpiry: e.GetInt(5),
-            tradeStatus: e.GetEnum<TradeStatus>(6),
+            valueDate: e.GetDateOnly(3),
+            optionLegId: e.GetString(6),
+            tradeType: e.GetEnum<TradeType>(2),
+            daysToExpiry: e.GetInt(4),
+            tradeStatus: e.GetEnum<TradeStatus>(5),
             bidPrice: e.GetDecimal(7),
             askPrice: e.GetDecimal(8),
             impliedVolatility: e.GetDouble(9),
@@ -483,8 +483,8 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             .ExecuteQueryAsync(MapToTradePosition!);
 
         List<OptionTradeLegReadModel> optionLegs = [.. await db
-            .Use(TradeDbCql.GetOptionLegs)
-            .SetParameters(new GetOptionLegs(entityId.TradeId))
+            .Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
+            .SetParameters(new GetOptionLegsByOrderAndTrade(entityId.OrderId, entityId.TradeId))
             .ExecuteQueryAsync(MapToOptionLeg!)];
 
         var tradePosition = tradePositions.Select(o =>
@@ -567,8 +567,8 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
 
 
         async Task<ICollection<OptionTradeLegReadModel>> GetOptionLegs()
-           => await db.Use(TradeDbCql.GetOptionLegs)
-                  .SetParameters(new GetOptionLegs(tradeId))
+           => await db.Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
+                  .SetParameters(new GetOptionLegsByOrderAndTrade(orderId, tradeId))
                   .ExecuteQueryAsync(MapToOptionLeg!);
 
         async Task<ICollection<OptionTradeLegDataReadModel>> GetOptionLegData(TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus)
@@ -670,8 +670,8 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         return tradePosition;
 
         async Task<ICollection<OptionTradeLegReadModel>> GetOptionLegs()
-            => await db.Use(TradeDbCql.GetOptionLegs)
-                   .SetParameters(new GetOptionLegs(tradeId))
+            => await db.Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
+                   .SetParameters(new GetOptionLegsByOrderAndTrade(orderId, tradeId))
                    .ExecuteQueryAsync(MapToOptionLeg!);
 
         async Task<ICollection<OptionTradeLegDataReadModel>> GetOptionLegData()
@@ -729,10 +729,19 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <param name="tradeId"></param>
     /// <returns></returns>
     public async Task<ICollection<string>> GetOptionLegContractIdsAsync(int tradeId)
-        => [.. (await _dbFactory.TradeDb
+    {
+        var optionLegs = await _dbFactory.TradeDb
                 .Use(TradeDbCql.GetOptionLegs)
-                . SetParameters(new GetOptionLegs(tradeId))
-                .ExecuteQueryAsync(MapToOptionLeg!)).Select(e => e.ContractId)];
+                .SetParameters(new GetOptionLegs(tradeId))
+                .ExecuteQueryAsync(MapToOptionLeg!);
+        var latestTradeLegs = optionLegs
+            .GroupBy(e => e.OrderId)
+            .OrderByDescending(e => e.Max(leg => leg.UpdatedOn))
+            .FirstOrDefault();
+        return latestTradeLegs is null
+            ? []
+            : [.. latestTradeLegs.Select(e => e.ContractId)];
+    }
 
     /// <summary>
     /// Asynchronously retrieves a collection of all option leg data models.
@@ -770,8 +779,12 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         var optionLegs = await db.Use(TradeDbCql.GetOptionLegs)
             .SetParameters(new GetOptionLegs(tradeId))
             .ExecuteQueryAsync(MapToOptionLeg!);
-        return optionLegs.Count > 0
-            ? optionLegs.Sum(e => e.Quantity) / optionLegs.Count
+        var latestTradeLegs = optionLegs
+            .GroupBy(e => e.OrderId)
+            .OrderByDescending(e => e.Max(leg => leg.UpdatedOn))
+            .FirstOrDefault();
+        return latestTradeLegs is not null
+            ? latestTradeLegs.Sum(e => e.Quantity) / latestTradeLegs.Count()
             : 0;
     }
 
@@ -923,7 +936,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradePlanReadModel>> GetTradePlansAsync(int orderId, int tradeId, DateOnly valueDate)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePlans)
+            .Use(TradeDbCql.GetTradePlansByValueDate)
             .SetParameters(new GetTradePlansByTradeId(orderId, tradeId, valueDate))
             .ExecuteQueryAsync(MapToTradePlan!);
 
