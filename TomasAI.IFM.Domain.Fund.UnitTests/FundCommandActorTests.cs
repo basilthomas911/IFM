@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Command.Exceptions;
 using TomasAI.IFM.Domain.Fund.Command.State;
 using TomasAI.IFM.Domain.Fund.Command.Actor;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.Fund.UnitTests;
@@ -37,8 +38,11 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     // Test helper to expose protected ParseMessage and ReceiveAsync for unit testing.
     public class TestableFundCommandActor : FundCommandActor
     {
-        public TestableFundCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FundCommandActor> logger)
-            : base(dbEventSource, logger)
+        public TestableFundCommandActor(
+            IEventSourceActorDbContext dbEventSource,
+            IEventProjector<FundCommandActor> eventProjector,
+            ILogger<FundCommandActor> logger)
+            : base(dbEventSource, eventProjector, logger)
         {
         }
 
@@ -62,6 +66,9 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
 
         public async ValueTask InvokeOnStartup(ICommandActorContext context)
             => await ((ICommandActor<FundCommandActor>)this).OnStartup(context);
+
+        public async ValueTask InvokeOnShutdown(ICommandActorContext context)
+            => await ((ICommandActor<FundCommandActor>)this).OnShutdown(context);
     }
 
     [Fact]
@@ -84,6 +91,60 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
 
         // Assert - verify repository was resolved exactly once
         container.Received(1).Resolve<IEventSourceActorStateRepository<FundCommandState>>();
+    }
+
+    [Fact]
+    public async Task OnStartup_StartsEventProjector_WhenRepositoryResolutionSucceeds()
+    {
+        var eventProjector = Substitute.For<IEventProjector<FundCommandActor>>();
+        var actor = _fixture.CreateActor(eventProjector: eventProjector);
+        var context = Substitute.For<ICommandActorContext>();
+        var container = Substitute.For<IContainerInstance>();
+        container.Resolve<IEventSourceActorStateRepository<FundCommandState>>()
+            .Returns(Substitute.For<IEventSourceActorStateRepository<FundCommandState>>());
+        context.Container.Returns(container);
+
+        await actor.InvokeOnStartup(context);
+
+        await eventProjector.Received(1).StartAsync(context, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task OnShutdown_StopsEventProjector()
+    {
+        var eventProjector = Substitute.For<IEventProjector<FundCommandActor>>();
+        var actor = _fixture.CreateActor(eventProjector: eventProjector);
+        var context = Substitute.For<ICommandActorContext>();
+
+        await actor.InvokeOnShutdown(context);
+
+        await eventProjector.Received(1).StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task StopAsync_stops_owned_resources_once_without_calling_back_into_supervisor()
+    {
+        var eventProjector = Substitute.For<IEventProjector<FundCommandActor>>();
+        var actor = _fixture.CreateActor(eventProjector: eventProjector);
+        var supervisor = Substitute.For<IActorSupervisor>();
+        var producer = Substitute.For<IActorProducer>();
+        var context = Substitute.For<ICommandActorContext>();
+        var container = Substitute.For<IContainerInstance>();
+        container.Resolve<IEventSourceActorStateRepository<FundCommandState>>()
+            .Returns(Substitute.For<IEventSourceActorStateRepository<FundCommandState>>());
+        context.Container.Returns(container);
+        supervisor.CreateMailbox(actor.Id).Returns(Substitute.For<IActorMailbox>());
+        supervisor.GetProducer(actor.Id).Returns(producer);
+        supervisor.CreateCommandActorContext(actor.Id).Returns(context);
+
+        await actor.StartAsync(supervisor);
+        await actor.StopAsync();
+        await actor.StopAsync();
+
+        actor.IsRunning.Should().BeFalse();
+        await producer.Received(1).StopAsync();
+        await eventProjector.Received(1).StopAsync(CancellationToken.None);
+        await supervisor.DidNotReceive().StopAsync(actor.Id);
     }
 
     [Fact]
@@ -200,10 +261,11 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     public void OnStartup_ThrowsArgumentNullException_WhenDbEventSourceIsNull()
     {
         // Arrange
+        var eventProjector = Substitute.For<IEventProjector<FundCommandActor>>();
         var logger = Substitute.For<ILogger<FundCommandActor>>();
 
         // Act
-        Action act = () => new TestableFundCommandActor(null!, logger);
+        Action act = () => new TestableFundCommandActor(null!, eventProjector, logger);
 
         // Assert
         act.Should().Throw<ArgumentNullException>();
@@ -214,11 +276,23 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        var eventProjector = Substitute.For<IEventProjector<FundCommandActor>>();
 
         // Act
-        Func<TestableFundCommandActor> act = () => new TestableFundCommandActor(dbEventSource, null!);
+        Func<TestableFundCommandActor> act = () => new TestableFundCommandActor(dbEventSource, eventProjector, null!);
 
         // Assert
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void Constructor_ThrowsArgumentNullException_WhenEventProjectorIsNull()
+    {
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        var logger = Substitute.For<ILogger<FundCommandActor>>();
+
+        Action act = () => new TestableFundCommandActor(dbEventSource, null!, logger);
+
         act.Should().Throw<ArgumentNullException>();
     }
 

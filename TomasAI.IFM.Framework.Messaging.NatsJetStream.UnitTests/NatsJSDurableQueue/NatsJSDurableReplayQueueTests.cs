@@ -70,6 +70,88 @@ public sealed class NatsJSDurableReplayQueueTests
     }
 
     [Fact]
+    public async Task Replay_publish_failure_naks_process_message_and_worker_completes_the_handoff_on_redelivery()
+    {
+        var transport = new FakeNatsJSDurableQueueTransport();
+        await using var queue = CreateQueue(transport);
+        var calls = 0;
+        await queue.DequeueAsync("projector", _ =>
+        {
+            if (Interlocked.Increment(ref calls) <= 2)
+                throw new InvalidOperationException("process failed");
+            return Task.CompletedTask;
+        });
+        var state = transport.Queues["projector"];
+        state.ReplayPublishFailuresRemaining = 1;
+
+        queue.Enqueue("projector", SampleData.Event());
+
+        await EventuallyAsync(() => calls == 3 && state.LastReplayMessage?.AckCount == 1);
+        state.ProcessConsumerStarts.Should().Be(1);
+        state.ReplayPublishAttempts.Should().Be(2);
+        state.ReplayPublishCount.Should().Be(1);
+        state.ReplayMessageIds.Should().ContainSingle();
+        state.LastProcessMessage!.DeliveryCount.Should().Be(2);
+        state.LastProcessMessage.NakCount.Should().Be(1);
+        state.LastProcessMessage.AckCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Process_ack_failure_after_replay_publish_reuses_replay_message_id_on_redelivery()
+    {
+        var transport = new FakeNatsJSDurableQueueTransport();
+        await using var queue = CreateQueue(transport);
+        queue.SetMaxReplayAttemps("projector", 1);
+        var terminalCalls = 0;
+        queue.SetMaxAttemptsReachedAction("projector", _ =>
+        {
+            Interlocked.Increment(ref terminalCalls);
+            return Task.CompletedTask;
+        });
+        await queue.DequeueAsync("projector", _ => throw new InvalidOperationException("projection failed"));
+        var state = transport.Queues["projector"];
+        state.ProcessAckFailuresRemaining = 1;
+
+        queue.Enqueue("projector", SampleData.Event());
+
+        await EventuallyAsync(() => terminalCalls == 1
+            && state.LastProcessMessage?.AckCount == 1
+            && state.LastReplayMessage?.AckCount == 1);
+        state.LastProcessMessage!.AckAttempts.Should().Be(2);
+        state.LastProcessMessage.NakCount.Should().Be(1);
+        state.LastProcessMessage.DeliveryCount.Should().Be(2);
+        state.ReplayPublishAttempts.Should().Be(2);
+        state.ReplayPublishCount.Should().Be(1);
+        state.ReplayMessageIds.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Repeated_enqueue_of_same_event_uses_one_process_message_id()
+    {
+        var transport = new FakeNatsJSDurableQueueTransport();
+        await using var queue = CreateQueue(transport);
+        var calls = 0;
+        await queue.DequeueAsync("projector", _ =>
+        {
+            Interlocked.Increment(ref calls);
+            return Task.CompletedTask;
+        });
+        var domainEvent = SampleData.Event();
+
+        queue.Enqueue("projector", domainEvent);
+        queue.Enqueue("projector", domainEvent);
+
+        await EventuallyAsync(() => calls == 1);
+        await Task.Delay(50);
+        var state = transport.Queues["projector"];
+        calls.Should().Be(1);
+        state.ProcessPublishAttempts.Should().Be(2);
+        state.ProcessPublishCount.Should().Be(1);
+        state.ProcessMessageIds.Should().ContainSingle();
+        state.LastProcessMessageId.Should().Be($"projector:process:event-{domainEvent.EventId}");
+    }
+
+    [Fact]
     public async Task Replay_failure_is_nakd_until_a_later_attempt_succeeds()
     {
         var transport = new FakeNatsJSDurableQueueTransport();

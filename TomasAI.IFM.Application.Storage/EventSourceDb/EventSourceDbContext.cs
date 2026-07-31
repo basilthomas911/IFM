@@ -500,7 +500,7 @@ public class EventSourceDbContext(IDbConnectionSettings connectionSettings, IDbC
 
         async Task<EventNameIdReadModel> InsertEventNameIdAsync(string eventName, string eventTypeName)
         {
-            var eventNameIdModel = await GetEventNameIdFromDbAsync(eventName);
+            var eventNameIdModel = await GetEventNameIdFromDbAsync(eventName, eventTypeName);
             if (eventNameIdModel.IsValid)
                 return eventNameIdModel;
             await _dbFactory.EventSourceDb
@@ -522,12 +522,13 @@ public class EventSourceDbContext(IDbConnectionSettings connectionSettings, IDbC
     /// cref="EventNameIdReadModel"/>. Ensure the database connection is properly configured before calling this
     /// method.</remarks>
     /// <param name="eventName">The name of the event to look up in the database. Cannot be null or empty.</param>
+    /// <param name="eventTypeName">The persisted type identity paired with the event name.</param>
     /// <returns>An <see cref="EventNameIdReadModel"/> containing the event name and ID if the event is found; otherwise, <see
     /// langword="null"/>.</returns>
-    public async Task<EventNameIdReadModel> GetEventNameIdFromDbAsync(string eventName)
+    public async Task<EventNameIdReadModel> GetEventNameIdFromDbAsync(string eventName, string eventTypeName)
         => await _dbFactory.EventSourceDb
             .Use(EventSourceDbSql.GetEventNameId)
-            .SetParameters(new GetEventNameId(eventName))
+            .SetParameters(new GetEventNameId(eventName, eventTypeName))
             .ExecuteSingleAsync<EventNameIdReadModel>(MapToEventNameId);
 
     /// <summary>

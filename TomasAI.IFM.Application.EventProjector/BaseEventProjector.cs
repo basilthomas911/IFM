@@ -22,22 +22,25 @@ namespace TomasAI.IFM.Application.EventProjector;
 /// The logger used by the projector for operational and diagnostic messages.
 /// </param>
 /// <remarks>
-/// The base implementation creates a new execution context for every domain event in a collection
-/// and processes the events sequentially. Enumeration stops as soon as a projection returns an
-/// unsuccessful service result.
+/// The base implementation owns the durable queue lifecycle for the projector. Startup registers
+/// the projection handler before starting the process and replay workers, while event-batch handling
+/// records projection state and durably enqueues each event for asynchronous processing.
 /// </remarks>
 public abstract class BaseEventProjector<TActor> (
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource,
     IBlackboardService blackboardService,
-    ICommandActorContext commandActorContext,
     ILogger logger): IEventProjector<TActor>
     where TActor : ICommandActor<TActor>
 {
+    static readonly TimeSpan DefaultReplayInterval = TimeSpan.FromSeconds(30);
+    ICommandActorContext? _context;
+
     public abstract string ActorName { get; }
     public abstract string ProjectorName { get; }
     public abstract string DurableProcessQueueName { get; }
     public abstract string DurableReplayQueueName { get; }
+    public abstract IReadOnlyCollection<Type> ProjectedEventTypes { get; }
 
      /// <inheritdoc />
     public abstract ValueTask ProcessDomainEventAsync(IEvent domainEvent);
@@ -54,7 +57,12 @@ public abstract class BaseEventProjector<TActor> (
 
     public IBlackboardService BlackboardService { get; init; } = IsArgumentNull.Set(blackboardService);
 
-    public ICommandActorContext Context { get; init; } = IsArgumentNull.Set(commandActorContext);
+    /// <summary>
+    /// Gets the runtime context of the command actor that started this projector.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The projector has not been started.</exception>
+    public ICommandActorContext Context => _context
+        ?? throw new InvalidOperationException($"Projector '{ProjectorName}' has not been started.");
 
     /// <summary>
     /// Gets the logger used for operational and diagnostic messages.
@@ -69,32 +77,165 @@ public abstract class BaseEventProjector<TActor> (
         => new (this);
 
     /// <summary>
-    /// Projects a collection of domain events by processing each event sequentially.
+    /// Registers the projector's event handler and starts its durable process and replay queue workers.
     /// </summary>
-    /// <param name="domainEvents"></param>
-    /// <returns></returns>
-    public async ValueTask DomainEventsProjectionAsync(DomainEventCollection domainEvents)
+    /// <param name="context">The runtime context created for the command actor that owns this projector.</param>
+    /// <param name="cancellationToken">A token that cancels startup and the workers started by this call.</param>
+    /// <returns>A task-like value that represents the asynchronous startup operation.</returns>
+    /// <remarks>
+    /// The handler is registered before the queue is started so that recovered durable messages cannot be
+    /// consumed before the projector is ready to process them. Call this method from the owning command actor's
+    /// startup lifecycle rather than once per projected event batch.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> is <see langword="null"/>.</exception>
+    public async ValueTask StartAsync(
+        ICommandActorContext context,
+        CancellationToken cancellationToken = default)
     {
+        _context = IsArgumentNull.Set(context);
         await DurableReplayQueue.DequeueAsync(
             ProjectorName,
-            domainEvent => ProcessDomainEventAsync(domainEvent).AsTask());
-        await DurableReplayQueue.StartAsync(ProjectorName, TimeSpan.FromSeconds(30));
+            ProcessQueuedDomainEventAsync,
+            cancellationToken);
+        await RecoverUncompletedEventsAsync(cancellationToken);
+        await DurableReplayQueue.StartAsync(ProjectorName, DefaultReplayInterval, cancellationToken);
+    }
 
+    /// <summary>
+    /// Stops the projector's durable process and replay queue workers.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the wait to begin the stop operation.</param>
+    /// <returns>A task-like value that represents the asynchronous shutdown operation.</returns>
+    /// <remarks>
+    /// Queue configuration and the registered handler are retained, allowing a later call to
+    /// <see cref="StartAsync(ICommandActorContext, CancellationToken)"/> to restart the projector.
+    /// </remarks>
+    public async ValueTask StopAsync(CancellationToken cancellationToken = default)
+        => await DurableReplayQueue.StopAsync(ProjectorName, cancellationToken);
+
+    /// <summary>
+    /// Publishes a collection of domain events to the projector's durable process queue.
+    /// </summary>
+    /// <param name="domainEvents">The domain events to enqueue for asynchronous projection.</param>
+    /// <returns>A completed task-like value after all events have been durably enqueued.</returns>
+    /// <remarks>
+    /// The projector must be started through <see cref="StartAsync(ICommandActorContext, CancellationToken)"/>
+    /// during its owning actor's lifecycle.
+    /// This method performs data-plane work only and does not reconfigure the queue or replace its handler.
+    /// </remarks>
+    public async ValueTask DomainEventsProjectionAsync(DomainEventCollection domainEvents)
+    {
         foreach (var domainEvent in domainEvents)
         {
-            var projectionState = new EventProjectorStateReadModel(
-                eventId: domainEvent.EventId,
-                actorName: ActorName,
-                projectorName: ProjectorName,
-                isReplay: false,
-                attemptNumber: 0,
-                stage: EventProjectorStageType.PublishProcessingEvent,
-                outcome: EventProjectorOutcomeType.Processing
-            );
-            BlackboardService.EventProjectorState.Set(domainEvent.EventId, projectionState);
+            var projectionState = CreateInitialState(domainEvent.EventId);
+
+            // Persist the recoverable marker before publishing. If publication fails after the event-log
+            // transaction committed, startup recovery will find this state and enqueue the source event again.
+            await DbEventSource.InsertEventProjectorStateAsync(projectionState);
+            BlackboardService.EventProjectorState.Set(domainEvent.EventId, ProjectorName, projectionState);
             DurableReplayQueue.Enqueue(ProjectorName, domainEvent);
         }
     }
+
+    async Task ProcessQueuedDomainEventAsync(IEvent domainEvent)
+    {
+        var currentState = BlackboardService.EventProjectorState.Get(domainEvent.EventId, ProjectorName)
+            ?? await DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName);
+
+        if (currentState is null)
+        {
+            currentState = CreateInitialState(domainEvent.EventId);
+            await DbEventSource.InsertEventProjectorStateAsync(currentState);
+        }
+
+        if (IsTerminal(currentState))
+            return;
+
+        BlackboardService.EventProjectorState.Set(domainEvent.EventId, ProjectorName, currentState);
+        await ProcessDomainEventAsync(domainEvent);
+    }
+
+    async ValueTask RecoverUncompletedEventsAsync(CancellationToken cancellationToken)
+    {
+        var eventNames = ProjectedEventTypes
+            .Select(eventType => eventType.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var eventLogs = await DbEventSource.GetUncompletedEventProjectorEventsAsync(
+            ProjectorName,
+            eventNames) ?? [];
+
+        foreach (var eventLog in eventLogs)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var domainEvent = eventLog.ToDomainEvent();
+            if (domainEvent is UnknownEvent)
+            {
+                var failedState = CreateInitialState(eventLog.EventVersion) with
+                {
+                    Stage = EventProjectorStageType.Completed,
+                    Outcome = EventProjectorOutcomeType.Failed,
+                    ErrorMessage = $"Unable to deserialize event '{eventLog.EventName}' from event log version {eventLog.EventVersion}."
+                };
+                await DbEventSource.InsertEventProjectorStateAsync(failedState);
+                Logger.LogError(
+                    "Unable to recover event {EventId} ({EventName}) for projector {ProjectorName}.",
+                    eventLog.EventVersion,
+                    eventLog.EventName,
+                    ProjectorName);
+                continue;
+            }
+
+            var currentState = await DbEventSource.GetEventProjectorStateAsync(
+                eventLog.EventVersion,
+                ProjectorName);
+            if (currentState is null)
+            {
+                Logger.LogWarning(
+                    "Skipping event-log recovery for event {EventId} because projector {ProjectorName} has no explicit durable state.",
+                    eventLog.EventVersion,
+                    ProjectorName);
+                continue;
+            }
+            if (IsTerminal(currentState))
+                continue;
+
+            await DbEventSource.InsertEventProjectorStateAsync(currentState);
+            BlackboardService.EventProjectorState.Set(eventLog.EventVersion, ProjectorName, currentState);
+            DurableReplayQueue.Enqueue(ProjectorName, domainEvent, cancellationToken);
+        }
+
+        if (eventLogs.Count > 0)
+        {
+            Logger.LogInformation(
+                "Recovered {EventCount} event-log entries for projector {ProjectorName}.",
+                eventLogs.Count,
+                ProjectorName);
+        }
+    }
+
+    EventProjectorStateReadModel CreateInitialState(long eventId)
+    {
+        var now = DateTime.UtcNow;
+        return new EventProjectorStateReadModel(
+            eventId: eventId,
+            actorName: ActorName,
+            projectorName: ProjectorName,
+            isReplay: false,
+            attemptNumber: 0,
+            stage: EventProjectorStageType.PublishProcessingEvent,
+            outcome: EventProjectorOutcomeType.Processing,
+            createdTimestamp: now,
+            updatedTimestamp: now);
+    }
+
+    static bool IsTerminal(EventProjectorStateReadModel state)
+        => state.Stage == EventProjectorStageType.Completed
+            || state.Outcome is EventProjectorOutcomeType.Completed
+                or EventProjectorOutcomeType.Failed
+                or EventProjectorOutcomeType.Cancelled
+                or EventProjectorOutcomeType.Superseded
+                or EventProjectorOutcomeType.AlreadyCompleted;
 
     /// <summary>
     /// Posts an event to the command actor context for processing.
@@ -124,13 +265,15 @@ public abstract class BaseEventProjector<TActor> (
     /// <returns></returns>
     protected async Task LogExceptionAsync(Exception ex, IEvent domainEvent)
     {
-        var currentState = BlackboardService.EventProjectorState.Get(domainEvent.EventId);
+        var currentState = BlackboardService.EventProjectorState.Get(domainEvent.EventId, ProjectorName)
+            ?? await DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)
+            ?? CreateInitialState(domainEvent.EventId);
         currentState = currentState with
         {
             Outcome = EventProjectorOutcomeType.Failed,
             ErrorMessage = ex.Message
         };
-        BlackboardService.EventProjectorState.Set(domainEvent.EventId, currentState);
+        BlackboardService.EventProjectorState.Set(domainEvent.EventId, ProjectorName, currentState);
         await DbEventSource.InsertEventProjectorStateAsync(currentState);
     }
 }

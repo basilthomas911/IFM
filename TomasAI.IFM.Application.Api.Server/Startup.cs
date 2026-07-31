@@ -14,6 +14,7 @@ using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Command;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Query;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
@@ -463,6 +464,7 @@ public static class Startup
             _siContainer.Register(typeof(IActor<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
+            _siContainer.Register(typeof(IEventProjector<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IEventSourceActorState<>), assemblies, Lifestyle.Transient);
 
             //_siContainer.RegisterDecorator(typeof(ICommandContext<>), typeof(ValidationCommandDecorator<>), Lifestyle.Singleton);

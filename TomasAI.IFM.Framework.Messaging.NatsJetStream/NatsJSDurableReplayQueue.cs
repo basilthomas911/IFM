@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using Newtonsoft.Json;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -8,9 +10,32 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Framework.Messaging.Nats;
 
 /// <summary>
-/// A projector-scoped JetStream process queue and dead-letter/replay queue.
-/// Process failures are durably handed to replay before the process message is acknowledged.
+/// Provides projector-scoped durable processing and replay queues backed by NATS JetStream.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Each projector name identifies an independent pair of streams and durable consumers: a process
+/// queue for newly enqueued events and a replay queue for events whose initial processing failed.
+/// Projector names are normalized for use in NATS resource names by replacing characters other than
+/// letters, digits, hyphens, and underscores with underscores.
+/// </para>
+/// <para>
+/// A process message is acknowledged after its handler succeeds. If the handler fails, an envelope
+/// containing the original event and failure details is first published to the replay stream and the
+/// process message is then acknowledged. A failed replay publication or process acknowledgement requests
+/// process redelivery without stopping the worker. Stable JetStream message identifiers suppress duplicate
+/// process and replay publications within the stream duplicate window. A replay message is negatively
+/// acknowledged with the configured delay until it succeeds or reaches the configured delivery limit. At
+/// the delivery limit, the optional terminal action is invoked and the replay message is acknowledged even
+/// if that action fails.
+/// </para>
+/// <para>
+/// Calling <see cref="DequeueAsync"/> registers the handler used by both workers. Callers should therefore
+/// register a handler before enqueueing events. Workers stop after two minutes of inactivity by default and
+/// are restarted on the next start, dequeue, or enqueue operation. Configuration and delegates are retained
+/// when workers stop. Instances support concurrent use and maintain isolated state for each projector name.
+/// </para>
+/// </remarks>
 public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDisposable, IDisposable
 {
     const int DefaultMaxReplayAttempts = 3;
@@ -22,11 +47,28 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     readonly TimeSpan _idleTimeout;
     int _disposed;
 
+    /// <summary>
+    /// Initializes a durable replay queue that connects to the NATS server described by
+    /// <paramref name="options"/>.
+    /// </summary>
+    /// <param name="options">The options that provide the NATS server URL.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="options"/> is <see langword="null"/>.</exception>
     public NatsJSDurableReplayQueue(INatsJetStreamConsumerOptions options)
         : this(new NatsJSDurableQueueTransport(options), DefaultIdleTimeout)
     {
     }
 
+    /// <summary>
+    /// Initializes a durable replay queue with a transport and worker idle timeout.
+    /// </summary>
+    /// <param name="transport">The transport used to configure queues and exchange messages.</param>
+    /// <param name="idleTimeout">
+    /// The period without consumed messages after which each background worker stops.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="transport"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="idleTimeout"/> is less than or equal to <see cref="TimeSpan.Zero"/>.
+    /// </exception>
     internal NatsJSDurableReplayQueue(INatsJSDurableQueueTransport transport, TimeSpan idleTimeout)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
@@ -35,6 +77,30 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         _idleTimeout = idleTimeout;
     }
 
+    /// <summary>
+    /// Creates or updates the JetStream resources for a projector and starts its process and replay workers.
+    /// </summary>
+    /// <param name="eventProjectorName">
+    /// The logical projector name used to isolate state and derive stream, subject, and consumer names.
+    /// </param>
+    /// <param name="replayInterval">
+    /// The initial delay before a failed replay message is made available for another delivery.
+    /// </param>
+    /// <param name="cancellationToken">
+    /// A token that cancels queue initialization and the workers started by this call.
+    /// </param>
+    /// <returns>A task that completes when the queue resources and workers have been initialized.</returns>
+    /// <remarks>
+    /// The replay consumer uses exponential backoff derived from <paramref name="replayInterval"/>, capped
+    /// at two minutes. Calling this method again updates the projector's replay interval and is otherwise
+    /// idempotent while workers are running.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="eventProjectorName"/> is empty or whitespace.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="replayInterval"/> is less than or equal to <see cref="TimeSpan.Zero"/>.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">The queue has been disposed.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is canceled.</exception>
     public async Task StartAsync(
         string eventProjectorName,
         TimeSpan replayInterval,
@@ -50,6 +116,19 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         await EnsureWorkersStartedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Stops the process and replay workers for a projector.
+    /// </summary>
+    /// <param name="eventProjectorName">The logical name of the projector whose workers should stop.</param>
+    /// <param name="cancellationToken">A token that cancels the wait to enter the lifecycle operation.</param>
+    /// <returns>A task that completes after both workers have stopped.</returns>
+    /// <remarks>
+    /// This method does not delete JetStream resources or discard the registered handler and retry
+    /// configuration. A subsequent start, dequeue, or enqueue operation restarts the workers. If the
+    /// projector has not been initialized, the method completes without performing any work.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="eventProjectorName"/> is empty or whitespace.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is canceled.</exception>
     public async Task StopAsync(string eventProjectorName, CancellationToken cancellationToken = default)
     {
         ValidateProjectorName(eventProjectorName);
@@ -71,6 +150,27 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         }
     }
 
+    /// <summary>
+    /// Serializes and durably publishes a domain event to a projector's process stream.
+    /// </summary>
+    /// <param name="eventProjectorName">The logical name of the projector that will process the event.</param>
+    /// <param name="domainEvent">The domain event to enqueue.</param>
+    /// <param name="cancellationToken">
+    /// A token that cancels initialization or publication and, when workers are started by this call,
+    /// remains linked to those workers.
+    /// </param>
+    /// <remarks>
+    /// This synchronous method waits for JetStream to acknowledge the publication. It starts inactive
+    /// workers before publishing and stores the event's assembly-qualified runtime type in its durable
+    /// envelope so that the event can be reconstructed when consumed.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="eventProjectorName"/> is empty or whitespace.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="domainEvent"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ObjectDisposedException">The queue has been disposed.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is canceled.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The event type cannot be represented in the durable envelope or the transport cannot initialize the queue.
+    /// </exception>
     public void Enqueue(
         string eventProjectorName,
         IEvent domainEvent,
@@ -83,9 +183,29 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         var state = GetState(eventProjectorName);
         EnsureWorkersStartedAsync(eventProjectorName, state, cancellationToken).GetAwaiter().GetResult();
         var payload = Serialize(domainEvent, eventProjectorName);
-        _transport.PublishProcessAsync(eventProjectorName, payload, cancellationToken).AsTask().GetAwaiter().GetResult();
+        var messageId = CreateProcessMessageId(eventProjectorName, domainEvent);
+        _transport.PublishProcessAsync(eventProjectorName, payload, messageId, cancellationToken)
+            .AsTask().GetAwaiter().GetResult();
     }
 
+    /// <summary>
+    /// Registers the event handler for a projector and starts its process and replay workers.
+    /// </summary>
+    /// <param name="eventProjectorName">The logical name of the projector that owns the handler.</param>
+    /// <param name="processMessageFunc">
+    /// The asynchronous handler invoked for both newly queued events and replay deliveries.
+    /// </param>
+    /// <param name="cancellationToken">
+    /// A token that cancels queue initialization and the workers started by this call.
+    /// </param>
+    /// <returns>
+    /// A task that completes after the handler is registered and workers are started; it does not wait for a message.
+    /// </returns>
+    /// <remarks>A subsequent call for the same projector replaces the previously registered handler.</remarks>
+    /// <exception cref="ArgumentException"><paramref name="eventProjectorName"/> is empty or whitespace.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="processMessageFunc"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ObjectDisposedException">The queue has been disposed.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is canceled.</exception>
     public async Task DequeueAsync(
         string eventProjectorName,
         Func<IEvent, Task> processMessageFunc,
@@ -100,6 +220,21 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         await EnsureWorkersStartedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Registers the action invoked when a replay message reaches its maximum delivery count.
+    /// </summary>
+    /// <param name="eventProjectorName">The logical name of the projector whose action is configured.</param>
+    /// <param name="maxAttemptsReachedFunc">The asynchronous terminal action to invoke with the failed event.</param>
+    /// <param name="overwrite">
+    /// <see langword="true"/> to replace any existing action; <see langword="false"/> to set the action only
+    /// when one has not already been registered.
+    /// </param>
+    /// <remarks>
+    /// After the action completes or throws, the replay message is acknowledged and will not be delivered again.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="eventProjectorName"/> is empty or whitespace.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="maxAttemptsReachedFunc"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ObjectDisposedException">The queue has been disposed.</exception>
     public void SetMaxAttemptsReachedAction(
         string eventProjectorName,
         Func<IEvent, Task> maxAttemptsReachedFunc,
@@ -115,6 +250,22 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             Interlocked.CompareExchange(ref state.MaxAttemptsReached, maxAttemptsReachedFunc, null);
     }
 
+    /// <summary>
+    /// Sets the maximum number of deliveries allowed for replay messages belonging to a projector.
+    /// </summary>
+    /// <param name="eventProjectorName">The logical name of the projector whose delivery limit is configured.</param>
+    /// <param name="maxReplayAttemps">The maximum replay delivery count. The minimum value is one.</param>
+    /// <param name="overwrite">
+    /// <see langword="true"/> to replace the current value; <see langword="false"/> to replace it only while
+    /// it still has the default value of three.
+    /// </param>
+    /// <remarks>
+    /// The setting takes effect in worker logic immediately. The JetStream consumer configuration is updated
+    /// the next time queue initialization runs, such as when workers are restarted.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="eventProjectorName"/> is empty or whitespace.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="maxReplayAttemps"/> is less than one.</exception>
+    /// <exception cref="ObjectDisposedException">The queue has been disposed.</exception>
     public void SetMaxReplayAttemps(string eventProjectorName, int maxReplayAttemps, bool overwrite = true)
     {
         ThrowIfDisposed();
@@ -129,6 +280,13 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             Interlocked.CompareExchange(ref state.MaxReplayAttempts, maxReplayAttemps, DefaultMaxReplayAttempts);
     }
 
+    /// <summary>
+    /// Gets the configured maximum replay delivery count for a projector.
+    /// </summary>
+    /// <param name="eventProjectorName">The logical name of the projector whose delivery limit is returned.</param>
+    /// <returns>The configured limit, or three when the projector has not previously been configured.</returns>
+    /// <exception cref="ArgumentException"><paramref name="eventProjectorName"/> is empty or whitespace.</exception>
+    /// <exception cref="ObjectDisposedException">The queue has been disposed.</exception>
     public int GetMaxReplayAttemps(string eventProjectorName)
     {
         ThrowIfDisposed();
@@ -190,7 +348,6 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                     var handler = state.ProcessMessage
                         ?? throw new InvalidOperationException($"No process handler is registered for projector '{eventProjectorName}'.");
                     await handler(domainEvent).ConfigureAwait(false);
-                    await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (idleCancellation.IsCancellationRequested)
                 {
@@ -198,16 +355,89 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                 }
                 catch (Exception ex)
                 {
-                    var replayPayload = MarkFailed(message.Data, ex);
-                    await _transport.PublishReplayAsync(eventProjectorName, replayPayload, idleCancellation.Token)
-                        .ConfigureAwait(false);
-                    await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
+                    await MoveToReplayOrRequestRedeliveryAsync(
+                        eventProjectorName,
+                        state,
+                        message,
+                        ex,
+                        idleCancellation.Token).ConfigureAwait(false);
+                    ResetIdleTimeout(idleCancellation);
+                    continue;
                 }
+
+                await AcknowledgeOrRequestRedeliveryAsync(message, state.ReplayInterval, idleCancellation.Token)
+                    .ConfigureAwait(false);
                 ResetIdleTimeout(idleCancellation);
             }
         }
         catch (OperationCanceledException) when (idleCancellation.IsCancellationRequested)
         {
+        }
+    }
+
+    async Task MoveToReplayOrRequestRedeliveryAsync(
+        string eventProjectorName,
+        ProjectorQueueState state,
+        INatsJSDurableMessage message,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var replayPayload = MarkFailed(message.Data, exception);
+            var messageId = CreateReplayMessageId(eventProjectorName, message.Data);
+            await _transport.PublishReplayAsync(eventProjectorName, replayPayload, messageId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            await RequestRedeliveryAsync(message, state.ReplayInterval, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await AcknowledgeOrRequestRedeliveryAsync(message, state.ReplayInterval, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    static async Task AcknowledgeOrRequestRedeliveryAsync(
+        INatsJSDurableMessage message,
+        TimeSpan redeliveryDelay,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await message.AckAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            await RequestRedeliveryAsync(message, redeliveryDelay, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    static async Task RequestRedeliveryAsync(
+        INatsJSDurableMessage message,
+        TimeSpan delay,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await message.NakAsync(delay, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // Leaving the message unacknowledged lets JetStream redeliver it after the acknowledgement wait.
         }
     }
 
@@ -309,6 +539,17 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(envelope, SerializerSettings));
     }
 
+    static string CreateProcessMessageId(string eventProjectorName, IEvent domainEvent)
+    {
+        var eventIdentity = domainEvent.EventId > 0
+            ? $"event-{domainEvent.EventId.ToString(CultureInfo.InvariantCulture)}"
+            : $"id-{domainEvent.Id:N}";
+        return $"{eventProjectorName}:process:{eventIdentity}";
+    }
+
+    static string CreateReplayMessageId(string eventProjectorName, byte[] processPayload) =>
+        $"{eventProjectorName}:replay:{Convert.ToHexString(SHA256.HashData(processPayload))}";
+
     static IEvent Deserialize(byte[] payload)
     {
         var envelope = DeserializeEnvelope(payload);
@@ -359,6 +600,11 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
 
     void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
+    /// <summary>
+    /// Asynchronously stops all workers and releases the underlying NATS transport.
+    /// </summary>
+    /// <returns>A value task that completes when all owned asynchronous resources have been released.</returns>
+    /// <remarks>This method is idempotent. It does not delete streams or consumers from JetStream.</remarks>
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -377,6 +623,10 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         await _transport.DisposeAsync().ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Stops all workers and synchronously releases the underlying NATS transport.
+    /// </summary>
+    /// <remarks>This method blocks until asynchronous disposal completes and is safe to call more than once.</remarks>
     public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
     sealed record DurableEventEnvelope(

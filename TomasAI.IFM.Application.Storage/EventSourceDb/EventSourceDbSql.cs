@@ -7,6 +7,33 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// </summary>
 public static class EventSourceDbSql
 {
+    /// <summary>
+    /// Creates the durable, per-projector state table used to resume event projections from the event log.
+    /// </summary>
+    public const string CreateEventProjectorState = """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_event_version
+            ON event_log (EventVersion);
+
+        CREATE TABLE IF NOT EXISTS event_projector_state (
+            EventId bigint NOT NULL,
+            ActorName varchar(255) NOT NULL,
+            ProjectorName varchar(255) NOT NULL,
+            IsReplay boolean NOT NULL,
+            AttemptNumber integer NOT NULL,
+            Outcome varchar(50) NOT NULL,
+            Stage varchar(50) NOT NULL,
+            ErrorMessage text NOT NULL DEFAULT '',
+            CreatedTimestamp text NOT NULL,
+            UpdatedTimestamp text NOT NULL,
+            CONSTRAINT pk_event_projector_state PRIMARY KEY (EventId, ProjectorName),
+            CONSTRAINT fk_event_projector_state_event_log
+                FOREIGN KEY (EventId) REFERENCES event_log(EventVersion) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS ix_event_projector_state_projector_outcome
+            ON event_projector_state (ProjectorName, Outcome);
+    """;
+
     public const string CreateCommandLog = """
         create table if not exists command_log (
             CommandId uuid primary key,
@@ -194,6 +221,48 @@ SELECT
 """;
 
     /// <summary>
+    /// Gets the durable state for one event/projector pair.
+    /// </summary>
+    public const string GetEventProjectorState = """
+        SELECT
+            EventId as "EventId",
+            ActorName as "ActorName",
+            ProjectorName as "ProjectorName",
+            IsReplay as "IsReplay",
+            AttemptNumber as "AttemptNumber",
+            Outcome as "Outcome",
+            Stage as "Stage",
+            ErrorMessage as "ErrorMessage",
+            CreatedTimestamp as "CreatedTimestamp",
+            UpdatedTimestamp as "UpdatedTimestamp"
+        FROM event_projector_state
+        WHERE EventId = $1 AND ProjectorName = $2;
+    """;
+
+    /// <summary>
+    /// Gets source events that have an explicit projector state eligible for recovery.
+    /// Event-log rows without projector state and terminal completed or failed states are deliberately excluded.
+    /// </summary>
+    public const string GetUncompletedEventProjectorEvents = """
+        SELECT
+            el.eventStreamId as "EventStreamId",
+            en.eventName as "EventName",
+            en.eventTypeName as "EventTypeName",
+            el.eventVersion as "EventVersion",
+            el.eventData as "EventData",
+            el.commandId as "CommandId",
+            el.eventTimestamp as "EventTimestamp"
+        FROM event_log el
+        JOIN event_name_id en ON el.eventNameId = en.eventNameId
+        JOIN event_projector_state eps
+          ON eps.EventId = el.eventVersion
+         AND eps.ProjectorName = $1
+        WHERE en.eventName = ANY(string_to_array($2, ','))
+          AND eps.Outcome IN ('Processing', 'Retrying')
+        ORDER BY el.eventVersion;
+    """;
+
+    /// <summary>
     /// SQL to get event name ID by event name
     /// </summary>
     public const string GetEventNameId = """
@@ -205,6 +274,7 @@ FROM
   event_name_id e
 WHERE
   e.eventName = $1
+  AND e.eventTypeName = $2
 ORDER BY
   e.eventNameId;
 """;
@@ -261,6 +331,43 @@ public const string UpdateEventLog = """
         EventNameId = $5 AND
         EventVersion = $6
     RETURNING eventVersion;
+    """;
+
+    /// <summary>
+    /// Inserts or updates durable state for a single event/projector pair.
+    /// </summary>
+    public const string UpsertEventProjectorState = """
+        INSERT INTO event_projector_state (
+            EventId,
+            ActorName,
+            ProjectorName,
+            IsReplay,
+            AttemptNumber,
+            Outcome,
+            Stage,
+            ErrorMessage,
+            CreatedTimestamp,
+            UpdatedTimestamp
+        ) VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10
+        )
+        ON CONFLICT (EventId, ProjectorName) DO UPDATE SET
+            ActorName = EXCLUDED.ActorName,
+            IsReplay = EXCLUDED.IsReplay,
+            AttemptNumber = EXCLUDED.AttemptNumber,
+            Outcome = EXCLUDED.Outcome,
+            Stage = EXCLUDED.Stage,
+            ErrorMessage = EXCLUDED.ErrorMessage,
+            UpdatedTimestamp = EXCLUDED.UpdatedTimestamp;
     """;
 
     /// <summary>

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Framework.Storage;
@@ -46,11 +47,13 @@ public class FundTestFixture : IDisposable
 
     public TestableFundCommandActor CreateActor(
         IEventSourceActorDbContext? dbEventSource = null,
-        ILogger<FundCommandActor>? logger = null)
+        ILogger<FundCommandActor>? logger = null,
+        IEventProjector<FundCommandActor>? eventProjector = null)
     {
         var db = dbEventSource ?? Substitute.For<IEventSourceActorDbContext>();
         var lg = logger ?? Substitute.For<ILogger<FundCommandActor>>();
-        return new TestableFundCommandActor(db, lg);
+        var projector = eventProjector ?? Substitute.For<IEventProjector<FundCommandActor>>();
+        return new TestableFundCommandActor(db, projector, lg);
     }
 
     public TestableFundEventActor CreateActor(

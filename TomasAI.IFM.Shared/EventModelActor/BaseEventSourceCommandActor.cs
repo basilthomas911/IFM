@@ -71,25 +71,28 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// </summary>
     /// <remarks>This method ensures that the actor is properly shut down by invoking the shutdown logic and
     /// stopping any associated consumer or producer components, if they are present. If the actor is not running, the
-    /// method returns immediately without performing any operations.</remarks>
-    /// <param name="context">The context in which the actor is operating. This parameter provides access to actor-specific state and
-    /// services.</param>
+    /// method returns immediately without performing any operations. The running flag is cleared before asynchronous
+    /// cleanup begins so concurrent or re-entrant stop requests are idempotent.</remarks>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous stop operation.</returns>
     public async ValueTask StopAsync()
     {
         if (!IsRunning) 
             return;
 
-        // stop any actor producers/consumers if set...
-        var producer = _supervisor.GetProducer(_actorId);
-        await producer.StopAsync().ConfigureAwait(false);
-        _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
-
-        /// stop any  actor context processes...
-        await _supervisor!.StopAsync(actorId).ConfigureAwait(false);
-        await OnShutdown(_context!).ConfigureAwait(false);
-
         IsRunning = false;
+
+        try
+        {
+            // stop any actor producers/consumers if set...
+            var producer = _supervisor.GetProducer(_actorId);
+            await producer.StopAsync().ConfigureAwait(false);
+            _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
+        }
+        finally
+        {
+            // Always release actor-owned lifecycle resources, including durable projector workers.
+            await OnShutdown(_context!).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

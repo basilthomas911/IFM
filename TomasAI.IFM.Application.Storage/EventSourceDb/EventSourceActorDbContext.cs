@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
@@ -33,6 +34,8 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     readonly ConcurrentDictionary<string, EventNameIdReadModel> _eventNameIdCache = new();
+    readonly SemaphoreSlim _eventProjectorStateInitialization = new(1, 1);
+    bool _eventProjectorStateInitialized;
 
     /// <summary>
     /// Gets the database context.
@@ -113,6 +116,23 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 CommandId: o.Get(e => e.CommandId),
                 EventTimestamp: o.Get(e => e.EventTimestamp)
             );
+
+    /// <summary>
+    /// Maps durable projection state from the event-source database.
+    /// </summary>
+    internal static EventProjectorStateReadModel MapToEventProjectorState(
+        IObjectMapReader<EventProjectorStateReadModel> o)
+        => new(
+            eventId: o.Get(e => e.EventId),
+            actorName: o.Get(e => e.ActorName),
+            projectorName: o.Get(e => e.ProjectorName),
+            isReplay: o.Get(e => e.IsReplay),
+            attemptNumber: o.Get(e => e.AttemptNumber),
+            outcome: o.Get<EventProjectorOutcomeType>(e => e.Outcome),
+            stage: o.Get<EventProjectorStageType>(e => e.Stage),
+            errorMessage: o.Get(e => e.ErrorMessage),
+            createdTimestamp: o.GetISODateTime(e => e.CreatedTimestamp),
+            updatedTimestamp: o.GetISODateTime(e => e.UpdatedTimestamp));
 
     /// <summary>
     /// Maps the specified object map reader to an <see cref="EventStreamReadModel"/> instance.
@@ -248,10 +268,90 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     */
 
     public async Task InsertEventProjectorStateAsync(EventProjectorStateReadModel state)
-        => throw new NotImplementedException();
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentException.ThrowIfNullOrWhiteSpace(state.ProjectorName);
+        await EnsureEventProjectorStateStorageAsync().ConfigureAwait(false);
 
-     public async Task GetEventProjectorStateAsync(long eventId)
-        => throw new NotImplementedException();
+        var now = DateTime.UtcNow;
+        var createdTimestamp = state.CreatedTimestamp == default ? now : state.CreatedTimestamp;
+        await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.UpsertEventProjectorState)
+            .SetParameters(new UpsertEventProjectorState(
+                eventId: state.EventId,
+                actorName: state.ActorName,
+                projectorName: state.ProjectorName,
+                isReplay: state.IsReplay,
+                attemptNumber: state.AttemptNumber,
+                outcome: $"{state.Outcome}",
+                stage: $"{state.Stage}",
+                errorMessage: state.ErrorMessage ?? string.Empty,
+                createdTimestamp: $"{createdTimestamp:o}",
+                updatedTimestamp: $"{now:o}"))
+            .ExecuteCommandAsync()
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Gets durable projection state for one event and one projector.
+    /// </summary>
+    public async Task<EventProjectorStateReadModel?> GetEventProjectorStateAsync(
+        long eventId,
+        string projectorName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
+        await EnsureEventProjectorStateStorageAsync().ConfigureAwait(false);
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.GetEventProjectorState)
+            .SetParameters(new GetEventProjectorState(eventId, projectorName))
+            .ExecuteSingleAsync<EventProjectorStateReadModel>(MapToEventProjectorState)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Gets event-log entries that the named projector supports and has not terminally processed.
+    /// </summary>
+    public async Task<ICollection<EventLogReadModel>> GetUncompletedEventProjectorEventsAsync(
+        string projectorName,
+        IReadOnlyCollection<string> eventNames)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
+        ArgumentNullException.ThrowIfNull(eventNames);
+        if (eventNames.Count == 0)
+            return [];
+
+        await EnsureEventProjectorStateStorageAsync().ConfigureAwait(false);
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.GetUncompletedEventProjectorEvents)
+            .SetParameters(new GetUncompletedEventProjectorEvents(
+                projectorName,
+                string.Join(',', eventNames)))
+            .ExecuteQueryAsync<EventLogReadModel>(MapToEventLog)
+            .ConfigureAwait(false);
+    }
+
+    async Task EnsureEventProjectorStateStorageAsync()
+    {
+        if (Volatile.Read(ref _eventProjectorStateInitialized))
+            return;
+
+        await _eventProjectorStateInitialization.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (Volatile.Read(ref _eventProjectorStateInitialized))
+                return;
+
+            await _dbFactory.ActorEventSourceDb
+                .Use(EventSourceDbSql.CreateEventProjectorState)
+                .ExecuteCommandAsync()
+                .ConfigureAwait(false);
+            Volatile.Write(ref _eventProjectorStateInitialized, true);
+        }
+        finally
+        {
+            _eventProjectorStateInitialization.Release();
+        }
+    }
 
     /// <summary>
     /// Asynchronously updates the log entry for a specified command with a new status and timestamp.
@@ -426,7 +526,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         var eventTypeFullName = eventType.AssemblyQualifiedName;
         if(!_eventNameIdCache.TryGetValue(eventTypeFullName, out EventNameIdReadModel eventNameIdModel))
         {
-            eventNameIdModel = await GetEventNameIdFromDbAsync(eventType.Name);
+            eventNameIdModel = await GetEventNameIdFromDbAsync(eventType.Name, eventTypeFullName);
             if (eventNameIdModel.IsValid)
             {
                 _eventNameIdCache.TryAdd(eventTypeFullName, eventNameIdModel);
@@ -441,7 +541,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
 
         async Task<EventNameIdReadModel> InsertEventNameIdAsync(string eventName, string eventTypeName)
         {
-            var eventNameIdModel = await GetEventNameIdFromDbAsync(eventName);
+            var eventNameIdModel = await GetEventNameIdFromDbAsync(eventName, eventTypeName);
             if (eventNameIdModel.IsValid)
                 return eventNameIdModel;
             await _dbFactory.ActorEventSourceDb
@@ -463,12 +563,13 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// cref="EventNameIdReadModel"/>. Ensure the database connection is properly configured before calling this
     /// method.</remarks>
     /// <param name="eventName">The name of the event to look up in the database. Cannot be null or empty.</param>
+    /// <param name="eventTypeName">The persisted type identity paired with the event name.</param>
     /// <returns>An <see cref="EventNameIdReadModel"/> containing the event name and ID if the event is found; otherwise, <see
     /// langword="null"/>.</returns>
-    internal async Task<EventNameIdReadModel> GetEventNameIdFromDbAsync(string eventName)
+    internal async Task<EventNameIdReadModel> GetEventNameIdFromDbAsync(string eventName, string eventTypeName)
         => await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.GetEventNameId)
-            .SetParameters(new GetEventNameId(eventName))
+            .SetParameters(new GetEventNameId(eventName, eventTypeName))
             .ExecuteSingleAsync<EventNameIdReadModel>(MapToEventNameId);
 
     /// <summary>

@@ -2,6 +2,7 @@
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
@@ -37,16 +38,23 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
         where TFail : class, IErrorEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
-        _eventProjector.DurableReplayQueue.SetMaxAttemptsReachedAction(_eventProjector.ProjectorName, e =>
+        _eventProjector.DurableReplayQueue.SetMaxAttemptsReachedAction(_eventProjector.ProjectorName, async e =>
         {
-            var currentState = _eventProjector.BlackboardService.EventProjectorState.Get(e.EventId);
+            var currentState = _eventProjector.BlackboardService.EventProjectorState.Get(
+                    e.EventId,
+                    _eventProjector.ProjectorName)
+                ?? await _eventProjector.DbEventSource.GetEventProjectorStateAsync(
+                    e.EventId,
+                    _eventProjector.ProjectorName)
+                ?? CreateInitialState(e.EventId);
             currentState = currentState with
             {
+                Stage = EventProjectorStageType.Completed,
                 Outcome = EventProjectorOutcomeType.Failed,
                 ErrorMessage = $"Max {_eventProjector.DurableReplayQueue.GetMaxReplayAttemps(_eventProjector.ProjectorName)} attempts reached for event {e.EventId} of type {e.GetType().Name}"
             };
-            _eventProjector.BlackboardService.EventProjectorState.Clear(e.EventId);
-            return _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
+            await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
+            _eventProjector.BlackboardService.EventProjectorState.Clear(e.EventId, _eventProjector.ProjectorName);
         });
 
         SetProjectionProcessingEvent<TEvent, TEntityId>(e =>
@@ -105,7 +113,18 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
         where TEntityId : IActorEntityId
     {
         // load current projector state...
-        var currentState = _eventProjector.BlackboardService.EventProjectorState.Get(domainEvent.EventId);
+        var currentState = _eventProjector.BlackboardService.EventProjectorState.Get(
+                domainEvent.EventId,
+                _eventProjector.ProjectorName)
+            ?? await _eventProjector.DbEventSource.GetEventProjectorStateAsync(
+                domainEvent.EventId,
+                _eventProjector.ProjectorName)
+            ?? throw new InvalidOperationException(
+                $"Projection state was not initialized for event {domainEvent.EventId} and projector '{_eventProjector.ProjectorName}'.");
+        _eventProjector.BlackboardService.EventProjectorState.Set(
+            domainEvent.EventId,
+            _eventProjector.ProjectorName,
+            currentState);
         try
         {
             while (currentState.Stage != EventProjectorStageType.Completed)
@@ -125,8 +144,11 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
             currentState = currentState with {
                 Outcome = EventProjectorOutcomeType.Retrying,
                 ErrorMessage = ex.Message };
-            _eventProjector.BlackboardService.EventProjectorState.Set(domainEvent.EventId, currentState);
             await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
+            _eventProjector.BlackboardService.EventProjectorState.Set(
+                domainEvent.EventId,
+                _eventProjector.ProjectorName,
+                currentState);
             throw;
         }
 
@@ -138,7 +160,7 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
         {
             await _processingEventAction(domainEvent);
             currentState = currentState with { Stage = EventProjectorStageType.ApplyProjection };
-            _eventProjector.BlackboardService.EventProjectorState.Set(domainEvent.EventId, currentState);
+            await PersistStateAsync();
             return currentState.Stage;
         }
 
@@ -148,13 +170,12 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
             if (serviceResult.Success)
             {
                 currentState = currentState with { Stage = EventProjectorStageType.PublishCompletedEvent , Outcome = EventProjectorOutcomeType.Processing };
-                _eventProjector.BlackboardService.EventProjectorState.Set(domainEvent.EventId, currentState);
             }
             else
             {
                 currentState = currentState with { Stage = EventProjectorStageType.PublishFailedEvent, Outcome = EventProjectorOutcomeType.Retrying, ErrorMessage = serviceResult.ErrorMessage };
-                _eventProjector.BlackboardService.EventProjectorState.Set(domainEvent.EventId, currentState);
             }
+            await PersistStateAsync();
             return currentState.Stage;
         }
 
@@ -165,8 +186,7 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
                 Stage = EventProjectorStageType.Completed,
                 Outcome = EventProjectorOutcomeType.Completed
             };
-            _eventProjector.BlackboardService.EventProjectorState.Clear(domainEvent.EventId);
-            await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
+            await PersistStateAsync(clearCache: true);
             return currentState.Stage;
         }
 
@@ -178,10 +198,43 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
                 Stage = EventProjectorStageType.Completed,
                 Outcome = EventProjectorOutcomeType.Failed 
             };
-            _eventProjector.BlackboardService.EventProjectorState.Clear(domainEvent.EventId);
-            await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
+            await PersistStateAsync(clearCache: true);
             return currentState.Stage;
         }
+
+        async ValueTask PersistStateAsync(bool clearCache = false)
+        {
+            currentState = currentState with { UpdatedTimestamp = DateTime.UtcNow };
+            await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
+            if (clearCache)
+            {
+                _eventProjector.BlackboardService.EventProjectorState.Clear(
+                    domainEvent.EventId,
+                    _eventProjector.ProjectorName);
+            }
+            else
+            {
+                _eventProjector.BlackboardService.EventProjectorState.Set(
+                    domainEvent.EventId,
+                    _eventProjector.ProjectorName,
+                    currentState);
+            }
+        }
+    }
+
+    EventProjectorStateReadModel CreateInitialState(long eventId)
+    {
+        var now = DateTime.UtcNow;
+        return new EventProjectorStateReadModel(
+            eventId,
+            _eventProjector.ActorName,
+            _eventProjector.ProjectorName,
+            isReplay: true,
+            attemptNumber: _eventProjector.DurableReplayQueue.GetMaxReplayAttemps(_eventProjector.ProjectorName),
+            outcome: EventProjectorOutcomeType.Retrying,
+            stage: EventProjectorStageType.PublishProcessingEvent,
+            createdTimestamp: now,
+            updatedTimestamp: now);
     }
 
     /// <summary>

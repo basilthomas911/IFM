@@ -26,7 +26,10 @@ public interface IEventSourceActorDbContext
 
     Task InsertEventProjectorResultAsync(EventProjectorResultReadModel eventProjectorResult);
     Task InsertEventProjectorStateAsync(EventProjectorStateReadModel eventProjectorState);
-    Task GetEventProjectorStateAsync(long eventId);
+    Task<EventProjectorStateReadModel?> GetEventProjectorStateAsync(long eventId, string projectorName);
+    Task<ICollection<EventLogReadModel>> GetUncompletedEventProjectorEventsAsync(
+        string projectorName,
+        IReadOnlyCollection<string> eventNames);
 
     Task<DomainEventCollection> SaveEventsAsync( string eventStream, Guid commandId, DomainEventCollection domainEvents);
 

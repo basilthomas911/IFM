@@ -15,16 +15,28 @@ public class FundEventProjector(
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource,
     IBlackboardService blackboardService,
-    ICommandActorContext commandActorContext,
     ILogger<FundEventProjector> logger) : BaseEventProjector<FundCommandActor>(
-       durableReplayQueue, dbEventSource, blackboardService, commandActorContext, logger)
+       durableReplayQueue, dbEventSource, blackboardService, logger)
 {
+    static readonly Type[] _projectedEventTypes =
+    [
+        typeof(FundCreatedEvent),
+        typeof(OrderAddedToFundEvent),
+        typeof(TradeAddedToFundOrderEvent),
+        typeof(OrderRemovedFromFundEvent),
+        typeof(TradeRemovedFromFundOrderEvent),
+        typeof(FundOrderTradeStateChangedEvent),
+        typeof(FundOrderClosedEvent),
+        typeof(FundMaxProfitGeneratedEvent)
+    ];
+
     EventProjectorBuilder ProjectionBuilder => CreateProjectionBuilder();
 
     public override string ActorName => $"{typeof(FundCommandActor).Name}";
     public override string ProjectorName => $"{typeof(FundEventProjector).Name}";
     public override string DurableProcessQueueName => $"{ActorName}.{ProjectorName}.ProcessQueue";
     public override string DurableReplayQueueName => $"{ActorName}.{ProjectorName}.ReplayQueue";
+    public override IReadOnlyCollection<Type> ProjectedEventTypes => _projectedEventTypes;
 
     /// <summary>
     /// Processes the domain event and projects it to the database.
@@ -53,7 +65,8 @@ public class FundEventProjector(
                     e, o => db.UpdateFundOrderTradeStateAsync(o.FundOrderTradeId.FundId, o.FundOrderTradeId.OrderId, o.FundOrderTradeId.TradeId, o.TradeState, o.UpdatedOn, o.UpdatedBy)),
                 FundOrderClosedEvent e => await ProjectionBuilder.RunAsync<FundOrderClosedEvent, FundOrderClosedCompleteEvent, FundOrderClosedFailEvent, FundId>(
                     e, o => db.UpdateFundOrderStatusAsync(o.FundOrderId.FundId, o.FundOrderId.OrderId, OrderStatus.Closed)),
-                FundMaxProfitGeneratedEvent e => await PostEventAsync<FundMaxProfitGeneratedEvent, FundId>(e),
+                FundMaxProfitGeneratedEvent e => await ProjectionBuilder.RunAsync<FundMaxProfitGeneratedEvent, FundMaxProfitGeneratedCompleteEvent, FundMaxProfitGeneratedFailEvent, FundId>(
+                    e, _ => Task.CompletedTask),
                 _ => false
             };
         }

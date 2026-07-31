@@ -133,7 +133,7 @@ public class EventSourceDbTests : IClassFixture<EventSourceFixture>
         var testEventNameId = await db.GetEventNameIdFromTypeAsync<FundBalanceChangedEvent>();
         var eventName = typeof(FundBalanceChangedEvent).Name;
         var eventFullName = typeof(FundBalanceChangedEvent).FullName;
-        var eventNameId = await db.GetEventNameIdFromDbAsync(eventName);
+        var eventNameId = await db.GetEventNameIdFromDbAsync(eventName, eventFullName);
         eventNameId.Should().NotBeNull();
         eventNameId.IsValid.Should().BeTrue();
            eventNameId.EventName.Should().Be(eventName);

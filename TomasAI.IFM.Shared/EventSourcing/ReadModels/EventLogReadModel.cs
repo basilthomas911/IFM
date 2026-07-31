@@ -20,7 +20,7 @@ public record EventLogReadModel(
         IEvent? domainEvent = default;
         if (!string.IsNullOrEmpty(EventTypeName))
         {
-            var domainEventType = Type.GetType(EventTypeName, true,true);
+            var domainEventType = Type.GetType(EventTypeName, false, true);
             if (domainEventType is not null && !string.IsNullOrEmpty(EventData))
             {
                 try

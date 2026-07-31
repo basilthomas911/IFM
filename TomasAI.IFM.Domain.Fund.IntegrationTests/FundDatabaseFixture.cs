@@ -24,6 +24,7 @@ public class FundDatabaseFixture : IDisposable
     public SequenceIdDbContext SeqIdDatabase { get; private set; }
     public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
     public EventSourceActorDbContext ActorEventSourceDb { get; private set; }
+    public IBlackboardService BlackboardService { get; private set; }
 
     public IDbContextFactory DbFactory { get; private set; }
 
@@ -72,18 +73,20 @@ public class FundDatabaseFixture : IDisposable
     void SetEventSourceDatabase()
     {
         var dbConn = new DbConnectionSettings()
+                    .Add("EventSourceDbConnection", "Host=localhost;Port=5432;Username=postgres;Password=monkey35907;Database=event-source-test-db", "System.Data.Postgres")
                     .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Username=postgres;Password=monkey35907;Database=event-source-test-db", "System.Data.Postgres");
-        var diContainer = new Dictionary<Type, EventSourceActorDbContext>();
+        var diContainer = new Dictionary<Type, object>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
         var redisUri = "localhost:6379";
         var connMultiplexer = ConnectionMultiplexer.Connect(redisUri);
         var redisCache = new RedisCache(connMultiplexer);
-        var blackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
+        BlackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
         var dbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, dbFactory, blackboardService, logger));
+        diContainer.Add(typeof(IObjectRepository<EventSourceDbContext>), new EventSourceDbContext(dbConn, dbFactory, BlackboardService, logger));
+        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, dbFactory, BlackboardService, logger));
         ActorEventSourceDb = (dbFactory.ActorEventSourceDb as EventSourceActorDbContext)!;
     }
 

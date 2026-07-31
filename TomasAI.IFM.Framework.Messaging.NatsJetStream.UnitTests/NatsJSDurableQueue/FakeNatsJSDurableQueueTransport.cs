@@ -23,18 +23,41 @@ internal sealed class FakeNatsJSDurableQueueTransport : INatsJSDurableQueueTrans
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask PublishProcessAsync(string eventProjectorName, byte[] payload, CancellationToken cancellationToken)
+    public ValueTask PublishProcessAsync(
+        string eventProjectorName,
+        byte[] payload,
+        string messageId,
+        CancellationToken cancellationToken)
     {
         var queue = GetQueue(eventProjectorName);
+        Interlocked.Increment(ref queue.ProcessPublishAttempts);
+        queue.LastProcessMessageId = messageId;
+        if (!queue.ProcessMessageIds.TryAdd(messageId, 0))
+            return ValueTask.CompletedTask;
+
         Interlocked.Increment(ref queue.ProcessPublishCount);
-        var message = new FakeMessage(payload, queue.Process.Writer);
+        var message = new FakeMessage(
+            payload,
+            queue.Process.Writer,
+            () => TryConsumeFailure(ref queue.ProcessAckFailuresRemaining));
         queue.LastProcessMessage = message;
         return queue.Process.Writer.WriteAsync(message, cancellationToken);
     }
 
-    public ValueTask PublishReplayAsync(string eventProjectorName, byte[] payload, CancellationToken cancellationToken)
+    public ValueTask PublishReplayAsync(
+        string eventProjectorName,
+        byte[] payload,
+        string messageId,
+        CancellationToken cancellationToken)
     {
         var queue = GetQueue(eventProjectorName);
+        Interlocked.Increment(ref queue.ReplayPublishAttempts);
+        queue.LastReplayMessageId = messageId;
+        if (TryConsumeFailure(ref queue.ReplayPublishFailuresRemaining))
+            throw new InvalidOperationException("The replay publication failed.");
+        if (!queue.ReplayMessageIds.TryAdd(messageId, 0))
+            return ValueTask.CompletedTask;
+
         Interlocked.Increment(ref queue.ReplayPublishCount);
         var message = new FakeMessage(payload, queue.Replay.Writer);
         queue.LastReplayMessage = message;
@@ -68,6 +91,18 @@ internal sealed class FakeNatsJSDurableQueueTransport : INatsJSDurableQueueTrans
             ? queue
             : throw new InvalidOperationException($"Queue '{eventProjectorName}' was not initialized.");
 
+    static bool TryConsumeFailure(ref int failuresRemaining)
+    {
+        while (true)
+        {
+            var current = Volatile.Read(ref failuresRemaining);
+            if (current <= 0)
+                return false;
+            if (Interlocked.CompareExchange(ref failuresRemaining, current - 1, current) == current)
+                return true;
+        }
+    }
+
     public ValueTask DisposeAsync()
     {
         DisposeCount++;
@@ -78,26 +113,41 @@ internal sealed class FakeNatsJSDurableQueueTransport : INatsJSDurableQueueTrans
     {
         public readonly Channel<INatsJSDurableMessage> Process = Channel.CreateUnbounded<INatsJSDurableMessage>();
         public readonly Channel<INatsJSDurableMessage> Replay = Channel.CreateUnbounded<INatsJSDurableMessage>();
+        public readonly ConcurrentDictionary<string, byte> ProcessMessageIds = new(StringComparer.Ordinal);
+        public readonly ConcurrentDictionary<string, byte> ReplayMessageIds = new(StringComparer.Ordinal);
         public NatsJSDurableQueueSettings Settings = default!;
         public int EnsureCount;
+        public int ProcessPublishAttempts;
         public int ProcessPublishCount;
+        public int ReplayPublishAttempts;
         public int ReplayPublishCount;
+        public int ReplayPublishFailuresRemaining;
+        public int ProcessAckFailuresRemaining;
         public int ProcessConsumerStarts;
         public int ReplayConsumerStarts;
+        public string? LastProcessMessageId;
+        public string? LastReplayMessageId;
         public FakeMessage? LastProcessMessage;
         public FakeMessage? LastReplayMessage;
     }
 
-    internal sealed class FakeMessage(byte[] data, ChannelWriter<INatsJSDurableMessage> redeliveryWriter)
+    internal sealed class FakeMessage(
+        byte[] data,
+        ChannelWriter<INatsJSDurableMessage> redeliveryWriter,
+        Func<bool>? ackShouldFail = null)
         : INatsJSDurableMessage
     {
         public byte[] Data { get; } = data;
         public ulong DeliveryCount { get; private set; } = 1;
+        public int AckAttempts { get; private set; }
         public int AckCount { get; private set; }
         public int NakCount { get; private set; }
 
         public ValueTask AckAsync(CancellationToken cancellationToken)
         {
+            AckAttempts++;
+            if (ackShouldFail?.Invoke() == true)
+                throw new InvalidOperationException("The acknowledgement failed.");
             AckCount++;
             return ValueTask.CompletedTask;
         }

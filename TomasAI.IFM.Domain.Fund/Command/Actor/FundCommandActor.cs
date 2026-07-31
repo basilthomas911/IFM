@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Domain.Fund.Command.State;
 using TomasAI.IFM.Domain.Fund.Command.Validation;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.Fund.Command.Actor;
@@ -23,14 +24,17 @@ namespace TomasAI.IFM.Domain.Fund.Command.Actor;
 /// fund. It coordinates command validation, state loading and saving, and command execution in a thread-safe,
 /// event-sourced manner. The actor is typically resolved and managed by the actor system infrastructure.</remarks>
 /// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
+/// <param name="eventProjector">The Fund event projector whose durable queue follows the actor lifecycle.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class FundCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IEventProjector<FundCommandActor> eventProjector,
     ILogger<FundCommandActor> logger)
     : BaseEventSourceCommandActor<FundCommandActor>(logger, new ActorMailboxId(ActorType.Command, Actor))
 {
     public const string Actor = "FundCommand";
     readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly IEventProjector<FundCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository <FundCommandState> _repo = default!;
 
     /// <summary>
@@ -45,6 +49,18 @@ public class FundCommandActor(
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FundCommandState>>());
+        await _eventProjector.StartAsync(context);
+    }
+
+    /// <summary>
+    /// Stops the Fund event projector when the command actor shuts down.
+    /// </summary>
+    /// <param name="context">The command actor context associated with the actor lifecycle.</param>
+    /// <returns>A task-like value that represents the asynchronous shutdown operation.</returns>
+    protected override async ValueTask OnShutdown(ICommandActorContext context)
+    {
+        IsArgumentNull.Check(context);
+        await _eventProjector.StopAsync();
     }
 
     /// <summary>

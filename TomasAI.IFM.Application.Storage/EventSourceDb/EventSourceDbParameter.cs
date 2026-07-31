@@ -30,9 +30,9 @@ internal readonly record struct InsertEventStreamId(string eventStream) : IBindV
 {
     public object Bind() => new { eventStream };
 }
-internal readonly record struct GetEventNameId(string eventName) : IBindValue
+internal readonly record struct GetEventNameId(string eventName, string eventTypeName) : IBindValue
 {
-    public object Bind() => new { eventName };
+    public object Bind() => new { eventName, eventTypeName };
 }
 internal readonly record struct DeleteEventNameId(string eventName, string eventTypeName) : IBindValue
 {
@@ -69,4 +69,38 @@ internal readonly record struct DeleteEventLogByStreamId(long streamId) : IBindV
 internal readonly record struct DeleteEventStreamById(long eventStreamId) : IBindValue
 {
     public object Bind() => new { eventStreamId };
+}
+internal readonly record struct UpsertEventProjectorState(
+    long eventId,
+    string actorName,
+    string projectorName,
+    bool isReplay,
+    int attemptNumber,
+    string outcome,
+    string stage,
+    string errorMessage,
+    string createdTimestamp,
+    string updatedTimestamp) : IBindValue
+{
+    public object Bind() => new
+    {
+        eventId,
+        actorName,
+        projectorName,
+        isReplay,
+        attemptNumber,
+        outcome,
+        stage,
+        errorMessage,
+        createdTimestamp,
+        updatedTimestamp
+    };
+}
+internal readonly record struct GetEventProjectorState(long eventId, string projectorName) : IBindValue
+{
+    public object Bind() => new { eventId, projectorName };
+}
+internal readonly record struct GetUncompletedEventProjectorEvents(string projectorName, string eventNames) : IBindValue
+{
+    public object Bind() => new { projectorName, eventNames };
 }
