@@ -20,7 +20,7 @@ public static class FuturesOptionQuoteStreamingData
         var source = $"FuturesOptionQuoteStreamingDataEvent for QuoteId: {e.QuoteId}";
         try
         {
-            var futuresOptionQuoteMap = p.BlackboardService.FuturesOptionQuote.Get(e.QuoteId);
+            var futuresOptionQuoteMap = p.BlackboardService.MarketDataFeed.FuturesOptionQuote.Get(e.QuoteId);
             var optionContractId = futuresOptionQuoteMap[e.RequestId].ContractId;
             await context.InsertFuturesOptionQuoteDataAsync(e.QuoteId, optionContractId, e.QuoteData);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionQuoteDataEvent, $"Quote Data: {optionContractId}");

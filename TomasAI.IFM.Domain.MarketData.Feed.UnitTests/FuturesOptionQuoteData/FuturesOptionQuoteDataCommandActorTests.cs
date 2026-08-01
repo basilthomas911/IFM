@@ -56,7 +56,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
     FuturesOptionQuoteDataCommandState CreateState()
     {
         var blackboardService = Substitute.For<IBlackboardService>();
-        blackboardService.FuturesOptionQuoteData.Returns(new FuturesOptionQuoteDataModel());
+        blackboardService.MarketDataFeed.FuturesOptionQuoteData.Returns(new FuturesOptionQuoteDataModel());
         return new FuturesOptionQuoteDataCommandState(blackboardService);
     }
 

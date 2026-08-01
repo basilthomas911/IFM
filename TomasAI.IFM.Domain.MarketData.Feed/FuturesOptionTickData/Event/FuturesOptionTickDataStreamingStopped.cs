@@ -20,11 +20,11 @@ public static class FuturesOptionTickDataStreamingStopped
         var source = $"FuturesOptionTickDataStreamingStoppedEvent for EntityId: {e.EntityId}";
         try
         {
-            var streamingRequestId = p.BlackboardService.StreamingRequestId.Get(e.ContractId);
+            var streamingRequestId = p.BlackboardService.MarketDataFeed.StreamingRequestId.Get(e.ContractId);
             if (streamingRequestId.IsValid)
             {
                 p.MarketDataApi.StopStreamingFuturesOptionTickData(streamingRequestId.RequestId);
-                p.BlackboardService.StreamingRequestId.Remove(streamingRequestId);
+                p.BlackboardService.MarketDataFeed.StreamingRequestId.Remove(streamingRequestId);
                 await context.SendFuturesOptionTickDataStreamingStoppedCompleteAsync(e);
 
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"{e.ContractId} Streaming Stopped");

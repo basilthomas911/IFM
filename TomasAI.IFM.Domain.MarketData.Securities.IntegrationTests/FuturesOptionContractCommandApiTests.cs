@@ -50,7 +50,7 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
 
         var futuresOptionContract = SampleData.NewFuturesOptionContract;
         var subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, futuresOptionContract.ContractId);
-        dbFixture.BlackboardService.EventStreamId.Remove($"{subject.ThreadId}");
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
@@ -142,7 +142,7 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         foreach (var contract in futuresOptionContracts)
         {
             var subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractsCommand.Actor, AddFuturesOptionContractsCommand.Verb, contract.ContractId);
-            dbFixture.BlackboardService.EventStreamId.Remove($"{subject.ThreadId}");
+            dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
             var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
             if (eventStreamId > 0)
                 await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
@@ -242,7 +242,7 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
 
         // Clean up any existing data
         var addSubject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, futuresOptionContract.ContractId);
-        dbFixture.BlackboardService.EventStreamId.Remove($"{addSubject.ThreadId}");
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
         var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
         if (addEventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(addEventStreamId);
@@ -366,7 +366,7 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
 
         // Clean up any existing data
         var addSubject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, futuresOptionContract.ContractId);
-        dbFixture.BlackboardService.EventStreamId.Remove($"{addSubject.ThreadId}");
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
         var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
         if (addEventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(addEventStreamId);

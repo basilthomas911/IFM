@@ -2307,7 +2307,7 @@ public class MarketDataDbContext(
         else
         {
             // Update existing data if it exists
-            var openPrice = await _blackboardService.FuturesOpenPrice.GetAsync(existingData, GetFuturesOpenPriceAsync);
+            var openPrice = await _blackboardService.MarketDataFeed.FuturesOpenPrice.GetAsync(existingData, GetFuturesOpenPriceAsync);
             openPrice = openPrice == 0 ? e.OpenPrice : openPrice;
             await db.Use(MarketDataDbCql.UpdateFuturesEodData)
                 .SetParameters(new UpdateFuturesEodData(
@@ -2478,7 +2478,7 @@ public class MarketDataDbContext(
         else
         {
             var entityId = existingData.EntityId;
-            var openPrice = await _blackboardService.VixFuturesOpenPrice.GetAsync(entityId, GetVixFuturesOpenPriceAsync);
+            var openPrice = await _blackboardService.MarketDataFeed.VixFuturesOpenPrice.GetAsync(entityId, GetVixFuturesOpenPriceAsync);
             var vixFuturesTickHLVData = await GetVixFuturesTickHLVDataAsync(entityId);
             await db.Use(MarketDataDbCql.UpdateVixFuturesEodData)
                .SetParameters(new UpdateVixFuturesEodData(

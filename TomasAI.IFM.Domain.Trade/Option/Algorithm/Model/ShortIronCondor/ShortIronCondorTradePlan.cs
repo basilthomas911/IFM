@@ -95,7 +95,7 @@ public class ShortIronCondorTradePlan : TomasAI.IFM.Domain.Trade.Option.Algorith
             Value: ShortMDIWarningReached,
             WarningLimit: ShortMDIWarningReached * 2 * Convert.ToDouble(openingNetSpread),
             MaxLimit: ShortMDILimitReached * 2 * Convert.ToDouble(openingNetSpread));
-        blackboardService.IronCondorMDILimit.Set(primaryTrade.EntityId, valueDate, ironCondorMDILimit);
+        blackboardService.Trade.IronCondorMDILimit.Set(primaryTrade.EntityId, valueDate, ironCondorMDILimit);
         var callGamma = Convert.ToInt32(ShortCallGamma * 100000);
         var putGamma = Convert.ToInt32(ShortPutGamma * 100000);
         if (callGamma == 0 || putGamma == 0)

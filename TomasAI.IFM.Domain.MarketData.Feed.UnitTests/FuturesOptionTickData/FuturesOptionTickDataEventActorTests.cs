@@ -346,7 +346,7 @@ public class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeed
     static IBlackboardService CreateBlackboard()
     {
         var blackboard = Substitute.For<IBlackboardService>();
-        blackboard.StreamingRequestId.Returns(new StreamingRequestIdModel(
+        blackboard.MarketDataFeed.StreamingRequestId.Returns(new StreamingRequestIdModel(
             Substitute.For<IRedisCache>(), Substitute.For<IJsonSerializer>()));
         return blackboard;
     }

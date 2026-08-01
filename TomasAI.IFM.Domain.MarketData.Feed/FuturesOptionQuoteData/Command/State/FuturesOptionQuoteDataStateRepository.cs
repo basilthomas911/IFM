@@ -83,7 +83,7 @@ public class FuturesOptionQuoteDataStateRepository(
             foreach (var e in quoteData)
             {
                 FuturesOptionQuoteId optionQuoteId = new(e.QuoteId, e.ContractId, e.RequestId);
-                blackboardService.FuturesOptionQuoteData.Set(optionQuoteId, e);
+                blackboardService.MarketDataFeed.FuturesOptionQuoteData.Set(optionQuoteId, e);
             }
         }
 

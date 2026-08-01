@@ -1,16 +1,12 @@
-﻿using TomasAI.IFM.Framework.Caching;
-using TomasAI.IFM.Framework.Serialization;  
+using TomasAI.IFM.Framework.Caching;
+using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Application.Blackboard;
 
 /// <summary>
-/// Provides access to various financial models and data through a caching mechanism.
+/// Provides domain-grouped access to application cache models.
 /// </summary>
-/// <remarks>The <see cref="BlackboardService"/> class is designed to interface with a Redis cache to provide
-/// efficient access to a wide range of financial data models. It utilizes dependency injection to initialize its
-/// components, ensuring that the necessary caching and serialization services are available. This service is intended
-/// for use in financial applications where quick access to cached data is critical.</remarks>
 public class BlackboardService : IBlackboardService
 {
     public BlackboardService(IRedisCache redisCache, IJsonSerializer jsonSerializer)
@@ -18,86 +14,126 @@ public class BlackboardService : IBlackboardService
         IsArgumentNull.Check(redisCache);
         IsArgumentNull.Check(jsonSerializer);
 
-        DatabentoContractMapping = new DatabentoContractMappingCache(redisCache, jsonSerializer);
-        OptionTrade = new(redisCache, jsonSerializer);
-        ReferenceLookup = new(redisCache, jsonSerializer);
-        TradePositionAction = new(redisCache, jsonSerializer);
-        TradePlanForwardLossLimit = new(redisCache, jsonSerializer);
-        HedgePositionTradeId = new(redisCache, jsonSerializer);
-        FuturesTickData = new(redisCache, jsonSerializer);
-        FuturesOptionTickData = new(redisCache, jsonSerializer);
-        FuturesOptionTickPriceData = new (redisCache, jsonSerializer);
-        FuturesTickDataStreamingParameter = new(redisCache);
-        FuturesOptionTickDataStreamingParameter = new(redisCache, jsonSerializer);
-        FuturesEodData = new(redisCache, jsonSerializer);
-        VixFuturesEodData = new(redisCache, jsonSerializer);
-        FuturesEodDataRange = new(redisCache, jsonSerializer);
-        NormalCurveTable = new(redisCache, jsonSerializer);
-        FuturesContract = new(redisCache, jsonSerializer);
-        VixFuturesContractId = new(redisCache, jsonSerializer);
-        TradeOrder = new(redisCache, jsonSerializer);
-        DomainEvents = new(redisCache, jsonSerializer);
-        IronCondorMDILimit = new(redisCache, jsonSerializer);
-        FuturesContractSymbol = new(redisCache, jsonSerializer);
-        FuturesItiSignalAveragePredictedTrendDelta = new(redisCache, jsonSerializer);
-        FuturesItiSignalAveragePredictedTrendDeltaRange = new(redisCache, jsonSerializer);
-        FuturesItiSignalMDI = new(redisCache, jsonSerializer);
-        FuturesOptionQuote = new(redisCache, jsonSerializer);
-        FuturesOptionQuoteData = new(redisCache, jsonSerializer);
-        ForwardLossRatioMap = new(redisCache, jsonSerializer);
-        StopLossLimit = new(redisCache, jsonSerializer);
-        SignalProcessor = new(redisCache, jsonSerializer);
-        FundBalance = new(redisCache, jsonSerializer);
-        EventStreamId = new(redisCache, jsonSerializer);
-        EventNameId = new(redisCache, jsonSerializer);
-        FuturesOpenPrice = new(redisCache, jsonSerializer);
-        VixFuturesOpenPrice = new(redisCache, jsonSerializer);
-        StreamingRequestId = new(redisCache, jsonSerializer);
-        SequenceCounter = new(redisCache);
-        RiskFreeRate = new(redisCache, jsonSerializer);
-        FuturesRsiSignal = new(redisCache, jsonSerializer);
-        FuturesRsiDailySignal = new(redisCache, jsonSerializer);
-        EventProjectorState = new(redisCache, jsonSerializer);
+        Application = new ApplicationBlackboard(redisCache);
+        EventSourcing = new EventSourcingBlackboard(redisCache, jsonSerializer);
+        Fund = new FundBlackboard(redisCache, jsonSerializer);
+        MarketData = new MarketDataBlackboard(redisCache, jsonSerializer);
+        MarketDataAnalytics = new MarketDataAnalyticsBlackboard(redisCache, jsonSerializer);
+        MarketDataFeed = new MarketDataFeedBlackboard(redisCache, jsonSerializer);
+        MarketDataSecurities = new MarketDataSecuritiesBlackboard(
+            redisCache,
+            jsonSerializer);
+        Reference = new ReferenceBlackboard(redisCache, jsonSerializer);
+        Trade = new TradeBlackboard(redisCache, jsonSerializer);
     }
 
-    public IDatabentoContractMappingCache DatabentoContractMapping { get; }
-    public OptionTradeModel OptionTrade { get; }
-    public ReferenceLookupModel ReferenceLookup { get; }
-    public TradePositionActionModel TradePositionAction { get; }
-    public TradePlanForwardLossLimitModel TradePlanForwardLossLimit { get; }
-    public HedgePositionTradeIdModel HedgePositionTradeId { get; }
-    public FuturesTickDataModel FuturesTickData { get; }
-    public FuturesOptionTickDataModel FuturesOptionTickData { get; }
-    public FuturesOptionTickDataModel FuturesOptionTickPriceData { get; }
-    public FuturesTickDataStreamingParameterModel FuturesTickDataStreamingParameter { get; }
-    public StreamingRequestIdModel FuturesOptionTickDataStreamingParameter { get; }
-    public FuturesEodDataModel FuturesEodData { get; }
-    public VixFuturesEodDataModel VixFuturesEodData { get; }
-    public FuturesEodDataRangeModel FuturesEodDataRange { get; }
-    public NormalCurveTableModel NormalCurveTable { get; }
-    public FuturesContractModel FuturesContract { get; }
-    public VixFuturesContractIdModel VixFuturesContractId { get; }
-    public TradeOrderModel TradeOrder { get; }
-    public DomainEventsModel DomainEvents { get; }
-    public IronCondorMDILimitModel IronCondorMDILimit { get; }
-    public FuturesContractSymbolModel FuturesContractSymbol { get; }
-    public FuturesItiSignalAveragePredictedTrendDeltaModel FuturesItiSignalAveragePredictedTrendDelta { get; }
-    public FuturesItiSignalAveragePredictedTrendDeltaRangeModel FuturesItiSignalAveragePredictedTrendDeltaRange { get; }
-    public FuturesItiSignalMDIModel FuturesItiSignalMDI { get; }
-    public FuturesOptionQuoteModel FuturesOptionQuote { get; }
-    public FuturesOptionQuoteDataModel FuturesOptionQuoteData { get; }
-    public ForwardLossRatioMapModel ForwardLossRatioMap { get; }
-    public StopLossLimitModel StopLossLimit { get; }
-    public SignalProcessorModel SignalProcessor { get; }
-    public FundBalanceModel FundBalance { get; }
-    public EventStreamIdModel EventStreamId { get; }
-    public EventNameIdModel EventNameId { get; }
-    public FuturesOpenPriceModel FuturesOpenPrice { get; }
-    public VixFuturesOpenPriceModel VixFuturesOpenPrice { get; }
-    public StreamingRequestIdModel StreamingRequestId { get; }
-    public SequenceCounterModel SequenceCounter { get; }
-    public RiskFreeRateModel RiskFreeRate { get; }
-    public FuturesRsiSignalModel FuturesRsiSignal { get; }
-    public FuturesRsiDailySignalModel FuturesRsiDailySignal { get; }
-    public EventProjectorStateModel EventProjectorState { get; }
+    public IApplicationBlackboard Application { get; }
+    public IEventSourcingBlackboard EventSourcing { get; }
+    public IFundBlackboard Fund { get; }
+    public IMarketDataBlackboard MarketData { get; }
+    public IMarketDataAnalyticsBlackboard MarketDataAnalytics { get; }
+    public IMarketDataFeedBlackboard MarketDataFeed { get; }
+    public IMarketDataSecuritiesBlackboard MarketDataSecurities { get; }
+    public IReferenceBlackboard Reference { get; }
+    public ITradeBlackboard Trade { get; }
+
+    [Obsolete("Use MarketDataSecurities.DatabentoContractMapping.")]
+    public IDatabentoContractMappingCache DatabentoContractMapping =>
+        MarketDataSecurities.DatabentoContractMapping;
+    [Obsolete("Use Trade.OptionTrade.")]
+    public OptionTradeModel OptionTrade => Trade.OptionTrade;
+    [Obsolete("Use Reference.ReferenceLookup.")]
+    public ReferenceLookupModel ReferenceLookup => Reference.ReferenceLookup;
+    [Obsolete("Use Trade.TradePositionAction.")]
+    public TradePositionActionModel TradePositionAction => Trade.TradePositionAction;
+    [Obsolete("Use Trade.TradePlanForwardLossLimit.")]
+    public TradePlanForwardLossLimitModel TradePlanForwardLossLimit =>
+        Trade.TradePlanForwardLossLimit;
+    [Obsolete("Use Trade.HedgePositionTradeId.")]
+    public HedgePositionTradeIdModel HedgePositionTradeId => Trade.HedgePositionTradeId;
+    [Obsolete("Use MarketDataFeed.FuturesTickData.")]
+    public FuturesTickDataModel FuturesTickData => MarketDataFeed.FuturesTickData;
+    [Obsolete("Use MarketDataFeed.FuturesOptionTickData.")]
+    public FuturesOptionTickDataModel FuturesOptionTickData =>
+        MarketDataFeed.FuturesOptionTickData;
+    [Obsolete("Use MarketDataFeed.FuturesOptionTickPriceData.")]
+    public FuturesOptionTickDataModel FuturesOptionTickPriceData =>
+        MarketDataFeed.FuturesOptionTickPriceData;
+    [Obsolete("Use MarketDataFeed.FuturesTickDataStreamingParameter.")]
+    public FuturesTickDataStreamingParameterModel FuturesTickDataStreamingParameter =>
+        MarketDataFeed.FuturesTickDataStreamingParameter;
+    [Obsolete("Use MarketDataFeed.FuturesOptionTickDataStreamingParameter.")]
+    public FuturesOptionTickDataStreamingParameterModel
+        FuturesOptionTickDataStreamingParameter =>
+            MarketDataFeed.FuturesOptionTickDataStreamingParameter;
+    [Obsolete("Use MarketDataFeed.FuturesEodData.")]
+    public FuturesEodDataModel FuturesEodData => MarketDataFeed.FuturesEodData;
+    [Obsolete("Use MarketDataFeed.VixFuturesEodData.")]
+    public VixFuturesEodDataModel VixFuturesEodData => MarketDataFeed.VixFuturesEodData;
+    [Obsolete("Use MarketDataFeed.FuturesEodDataRange.")]
+    public FuturesEodDataRangeModel FuturesEodDataRange =>
+        MarketDataFeed.FuturesEodDataRange;
+    [Obsolete("Use MarketDataFeed.NormalCurveTable.")]
+    public NormalCurveTableModel NormalCurveTable => MarketDataFeed.NormalCurveTable;
+    [Obsolete("Use MarketDataSecurities.FuturesContract.")]
+    public FuturesContractModel FuturesContract => MarketDataSecurities.FuturesContract;
+    [Obsolete("Use MarketDataFeed.VixFuturesContractId.")]
+    public VixFuturesContractIdModel VixFuturesContractId =>
+        MarketDataFeed.VixFuturesContractId;
+    [Obsolete("Use Trade.TradeOrder.")]
+    public TradeOrderModel TradeOrder => Trade.TradeOrder;
+    [Obsolete("Use EventSourcing.DomainEvents.")]
+    public DomainEventsModel DomainEvents => EventSourcing.DomainEvents;
+    [Obsolete("Use Trade.IronCondorMDILimit.")]
+    public IronCondorMDILimitModel IronCondorMDILimit => Trade.IronCondorMDILimit;
+    [Obsolete("Use MarketDataSecurities.FuturesContractSymbol.")]
+    public FuturesContractSymbolModel FuturesContractSymbol =>
+        MarketDataSecurities.FuturesContractSymbol;
+    [Obsolete("Use MarketDataAnalytics.FuturesItiSignalAveragePredictedTrendDelta.")]
+    public FuturesItiSignalAveragePredictedTrendDeltaModel
+        FuturesItiSignalAveragePredictedTrendDelta =>
+            MarketDataAnalytics.FuturesItiSignalAveragePredictedTrendDelta;
+    [Obsolete("Use MarketDataAnalytics.FuturesItiSignalAveragePredictedTrendDeltaRange.")]
+    public FuturesItiSignalAveragePredictedTrendDeltaRangeModel
+        FuturesItiSignalAveragePredictedTrendDeltaRange =>
+            MarketDataAnalytics.FuturesItiSignalAveragePredictedTrendDeltaRange;
+    [Obsolete("Use MarketDataAnalytics.FuturesItiSignalMDI.")]
+    public FuturesItiSignalMDIModel FuturesItiSignalMDI =>
+        MarketDataAnalytics.FuturesItiSignalMDI;
+    [Obsolete("Use MarketDataFeed.FuturesOptionQuote.")]
+    public FuturesOptionQuoteModel FuturesOptionQuote => MarketDataFeed.FuturesOptionQuote;
+    [Obsolete("Use MarketDataFeed.FuturesOptionQuoteData.")]
+    public FuturesOptionQuoteDataModel FuturesOptionQuoteData =>
+        MarketDataFeed.FuturesOptionQuoteData;
+    [Obsolete("Use Trade.ForwardLossRatioMap.")]
+    public ForwardLossRatioMapModel ForwardLossRatioMap => Trade.ForwardLossRatioMap;
+    [Obsolete("Use Trade.StopLossLimit.")]
+    public StopLossLimitModel StopLossLimit => Trade.StopLossLimit;
+    [Obsolete("Use Trade.SignalProcessor.")]
+    public SignalProcessorModel SignalProcessor => Trade.SignalProcessor;
+    [Obsolete("Use Fund.FundBalance.")]
+    public FundBalanceModel FundBalance => Fund.FundBalance;
+    [Obsolete("Use EventSourcing.EventStreamId.")]
+    public EventStreamIdModel EventStreamId => EventSourcing.EventStreamId;
+    [Obsolete("Use EventSourcing.EventNameId.")]
+    public EventNameIdModel EventNameId => EventSourcing.EventNameId;
+    [Obsolete("Use MarketDataFeed.FuturesOpenPrice.")]
+    public FuturesOpenPriceModel FuturesOpenPrice => MarketDataFeed.FuturesOpenPrice;
+    [Obsolete("Use MarketDataFeed.VixFuturesOpenPrice.")]
+    public VixFuturesOpenPriceModel VixFuturesOpenPrice =>
+        MarketDataFeed.VixFuturesOpenPrice;
+    [Obsolete("Use MarketDataFeed.StreamingRequestId.")]
+    public StreamingRequestIdModel StreamingRequestId => MarketDataFeed.StreamingRequestId;
+    [Obsolete("Use Application.SequenceCounter.")]
+    public SequenceCounterModel SequenceCounter => Application.SequenceCounter;
+    [Obsolete("Use MarketData.RiskFreeRate.")]
+    public RiskFreeRateModel RiskFreeRate => MarketData.RiskFreeRate;
+    [Obsolete("Use MarketDataAnalytics.FuturesRsiSignal.")]
+    public FuturesRsiSignalModel FuturesRsiSignal => MarketDataAnalytics.FuturesRsiSignal;
+    [Obsolete("Use MarketDataAnalytics.FuturesRsiDailySignal.")]
+    public FuturesRsiDailySignalModel FuturesRsiDailySignal =>
+        MarketDataAnalytics.FuturesRsiDailySignal;
+    [Obsolete("Use EventSourcing.EventProjectorState.")]
+    public EventProjectorStateModel EventProjectorState =>
+        EventSourcing.EventProjectorState;
 }

@@ -51,7 +51,7 @@ public class FuturesContractFuturesContractCommandApiTests(WebApplicationFactory
 
         var futuresContract = SampleData.NewFuturesContract;
         var subject = new ActorSubject(ActorType.Command, AddFuturesContractCommand.Actor, AddFuturesContractCommand.Verb, futuresContract.Id.Format());
-        dbFixture.BlackboardService.EventStreamId.Remove($"{subject.ThreadId}");
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
@@ -145,7 +145,7 @@ public class FuturesContractFuturesContractCommandApiTests(WebApplicationFactory
         
                 // Clean up any existing data
                 var addSubject = new ActorSubject(ActorType.Command, AddFuturesContractCommand.Actor, AddFuturesContractCommand.Verb, $"{futuresContract.Id.Format()}");
-                dbFixture.BlackboardService.EventStreamId.Remove($"{addSubject.ThreadId}");
+                dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
                 var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
                 if (addEventStreamId > 0)
                     await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(addEventStreamId);
@@ -268,7 +268,7 @@ public class FuturesContractFuturesContractCommandApiTests(WebApplicationFactory
 
         // Clean up any existing data
         var addSubject = new ActorSubject(ActorType.Command, AddFuturesContractCommand.Actor, AddFuturesContractCommand.Verb, $"{futuresContract.Id.Format()}");
-        dbFixture.BlackboardService.EventStreamId.Remove($"{addSubject.ThreadId}");
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
         var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
         if (addEventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(addEventStreamId);

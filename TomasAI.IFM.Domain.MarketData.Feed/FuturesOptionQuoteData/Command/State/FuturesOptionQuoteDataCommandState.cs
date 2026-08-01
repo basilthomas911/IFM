@@ -70,12 +70,12 @@ public class FuturesOptionQuoteDataCommandState(IBlackboardService blackboardSer
         => _quoteId == quoteId && _quoteMap!.Count > 0;
 
     internal FuturesOptionQuoteDataReadModel? GetFuturesOptionQuoteData(FuturesOptionQuoteId id)
-        => _blackboardService.FuturesOptionQuoteData.Get(id) ?? default;
+        => _blackboardService.MarketDataFeed.FuturesOptionQuoteData.Get(id) ?? default;
 
     internal void SetFuturesOptionQuoteData(FuturesOptionQuoteId id, FuturesOptionQuoteDataReadModel data)
     {
         if (data is null)
             return;
-        _blackboardService.FuturesOptionQuoteData.Set(id, data);
+        _blackboardService.MarketDataFeed.FuturesOptionQuoteData.Set(id, data);
     }
 }

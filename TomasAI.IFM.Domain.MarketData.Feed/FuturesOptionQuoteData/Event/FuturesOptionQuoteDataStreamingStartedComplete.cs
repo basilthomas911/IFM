@@ -26,7 +26,7 @@ public static class FuturesOptionQuoteDataStreamingStartedComplete
                 p.MarketDataSnapshotApi.StartStreamingFuturesOptionQuoteData(o.RequestId, optionContract!, o);
                 await Task.Delay(TimeSpan.FromSeconds(1));
             }
-            p.BlackboardService.FuturesOptionQuote.Set(e.QuoteId, e.FuturesOptionQuotes);
+            p.BlackboardService.MarketDataFeed.FuturesOptionQuote.Set(e.QuoteId, e.FuturesOptionQuotes);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionQuoteDataEvent, $"{e.GetType().Name}: {e.QuoteId}");
             p.Logger.LogInformationEvent(ServiceId, "{source}", source);
             return true;

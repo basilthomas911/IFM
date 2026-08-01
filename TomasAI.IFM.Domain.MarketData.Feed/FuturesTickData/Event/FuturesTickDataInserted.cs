@@ -26,18 +26,18 @@ public static class FuturesTickDataInserted
                 var eodDataToday = await context.GetFuturesEodDataAsync(e.Contract.ContractId, valueDate);
                 if (eodDataToday is null)
                     return false;
-                var eodDataRange = await p.BlackboardService.FuturesEodDataRange.GetAsync(e.Contract.ContractId, valueDate,
+                var eodDataRange = await p.BlackboardService.MarketDataFeed.FuturesEodDataRange.GetAsync(e.Contract.ContractId, valueDate,
                      (contractId, starteDate, endDate) => context.GetFuturesEodDataByDateRangeAsync(contractId, starteDate, endDate));
-                var normCurveTbl = await p.BlackboardService.NormalCurveTable.GetAsync(valueDate,
+                var normCurveTbl = await p.BlackboardService.MarketDataFeed.NormalCurveTable.GetAsync(valueDate,
                     () => context.GetNormalCurveTableAsync()!);
-                var vixContractId = p.BlackboardService.VixFuturesContractId.Get(valueDate);
-                var vixFuturesEodData = p.BlackboardService.VixFuturesEodData.Get(vixContractId!, valueDate);
+                var vixContractId = p.BlackboardService.MarketDataFeed.VixFuturesContractId.Get(valueDate);
+                var vixFuturesEodData = p.BlackboardService.MarketDataFeed.VixFuturesEodData.Get(vixContractId!, valueDate);
                 if (vixFuturesEodData.Count == 0)
                 {
                     vixFuturesEodData = await context.GetVixFuturesEodDataAsync(vixContractId!, valueDate);
-                    p.BlackboardService.VixFuturesEodData.Set(vixFuturesEodData.First().ContractId, valueDate, vixFuturesEodData);
+                    p.BlackboardService.MarketDataFeed.VixFuturesEodData.Set(vixFuturesEodData.First().ContractId, valueDate, vixFuturesEodData);
                     if (string.IsNullOrEmpty(vixContractId))
-                        p.BlackboardService.VixFuturesContractId.Set(valueDate, vixFuturesEodData.First().ContractId);
+                        p.BlackboardService.MarketDataFeed.VixFuturesContractId.Set(valueDate, vixFuturesEodData.First().ContractId);
                 }
 
                 // save futures eod data...
@@ -47,7 +47,7 @@ public static class FuturesTickDataInserted
             else
             {
                 await context.InsertVixFuturesEodDataAsync(e.TickData);
-                p.BlackboardService.VixFuturesContractId.Set(valueDate, e.TickData.ContractId);
+                p.BlackboardService.MarketDataFeed.VixFuturesContractId.Set(valueDate, e.TickData.ContractId);
             }
             return true;
         }

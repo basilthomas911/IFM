@@ -32,7 +32,7 @@ public static class FuturesTickDataStreamingStarted
                 if (streamId == -1)
                     throw new InvalidOperationException($"{e.GetType().Name}: unable to create stream id from futures contract {e.Contract.ContractId} ");
                 p.MarketDataApi.StartStreamingFuturesTickData(streamId, e.ValueDate, e.Contract);
-                p.BlackboardService.FuturesTickDataStreamingParameter.Set(streamId, new FuturesTickDataStreamingParameter(streamId, e.ValueDate, e.Contract));
+                p.BlackboardService.MarketDataFeed.FuturesTickDataStreamingParameter.Set(streamId, new FuturesTickDataStreamingParameter(streamId, e.ValueDate, e.Contract));
                 await context.FuturesTickDataStreamingStartedCompleteAsync(e);
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started");
                 p.Logger.LogInformationEvent(ServiceId, "{Source}: futures {e.Contract.ContractId} streaming started", source, e.Contract.ContractId);

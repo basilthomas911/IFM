@@ -325,8 +325,8 @@ public class FuturesOptionQuoteDataEventActorTests : IClassFixture<MarketDataFee
         var blackboard = Substitute.For<IBlackboardService>();
         var redis = Substitute.For<IRedisCache>();
         var serializer = Substitute.For<IJsonSerializer>();
-        blackboard.FuturesOptionQuote.Returns(new FuturesOptionQuoteModel(redis, serializer));
-        blackboard.FuturesOptionQuoteData.Returns(new FuturesOptionQuoteDataModel(redis, serializer));
+        blackboard.MarketDataFeed.FuturesOptionQuote.Returns(new FuturesOptionQuoteModel(redis, serializer));
+        blackboard.MarketDataFeed.FuturesOptionQuoteData.Returns(new FuturesOptionQuoteDataModel(redis, serializer));
         return (blackboard, redis, serializer);
     }
 

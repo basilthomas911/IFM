@@ -119,13 +119,13 @@ public class MarketDataFeedQueryActor(
         {
             var query = (q as GetOptionQuoteIdQuery)!;
             var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetOptionQuoteIdQuery.Verb);
-            return query.GetOptionQuoteIdAsync(ctx, qryParams.BlackboardService.SequenceCounter);
+            return query.GetOptionQuoteIdAsync(ctx, qryParams.BlackboardService.Application.SequenceCounter);
         },
         [typeof(GetStreamingRequestIdQuery).Name] = (ctx, qryParams, q) =>
         {
             var query = (q as GetStreamingRequestIdQuery)!;
             var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetStreamingRequestIdQuery.Verb);
-            return query.GetStreamingRequestIdAsync(ctx, qryParams.BlackboardService.SequenceCounter);
+            return query.GetStreamingRequestIdAsync(ctx, qryParams.BlackboardService.Application.SequenceCounter);
         }
     };
 

@@ -19,7 +19,7 @@ public static class FuturesEodDataInserted
         var source = $"FuturesEodDataInsertedEvent for EntityId: {e.EntityId}";
         try
         {
-            p.BlackboardService.FuturesEodData.Set(e.FuturesEodData.ContractId, e.FuturesEodData.ValueDate, e.FuturesEodData);
+            p.BlackboardService.MarketDataFeed.FuturesEodData.Set(e.FuturesEodData.ContractId, e.FuturesEodData.ValueDate, e.FuturesEodData);
             await context.SendFuturesEodDataUpdatedEventAsync(e);
             p.Logger.LogInformationEvent(ServiceId, "{Source}: futures eod data {ContractId} {ClosePrice}",
                 source, e.FuturesEodData.ContractId, Convert.ToDecimal(e.FuturesEodData.ClosePrice));

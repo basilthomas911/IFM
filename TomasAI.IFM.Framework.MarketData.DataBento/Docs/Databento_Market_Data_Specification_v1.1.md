@@ -1208,14 +1208,15 @@ must not be treated as a permanent instrument-ID registry. See
 The application layer may wrap the provider query service with
 `CachedDatabentoMarketDataQueries`, exposed for dependency injection as
 `ICachedDatabentoMarketDataQueries`. Its cache dependency is the Blackboard-owned
-`IDatabentoContractMappingCache`, also exposed as
-`IBlackboardService.DatabentoContractMapping`. A typical composition is:
+`IDatabentoContractMappingCache`, exposed through the Blackboard domain root as
+`IBlackboardService.MarketDataSecurities.DatabentoContractMapping`. A typical
+composition is:
 
 ```csharp
 var provider = databentoFeedFactory.CreateMarketDataQueries(options);
 IDatabentoMarketDataQueries queries = new CachedDatabentoMarketDataQueries(
     provider,
-    blackboard.DatabentoContractMapping,
+    blackboard.MarketDataSecurities.DatabentoContractMapping,
     options.Dataset);
 ```
 

@@ -180,10 +180,10 @@ public class AlgorithmBuilder(
 
         Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>> GetForwardLossRatioMap(DateOnly valueDate)
         {
-            var forwardLossRatioMap = _blackboardService.ForwardLossRatioMap.Get(valueDate);
+            var forwardLossRatioMap = _blackboardService.Trade.ForwardLossRatioMap.Get(valueDate);
             if (forwardLossRatioMap is null)
-                _blackboardService.ForwardLossRatioMap.Set(valueDate, new Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>>());
-            return _blackboardService.ForwardLossRatioMap.Get(valueDate) ?? new Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>>();
+                _blackboardService.Trade.ForwardLossRatioMap.Set(valueDate, new Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>>());
+            return _blackboardService.Trade.ForwardLossRatioMap.Get(valueDate) ?? new Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>>();
         }
     }
 
@@ -218,11 +218,11 @@ public class AlgorithmBuilder(
     {
         try
         {
-            var stopLossLimit = _blackboardService.StopLossLimit.Get(optionTradeId);
+            var stopLossLimit = _blackboardService.Trade.StopLossLimit.Get(optionTradeId);
             if (stopLossLimit is null)
             {
-                _blackboardService.StopLossLimit.Set(optionTradeId, new TradePlanStopLossLimitReadModel(0.0));
-                stopLossLimit = _blackboardService.StopLossLimit.Get(optionTradeId);
+                _blackboardService.Trade.StopLossLimit.Set(optionTradeId, new TradePlanStopLossLimitReadModel(0.0));
+                stopLossLimit = _blackboardService.Trade.StopLossLimit.Get(optionTradeId);
             }
             return stopLossLimit ?? new TradePlanStopLossLimitReadModel(0.0);
         }
@@ -243,11 +243,11 @@ public class AlgorithmBuilder(
     {
         try
         {
-            var signalProcessor = _blackboardService.SignalProcessor.Get<TSignal>(optionTradeId);
+            var signalProcessor = _blackboardService.Trade.SignalProcessor.Get<TSignal>(optionTradeId);
             if (signalProcessor is null)
             {
-                _blackboardService.SignalProcessor.Set<TSignal>(optionTradeId, new SignalProcessor<TSignal>());
-                signalProcessor = _blackboardService.SignalProcessor.Get<TSignal>(optionTradeId);
+                _blackboardService.Trade.SignalProcessor.Set<TSignal>(optionTradeId, new SignalProcessor<TSignal>());
+                signalProcessor = _blackboardService.Trade.SignalProcessor.Get<TSignal>(optionTradeId);
             }
                return signalProcessor ?? new SignalProcessor<TSignal>();
         }
@@ -267,7 +267,7 @@ public class AlgorithmBuilder(
         var fundBalance = new FundBalanceReadModel(0m);
         try
         {
-            fundBalance = _blackboardService.FundBalance.Get(orderId);
+            fundBalance = _blackboardService.Fund.FundBalance.Get(orderId);
             if (fundBalance is null)
             {
                 var fundId = GetFundIdFromOrderId(orderId);
@@ -277,7 +277,7 @@ public class AlgorithmBuilder(
                     if (fundBalanceByFundId != 0m)
                     {
                         fundBalance = new FundBalanceReadModel(fundBalanceByFundId);
-                        _blackboardService  .FundBalance.Set( orderId, fundBalance);
+                        _blackboardService.Fund.FundBalance.Set(orderId, fundBalance);
                     }
                 }
             }

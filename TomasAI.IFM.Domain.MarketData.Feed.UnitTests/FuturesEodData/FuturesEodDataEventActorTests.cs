@@ -374,8 +374,8 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var redisCache = Substitute.For<IRedisCache>();
         var jsonSerializer = Substitute.For<IJsonSerializer>();
         jsonSerializer.Serialize(Arg.Any<object>()).Returns("serialized");
-        blackboard.FuturesEodData.Returns(new FuturesEodDataModel(redisCache, jsonSerializer));
-        blackboard.VixFuturesEodData.Returns(new VixFuturesEodDataModel(redisCache, jsonSerializer));
+        blackboard.MarketDataFeed.FuturesEodData.Returns(new FuturesEodDataModel(redisCache, jsonSerializer));
+        blackboard.MarketDataFeed.VixFuturesEodData.Returns(new VixFuturesEodDataModel(redisCache, jsonSerializer));
         var actor = _fixture.CreateActor(supervisor, blackboard, statusConsole, logger);
         return new ActorHarness(actor, redisCache, jsonSerializer, statusConsole);
     }

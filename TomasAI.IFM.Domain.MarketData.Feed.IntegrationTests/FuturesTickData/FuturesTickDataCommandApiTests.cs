@@ -44,7 +44,7 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
 
         var contract = SampleData.FuturesContract;
         var tickData = SampleData.UnderlyingFuturesTickData;
-        dbFixture.BlackboardService.FuturesEodDataRange.Remove(SampleData.UnderlyingFuturesTickData.ContractId, SampleData.UnderlyingFuturesTickData.ValueDate);
+        dbFixture.BlackboardService.MarketDataFeed.FuturesEodDataRange.Remove(SampleData.UnderlyingFuturesTickData.ContractId, SampleData.UnderlyingFuturesTickData.ValueDate);
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(SampleData.FuturesEodData.ContractId, SampleData.FuturesEodData.ValueDate);
         await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(SampleData.FuturesEodData);
         await dbFixture.MarketDataDb.DeleteFuturesTickDataAsync(SampleData.UnderlyingFuturesTickData.ContractId, SampleData.UnderlyingFuturesTickData.ValueDate);

@@ -40,7 +40,7 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
     {
         _eventProjector.DurableReplayQueue.SetMaxAttemptsReachedAction(_eventProjector.ProjectorName, async e =>
         {
-            var currentState = _eventProjector.BlackboardService.EventProjectorState.Get(
+            var currentState = _eventProjector.BlackboardService.EventSourcing.EventProjectorState.Get(
                     e.EventId,
                     _eventProjector.ProjectorName)
                 ?? await _eventProjector.DbEventSource.GetEventProjectorStateAsync(
@@ -54,7 +54,7 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
                 ErrorMessage = $"Max {_eventProjector.DurableReplayQueue.GetMaxReplayAttemps(_eventProjector.ProjectorName)} attempts reached for event {e.EventId} of type {e.GetType().Name}"
             };
             await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
-            _eventProjector.BlackboardService.EventProjectorState.Clear(e.EventId, _eventProjector.ProjectorName);
+            _eventProjector.BlackboardService.EventSourcing.EventProjectorState.Clear(e.EventId, _eventProjector.ProjectorName);
         });
 
         SetProjectionProcessingEvent<TEvent, TEntityId>(e =>
@@ -113,7 +113,7 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
         where TEntityId : IActorEntityId
     {
         // load current projector state...
-        var currentState = _eventProjector.BlackboardService.EventProjectorState.Get(
+        var currentState = _eventProjector.BlackboardService.EventSourcing.EventProjectorState.Get(
                 domainEvent.EventId,
                 _eventProjector.ProjectorName)
             ?? await _eventProjector.DbEventSource.GetEventProjectorStateAsync(
@@ -121,7 +121,7 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
                 _eventProjector.ProjectorName)
             ?? throw new InvalidOperationException(
                 $"Projection state was not initialized for event {domainEvent.EventId} and projector '{_eventProjector.ProjectorName}'.");
-        _eventProjector.BlackboardService.EventProjectorState.Set(
+        _eventProjector.BlackboardService.EventSourcing.EventProjectorState.Set(
             domainEvent.EventId,
             _eventProjector.ProjectorName,
             currentState);
@@ -145,7 +145,7 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
                 Outcome = EventProjectorOutcomeType.Retrying,
                 ErrorMessage = ex.Message };
             await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
-            _eventProjector.BlackboardService.EventProjectorState.Set(
+            _eventProjector.BlackboardService.EventSourcing.EventProjectorState.Set(
                 domainEvent.EventId,
                 _eventProjector.ProjectorName,
                 currentState);
@@ -208,13 +208,13 @@ public class EventProjectorBuilder(IEventProjector eventProjector)
             await _eventProjector.DbEventSource.InsertEventProjectorStateAsync(currentState);
             if (clearCache)
             {
-                _eventProjector.BlackboardService.EventProjectorState.Clear(
+                _eventProjector.BlackboardService.EventSourcing.EventProjectorState.Clear(
                     domainEvent.EventId,
                     _eventProjector.ProjectorName);
             }
             else
             {
-                _eventProjector.BlackboardService.EventProjectorState.Set(
+                _eventProjector.BlackboardService.EventSourcing.EventProjectorState.Set(
                     domainEvent.EventId,
                     _eventProjector.ProjectorName,
                     currentState);

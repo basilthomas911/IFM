@@ -27,7 +27,7 @@ public static class FuturesOptionTickBidAsk
 
         // Resolve the streaming request context using the event's request identifier.
         // If no matching streaming request exists, exit early � the event cannot be processed.
-        var streamingRequestId = p.BlackboardService.StreamingRequestId.Get(e.RequestId);
+        var streamingRequestId = p.BlackboardService.MarketDataFeed.StreamingRequestId.Get(e.RequestId);
         if (!streamingRequestId.IsValid)
             return false;
         try
@@ -35,7 +35,7 @@ public static class FuturesOptionTickBidAsk
             // Retrieve the latest underlying futures tick data for the contract and value date
             // associated with this streaming request. The tick data must be valid with a positive
             // price to proceed with option calculations.
-            var futuresTickData = p.BlackboardService.FuturesTickData.Get(streamingRequestId.UnderlyingContract.ContractId, streamingRequestId.ValueDate);
+            var futuresTickData = p.BlackboardService.MarketDataFeed.FuturesTickData.Get(streamingRequestId.UnderlyingContract.ContractId, streamingRequestId.ValueDate);
             if (futuresTickData.IsValid && futuresTickData.Price > 0m)
             {
                 // Compute the full option tick data (including greeks) from the raw bid/ask
@@ -50,14 +50,14 @@ public static class FuturesOptionTickBidAsk
 
                     // Compare the new bid/ask prices against the last recorded tick price data
                     // to determine whether a meaningful price change has occurred.
-                    var lastFuturesOptionTickPriceData = p.BlackboardService.FuturesOptionTickPriceData.Get(futuresOptionTickData.ContractId, streamingRequestId.ValueDate);
+                    var lastFuturesOptionTickPriceData = p.BlackboardService.MarketDataFeed.FuturesOptionTickPriceData.Get(futuresOptionTickData.ContractId, streamingRequestId.ValueDate);
                     if (!lastFuturesOptionTickPriceData.IsValid
                         || Convert.ToDecimal(lastFuturesOptionTickPriceData.BidPrice) != Convert.ToDecimal(futuresOptionTickData.BidPrice)
                         || Convert.ToDecimal(lastFuturesOptionTickPriceData.AskPrice) != Convert.ToDecimal(futuresOptionTickData.AskPrice))
                     {
                         // Price has changed � retrieve the current risk-free rate and the set
                         // of live option trades linked to this contract for leg-data updates.
-                        var riskFreeRate = p.BlackboardService.RiskFreeRate.Get(streamingRequestId.ValueDate);
+                        var riskFreeRate = p.BlackboardService.MarketData.RiskFreeRate.Get(streamingRequestId.ValueDate);
                         var optionTrades = p.OptionTradeLiveFeedMap[streamingRequestId.OptionContract.ContractId];
 
                         // Propagate the updated tick data to all matching option trade legs
@@ -66,7 +66,7 @@ public static class FuturesOptionTickBidAsk
                         // Persist the new tick price data and update the in-memory blackboard
                         // state so subsequent comparisons use the latest values.
                         await context.InsertFuturesOptionTickPriceDataAsync(streamingRequestId.UnderlyingContract, futuresOptionTickData);
-                        p.BlackboardService.FuturesOptionTickPriceData.Set(futuresOptionTickData.ContractId, streamingRequestId.ValueDate, futuresOptionTickData);
+                        p.BlackboardService.MarketDataFeed.FuturesOptionTickPriceData.Set(futuresOptionTickData.ContractId, streamingRequestId.ValueDate, futuresOptionTickData);
                         p.Logger.LogInformationEvent(ServiceId, "{Source}: futures option tick {ContractId} price: {OptionPrice:F2}", source, streamingRequestId.OptionContract.ContractId, futuresOptionTickData.OptionPrice);
                     }
                 }

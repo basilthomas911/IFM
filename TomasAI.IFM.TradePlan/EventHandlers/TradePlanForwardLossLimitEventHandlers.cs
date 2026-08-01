@@ -31,10 +31,10 @@ namespace TomasAI.IFM.TradePlan.EventHandlers
         /// <returns></returns>
         public async Task ExecuteAsync(TradePlanForwardLossLimitWarningUpdatedEvent e)
         {
-            var forwardTradeLossLimit = _blackboardService.TradePlanForwardLossLimit.Get(e.TradePlanForwardLossLimit.EntityId);
+            var forwardTradeLossLimit = _blackboardService.Trade.TradePlanForwardLossLimit.Get(e.TradePlanForwardLossLimit.EntityId);
             if (forwardTradeLossLimit is not null)
-                _blackboardService.TradePlanForwardLossLimit.Remove(e.TradePlanForwardLossLimit.EntityId);
-            _blackboardService.TradePlanForwardLossLimit.Set(e.TradePlanForwardLossLimit.EntityId, e.TradePlanForwardLossLimit);
+                _blackboardService.Trade.TradePlanForwardLossLimit.Remove(e.TradePlanForwardLossLimit.EntityId);
+            _blackboardService.Trade.TradePlanForwardLossLimit.Set(e.TradePlanForwardLossLimit.EntityId, e.TradePlanForwardLossLimit);
             await Task.CompletedTask;
         }
 
@@ -45,10 +45,10 @@ namespace TomasAI.IFM.TradePlan.EventHandlers
         /// <returns></returns>
         public async Task ExecuteAsync(TradePlanForwardLossLimitReachedUpdatedEvent e)
         {
-            var forwardTradeLossLimit = _blackboardService.TradePlanForwardLossLimit.Get(e.TradePlanForwardLossLimit.EntityId);
+            var forwardTradeLossLimit = _blackboardService.Trade.TradePlanForwardLossLimit.Get(e.TradePlanForwardLossLimit.EntityId);
             if (forwardTradeLossLimit is not null)
-                _blackboardService.TradePlanForwardLossLimit.Remove(e.TradePlanForwardLossLimit.EntityId);
-            _blackboardService.TradePlanForwardLossLimit.Set(e.TradePlanForwardLossLimit.EntityId, e.TradePlanForwardLossLimit);
+                _blackboardService.Trade.TradePlanForwardLossLimit.Remove(e.TradePlanForwardLossLimit.EntityId);
+            _blackboardService.Trade.TradePlanForwardLossLimit.Set(e.TradePlanForwardLossLimit.EntityId, e.TradePlanForwardLossLimit);
             await Task.CompletedTask;
         }
 
@@ -59,9 +59,9 @@ namespace TomasAI.IFM.TradePlan.EventHandlers
         /// <returns></returns>
         public async Task ExecuteAsync(TradePlanForwardLossLimitClearedEvent e)
         {
-            var forwardTradeLossLimit = _blackboardService.TradePlanForwardLossLimit.Get(e.ForwardLossLimitId);
+            var forwardTradeLossLimit = _blackboardService.Trade.TradePlanForwardLossLimit.Get(e.ForwardLossLimitId);
             if (forwardTradeLossLimit is not null)
-                _blackboardService.TradePlanForwardLossLimit.Remove(e.ForwardLossLimitId);
+                _blackboardService.Trade.TradePlanForwardLossLimit.Remove(e.ForwardLossLimitId);
             await Task.CompletedTask;
         }
 

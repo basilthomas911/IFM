@@ -41,47 +41,79 @@ public class BlackboardServiceTests
     }
 
     [Fact]
-    public void Constructor_InitializesAllProperties()
+    public void Constructor_InitializesAllDomainRootsAndCacheModels()
     {
         // Arrange & Act
         var sut = new BlackboardService(_redisCache, _jsonSerializer);
 
         // Assert
-        sut.DatabentoContractMapping.Should().NotBeNull();
-        sut.OptionTrade.Should().NotBeNull();
-        sut.ReferenceLookup.Should().NotBeNull();
-        sut.TradePositionAction.Should().NotBeNull();
-        sut.TradePlanForwardLossLimit.Should().NotBeNull();
-        sut.HedgePositionTradeId.Should().NotBeNull();
-        sut.FuturesTickData.Should().NotBeNull();
-        sut.FuturesOptionTickData.Should().NotBeNull();
-        sut.FuturesTickDataStreamingParameter.Should().NotBeNull();
-        sut.FuturesOptionTickDataStreamingParameter.Should().NotBeNull();
-        sut.FuturesEodData.Should().NotBeNull();
-        sut.VixFuturesEodData.Should().NotBeNull();
-        sut.FuturesEodDataRange.Should().NotBeNull();
-        sut.NormalCurveTable.Should().NotBeNull();
-        sut.FuturesContract.Should().NotBeNull();
-        sut.VixFuturesContractId.Should().NotBeNull();
-        sut.TradeOrder.Should().NotBeNull();
-        sut.DomainEvents.Should().NotBeNull();
-        sut.IronCondorMDILimit.Should().NotBeNull();
-        sut.FuturesContractSymbol.Should().NotBeNull();
-        sut.FuturesItiSignalAveragePredictedTrendDelta.Should().NotBeNull();
-        sut.FuturesItiSignalAveragePredictedTrendDeltaRange.Should().NotBeNull();
-        sut.FuturesItiSignalMDI.Should().NotBeNull();
-        sut.FuturesOptionQuote.Should().NotBeNull();
-        sut.FuturesOptionQuoteData.Should().NotBeNull();
-        sut.ForwardLossRatioMap.Should().NotBeNull();
-        sut.StopLossLimit.Should().NotBeNull();
-        sut.SignalProcessor.Should().NotBeNull();
-        sut.FundBalance.Should().NotBeNull();
-        sut.EventStreamId.Should().NotBeNull();
-        sut.EventNameId.Should().NotBeNull();
-        sut.FuturesOpenPrice.Should().NotBeNull();
-        sut.VixFuturesOpenPrice.Should().NotBeNull();
-        sut.StreamingRequestId.Should().NotBeNull();
-        sut.SequenceCounter.Should().NotBeNull();
+        sut.Application.SequenceCounter.Should().NotBeNull();
+
+        sut.EventSourcing.DomainEvents.Should().NotBeNull();
+        sut.EventSourcing.EventStreamId.Should().NotBeNull();
+        sut.EventSourcing.EventNameId.Should().NotBeNull();
+        sut.EventSourcing.EventProjectorState.Should().NotBeNull();
+
+        sut.Fund.FundBalance.Should().NotBeNull();
+        sut.MarketData.RiskFreeRate.Should().NotBeNull();
+
+        sut.MarketDataAnalytics.FuturesItiSignalAveragePredictedTrendDelta
+            .Should().NotBeNull();
+        sut.MarketDataAnalytics.FuturesItiSignalAveragePredictedTrendDeltaRange
+            .Should().NotBeNull();
+        sut.MarketDataAnalytics.FuturesItiSignalMDI.Should().NotBeNull();
+        sut.MarketDataAnalytics.FuturesRsiSignal.Should().NotBeNull();
+        sut.MarketDataAnalytics.FuturesRsiDailySignal.Should().NotBeNull();
+
+        sut.MarketDataFeed.FuturesTickData.Should().NotBeNull();
+        sut.MarketDataFeed.FuturesOptionTickData.Should().NotBeNull();
+        sut.MarketDataFeed.FuturesOptionTickPriceData.Should().NotBeNull();
+        sut.MarketDataFeed.FuturesTickDataStreamingParameter.Should().NotBeNull();
+        sut.MarketDataFeed.FuturesOptionTickDataStreamingParameter.Should().NotBeNull();
+        sut.MarketDataFeed.FuturesEodData.Should().NotBeNull();
+        sut.MarketDataFeed.VixFuturesEodData.Should().NotBeNull();
+        sut.MarketDataFeed.FuturesEodDataRange.Should().NotBeNull();
+        sut.MarketDataFeed.NormalCurveTable.Should().NotBeNull();
+        sut.MarketDataFeed.VixFuturesContractId.Should().NotBeNull();
+        sut.MarketDataFeed.FuturesOptionQuote.Should().NotBeNull();
+        sut.MarketDataFeed.FuturesOptionQuoteData.Should().NotBeNull();
+        sut.MarketDataFeed.FuturesOpenPrice.Should().NotBeNull();
+        sut.MarketDataFeed.VixFuturesOpenPrice.Should().NotBeNull();
+        sut.MarketDataFeed.StreamingRequestId.Should().NotBeNull();
+
+        sut.MarketDataSecurities.DatabentoContractMapping.Should().NotBeNull();
+        sut.MarketDataSecurities.FuturesContract.Should().NotBeNull();
+        sut.MarketDataSecurities.FuturesContractSymbol.Should().NotBeNull();
+
+        sut.Reference.ReferenceLookup.Should().NotBeNull();
+
+        sut.Trade.OptionTrade.Should().NotBeNull();
+        sut.Trade.TradePositionAction.Should().NotBeNull();
+        sut.Trade.TradePlanForwardLossLimit.Should().NotBeNull();
+        sut.Trade.HedgePositionTradeId.Should().NotBeNull();
+        sut.Trade.TradeOrder.Should().NotBeNull();
+        sut.Trade.IronCondorMDILimit.Should().NotBeNull();
+        sut.Trade.ForwardLossRatioMap.Should().NotBeNull();
+        sut.Trade.StopLossLimit.Should().NotBeNull();
+        sut.Trade.SignalProcessor.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void CompatibilityAliasesReferenceTheDomainRootModels()
+    {
+        var sut = new BlackboardService(_redisCache, _jsonSerializer);
+
+#pragma warning disable CS0618
+        sut.FuturesContract.Should().BeSameAs(
+            sut.MarketDataSecurities.FuturesContract);
+        sut.FuturesOptionTickDataStreamingParameter.Should().BeSameAs(
+            sut.MarketDataFeed.FuturesOptionTickDataStreamingParameter);
+        sut.EventProjectorState.Should().BeSameAs(
+            sut.EventSourcing.EventProjectorState);
+#pragma warning restore CS0618
+
+        sut.MarketDataFeed.FuturesOptionTickPriceData.Should().BeSameAs(
+            sut.MarketDataFeed.FuturesOptionTickData);
     }
 
     [Fact]

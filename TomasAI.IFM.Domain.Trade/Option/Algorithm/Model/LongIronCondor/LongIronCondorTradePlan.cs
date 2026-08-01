@@ -81,7 +81,7 @@ public class LongIronCondorTradePlan : TradePlan, ITradeAlgorithm
             Value: LongMDIWarningReached,
             WarningLimit: LongMDIWarningReached * 2 * Convert.ToDouble(openingNetSpread),
             MaxLimit: LongMDILimitReached * 2 * Convert.ToDouble(openingNetSpread));
-        blackboardService.IronCondorMDILimit.Set(optionTrades.PrimaryTrade?.EntityId ?? new(OrderId, TradeId), valueDate, ironCondorMDILimit);
+        blackboardService.Trade.IronCondorMDILimit.Set(optionTrades.PrimaryTrade?.EntityId ?? new(OrderId, TradeId), valueDate, ironCondorMDILimit);
     }
 
     public decimal LossThreshold => _lossProbability?.Threshold ?? 0m;

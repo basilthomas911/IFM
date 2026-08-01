@@ -23,12 +23,12 @@ public static class FuturesOptionTickDataStreamingStarted
             var started = p.MarketDataApi.Start(async (errorCode, errorMsg) => await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, errorCode, errorMsg));
             if (started)
             {
-                var streamingRequestId = p.BlackboardService.StreamingRequestId.Get(e.Contract.ContractId);
+                var streamingRequestId = p.BlackboardService.MarketDataFeed.StreamingRequestId.Get(e.Contract.ContractId);
                 if (!streamingRequestId.IsValid)
                 {
                     var requestId = await context.GetStreamingRequestIdQueryAsync(e.Contract.ContractId);
                     streamingRequestId = new(requestId, e.Contract, e.BaseContract, e.ValueDate, e.MaturityDate, e.RiskFreeRate);
-                    p.BlackboardService.StreamingRequestId.Set(streamingRequestId);
+                    p.BlackboardService.MarketDataFeed.StreamingRequestId.Set(streamingRequestId);
                 }
                 p.MarketDataApi.StartStreamingFuturesOptionTickData(streamingRequestId.RequestId, e.ValueDate, e.MaturityDate, e.Contract, e.RiskFreeRate);
                 await context.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e);

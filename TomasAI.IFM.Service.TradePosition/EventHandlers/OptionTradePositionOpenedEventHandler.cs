@@ -51,7 +51,7 @@ public class OptionTradePositionOpenedEventHandler : BaseEventServiceHandler,
         {
             var serviceResult = await _tradeQueryApi.GetOptionTradeAsync(e.OptionTradeId.OrderId, e.OptionTradeId.TradeId);
             if (serviceResult.Success)
-                _blackboardService.OptionTrade.Set(e.OptionTradeId, serviceResult.Value);
+                _blackboardService.Trade.OptionTrade.Set(e.OptionTradeId, serviceResult.Value);
         }
         catch (Exception ex)
         {

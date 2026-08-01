@@ -63,7 +63,7 @@ public class FuturesTradeSignalStateRepository(
             IMarketDataDbContext db, IBlackboardService blackboardService, FuturesTradeSignalUpdatedEvent e)
         {
             var tradeSignal = e.FuturesTradeSignal ?? throw new InvalidOperationException("FuturesTradeSignal payload is required.");
-            var sequenceId = blackboardService.SequenceCounter.Get(SequenceName.FuturesTradeSignal_SequenceId);
+            var sequenceId = blackboardService.Application.SequenceCounter.Get(SequenceName.FuturesTradeSignal_SequenceId);
             tradeSignal = tradeSignal with { SequenceId = sequenceId };
             await db.InsertFuturesTradeSignalAsync(tradeSignal);
             return true;

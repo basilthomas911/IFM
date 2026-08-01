@@ -133,7 +133,7 @@ public class EventSourceDbContext(IDbConnectionSettings connectionSettings, IDbC
     /// specified event stream as a <see langword="long"/>.</returns>
     public async ValueTask<long> GetEventStreamIdAsync(string eventStream)
     {
-        return (await _blackboardService.EventStreamId.GetAsync(eventStream, InsertEntityTypeAsync)).EventStreamId;
+        return (await _blackboardService.EventSourcing.EventStreamId.GetAsync(eventStream, InsertEntityTypeAsync)).EventStreamId;
 
         async Task<EventStreamIdReadModel> InsertEntityTypeAsync(string eventStream)
         {
@@ -416,7 +416,7 @@ public class EventSourceDbContext(IDbConnectionSettings connectionSettings, IDbC
     /// <returns>A <see langword="long"/> representing the unique identifier of the specified event stream.</returns>
     public async Task<long> GetEventStreamAsync(string eventStream)
     {
-        return (await _blackboardService.EventStreamId.GetAsync(eventStream, InsertEventStream)).EventStreamId;
+        return (await _blackboardService.EventSourcing.EventStreamId.GetAsync(eventStream, InsertEventStream)).EventStreamId;
 
         async Task<EventStreamIdReadModel> InsertEventStream(string eventStream)
         {
@@ -497,7 +497,7 @@ public class EventSourceDbContext(IDbConnectionSettings connectionSettings, IDbC
     async Task<int> GetEventNameIdFromTypeAsync(Type eventType)
     {
         var eventTypeFullName = string.IsNullOrEmpty(eventType.FullName) ? string.Empty : $"{eventType.FullName}";
-        return (await _blackboardService.EventNameId.GetAsync(eventType.Name, eventTypeFullName, InsertEventNameIdAsync)).EventNameId;
+        return (await _blackboardService.EventSourcing.EventNameId.GetAsync(eventType.Name, eventTypeFullName, InsertEventNameIdAsync)).EventNameId;
 
         async Task<EventNameIdReadModel> InsertEventNameIdAsync(string eventName, string eventTypeName)
         {

@@ -24,12 +24,12 @@ public static class FuturesOptionQuoteDataStreamingStoppedComplete
             foreach (var o in e.FuturesOptionQuotes)
             {
                 p.MarketDataSnapshotApi.StopStreamingFuturesOptionQuoteData(o.RequestId);
-                p.BlackboardService.FuturesOptionQuoteData.Clear(o.Id);
+                p.BlackboardService.MarketDataFeed.FuturesOptionQuoteData.Clear(o.Id);
                 await context.DeleteStreamingRequestIdAsync(new FeedId(o.RequestId));
                 await Task.Delay(TimeSpan.FromSeconds(1));
             }
             p.MarketDataSnapshotApi.Stop();
-            p.BlackboardService.FuturesOptionQuote.Clear(e.QuoteId);
+            p.BlackboardService.MarketDataFeed.FuturesOptionQuote.Clear(e.QuoteId);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionQuoteDataEvent, $"{e.GetType().Name}: {e.QuoteId}");
             p.Logger.LogInformationEvent(ServiceId, "{source}", source);
             return true;

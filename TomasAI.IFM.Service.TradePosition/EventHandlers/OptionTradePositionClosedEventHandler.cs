@@ -45,7 +45,7 @@ public class OptionTradePositionClosedEventHandler : BaseEventServiceHandler,
     {
         try
         {
-            _blackboardService.OptionTrade.Remove(e.OptionTradeId);
+            _blackboardService.Trade.OptionTrade.Remove(e.OptionTradeId);
         }
         catch (Exception ex)
         {

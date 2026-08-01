@@ -96,11 +96,11 @@ public class ReferenceLookupActorService(IActorService actorService,  IBlackboar
     /// <returns>A dictionary mapping lookup type names to their associated short codes.</returns>
     Dictionary<string, List<string>>  GetLookupTypeMapFromCache()
     {
-        var lookupTypeMap = _blackboardService.ReferenceLookup.Get();
+        var lookupTypeMap = _blackboardService.Reference.ReferenceLookup.Get();
         if (lookupTypeMap is null)
         {
             AddLookupTypeMapToCache();
-            lookupTypeMap = _blackboardService.ReferenceLookup.Get();
+            lookupTypeMap = _blackboardService.Reference.ReferenceLookup.Get();
         }
         return lookupTypeMap ?? [];
         
@@ -121,7 +121,7 @@ public class ReferenceLookupActorService(IActorService actorService,  IBlackboar
                         lookupTypeMap.Add(e.LookupTypeName, []);
                     lookupTypeMap[e.LookupTypeName].Add(e.ShortCode);
                 }
-                _blackboardService.ReferenceLookup.Set(lookupTypeMap);
+                _blackboardService.Reference.ReferenceLookup.Set(lookupTypeMap);
             }
         }
     }

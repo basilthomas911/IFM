@@ -30,7 +30,7 @@ public static class FuturesRsiDailySignalGenerated
         var source = $"FuturesRsiDailySignalGeneratedEvent for ContractId: {e.FuturesRsiSignal.ContractId}, ValueDate: {e.FuturesRsiSignal.ValueDate}";
         try
         {
-                blackboardService.FuturesRsiDailySignal.Set(e.EntityId, e.FuturesRsiSignal);
+                blackboardService.MarketDataAnalytics.FuturesRsiDailySignal.Set(e.EntityId, e.FuturesRsiSignal);
         }
         catch (Exception ex)
         {
