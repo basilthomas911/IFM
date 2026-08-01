@@ -68,6 +68,8 @@ public class BlackboardServiceTests
         sut.MarketDataFeed.FuturesTickData.Should().NotBeNull();
         sut.MarketDataFeed.FuturesOptionTickData.Should().NotBeNull();
         sut.MarketDataFeed.FuturesOptionTickPriceData.Should().NotBeNull();
+        sut.MarketDataFeed.FuturesOptionTickPriceData.Should().BeSameAs(
+            sut.MarketDataFeed.FuturesOptionTickData);
         sut.MarketDataFeed.FuturesTickDataStreamingParameter.Should().NotBeNull();
         sut.MarketDataFeed.FuturesOptionTickDataStreamingParameter.Should().NotBeNull();
         sut.MarketDataFeed.FuturesEodData.Should().NotBeNull();
@@ -99,24 +101,6 @@ public class BlackboardServiceTests
     }
 
     [Fact]
-    public void CompatibilityAliasesReferenceTheDomainRootModels()
-    {
-        var sut = new BlackboardService(_redisCache, _jsonSerializer);
-
-#pragma warning disable CS0618
-        sut.FuturesContract.Should().BeSameAs(
-            sut.MarketDataSecurities.FuturesContract);
-        sut.FuturesOptionTickDataStreamingParameter.Should().BeSameAs(
-            sut.MarketDataFeed.FuturesOptionTickDataStreamingParameter);
-        sut.EventProjectorState.Should().BeSameAs(
-            sut.EventSourcing.EventProjectorState);
-#pragma warning restore CS0618
-
-        sut.MarketDataFeed.FuturesOptionTickPriceData.Should().BeSameAs(
-            sut.MarketDataFeed.FuturesOptionTickData);
-    }
-
-    [Fact]
     public void Service_ImplementsIBlackboardService()
     {
         // Arrange & Act
@@ -124,5 +108,26 @@ public class BlackboardServiceTests
 
         // Assert
         sut.Should().BeAssignableTo<IBlackboardService>();
+    }
+
+    [Fact]
+    public void ServiceInterface_ExposesOnlyDomainRoots()
+    {
+        var properties = typeof(IBlackboardService)
+            .GetProperties()
+            .Select(property => property.Name);
+
+        properties.Should().BeEquivalentTo(
+        [
+            nameof(IBlackboardService.Application),
+            nameof(IBlackboardService.EventSourcing),
+            nameof(IBlackboardService.Fund),
+            nameof(IBlackboardService.MarketData),
+            nameof(IBlackboardService.MarketDataAnalytics),
+            nameof(IBlackboardService.MarketDataFeed),
+            nameof(IBlackboardService.MarketDataSecurities),
+            nameof(IBlackboardService.Reference),
+            nameof(IBlackboardService.Trade)
+        ]);
     }
 }
