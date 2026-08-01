@@ -50,3 +50,4 @@
 *.pdf filter=lfs diff=lfs merge=lfs -text
 *.xls filter=lfs diff=lfs merge=lfs -text
 *.txt filter=lfs diff=lfs merge=lfs -text
+native/DatabentoFeed.Native/CMakeLists.txt -filter -diff -merge text eol=lf
