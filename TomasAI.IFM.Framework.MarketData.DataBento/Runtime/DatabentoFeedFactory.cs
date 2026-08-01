@@ -5,6 +5,21 @@ public sealed class DatabentoFeedFactory : IDatabentoFeedFactory
     public IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options) =>
         new SyntheticTickerFeed(FeedOptionsValidator.ValidateAndSnapshot(options));
 
-    public IDatabentoOptionChainFeed CreateOptionChainFeed(DatabentoFeedOptions options) =>
-        new SyntheticOptionChainFeed(FeedOptionsValidator.ValidateAndSnapshot(options));
+    public IDatabentoOptionChainFeed CreateOptionChainFeed(DatabentoFeedOptions options)
+    {
+        var snapshot = FeedOptionsValidator.ValidateAndSnapshot(options);
+        if (snapshot.DataSource == FeedDataSourceMode.DatabentoLive)
+        {
+            throw new NotSupportedException(
+                "Live option-chain subscriptions require Phase 4 definition discovery.");
+        }
+        return new SyntheticOptionChainFeed(snapshot);
+    }
+
+    public IDatabentoMarketDataQueries CreateMarketDataQueries(DatabentoFeedOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Dataset);
+        return new DatabentoMarketDataQueries(options.Dataset);
+    }
 }

@@ -21,6 +21,9 @@ public sealed class NativeAbiTests
         Assert.Equal(32, Marshal.SizeOf<NativeWaitResult>());
         Assert.Equal(32, Marshal.SizeOf<NativeBatchResult>());
         Assert.Equal(128, Marshal.SizeOf<NativeFeedStats>());
+        Assert.Equal(8, Marshal.SizeOf<NativeUtf8Slice>());
+        Assert.Equal(64, Marshal.SizeOf<NativeContractQuery>());
+        Assert.Equal(192, Marshal.SizeOf<NativeContractDetail>());
     }
 
     [Fact]

@@ -10,9 +10,14 @@ namespace TomasAI.IFM.Framework.Caching.Redis;
 /// provides synchronous and asynchronous methods for common cache operations, such as retrieving, setting, and removing
 /// values.</remarks>
 /// <param name="redisMultiplexor"></param>
-public class RedisCache(IConnectionMultiplexer redisMultiplexor) : IRedisCache
+/// <param name="timeProvider">UTC clock used to select TTL or absolute expiration.</param>
+public class RedisCache(
+    IConnectionMultiplexer redisMultiplexor,
+    TimeProvider? timeProvider = null) : IRedisCache
 {
+    readonly IConnectionMultiplexer _redisMultiplexor = IsArgumentNull.Set(redisMultiplexor);
     readonly IDatabase _redis = IsArgumentNull.Set(redisMultiplexor.GetDatabase());
+    readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     /// <summary>
     /// return cached value
@@ -61,6 +66,46 @@ public class RedisCache(IConnectionMultiplexer redisMultiplexor) : IRedisCache
     }
 
     /// <summary>
+    /// Removes keys whose names start with the supplied literal prefix from the current Redis database.
+    /// Uses incremental server-side key scanning and never flushes the database.
+    /// </summary>
+    /// <param name="prefix">Literal key prefix. Redis pattern characters are escaped.</param>
+    /// <returns>The number of keys deleted.</returns>
+    public long RemoveByPrefix(string prefix)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
+
+        var pattern = new RedisValue(EscapePattern(prefix) + "*");
+        var seen = new HashSet<RedisKey>();
+        foreach (var endpoint in _redisMultiplexor.GetEndPoints(configuredOnly: false))
+        {
+            var server = _redisMultiplexor.GetServer(endpoint);
+            if (!server.IsConnected
+                || server.IsReplica
+                || server.ServerType == ServerType.Sentinel)
+            {
+                continue;
+            }
+            foreach (var key in server.Keys(
+                database: _redis.Database,
+                pattern: pattern,
+                pageSize: 250))
+            {
+                seen.Add(key);
+            }
+        }
+        long deleted = 0;
+        foreach (var key in seen)
+        {
+            if (_redis.KeyDelete(key))
+            {
+                ++deleted;
+            }
+        }
+        return deleted;
+    }
+
+    /// <summary>
     /// remove cached value
     /// </summary>
     /// <param name="key"></param>
@@ -101,6 +146,29 @@ public class RedisCache(IConnectionMultiplexer redisMultiplexor) : IRedisCache
     }
 
     /// <summary>
+    /// Sets a value with a renewable TTL bounded by a hard absolute expiration.
+    /// Redis receives whichever deadline occurs first.
+    /// </summary>
+    /// <param name="key">Cache key.</param>
+    /// <param name="value">Cache value.</param>
+    /// <param name="absoluteExpiry">Hard UTC expiration that renewals cannot extend.</param>
+    /// <param name="ttl">TTL applied when it expires before the hard deadline.</param>
+    public void Set(
+        string key,
+        string value,
+        DateTimeOffset absoluteExpiry,
+        TimeSpan ttl)
+    {
+        var redisKey = new RedisKey(key);
+        var redisValue = new RedisValue(value);
+        _redis.StringSet(
+            redisKey,
+            redisValue,
+            GetExpiration(absoluteExpiry, ttl),
+            ValueCondition.Always);
+    }
+
+    /// <summary>
     /// set cached value
     /// </summary>
     /// <param name="key"></param>
@@ -126,6 +194,29 @@ public class RedisCache(IConnectionMultiplexer redisMultiplexor) : IRedisCache
     }
 
     /// <summary>
+    /// Asynchronously sets a value with a renewable TTL bounded by a hard absolute expiration.
+    /// Redis receives whichever deadline occurs first.
+    /// </summary>
+    /// <param name="key">Cache key.</param>
+    /// <param name="value">Cache value.</param>
+    /// <param name="absoluteExpiry">Hard UTC expiration that renewals cannot extend.</param>
+    /// <param name="ttl">TTL applied when it expires before the hard deadline.</param>
+    public async Task SetAsync(
+        string key,
+        string value,
+        DateTimeOffset absoluteExpiry,
+        TimeSpan ttl)
+    {
+        var redisKey = new RedisKey(key);
+        var redisValue = new RedisValue(value);
+        await _redis.StringSetAsync(
+            redisKey,
+            redisValue,
+            GetExpiration(absoluteExpiry, ttl),
+            ValueCondition.Always);
+    }
+
+    /// <summary>
     /// Deletes all keys from the current Redis database.
     /// </summary>
     /// <remarks>This operation removes all keys from the currently selected Redis database.  Use with
@@ -146,5 +237,44 @@ public class RedisCache(IConnectionMultiplexer redisMultiplexor) : IRedisCache
     {
         var redisKey = new RedisKey(key);
         return _redis.StringIncrement(redisKey);
+    }
+
+    private Expiration GetExpiration(
+        DateTimeOffset absoluteExpiry,
+        TimeSpan ttl)
+    {
+        if (ttl <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(ttl),
+                "The cache TTL must be positive.");
+        }
+
+        var absoluteExpiryUtc = absoluteExpiry.ToUniversalTime();
+        var remaining = absoluteExpiryUtc - _timeProvider.GetUtcNow();
+        if (remaining <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(absoluteExpiry),
+                "The absolute cache expiration must be in the future.");
+        }
+
+        return remaining <= ttl
+            ? new Expiration(absoluteExpiryUtc.UtcDateTime)
+            : new Expiration(ttl);
+    }
+
+    private static string EscapePattern(string prefix)
+    {
+        var escaped = new System.Text.StringBuilder(prefix.Length);
+        foreach (var character in prefix)
+        {
+            if (character is '*' or '?' or '[' or ']' or '\\')
+            {
+                escaped.Append('\\');
+            }
+            escaped.Append(character);
+        }
+        return escaped.ToString();
     }
 }

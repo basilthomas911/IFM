@@ -18,6 +18,7 @@ public class BlackboardService : IBlackboardService
         IsArgumentNull.Check(redisCache);
         IsArgumentNull.Check(jsonSerializer);
 
+        DatabentoContractMapping = new DatabentoContractMappingCache(redisCache, jsonSerializer);
         OptionTrade = new(redisCache, jsonSerializer);
         ReferenceLookup = new(redisCache, jsonSerializer);
         TradePositionAction = new(redisCache, jsonSerializer);
@@ -59,6 +60,7 @@ public class BlackboardService : IBlackboardService
         EventProjectorState = new(redisCache, jsonSerializer);
     }
 
+    public IDatabentoContractMappingCache DatabentoContractMapping { get; }
     public OptionTradeModel OptionTrade { get; }
     public ReferenceLookupModel ReferenceLookup { get; }
     public TradePositionActionModel TradePositionAction { get; }

@@ -1,6 +1,6 @@
 # Databento Phases 1 and 2 implementation
 
-Phases 1 and 2 are implemented against the licence-free synthetic producer. Live Databento connectivity remains disabled by default and is reserved for Phase 3.
+Phases 1 and 2 are implemented against the licence-free synthetic producer. Live Databento connectivity remains disabled by default; the optional live ticker adapter is implemented separately in Phase 3.
 
 ## Phase 1
 
@@ -41,11 +41,10 @@ dotnet test ./TomasAI.IFM.Framework.MarketData.DataBento.UnitTests/TomasAI.IFM.F
 
 The unit-test project automatically invokes the offline native build on Windows. Linux uses the CMake commands documented in `native/DatabentoFeed.Native/README.md`, followed by the same `dotnet test` command.
 
-## Deferred until a licence is available
+## Implemented in Phase 3
 
-- Databento `LiveBlocking` connection, authentication and subscriptions.
-- Provider DBN decoding and real symbol mappings.
-- Definition discovery, live option-chain subscriptions and latest-price queries.
-- Provider heartbeat, slow-reader and replay/recovery integration.
+- Databento `LiveBlocking` connection, authentication, grouped ticker subscriptions, provider DBN decoding, stable symbol mappings, heartbeats, slow-reader faults, and readiness.
 
-Those items begin in Phase 3 and do not block synthetic Phase 1/2 development or testing.
+Historical future/option contract-detail lookup is now implemented alongside Phase 3. Filtered option-chain discovery and live option-chain subscriptions remain Phase 4, latest-price queries remain Phase 5, and replay/recovery orchestration remains Phase 6.
+
+Phase 3 is code complete. Its deferred market-open live ticker smoke confirmation is tracked in `Phase3_Implementation.md` and does not block Phase 4. The remaining Phase 4 through Phase 6 items do not block synthetic Phase 1/2 development or testing.

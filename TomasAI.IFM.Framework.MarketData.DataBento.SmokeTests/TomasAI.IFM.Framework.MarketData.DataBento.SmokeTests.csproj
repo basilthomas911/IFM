@@ -5,11 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="10.0.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
@@ -23,13 +21,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <Target Name="BuildDatabentoSyntheticNative"
+  <Target Name="BuildDatabentoLiveNative"
           BeforeTargets="Build"
-          Condition="'$(OS)' == 'Windows_NT' and '$(DesignTimeBuild)' != 'true'">
-    <PropertyGroup>
-      <DatabentoNativeLiveArgument Condition="'$(DatabentoEnableLive)' == 'true'">-EnableLive</DatabentoNativeLiveArgument>
-    </PropertyGroup>
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\build-native.ps1&quot; -Configuration $(Configuration) $(DatabentoNativeLiveArgument)" />
+          Condition="'$(OS)' == 'Windows_NT' and '$(DesignTimeBuild)' != 'true' and '$(DatabentoEnableLive)' == 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\build-native.ps1&quot; -Configuration $(Configuration) -EnableLive" />
     <ItemGroup>
       <DatabentoNativeRuntimeDll Include="$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\out\build\$(Configuration)\*.dll" />
     </ItemGroup>

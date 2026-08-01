@@ -2,6 +2,7 @@
 
 public interface IBlackboardService
 {
+    IDatabentoContractMappingCache DatabentoContractMapping { get; }
     OptionTradeModel OptionTrade {get;}
     ReferenceLookupModel ReferenceLookup { get; }
     TradePositionActionModel TradePositionAction { get; }

@@ -58,6 +58,17 @@ target_compile_definitions(databento_feed_native
 
 target_link_libraries(databento_feed_native PRIVATE IFM::DatabentoSdk)
 
+if(IFM_DATABENTO_ENABLE_LIVE AND WIN32)
+  add_custom_command(
+    TARGET databento_feed_native
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:databento_feed_native>
+            $<TARGET_FILE_DIR:databento_feed_native>
+    COMMAND_EXPAND_LISTS
+  )
+endif()
+
 if(MSVC)
   target_compile_options(databento_feed_native PRIVATE /W4 /WX /permissive- /wd4324)
 else()
@@ -76,6 +87,11 @@ if(IFM_DATABENTO_BUILD_TESTS)
     tests/databento_feed_native_tests.cpp
   )
   target_link_libraries(databento_feed_native_tests PRIVATE databento_feed_native)
+  if(IFM_DATABENTO_ENABLE_LIVE)
+    target_compile_definitions(databento_feed_native_tests PRIVATE DBF_ENABLE_LIVE)
+    target_include_directories(databento_feed_native_tests PRIVATE src)
+    target_link_libraries(databento_feed_native_tests PRIVATE IFM::DatabentoSdk)
+  endif()
   target_compile_features(databento_feed_native_tests PRIVATE cxx_std_20)
   if(MSVC)
     target_compile_options(databento_feed_native_tests PRIVATE /W4 /WX /permissive-)

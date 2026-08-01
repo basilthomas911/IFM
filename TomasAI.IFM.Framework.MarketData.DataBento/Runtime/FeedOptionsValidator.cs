@@ -18,16 +18,18 @@ internal static class FeedOptionsValidator
         {
             throw new ArgumentException("A feed configuration enum value is invalid.");
         }
-        if (options.DataSource != FeedDataSourceMode.Synthetic)
-        {
-            throw new NotSupportedException(
-                "The Databento live adapter is intentionally deferred until Phase 3 and a licence is available.");
-        }
-        if (options.DeploymentProfile is FeedDeploymentProfile.PaperTrading
-            or FeedDeploymentProfile.Production)
+        if (options.DeploymentProfile == FeedDeploymentProfile.SyntheticCi
+            && options.DataSource != FeedDataSourceMode.Synthetic)
         {
             throw new InvalidOperationException(
-                "Paper-trading and production profiles require the Phase 3 live adapter.");
+                "The synthetic-CI profile cannot open a licensed Databento session.");
+        }
+        if (options.DeploymentProfile is FeedDeploymentProfile.PaperTrading
+                or FeedDeploymentProfile.Production
+            && options.DataSource != FeedDataSourceMode.DatabentoLive)
+        {
+            throw new InvalidOperationException(
+                "Paper-trading and production profiles require Databento live data.");
         }
         if (options.RingMemoryBytes < 128
             || options.RingMemoryBytes % 64 != 0
@@ -61,6 +63,7 @@ internal static class FeedOptionsValidator
         }
         if (options.TransportHealth.HeartbeatInterval < TimeSpan.FromSeconds(5)
             || options.TransportHealth.HeartbeatInterval.TotalMilliseconds > uint.MaxValue
+            || options.TransportHealth.HeartbeatInterval.Ticks % TimeSpan.TicksPerSecond != 0
             || options.TransportHealth.HealthPollInterval <= TimeSpan.Zero
             || options.TransportHealth.MetricsExportInterval <= TimeSpan.Zero
             || options.TransportHealth.MetricsExportInterval.Ticks
@@ -113,12 +116,13 @@ internal static class FeedOptionsValidator
             throw new ArgumentException(
                 "Strict core isolation requires worker CPU-set exclusion.");
         }
-        if (options.Synthetic.RecordCount <= 0
-            || options.Synthetic.RecordsPerSecond < 0
-            || options.Synthetic.StartSequence == 0
-            || options.Synthetic.StartSequence > uint.MaxValue
-            || options.Synthetic.StartSequence
-               + checked((ulong)options.Synthetic.RecordCount - 1) > uint.MaxValue)
+        if (options.DataSource == FeedDataSourceMode.Synthetic
+            && (options.Synthetic.RecordCount <= 0
+                || options.Synthetic.RecordsPerSecond < 0
+                || options.Synthetic.StartSequence == 0
+                || options.Synthetic.StartSequence > uint.MaxValue
+                || options.Synthetic.StartSequence
+                   + checked((ulong)options.Synthetic.RecordCount - 1) > uint.MaxValue))
         {
             throw new ArgumentException("Synthetic producer settings are invalid.");
         }

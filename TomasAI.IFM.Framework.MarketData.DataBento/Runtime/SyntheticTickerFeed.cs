@@ -12,6 +12,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     {
         internal required InstrumentKey Instrument { get; init; }
         internal required BoundedBatchChannel Channel { get; init; }
+        internal bool RequiresBaseline { get; init; }
+        internal int BaselineReady;
         internal MarketDataBatch64? AssemblyBatch;
     }
 
@@ -62,9 +64,9 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             {
                 throw new ArgumentException("At least one ticker subscription is required.", nameof(subscriptions));
             }
-            var copy = subscriptions.ToArray();
-            var symbols = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var subscription in copy)
+            var uniqueSubscriptions = new List<TickerSubscription>(subscriptions.Length);
+            var symbols = new Dictionary<string, TickerSubscription>(StringComparer.Ordinal);
+            foreach (var subscription in subscriptions)
             {
                 ArgumentException.ThrowIfNullOrWhiteSpace(subscription.Symbol);
                 if (Encoding.UTF8.GetByteCount(subscription.Symbol) > ushort.MaxValue)
@@ -84,12 +86,19 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 {
                     throw new ArgumentException("A subscription contains invalid market-data kinds.");
                 }
-                if (!symbols.Add(subscription.Symbol))
+                if (symbols.TryGetValue(subscription.Symbol, out var existing))
                 {
-                    throw new ArgumentException($"Duplicate ticker subscription '{subscription.Symbol}'.");
+                    if (existing != subscription)
+                    {
+                        throw new ArgumentException(
+                            $"Ticker subscription '{subscription.Symbol}' has conflicting selectors or data kinds.");
+                    }
+                    continue;
                 }
+                symbols.Add(subscription.Symbol, subscription);
+                uniqueSubscriptions.Add(subscription);
             }
-            _subscriptions = copy;
+            _subscriptions = uniqueSubscriptions.ToArray();
         }
     }
 
@@ -156,7 +165,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             _drainThread = new Thread(DrainThreadMain)
             {
                 IsBackground = true,
-                Name = $"Databento synthetic drain: {_options.Dataset}",
+                Name = $"Databento drain: {_options.Dataset}",
                 Priority = MapThreadPriority(_options.ThreadPriority.ManagedDrain)
             };
             _drainThread.Start();
@@ -274,6 +283,16 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             channelFull += state.Channel.FullCount;
             poolMisses += state.Channel.PoolMisses;
         }
+        var baselineReady = 0;
+        foreach (var state in _channelStates)
+        {
+            if (!state.RequiresBaseline || Volatile.Read(ref state.BaselineReady) != 0)
+            {
+                baselineReady++;
+            }
+        }
+        var transportReady = native.State == FeedState.Running
+                             && native.TerminalStatus == DatabentoFeedStatus.Ok;
         return new FeedHealthSnapshot(
             native.State,
             native.TerminalStatus,
@@ -286,7 +305,13 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             channelFull,
             poolMisses,
             Interlocked.Read(ref _drainAllocatedBytes),
-            _drainFailure?.Message ?? _platformWarning);
+            _drainFailure?.Message ?? _platformWarning)
+        {
+            TransportReady = transportReady,
+            TradingReady = transportReady && baselineReady == _channelStates.Length,
+            BaselineReadyInstrumentCount = baselineReady,
+            InstrumentCount = _channelStates.Length
+        };
     }
 
     public void Dispose()
@@ -325,7 +350,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         {
             StructSize = (uint)sizeof(NativeFeedConfig),
             AbiVersion = NativeConstants.AbiVersion,
-            DataSource = 1,
+            DataSource = (uint)_options.DataSource,
             FeedKind = _singleChannel ? 2u : 1u,
             RingMemoryBytes = checked((ulong)_options.RingMemoryBytes),
             SpinIterations = checked((uint)_options.RingBackpressure.SpinIterations),
@@ -509,7 +534,10 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 Instrument = default,
                 Channel = new BoundedBatchChannel(
                     channelSlots,
-                    _options.ManagedBatchRecordCapacity)
+                    _options.ManagedBatchRecordCapacity),
+                RequiresBaseline = (_optionDataKinds
+                                    & (MarketDataKinds.Quote
+                                       | MarketDataKinds.MboOrderUpdate)) != 0
             };
         }
         var states = _singleChannel
@@ -524,7 +552,10 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                     Instrument = key,
                     Channel = new BoundedBatchChannel(
                         channelSlots,
-                        _options.ManagedBatchRecordCapacity)
+                        _options.ManagedBatchRecordCapacity),
+                    RequiresBaseline = (_subscriptions![mapping.SubscriptionIndex].DataKinds
+                                        & (MarketDataKinds.Quote
+                                           | MarketDataKinds.MboOrderUpdate)) != 0
                 };
             if (!channels.TryAdd(key, state))
             {
@@ -541,6 +572,21 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
         _channels = channels;
         _channelStates = states;
+        Array.Sort(registrations, static (left, right) =>
+        {
+            var symbolOrder = StringComparer.Ordinal.Compare(
+                left.RequestedSymbol,
+                right.RequestedSymbol);
+            if (symbolOrder != 0)
+            {
+                return symbolOrder;
+            }
+            var publisherOrder = left.Instrument.PublisherId.CompareTo(
+                right.Instrument.PublisherId);
+            return publisherOrder != 0
+                ? publisherOrder
+                : left.Instrument.InstrumentId.CompareTo(right.Instrument.InstrumentId);
+        });
         _registrations = Array.AsReadOnly(registrations);
     }
 
@@ -656,7 +702,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 Exception? error = stats.State == FeedState.Faulted
                     ? new DatabentoFeedException(
                         stats.TerminalStatus,
-                        $"Native synthetic feed faulted with {stats.TerminalStatus}.")
+                        $"Native Databento feed faulted with {stats.TerminalStatus}.")
                     : null;
                 foreach (var state in _channelStates)
                 {
@@ -675,6 +721,10 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         if (!_channels.TryGetValue(key, out var state))
         {
             throw new InvalidDataException($"Native record referenced unknown instrument {key}.");
+        }
+        if (record.Header.RecordKind is MarketRecordKind.Quote or MarketRecordKind.Mbo)
+        {
+            Volatile.Write(ref state.BaselineReady, 1);
         }
         state.AssemblyBatch ??= state.Channel.RentBatch(NeverStopping);
         state.AssemblyBatch.Add(record);

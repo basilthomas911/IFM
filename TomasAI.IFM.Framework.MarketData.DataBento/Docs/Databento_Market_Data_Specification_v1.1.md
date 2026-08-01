@@ -4,7 +4,7 @@
 
 **Status:** Implementation-ready specification
 
-**Date:** 2026-07-31
+**Date:** 2026-08-01
 
 **Managed target:** .NET 10 (`net10.0`), x64
 
@@ -187,19 +187,32 @@ public interface ISynchronousBatchReader<TBatch>
 
 public interface IDatabentoMarketDataQueries
 {
-    OptionChainDefinitions GetChainDefinitions(
-        OptionChainDefinitionRequest request,
-        TimeSpan timeout);
+    uint ContractIdToInstrumentId(
+        string contractId,
+        TimeSpan? timeout = null);
 
-    LatestPriceResult64 GetLatestPrice(
-        LatestPriceRequest request,
-        TimeSpan timeout);
+    string InstrumentIdToContractId(
+        uint instrumentId,
+        TimeSpan? timeout = null);
+
+    ContractDetail? GetContractDetail(
+        string contractName,
+        TimeSpan? timeout = null);
+
+    IReadOnlyList<ContractDetail> GetContractDetails(
+        string ticker,
+        TimeSpan? timeout = null);
+
+    IReadOnlyList<ContractDetail?> GetContractDetails(
+        string[] contractNames,
+        TimeSpan? timeout = null);
 }
 
 public interface IDatabentoFeedFactory
 {
     IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options);
     IDatabentoOptionChainFeed CreateOptionChainFeed(DatabentoFeedOptions options);
+    IDatabentoMarketDataQueries CreateMarketDataQueries(DatabentoFeedOptions options);
 }
 ```
 
@@ -1117,7 +1130,99 @@ through `System.Threading.Channels`.
 The drain thread groups records per instrument and writes batches, not individual
 records.
 
-## 13. Option-chain definition discovery
+## 13. Contract details and option-chain definition discovery
+
+### 13.0 Current contract-detail query API
+
+`CreateMarketDataQueries` binds queries to `DatabentoFeedOptions.Dataset`. Contract
+details use Databento's Historical `definition` schema rather than a live session,
+so they remain available while the exchange is closed. The native client reads
+`DATABENTO_API_KEY` directly from the process environment. The default timeout is
+30 seconds and callers may override it per request.
+
+- `GetContractDetail(fullName)` returns one future/call/put definition or `null`.
+- `GetContractDetails(ticker)` queries the `[ticker].FUT` and `[ticker].OPT`
+  Databento parent symbols, removes definition updates by raw symbol, and sorts by
+  expiration, contract kind, strike, then raw symbol.
+- `GetContractDetails(fullNames)` returns exactly one nullable item for every input,
+  in input order. A syntactically valid unresolved symbol produces `null`; malformed
+  provider symbols remain request errors.
+
+Application contract-ID mappings support outright futures and futures options only:
+
+- Future: `SYMBOLyyyyMMdd`, for example `ES20260918`.
+- Call option: `SYMBOLyyyyMMddCstrike`, for example `ES20260918C6950`.
+- Put option: `SYMBOLyyyyMMddPstrike`, for example `ES20260918P6950.5`.
+
+The date is the UTC calendar date of Databento's definition `expiration` timestamp.
+This is deliberately not derived from the maturity-day field because some futures
+definitions use provider sentinel values there. Symbols and option rights are
+uppercase. Strikes are positive decimals exactly representable in Databento's 1e-9
+fixed-point units; reverse formatting removes unnecessary trailing zeros.
+
+`ContractIdToInstrumentId` parses the ID, retrieves current `.FUT` and `.OPT`
+definitions for its ticker, and requires exactly one matching outright instrument.
+`InstrumentIdToContractId` requests the latest definition using
+`stype_in=instrument_id`, formats the canonical application ID, then validates that
+the ID resolves uniquely back to the same instrument. Missing, malformed, stale,
+unsupported, provider-rejected, or ambiguous mappings throw
+`DatabentoContractMappingException`, which reports direction, requested ID, provider
+status, and detailed context.
+
+Databento instrument IDs are only guaranteed unique within a given day and may be
+remapped. These APIs intentionally use the latest available definition interval and
+must not be treated as a permanent instrument-ID registry. See
+[Databento symbology](https://databento.com/docs/standards-and-conventions/symbology).
+
+The application layer may wrap the provider query service with
+`CachedDatabentoMarketDataQueries`, exposed for dependency injection as
+`ICachedDatabentoMarketDataQueries`. Its cache dependency is the Blackboard-owned
+`IDatabentoContractMappingCache`, also exposed as
+`IBlackboardService.DatabentoContractMapping`. A typical composition is:
+
+```csharp
+var provider = databentoFeedFactory.CreateMarketDataQueries(options);
+IDatabentoMarketDataQueries queries = new CachedDatabentoMarketDataQueries(
+    provider,
+    blackboard.DatabentoContractMapping,
+    options.Dataset);
+```
+
+Only successful provider mappings are cached, and every success writes the pair in
+both directions. Cache keys include dataset and current UTC definition date. Each
+entry carries a 24-hour hard expiration and uses a 15-minute sliding Redis TTL;
+valid reads renew both directional keys without extending the hard expiration.
+The decorator coalesces concurrent misses for the same identifier and timeout.
+Provider/mapping failures are not cached, cache infrastructure failures fall back
+to the provider, and conflicting cached pairs are evicted before a detailed
+`DatabentoContractMappingException` is thrown. Contract-detail queries are passed
+through without caching.
+
+The mapping cache also provides scoped invalidation operations:
+
+- `ClearMapping(dataset, contractId)` clears a known pair from both directions.
+- `ClearMapping(dataset, instrumentId)` clears a known pair from both directions.
+- `ClearCurrentMappings(dataset)` clears only the dataset's current UTC
+  definition-date partition.
+
+The partition operation uses Redis prefix scanning within the Databento mapping
+namespace. It does not flush the Redis database or modify other Blackboard model
+keys.
+
+The native implementation asks Metadata for the current available Definition range
+and downloads the most recent definition interval. It therefore does not depend on
+market hours or the live gateway's replay behavior. Historical API requests still
+require network access and the account's dataset entitlement.
+
+`ContractDetail` preserves provider fixed-point prices as signed 1e-9 integer units
+and timestamps as unsigned Unix-epoch nanoseconds. Provider undefined/sentinel
+values are exposed as nullable properties. Returned strings include raw symbol,
+ticker/asset, underlying, currency, settlement currency, exchange, security type,
+CFI, and unit of measure.
+
+On OpenSSL-based Windows builds, set `SSL_CERT_FILE` to a trusted PEM CA bundle.
+Certificate verification remains enabled; the implementation never falls back to
+an insecure TLS mode.
 
 ### 13.1 Public behavior
 
@@ -1778,9 +1883,15 @@ included in startup diagnostics.
 ## 21. Implementation phases for Codex
 
 Implementation status: Phases 1 and 2 are complete using the licence-free
-synthetic producer. Phases 3 through 6 remain intentionally deferred until a
-Databento licence is available; no live provider connection is required to
-build or test the completed foundation.
+synthetic producer. Phase 3 is complete as an optional live-enabled build using
+the pinned Databento client; its native and managed paths can still be built and
+tested without opening a licensed session. Phases 4 through 6 remain deferred.
+
+Phase status is based on code completion and deterministic verification. Runtime
+smoke confirmations that require suitable market hours or external provider
+conditions are tracked in the corresponding phase implementation document and do
+not block work on later phases. Any such deferred checks must be rerun during the
+final all-phases acceptance pass; a discovered defect reopens the owning phase.
 
 ### Phase 1: ABI, 64-byte records, fixed ring, and signal
 
@@ -1815,12 +1926,14 @@ Exit: deterministic synthetic mixed quote/trade/MBO replay preserves order and h
 - Normalize DBN records into the 64-byte structures.
 - Implement synchronous start/stop deadlines and error classification.
 - Configure five-second heartbeats, slow-reader warnings, hung mapping, and readiness state.
+- Add closed-market Historical current-contract detail queries and strict futures/futures-option contract-ID mappings.
+- Add optional application-layer bidirectional mapping caching, scoped clearing, and DI-facing interfaces.
 
-Exit: live ticker arrays stream selected record kinds through per-instrument channels.
+Exit: live ticker arrays stream selected record kinds through per-instrument channels; current contract details and mappings are available independently of market hours. Market-open runtime smoke confirmation may be deferred under the policy above.
 
 ### Phase 4: Definitions and option-chain feed
 
-- Implement synchronous definition query/result handle.
+- Extend the Phase 3 current-contract definition query/result handle for complete option-chain discovery.
 - Implement parent/underlying/explicit-root universe policies.
 - Filter exact maturity, outright calls/puts, strike, and underlying.
 - Implement resolved-contract option-chain subscription.

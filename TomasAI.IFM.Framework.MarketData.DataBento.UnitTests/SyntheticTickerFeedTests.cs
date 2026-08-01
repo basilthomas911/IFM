@@ -5,6 +5,29 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.UnitTests;
 public sealed class SyntheticTickerFeedTests
 {
     [Fact]
+    public void IdenticalSubscriptionsCoalesceAndConflictingSubscriptionsFail()
+    {
+        var options = DatabentoFeedOptions.ForProfile(
+            FeedDeploymentProfile.SyntheticCi,
+            "SYNTHETIC");
+        var subscription = new TickerSubscription(
+            "ESM6",
+            DatabentoInputSymbology.RawSymbol,
+            MarketDataKinds.Quote);
+        using (var coalesced = new DatabentoFeedFactory().CreateTickerFeed(options))
+        {
+            coalesced.Subscribe([subscription, subscription], TimeSpan.FromSeconds(1));
+        }
+
+        using var conflicting = new DatabentoFeedFactory().CreateTickerFeed(options);
+        Assert.Throws<ArgumentException>(() => conflicting.Subscribe(
+        [
+            subscription,
+            subscription with { DataKinds = MarketDataKinds.Trade }
+        ], TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
     public async Task TickerFeedPublishesOrderedBatchesPerInstrumentWithoutDrainAllocations()
     {
         var options = DatabentoFeedOptions.ForProfile(

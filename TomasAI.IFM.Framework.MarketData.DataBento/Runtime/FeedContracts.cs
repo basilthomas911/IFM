@@ -44,6 +44,63 @@ public interface IDatabentoFeedFactory
 {
     IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options);
     IDatabentoOptionChainFeed CreateOptionChainFeed(DatabentoFeedOptions options);
+    IDatabentoMarketDataQueries CreateMarketDataQueries(DatabentoFeedOptions options);
+}
+
+public enum ContractKind : byte
+{
+    Future = 1,
+    CallOption = 2,
+    PutOption = 3
+}
+
+public sealed record ContractDetail
+{
+    public required string Dataset { get; init; }
+    public required string RawSymbol { get; init; }
+    public required string Ticker { get; init; }
+    public required string Underlying { get; init; }
+    public required InstrumentKey Instrument { get; init; }
+    public required ContractKind ContractKind { get; init; }
+    public ulong RawInstrumentId { get; init; }
+    public uint UnderlyingInstrumentId { get; init; }
+    public int? ContractMultiplier { get; init; }
+    public long? StrikePrice { get; init; }
+    public long? MinimumPriceIncrement { get; init; }
+    public long? MinimumPriceIncrementAmount { get; init; }
+    public ulong? ExpirationTimestampNanoseconds { get; init; }
+    public ulong? ActivationTimestampNanoseconds { get; init; }
+    public DateOnly? MaturityDate { get; init; }
+    public byte? MaturityWeek { get; init; }
+    public required string Currency { get; init; }
+    public required string SettlementCurrency { get; init; }
+    public required string Exchange { get; init; }
+    public required string SecurityType { get; init; }
+    public required string Cfi { get; init; }
+    public required string UnitOfMeasure { get; init; }
+}
+
+public interface IDatabentoMarketDataQueries
+{
+    uint ContractIdToInstrumentId(
+        string contractId,
+        TimeSpan? timeout = null);
+
+    string InstrumentIdToContractId(
+        uint instrumentId,
+        TimeSpan? timeout = null);
+
+    ContractDetail? GetContractDetail(
+        string contractName,
+        TimeSpan? timeout = null);
+
+    IReadOnlyList<ContractDetail> GetContractDetails(
+        string ticker,
+        TimeSpan? timeout = null);
+
+    IReadOnlyList<ContractDetail?> GetContractDetails(
+        string[] contractNames,
+        TimeSpan? timeout = null);
 }
 
 public sealed record OptionContractSelection(
@@ -80,4 +137,10 @@ public sealed record FeedHealthSnapshot(
     ulong ChannelFullCount,
     ulong PoolMissCount,
     long DrainAllocatedBytes,
-    string? Warning);
+    string? Warning)
+{
+    public bool TransportReady { get; init; }
+    public bool TradingReady { get; init; }
+    public int BaselineReadyInstrumentCount { get; init; }
+    public int InstrumentCount { get; init; }
+}

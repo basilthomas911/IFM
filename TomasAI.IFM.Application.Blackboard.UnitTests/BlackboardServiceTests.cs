@@ -47,6 +47,7 @@ public class BlackboardServiceTests
         var sut = new BlackboardService(_redisCache, _jsonSerializer);
 
         // Assert
+        sut.DatabentoContractMapping.Should().NotBeNull();
         sut.OptionTrade.Should().NotBeNull();
         sut.ReferenceLookup.Should().NotBeNull();
         sut.TradePositionAction.Should().NotBeNull();

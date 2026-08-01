@@ -12,8 +12,8 @@
   </ItemGroup>
 
   <ItemGroup Condition="Exists('..\native\DatabentoFeed.Native\out\build\$(Configuration)\databento_feed_native.dll')">
-    <None Include="..\native\DatabentoFeed.Native\out\build\$(Configuration)\databento_feed_native.dll"
-          Link="databento_feed_native.dll"
+    <None Include="..\native\DatabentoFeed.Native\out\build\$(Configuration)\*.dll"
+          Link="%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest"
           CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

@@ -21,13 +21,27 @@ public sealed class FeedOptionsTests
     }
 
     [Fact]
-    public void LiveProfileIsRejectedUntilPhaseThree()
+    public void ProductionProfileAcceptsLivePhaseThreeConfiguration()
     {
         var options = DatabentoFeedOptions.ForProfile(
             FeedDeploymentProfile.Production,
             "GLBX.MDP3");
 
-        Assert.Throws<NotSupportedException>(() =>
+        using var feed = new DatabentoFeedFactory().CreateTickerFeed(options);
+        Assert.NotNull(feed);
+    }
+
+    [Fact]
+    public void SyntheticCiRejectsLiveData()
+    {
+        var options = DatabentoFeedOptions.ForProfile(
+            FeedDeploymentProfile.SyntheticCi,
+            "GLBX.MDP3") with
+        {
+            DataSource = FeedDataSourceMode.DatabentoLive
+        };
+
+        Assert.Throws<InvalidOperationException>(() =>
             new DatabentoFeedFactory().CreateTickerFeed(options));
     }
 

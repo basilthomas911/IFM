@@ -70,6 +70,13 @@ typedef enum dbf_market_data_kind_flags {
     DBF_MARKET_DATA_MBO = 4
 } dbf_market_data_kind_flags;
 
+typedef enum dbf_record_flags {
+    DBF_RECORD_FLAG_SNAPSHOT = 1,
+    DBF_RECORD_FLAG_REPLAY = 2,
+    DBF_RECORD_FLAG_UNDEFINED_PRICE = 4,
+    DBF_RECORD_FLAG_TS_OUT_PRESENT = 8
+} dbf_record_flags;
+
 typedef enum dbf_feed_state {
     DBF_STATE_CREATED = 1,
     DBF_STATE_SUBSCRIBED = 2,
@@ -94,6 +101,30 @@ typedef enum dbf_config_flags {
     DBF_CONFIG_REQUIRE_PRIORITY = 8,
     DBF_CONFIG_REQUIRE_NUMA_LOCALITY = 16
 } dbf_config_flags;
+
+typedef enum dbf_contract_query_kind {
+    DBF_CONTRACT_QUERY_EXACT = 1,
+    DBF_CONTRACT_QUERY_TICKER = 2,
+    DBF_CONTRACT_QUERY_INSTRUMENT_ID = 3
+} dbf_contract_query_kind;
+
+typedef enum dbf_contract_kind {
+    DBF_CONTRACT_FUTURE = 1,
+    DBF_CONTRACT_CALL_OPTION = 2,
+    DBF_CONTRACT_PUT_OPTION = 3
+} dbf_contract_kind;
+
+typedef enum dbf_contract_detail_flags {
+    DBF_CONTRACT_FOUND = 1,
+    DBF_CONTRACT_HAS_STRIKE_PRICE = 2,
+    DBF_CONTRACT_HAS_MIN_PRICE_INCREMENT = 4,
+    DBF_CONTRACT_HAS_EXPIRATION = 8,
+    DBF_CONTRACT_HAS_ACTIVATION = 16,
+    DBF_CONTRACT_HAS_MATURITY_DATE = 32,
+    DBF_CONTRACT_HAS_MULTIPLIER = 64,
+    DBF_CONTRACT_HAS_MIN_PRICE_INCREMENT_AMOUNT = 128,
+    DBF_CONTRACT_HAS_MATURITY_WEEK = 256
+} dbf_contract_detail_flags;
 
 typedef struct dbf_record_header32 {
     uint32_t instrument_id;
@@ -258,7 +289,56 @@ typedef struct dbf_stats_v1 {
     uint64_t reserved[4];
 } dbf_stats_v1;
 
+typedef struct dbf_utf8_slice_v1 {
+    uint32_t offset;
+    uint32_t length;
+} dbf_utf8_slice_v1;
+
+typedef struct dbf_contract_query_v1 {
+    uint32_t struct_size;
+    uint32_t abi_version;
+    uint32_t query_kind;
+    uint32_t timeout_ms;
+    uint32_t dataset_offset;
+    uint32_t dataset_length;
+    uint32_t symbol_count;
+    uint32_t reserved32;
+    uint64_t reserved[4];
+} dbf_contract_query_v1;
+
+typedef struct dbf_contract_detail_v1 {
+    uint32_t struct_size;
+    uint32_t abi_version;
+    uint32_t flags;
+    uint32_t instrument_id;
+    uint16_t publisher_id;
+    uint8_t contract_kind;
+    uint8_t maturity_month;
+    uint8_t maturity_day;
+    uint8_t maturity_week;
+    uint16_t maturity_year;
+    uint32_t underlying_id;
+    int32_t contract_multiplier;
+    uint64_t raw_instrument_id;
+    int64_t strike_price;
+    int64_t min_price_increment;
+    int64_t min_price_increment_amount;
+    uint64_t expiration_ts_ns;
+    uint64_t activation_ts_ns;
+    dbf_utf8_slice_v1 raw_symbol;
+    dbf_utf8_slice_v1 asset;
+    dbf_utf8_slice_v1 underlying;
+    dbf_utf8_slice_v1 currency;
+    dbf_utf8_slice_v1 settlement_currency;
+    dbf_utf8_slice_v1 exchange;
+    dbf_utf8_slice_v1 security_type;
+    dbf_utf8_slice_v1 cfi;
+    dbf_utf8_slice_v1 unit_of_measure;
+    uint64_t reserved[5];
+} dbf_contract_detail_v1;
+
 typedef struct dbf_feed dbf_feed_t;
+typedef struct dbf_contract_details_result dbf_contract_details_result_t;
 
 DBF_API uint32_t DBF_CALL dbf_get_abi_version(void);
 DBF_API dbf_status DBF_CALL dbf_feed_create(const dbf_feed_config_v1* config,
@@ -307,6 +387,29 @@ DBF_API dbf_status DBF_CALL dbf_feed_get_last_error(dbf_feed_t* feed,
                                                      uint32_t utf8_buffer_capacity,
                                                      uint32_t* required_bytes);
 DBF_API dbf_status DBF_CALL dbf_feed_destroy(dbf_feed_t* feed);
+DBF_API dbf_status DBF_CALL dbf_contract_details_query(
+    const dbf_contract_query_v1* query,
+    const dbf_utf8_slice_v1* symbols,
+    const uint8_t* utf8_blob,
+    uint32_t utf8_blob_bytes,
+    dbf_contract_details_result_t** result);
+DBF_API dbf_status DBF_CALL dbf_contract_details_result_get_counts(
+    const dbf_contract_details_result_t* result,
+    uint32_t* detail_count,
+    uint32_t* utf8_blob_bytes);
+DBF_API dbf_status DBF_CALL dbf_contract_details_result_copy(
+    const dbf_contract_details_result_t* result,
+    dbf_contract_detail_v1* details,
+    uint32_t detail_capacity,
+    uint8_t* utf8_blob,
+    uint32_t utf8_blob_capacity);
+DBF_API dbf_status DBF_CALL dbf_contract_details_result_get_error(
+    const dbf_contract_details_result_t* result,
+    uint8_t* utf8_buffer,
+    uint32_t utf8_buffer_capacity,
+    uint32_t* required_bytes);
+DBF_API dbf_status DBF_CALL dbf_contract_details_result_destroy(
+    dbf_contract_details_result_t* result);
 
 #ifdef __cplusplus
 }
@@ -324,4 +427,7 @@ static_assert(sizeof(dbf_option_contract_selection_v1) == 32);
 static_assert(sizeof(dbf_wait_result_v1) == 32);
 static_assert(sizeof(dbf_batch_result_v1) == 32);
 static_assert(sizeof(dbf_stats_v1) == 128);
+static_assert(sizeof(dbf_utf8_slice_v1) == 8);
+static_assert(sizeof(dbf_contract_query_v1) == 64);
+static_assert(sizeof(dbf_contract_detail_v1) == 192);
 #endif

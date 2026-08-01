@@ -13,6 +13,11 @@
 #include <thread>
 #include <vector>
 
+#if defined(DBF_ENABLE_LIVE)
+#include "databento_live_normalization.hpp"
+#include <databento/record.hpp>
+#endif
+
 namespace {
 
 dbf_feed_config_v1 make_config(std::uint32_t record_count,
@@ -81,8 +86,39 @@ void test_layouts() {
     static_assert(sizeof(dbf_trade_record64) == 64);
     static_assert(sizeof(dbf_mbo_record64) == 64);
     static_assert(sizeof(dbf_market_record64) == 64);
+    static_assert(sizeof(dbf_utf8_slice_v1) == 8);
+    static_assert(sizeof(dbf_contract_query_v1) == 64);
+    static_assert(sizeof(dbf_contract_detail_v1) == 192);
     assert(dbf_get_abi_version() == DBF_ABI_VERSION);
 }
+
+#if !defined(DBF_ENABLE_LIVE)
+
+void test_contract_query_reports_missing_historical_support() {
+    constexpr std::string_view blob = "GLBX.MDP3ESU6";
+    dbf_contract_query_v1 query{};
+    query.struct_size = sizeof(query);
+    query.abi_version = DBF_ABI_VERSION;
+    query.query_kind = DBF_CONTRACT_QUERY_EXACT;
+    query.timeout_ms = 1'000;
+    query.dataset_length = 9;
+    query.symbol_count = 1;
+    dbf_utf8_slice_v1 symbol{9, 4};
+    dbf_contract_details_result_t* result{};
+    require(dbf_contract_details_query(
+                &query, &symbol,
+                reinterpret_cast<const std::uint8_t*>(blob.data()),
+                static_cast<std::uint32_t>(blob.size()), &result),
+            DBF_NOT_SUPPORTED);
+    assert(result != nullptr);
+    std::uint32_t required{};
+    require(dbf_contract_details_result_get_error(result, nullptr, 0, &required),
+            DBF_BUFFER_TOO_SMALL);
+    assert(required > 1);
+    require(dbf_contract_details_result_destroy(result));
+}
+
+#endif
 
 void test_invalid_config_is_rejected_before_allocation() {
     constexpr std::string_view dataset = "SYNTHETIC";
@@ -216,11 +252,90 @@ void test_ring_overrun_faults_without_overwrite() {
     require(dbf_feed_destroy(feed));
 }
 
+#if defined(DBF_ENABLE_LIVE)
+
+databento::RecordHeader make_dbn_header(databento::RType type,
+                                        std::size_t size) {
+    databento::RecordHeader header{};
+    header.length = static_cast<std::uint8_t>(
+        size / databento::RecordHeader::kLengthMultiplier);
+    header.rtype = type;
+    header.publisher_id = 17;
+    header.instrument_id = 42;
+    header.ts_event = databento::UnixNanos{std::chrono::nanoseconds{123456789}};
+    return header;
+}
+
+void test_live_dbn_normalization() {
+    databento::Mbp1Msg quote{};
+    quote.hd = make_dbn_header(databento::RType::Mbp1, sizeof(quote));
+    quote.ts_recv = databento::UnixNanos{std::chrono::nanoseconds{123456999}};
+    quote.sequence = 7;
+    quote.levels[0] = {101'000'000'000LL, 102'000'000'000LL, 3, 4, 5, 6};
+    databento::Record quote_source{&quote.hd};
+    dbf_market_record64 normalized{};
+    assert(dbf_live::normalize(quote_source, normalized));
+    assert(normalized.header.record_kind == DBF_RECORD_QUOTE);
+    assert(normalized.header.instrument_id == 42);
+    assert(normalized.header.publisher_id == 17);
+    assert(normalized.header.ts_event_ns == 123456789);
+    assert(normalized.header.ts_recv_ns == 123456999);
+    assert(normalized.header.sequence == 7);
+    assert(normalized.header.source_schema
+           == static_cast<std::uint16_t>(databento::Schema::Mbp1));
+    assert(normalized.quote.bid_price == 101'000'000'000LL);
+    assert(normalized.quote.ask_count == 6);
+
+    databento::TradeMsg trade{};
+    trade.hd = make_dbn_header(databento::RType::Mbp0, sizeof(trade));
+    trade.price = 103'000'000'000LL;
+    trade.size = 9;
+    trade.action = databento::Action::Trade;
+    trade.side = databento::Side::Bid;
+    trade.depth = 0;
+    trade.ts_recv = databento::UnixNanos{std::chrono::nanoseconds{123457000}};
+    trade.ts_in_delta = databento::TimeDeltaNanos{37};
+    trade.sequence = 8;
+    databento::Record trade_source{&trade.hd};
+    assert(dbf_live::normalize(trade_source, normalized));
+    assert(normalized.header.record_kind == DBF_RECORD_TRADE);
+    assert(normalized.trade.price == 103'000'000'000LL);
+    assert(normalized.trade.size == 9);
+    assert(normalized.trade.action == 'T');
+    assert(normalized.trade.side == 'B');
+    assert(normalized.trade.ts_in_delta_ns == 37);
+
+    databento::MboMsg mbo{};
+    mbo.hd = make_dbn_header(databento::RType::Mbo, sizeof(mbo));
+    mbo.order_id = 999;
+    mbo.price = databento::kUndefPrice;
+    mbo.size = 11;
+    mbo.channel_id = 2;
+    mbo.action = databento::Action::Add;
+    mbo.side = databento::Side::Ask;
+    mbo.ts_recv = databento::UnixNanos{std::chrono::nanoseconds{123457100}};
+    mbo.ts_in_delta = databento::TimeDeltaNanos{-12};
+    mbo.sequence = 9;
+    databento::Record mbo_source{&mbo.hd};
+    assert(dbf_live::normalize(mbo_source, normalized));
+    assert(normalized.header.record_kind == DBF_RECORD_MBO);
+    assert((normalized.header.flags & DBF_RECORD_FLAG_UNDEFINED_PRICE) != 0);
+    assert(normalized.mbo.price == 0);
+    assert(normalized.mbo.order_id == 999);
+    assert(normalized.mbo.channel_id == 2);
+}
+
+#endif
+
 } // namespace
 
 int main() {
     std::cout << "test_layouts" << std::endl;
     test_layouts();
+#if !defined(DBF_ENABLE_LIVE)
+    std::cout << "test_contract_query_reports_missing_historical_support" << std::endl;
+    test_contract_query_reports_missing_historical_support();
+#endif
     std::cout << "test_invalid_config_is_rejected_before_allocation" << std::endl;
     test_invalid_config_is_rejected_before_allocation();
     std::cout << "test_lifecycle_and_order" << std::endl;
@@ -229,6 +344,10 @@ int main() {
     test_registered_buffer_ownership();
     std::cout << "test_ring_overrun_faults_without_overwrite" << std::endl;
     test_ring_overrun_faults_without_overwrite();
+#if defined(DBF_ENABLE_LIVE)
+    std::cout << "test_live_dbn_normalization" << std::endl;
+    test_live_dbn_normalization();
+#endif
     std::cout << "All native synthetic feed tests passed\n";
     return 0;
 }

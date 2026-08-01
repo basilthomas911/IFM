@@ -120,4 +120,41 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "dbf_feed_destroy")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial DatabentoFeedStatus FeedDestroy(nint feed);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_contract_details_query")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus ContractDetailsQuery(
+        NativeContractQuery* query,
+        NativeUtf8Slice* symbols,
+        byte* utf8Blob,
+        uint utf8BlobBytes,
+        out nint result);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_contract_details_result_get_counts")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial DatabentoFeedStatus ContractDetailsResultGetCounts(
+        SafeContractDetailsResultHandle result,
+        out uint detailCount,
+        out uint utf8BlobBytes);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_contract_details_result_copy")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus ContractDetailsResultCopy(
+        SafeContractDetailsResultHandle result,
+        NativeContractDetail* details,
+        uint detailCapacity,
+        byte* utf8Blob,
+        uint utf8BlobCapacity);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_contract_details_result_get_error")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus ContractDetailsResultGetError(
+        SafeContractDetailsResultHandle result,
+        byte* utf8Buffer,
+        uint utf8BufferCapacity,
+        out uint requiredBytes);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_contract_details_result_destroy")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial DatabentoFeedStatus ContractDetailsResultDestroy(nint result);
 }

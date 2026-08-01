@@ -74,6 +74,28 @@ internal enum NativeWaitFlags : uint
     Fault = 4
 }
 
+internal enum NativeContractQueryKind : uint
+{
+    Exact = 1,
+    Ticker = 2,
+    InstrumentId = 3
+}
+
+[Flags]
+internal enum NativeContractDetailFlags : uint
+{
+    None = 0,
+    Found = 1,
+    HasStrikePrice = 2,
+    HasMinimumPriceIncrement = 4,
+    HasExpiration = 8,
+    HasActivation = 16,
+    HasMaturityDate = 32,
+    HasMultiplier = 64,
+    HasMinimumPriceIncrementAmount = 128,
+    HasMaturityWeek = 256
+}
+
 [StructLayout(LayoutKind.Sequential, Pack = 8, Size = 32)]
 public readonly struct MarketRecordHeader32
 {
@@ -263,4 +285,58 @@ internal unsafe struct NativeFeedStats
     public ulong RingOverruns;
     public ulong AllocatedReadBufferRecords;
     public fixed ulong Reserved[4];
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 8, Size = 8)]
+internal struct NativeUtf8Slice
+{
+    public uint Offset;
+    public uint Length;
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 8, Size = 64)]
+internal unsafe struct NativeContractQuery
+{
+    public uint StructSize;
+    public uint AbiVersion;
+    public NativeContractQueryKind QueryKind;
+    public uint TimeoutMilliseconds;
+    public uint DatasetOffset;
+    public uint DatasetLength;
+    public uint SymbolCount;
+    public uint Reserved32;
+    public fixed ulong Reserved[4];
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 8, Size = 192)]
+internal unsafe struct NativeContractDetail
+{
+    public uint StructSize;
+    public uint AbiVersion;
+    public NativeContractDetailFlags Flags;
+    public uint InstrumentId;
+    public ushort PublisherId;
+    public byte ContractKind;
+    public byte MaturityMonth;
+    public byte MaturityDay;
+    public byte MaturityWeek;
+    public ushort MaturityYear;
+    public uint UnderlyingId;
+    public int ContractMultiplier;
+    public ulong RawInstrumentId;
+    public long StrikePrice;
+    public long MinimumPriceIncrement;
+    public long MinimumPriceIncrementAmount;
+    public ulong ExpirationTimestampNanoseconds;
+    public ulong ActivationTimestampNanoseconds;
+    public NativeUtf8Slice RawSymbol;
+    public NativeUtf8Slice Asset;
+    public NativeUtf8Slice Underlying;
+    public NativeUtf8Slice Currency;
+    public NativeUtf8Slice SettlementCurrency;
+    public NativeUtf8Slice Exchange;
+    public NativeUtf8Slice SecurityType;
+    public NativeUtf8Slice Cfi;
+    public NativeUtf8Slice UnitOfMeasure;
+    public fixed ulong Reserved[5];
 }
