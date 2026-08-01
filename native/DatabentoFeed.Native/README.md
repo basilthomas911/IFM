@@ -1,8 +1,8 @@
 # IFM Databento native dependency
 
-This directory contains the native C++20 ABI, synthetic producer, fixed-slot SPSC ring, portable signal, registered read-buffer ownership, the Phase 3 `LiveBlocking` ticker adapter, and Historical contract-definition queries. It builds without a Databento licence or network connection by default.
+This directory contains the native C++20 ABI, synthetic producer, fixed-slot SPSC ring, portable signal, registered read-buffer ownership, the `LiveBlocking` ticker and option-chain adapters, and Historical contract-definition queries. It builds without a Databento licence or network connection by default.
 
-**Phase 3 status:** Code complete. Market-open live ticker smoke confirmation is deferred and does not block later implementation phases; it remains required for final runtime acceptance.
+**Phase 4 status:** Code complete. Credentialed chain-discovery and live option-chain runtime confirmations are deferred and do not block later implementation phases; they remain required for final runtime acceptance.
 
 ## Offline synthetic build
 
@@ -39,7 +39,7 @@ cmake --build build/databento-native --config Release
 
 The native feed target links only to `IFM::DatabentoSdk`, not directly to the vendor target.
 
-## Live Phase 3 build
+## Live Phase 3/4 build
 
 The live-enabled build uses `DATABENTO_API_KEY` directly from the native process for both Live and Historical clients. The key is never passed through a managed string or logged. On OpenSSL-based Windows builds, set `SSL_CERT_FILE` to a trusted PEM CA bundle; TLS verification is not disabled when this variable is absent.
 
@@ -60,15 +60,19 @@ $env:SSL_CERT_FILE = 'C:\path\to\trusted-ca-bundle.pem'
 dotnet test ./TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests/TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests.csproj -c Release -p:DatabentoEnableLive=true
 ```
 
-`ContractDetailsSmokeTests` and `ContractMappingSmokeTests` use Historical current
-definitions and can run while the market is closed. `LiveTickerSmokeTests` also
+`ContractDetailsSmokeTests`, `ContractMappingSmokeTests`, and the definition-only
+`OptionChainSmokeTests` use Historical current definitions and can run while the
+market is closed. `LiveTickerSmokeTests` also
 discovers its future dynamically, but opening the live ticker session still depends
 on live-gateway availability and record delivery depends on suitable market hours.
+The live option-chain smoke discovers its maturity, underlying, strikes, rights,
+raw symbols, instrument IDs, and publisher IDs at runtime, then verifies one live
+session reaches running health with one shared managed reader.
 That operational confirmation may be run later or during the final all-phases
 acceptance pass. The existing smoke asserts authentication, resolution, startup,
 running health, and shutdown; final runtime acceptance should separately retain
-evidence of a current-contract record reaching the managed reader. A failure that
-exposes a defect reopens Phase 3.
+evidence of current ticker and option records reaching their managed readers. A
+failure that exposes a defect reopens the owning phase.
 
 Integration tests always verify a valid connection before exercising fixed,
 missing, malformed, or provider-rejected inputs:

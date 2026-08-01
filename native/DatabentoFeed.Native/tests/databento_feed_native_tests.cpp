@@ -144,6 +144,62 @@ void test_invalid_config_is_rejected_before_allocation() {
     assert(feed == nullptr);
 }
 
+void test_option_chain_subscription_preserves_resolved_mappings() {
+    constexpr std::string_view dataset = "SYNTHETIC";
+    constexpr std::string_view symbols = "ESM6 C5000ESM6 P5000";
+    auto config = make_config(10);
+    config.feed_kind = DBF_FEED_OPTION_CHAIN;
+    dbf_feed_t* feed{};
+    require(dbf_feed_create(
+        &config,
+        reinterpret_cast<const std::uint8_t*>(dataset.data()),
+        static_cast<std::uint32_t>(dataset.size()),
+        &feed));
+
+    dbf_option_chain_subscription_v1 subscription{};
+    subscription.struct_size = sizeof(subscription);
+    subscription.abi_version = DBF_ABI_VERSION;
+    subscription.data_kinds = DBF_MARKET_DATA_QUOTE | DBF_MARKET_DATA_TRADE;
+    subscription.contract_count = 2;
+    std::array<dbf_option_contract_selection_v1, 2> contracts{};
+    for (std::uint32_t index = 0; index < contracts.size(); ++index) {
+        contracts[index].struct_size = sizeof(dbf_option_contract_selection_v1);
+        contracts[index].abi_version = DBF_ABI_VERSION;
+        contracts[index].instrument_id = 101 + index;
+        contracts[index].publisher_id = 1;
+        contracts[index].option_right = static_cast<std::uint8_t>(index + 1);
+        contracts[index].raw_symbol_offset = index * 10;
+        contracts[index].raw_symbol_length = 10;
+    }
+    require(dbf_feed_subscribe_option_chain(
+        feed,
+        &subscription,
+        contracts.data(),
+        static_cast<std::uint32_t>(contracts.size()),
+        reinterpret_cast<const std::uint8_t*>(symbols.data()),
+        static_cast<std::uint32_t>(symbols.size()),
+        1'000));
+
+    dbf_market_record64* buffer{};
+    require(dbf_feed_allocate_read_buffer64(feed, 16, &buffer));
+    require(dbf_feed_start(feed, 2'000));
+    std::uint32_t mapping_count{};
+    std::uint32_t mapping_bytes{};
+    require(dbf_feed_get_ticker_mapping_counts(feed, &mapping_count, &mapping_bytes));
+    assert(mapping_count == 2);
+    std::vector<dbf_ticker_instrument_mapping_v1> mappings(mapping_count);
+    std::vector<std::uint8_t> strings(mapping_bytes);
+    require(dbf_feed_copy_ticker_mappings(
+        feed, mappings.data(), mapping_count, strings.data(), mapping_bytes));
+    assert(mappings[0].instrument_id == 101);
+    assert(mappings[1].instrument_id == 102);
+    assert(mappings[0].publisher_id == 1);
+    assert(mappings[1].publisher_id == 1);
+    require(dbf_feed_set_consumer_ready(feed, 2'000));
+    require(dbf_feed_stop(feed, 2'000));
+    require(dbf_feed_destroy(feed));
+}
+
 void test_lifecycle_and_order() {
     constexpr std::uint32_t expected_records = 10'000;
     auto* feed = create_subscribed_feed(expected_records);
@@ -338,6 +394,8 @@ int main() {
 #endif
     std::cout << "test_invalid_config_is_rejected_before_allocation" << std::endl;
     test_invalid_config_is_rejected_before_allocation();
+    std::cout << "test_option_chain_subscription_preserves_resolved_mappings" << std::endl;
+    test_option_chain_subscription_preserves_resolved_mappings();
     std::cout << "test_lifecycle_and_order" << std::endl;
     test_lifecycle_and_order();
     std::cout << "test_registered_buffer_ownership" << std::endl;

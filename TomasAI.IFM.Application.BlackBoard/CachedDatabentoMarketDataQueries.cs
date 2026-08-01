@@ -102,6 +102,11 @@ public sealed class CachedDatabentoMarketDataQueries : ICachedDatabentoMarketDat
         TimeSpan? timeout = null) =>
         _source.GetContractDetail(contractName, timeout);
 
+    public OptionChainDefinitions GetChainDefinitions(
+        OptionChainDefinitionRequest request,
+        TimeSpan? timeout = null) =>
+        _source.GetChainDefinitions(request, timeout);
+
     public IReadOnlyList<ContractDetail> GetContractDetails(
         string ticker,
         TimeSpan? timeout = null) =>

@@ -8,11 +8,6 @@ public sealed class DatabentoFeedFactory : IDatabentoFeedFactory
     public IDatabentoOptionChainFeed CreateOptionChainFeed(DatabentoFeedOptions options)
     {
         var snapshot = FeedOptionsValidator.ValidateAndSnapshot(options);
-        if (snapshot.DataSource == FeedDataSourceMode.DatabentoLive)
-        {
-            throw new NotSupportedException(
-                "Live option-chain subscriptions require Phase 4 definition discovery.");
-        }
         return new SyntheticOptionChainFeed(snapshot);
     }
 

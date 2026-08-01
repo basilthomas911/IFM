@@ -113,10 +113,12 @@ public sealed class SyntheticTickerFeedTests
         {
             Underlying = "ESM6",
             MaturityDate = new DateOnly(2026, 6, 19),
+            Strikes = [5000m],
+            Rights = OptionRightSelection.Both,
             ResolvedContracts =
             [
-                new OptionContractSelection("ESM6 C5000", new InstrumentKey(1, 1)),
-                new OptionContractSelection("ESM6 P5000", new InstrumentKey(1, 2))
+                OptionDefinition("ESM6 C5000", 1, OptionRightSelection.Call),
+                OptionDefinition("ESM6 P5000", 2, OptionRightSelection.Put)
             ],
             DataKinds = MarketDataKinds.Quote | MarketDataKinds.Trade
         }, TimeSpan.FromSeconds(2));
@@ -127,6 +129,73 @@ public sealed class SyntheticTickerFeedTests
         feed.Stop(TimeSpan.FromSeconds(5));
         Assert.Equal(0, feed.GetHealth().DrainAllocatedBytes);
     }
+
+    [Fact]
+    public void OptionChainRejectsDefinitionFromAnotherDataset()
+    {
+        var options = DatabentoFeedOptions.ForProfile(
+            FeedDeploymentProfile.SyntheticCi,
+            "SYNTHETIC");
+        using var feed = new DatabentoFeedFactory().CreateOptionChainFeed(options);
+        var definition = OptionDefinition(
+            "ESM6 C5000",
+            1,
+            OptionRightSelection.Call) with
+        {
+            Dataset = "GLBX.MDP3"
+        };
+
+        var exception = Assert.Throws<ArgumentException>(() => feed.Subscribe(
+            new OptionChainSubscription
+            {
+                Underlying = "ESM6",
+                MaturityDate = new DateOnly(2026, 6, 19),
+                Strikes = [5000m],
+                Rights = OptionRightSelection.Call,
+                ResolvedContracts = [definition]
+            },
+            TimeSpan.FromSeconds(2)));
+
+        Assert.Contains("not feed dataset", exception.Message);
+    }
+
+    [Fact]
+    public void OptionChainRejectsDefinitionOutsideRequestedSelectors()
+    {
+        var options = DatabentoFeedOptions.ForProfile(
+            FeedDeploymentProfile.SyntheticCi,
+            "SYNTHETIC");
+        using var feed = new DatabentoFeedFactory().CreateOptionChainFeed(options);
+        var definition = OptionDefinition("ESM6 P5000", 2, OptionRightSelection.Put);
+
+        var exception = Assert.Throws<ArgumentException>(() => feed.Subscribe(
+            new OptionChainSubscription
+            {
+                Underlying = "ESM6",
+                MaturityDate = new DateOnly(2026, 6, 19),
+                Strikes = [5000m],
+                Rights = OptionRightSelection.Call,
+                ResolvedContracts = [definition]
+            },
+            TimeSpan.FromSeconds(2)));
+
+        Assert.Contains("unselected option right", exception.Message);
+    }
+
+    private static OptionContractDefinition OptionDefinition(
+        string rawSymbol,
+        uint instrumentId,
+        OptionRightSelection right) => new()
+        {
+            Dataset = "SYNTHETIC",
+            RawSymbol = rawSymbol,
+            Ticker = "ES",
+            Underlying = "ESM6",
+            Instrument = new InstrumentKey(1, instrumentId),
+            Right = right,
+            StrikePrice = 5000m,
+            MaturityDate = new DateOnly(2026, 6, 19)
+        };
 
     private static List<uint> Drain(
         ISynchronousBatchReader<MarketDataBatch64> reader,

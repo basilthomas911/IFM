@@ -22,6 +22,53 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         _dataset = dataset;
     }
 
+    public OptionChainDefinitions GetChainDefinitions(
+        OptionChainDefinitionRequest request,
+        TimeSpan? timeout = null)
+    {
+        ValidateChainRequest(request);
+        var deadline = new MonotonicDeadline(timeout ?? DefaultTimeout);
+        ContractDetail? selectedUnderlying = null;
+        string[] roots;
+        if (request.UniversePolicy == OptionUniversePolicy.UnderlyingFuture)
+        {
+            selectedUnderlying = GetContractDetail(
+                request.Underlying,
+                GetRemainingQueryTime(deadline));
+            if (selectedUnderlying is not null
+                && selectedUnderlying.ContractKind != ContractKind.Future)
+            {
+                throw new ArgumentException(
+                    $"UnderlyingFuture selector '{request.Underlying}' resolved to "
+                    + $"{selectedUnderlying.ContractKind}, not an outright future.",
+                    nameof(request));
+            }
+            roots = selectedUnderlying is null ? [] : [selectedUnderlying.Ticker];
+        }
+        else if (request.UniversePolicy == OptionUniversePolicy.ExplicitOptionRoots)
+        {
+            roots = request.ExplicitOptionRoots
+                .Select(NormalizeOptionRoot)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        }
+        else
+        {
+            roots = [NormalizeOptionRoot(request.Underlying)];
+        }
+
+        var details = new List<ContractDetail>();
+        foreach (var root in roots)
+        {
+            details.AddRange(GetContractDetails(root, GetRemainingQueryTime(deadline)));
+        }
+        return OptionChainDefinitionFilter.Create(
+            _dataset,
+            request,
+            selectedUnderlying,
+            details);
+    }
+
     public uint ContractIdToInstrumentId(
         string contractId,
         TimeSpan? timeout = null)
@@ -318,6 +365,78 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
     private static bool Has(
         NativeContractDetail source,
         NativeContractDetailFlags flag) => (source.Flags & flag) != 0;
+
+    private void ValidateChainRequest(OptionChainDefinitionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Dataset);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Underlying);
+        if (!string.Equals(request.Dataset, _dataset, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"Definition request dataset '{request.Dataset}' does not match the query "
+                + $"service dataset '{_dataset}'.",
+                nameof(request));
+        }
+        if (request.MaturityDate == DateOnly.MinValue)
+        {
+            throw new ArgumentException("An exact option maturity date is required.", nameof(request));
+        }
+        if (request.UniversePolicy is not (
+                OptionUniversePolicy.ParentOptionSymbol
+                or OptionUniversePolicy.UnderlyingFuture
+                or OptionUniversePolicy.ExplicitOptionRoots))
+        {
+            throw new ArgumentException("The option universe policy is invalid.", nameof(request));
+        }
+        if (request.Rights == OptionRightSelection.None
+            || (request.Rights & ~OptionRightSelection.Both) != 0)
+        {
+            throw new ArgumentException("Select Call, Put, or Both option rights.", nameof(request));
+        }
+        ArgumentNullException.ThrowIfNull(request.ExplicitOptionRoots);
+        if (request.UniversePolicy == OptionUniversePolicy.ExplicitOptionRoots)
+        {
+            if (request.ExplicitOptionRoots.Count == 0)
+            {
+                throw new ArgumentException(
+                    "ExplicitOptionRoots requires at least one option root.",
+                    nameof(request));
+            }
+            foreach (var root in request.ExplicitOptionRoots)
+            {
+                ArgumentException.ThrowIfNullOrWhiteSpace(root);
+            }
+        }
+        else if (request.ExplicitOptionRoots.Count != 0)
+        {
+            throw new ArgumentException(
+                "Explicit option roots are only valid with ExplicitOptionRoots policy.",
+                nameof(request));
+        }
+    }
+
+    private static string NormalizeOptionRoot(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        var root = value.Trim();
+        if (root.EndsWith(".OPT", StringComparison.Ordinal))
+        {
+            root = root[..^4];
+        }
+        return root;
+    }
+
+    private static TimeSpan GetRemainingQueryTime(MonotonicDeadline deadline)
+    {
+        var remaining = deadline.Remaining;
+        if (remaining <= TimeSpan.Zero)
+        {
+            throw new DatabentoFeedTimeoutException(
+                "Option-chain definition discovery exceeded its timeout.");
+        }
+        return remaining;
+    }
 
     private static DateOnly? GetMaturityDate(NativeContractDetail source)
     {

@@ -18,23 +18,7 @@ public sealed class LiveTickerSmokeTests
             .First(detail =>
                 detail.ContractKind == ContractKind.Future
                 && detail.ExpirationTimestampNanoseconds > now);
-        var options = baseOptions with
-        {
-            DataSource = FeedDataSourceMode.DatabentoLive,
-            CpuAffinity = new FeedCpuAffinityOptions
-            {
-                Mode = CpuAffinityMode.Unpinned,
-                RequirePerformanceCore = false
-            },
-            ThreadPriority = new FeedThreadPriorityOptions(),
-            Memory = new FeedMemoryOptions { LockRingMemory = false },
-            GarbageCollection = new FeedGcOptions { EnableSustainedLowLatency = false },
-            Numa = new FeedNumaOptions { Mode = NumaLocalityMode.Disabled },
-            CoreIsolation = new FeedCoreIsolationOptions
-            {
-                Mode = FeedCoreIsolationMode.PinnedOnly
-            }
-        };
+        var options = LiveTestGate.CreateLiveOptions();
 
         using var feed = new DatabentoFeedFactory().CreateTickerFeed(options);
         feed.Subscribe(

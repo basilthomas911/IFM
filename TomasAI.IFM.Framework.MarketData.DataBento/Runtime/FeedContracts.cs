@@ -82,6 +82,10 @@ public sealed record ContractDetail
 
 public interface IDatabentoMarketDataQueries
 {
+    OptionChainDefinitions GetChainDefinitions(
+        OptionChainDefinitionRequest request,
+        TimeSpan? timeout = null);
+
     uint ContractIdToInstrumentId(
         string contractId,
         TimeSpan? timeout = null);
@@ -103,15 +107,71 @@ public interface IDatabentoMarketDataQueries
         TimeSpan? timeout = null);
 }
 
+[Flags]
+public enum OptionRightSelection : byte
+{
+    None = 0,
+    Call = 1,
+    Put = 2,
+    Both = Call | Put
+}
+
+public enum OptionUniversePolicy : byte
+{
+    ParentOptionSymbol = 1,
+    UnderlyingFuture = 2,
+    ExplicitOptionRoots = 3
+}
+
+public sealed record OptionChainDefinitionRequest
+{
+    public required string Dataset { get; init; }
+    public required string Underlying { get; init; }
+    public required DateOnly MaturityDate { get; init; }
+    public OptionUniversePolicy UniversePolicy { get; init; } =
+        OptionUniversePolicy.ParentOptionSymbol;
+    public IReadOnlyList<string> ExplicitOptionRoots { get; init; } = [];
+    public OptionRightSelection Rights { get; init; } = OptionRightSelection.Both;
+}
+
+public sealed record OptionContractDefinition
+{
+    public required string Dataset { get; init; }
+    public required string RawSymbol { get; init; }
+    public required string Ticker { get; init; }
+    public required string Underlying { get; init; }
+    public required InstrumentKey Instrument { get; init; }
+    public required OptionRightSelection Right { get; init; }
+    public required decimal StrikePrice { get; init; }
+    public required DateOnly MaturityDate { get; init; }
+    public ulong? ExpirationTimestampNanoseconds { get; init; }
+    public ulong? ActivationTimestampNanoseconds { get; init; }
+    public long? MinimumPriceIncrement { get; init; }
+    public int? ContractMultiplier { get; init; }
+}
+
+public sealed record OptionChainDefinitions
+{
+    public required string Dataset { get; init; }
+    public required string Underlying { get; init; }
+    public required DateOnly MaturityDate { get; init; }
+    public required OptionUniversePolicy UniversePolicy { get; init; }
+    public required OptionRightSelection Rights { get; init; }
+    public required IReadOnlyList<OptionContractDefinition> Contracts { get; init; }
+}
+
 public sealed record OptionContractSelection(
     string RawSymbol,
-    InstrumentKey Instrument);
+    InstrumentKey Instrument,
+    OptionRightSelection Right = OptionRightSelection.None);
 
 public sealed record OptionChainSubscription
 {
     public required string Underlying { get; init; }
     public required DateOnly MaturityDate { get; init; }
-    public required IReadOnlyList<OptionContractSelection> ResolvedContracts { get; init; }
+    public required IReadOnlyList<decimal> Strikes { get; init; }
+    public OptionRightSelection Rights { get; init; } = OptionRightSelection.Both;
+    public required IReadOnlyList<OptionContractDefinition> ResolvedContracts { get; init; }
     public MarketDataKinds DataKinds { get; init; } =
         MarketDataKinds.Quote | MarketDataKinds.Trade;
 }

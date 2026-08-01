@@ -474,6 +474,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 AbiVersion = NativeConstants.AbiVersion,
                 InstrumentId = contract.Instrument.InstrumentId,
                 PublisherId = contract.Instrument.PublisherId,
+                OptionRight = (byte)contract.Right,
                 RawSymbolOffset = checked((uint)offset),
                 RawSymbolLength = checked((uint)bytes)
             };

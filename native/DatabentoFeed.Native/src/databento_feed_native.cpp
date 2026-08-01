@@ -824,11 +824,11 @@ bool resolve_mapping(dbf_feed* feed,
             continue;
         }
         found = true;
-        if (mapping.resolved
+        if ((mapping.resolved || mapping.instrument_id != 0 || mapping.publisher_id != 0)
             && (mapping.instrument_id != instrument_id
                 || mapping.publisher_id != message.hd.publisher_id)) {
             return fail_live(feed, DBF_SYMBOL_RESOLUTION_FAILED,
-                             "A stable ticker remapped to a different instrument");
+                             "A resolved symbol remapped to a different instrument");
         }
         mapping.instrument_id = instrument_id;
         mapping.publisher_id = message.hd.publisher_id;
@@ -1253,9 +1253,6 @@ dbf_status DBF_CALL dbf_feed_subscribe_option_chain(
         || feed->state.load(std::memory_order_acquire) != DBF_STATE_CREATED) {
         return DBF_INVALID_STATE;
     }
-    if (feed->config.data_source == DBF_DATA_SOURCE_DATABENTO_LIVE) {
-        return DBF_NOT_SUPPORTED;
-    }
     if (!valid_struct(subscription->struct_size, sizeof(*subscription), subscription->abi_version)
         || subscription->contract_count != contract_count
         || (subscription->data_kinds & 7u) == 0
@@ -1270,6 +1267,10 @@ dbf_status DBF_CALL dbf_feed_subscribe_option_chain(
             const auto& contract = contracts[index];
             if (!valid_struct(contract.struct_size, sizeof(contract), contract.abi_version)
                 || contract.reserved != 0
+                || (contract.option_right != 1u && contract.option_right != 2u)
+                || contract.reserved8 != 0
+                || contract.instrument_id == 0
+                || contract.publisher_id == 0
                 || !valid_blob_range(contract.raw_symbol_offset,
                                      contract.raw_symbol_length,
                                      utf8_blob_bytes)
@@ -1282,11 +1283,13 @@ dbf_status DBF_CALL dbf_feed_subscribe_option_chain(
             mapping.subscription_index = index;
             mapping.instrument_id = contract.instrument_id;
             mapping.publisher_id = contract.publisher_id;
+            mapping.input_symbology = 1u;
             mapping.data_kinds = subscription->data_kinds & 7u;
             mapping.raw_symbol.assign(
                 reinterpret_cast<const char*>(utf8_blob + contract.raw_symbol_offset),
                 contract.raw_symbol_length);
             mapping.requested_symbol = mapping.raw_symbol;
+            mapping.resolved = feed->config.data_source == DBF_DATA_SOURCE_SYNTHETIC;
             mappings.push_back(std::move(mapping));
         }
         feed->mappings = std::move(mappings);

@@ -101,7 +101,7 @@ Therefore the V1 CME design uses:
 | Latest-price query | `GLBX.MDP3` | Temporary | 0 or 1 |
 | **Maximum normal total** | `GLBX.MDP3` | While latest query runs | **3 of 10 Standard sessions** |
 
-`GetChainDefinitions` uses a temporary session and should normally run before the option-chain session starts. If definition discovery, ticker feed, option feed, and latest-price query are deliberately run simultaneously, the total is four sessions.
+`GetChainDefinitions` uses the Historical API and does not consume a live-session slot. It should normally run before the option-chain session starts so the resolved definition set can be validated as one immutable subscription.
 
 The host must maintain a per-dataset session budget and a per-IP connection-start rate governor. Connection-limit and rate-limit errors are operational faults, not retry-spin conditions.
 
@@ -173,7 +173,7 @@ public interface IDatabentoOptionChainFeed : IDisposable
     void Start(TimeSpan timeout);
     void Stop(TimeSpan timeout);
 
-    ISynchronousBatchReader<OptionChainMarketDataBatch64> Reader { get; }
+    ISynchronousBatchReader<MarketDataBatch64> Reader { get; }
     FeedHealthSnapshot GetHealth();
 }
 
@@ -187,6 +187,10 @@ public interface ISynchronousBatchReader<TBatch>
 
 public interface IDatabentoMarketDataQueries
 {
+    OptionChainDefinitions GetChainDefinitions(
+        OptionChainDefinitionRequest request,
+        TimeSpan? timeout = null);
+
     uint ContractIdToInstrumentId(
         string contractId,
         TimeSpan? timeout = null);
@@ -427,9 +431,36 @@ public sealed record OptionChainDefinitionRequest
     public required string Dataset { get; init; }
     public required string Underlying { get; init; }
     public required DateOnly MaturityDate { get; init; }
-    public OptionUniversePolicy UniversePolicy { get; init; }
+    public OptionUniversePolicy UniversePolicy { get; init; } =
+        OptionUniversePolicy.ParentOptionSymbol;
     public IReadOnlyList<string> ExplicitOptionRoots { get; init; } = [];
     public OptionRightSelection Rights { get; init; } = OptionRightSelection.Both;
+}
+
+public sealed record OptionContractDefinition
+{
+    public required string Dataset { get; init; }
+    public required string RawSymbol { get; init; }
+    public required string Ticker { get; init; }
+    public required string Underlying { get; init; }
+    public required InstrumentKey Instrument { get; init; }
+    public required OptionRightSelection Right { get; init; }
+    public required decimal StrikePrice { get; init; }
+    public required DateOnly MaturityDate { get; init; }
+    public ulong? ExpirationTimestampNanoseconds { get; init; }
+    public ulong? ActivationTimestampNanoseconds { get; init; }
+    public long? MinimumPriceIncrement { get; init; }
+    public int? ContractMultiplier { get; init; }
+}
+
+public sealed record OptionChainDefinitions
+{
+    public required string Dataset { get; init; }
+    public required string Underlying { get; init; }
+    public required DateOnly MaturityDate { get; init; }
+    public required OptionUniversePolicy UniversePolicy { get; init; }
+    public required OptionRightSelection Rights { get; init; }
+    public required IReadOnlyList<OptionContractDefinition> Contracts { get; init; }
 }
 
 public sealed record OptionChainSubscription
@@ -508,7 +539,7 @@ No managed `Timer`, asynchronous cancellation callback, or abandoned native thre
 
 - A timeout is not a partial success unless the method explicitly returns a result with `IsComplete = false`.
 - `GetLatestPrice` returns `DBF_TIMEOUT` and no usable price when its policy is not satisfied.
-- `GetChainDefinitions` returns no chain unless the definition replay/completion condition is observed. Diagnostic counts may be logged outside the hot path.
+- `GetChainDefinitions` returns no chain unless the latest Historical definition interval is downloaded and decoded successfully. Diagnostic counts may be logged outside the hot path.
 - `Stop` timeout leaves the handle undisposed and reports that join is incomplete; it never frees live memory.
 
 ### 5.4 Clock and timestamp defaults
@@ -1229,22 +1260,22 @@ an insecure TLS mode.
 ```csharp
 OptionChainDefinitions GetChainDefinitions(
     OptionChainDefinitionRequest request,
-    TimeSpan timeout);
+    TimeSpan? timeout = null);
 ```
 
 The method:
 
 1. validates dataset, underlying selector, exact maturity, universe policy, and rights;
-2. acquires one temporary session permit for the dataset;
-3. opens one synchronous Databento session;
-4. subscribes to the `definition` schema using the requested universe policy and Databento's live definition replay (`start=0`);
-5. collects definitions until the schema's replay-completed system record is observed;
+2. asks Metadata for the latest available Historical `definition` interval;
+3. downloads and decodes that complete interval with one monotonic deadline;
+4. expands the requested parent, resolved underlying future, or explicit roots through the existing current-contract query;
+5. rejects provider, timeout, incomplete-download, and decode failures without returning a partial chain;
 6. filters exact maturity date;
 7. keeps outright calls and puts only;
 8. excludes option spreads/combinations;
 9. filters by the requested underlying or option roots;
 10. sorts by strike then right;
-11. closes the session in `finally`;
+11. releases every native Historical result handle in `finally`;
 12. returns all matching definitions.
 
 Databento parent option symbols use `[ROOT].OPT`, for example `ES.OPT`. CME weekly, monthly, daily, and quarterly options may use different roots, so the universe policy is explicit:
@@ -1255,43 +1286,26 @@ Databento parent option symbols use `[ROOT].OPT`, for example `ES.OPT`. CME week
 
 ### 13.2 Definition record
 
-The ABI returns one fixed 64-byte numeric definition plus offsets into a separate returned UTF-8 string blob.
-
-```cpp
-struct dbf_option_definition64 {
-    std::uint32_t instrument_id;
-    std::uint16_t publisher_id;
-    std::uint8_t option_right;
-    std::uint8_t instrument_class;
-    std::int64_t strike_price;
-    std::int64_t expiration_ns;
-    std::int64_t activation_ns;
-    std::int64_t min_price_increment;
-    std::int64_t contract_multiplier;
-    std::uint32_t raw_symbol_offset;
-    std::uint16_t raw_symbol_length;
-    std::uint16_t underlying_length;
-    std::uint32_t underlying_offset;
-    std::uint32_t flags;
-};
-static_assert(sizeof(dbf_option_definition64) == 64);
-```
-
-The managed wrapper copies definitions and the string blob before releasing the native result. String decoding is a cold-path allocation and is permitted.
+Phase 4 reuses the Phase 3 `dbf_contract_detail_v1` record and opaque
+`dbf_contract_details_result_t` ownership API. The native result owns its fixed
+numeric detail array and separate UTF-8 string blob until the managed wrapper
+copies them. Option discovery then projects current call/put details into immutable
+`OptionContractDefinition` values. This avoids a redundant option-only definition
+ABI while preserving signed 1e-9 fixed-point strikes, provider instrument and
+publisher IDs, underlying identity, maturity, activation/expiration timestamps,
+tick size, and multiplier. String decoding is a permitted cold-path allocation.
 
 ### 13.3 Native result ownership
 
-The public managed operation is one synchronous method. Internally the C ABI uses an opaque result handle:
+The public managed operation is one synchronous method. Internally it composes the existing contract-detail query and opaque result handle:
 
 ```cpp
-dbf_status dbf_get_chain_definitions(
-    const dbf_chain_definition_request_v1* request,
-    std::uint32_t timeout_ms,
-    dbf_definition_result_t** result);
-
-dbf_status dbf_definition_result_get_counts(...);
-dbf_status dbf_definition_result_copy(...);
-dbf_status dbf_definition_result_destroy(...);
+dbf_status dbf_contract_details_query(...,
+    dbf_contract_details_result_t** result);
+dbf_status dbf_contract_details_result_get_counts(...);
+dbf_status dbf_contract_details_result_copy(...);
+dbf_status dbf_contract_details_result_get_error(...);
+dbf_status dbf_contract_details_result_destroy(...);
 ```
 
 All copy/destroy calls are synchronous. The managed wrapper guarantees destroy in `finally`.
@@ -1328,12 +1342,12 @@ The option feed opens one `LiveBlocking` session. It may add multiple schema sub
 The feed owns one native producer, one 64-byte SPSC ring, one managed drain thread, and one:
 
 ```csharp
-BoundedBatchChannel<OptionChainMarketDataBatch64>
+BoundedBatchChannel<MarketDataBatch64>
 ```
 
 All selected option instruments share this channel. Every record retains `PublisherId`, `InstrumentId`, record kind, event/receive timestamps, sequence, and source schema. The batch preserves session arrival order. Downstream code joins numeric instrument IDs to the immutable definition set captured at startup.
 
-The option-chain channel has one shared default capacity budget of 8,192 records across all selected option instruments and uses the same preallocated single-writer, single-reader, full-backpressure transport as the ticker channels. Its public `Reader` is the enforcing `ISynchronousBatchReader<OptionChainMarketDataBatch64>` view.
+The option-chain channel has one shared default capacity budget of 8,192 records across all selected option instruments and uses the same preallocated single-writer, single-reader, full-backpressure transport as the ticker channels. Its public `Reader` is the enforcing `ISynchronousBatchReader<MarketDataBatch64>` view.
 
 The channel contains pooled batches and never references the reusable P/Invoke read buffer.
 
@@ -1546,8 +1560,9 @@ there. `dbf_feed_set_consumer_ready` transitions to `Running` and fails if mappi
 copy/validation did not complete. The count/copy calls are nonblocking; the
 managed control checks the remaining public `Start` deadline before and after
 them, and passes only that remaining duration to the two blocking native startup
-calls. The option-chain path has zero ticker
-mappings but still uses consumer readiness to prevent early drain publication.
+calls. The option-chain path exposes one mapping for every resolved raw symbol,
+and managed startup verifies those mappings before consumer readiness permits
+drain publication.
 
 `dbf_feed_config_v1` contains the dataset offset/length into the create-call UTF-8
 blob and all native portions of the immutable resolved options snapshot. Create
@@ -1559,14 +1574,12 @@ structure.
 ### 16.4 Query exports
 
 ```cpp
-dbf_status dbf_get_chain_definitions(
-    const dbf_chain_definition_request_v1* request,
-    std::uint32_t timeout_ms,
-    dbf_definition_result_t** result);
-
-dbf_status dbf_definition_result_get_counts(...);
-dbf_status dbf_definition_result_copy(...);
-dbf_status dbf_definition_result_destroy(...);
+dbf_status dbf_contract_details_query(...,
+    dbf_contract_details_result_t** result);
+dbf_status dbf_contract_details_result_get_counts(...);
+dbf_status dbf_contract_details_result_copy(...);
+dbf_status dbf_contract_details_result_get_error(...);
+dbf_status dbf_contract_details_result_destroy(...);
 
 dbf_status dbf_get_latest_price(
     const dbf_latest_price_request_v1* request,
@@ -1752,7 +1765,7 @@ Required handling:
 - Request Databento slow-reader `warn` for trading-critical supported schemas.
 - Treat skipped-record errors as a fault.
 - Treat unresolved requested symbols as explicit subscription errors.
-- Treat incomplete chain-definition replay as `DBF_INCOMPLETE_DEFINITIONS`.
+- Treat incomplete Historical chain-definition download/decode as a provider or timeout failure and return no partial chain.
 - Never continue as healthy after ring overrun.
 - Keep affected streams `Suspect`/`Recovering` and gate new entries until state is rebuilt.
 
@@ -1766,7 +1779,7 @@ Recovery is schema-specific:
 
 - Trades and MBP-1 persist the last `ts_event` plus the count of records observed at that exact timestamp per schema/instrument. Reconnect replays from the lowest saved timestamp, discards earlier records, and discards exactly the already-observed count at the equal timestamp before applying new records.
 - MBO requests a Databento snapshot, clears/rebuilds the book from the snapshot boundary, applies following updates in sequence, and waits for the live boundary before readiness.
-- Definition discovery uses `start=0`, rebuilds the immutable definition set, and requires `ReplayCompleted` before publishing a result.
+- Definition discovery redownloads the latest complete Historical definition interval and rebuilds the immutable definition set before publishing a result.
 - A ring overrun, skipped record, sequence gap/reversal, or slow-reader fault waits until downstream pressure is healthy before beginning the same schema-appropriate rebuild; reconnecting immediately into the same blocked consumer is prohibited.
 
 Throughout recovery the affected stream remains `Recovering` or `Suspect`, all new trade entries remain gated, duplicate filtering is explicit and counted, and readiness returns only after replay/snapshot completion, sequence continuity, and required per-instrument baselines have been verified.
@@ -1883,9 +1896,10 @@ included in startup diagnostics.
 ## 21. Implementation phases for Codex
 
 Implementation status: Phases 1 and 2 are complete using the licence-free
-synthetic producer. Phase 3 is complete as an optional live-enabled build using
-the pinned Databento client; its native and managed paths can still be built and
-tested without opening a licensed session. Phases 4 through 6 remain deferred.
+synthetic producer. Phases 3 and 4 are complete as an optional live-enabled build
+using the pinned Databento client; their native and managed paths can still be
+built and tested without opening a licensed session. Phases 5 and 6 remain
+deferred.
 
 Phase status is based on code completion and deterministic verification. Runtime
 smoke confirmations that require suitable market hours or external provider
@@ -1940,6 +1954,10 @@ Exit: live ticker arrays stream selected record kinds through per-instrument cha
 - Stream through one native ring and one managed channel.
 
 Exit: definition discovery returns complete sorted chain and selected strikes stream quotes/trades/MBO as requested.
+
+Status: code complete. The credentialed closed-market discovery, live option
+startup, and market-open record-delivery observations are tracked in
+`Phase4_Implementation.md` and are non-blocking until final runtime acceptance.
 
 ### Phase 5: Latest price
 
@@ -2086,7 +2104,7 @@ Exit: each price policy returns only a qualifying value or a typed timeout/fault
 - weekly/monthly/quarterly root coverage fixtures;
 - negative/large strikes in fixed-price representation;
 - duplicate definition removal;
-- completion marker and incomplete-timeout handling;
+- complete Historical interval and incomplete/timeout failure handling;
 - string-blob bounds and UTF-8 decoding;
 - sorted result stability.
 
@@ -2127,7 +2145,7 @@ Exit: each price policy returns only a qualifying value or a typed timeout/fault
 - Databento error/authentication/invalid-request/unresolved-symbol faults do not retry automatically;
 - Trades and MBP-1 replay deduplication handles multiple records sharing the saved `ts_event` exactly;
 - MBO snapshot clear/rebuild/live-boundary recovery restores sequence-continuous state;
-- definition recovery requires `start=0` and `ReplayCompleted`;
+- definition refresh requires a newly downloaded complete Historical current interval before replacing the immutable set;
 - entries remain gated throughout recovery and readiness returns only after the schema-specific baseline is verified;
 - one-second polling and five-second export cadence use fake monotonic time in deterministic tests;
 - ring/channel/pool/drain-pass threshold transitions and once-per-minute repeated-log limiting match Section 19.1;

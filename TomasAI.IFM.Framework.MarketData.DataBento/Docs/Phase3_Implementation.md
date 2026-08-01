@@ -27,7 +27,7 @@ Phase 3 adds the licensed live ticker path while preserving the Phase 1/2 ABI, r
 ## Managed runtime
 
 - `Development` may explicitly opt into `DatabentoLive`; paper-trading and production require it; synthetic CI rejects it.
-- Live option-chain creation remains rejected until Phase 4.
+- Live option-chain creation and resolved-definition validation are implemented by Phase 4.
 - Identical ticker requests coalesce while conflicting duplicates fail before native allocation.
 - Registrations are immutable and sorted by requested symbol and instrument key.
 - `FeedHealthSnapshot.TransportReady` reports the completed live handshake; `TradingReady` additionally requires an initial quote or MBO baseline for every subscription that needs one.
@@ -58,7 +58,7 @@ Phase 3 adds the licensed live ticker path while preserving the Phase 1/2 ABI, r
 - Offline native and managed lifecycle tests remain supported with no provider dependency.
 - Live-enabled native tests compile against the pinned SDK and include golden DBN quote/trade/MBO normalization fixtures.
 - `DataBento.UnitTests` contains no credentialed tests and runs against the offline native build.
-- `DataBento.SmokeTests` is opt-in through `IFM_RUN_DATABENTO_SMOKE_TESTS=1` (or the compatibility switch `IFM_RUN_DATABENTO_LIVE_TESTS=1`). Every test discovers current contracts at runtime; no fixed or invalid symbol is used. It covers current definitions, future/option mapping round trips, and a current live ticker session.
+- `DataBento.SmokeTests` is opt-in through `IFM_RUN_DATABENTO_SMOKE_TESTS=1` (or the compatibility switch `IFM_RUN_DATABENTO_LIVE_TESTS=1`). Every test discovers current contracts at runtime; no fixed or invalid symbol is used. It covers current definitions, future/option mapping round trips, a current live ticker session, and Phase 4 option-chain discovery/subscription.
 - `DataBento.IntegrationTests` is opt-in through `IFM_RUN_DATABENTO_INTEGRATION_TESTS=1` (or the compatibility switch). Each test first verifies a valid Databento connection, then covers provider-rejected tickers, unknown instrument IDs, or malformed application IDs.
 
 ## Deferred runtime confirmations

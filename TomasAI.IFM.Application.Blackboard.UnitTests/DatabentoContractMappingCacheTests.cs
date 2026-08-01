@@ -595,6 +595,18 @@ public class CachedDatabentoMarketDataQueriesTests
         public int ContractCalls => _contractCalls;
         public int InstrumentCalls => _instrumentCalls;
 
+        public OptionChainDefinitions GetChainDefinitions(
+            OptionChainDefinitionRequest request,
+            TimeSpan? timeout = null) => new()
+            {
+                Dataset = request.Dataset,
+                Underlying = request.Underlying,
+                MaturityDate = request.MaturityDate,
+                UniversePolicy = request.UniversePolicy,
+                Rights = request.Rights,
+                Contracts = []
+            };
+
         public uint ContractIdToInstrumentId(string contractId, TimeSpan? timeout = null)
         {
             Interlocked.Increment(ref _contractCalls);
