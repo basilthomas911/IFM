@@ -40,6 +40,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private bool _disposed;
     private long _batchesPublished;
     private long _drainAllocatedBytes;
+    private long _drainPassLimitHitCount;
     private string? _platformWarning;
 
     internal SyntheticTickerFeed(DatabentoFeedOptions options, bool singleChannel = false)
@@ -278,10 +279,22 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
         ulong channelFull = 0;
         ulong poolMisses = 0;
+        var channelCapacity = 0;
+        var channelCount = 0;
+        var poolCapacity = 0;
+        var poolFree = 0;
+        var maximumChannelFullWait = TimeSpan.Zero;
         foreach (var state in _channelStates)
         {
             channelFull += state.Channel.FullCount;
             poolMisses += state.Channel.PoolMisses;
+            channelCapacity += state.Channel.Capacity;
+            channelCount += state.Channel.Count;
+            poolCapacity += state.Channel.PoolCapacity;
+            poolFree += state.Channel.PoolFreeCount;
+            maximumChannelFullWait = TimeSpan.FromTicks(Math.Max(
+                maximumChannelFullWait.Ticks,
+                state.Channel.MaximumFullWait.Ticks));
         }
         var baselineReady = 0;
         foreach (var state in _channelStates)
@@ -310,7 +323,14 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             TransportReady = transportReady,
             TradingReady = transportReady && baselineReady == _channelStates.Length,
             BaselineReadyInstrumentCount = baselineReady,
-            InstrumentCount = _channelStates.Length
+            InstrumentCount = _channelStates.Length,
+            ChannelBatchCapacity = channelCapacity,
+            ChannelBatchCount = channelCount,
+            PoolBatchCapacity = poolCapacity,
+            PoolFreeBatchCount = poolFree,
+            DrainPassLimitHitCount = unchecked((ulong)Interlocked.Read(
+                ref _drainPassLimitHitCount)),
+            MaximumChannelFullWait = maximumChannelFullWait
         };
     }
 
@@ -687,6 +707,11 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 }
             }
             FlushPartialBatches();
+
+            if (recordsThisPass == _options.Drain.MaxRecordsPerDrainPass)
+            {
+                Interlocked.Increment(ref _drainPassLimitHitCount);
+            }
 
             var stats = new NativeFeedStats
             {

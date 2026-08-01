@@ -33,7 +33,7 @@
     <ItemGroup>
       <DatabentoNativeRuntimeDll Include="$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\out\build\$(Configuration)\*.dll" />
     </ItemGroup>
-    <Copy SourceFiles="@(DatabentoNativeRuntimeDll)" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="@(DatabentoNativeRuntimeDll)" DestinationFolder="$(OutDir)runtimes\win-x64\native" />
   </Target>
 
 </Project>

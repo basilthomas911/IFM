@@ -51,3 +51,4 @@
 *.xls filter=lfs diff=lfs merge=lfs -text
 *.txt filter=lfs diff=lfs merge=lfs -text
 native/DatabentoFeed.Native/CMakeLists.txt -filter diff merge text eol=lf
+*.sh text eol=lf

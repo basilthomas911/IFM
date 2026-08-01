@@ -28,6 +28,19 @@ internal sealed class BatchPool
         }
     }
 
+    internal int Capacity => _available.Length;
+
+    internal int FreeCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _count;
+            }
+        }
+    }
+
     internal MarketDataBatch64 Rent(Func<bool> isStopping)
     {
         lock (_gate)

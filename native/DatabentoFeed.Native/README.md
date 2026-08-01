@@ -2,7 +2,9 @@
 
 This directory contains the native C++20 ABI, synthetic producer, fixed-slot SPSC ring, portable signal, registered read-buffer ownership, the `LiveBlocking` ticker, option-chain, and one-shot latest-price adapters, and Historical contract-definition queries. It builds without a Databento licence or network connection by default.
 
-**Phase 5 status:** Code complete. Credentialed latest-price and earlier live runtime confirmations are deferred and do not block Phase 6; they remain required for final runtime acceptance.
+**Implementation status:** All six phases are code complete. Credentialed live
+confirmations and production-host performance/endurance evidence remain required
+for final runtime acceptance; see `Phase6_Implementation.md`.
 
 ## Offline synthetic build
 
@@ -85,3 +87,18 @@ dotnet test ./TomasAI.IFM.Framework.MarketData.DataBento.IntegrationTests/TomasA
 ```
 
 `IFM_RUN_DATABENTO_LIVE_TESTS=1` remains a compatibility opt-in for both projects.
+
+## Phase 6 RID packaging
+
+Managed resolution is fail-closed and loads the bridge only from
+`runtimes/<current-rid>/native`. Windows project builds copy the native bridge and
+its live runtime dependencies to `runtimes/win-x64/native`. Linux builds produce
+the equivalent `runtimes/linux-x64/native` layout:
+
+```bash
+native/DatabentoFeed.Native/build-native.sh --configuration Release --run-tests
+```
+
+Add `--enable-live` and set `VCPKG_ROOT` to build the licensed adapter. Both
+platform paths use the checked-in vcpkg baseline, immutable Databento commit
+`a37965590f6776ac9659ff496f91fb16c81f76b3`, and ABI version 1 metadata.

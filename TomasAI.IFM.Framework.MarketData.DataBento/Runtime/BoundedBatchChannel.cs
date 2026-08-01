@@ -15,6 +15,7 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
     private bool _completed;
     private Exception? _completionError;
     private ulong _fullCount;
+    private long _maximumFullWaitTicks;
 
     internal BoundedBatchChannel(int channelBatchSlots, int batchRecordCapacity)
     {
@@ -46,6 +47,15 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
 
     internal ulong PoolMisses => _pool.Misses;
 
+    internal int Capacity => _slots.Length;
+
+    internal int PoolCapacity => _pool.Capacity;
+
+    internal int PoolFreeCount => _pool.FreeCount;
+
+    internal TimeSpan MaximumFullWait => TimeSpan.FromTicks(
+        Interlocked.Read(ref _maximumFullWaitTicks));
+
     public bool IsCompleted
     {
         get
@@ -63,14 +73,20 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
     {
         lock (_gate)
         {
+            var waitStarted = 0L;
             while (_count == _slots.Length && !_completed)
             {
                 _fullCount++;
+                waitStarted = waitStarted == 0 ? Stopwatch.GetTimestamp() : waitStarted;
                 if (isStopping())
                 {
                     return false;
                 }
                 Monitor.Wait(_gate);
+            }
+            if (waitStarted != 0)
+            {
+                UpdateMaximumFullWait(Stopwatch.GetElapsedTime(waitStarted));
             }
             if (_completed || isStopping())
             {
@@ -82,6 +98,24 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
             _count++;
             Monitor.PulseAll(_gate);
             return true;
+        }
+    }
+
+    private void UpdateMaximumFullWait(TimeSpan elapsed)
+    {
+        var candidate = elapsed.Ticks;
+        var observed = Interlocked.Read(ref _maximumFullWaitTicks);
+        while (candidate > observed)
+        {
+            var prior = Interlocked.CompareExchange(
+                ref _maximumFullWaitTicks,
+                candidate,
+                observed);
+            if (prior == observed)
+            {
+                return;
+            }
+            observed = prior;
         }
     }
 

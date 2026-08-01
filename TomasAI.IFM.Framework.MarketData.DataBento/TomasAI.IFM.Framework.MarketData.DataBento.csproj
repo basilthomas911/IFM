@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,7 +14,7 @@
 
   <ItemGroup Condition="Exists('..\native\DatabentoFeed.Native\out\build\$(Configuration)\databento_feed_native.dll')">
     <None Include="..\native\DatabentoFeed.Native\out\build\$(Configuration)\*.dll"
-          Link="%(Filename)%(Extension)"
+          Link="runtimes\win-x64\native\%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest"
           CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

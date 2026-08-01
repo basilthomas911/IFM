@@ -249,4 +249,10 @@ public sealed record FeedHealthSnapshot(
     public bool TradingReady { get; init; }
     public int BaselineReadyInstrumentCount { get; init; }
     public int InstrumentCount { get; init; }
+    public int ChannelBatchCapacity { get; init; }
+    public int ChannelBatchCount { get; init; }
+    public int PoolBatchCapacity { get; init; }
+    public int PoolFreeBatchCount { get; init; }
+    public ulong DrainPassLimitHitCount { get; init; }
+    public TimeSpan MaximumChannelFullWait { get; init; }
 }

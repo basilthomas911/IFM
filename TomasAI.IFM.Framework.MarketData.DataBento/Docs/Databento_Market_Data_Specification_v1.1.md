@@ -1896,11 +1896,13 @@ included in startup diagnostics.
 
 ## 21. Implementation phases for Codex
 
-Implementation status: Phases 1 and 2 are complete using the licence-free
-synthetic producer. Phases 3 and 4 are complete as an optional live-enabled build
-using the pinned Databento client; their native and managed paths can still be
-built and tested without opening a licensed session. Phase 5 is code complete,
-and Phase 6 remains deferred.
+Implementation status: all six phases are code complete. Phases 1 and 2 use the
+licence-free synthetic producer. Phases 3 through 5 use the optional live-enabled
+build with the pinned Databento client while retaining deterministic offline
+coverage. Phase 6 recovery, monitoring, qualification gates, and Windows/Linux
+RID packaging are implemented. Credentialed and long-duration runtime evidence
+remains deferred to the final acceptance pass as documented in
+`Phase6_Implementation.md`.
 
 Phase status is based on code completion and deterministic verification. Runtime
 smoke confirmations that require suitable market hours or external provider
@@ -1980,6 +1982,11 @@ acceptance.
 - Add cold-path metrics polling/export.
 - Add deployment packaging and runtime resolution.
 - Run latency, throughput, regression, leak, thirty-minute, and 24-hour endurance qualification.
+
+Status: code complete. Deterministic recovery, readiness, replay, monitoring,
+RID-resolution, and qualification-gate tests pass. Target-host latency,
+throughput, leak, credentialed recovery, thirty-minute, and 24-hour reports are
+deferred runtime acceptance evidence tracked in `Phase6_Implementation.md`.
 
 ## 22. Test specification
 

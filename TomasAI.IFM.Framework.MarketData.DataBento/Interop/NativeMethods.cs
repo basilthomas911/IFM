@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 
 internal static partial class NativeMethods
 {
-    private const string LibraryName = "databento_feed_native";
+    private const string LibraryName = DatabentoNativeLibraryResolver.LibraryName;
 
     [LibraryImport(LibraryName, EntryPoint = "dbf_get_abi_version")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
