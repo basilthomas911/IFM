@@ -8,7 +8,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $sourceDirectory = $PSScriptRoot
-$buildDirectory = Join-Path $sourceDirectory 'out\build'
+$buildDirectory = if ($EnableLive) {
+    Join-Path $sourceDirectory 'out\live-build'
+} else {
+    Join-Path $sourceDirectory 'out\build'
+}
 $cmake = Get-Command cmake -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source
 $visualStudioInstallation = $null
 
@@ -81,7 +85,8 @@ if ($EnableLive) {
         $env:VCPKG_DEFAULT_BINARY_CACHE = $binaryCache
     }
     $configureArguments += "-DCMAKE_TOOLCHAIN_FILE=$toolchain"
-    $configureArguments += "-DVCPKG_INSTALLED_DIR=$(Join-Path $sourceDirectory 'out\vcpkg-installed')"
+    $vcpkgInstalledDirectory = Join-Path $sourceDirectory 'out\vcpkg-installed'
+    $configureArguments += "-DVCPKG_INSTALLED_DIR=$vcpkgInstalledDirectory"
 }
 
 & $cmake @configureArguments
@@ -95,7 +100,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if ($EnableLive) {
-    $runtimeDirectory = Join-Path $sourceDirectory 'out\vcpkg-installed\x64-windows\bin'
+    $runtimeDirectory = Join-Path $vcpkgInstalledDirectory 'x64-windows\bin'
     $nativeOutputDirectory = Join-Path $buildDirectory $Configuration
     if (Test-Path -LiteralPath $runtimeDirectory) {
         Get-ChildItem -LiteralPath $runtimeDirectory -Filter '*.dll' | ForEach-Object {

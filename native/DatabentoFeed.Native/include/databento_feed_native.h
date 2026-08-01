@@ -126,6 +126,26 @@ typedef enum dbf_contract_detail_flags {
     DBF_CONTRACT_HAS_MATURITY_WEEK = 256
 } dbf_contract_detail_flags;
 
+typedef enum dbf_latest_price_policy {
+    DBF_LATEST_PRICE_LAST_TRADE = 1,
+    DBF_LATEST_PRICE_QUOTE_MIDPOINT = 2,
+    DBF_LATEST_PRICE_BID = 3,
+    DBF_LATEST_PRICE_ASK = 4
+} dbf_latest_price_policy;
+
+typedef enum dbf_latest_price_freshness_policy {
+    DBF_LATEST_PRICE_NEXT_OBSERVED = 1,
+    DBF_LATEST_PRICE_REPLAY_LOOKBACK_THEN_LIVE = 2
+} dbf_latest_price_freshness_policy;
+
+typedef enum dbf_latest_price_result_flags {
+    DBF_LATEST_PRICE_BID_VALID = 1,
+    DBF_LATEST_PRICE_ASK_VALID = 2,
+    DBF_LATEST_PRICE_TRADE_VALID = 4,
+    DBF_LATEST_PRICE_REPLAY_CONTRIBUTED = 8,
+    DBF_LATEST_PRICE_FINAL_RECORD_LIVE = 16
+} dbf_latest_price_result_flags;
+
 typedef struct dbf_record_header32 {
     uint32_t instrument_id;
     uint16_t publisher_id;
@@ -337,6 +357,36 @@ typedef struct dbf_contract_detail_v1 {
     uint64_t reserved[5];
 } dbf_contract_detail_v1;
 
+typedef struct dbf_latest_price_request_v1 {
+    uint32_t struct_size;
+    uint32_t abi_version;
+    uint32_t selected_policy;
+    uint32_t freshness_policy;
+    uint32_t input_symbology;
+    uint32_t replay_lookback_ms;
+    dbf_utf8_slice_v1 dataset;
+    dbf_utf8_slice_v1 symbol;
+    const uint8_t* utf8_blob;
+    uint32_t utf8_blob_bytes;
+    uint32_t reserved32;
+    uint64_t reserved[4];
+} dbf_latest_price_request_v1;
+
+typedef struct dbf_latest_price_result64 {
+    uint32_t instrument_id;
+    uint16_t publisher_id;
+    uint8_t selected_policy;
+    uint8_t flags;
+    int64_t selected_price;
+    int64_t bid_price;
+    int64_t ask_price;
+    int64_t last_trade_price;
+    int64_t ts_event_ns;
+    int64_t ts_recv_ns;
+    uint32_t bid_size;
+    uint32_t ask_size;
+} dbf_latest_price_result64;
+
 typedef struct dbf_feed dbf_feed_t;
 typedef struct dbf_contract_details_result dbf_contract_details_result_t;
 
@@ -410,6 +460,10 @@ DBF_API dbf_status DBF_CALL dbf_contract_details_result_get_error(
     uint32_t* required_bytes);
 DBF_API dbf_status DBF_CALL dbf_contract_details_result_destroy(
     dbf_contract_details_result_t* result);
+DBF_API dbf_status DBF_CALL dbf_get_latest_price(
+    const dbf_latest_price_request_v1* request,
+    uint32_t timeout_ms,
+    dbf_latest_price_result64* result);
 
 #ifdef __cplusplus
 }
@@ -430,4 +484,6 @@ static_assert(sizeof(dbf_stats_v1) == 128);
 static_assert(sizeof(dbf_utf8_slice_v1) == 8);
 static_assert(sizeof(dbf_contract_query_v1) == 64);
 static_assert(sizeof(dbf_contract_detail_v1) == 192);
+static_assert(sizeof(dbf_latest_price_request_v1) == 88);
+static_assert(sizeof(dbf_latest_price_result64) == 64);
 #endif

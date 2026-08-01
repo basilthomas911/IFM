@@ -24,6 +24,8 @@ public sealed class NativeAbiTests
         Assert.Equal(8, Marshal.SizeOf<NativeUtf8Slice>());
         Assert.Equal(64, Marshal.SizeOf<NativeContractQuery>());
         Assert.Equal(192, Marshal.SizeOf<NativeContractDetail>());
+        Assert.Equal(88, Marshal.SizeOf<NativeLatestPriceRequest>());
+        Assert.Equal(64, Marshal.SizeOf<LatestPriceResult64>());
     }
 
     [Fact]

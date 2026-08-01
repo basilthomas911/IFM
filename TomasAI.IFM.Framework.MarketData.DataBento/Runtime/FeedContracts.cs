@@ -45,6 +45,52 @@ public interface IDatabentoFeedFactory
     IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options);
     IDatabentoOptionChainFeed CreateOptionChainFeed(DatabentoFeedOptions options);
     IDatabentoMarketDataQueries CreateMarketDataQueries(DatabentoFeedOptions options);
+    IDatabentoLatestPriceClient CreateLatestPriceClient(DatabentoFeedOptions options);
+}
+
+public enum LatestPricePolicy : byte
+{
+    LastTrade = 1,
+    QuoteMidpoint = 2,
+    Bid = 3,
+    Ask = 4
+}
+
+public enum LatestPriceFreshnessPolicy : byte
+{
+    NextObserved = 1,
+    ReplayLookbackThenLive = 2
+}
+
+[Flags]
+public enum LatestPriceResultFlags : byte
+{
+    None = 0,
+    BidValid = 1,
+    AskValid = 2,
+    TradeValid = 4,
+    ReplayContributed = 8,
+    FinalRecordLive = 16
+}
+
+public sealed record LatestPriceRequest
+{
+    public required string Dataset { get; init; }
+    public required string Symbol { get; init; }
+    public DatabentoInputSymbology InputSymbology { get; init; } =
+        DatabentoInputSymbology.RawSymbol;
+    public LatestPricePolicy PricePolicy { get; init; } =
+        LatestPricePolicy.LastTrade;
+    public LatestPriceFreshnessPolicy FreshnessPolicy { get; init; } =
+        LatestPriceFreshnessPolicy.NextObserved;
+    public TimeSpan ReplayLookback { get; init; }
+}
+
+public interface IDatabentoLatestPriceClient
+{
+    LatestPriceResult64 GetLatestPrice(
+        LatestPriceRequest request,
+        TimeSpan timeout);
 }
 
 public enum ContractKind : byte

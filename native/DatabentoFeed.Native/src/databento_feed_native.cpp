@@ -1,4 +1,5 @@
 #include "databento_feed_native.h"
+#include "latest_price_session_guard.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -12,6 +13,8 @@
 #include <memory>
 #include <mutex>
 #include <new>
+#include <numeric>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -982,6 +985,186 @@ void live_producer_main(dbf_feed* feed) noexcept {
     finish_producer(feed);
 }
 
+std::uint32_t remaining_milliseconds(
+    monotonic_clock::time_point deadline) noexcept {
+    const auto now = monotonic_clock::now();
+    if (now >= deadline) {
+        return 0;
+    }
+    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+        deadline - now);
+    return static_cast<std::uint32_t>(std::min<std::int64_t>(
+        std::max<std::int64_t>(remaining.count(), 1),
+        std::numeric_limits<std::uint32_t>::max()));
+}
+
+void set_latest_header(const databento::RecordHeader& header,
+                       databento::UnixNanos receive_timestamp,
+                       dbf_latest_price_result64& result) noexcept {
+    result.instrument_id = header.instrument_id;
+    result.publisher_id = header.publisher_id;
+    result.ts_event_ns = static_cast<std::int64_t>(
+        header.ts_event.time_since_epoch().count());
+    result.ts_recv_ns = static_cast<std::int64_t>(
+        receive_timestamp.time_since_epoch().count());
+}
+
+bool select_latest_trade(const databento::TradeMsg& trade,
+                         dbf_latest_price_result64& result) noexcept {
+    if (trade.price == databento::kUndefPrice || trade.size == 0) {
+        return false;
+    }
+    set_latest_header(trade.hd, trade.ts_recv, result);
+    result.flags = DBF_LATEST_PRICE_TRADE_VALID;
+    result.selected_price = trade.price;
+    result.last_trade_price = trade.price;
+    return true;
+}
+
+bool select_latest_quote(const databento::Mbp1Msg& quote,
+                         std::uint32_t selected_policy,
+                         dbf_latest_price_result64& result) noexcept {
+    const auto& level = quote.levels[0];
+    const bool bid_valid = level.bid_px != databento::kUndefPrice
+                           && level.bid_sz != 0;
+    const bool ask_valid = level.ask_px != databento::kUndefPrice
+                           && level.ask_sz != 0;
+    const bool midpoint_valid = bid_valid && ask_valid
+                                && level.bid_px <= level.ask_px;
+    const bool selected_valid =
+        selected_policy == DBF_LATEST_PRICE_BID
+            ? bid_valid
+            : (selected_policy == DBF_LATEST_PRICE_ASK
+                   ? ask_valid
+                   : midpoint_valid);
+    if (!selected_valid) {
+        return false;
+    }
+
+    set_latest_header(quote.hd, quote.ts_recv, result);
+    result.flags = static_cast<std::uint8_t>(
+        (bid_valid ? DBF_LATEST_PRICE_BID_VALID : 0)
+        | (ask_valid ? DBF_LATEST_PRICE_ASK_VALID : 0));
+    result.bid_price = bid_valid ? level.bid_px : 0;
+    result.ask_price = ask_valid ? level.ask_px : 0;
+    result.bid_size = bid_valid ? level.bid_sz : 0;
+    result.ask_size = ask_valid ? level.ask_sz : 0;
+    if (selected_policy == DBF_LATEST_PRICE_BID) {
+        result.selected_price = level.bid_px;
+    } else if (selected_policy == DBF_LATEST_PRICE_ASK) {
+        result.selected_price = level.ask_px;
+    } else {
+        result.selected_price = std::midpoint(level.bid_px, level.ask_px);
+    }
+    return true;
+}
+
+dbf_status get_latest_price_live(
+    const dbf_latest_price_request_v1& request,
+    const std::string& dataset,
+    const std::string& symbol,
+    std::uint32_t timeout_ms,
+    dbf_latest_price_result64& result) {
+    const auto deadline = monotonic_clock::now()
+                          + std::chrono::milliseconds{timeout_ms};
+    const auto rounded_seconds = timeout_ms / 1'000u
+                                 + (timeout_ms % 1'000u == 0 ? 0u : 1u);
+    const auto timeout_seconds = std::chrono::seconds{
+        std::max<std::uint32_t>(1, rounded_seconds)};
+    auto client = databento::LiveBlocking::Builder()
+                      .SetKeyFromEnv()
+                      .SetDataset(dataset)
+                      .SetHeartbeatInterval(std::chrono::seconds{5})
+                      .SetSlowReaderBehavior(databento::SlowReaderBehavior::Warn)
+                      .SetTimeoutConf({timeout_seconds, timeout_seconds})
+                      .BuildBlocking();
+    dbf_latest::session_guard session{client};
+
+    const auto schema = request.selected_policy == DBF_LATEST_PRICE_LAST_TRADE
+                            ? databento::Schema::Trades
+                            : databento::Schema::Mbp1;
+    const std::vector<std::string> symbols{symbol};
+    if (request.freshness_policy == DBF_LATEST_PRICE_REPLAY_LOOKBACK_THEN_LIVE) {
+        const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        const auto lookback_ns = static_cast<std::int64_t>(
+            request.replay_lookback_ms) * 1'000'000LL;
+        const auto start_ns = static_cast<std::uint64_t>(
+            std::max<std::int64_t>(0, now_ns - lookback_ns));
+        client.Subscribe(
+            symbols, schema, to_stype(request.input_symbology),
+            databento::UnixNanos{
+                std::chrono::duration<std::uint64_t, std::nano>{start_ns}});
+    } else {
+        client.Subscribe(symbols, schema, to_stype(request.input_symbology));
+    }
+
+    const auto metadata = client.Start();
+    if (!metadata.not_found.empty() || !metadata.partial.empty()) {
+        return DBF_SYMBOL_RESOLUTION_FAILED;
+    }
+
+    const bool replay_requested = request.freshness_policy
+                                  == DBF_LATEST_PRICE_REPLAY_LOOKBACK_THEN_LIVE;
+    bool replay_complete = !replay_requested;
+    std::optional<dbf_latest_price_result64> replay_candidate;
+    while (true) {
+        const auto remaining = remaining_milliseconds(deadline);
+        if (remaining == 0) {
+            return DBF_TIMEOUT;
+        }
+        const auto* record = client.NextRecord(
+            std::chrono::milliseconds{remaining});
+        if (record == nullptr) {
+            return DBF_TIMEOUT;
+        }
+        if (const auto* error = record->GetIf<databento::ErrorMsg>()) {
+            return classify_gateway_error(error->code);
+        }
+        if (const auto* system = record->GetIf<databento::SystemMsg>()) {
+            if (system->code == databento::SystemCode::SlowReaderWarning) {
+                return DBF_DATABENTO_ERROR;
+            }
+            if (system->code == databento::SystemCode::ReplayCompleted) {
+                replay_complete = true;
+                if (replay_candidate.has_value()) {
+                    result = *replay_candidate;
+                    result.flags = static_cast<std::uint8_t>(
+                        result.flags | DBF_LATEST_PRICE_REPLAY_CONTRIBUTED);
+                    session.stop();
+                    return DBF_OK;
+                }
+            }
+            continue;
+        }
+
+        dbf_latest_price_result64 candidate{};
+        candidate.selected_policy = static_cast<std::uint8_t>(
+            request.selected_policy);
+        bool selected{};
+        if (request.selected_policy == DBF_LATEST_PRICE_LAST_TRADE) {
+            if (const auto* trade = record->GetIf<databento::TradeMsg>()) {
+                selected = select_latest_trade(*trade, candidate);
+            }
+        } else if (const auto* quote = record->GetIf<databento::Mbp1Msg>()) {
+            selected = select_latest_quote(
+                *quote, request.selected_policy, candidate);
+        }
+        if (!selected) {
+            continue;
+        }
+        if (!replay_complete) {
+            replay_candidate = candidate;
+            continue;
+        }
+        candidate.flags = static_cast<std::uint8_t>(
+            candidate.flags | DBF_LATEST_PRICE_FINAL_RECORD_LIVE);
+        result = candidate;
+        session.stop();
+        return DBF_OK;
+    }
+}
+
 #endif
 
 void producer_main(dbf_feed* feed) noexcept {
@@ -1873,6 +2056,104 @@ dbf_status DBF_CALL dbf_contract_details_result_destroy(
     }
     delete result;
     return DBF_OK;
+}
+
+dbf_status DBF_CALL dbf_get_latest_price(
+    const dbf_latest_price_request_v1* request,
+    std::uint32_t timeout_ms,
+    dbf_latest_price_result64* result) {
+    if (request == nullptr || result == nullptr) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    *result = {};
+    if (!valid_struct(
+            request->struct_size, sizeof(*request), request->abi_version)) {
+        return DBF_ABI_MISMATCH;
+    }
+    const bool valid_price_policy =
+        request->selected_policy == DBF_LATEST_PRICE_LAST_TRADE
+        || request->selected_policy == DBF_LATEST_PRICE_QUOTE_MIDPOINT
+        || request->selected_policy == DBF_LATEST_PRICE_BID
+        || request->selected_policy == DBF_LATEST_PRICE_ASK;
+    const bool valid_freshness =
+        request->freshness_policy == DBF_LATEST_PRICE_NEXT_OBSERVED
+        || request->freshness_policy
+               == DBF_LATEST_PRICE_REPLAY_LOOKBACK_THEN_LIVE;
+    const bool valid_lookback =
+        (request->freshness_policy == DBF_LATEST_PRICE_NEXT_OBSERVED
+         && request->replay_lookback_ms == 0)
+        || (request->freshness_policy
+                == DBF_LATEST_PRICE_REPLAY_LOOKBACK_THEN_LIVE
+            && request->replay_lookback_ms != 0);
+    if (!valid_price_policy || !valid_freshness || !valid_lookback
+        || (request->input_symbology != 1 && request->input_symbology != 2)
+        || timeout_ms == 0 || timeout_ms == DBF_WAIT_INFINITE
+        || request->utf8_blob == nullptr || request->utf8_blob_bytes == 0
+        || request->dataset.length == 0 || request->symbol.length == 0
+        || !valid_blob_range(
+            request->dataset.offset, request->dataset.length,
+            request->utf8_blob_bytes)
+        || !valid_blob_range(
+            request->symbol.offset, request->symbol.length,
+            request->utf8_blob_bytes)
+        || request->reserved32 != 0
+        || std::any_of(
+            std::begin(request->reserved), std::end(request->reserved),
+            [](std::uint64_t value) { return value != 0; })) {
+        return DBF_INVALID_ARGUMENT;
+    }
+
+    const auto deadline = monotonic_clock::now()
+                          + std::chrono::milliseconds{timeout_ms};
+    try {
+        const std::string dataset{
+            reinterpret_cast<const char*>(
+                request->utf8_blob + request->dataset.offset),
+            request->dataset.length};
+        const std::string symbol{
+            reinterpret_cast<const char*>(
+                request->utf8_blob + request->symbol.offset),
+            request->symbol.length};
+        if (dataset.find('\0') != std::string::npos
+            || symbol.find('\0') != std::string::npos) {
+            return DBF_INVALID_ARGUMENT;
+        }
+#if defined(DBF_ENABLE_LIVE)
+        const auto status = get_latest_price_live(
+            *request, dataset, symbol, timeout_ms, *result);
+        if (status != DBF_OK) {
+            *result = {};
+        }
+        return status;
+#else
+        (void)dataset;
+        (void)symbol;
+        return DBF_NOT_SUPPORTED;
+#endif
+    } catch (const std::bad_alloc&) {
+        *result = {};
+        return DBF_NO_MEMORY;
+#if defined(DBF_ENABLE_LIVE)
+    } catch (const databento::HeartbeatTimeoutError&) {
+        *result = {};
+        return monotonic_clock::now() >= deadline
+                   ? DBF_TIMEOUT
+                   : DBF_CONNECTION_HUNG;
+    } catch (const databento::Exception&) {
+        *result = {};
+        return monotonic_clock::now() >= deadline
+                   ? DBF_TIMEOUT
+                   : DBF_DATABENTO_ERROR;
+#endif
+    } catch (const std::exception&) {
+        *result = {};
+        return monotonic_clock::now() >= deadline
+                   ? DBF_TIMEOUT
+                   : DBF_DATABENTO_ERROR;
+    } catch (...) {
+        *result = {};
+        return DBF_INTERNAL_ERROR;
+    }
 }
 
 } // extern "C"

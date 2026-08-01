@@ -1,4 +1,5 @@
 #include "databento_feed_native.h"
+#include "latest_price_session_guard.hpp"
 
 #include <array>
 #if defined(NDEBUG)
@@ -9,6 +10,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <stdexcept>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -89,7 +91,43 @@ void test_layouts() {
     static_assert(sizeof(dbf_utf8_slice_v1) == 8);
     static_assert(sizeof(dbf_contract_query_v1) == 64);
     static_assert(sizeof(dbf_contract_detail_v1) == 192);
+    static_assert(sizeof(dbf_latest_price_request_v1) == 88);
+    static_assert(sizeof(dbf_latest_price_result64) == 64);
     assert(dbf_get_abi_version() == DBF_ABI_VERSION);
+}
+
+struct fake_latest_price_session {
+    int stop_count{};
+    bool throw_on_stop{};
+
+    void Stop() {
+        ++stop_count;
+        if (throw_on_stop) {
+            throw std::runtime_error{"expected stop failure"};
+        }
+    }
+};
+
+void test_latest_price_session_guard_closes_every_path() {
+    fake_latest_price_session success{};
+    {
+        dbf_latest::session_guard guard{success};
+        guard.stop();
+        guard.stop();
+    }
+    assert(success.stop_count == 1);
+
+    fake_latest_price_session error_or_timeout{};
+    {
+        dbf_latest::session_guard guard{error_or_timeout};
+    }
+    assert(error_or_timeout.stop_count == 1);
+
+    fake_latest_price_session throwing_cleanup{0, true};
+    {
+        dbf_latest::session_guard guard{throwing_cleanup};
+    }
+    assert(throwing_cleanup.stop_count == 1);
 }
 
 #if !defined(DBF_ENABLE_LIVE)
@@ -116,6 +154,28 @@ void test_contract_query_reports_missing_historical_support() {
             DBF_BUFFER_TOO_SMALL);
     assert(required > 1);
     require(dbf_contract_details_result_destroy(result));
+}
+
+void test_latest_price_reports_missing_live_support() {
+    constexpr std::string_view blob = "GLBX.MDP3ESU6";
+    dbf_latest_price_request_v1 request{};
+    request.struct_size = sizeof(request);
+    request.abi_version = DBF_ABI_VERSION;
+    request.selected_policy = DBF_LATEST_PRICE_LAST_TRADE;
+    request.freshness_policy = DBF_LATEST_PRICE_NEXT_OBSERVED;
+    request.input_symbology = 1;
+    request.dataset = {0, 9};
+    request.symbol = {9, 4};
+    request.utf8_blob = reinterpret_cast<const std::uint8_t*>(blob.data());
+    request.utf8_blob_bytes = static_cast<std::uint32_t>(blob.size());
+    dbf_latest_price_result64 result{};
+    require(dbf_get_latest_price(&request, 1'000, &result), DBF_NOT_SUPPORTED);
+
+    request.selected_policy = 0;
+    require(dbf_get_latest_price(&request, 1'000, &result), DBF_INVALID_ARGUMENT);
+    request.selected_policy = DBF_LATEST_PRICE_LAST_TRADE;
+    request.struct_size = 0;
+    require(dbf_get_latest_price(&request, 1'000, &result), DBF_ABI_MISMATCH);
 }
 
 #endif
@@ -388,9 +448,13 @@ void test_live_dbn_normalization() {
 int main() {
     std::cout << "test_layouts" << std::endl;
     test_layouts();
+    std::cout << "test_latest_price_session_guard_closes_every_path" << std::endl;
+    test_latest_price_session_guard_closes_every_path();
 #if !defined(DBF_ENABLE_LIVE)
     std::cout << "test_contract_query_reports_missing_historical_support" << std::endl;
     test_contract_query_reports_missing_historical_support();
+    std::cout << "test_latest_price_reports_missing_live_support" << std::endl;
+    test_latest_price_reports_missing_live_support();
 #endif
     std::cout << "test_invalid_config_is_rejected_before_allocation" << std::endl;
     test_invalid_config_is_rejected_before_allocation();

@@ -45,6 +45,6 @@ The unit-test project automatically invokes the offline native build on Windows.
 
 - Databento `LiveBlocking` connection, authentication, grouped ticker subscriptions, provider DBN decoding, stable symbol mappings, heartbeats, slow-reader faults, and readiness.
 
-Historical future/option contract-detail lookup is implemented alongside Phase 3. Phase 4 adds filtered option-chain discovery and live resolved-option subscriptions; latest-price queries remain Phase 5, and replay/recovery orchestration remains Phase 6.
+Historical future/option contract-detail lookup is implemented alongside Phase 3. Phase 4 adds filtered option-chain discovery and live resolved-option subscriptions; Phase 5 adds the one-shot latest-price client, and replay/recovery orchestration remains Phase 6.
 
-Phases 3 and 4 are code complete. Their deferred credentialed runtime confirmations are tracked in their implementation documents and do not block Phase 5. The remaining Phase 5 and Phase 6 items do not block synthetic Phase 1/2 development or testing.
+Phases 3, 4, and 5 are code complete. Their deferred credentialed runtime confirmations are tracked in their implementation documents and do not block Phase 6. The remaining Phase 6 items do not block synthetic Phase 1/2 development or testing.

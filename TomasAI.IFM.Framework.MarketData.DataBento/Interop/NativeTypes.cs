@@ -340,3 +340,82 @@ internal unsafe struct NativeContractDetail
     public NativeUtf8Slice UnitOfMeasure;
     public fixed ulong Reserved[5];
 }
+
+[StructLayout(LayoutKind.Sequential, Pack = 8, Size = 88)]
+internal unsafe struct NativeLatestPriceRequest
+{
+    public uint StructSize;
+    public uint AbiVersion;
+    public LatestPricePolicy SelectedPolicy;
+    private readonly byte _selectedPolicyPadding0;
+    private readonly byte _selectedPolicyPadding1;
+    private readonly byte _selectedPolicyPadding2;
+    public LatestPriceFreshnessPolicy FreshnessPolicy;
+    private readonly byte _freshnessPadding0;
+    private readonly byte _freshnessPadding1;
+    private readonly byte _freshnessPadding2;
+    public DatabentoInputSymbology InputSymbology;
+    private readonly byte _symbologyPadding0;
+    private readonly byte _symbologyPadding1;
+    private readonly byte _symbologyPadding2;
+    public uint ReplayLookbackMilliseconds;
+    public NativeUtf8Slice Dataset;
+    public NativeUtf8Slice Symbol;
+    public byte* Utf8Blob;
+    public uint Utf8BlobBytes;
+    public uint Reserved32;
+    public fixed ulong Reserved[4];
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 8, Size = 64)]
+public readonly struct LatestPriceResult64
+{
+    public readonly uint InstrumentId;
+    public readonly ushort PublisherId;
+    public readonly LatestPricePolicy SelectedPolicy;
+    public readonly LatestPriceResultFlags Flags;
+    public readonly long SelectedPrice;
+    public readonly long BidPrice;
+    public readonly long AskPrice;
+    public readonly long LastTradePrice;
+    public readonly long EventTimestampNanoseconds;
+    public readonly long ReceiveTimestampNanoseconds;
+    public readonly uint BidSize;
+    public readonly uint AskSize;
+
+    internal LatestPriceResult64(
+        uint instrumentId,
+        ushort publisherId,
+        LatestPricePolicy selectedPolicy,
+        LatestPriceResultFlags flags,
+        long selectedPrice,
+        long bidPrice = 0,
+        long askPrice = 0,
+        long lastTradePrice = 0,
+        long eventTimestampNanoseconds = 0,
+        long receiveTimestampNanoseconds = 0,
+        uint bidSize = 0,
+        uint askSize = 0)
+    {
+        InstrumentId = instrumentId;
+        PublisherId = publisherId;
+        SelectedPolicy = selectedPolicy;
+        Flags = flags;
+        SelectedPrice = selectedPrice;
+        BidPrice = bidPrice;
+        AskPrice = askPrice;
+        LastTradePrice = lastTradePrice;
+        EventTimestampNanoseconds = eventTimestampNanoseconds;
+        ReceiveTimestampNanoseconds = receiveTimestampNanoseconds;
+        BidSize = bidSize;
+        AskSize = askSize;
+    }
+
+    public bool HasBid => (Flags & LatestPriceResultFlags.BidValid) != 0;
+    public bool HasAsk => (Flags & LatestPriceResultFlags.AskValid) != 0;
+    public bool HasLastTrade => (Flags & LatestPriceResultFlags.TradeValid) != 0;
+    public bool UsedReplay =>
+        (Flags & LatestPriceResultFlags.ReplayContributed) != 0;
+    public bool IsLive =>
+        (Flags & LatestPriceResultFlags.FinalRecordLive) != 0;
+}

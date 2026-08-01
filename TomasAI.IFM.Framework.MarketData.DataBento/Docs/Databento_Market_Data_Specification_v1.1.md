@@ -1899,8 +1899,8 @@ included in startup diagnostics.
 Implementation status: Phases 1 and 2 are complete using the licence-free
 synthetic producer. Phases 3 and 4 are complete as an optional live-enabled build
 using the pinned Databento client; their native and managed paths can still be
-built and tested without opening a licensed session. Phases 5 and 6 remain
-deferred.
+built and tested without opening a licensed session. Phase 5 is code complete,
+and Phase 6 remains deferred.
 
 Phase status is based on code completion and deterministic verification. Runtime
 smoke confirmations that require suitable market hours or external provider
@@ -1968,6 +1968,11 @@ startup, and market-open record-delivery observations are tracked in
 - Prove every failure/timeout closes the temporary session.
 
 Exit: each price policy returns only a qualifying value or a typed timeout/fault.
+
+Status: code complete. Deterministic policy, freshness, ABI, admission-control,
+and cleanup tests pass. The credentialed current-contract observations are
+tracked in `Phase5_Implementation.md` and are non-blocking until final runtime
+acceptance.
 
 ### Phase 6: Recovery, packaging, and qualification
 

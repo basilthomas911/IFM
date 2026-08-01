@@ -157,4 +157,11 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "dbf_contract_details_result_destroy")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial DatabentoFeedStatus ContractDetailsResultDestroy(nint result);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_get_latest_price")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus GetLatestPrice(
+        NativeLatestPriceRequest* request,
+        uint timeoutMilliseconds,
+        out LatestPriceResult64 result);
 }

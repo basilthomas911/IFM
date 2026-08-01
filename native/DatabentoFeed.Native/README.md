@@ -1,8 +1,8 @@
 # IFM Databento native dependency
 
-This directory contains the native C++20 ABI, synthetic producer, fixed-slot SPSC ring, portable signal, registered read-buffer ownership, the `LiveBlocking` ticker and option-chain adapters, and Historical contract-definition queries. It builds without a Databento licence or network connection by default.
+This directory contains the native C++20 ABI, synthetic producer, fixed-slot SPSC ring, portable signal, registered read-buffer ownership, the `LiveBlocking` ticker, option-chain, and one-shot latest-price adapters, and Historical contract-definition queries. It builds without a Databento licence or network connection by default.
 
-**Phase 4 status:** Code complete. Credentialed chain-discovery and live option-chain runtime confirmations are deferred and do not block later implementation phases; they remain required for final runtime acceptance.
+**Phase 5 status:** Code complete. Credentialed latest-price and earlier live runtime confirmations are deferred and do not block Phase 6; they remain required for final runtime acceptance.
 
 ## Offline synthetic build
 
@@ -39,7 +39,7 @@ cmake --build build/databento-native --config Release
 
 The native feed target links only to `IFM::DatabentoSdk`, not directly to the vendor target.
 
-## Live Phase 3/4 build
+## Live Phase 3/4/5 build
 
 The live-enabled build uses `DATABENTO_API_KEY` directly from the native process for both Live and Historical clients. The key is never passed through a managed string or logged. On OpenSSL-based Windows builds, set `SSL_CERT_FILE` to a trusted PEM CA bundle; TLS verification is not disabled when this variable is absent.
 
@@ -68,6 +68,8 @@ on live-gateway availability and record delivery depends on suitable market hour
 The live option-chain smoke discovers its maturity, underlying, strikes, rights,
 raw symbols, instrument IDs, and publisher IDs at runtime, then verifies one live
 session reaches running health with one shared managed reader.
+`LatestPriceSmokeTests` discovers an activated, unexpired ES future and exercises
+last trade, midpoint, bid, and ask through bounded replay or live observation.
 That operational confirmation may be run later or during the final all-phases
 acceptance pass. The existing smoke asserts authentication, resolution, startup,
 running health, and shutdown; final runtime acceptance should separately retain
