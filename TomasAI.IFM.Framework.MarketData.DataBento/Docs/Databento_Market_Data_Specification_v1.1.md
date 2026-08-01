@@ -1777,6 +1777,11 @@ included in startup diagnostics.
 
 ## 21. Implementation phases for Codex
 
+Implementation status: Phases 1 and 2 are complete using the licence-free
+synthetic producer. Phases 3 through 6 remain intentionally deferred until a
+Databento licence is available; no live provider connection is required to
+build or test the completed foundation.
+
 ### Phase 1: ABI, 64-byte records, fixed ring, and signal
 
 - Create public C header and ABI tests.

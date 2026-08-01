@@ -247,6 +247,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Applicat
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.MarketData.DataBento", "TomasAI.IFM.Framework.MarketData.DataBento\TomasAI.IFM.Framework.MarketData.DataBento.csproj", "{77BF50A7-2A12-4BAD-ABE0-82FCDFE71CD3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.MarketData.DataBento.UnitTests", "TomasAI.IFM.Framework.MarketData.DataBento.UnitTests\TomasAI.IFM.Framework.MarketData.DataBento.UnitTests.csproj", "{07792628-893A-4EA4-BD21-913A156C854F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -2401,6 +2403,26 @@ Global
 		{77BF50A7-2A12-4BAD-ABE0-82FCDFE71CD3}.Release|x64.Build.0 = Release|Any CPU
 		{77BF50A7-2A12-4BAD-ABE0-82FCDFE71CD3}.Release|x86.ActiveCfg = Release|Any CPU
 		{77BF50A7-2A12-4BAD-ABE0-82FCDFE71CD3}.Release|x86.Build.0 = Release|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Debug|ARM.Build.0 = Debug|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Debug|x64.Build.0 = Debug|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Debug|x86.Build.0 = Debug|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Release|ARM.ActiveCfg = Release|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Release|ARM.Build.0 = Release|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Release|ARM64.Build.0 = Release|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Release|x64.ActiveCfg = Release|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Release|x64.Build.0 = Release|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Release|x86.ActiveCfg = Release|Any CPU
+		{07792628-893A-4EA4-BD21-913A156C854F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

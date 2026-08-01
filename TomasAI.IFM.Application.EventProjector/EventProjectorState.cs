@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using TomasAI.IFM.Shared.EventProjector;
 
 namespace TomasAI.IFM.Application.EventProjector;
 
