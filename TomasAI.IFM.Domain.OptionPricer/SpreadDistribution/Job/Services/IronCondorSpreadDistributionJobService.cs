@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Services.Contracts;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Extensions;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Services;
 
@@ -31,6 +32,7 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
 
     /// <summary>The actor context used to query trade, market data, and market data feed information.</summary>
     readonly IEventActorContext _context;
+    readonly IActorTradeCommandApi _tradeCommandApi;
 
     /// <summary>
     /// Initializes a new instance of <see cref="IronCondorSpreadDistributionJobService"/>.
@@ -44,10 +46,14 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="e"/>, <paramref name="state"/>, or <paramref name="context"/> is <see langword="null"/>.
     /// </exception>
-    public IronCondorSpreadDistributionJobService(SpreadDistributionJobSubmittedEvent e, IEventActorContext context)
+    public IronCondorSpreadDistributionJobService(
+        SpreadDistributionJobSubmittedEvent e,
+        IEventActorContext context,
+        IActorTradeCommandApi tradeCommandApi)
     {
         _jobSubmittedEvent = IsArgumentNull.Set(e);
         _context = IsArgumentNull.Set(context);
+        _tradeCommandApi = IsArgumentNull.Set(tradeCommandApi);
     }
 
     /// <summary>
@@ -288,7 +294,7 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
         }
 
         // update spread trade distributionstatistics...
-        await _context.UpdateSpreadDistributionStatisticsAsync(
+        await _tradeCommandApi.UpdateSpreadDistributionStatisticsAsync(
             orderId: e.OrderId,
             tradeId: e.TradeId,
             tradeType: e.TradeType,

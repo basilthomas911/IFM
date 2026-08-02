@@ -6,6 +6,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Actor;
 
@@ -19,19 +21,41 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the spread distribution job event actor. Cannot be null.</param>
 public class SpreadDistributionJobEventActor(
     IActorSupervisor supervisor,
+    IActorOptionPricerCommandApiFactory optionPricerCommandApiFactory,
+    IActorTradeCommandApiFactory tradeCommandApiFactory,
     IStatusConsoleWriter statusConsoleWriter,
     ILogger<SpreadDistributionJobEventActor> logger)
     : BaseEventActor<SpreadDistributionJobEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "SpreadDistributionJobEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    IActorOptionPricerCommandApi? _optionPricerCommandApi;
+    IActorTradeCommandApi? _tradeCommandApi;
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorOptionPricerCommandApi, IActorTradeCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(SpreadDistributionJobSubmittedEvent).Name] = async (evt, ctx, statusConsoleWriter, logger) =>
+        [typeof(SpreadDistributionJobSubmittedEvent).Name] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
         {
             var e = (evt as SpreadDistributionJobSubmittedEvent)!;
-            return await e.ExecuteAsync(ctx, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(
+                ctx,
+                optionPricerCommandApi,
+                tradeCommandApi,
+                statusConsoleWriter,
+                logger);
         }
     };
+
+    protected override ValueTask OnStartup(IEventActorContext context)
+    {
+        _ = GetOptionPricerCommandApi(context);
+        _ = GetTradeCommandApi(context);
+        return ValueTask.CompletedTask;
+    }
+
+    IActorOptionPricerCommandApi GetOptionPricerCommandApi(IEventActorContext context)
+        => _optionPricerCommandApi ??= optionPricerCommandApiFactory.Create(context);
+
+    IActorTradeCommandApi GetTradeCommandApi(IEventActorContext context)
+        => _tradeCommandApi ??= tradeCommandApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -78,7 +102,13 @@ public class SpreadDistributionJobEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, statusConsoleWriter, logger);
+        _ = await receiveFunc.Invoke(
+            @event,
+            context,
+            GetOptionPricerCommandApi(context),
+            GetTradeCommandApi(context),
+            statusConsoleWriter,
+            logger);
     }
 
     /// <summary>

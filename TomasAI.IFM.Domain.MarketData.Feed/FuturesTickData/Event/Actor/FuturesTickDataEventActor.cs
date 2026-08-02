@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 
@@ -21,6 +22,8 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the futures tick data event actor. Cannot be null.</param>
 public class FuturesTickDataEventActor(
     IActorSupervisor supervisor,
+    IActorMarketDataFeedCommandApiFactory commandApiFactory,
+    IActorMarketDataFeedEventApiFactory eventApiFactory,
     IMarketDataApi marketDataApi,
     IBlackboardService blackboardService,
     IStatusConsoleWriter statusConsoleWriter,
@@ -28,26 +31,41 @@ public class FuturesTickDataEventActor(
     : BaseEventActor<FuturesTickDataEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FuturesTickDataEvent";
+    IActorMarketDataFeedCommandApi? _commandApi;
+    IActorMarketDataFeedEventApi? _eventApi;
     readonly FuturesTickDataEventParameters _eventParameters = new(
         marketDataApi, blackboardService, statusConsoleWriter, logger);
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, FuturesTickDataEventParameters, ValueTask<bool>>> _receiveMap = new()
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedCommandApi, IActorMarketDataFeedEventApi, FuturesTickDataEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesTickDataInsertedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesTickDataInsertedEvent).Name] = async (evt, context, commandApi, _, eventParams) =>
         {
             var e = (evt as FuturesTickDataInsertedEvent)!;
-            return await e.ExecuteAsync(context, eventParams);
+            return await e.ExecuteAsync(context, commandApi, eventParams);
         },
-        [typeof(FuturesTickDataStreamingStartedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesTickDataStreamingStartedEvent).Name] = async (evt, context, _, eventApi, eventParams) =>
         {
             var e = (evt as FuturesTickDataStreamingStartedEvent)!;
-            return await e.ExecuteAsync(context, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesTickDataStreamingStoppedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesTickDataStreamingStoppedEvent).Name] = async (evt, context, _, eventApi, eventParams) =>
         {
             var e = (evt as FuturesTickDataStreamingStoppedEvent)!;
-            return await e.ExecuteAsync(context, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams);
         }
     };
+
+    protected override ValueTask OnStartup(IEventActorContext context)
+    {
+        _ = GetCommandApi(context);
+        _ = GetEventApi(context);
+        return ValueTask.CompletedTask;
+    }
+
+    IActorMarketDataFeedCommandApi GetCommandApi(IEventActorContext context)
+        => _commandApi ??= commandApiFactory.Create(context);
+
+    IActorMarketDataFeedEventApi GetEventApi(IEventActorContext context)
+        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -96,7 +114,7 @@ public class FuturesTickDataEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, _eventParameters);
+        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context), GetEventApi(context), _eventParameters);
     }
 
     /// <summary>

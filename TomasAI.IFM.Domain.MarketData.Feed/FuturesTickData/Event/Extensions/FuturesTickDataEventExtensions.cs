@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
@@ -95,7 +96,7 @@ internal static class FuturesTickDataEventExtensions
 	}
 
 	internal static async ValueTask InsertFuturesEodDataAsync(
-		this IEventActorContext context,
+		this IActorMarketDataFeedCommandApi commandApi,
 		DateOnly valueDate,
 		FuturesTickDataV2ReadModel futuresTickData,
 		FuturesContractV2ReadModel futuresContract,
@@ -105,85 +106,27 @@ internal static class FuturesTickDataEventExtensions
 		int windowSize,
 		ICollection<VixFuturesEodDataReadModel> vixEodData)
 	{
-		var entityId = new FuturesEodDataId(futuresContract.ContractId, valueDate);
-		InsertFuturesEodDataCommand cmd = new(valueDate, futuresTickData, futuresContract, eodDataToday, eodDataRange, normCurveData, windowSize, vixEodData)
-		{
-			Subject = new ActorSubject(ActorType.Command, InsertFuturesEodDataCommand.Actor, InsertFuturesEodDataCommand.Verb, entityId.Format()),
-			EntityId = entityId,
-			ErrorCode = InsertFuturesOptionTickDataCommand.ErrorId
-		};
-		var serviceResult = await context.RequestAsync<InsertFuturesEodDataCommand, FuturesEodDataId>(cmd);
-		if (serviceResult?.Success != true)
-			throw new InvalidOperationException(serviceResult?.ErrorMessage);
+		_ = await commandApi.InsertFuturesEodDataAsync(
+			valueDate,
+			futuresTickData,
+			futuresContract,
+			eodDataToday,
+			eodDataRange,
+			normCurveData,
+			windowSize,
+			vixEodData);
 	}
 
-	internal static async ValueTask InsertVixFuturesEodDataAsync(this IEventActorContext context, FuturesTickDataV2ReadModel futuresTickData)
+	internal static async ValueTask InsertVixFuturesEodDataAsync(this IActorMarketDataFeedCommandApi commandApi, FuturesTickDataV2ReadModel futuresTickData)
 	{
-		var entityId = new FuturesEodDataId(futuresTickData.ContractId, futuresTickData.ValueDate);
-		InsertVixFuturesEodDataCommand cmd = new(futuresTickData)
-		{
-			Subject = new ActorSubject(ActorType.Command, InsertVixFuturesEodDataCommand.Actor, InsertVixFuturesEodDataCommand.Verb, entityId.Format()),
-			EntityId = entityId,
-			ErrorCode = InsertVixFuturesEodDataCommand.ErrorId
-		};
-		var serviceResult = await context.RequestAsync<InsertVixFuturesEodDataCommand, FuturesEodDataId>(cmd);
-		if (serviceResult?.Success != true)
-			throw new InvalidOperationException(serviceResult?.ErrorMessage);
-	}
-
-	internal static async ValueTask SendFuturesOptionTickDataUpdatedEventAsync(this IEventActorContext context, FuturesOptionTickDataInsertedEvent e)
-	{
-		var entityId = new FuturesOptionTickEntityId(e.TickData.ContractId, e.TickData.ValueDate);
-		OptionTradeTickPriceDataUpdatedEvent updatedEvent = new(e.TickData)
-		{
-			Subject = new ActorSubject(ActorType.Event, OptionTradeTickPriceDataUpdatedEvent.Actor, OptionTradeTickPriceDataUpdatedEvent.Verb, entityId.Format()),
-			EntityId = entityId,
-			Id = Guid.NewGuid(),
-			CommandId = e.CommandId,
-			AggregateId = e.AggregateId,
-			ReceivedOn = DateTime.UtcNow
-		};
-		await context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(updatedEvent);
-	}
-
-	internal static async ValueTask FuturesTickDataStreamingStartedCompleteAsync(this IEventActorContext context, FuturesTickDataStreamingStartedEvent e)
-	{
-		var completeEvent = e.ToCompleteEvent<FuturesTickDataStreamingStartedCompleteEvent, FuturesTickDataStreamingId>() as FuturesTickDataStreamingStartedCompleteEvent;
-		await context.SendAsync<FuturesTickDataStreamingStartedCompleteEvent, FuturesTickDataStreamingId>(completeEvent!);
-	}
-
-	internal static async ValueTask FuturesTickDataStreamingStartedFailAsync(this IEventActorContext context, FuturesTickDataStreamingStartedEvent e, Exception ex)
-	{
-		var completeEvent = e.ToFailEvent<FuturesTickDataStreamingStartedFailEvent, FuturesTickDataStreamingId>(ex) as FuturesTickDataStreamingStartedFailEvent;
-		await context.SendAsync<FuturesTickDataStreamingStartedFailEvent, FuturesTickDataStreamingId>(completeEvent!);
-	}
-
-	internal static async ValueTask FuturesTickDataStreamingStoppedCompleteAsync(this IEventActorContext context, FuturesTickDataStreamingStoppedEvent e)
-	{
-		var completeEvent = e.ToCompleteEvent<FuturesTickDataStreamingStoppedCompleteEvent, FuturesTickDataStreamingId>() as FuturesTickDataStreamingStoppedCompleteEvent;
-		await context.SendAsync<FuturesTickDataStreamingStoppedCompleteEvent, FuturesTickDataStreamingId>(completeEvent!);
-	}
-
-	internal static async ValueTask FuturesTickDataStreamingStoppedFailAsync(this IEventActorContext context, FuturesTickDataStreamingStoppedEvent e, Exception ex)
-	{
-		var completeEvent = e.ToFailEvent<FuturesTickDataStreamingStoppedFailEvent, FuturesTickDataStreamingId>(ex) as FuturesTickDataStreamingStoppedFailEvent;
-		await context.SendAsync<FuturesTickDataStreamingStoppedFailEvent, FuturesTickDataStreamingId>(completeEvent!);
+		_ = await commandApi.InsertVixFuturesEodDataAsync(futuresTickData);
 	}
 
 	internal static async ValueTask InsertFuturesTickDataAsync(
-		this IEventActorContext context,
+		this IActorMarketDataFeedCommandApi commandApi,
 		FuturesContractV2ReadModel futuresContract,
 		FuturesTickDataV2ReadModel futuresTickData)
 	{
-		var entityId = new FuturesDataId(futuresContract.ContractId, futuresTickData.ValueDate);
-		InsertFuturesTickDataCommand cmd = new(futuresContract, futuresTickData)
-		{
-			Subject = new ActorSubject(ActorType.Command, InsertFuturesTickDataCommand.Actor, InsertFuturesTickDataCommand.Verb, entityId.Format()),
-			EntityId = entityId,
-			ErrorCode = InsertFuturesTickDataCommand.ErrorId
-		};
-		var serviceResult = await context.RequestAsync<InsertFuturesTickDataCommand, FuturesDataId>(cmd);
-		if (serviceResult?.Success != true)
-			throw new InvalidOperationException(serviceResult?.ErrorMessage);
+		_ = await commandApi.InsertFuturesTickDataAsync(futuresContract, futuresTickData);
 	}
 }

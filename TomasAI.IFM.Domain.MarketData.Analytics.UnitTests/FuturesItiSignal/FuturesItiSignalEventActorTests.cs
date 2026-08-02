@@ -33,7 +33,11 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     public class TestableFuturesItiSignalEventActor : FuturesItiSignalEventActor
     {
         public TestableFuturesItiSignalEventActor(IActorSupervisor supervisor, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesItiSignalEventActor> logger)
-            : base(supervisor, statusConsoleWriter, logger)
+            : base(
+                supervisor,
+                new global::TomasAI.IFM.Domain.MarketData.Analytics.Command.Api.ActorMarketDataAnalyticsCommandApiFactory(),
+                statusConsoleWriter,
+                logger)
         {
         }
 

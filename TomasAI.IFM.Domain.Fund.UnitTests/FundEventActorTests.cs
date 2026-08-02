@@ -125,7 +125,10 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
     public class TestableFundEventActor : FundEventActor
     {
         public TestableFundEventActor(IActorSupervisor supervisor, ILogger<FundEventActor> logger)
-            : base(supervisor, logger)
+            : base(
+                supervisor,
+                new global::TomasAI.IFM.Domain.Fund.Event.Api.ActorFundEventApiFactory(),
+                logger)
         {
         }
 

@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Event.Extensions;
 
@@ -16,18 +17,9 @@ internal static class OptionTradeEventExtensions
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the submit operation fails or the service result indicates an error.</exception>
     internal static async ValueTask SubmitSpreadDistributionJobAsync(
-        this IEventActorContext context,
+        this IActorOptionPricerCommandApi commandApi,
         SpreadDistributionJobReadModel spreadDistributionJob)
     {
-        var entityId = spreadDistributionJob.EntityId;
-        SubmitSpreadDistributionJobCommand cmd = new(spreadDistributionJob)
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, SubmitSpreadDistributionJobCommand.Actor, SubmitSpreadDistributionJobCommand.Verb, entityId.Format()),
-            EntityId = entityId,
-        };
-        var serviceResult = await context.RequestAsync<SubmitSpreadDistributionJobCommand, SpreadDistributionJobEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.SubmitSpreadDistributionJobAsync(spreadDistributionJob);
     }
 }

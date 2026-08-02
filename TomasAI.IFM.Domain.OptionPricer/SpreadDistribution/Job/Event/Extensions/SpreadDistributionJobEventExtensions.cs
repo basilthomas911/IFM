@@ -17,6 +17,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.QueryParameters;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Extensions;
 
@@ -168,7 +170,7 @@ internal static class SpreadDistributionJobEventExtensions
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the update operation fails or the service result indicates an error.</exception>
     internal static async ValueTask UpdateSpreadDistributionStatisticsAsync(
-        this IEventActorContext context,
+        this IActorTradeCommandApi commandApi,
         int orderId,
         int tradeId,
         TradeType tradeType,
@@ -177,24 +179,14 @@ internal static class SpreadDistributionJobEventExtensions
         SpreadDistributionReadModel putSpreadDistribution,
         SpreadDistributionReadModel callSpreadDistribution)
     {
-        var entityId = new OptionTradeEntityId(orderId, tradeId);
-        UpdateOptionTradeSpreadDistributionStatisticsCommand cmd = new(
+        _ = await commandApi.UpdateSpreadDistributionStatisticsAsync(
             orderId,
             tradeId,
             tradeType,
-            tradeStatus,
             valueDate,
-            putSpreadDistribution.DaysToExpiry,
+            tradeStatus,
             putSpreadDistribution,
-            callSpreadDistribution)
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, UpdateOptionTradeSpreadDistributionStatisticsCommand.Actor, UpdateOptionTradeSpreadDistributionStatisticsCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-        var serviceResult = await context.RequestAsync<UpdateOptionTradeSpreadDistributionStatisticsCommand, OptionTradeEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+            callSpreadDistribution);
     }
 
     /// <summary>
@@ -212,28 +204,19 @@ internal static class SpreadDistributionJobEventExtensions
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the change operation fails or the service result indicates an error.</exception>
     internal static async ValueTask ChangeSpreadDistributionStatisticsAsync(
-        this IEventActorContext context,
+        this IActorTradeCommandApi commandApi,
         int orderId,
         int tradeId,
         double forwardLossRatio,
         double lossProbability,
         DateOnly valueDate)
     {
-        var entityId = new OptionTradeEntityId(orderId, tradeId);
-        ChangeOptionTradeSpreadDistributionStatisticsCommand cmd = new(
+        _ = await commandApi.ChangeSpreadDistributionStatisticsAsync(
             orderId,
             tradeId,
             forwardLossRatio,
             lossProbability,
-            valueDate)
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, ChangeOptionTradeSpreadDistributionStatisticsCommand.Actor, ChangeOptionTradeSpreadDistributionStatisticsCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-        var serviceResult = await context.RequestAsync<ChangeOptionTradeSpreadDistributionStatisticsCommand, OptionTradeEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+            valueDate);
     }
 
     /// <summary>
@@ -245,19 +228,12 @@ internal static class SpreadDistributionJobEventExtensions
     /// <param name="jobStatus">The resulting job status.</param>
     /// <exception cref="InvalidOperationException">Thrown when the command does not succeed.</exception>
     internal static async ValueTask CompleteSpreadDistributionJobAsync(
-        this IEventActorContext context,
+        this IActorOptionPricerCommandApi commandApi,
         SpreadDistributionJobEntityId entityId,
         DateTime jobCompleted,
         SpreadDistributionJobStatus jobStatus)
     {
-        CompleteSpreadDistributionJobCommand cmd = new(entityId, jobCompleted, jobStatus)
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, CompleteSpreadDistributionJobCommand.Actor, CompleteSpreadDistributionJobCommand.Verb, entityId.Format()),
-        };
-        var serviceResult = await context.RequestAsync<CompleteSpreadDistributionJobCommand, SpreadDistributionJobEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.CompleteSpreadDistributionJobAsync(entityId, jobCompleted, jobStatus);
     }
 
     /// <summary>
@@ -270,18 +246,12 @@ internal static class SpreadDistributionJobEventExtensions
     /// <param name="errorMessage">The error message describing the failure.</param>
     /// <exception cref="InvalidOperationException">Thrown when the command does not succeed.</exception>
     internal static async ValueTask FailSpreadDistributionJobAsync(
-        this IEventActorContext context,
+        this IActorOptionPricerCommandApi commandApi,
         SpreadDistributionJobEntityId entityId,
         DateTime jobFailed,
         SpreadDistributionJobStatus jobStatus,
         string errorMessage)
     {
-        FailSpreadDistributionJobCommand cmd = new(entityId, jobFailed, jobStatus, errorMessage)
-        {
-            Subject = new ActorSubject(ActorType.Command, FailSpreadDistributionJobCommand.Actor, FailSpreadDistributionJobCommand.Verb, entityId.Format()),
-        };
-        var serviceResult = await context.RequestAsync<FailSpreadDistributionJobCommand, SpreadDistributionJobEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.FailSpreadDistributionJobAsync(entityId, jobFailed, jobStatus, errorMessage);
     }
 }

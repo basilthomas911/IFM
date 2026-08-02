@@ -9,11 +9,16 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 
 public class FuturesOptionTickDataEventActor(
     IActorSupervisor supervisor,
+    IActorMarketDataFeedCommandApiFactory feedCommandApiFactory,
+    IActorTradeCommandApiFactory tradeCommandApiFactory,
+    IActorMarketDataFeedEventApiFactory eventApiFactory,
     IMarketDataApi marketDataApi,
     IMarketDataSnapshotApi marketDataSnapshotApi,
     IBlackboardService blackboardService,
@@ -23,31 +28,55 @@ public class FuturesOptionTickDataEventActor(
     : BaseEventActor<FuturesOptionTickDataEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FuturesOptionTickDataEvent";
+    IActorMarketDataFeedCommandApi? _feedCommandApi;
+    IActorTradeCommandApi? _tradeCommandApi;
+    IActorMarketDataFeedEventApi? _eventApi;
     readonly FuturesOptionTickDataEventParameters _eventParameters = new(
         marketDataApi, marketDataSnapshotApi, blackboardService, optionTradeLiveFeedMap, statusConsoleWriter, logger);
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, FuturesOptionTickDataEventParameters, ValueTask<bool>>> _receiveMap = new()
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedCommandApi, IActorTradeCommandApi, IActorMarketDataFeedEventApi, FuturesOptionTickDataEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesOptionTickDataInsertedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesOptionTickDataInsertedEvent).Name] = async (evt, context, _, _, eventApi, eventParams) =>
         {
             var e = (evt as FuturesOptionTickDataInsertedEvent)!;
-            return await e.ExecuteAsync(context, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesOptionTickDataStreamingStartedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesOptionTickDataStreamingStartedEvent).Name] = async (evt, context, _, _, eventApi, eventParams) =>
         {
             var e = (evt as FuturesOptionTickDataStreamingStartedEvent)!;
-            return await e.ExecuteAsync(context, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesOptionTickDataStreamingStoppedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesOptionTickDataStreamingStoppedEvent).Name] = async (evt, context, _, _, eventApi, eventParams) =>
         {
             var e = (evt as FuturesOptionTickDataStreamingStoppedEvent)!;
-            return await e.ExecuteAsync(context, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesOptionTickBidAskEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesOptionTickBidAskEvent).Name] = async (evt, context, feedCommandApi, tradeCommandApi, _, eventParams) =>
         {
             var e = (evt as FuturesOptionTickBidAskEvent)!;
-            return await e.ExecuteAsync(context, eventParams);
+            return await e.ExecuteAsync(
+                context,
+                feedCommandApi,
+                tradeCommandApi,
+                eventParams);
         }
     };
+
+    protected override ValueTask OnStartup(IEventActorContext context)
+    {
+        _ = GetFeedCommandApi(context);
+        _ = GetTradeCommandApi(context);
+        _ = GetEventApi(context);
+        return ValueTask.CompletedTask;
+    }
+
+    IActorMarketDataFeedCommandApi GetFeedCommandApi(IEventActorContext context)
+        => _feedCommandApi ??= feedCommandApiFactory.Create(context);
+
+    IActorTradeCommandApi GetTradeCommandApi(IEventActorContext context)
+        => _tradeCommandApi ??= tradeCommandApiFactory.Create(context);
+
+    IActorMarketDataFeedEventApi GetEventApi(IEventActorContext context)
+        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -98,7 +127,13 @@ public class FuturesOptionTickDataEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, _eventParameters);
+        _ = await receiveFunc.Invoke(
+            @event,
+            context,
+            GetFeedCommandApi(context),
+            GetTradeCommandApi(context),
+            GetEventApi(context),
+            _eventParameters);
     }
 
     /// <summary>

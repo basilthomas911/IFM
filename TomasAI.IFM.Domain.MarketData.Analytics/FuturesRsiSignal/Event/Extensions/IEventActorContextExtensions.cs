@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -23,18 +24,9 @@ internal static class IEventActorContextExtensions
     /// <param name="periodLength">The period length for the RSI calculation.</param>
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
-    public static async ValueTask GenerateFuturesRsiSignalAsync(this IEventActorContext context, FuturesRsiSignalId futuresRsiSignalId, decimal futuresPrice)
+    public static async ValueTask GenerateFuturesRsiSignalAsync(this IActorMarketDataAnalyticsCommandApi commandApi, FuturesRsiSignalId futuresRsiSignalId, decimal futuresPrice)
     {
-        var entityId = futuresRsiSignalId.ToEntityId();
-        GenerateFuturesRsiSignalCommand cmd = new(futuresRsiSignalId, futuresPrice)
-        {
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiSignalCommand.Actor, GenerateFuturesRsiSignalCommand.Verb, entityId.Format()),
-            FuturesRsiSignalId = futuresRsiSignalId,
-            FuturesPrice = futuresPrice
-        }; 
-        var serviceResult = await context.RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.GenerateFuturesRsiSignalAsync(futuresRsiSignalId, futuresPrice);
     }
 
     /// <summary>
@@ -46,18 +38,9 @@ internal static class IEventActorContextExtensions
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask GenerateFuturesTdiSignalAsync(
-        this IEventActorContext context, FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals, TimeFrameType timePeriod)
+        this IActorMarketDataAnalyticsCommandApi commandApi, FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals, TimeFrameType timePeriod)
     {
-        var entityId = new FuturesTdiSignalEntityId(futuresTdiSignalId.ContractId, futuresTdiSignalId.ValueDate, timePeriod);
-        GenerateFuturesTdiSignalCommand cmd = new(futuresTdiSignalId, futuresRsiSignals)
-        {
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GenerateFuturesTdiSignalCommand.ErrorId
-        };
-        var serviceResult = await context.RequestAsync<GenerateFuturesTdiSignalCommand, FuturesTdiSignalEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.GenerateFuturesTdiSignalAsync(futuresTdiSignalId, futuresRsiSignals, timePeriod);
     }
 
     /// <summary>
@@ -70,18 +53,9 @@ internal static class IEventActorContextExtensions
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask GenerateFuturesMacdSignalAsync(
-        this IEventActorContext context, FuturesMacdSignalId futuresMacdSignalId, decimal futuresPrice)
+        this IActorMarketDataAnalyticsCommandApi commandApi, FuturesMacdSignalId futuresMacdSignalId, decimal futuresPrice)
     {
-        var entityId = futuresMacdSignalId.ToEntityId();
-        GenerateFuturesMacdSignalCommand cmd = new(futuresMacdSignalId, futuresPrice)
-        {
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesMacdSignalCommand.Actor, GenerateFuturesMacdSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GenerateFuturesMacdSignalCommand.ErrorId
-        };
-        var serviceResult = await context.RequestAsync<GenerateFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.GenerateFuturesMacdSignalAsync(futuresMacdSignalId, futuresPrice);
     }
 
     

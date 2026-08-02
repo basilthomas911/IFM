@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -25,7 +26,11 @@ public static class MarketDataFeedResetComplete
     /// <param name="p"></param>
     /// <returns></returns>
     public static async ValueTask<bool> ExecuteAsync(
-        this MarketDataFeedResetCompleteEvent e, IEventActorContext context, MarketDataFeedEventParameters p)
+        this MarketDataFeedResetCompleteEvent e,
+        IEventActorContext context,
+        IActorMarketDataFeedCommandApi commandApi,
+        IActorMarketDataFeedEventApi eventApi,
+        MarketDataFeedEventParameters p)
     {
         var source = $"MarketDataFeedResetCompleteEvent for EntityId: {e.EntityId}";
         try
@@ -36,14 +41,14 @@ public static class MarketDataFeedResetComplete
                 p.Logger.LogInformationEvent(ServiceId, "{Source}: reset streaming of Futures {ContractId}...", source, futuresContract.ContractId);
                 await Task.Delay(TimeSpan.FromSeconds(2));
                 var entityId = new FuturesDataId(futuresContract.ContractId, e.ValueDate);
-                await context.StartFuturesTickDataStreamingAsync(e, futuresContract, entityId);
+                await commandApi.StartFuturesTickDataStreamingAsync(e, futuresContract, entityId);
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Reset streaming of Futures {futuresContract.ContractId} started");
                 p.Logger.LogInformationEvent(ServiceId, "{Source}: reset streaming of Futures {ContractId} started", source, futuresContract.ContractId);
             }
             var streamingEntityId = new FuturesBarDataStreamingId(e.ValueDate);
-            await context.StartFuturesBarDataStreamingAsync(e, streamingEntityId);
+            await commandApi.StartFuturesBarDataStreamingAsync(e, streamingEntityId);
             await Task.Delay(TimeSpan.FromSeconds(1));
-            await context.SendResetStreamingEventAsync(e);
+            await eventApi.SendResetStreamingEventAsync(e);
             return true;
         }
         catch (Exception ex)

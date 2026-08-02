@@ -6,33 +6,45 @@ using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor;
 
 public class FuturesEodDataEventActor(
     IActorSupervisor supervisor, 
+    IActorMarketDataFeedEventApiFactory eventApiFactory,
     IBlackboardService blackboardService,
     IStatusConsoleWriter statusConsoleWriter,
     ILogger<FuturesEodDataEventActor> logger)
     : BaseEventActor<FuturesEodDataEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FuturesEodDataEvent";
+    IActorMarketDataFeedEventApi? _eventApi;
     readonly FuturesEodDataEventParameters _eventParameters = new(
         blackboardService, statusConsoleWriter, logger);
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, FuturesEodDataEventParameters, ValueTask<bool>>> _receiveMap = new()
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedEventApi, FuturesEodDataEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesEodDataInsertedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesEodDataInsertedEvent).Name] = async (evt, context, eventApi, eventParams) =>
         {
             var e = (evt as FuturesEodDataInsertedEvent)!;
-            return await e.ExecuteAsync( context, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(VixFuturesEodDataInsertedCompleteEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(VixFuturesEodDataInsertedCompleteEvent).Name] = async (evt, context, _, eventParams) =>
         {
             var e = (evt as VixFuturesEodDataInsertedCompleteEvent)!;
             return await e.ExecuteAsync(context, eventParams);
         }
     };
+
+    protected override ValueTask OnStartup(IEventActorContext context)
+    {
+        _ = GetEventApi(context);
+        return ValueTask.CompletedTask;
+    }
+
+    IActorMarketDataFeedEventApi GetEventApi(IEventActorContext context)
+        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -80,7 +92,7 @@ public class FuturesEodDataEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, _eventParameters);
+        _ = await receiveFunc.Invoke(@event, context, GetEventApi(context), _eventParameters);
     }
 
     /// <summary>

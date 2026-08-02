@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
@@ -27,7 +28,12 @@ public static class FuturesEodDataInsertedComplete
     /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
     /// succeeded; otherwise, <see langword="false"/>.</returns>
     /// <returns></returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesEodDataInsertedCompleteEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+    public static async ValueTask<bool> ExecuteAsync(
+        this FuturesEodDataInsertedCompleteEvent e,
+        IEventActorContext context,
+        IActorMarketDataAnalyticsCommandApi commandApi,
+        IStatusConsoleWriter statusConsoleWriter,
+        ILogger logger)
     {
         var source = $"FuturesEodDataInsertedCompleteEvent for ContractId: {e.FuturesEodData.ContractId}, ValueDate: {e.FuturesEodData.ValueDate}";
         try
@@ -39,7 +45,7 @@ public static class FuturesEodDataInsertedComplete
             if (futuresEodData is null || vixFuturesEodData is null)
                 return false;
 
-            await context.GenerateFuturesItiSignalAsync(
+            await commandApi.GenerateFuturesItiSignalAsync(
                 futuresEodData.ContractId,
                 futuresEodData.ValueDate,
                 TimeFrameType.Weekly,

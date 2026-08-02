@@ -29,7 +29,12 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesEodDataEventActor> logger)
-        : FuturesEodDataEventActor(supervisor, blackboardService, statusConsoleWriter, logger)
+        : FuturesEodDataEventActor(
+            supervisor,
+            new global::TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory(),
+            blackboardService,
+            statusConsoleWriter,
+            logger)
     {
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
 
@@ -21,36 +22,53 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the futures bar data event actor. Cannot be null.</param>
 public class FuturesBarDataEventActor(
     IActorSupervisor supervisor, 
+    IActorMarketDataFeedCommandApiFactory commandApiFactory,
+    IActorMarketDataFeedEventApiFactory eventApiFactory,
     IFuturesBarDataTimer futuresBarTimer,
     IStatusConsoleWriter statusConsoleWriter,
     ILogger<FuturesBarDataEventActor> logger)
     : BaseEventActor<FuturesBarDataEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FuturesBarDataEvent";
+    IActorMarketDataFeedCommandApi? _commandApi;
+    IActorMarketDataFeedEventApi? _eventApi;
     readonly FuturesBarDataEventParameters _eventParameters = new(
         futuresBarTimer, statusConsoleWriter, logger);
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, FuturesBarDataEventParameters, ValueTask<bool>>> _receiveMap = new()
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedCommandApi, IActorMarketDataFeedEventApi, FuturesBarDataEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesBarDataStreamingStartedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesBarDataStreamingStartedEvent).Name] = async (evt, context, commandApi, eventApi, eventParams) =>
         {
             var e = (evt as FuturesBarDataStreamingStartedEvent)!;
-            return await e.ExecuteAsync( context, eventParams);
+            return await e.ExecuteAsync(context, commandApi, eventApi, eventParams);
         },
        
-        [typeof(FuturesBarDataStreamingStoppedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesBarDataStreamingStoppedEvent).Name] = async (evt, context, _, eventApi, eventParams) =>
         {
             var e = (evt as FuturesBarDataStreamingStoppedEvent)!;
-            return await e.ExecuteAsync(context, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesBarDataInsertedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesBarDataInsertedEvent).Name] = async (evt, context, _, _, eventParams) =>
         {
             return await ValueTask.FromResult(true);
         },
-        [typeof(FuturesBarDataDeletedEvent).Name] = async (evt, context, eventParams) =>
+        [typeof(FuturesBarDataDeletedEvent).Name] = async (evt, context, _, _, eventParams) =>
         {
             return await ValueTask.FromResult(true);
         }
     };
+
+    protected override ValueTask OnStartup(IEventActorContext context)
+    {
+        _ = GetCommandApi(context);
+        _ = GetEventApi(context);
+        return ValueTask.CompletedTask;
+    }
+
+    IActorMarketDataFeedCommandApi GetCommandApi(IEventActorContext context)
+        => _commandApi ??= commandApiFactory.Create(context);
+
+    IActorMarketDataFeedEventApi GetEventApi(IEventActorContext context)
+        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -100,7 +118,7 @@ public class FuturesBarDataEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, _eventParameters);
+        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context), GetEventApi(context), _eventParameters);
     }
 
     /// <summary>

@@ -2,6 +2,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Event;
@@ -22,12 +23,16 @@ public static class FuturesOptionQuoteDataInsertedComplete
     /// <param name="context"></param>
     /// <param name="p"></param>
     /// <returns></returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesOptionQuoteDataInsertedCompleteEvent e, IEventActorContext context, FuturesOptionQuoteDataEventParameters p)
+public static async ValueTask<bool> ExecuteAsync(
+    this FuturesOptionQuoteDataInsertedCompleteEvent e,
+    IEventActorContext context,
+    IActorMarketDataFeedEventApi eventApi,
+    FuturesOptionQuoteDataEventParameters p)
     {
         var source = $"FuturesOptionQuoteDataInsertedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
-            return await context.SendFuturesOptionQuoteDataUpdatedEventAsync(e);
+            return await eventApi.SendFuturesOptionQuoteDataUpdatedEventAsync(e);
         }
         catch (Exception ex)
         {

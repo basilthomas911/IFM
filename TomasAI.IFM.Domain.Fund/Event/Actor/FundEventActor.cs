@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
+using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.Fund.Event.Actor;
 
@@ -16,18 +17,31 @@ namespace TomasAI.IFM.Domain.Fund.Event.Actor;
 /// <param name="supervisor">The actor supervisor that manages actor lifecycle and coordinates event processing within the system. Cannot be
 /// null.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the fund event actor. Cannot be null.</param>
-public class FundEventActor(IActorSupervisor supervisor, ILogger<FundEventActor> logger)
+public class FundEventActor(
+    IActorSupervisor supervisor,
+    IActorFundEventApiFactory eventApiFactory,
+    ILogger<FundEventActor> logger)
     : BaseEventActor<FundEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FundEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = new()
+    IActorFundEventApi? _eventApi;
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorFundEventApi, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FundMaxProfitGeneratedEvent).Name] = async (evt, context, logger) =>
+        [typeof(FundMaxProfitGeneratedEvent).Name] = async (evt, context, eventApi, logger) =>
         {
             var e = (evt as FundMaxProfitGeneratedEvent)!;
-            return await e.ExecuteAsync(context, logger);
+            return await e.ExecuteAsync(context, eventApi, logger);
         }
     };
+
+    protected override ValueTask OnStartup(IEventActorContext context)
+    {
+        _ = GetEventApi(context);
+        return ValueTask.CompletedTask;
+    }
+
+    IActorFundEventApi GetEventApi(IEventActorContext context)
+        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -76,7 +90,7 @@ public class FundEventActor(IActorSupervisor supervisor, ILogger<FundEventActor>
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, logger);
+        _ = await receiveFunc.Invoke(@event, context, GetEventApi(context), logger);
     }
 
     /// <summary>

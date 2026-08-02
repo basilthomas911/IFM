@@ -10,11 +10,14 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
 
 public class MarketDataFeedEventActor(
     IActorSupervisor supervisor,
+    IActorMarketDataFeedCommandApiFactory commandApiFactory,
+    IActorMarketDataFeedEventApiFactory eventApiFactory,
     IMarketDataApi marketDataApi,
     IOptionTradeLiveFeedMap optionTradeLiveFeedMap, 
     IBlackboardService blackboardService,
@@ -23,45 +26,60 @@ public class MarketDataFeedEventActor(
     : BaseEventActor<MarketDataFeedEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "MarketDataFeedEvent";
+    IActorMarketDataFeedCommandApi? _commandApi;
+    IActorMarketDataFeedEventApi? _eventApi;
     MarketDataFeedEventParameters _eventParameters = new(
         marketDataApi,
         optionTradeLiveFeedMap,
         blackboardService,
         statusConsoleWriter,
         logger);
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, MarketDataFeedEventParameters, ValueTask<bool>>> _receiveMap = new()
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedCommandApi, IActorMarketDataFeedEventApi, MarketDataFeedEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(MarketDataFeedStartedEvent).Name] = async (evt, ctx, eventParams) =>
+        [typeof(MarketDataFeedStartedEvent).Name] = async (evt, ctx, _, eventApi, eventParams) =>
         {
             var e = (evt as MarketDataFeedStartedEvent)!;
-            return await e.ExecuteAsync(ctx, eventParams);
+            return await e.ExecuteAsync(ctx, eventApi, eventParams);
         },
-        [typeof(MarketDataFeedStartedCompleteEvent).Name] = async (evt, ctx, eventParams) =>
+        [typeof(MarketDataFeedStartedCompleteEvent).Name] = async (evt, ctx, _, _, eventParams) =>
         {
             var e = (evt as MarketDataFeedStartedCompleteEvent)!;
             return await e.ExecuteAsync(ctx, eventParams);
         },
-        [typeof(MarketDataFeedStoppedEvent).Name] = async (evt, ctx, eventParams) =>
+        [typeof(MarketDataFeedStoppedEvent).Name] = async (evt, ctx, _, eventApi, eventParams) =>
         {
             var e = (evt as MarketDataFeedStoppedEvent)!;
-            return await e.ExecuteAsync(ctx, eventParams);
+            return await e.ExecuteAsync(ctx, eventApi, eventParams);
         },
-        [typeof(MarketDataFeedStoppedCompleteEvent).Name] = async (evt, ctx, eventParams) =>
+        [typeof(MarketDataFeedStoppedCompleteEvent).Name] = async (evt, ctx, _, _, eventParams) =>
         {
             var e = (evt as MarketDataFeedStoppedCompleteEvent)!;
             return await e.ExecuteAsync(ctx, eventParams);
         },
-        [typeof(MarketDataFeedResetEvent).Name] = async (evt, ctx, eventParams) =>
+        [typeof(MarketDataFeedResetEvent).Name] = async (evt, ctx, _, eventApi, eventParams) =>
         {
             var e = (evt as MarketDataFeedResetEvent)!;
-            return await e.ExecuteAsync(ctx, eventParams);
+            return await e.ExecuteAsync(ctx, eventApi, eventParams);
         },
-        [typeof(MarketDataFeedResetCompleteEvent).Name] = async (evt, ctx, eventParams) =>
+        [typeof(MarketDataFeedResetCompleteEvent).Name] = async (evt, ctx, commandApi, eventApi, eventParams) =>
         {
             var e = (evt as MarketDataFeedResetCompleteEvent)!;
-            return await e.ExecuteAsync(ctx, eventParams);
+            return await e.ExecuteAsync(ctx, commandApi, eventApi, eventParams);
         }
     };
+
+    protected override ValueTask OnStartup(IEventActorContext context)
+    {
+        _ = GetCommandApi(context);
+        _ = GetEventApi(context);
+        return ValueTask.CompletedTask;
+    }
+
+    IActorMarketDataFeedCommandApi GetCommandApi(IEventActorContext context)
+        => _commandApi ??= commandApiFactory.Create(context);
+
+    IActorMarketDataFeedEventApi GetEventApi(IEventActorContext context)
+        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -113,7 +131,7 @@ public class MarketDataFeedEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, _eventParameters);
+        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context), GetEventApi(context), _eventParameters);
     }
 
     /// <summary>

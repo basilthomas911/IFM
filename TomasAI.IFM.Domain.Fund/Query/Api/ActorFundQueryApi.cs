@@ -228,6 +228,36 @@ public sealed class ActorFundQueryApi(IDbContextFactory dbFactory) : IActorFundQ
         }
     }
 
+    public async Task<ServiceResult<FundMaxProfitGeneratedReadModel>> GetFundMaxProfitGeneratedAsync(
+        int fundId,
+        DateOnly tradeDate)
+    {
+        try
+        {
+            var ordersStartDate = new DateOnly(tradeDate.Year, tradeDate.Month, 1);
+            var yearStart = new DateOnly(tradeDate.Year, 1, 1);
+            var yearEnd = new DateOnly(tradeDate.Year, 12, 31);
+            var db = _dbFactory.FundDb;
+            var result = new FundMaxProfitGeneratedReadModel(
+                fundId: fundId,
+                tradeDate: tradeDate,
+                fundBalance: await db.GetFundBalanceAsync(fundId),
+                fundProfitOrders: await db.GetFundProfitOrdersAsync(fundId, ordersStartDate, tradeDate),
+                fundLossOrders: await db.GetFundLossOrdersAsync(fundId, ordersStartDate, tradeDate),
+                fundDrawdownBalances: new FundDrawdownBalancesReadModel(
+                    FundId: fundId,
+                    StartBalance: await db.GetFundStartingBalanceAsync(fundId, yearStart),
+                    EndBalance: await db.GetFundEndingBalanceAsync(fundId, yearEnd)));
+            return new ServiceOk<FundMaxProfitGeneratedReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FundMaxProfitGeneratedReadModel>(
+                GetFundMaxProfitGeneratedQuery.ErrorId,
+                ex.Message);
+        }
+    }
+
     static double CalculateWinLossRatio(double winRate, double averageProfit, double lossRate, double averageLoss)
     {
         var winRatio = winRate * averageProfit;

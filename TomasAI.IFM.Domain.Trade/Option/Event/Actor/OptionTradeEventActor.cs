@@ -6,24 +6,36 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Event.Actor;
 
 public class OptionTradeEventActor(
     IActorSupervisor supervisor, 
+    IActorOptionPricerCommandApiFactory commandApiFactory,
     IStatusConsoleWriter statusConsoleWriter,
     ILogger<OptionTradeEventActor> logger)
     : BaseEventActor<OptionTradeEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "OptionTradeEvent";
-    static readonly Dictionary<string, Func<IEvent, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    IActorOptionPricerCommandApi? _commandApi;
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorOptionPricerCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(OptionTradeLegDataChangedEvent).Name] = async (evt, ctx, statusConsoleWriter, logger) =>
+        [typeof(OptionTradeLegDataChangedEvent).Name] = async (evt, ctx, commandApi, statusConsoleWriter, logger) =>
         {
             var e = (evt as OptionTradeLegDataChangedEvent)!;
-            return await e.ExecuteAsync(ctx, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(ctx, commandApi, statusConsoleWriter, logger);
         }
     };
+
+    protected override ValueTask OnStartup(IEventActorContext context)
+    {
+        _ = GetCommandApi(context);
+        return ValueTask.CompletedTask;
+    }
+
+    IActorOptionPricerCommandApi GetCommandApi(IEventActorContext context)
+        => _commandApi ??= commandApiFactory.Create(context);
 
     static readonly Dictionary<string, Func<NatsMsg<byte[]>, IEvent>> _parseMap = new()
     {
@@ -66,7 +78,7 @@ public class OptionTradeEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, statusConsoleWriter, logger);
+        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context), statusConsoleWriter, logger);
     }
 
     /// <summary>

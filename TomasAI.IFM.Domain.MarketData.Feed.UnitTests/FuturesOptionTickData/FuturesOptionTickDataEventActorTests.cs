@@ -42,8 +42,26 @@ public class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeed
             IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
             IStatusConsoleWriter statusConsoleWriter,
             ILogger<FuturesOptionTickDataEventActor> logger)
-            : base(supervisor, marketDataApi, marketDataSnapshotApi, blackboardService, optionTradeLiveFeedMap, statusConsoleWriter, logger)
+            : base(
+                supervisor,
+                new global::TomasAI.IFM.Domain.MarketData.Feed.Command.Api.ActorMarketDataFeedCommandApiFactory(),
+                CreateTradeCommandApiFactory(),
+                new global::TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory(),
+                marketDataApi,
+                marketDataSnapshotApi,
+                blackboardService,
+                optionTradeLiveFeedMap,
+                statusConsoleWriter,
+                logger)
         {
+        }
+
+        static Domain.Trade.Shared.ServiceApi.IActorTradeCommandApiFactory CreateTradeCommandApiFactory()
+        {
+            var api = Substitute.For<Domain.Trade.Shared.ServiceApi.IActorTradeCommandApi>();
+            var factory = Substitute.For<Domain.Trade.Shared.ServiceApi.IActorTradeCommandApiFactory>();
+            factory.Create(Arg.Any<IEventActorContext>()).Returns(api);
+            return factory;
         }
 
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)

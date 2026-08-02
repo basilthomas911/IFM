@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
@@ -22,21 +23,24 @@ public static class MarketDataFeedStopped
     /// <param name="p"></param>
     /// <returns></returns>
     public static async ValueTask<bool> ExecuteAsync(
-        this MarketDataFeedStoppedEvent e, IEventActorContext context, MarketDataFeedEventParameters p)
+        this MarketDataFeedStoppedEvent e,
+        IEventActorContext context,
+        IActorMarketDataFeedEventApi eventApi,
+        MarketDataFeedEventParameters p)
     {
         var source = $"MarketDataFeedStoppedEvent for EntityId: {e.EntityId}";
         try
         {
             p.MarketDataApi.Stop();
 
-            await context.SendMarketDataFeedStoppedCompleteAsync(e);
+            await eventApi.SendMarketDataFeedStoppedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed stopped");
             p.Logger.LogInformationEvent(ServiceId, "{Source}: market data feed stopped", source);
             return true;
         }
         catch (Exception ex)
         {
-            await context.SendMarketDataFeedStoppedFailAsync(e, ex);
+            await eventApi.SendMarketDataFeedStoppedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage());
             p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed stop failed", source);
         }

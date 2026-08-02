@@ -35,7 +35,14 @@ public class FuturesOptionQuoteDataEventActorTests : IClassFixture<MarketDataFee
             IBlackboardService blackboardService,
             IStatusConsoleWriter statusConsoleWriter,
             ILogger<FuturesOptionQuoteDataEventActor> logger)
-            : base(supervisor, marketDataSnapshotApi, blackboardService, statusConsoleWriter, logger)
+            : base(
+                supervisor,
+                new global::TomasAI.IFM.Domain.MarketData.Feed.Command.Api.ActorMarketDataFeedCommandApiFactory(),
+                new global::TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory(),
+                marketDataSnapshotApi,
+                blackboardService,
+                statusConsoleWriter,
+                logger)
         {
         }
 

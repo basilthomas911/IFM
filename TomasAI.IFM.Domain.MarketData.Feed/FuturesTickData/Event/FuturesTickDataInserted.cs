@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
 
@@ -15,7 +16,7 @@ public static class FuturesTickDataInserted
 
     static string ServiceId { get; }
 
-    public static async ValueTask<bool> ExecuteAsync(this FuturesTickDataInsertedEvent e, IEventActorContext context, FuturesTickDataEventParameters p)
+    public static async ValueTask<bool> ExecuteAsync(this FuturesTickDataInsertedEvent e, IEventActorContext context, IActorMarketDataFeedCommandApi commandApi, FuturesTickDataEventParameters p)
     {
         var source = $"FuturesTickDataInsertedEvent for EntityId: {e.EntityId}";
         try
@@ -42,11 +43,11 @@ public static class FuturesTickDataInserted
 
                 // save futures eod data...
                 if (eodDataToday.ClosePrice != e.TickData.Price)
-                    await context.InsertFuturesEodDataAsync(valueDate, e.TickData, e.Contract, eodDataToday, eodDataRange, normCurveTbl!, 20, vixFuturesEodData!);
+                    await commandApi.InsertFuturesEodDataAsync(valueDate, e.TickData, e.Contract, eodDataToday, eodDataRange, normCurveTbl!, 20, vixFuturesEodData!);
             }
             else
             {
-                await context.InsertVixFuturesEodDataAsync(e.TickData);
+                await commandApi.InsertVixFuturesEodDataAsync(e.TickData);
                 p.BlackboardService.MarketDataFeed.VixFuturesContractId.Set(valueDate, e.TickData.ContractId);
             }
             return true;

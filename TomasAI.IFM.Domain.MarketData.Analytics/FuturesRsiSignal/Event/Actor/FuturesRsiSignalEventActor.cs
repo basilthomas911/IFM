@@ -6,36 +6,48 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 
 public class FuturesRsiSignalEventActor(
     IActorSupervisor supervisor, 
+    IActorMarketDataAnalyticsCommandApiFactory commandApiFactory,
     IStatusConsoleWriter statusConsoleWriter,
     ILogger<FuturesRsiSignalEventActor> logger,
     IBlackboardService blackboardService)
     : BaseEventActor<FuturesRsiSignalEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FuturesRsiSignalEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, ValueTask<bool>>> _receiveMap = new()
+    IActorMarketDataAnalyticsCommandApi? _commandApi;
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataAnalyticsCommandApi, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesRsiSignalStartedEvent).Name] = async (evt, context) =>
+        [typeof(FuturesRsiSignalStartedEvent).Name] = async (evt, context, commandApi) =>
         {
             var e = (evt as FuturesRsiSignalStartedEvent)!;
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(context, commandApi, statusConsoleWriter, logger);
         },
-        [typeof(FuturesRsiSignalStoppedEvent).Name] = async (evt, context) =>
+        [typeof(FuturesRsiSignalStoppedEvent).Name] = async (evt, context, _) =>
         {
             var e = (evt as FuturesRsiSignalStoppedEvent)!;
             return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         },
-        [typeof(FuturesRsiSignalGeneratedEvent).Name] = async (evt, context) =>
+        [typeof(FuturesRsiSignalGeneratedEvent).Name] = async (evt, context, _) =>
         {
             var e = (evt as FuturesRsiSignalGeneratedEvent)!;
             return await e.ExecuteAsync(context, statusConsoleWriter, logger, blackboardService);
         }
     };
+
+    protected override ValueTask OnStartup(IEventActorContext context)
+    {
+        _ = GetCommandApi(context);
+        return ValueTask.CompletedTask;
+    }
+
+    IActorMarketDataAnalyticsCommandApi GetCommandApi(IEventActorContext context)
+        => _commandApi ??= commandApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -83,7 +95,7 @@ public class FuturesRsiSignalEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context);
+        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context));
     }
 
     /// <summary>

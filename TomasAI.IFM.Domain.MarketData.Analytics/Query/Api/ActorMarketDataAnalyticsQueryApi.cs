@@ -38,6 +38,12 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
             async () => (await _dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
                 contractId, valueDate, timePeriod, periodLength))!);
 
+    public Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiDailySignalAsync(
+        string contractId, TimeFrameType timePeriod, int periodLength)
+        => ExecuteAsync(GetFuturesRsiDailySignalQuery.ErrorId,
+            async () => (await _dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
+                contractId, timePeriod, periodLength))!);
+
     public Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(
         string contractId, DateOnly valueDate, DateTime timestamp, int loopbackInterval,
         DateTime startTime, DateTime endTime)
@@ -104,17 +110,35 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
             async () => (await _dbFactory.MarketDataDb.GetLastFuturesAtrSignalAsync(
                 contractId, valueDate, timePeriod, periodLength))!);
 
+    public Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrDailySignalAsync(
+        string contractId, TimeFrameType timePeriod, int periodLength)
+        => ExecuteAsync(GetFuturesAtrDailySignalQuery.ErrorId,
+            async () => (await _dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
+                contractId, timePeriod, periodLength))!);
+
     public Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
         => ExecuteAsync(GetFuturesAdxSignalQuery.ErrorId,
             async () => (await _dbFactory.MarketDataDb.GetLastFuturesAdxSignalAsync(
                 contractId, valueDate, timePeriod, periodLength))!);
 
+    public Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxDailySignalAsync(
+        string contractId, TimeFrameType timePeriod, int periodLength)
+        => ExecuteAsync(GetFuturesAdxDailySignalQuery.ErrorId,
+            async () => (await _dbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(
+                contractId, timePeriod, periodLength))!);
+
     public Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
         => ExecuteAsync(GetFuturesMacdSignalQuery.ErrorId,
             async () => (await _dbFactory.MarketDataDb.GetLastFuturesMacdSignalAsync(
                 contractId, valueDate, timePeriod, periodLength))!);
+
+    public Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
+        string contractId, TimeFrameType timePeriod, int periodLength)
+        => ExecuteAsync(GetFuturesMacdDailySignalQuery.ErrorId,
+            async () => (await _dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
+                contractId, timePeriod, periodLength))!);
 
     async Task<FuturesItiSignalMDIV2ReadModel[]> GetFuturesItiSignalMDIByTrendCoreAsync(
         string contractId, DateOnly valueDate, int groupId)

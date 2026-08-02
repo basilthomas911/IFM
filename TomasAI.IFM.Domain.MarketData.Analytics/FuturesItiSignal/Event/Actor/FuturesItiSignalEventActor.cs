@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 
@@ -20,22 +21,24 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the futures ITI signal event actor. Cannot be null.</param>
 public class FuturesItiSignalEventActor(
     IActorSupervisor supervisor, 
+    IActorMarketDataAnalyticsCommandApiFactory commandApiFactory,
     IStatusConsoleWriter statusConsoleWriter,
     ILogger<FuturesItiSignalEventActor> logger)
     : BaseEventActor<FuturesItiSignalEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FuturesItiSignalEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    IActorMarketDataAnalyticsCommandApi? _commandApi;
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataAnalyticsCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesEodDataInsertedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
+        [typeof(FuturesEodDataInsertedCompleteEvent).Name] = async (evt, context, commandApi, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesEodDataInsertedCompleteEvent)!;
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(context, commandApi, statusConsoleWriter, logger);
         },
-        [typeof(FuturesItiSignalGeneratedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
+        [typeof(FuturesItiSignalGeneratedCompleteEvent).Name] = async (evt, context, commandApi, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesItiSignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(context, commandApi, statusConsoleWriter, logger);
         }
     };
 
@@ -47,9 +50,13 @@ public class FuturesItiSignalEventActor(
     /// <returns>A task that represents the asynchronous operation of the startup process.</returns>
     protected override async ValueTask OnStartup(IEventActorContext context)
     {
+        _ = GetCommandApi(context);
         context.AddEventRouter(new ActorTypeId(ActorType.Event, FuturesEodDataInsertedCompleteEvent.Actor, FuturesEodDataInsertedCompleteEvent.Verb), Id);
         await ValueTask.CompletedTask;
     }
+
+    IActorMarketDataAnalyticsCommandApi GetCommandApi(IEventActorContext context)
+        => _commandApi ??= commandApiFactory.Create(context);
 
     /// <summary>
     /// Handles the shutdown process for the event actor, ensuring that event routing is properly cleaned up.
@@ -110,7 +117,7 @@ public class FuturesItiSignalEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, statusConsoleWriter, logger);
+        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context), statusConsoleWriter, logger);
     }
 
     /// <summary>

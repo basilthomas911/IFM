@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Extensions;
@@ -31,7 +32,12 @@ public static class FuturesRsiSignalStarted
     /// <param name="logger">The logger used to log errors and informational messages related to the execution of the event handler.</param>
     /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
     /// succeeded; otherwise, <see langword="false"/>.</returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesRsiSignalStartedEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+    public static async ValueTask<bool> ExecuteAsync(
+        this FuturesRsiSignalStartedEvent e,
+        IEventActorContext context,
+        IActorMarketDataAnalyticsCommandApi commandApi,
+        IStatusConsoleWriter statusConsoleWriter,
+        ILogger logger)
     {
         var source = $"FuturesRsiSignalStartedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
         try
@@ -67,7 +73,7 @@ public static class FuturesRsiSignalStarted
                 {
                     var futuresEodData = await context.GetLastFuturesEodDataAsync(e.EntityId.ContractId, e.ValueDate);
                     if (futuresEodData is not null)
-                           await context.GenerateFuturesRsiSignalAsync(futuresRsiSignalId, futuresEodData.ClosePrice);
+                           await commandApi.GenerateFuturesRsiSignalAsync(futuresRsiSignalId, futuresEodData.ClosePrice);
                 }
             }
             catch (Exception ex)

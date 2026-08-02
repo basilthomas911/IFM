@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -21,7 +22,11 @@ public static class TradeLiveFeedAdded
 
 
     public static async ValueTask<bool> ExecuteAsync(
-        this TradeLiveFeedAddedEvent e, IEventActorContext context, MarketDataFeedEventParameters p)
+        this TradeLiveFeedAddedEvent e,
+        IEventActorContext context,
+        IActorMarketDataFeedCommandApi commandApi,
+        IActorMarketDataFeedEventApi eventApi,
+        MarketDataFeedEventParameters p)
     {
         var source = $"TradeLiveFeedAddedEvent for EntityId: {e.EntityId}";
         try
@@ -33,7 +38,7 @@ public static class TradeLiveFeedAdded
                 // optionTradeLiveFeedMap will be updated in the event handler of TradeLiveFeedAddedEvent, so we can check if the feed is already active in the map before starting the feed
                 if (p.OptionTradeLiveFeedMap.Exists(optionTrade.EntityId))
                 {
-                    await context.SendTradeLiveFeedAddedFailEventAsync(e, new InvalidOperationException($"Trade Live Feed already active for OrderId: {e.OrderId}, TradeId: {e.TradeId}"));
+                    await eventApi.SendTradeLiveFeedAddedFailEventAsync(e, new InvalidOperationException($"Trade Live Feed already active for OrderId: {e.OrderId}, TradeId: {e.TradeId}"));
                     return false;
                 }
 
@@ -44,23 +49,23 @@ public static class TradeLiveFeedAdded
                 {
                     var futuresOptionContract = await context.GetFuturesOptionContractAsync(optionLeg.ContractId);
                     var entityId = new FuturesOptionTickEntityId(optionLeg.ContractId, e.EntityId.ValueDate);
-                    await context.StartFuturesOptionTickDataStreamingAsync(e.CommandId, entityId, futuresOptionContract, futuresContract, optionTrade.TradeDate, optionTrade.MaturityDate, riskFreeRate);
+                    await commandApi.StartFuturesOptionTickDataStreamingAsync(e.CommandId, entityId, futuresOptionContract, futuresContract, optionTrade.TradeDate, optionTrade.MaturityDate, riskFreeRate);
                     await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Futures Option Tick Data Streaming started for: {entityId.ContractId}");
                 }
                 p.OptionTradeLiveFeedMap.Add(optionTrade);
-                await context.TurnTradeLiveFeedOnAsync(e.CommandId, e.OrderId, e.TradeId, e.EntityId.ValueDate);
+                await commandApi.TurnTradeLiveFeedOnAsync(e.CommandId, e.OrderId, e.TradeId, e.EntityId.ValueDate);
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Trade Live Feed added for OrderId: {e.OrderId}, TradeId: {e.TradeId}");
                 return true;
             }
             else
             {
-                await context.SendTradeLiveFeedAddedFailEventAsync(e, new InvalidOperationException($"Trade Live Feed does not exist for OrderId: {e.OrderId}, TradeId: {e.TradeId}"));
+                await eventApi.SendTradeLiveFeedAddedFailEventAsync(e, new InvalidOperationException($"Trade Live Feed does not exist for OrderId: {e.OrderId}, TradeId: {e.TradeId}"));
                 return false;
             }
         }
         catch (Exception ex)
         {
-            await context.SendTradeLiveFeedAddedFailEventAsync(e, ex);
+            await eventApi.SendTradeLiveFeedAddedFailEventAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, -1, ex.GetErrorMessage());
             p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: data feed reset complete failed");
         }

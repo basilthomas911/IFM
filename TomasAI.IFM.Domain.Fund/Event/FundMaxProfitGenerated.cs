@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.QueryParameters;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.Fund.Event;
 
@@ -26,7 +27,11 @@ public static class FundMaxProfitGeneratedEventHandler
     /// <param name="context">The event actor context used to send the completion event after processing.</param>
     /// <param name="logger">The logger used to record diagnostic and operational information.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
-    public static async ValueTask<bool> ExecuteAsync(this FundMaxProfitGeneratedEvent e, IEventActorContext context, ILogger logger)
+    public static async ValueTask<bool> ExecuteAsync(
+        this FundMaxProfitGeneratedEvent e,
+        IEventActorContext context,
+        IActorFundEventApi eventApi,
+        ILogger logger)
     {
         try
         {
@@ -85,15 +90,13 @@ public static class FundMaxProfitGeneratedEventHandler
                 fundMaxProfit: fundMaxProfit,
                 fundRiskPercent: fundRiskPercent);
 
-            var completeEvent = e.ToCompleteEvent<FundMaxProfitGeneratedCompleteEvent, FundId>() as FundMaxProfitGeneratedCompleteEvent;
-            await context.SendAsync<FundMaxProfitGeneratedCompleteEvent, FundId>(completeEvent!);
+            await eventApi.SendFundMaxProfitGeneratedCompleteAsync(e);
             logger.LogInformationEvent(ServiceId, "Processed FundMaxProfitGeneratedEvent for FundOrderId: {FundOrderId}, FundMaxProfit: {FundMaxProfit}, FundRiskPercent: {FundRiskPercent}", e.FundOrder.Id, fundMaxProfit, fundRiskPercent);
             return true;
         }
         catch (Exception ex)
         {
-            var failEvent = e.ToFailEvent<FundMaxProfitGeneratedFailEvent, FundId>(ex) as FundMaxProfitGeneratedFailEvent;
-            await context.SendAsync<FundMaxProfitGeneratedFailEvent, FundId>(failEvent!);
+            await eventApi.SendFundMaxProfitGeneratedFailAsync(e, ex);
             logger.LogErrorEvent(ServiceId, ex, "Error processing FundMaxProfitGeneratedEvent for FundOrderId: {FundOrderId}", e.FundOrder.Id);
             return false;
         }

@@ -10,6 +10,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -36,85 +38,6 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Extensi
 /// </remarks>
 internal static class FuturesOptionTickDataEventExtensions
 {
-    /// <summary>
-    /// Publishes an <see cref="OptionTradeTickPriceDataUpdatedEvent"/> derived from the
-    /// specified tick-data insertion event.
-    /// </summary>
-    /// <remarks>The event is addressed using the contract identifier and value date
-    /// extracted from the inserted tick data.</remarks>
-    /// <param name="context">The event actor context used to send the event.</param>
-    /// <param name="e">The source insertion event containing the tick data to propagate.</param>
-    /// <returns>A value task that completes when the event has been dispatched.</returns>
-    internal static async ValueTask SendOptionTradeTickPriceDataUpdatedEventAsync(this IEventActorContext context, FuturesOptionTickDataInsertedEvent e)
-    {
-        var entityId = new FuturesOptionTickEntityId(e.TickData.ContractId, e.TickData.ValueDate);
-        OptionTradeTickPriceDataUpdatedEvent updatedEvent = new(e.TickData)
-        {
-            Subject = new ActorSubject(ActorType.Event, OptionTradeTickPriceDataUpdatedEvent.Actor, OptionTradeTickPriceDataUpdatedEvent.Verb, entityId.Format()),
-            EntityId = entityId,
-            Id = Guid.NewGuid(),
-            CommandId = e.CommandId,
-            AggregateId = e.AggregateId,
-            ReceivedOn = DateTime.UtcNow
-        };
-        await context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(updatedEvent);
-    }
-    /// <summary>
-    /// Sends a completion event indicating that futures-option tick-data streaming was
-    /// started successfully.
-    /// </summary>
-    /// <param name="context">The event actor context used to send the event.</param>
-    /// <param name="e">The original streaming-started event from which the completion
-    /// event is derived.</param>
-    /// <returns>A value task that completes when the event has been dispatched.</returns>
-    internal static async ValueTask SendFuturesOptionTickDataStreamingStartedCompleteAsync(this IEventActorContext context, FuturesOptionTickDataStreamingStartedEvent e)
-    {
-        var completeEvent = e.ToCompleteEvent<FuturesOptionTickDataStreamingStartedCompleteEvent, FuturesOptionTickEntityId>() as FuturesOptionTickDataStreamingStartedCompleteEvent;
-        await context.SendAsync<FuturesOptionTickDataStreamingStartedCompleteEvent, FuturesOptionTickEntityId>(completeEvent!);
-    }
-
-    /// <summary>
-    /// Sends a completion event indicating that futures-option tick-data streaming was
-    /// stopped successfully.
-    /// </summary>
-    /// <param name="context">The event actor context used to send the event.</param>
-    /// <param name="e">The original streaming-stopped event from which the completion
-    /// event is derived.</param>
-    /// <returns>A value task that completes when the event has been dispatched.</returns>
-    internal static async ValueTask SendFuturesOptionTickDataStreamingStoppedCompleteAsync(this IEventActorContext context, FuturesOptionTickDataStreamingStoppedEvent e)
-    {
-        var completeEvent = e.ToCompleteEvent<FuturesOptionTickDataStreamingStoppedCompleteEvent, FuturesOptionTickEntityId>() as FuturesOptionTickDataStreamingStoppedCompleteEvent;
-        await context.SendAsync<FuturesOptionTickDataStreamingStoppedCompleteEvent, FuturesOptionTickEntityId>(completeEvent!);
-    }
-
-    /// <summary>
-    /// Sends a failure event indicating that futures-option tick-data streaming could not
-    /// be started.
-    /// </summary>
-    /// <param name="context">The event actor context used to send the event.</param>
-    /// <param name="e">The original streaming-started event that triggered the failure.</param>
-    /// <param name="ex">The exception that caused the streaming start to fail.</param>
-    /// <returns>A value task that completes when the event has been dispatched.</returns>
-    internal static async ValueTask SendFuturesOptionTickDataStreamingStartedFailAsync(this IEventActorContext context, FuturesOptionTickDataStreamingStartedEvent e, Exception ex)
-    {
-        var completeEvent = e.ToFailEvent<FuturesOptionTickDataStreamingStartedFailEvent, FuturesOptionTickEntityId>(ex) as FuturesOptionTickDataStreamingStartedFailEvent;
-        await context.SendAsync<FuturesOptionTickDataStreamingStartedFailEvent, FuturesOptionTickEntityId>(completeEvent!);
-    }
-
-    /// <summary>
-    /// Sends a failure event indicating that futures-option tick-data streaming could not
-    /// be stopped.
-    /// </summary>
-    /// <param name="context">The event actor context used to send the event.</param>
-    /// <param name="e">The original streaming-stopped event that triggered the failure.</param>
-    /// <param name="ex">The exception that caused the streaming stop to fail.</param>
-    /// <returns>A value task that completes when the event has been dispatched.</returns>
-    internal static async ValueTask SendFuturesOptionTickDataStreamingStoppedFailAsync(this IEventActorContext context, FuturesOptionTickDataStreamingStoppedEvent e, Exception ex)
-    {
-        var completeEvent = e.ToFailEvent<FuturesOptionTickDataStreamingStoppedFailEvent, FuturesOptionTickEntityId>(ex) as FuturesOptionTickDataStreamingStoppedFailEvent;
-        await context.SendAsync<FuturesOptionTickDataStreamingStoppedFailEvent, FuturesOptionTickEntityId>(completeEvent!);
-    }
-
     /// <summary>
     /// Queries the market-data-feed actor for the streaming request identifier associated
     /// with the specified request key.
@@ -158,18 +81,9 @@ internal static class FuturesOptionTickDataEventExtensions
     /// successfully.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the command execution
     /// fails.</exception>
-    internal static async ValueTask InsertFuturesOptionTickPriceDataAsync(this IEventActorContext context, FuturesContractV2ReadModel underlyingContract, FuturesOptionTickDataV2ReadModel optionContract)
+    internal static async ValueTask InsertFuturesOptionTickPriceDataAsync(this IActorMarketDataFeedCommandApi commandApi, FuturesContractV2ReadModel underlyingContract, FuturesOptionTickDataV2ReadModel optionContract)
     {
-        var entityId = new FuturesOptionTickEntityId(optionContract.ContractId, optionContract.ValueDate);
-        InsertFuturesOptionTickPriceDataCommand cmd = new(underlyingContract, optionContract)
-        {
-            Subject = new ActorSubject(ActorType.Command, InsertFuturesOptionTickPriceDataCommand.Actor, InsertFuturesOptionTickPriceDataCommand.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = InsertFuturesOptionTickPriceDataCommand.ErrorId
-        };
-        var serviceResult = await context.RequestAsync<InsertFuturesOptionTickPriceDataCommand, FuturesOptionTickEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.InsertFuturesOptionTickPriceDataAsync(underlyingContract, optionContract);
     }
 
     /// <summary>
@@ -187,18 +101,9 @@ internal static class FuturesOptionTickDataEventExtensions
     /// successfully.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the command execution
     /// fails.</exception>
-    public static async ValueTask InsertFuturesOptionTickDataAsync(this IEventActorContext context, FuturesContractV2ReadModel underlyingContract, FuturesOptionTickDataV2ReadModel optionContract)
+    public static async ValueTask InsertFuturesOptionTickDataAsync(this IActorMarketDataFeedCommandApi commandApi, FuturesContractV2ReadModel underlyingContract, FuturesOptionTickDataV2ReadModel optionContract)
     {
-        var entityId = new FuturesOptionTickEntityId(optionContract.ContractId, optionContract.ValueDate);
-        InsertFuturesOptionTickDataCommand cmd = new(underlyingContract, optionContract)
-        {
-            Subject = new ActorSubject(ActorType.Command, InsertFuturesOptionTickDataCommand.Actor, InsertFuturesOptionTickDataCommand.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = InsertFuturesOptionTickDataCommand.ErrorId
-        };
-        var serviceResult = await context.RequestAsync<InsertFuturesOptionTickDataCommand, FuturesOptionTickEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.InsertFuturesOptionTickDataAsync(underlyingContract, optionContract);
     }
 
    /// <summary>
@@ -215,7 +120,7 @@ internal static class FuturesOptionTickDataEventExtensions
    /// with matching legs are updated.</param>
    /// <returns>A task that represents the asynchronous update operation.</returns>
    /// <exception cref="NotImplementedException">Thrown if the trade type is not supported for decomposition into a single-leg spread type.</exception>
-    public static async ValueTask UpdateFuturesOptionTradeLegDataAsync(this IEventActorContext context, 
+    public static async ValueTask UpdateFuturesOptionTradeLegDataAsync(this IActorTradeCommandApi commandApi,
         FuturesOptionTickDataV2ReadModel optionTickData, 
         double riskFreeRate,  
         OptionTradeReadModel[] optionTrades)
@@ -274,7 +179,7 @@ internal static class FuturesOptionTickDataEventExtensions
 
             // Dispatch the change command to persist the updated leg data, including the
             // underlying asset price and risk-free rate used for option pricing.
-            await context.ChangeOptionTradeLegDataAsync(
+            _ = await commandApi.ChangeOptionTradeLegDataAsync(
                 optionTrade.OrderId,
                 optionTrade.TradeId,
                 tradeType,
@@ -294,47 +199,6 @@ internal static class FuturesOptionTickDataEventExtensions
                  TradeType.LongIronCondor => optionType == OptionType.Put ? TradeType.PutDebitSpread : TradeType.CallDebitSpread,
                  _ => throw new NotImplementedException()
              };
-    }
-
-    /// <summary>
-    /// Sends a command to change/update an option trade leg's calculated data for a
-    /// specific trade context and value date.
-    /// </summary>
-    /// <remarks>If the command fails, an <see cref="InvalidOperationException"/> is thrown
-    /// containing the error message from the service result.</remarks>
-    /// <param name="context">The event actor context used to send the command.</param>
-    /// <param name="orderId">Order identifier for the option trade.</param>
-    /// <param name="tradeId">Trade identifier within the order.</param>
-    /// <param name="tradeType">Type of the option trade (strategy classification).</param>
-    /// <param name="valueDate">Value (trading) date associated with the leg data.</param>
-    /// <param name="tradeStatus">Status of the trade at the time the leg data was calculated.</param>
-    /// <param name="assetPrice">Underlying asset price used for option calculations.</param>
-    /// <param name="riskFreeRate">Risk-free interest rate used in option pricing.</param>
-    /// <param name="optionLegData">Calculated option leg data payload.</param>
-    /// <returns>A value task that completes when the command has been processed
-    /// successfully.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the command execution
-    /// fails.</exception>
-    static async ValueTask ChangeOptionTradeLegDataAsync(
-        this IEventActorContext context,
-           int orderId,
-           int tradeId,
-           TradeType tradeType,
-           DateOnly valueDate,
-           TradeStatus tradeStatus,
-           decimal assetPrice,
-           double riskFreeRate,
-           OptionTradeLegDataReadModel optionLegData)
-    {
-        var entityId = new OptionTradeEntityId(orderId, tradeId);
-        ChangeOptionTradeLegDataCommand cmd = new(orderId, tradeId, tradeType, valueDate, tradeStatus, assetPrice, riskFreeRate, optionLegData)
-        {
-            Subject = new ActorSubject(ActorType.Command, ChangeOptionTradeLegDataCommand.Actor, ChangeOptionTradeLegDataCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-        var serviceResult = await context.RequestAsync<ChangeOptionTradeLegDataCommand, OptionTradeEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
     }
 
 }

@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
@@ -27,7 +28,12 @@ public static class FuturesItiSignalGeneratedComplete
     /// <param name="logger">The logger used to log error messages.</param>
     /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
     /// succeeded; otherwise, <see langword="false"/>.</returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesItiSignalGeneratedCompleteEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+    public static async ValueTask<bool> ExecuteAsync(
+        this FuturesItiSignalGeneratedCompleteEvent e,
+        IEventActorContext context,
+        IActorMarketDataAnalyticsCommandApi commandApi,
+        IStatusConsoleWriter statusConsoleWriter,
+        ILogger logger)
     {
         var source = $"FuturesItiSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
@@ -41,7 +47,7 @@ public static class FuturesItiSignalGeneratedComplete
             var vixFuturesPrice = await context.GetVixFuturesEodDataClosePriceAsync(valueDate);
             if (futuresEodData is null || futuresRsiSignal is null || futuresTdiSignal is null || futuresItiSignalData is null || vixFuturesPrice == 0)
                 return false;
-            await context.UpdateFuturesTradeSignalAsync(futuresEodData!, futuresRsiSignal!, futuresTdiSignal!, futuresItiSignalData!, vixFuturesPrice, TimeFrameType.FifteenSeconds);
+            await commandApi.UpdateFuturesTradeSignalAsync(futuresEodData!, futuresRsiSignal!, futuresTdiSignal!, futuresItiSignalData!, vixFuturesPrice, TimeFrameType.FifteenSeconds);
             return true;
         }
         catch (Exception ex)

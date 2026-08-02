@@ -22,6 +22,10 @@ public class ActorFundQueryApiTests
 
         api.Should().BeAssignableTo<IActorFundQueryApi>();
         typeof(ActorFundQueryApi).Namespace.Should().Be("TomasAI.IFM.Domain.Fund.Query.Api");
+        typeof(IActorFundQueryApi).GetMethod(nameof(IActorFundQueryApi.GetFundMaxProfitGeneratedAsync))
+            .Should().NotBeNull();
+        typeof(IFundQueryApi).GetMethod(nameof(IActorFundQueryApi.GetFundMaxProfitGeneratedAsync))
+            .Should().BeNull();
     }
 
     [Fact]
@@ -49,6 +53,7 @@ public class ActorFundQueryApiTests
         db.GetFundProfitOrdersAsync(fund.FundId, StartDate, EndDate).Returns(profits);
         db.GetFundStartingBalanceAsync(fund.FundId, StartDate).Returns(1_000m);
         db.GetFundEndingBalanceAsync(fund.FundId, EndDate).Returns(1_200m);
+        db.GetFundEndingBalanceAsync(fund.FundId, new DateOnly(2026, 12, 31)).Returns(1_300m);
         db.GetFundTradeCommissionAsync(fund.FundId, StartDate, EndDate).Returns(25m);
         db.GetFundDailyBalancesAsync(fund.FundId, StartDate, EndDate)
             .Returns(Array.Empty<FundDailyBalanceReadModel>());
@@ -64,6 +69,7 @@ public class ActorFundQueryApiTests
         var pnl = await api.GetFundPnlReportAsync(fund.FundId, StartDate, EndDate);
         var winLoss = await api.GetFundWinLossRatioAsync(fund.FundId, StartDate, EndDate);
         var drawdown = await api.GetFundDrawdownBalancesAsync(fund.FundId, StartDate, EndDate);
+        var maxProfit = await api.GetFundMaxProfitGeneratedAsync(fund.FundId, EndDate);
 
         funds.Should().BeOfType<ServiceOk<FundReadModel[]>>();
         funds.Value.Should().Equal(fund);
@@ -96,6 +102,16 @@ public class ActorFundQueryApiTests
         winLoss.Value.KellyCriteria.Should().BeApproximately(2.0 / 3.0, 0.000001);
         drawdown.Should().BeOfType<ServiceOk<FundDrawdownBalancesReadModel>>();
         drawdown.Value.Should().Be(new FundDrawdownBalancesReadModel(fund.FundId, 1_000m, 1_200m));
+        maxProfit.Should().BeOfType<ServiceOk<FundMaxProfitGeneratedReadModel>>();
+        maxProfit.Value.Should().BeEquivalentTo(new
+        {
+            fund.FundId,
+            TradeDate = EndDate,
+            FundBalance = 1_000m,
+            FundProfitOrders = profits,
+            FundLossOrders = losses,
+            FundDrawdownBalances = new FundDrawdownBalancesReadModel(fund.FundId, 1_000m, 1_300m)
+        });
     }
 
     [Fact]
@@ -134,7 +150,10 @@ public class ActorFundQueryApiTests
                 GetFundWinLossRatioQuery.ErrorId),
             (db => db.GetFundStartingBalanceAsync(fundId, StartDate).Returns(_ => Task.FromException<decimal>(exception)),
                 async api => await api.GetFundDrawdownBalancesAsync(fundId, StartDate, EndDate),
-                GetFundDrawdownBalancesQuery.ErrorId)
+                GetFundDrawdownBalancesQuery.ErrorId),
+            (db => db.GetFundBalanceAsync(fundId).Returns(_ => Task.FromException<decimal>(exception)),
+                async api => await api.GetFundMaxProfitGeneratedAsync(fundId, EndDate),
+                GetFundMaxProfitGeneratedQuery.ErrorId)
         };
 
         foreach (var (arrange, act, errorId) in cases)

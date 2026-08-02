@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Option.Event.Extensions;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Event;
@@ -29,7 +30,7 @@ public static class OptionTradeLegDataChanged
     /// <param name="logger"></param>
     /// <returns></returns>
     public static async ValueTask<bool> ExecuteAsync(
-        this OptionTradeLegDataChangedEvent e,  IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+        this OptionTradeLegDataChangedEvent e,  IEventActorContext context, IActorOptionPricerCommandApi commandApi, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
     {
         var source = $"OptionTradeLegDataChangedEvent for EntityId: {e.EntityId}";
         try
@@ -47,7 +48,7 @@ public static class OptionTradeLegDataChanged
                    jobFailed: null,
                    inProgress: true,
                    lossProbabilityFactor: 0.1);
-            await context.SubmitSpreadDistributionJobAsync(spreadDistributionJob);
+            await commandApi.SubmitSpreadDistributionJobAsync(spreadDistributionJob);
             return true;
         }
         catch (Exception ex)

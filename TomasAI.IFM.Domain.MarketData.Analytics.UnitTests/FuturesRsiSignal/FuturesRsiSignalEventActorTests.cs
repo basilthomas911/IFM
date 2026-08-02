@@ -32,7 +32,12 @@ public class FuturesRsiSignalEventActorTests : IClassFixture<MarketDataAnalytics
             IStatusConsoleWriter statusConsoleWriter,
             ILogger<FuturesRsiSignalEventActor> logger,
             IBlackboardService blackboardService)
-            : base(supervisor, statusConsoleWriter, logger, blackboardService)
+            : base(
+                supervisor,
+                new global::TomasAI.IFM.Domain.MarketData.Analytics.Command.Api.ActorMarketDataAnalyticsCommandApiFactory(),
+                statusConsoleWriter,
+                logger,
+                blackboardService)
         {
         }
 

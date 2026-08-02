@@ -9,39 +9,12 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Extensions;
 
 internal static class FuturesBarDataEventExtensions
 {
-    internal static async ValueTask FuturesBarDataStreamingStartedCompleteAsync(
-        this IEventActorContext context, FuturesBarDataStreamingStartedEvent e)
-    {
-        var completeEvent = e.ToCompleteEvent<FuturesBarDataStreamingStartedCompleteEvent, FuturesBarDataStreamingId>() as FuturesBarDataStreamingStartedCompleteEvent;
-        await context.SendAsync<FuturesBarDataStreamingStartedCompleteEvent, FuturesBarDataStreamingId>(completeEvent!);
-    }
-
-    internal static async ValueTask FuturesBarDataStreamingStartedFailAsync(
-        this IEventActorContext context, FuturesBarDataStreamingStartedEvent e, Exception ex)
-    {
-        var failEvent = e.ToFailEvent<FuturesBarDataStreamingStartedFailEvent, FuturesBarDataStreamingId>(ex) as FuturesBarDataStreamingStartedFailEvent;
-        await context.SendAsync<FuturesBarDataStreamingStartedFailEvent, FuturesBarDataStreamingId>(failEvent!);
-    }
-
-    internal static async ValueTask FuturesBarDataStreamingStoppedCompleteAsync(
-        this IEventActorContext context, FuturesBarDataStreamingStoppedEvent e)
-    {
-        var completeEvent = e.ToCompleteEvent<FuturesBarDataStreamingStoppedCompleteEvent, FuturesBarDataStreamingId>() as FuturesBarDataStreamingStoppedCompleteEvent;
-        await context.SendAsync<FuturesBarDataStreamingStoppedCompleteEvent, FuturesBarDataStreamingId>(completeEvent!);
-    }
-
-    internal static async ValueTask FuturesBarDataStreamingStoppedFailAsync(
-        this IEventActorContext context, FuturesBarDataStreamingStoppedEvent e, Exception ex)
-    {
-        var failEvent = e.ToFailEvent<FuturesBarDataStreamingStoppedFailEvent, FuturesBarDataStreamingId>(ex) as FuturesBarDataStreamingStoppedFailEvent;
-        await context.SendAsync<FuturesBarDataStreamingStoppedFailEvent, FuturesBarDataStreamingId>(failEvent!);
-    }
-
     /// <summary>
     /// Queries for the last futures tick data for the specified contract and value date.
     /// </summary>
@@ -97,19 +70,9 @@ internal static class FuturesBarDataEventExtensions
     /// <param name="futuresBarData">The futures bar data view model to insert.</param>
     /// <exception cref="InvalidOperationException">Thrown when the command request fails.</exception>
     internal static async ValueTask InsertFuturesBarDataAsync(
-        this IEventActorContext context, FuturesBarDataReadModel futuresBarData)
+        this IActorMarketDataFeedCommandApi commandApi, FuturesBarDataReadModel futuresBarData)
     {
-        InsertFuturesBarDataCommand cmd = new(futuresBarData)
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Command, InsertFuturesBarDataCommand.Actor, InsertFuturesBarDataCommand.Verb, futuresBarData.Id.Format()),
-            EntityId = futuresBarData.Id,
-            ErrorCode = InsertFuturesBarDataCommand.ErrorId
-        };
-        var serviceResult = await context.RequestAsync<InsertFuturesBarDataCommand, FuturesBarDataId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.InsertFuturesBarDataAsync(futuresBarData);
     }
 
 }
-    

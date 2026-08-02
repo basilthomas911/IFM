@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
@@ -20,7 +21,11 @@ public static class FuturesTickDataStreamingStarted
 
     static string ServiceId { get; }
 
-    public static async ValueTask<bool> ExecuteAsync(this FuturesTickDataStreamingStartedEvent e,  IEventActorContext context, FuturesTickDataEventParameters p)
+public static async ValueTask<bool> ExecuteAsync(
+    this FuturesTickDataStreamingStartedEvent e,
+    IEventActorContext context,
+    IActorMarketDataFeedEventApi eventApi,
+    FuturesTickDataEventParameters p)
     {
         var source = $"FuturesTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
         try
@@ -33,7 +38,7 @@ public static class FuturesTickDataStreamingStarted
                     throw new InvalidOperationException($"{e.GetType().Name}: unable to create stream id from futures contract {e.Contract.ContractId} ");
                 p.MarketDataApi.StartStreamingFuturesTickData(streamId, e.ValueDate, e.Contract);
                 p.BlackboardService.MarketDataFeed.FuturesTickDataStreamingParameter.Set(streamId, new FuturesTickDataStreamingParameter(streamId, e.ValueDate, e.Contract));
-                await context.FuturesTickDataStreamingStartedCompleteAsync(e);
+                await eventApi.FuturesTickDataStreamingStartedCompleteAsync(e);
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started");
                 p.Logger.LogInformationEvent(ServiceId, "{Source}: futures {e.Contract.ContractId} streaming started", source, e.Contract.ContractId);
             }
@@ -43,7 +48,7 @@ public static class FuturesTickDataStreamingStarted
         }
         catch (Exception ex)
         {
-            await context.FuturesTickDataStreamingStartedFailAsync(e, ex);
+            await eventApi.FuturesTickDataStreamingStartedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, 6003, ex.GetErrorMessage());
             p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: futures {e.Contract.ContractId} streaming start failed", source, e.Contract.ContractId);
         }

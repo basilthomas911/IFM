@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
@@ -26,7 +27,10 @@ public static class MarketDataFeedStarted
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
     public static async ValueTask<bool> ExecuteAsync(
-        this MarketDataFeedStartedEvent e, IEventActorContext context, MarketDataFeedEventParameters p)
+        this MarketDataFeedStartedEvent e,
+        IEventActorContext context,
+        IActorMarketDataFeedEventApi eventApi,
+        MarketDataFeedEventParameters p)
     {
         var source = $"MarketDataFeedStartedEvent for EntityId: {e.EntityId}";
         try
@@ -34,7 +38,7 @@ public static class MarketDataFeedStarted
             var started = p.MarketDataApi.Start(async (errorCode, errorMsg) => await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
             if (started)
             {
-                await context.SendMarketDataFeedStartedCompleteAsync(e);
+                await eventApi.SendMarketDataFeedStartedCompleteAsync(e);
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed started");
                 p.Logger.LogInformationEvent(ServiceId, "{Source}: market data feed started", source);
             }
@@ -44,7 +48,7 @@ public static class MarketDataFeedStarted
         }
         catch (Exception ex)
         {
-            await context.SendMarketDataFeedStartedFailAsync(e, ex);
+            await eventApi.SendMarketDataFeedStartedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStartedEvent.ErrorCode, ex.GetErrorMessage());
             p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed start failed", source);
         }

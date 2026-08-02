@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
 
@@ -16,7 +17,7 @@ public static class FuturesTickBidAsk
 
     static string ServiceId { get; }
 
-    public static async ValueTask<bool> ExecuteAsync(this FuturesTickBidAskEvent e,  IEventActorContext context, FuturesTickDataEventParameters p)
+    public static async ValueTask<bool> ExecuteAsync(this FuturesTickBidAskEvent e,  IEventActorContext context, IActorMarketDataFeedCommandApi commandApi, FuturesTickDataEventParameters p)
     {
         var source = $"FuturesTickBidAskEvent for EntityId: {e.EntityId}";
         var sp = p.BlackboardService.MarketDataFeed.FuturesTickDataStreamingParameter.Get(e.RequestId);
@@ -36,7 +37,7 @@ public static class FuturesTickBidAsk
                     price: Convert.ToDecimal(e.TickBidAskData.Price),
                     size: e.TickBidAskData.Size);
                 p.BlackboardService.MarketDataFeed.FuturesTickData.Set(sp.FuturesContract.ContractId, sp.ValueDate, futuresTickData);
-                await context.InsertFuturesTickDataAsync(sp.FuturesContract, futuresTickData);
+                await commandApi.InsertFuturesTickDataAsync(sp.FuturesContract, futuresTickData);
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"futures tick price data {sp.FuturesContract.ContractId} price={futuresTickData.Price}");
                 p.Logger.LogInformationEvent(ServiceId, "{Source}: futures tick price data {ContractId} price={Price}", source, sp.FuturesContract.ContractId, futuresTickData.Price);
                 return true;

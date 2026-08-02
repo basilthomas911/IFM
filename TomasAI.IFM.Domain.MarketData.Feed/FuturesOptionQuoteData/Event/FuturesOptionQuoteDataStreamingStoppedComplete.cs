@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Event;
 
@@ -16,7 +17,7 @@ public static class FuturesOptionQuoteDataStreamingStoppedComplete
 
     static string ServiceId { get; }
 
-    public static async ValueTask<bool> ExecuteAsync(this FuturesOptionQuoteDataStreamingStoppedCompleteEvent e, IEventActorContext context, FuturesOptionQuoteDataEventParameters p)
+    public static async ValueTask<bool> ExecuteAsync(this FuturesOptionQuoteDataStreamingStoppedCompleteEvent e, IEventActorContext context, IActorMarketDataFeedCommandApi commandApi, FuturesOptionQuoteDataEventParameters p)
     {
         var source = $"FuturesOptionQuoteDataStreamingStoppedCompleteEvent for QuoteId: {e.QuoteId}";
         try
@@ -25,7 +26,7 @@ public static class FuturesOptionQuoteDataStreamingStoppedComplete
             {
                 p.MarketDataSnapshotApi.StopStreamingFuturesOptionQuoteData(o.RequestId);
                 p.BlackboardService.MarketDataFeed.FuturesOptionQuoteData.Clear(o.Id);
-                await context.DeleteStreamingRequestIdAsync(new FeedId(o.RequestId));
+                await commandApi.DeleteStreamingRequestIdAsync(new FeedId(o.RequestId));
                 await Task.Delay(TimeSpan.FromSeconds(1));
             }
             p.MarketDataSnapshotApi.Stop();

@@ -2,6 +2,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
@@ -15,7 +16,11 @@ public static class FuturesOptionTickDataStreamingStarted
 
     static string ServiceId { get; }
 
-    public static async ValueTask<bool> ExecuteAsync(this FuturesOptionTickDataStreamingStartedEvent e,  IEventActorContext context, FuturesOptionTickDataEventParameters p)
+public static async ValueTask<bool> ExecuteAsync(
+    this FuturesOptionTickDataStreamingStartedEvent e,
+    IEventActorContext context,
+    IActorMarketDataFeedEventApi eventApi,
+    FuturesOptionTickDataEventParameters p)
     {
         var source = $"FuturesOptionTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
         try
@@ -31,7 +36,7 @@ public static class FuturesOptionTickDataStreamingStarted
                     p.BlackboardService.MarketDataFeed.StreamingRequestId.Set(streamingRequestId);
                 }
                 p.MarketDataApi.StartStreamingFuturesOptionTickData(streamingRequestId.RequestId, e.ValueDate, e.MaturityDate, e.Contract, e.RiskFreeRate);
-                await context.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e);
+                await eventApi.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e);
 
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"futures option {e.Contract.ContractId} streaming started");
                 p.Logger.LogInformationEvent("{Source}: futures option {ContractId} streaming started", source, e.Contract.ContractId);
@@ -42,7 +47,7 @@ public static class FuturesOptionTickDataStreamingStarted
         }
         catch (Exception ex)
         {
-            await context.SendFuturesOptionTickDataStreamingStartedFailAsync(e, ex);
+            await eventApi.SendFuturesOptionTickDataStreamingStartedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, FuturesOptionTickDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
             p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: futures option {ContractId} streaming start failed", source, e.Contract.ContractId);
         }

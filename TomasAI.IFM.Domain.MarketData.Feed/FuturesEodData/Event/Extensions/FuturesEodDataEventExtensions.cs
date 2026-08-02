@@ -11,28 +11,6 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Extensions;
 internal static class FuturesEodDataEventExtensions
 {
     /// <summary>
-    /// Sends a futures end-of-day data updated event to the actor network.
-    /// </summary>
-    internal static async ValueTask SendFuturesEodDataUpdatedEventAsync(
-        this IEventActorContext context, FuturesEodDataInsertedEvent e)
-    {
-        var entityId = e.EntityId;
-        FuturesEodDataUpdatedEvent updatedEvent = new()
-        {
-            Subject = new ActorSubject(ActorType.Event, FuturesEodDataUpdatedEvent.Actor, FuturesEodDataUpdatedEvent.Verb, entityId.Format()),
-            EntityId = entityId,
-            CommandId = e.CommandId,
-            AggregateId = e.AggregateId,
-            EventSource = e.EventSource,
-            ReceivedOn = e.ReceivedOn,
-            FuturesEodData = e.FuturesEodData,
-            UpdatedOn = DateTime.Now,
-            UpdatedBy = e.UserName
-        };
-        await context.SendAsync<FuturesEodDataUpdatedEvent, FuturesEodDataId>(updatedEvent);
-    }
-
-    /// <summary>
     /// Queries the VIX futures EOD data actor for the specified contract and value date.
     /// Returns an empty array when no data is available.
     /// </summary>

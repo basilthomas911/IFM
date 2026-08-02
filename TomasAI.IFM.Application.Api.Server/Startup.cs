@@ -174,6 +174,7 @@ public static class Startup
         logger.LogInformationEvent("ApiServer", "add web app services...");
         RegisterBaseServices();
         RegisterCommandApiServices();
+        RegisterEventApiServices();
         RegisterQueryApiServices();
         RegisterStorageServices();
         RegisterServiceHandlers();
@@ -274,6 +275,17 @@ public static class Startup
             services.AddSingleton<ITradeCommandApi, OptionTradeCommandApi>();
             services.AddSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
             services.AddSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
+            services.AddSingleton<IActorMarketDataAnalyticsCommandApiFactory, TomasAI.IFM.Domain.MarketData.Analytics.Command.Api.ActorMarketDataAnalyticsCommandApiFactory>();
+            services.AddSingleton<IActorMarketDataFeedCommandApiFactory, TomasAI.IFM.Domain.MarketData.Feed.Command.Api.ActorMarketDataFeedCommandApiFactory>();
+            services.AddSingleton<IActorOptionPricerCommandApiFactory, TomasAI.IFM.Domain.OptionPricer.Command.Api.ActorOptionPricerCommandApiFactory>();
+            services.AddSingleton<IActorTradeCommandApiFactory, TomasAI.IFM.Domain.Trade.Command.Api.ActorTradeCommandApiFactory>();
+        }
+
+        void RegisterEventApiServices()
+        {
+            logger.LogInformationEvent("ApiServer", "registering actor event api services...");
+            services.AddSingleton<IActorFundEventApiFactory, TomasAI.IFM.Domain.Fund.Event.Api.ActorFundEventApiFactory>();
+            services.AddSingleton<IActorMarketDataFeedEventApiFactory, TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory>();
         }
 
         void RegisterQueryApiServices()

@@ -24,7 +24,13 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         IFuturesBarDataTimer futuresBarTimer,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesBarDataEventActor> logger)
-        : FuturesBarDataEventActor(supervisor, futuresBarTimer, statusConsoleWriter, logger)
+        : FuturesBarDataEventActor(
+            supervisor,
+            new global::TomasAI.IFM.Domain.MarketData.Feed.Command.Api.ActorMarketDataFeedCommandApiFactory(),
+            new global::TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory(),
+            futuresBarTimer,
+            statusConsoleWriter,
+            logger)
     {
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

@@ -2,6 +2,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
@@ -15,12 +16,16 @@ public static class FuturesOptionTickDataInserted
 
     static string ServiceId { get; }
 
-    public static async ValueTask<bool> ExecuteAsync(this FuturesOptionTickDataInsertedEvent e, IEventActorContext context, FuturesOptionTickDataEventParameters p)
+public static async ValueTask<bool> ExecuteAsync(
+    this FuturesOptionTickDataInsertedEvent e,
+    IEventActorContext context,
+    IActorMarketDataFeedEventApi eventApi,
+    FuturesOptionTickDataEventParameters p)
     {
         var source = $"FuturesOptionTickDataInsertedEvent for EntityId: {e.EntityId}";
         try
         {
-            await context.SendOptionTradeTickPriceDataUpdatedEventAsync(e);
+            await eventApi.SendOptionTradeTickPriceDataUpdatedEventAsync(e);
             return true;
         }
         catch (Exception ex)

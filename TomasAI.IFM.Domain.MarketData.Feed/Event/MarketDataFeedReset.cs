@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
@@ -23,7 +24,10 @@ public static class MarketDataFeedReset
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
     public static async ValueTask<bool> ExecuteAsync(
-        this MarketDataFeedResetEvent e, IEventActorContext context, MarketDataFeedEventParameters p)
+        this MarketDataFeedResetEvent e,
+        IEventActorContext context,
+        IActorMarketDataFeedEventApi eventApi,
+        MarketDataFeedEventParameters p)
     {
         var source = $"MarketDataFeedResetEvent for EntityId: {e.EntityId}";
         try
@@ -33,7 +37,7 @@ public static class MarketDataFeedReset
             var started = p.MarketDataApi.Start(async (errorCode, errorMsg) => await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
             if (started)
             {
-                await context.MarketDataFeedResetCompleteAsync(e);
+                await eventApi.MarketDataFeedResetCompleteAsync(e);
                 await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed reset");
                 p.Logger.LogInformationEvent(ServiceId, "{Source}: market data feed reset", source);
                 return true;
@@ -45,7 +49,7 @@ public static class MarketDataFeedReset
         }
         catch (Exception ex)
         {
-            await context.MarketDataFeedResetFailAsync(e, ex);
+            await eventApi.MarketDataFeedResetFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedResetEvent.ErrorCode, ex.GetErrorMessage());
             p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed reset failed", source);
         }

@@ -17,6 +17,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -300,7 +301,7 @@ public static class FuturesItiSignalEventExtensions
     /// <returns>A ValueTask representing the asynchronous operation of updating the futures trade signal.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the update operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask UpdateFuturesTradeSignalAsync(
-        this IEventActorContext context,
+        this IActorMarketDataAnalyticsCommandApi commandApi,
         FuturesEodDataV2ReadModel futuresEodData,
         FuturesRsiSignalReadModel? futuresRsiSignal,
         FuturesTdiSignalReadModel? futuresTdiSignal,
@@ -308,16 +309,13 @@ public static class FuturesItiSignalEventExtensions
         decimal vixFuturesPrice,
         TimeFrameType timePeriod)
     {
-        var entityId = new FuturesTradeSignalEntityId(futuresEodData.ContractId ?? string.Empty, futuresEodData.ValueDate, timePeriod);
-        UpdateFuturesTradeSignalCommand cmd = new(futuresEodData, futuresRsiSignal, futuresTdiSignal, futuresItiSignalData, vixFuturesPrice)
-        {
-            Subject = new ActorSubject(ActorType.Command, UpdateFuturesTradeSignalCommand.Actor, UpdateFuturesTradeSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = UpdateFuturesTradeSignalCommand.ErrorId
-        };
-        var serviceResult = await context.RequestAsync<UpdateFuturesTradeSignalCommand, FuturesTradeSignalEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.UpdateFuturesTradeSignalAsync(
+            futuresEodData,
+            futuresRsiSignal,
+            futuresTdiSignal,
+            futuresItiSignalData,
+            vixFuturesPrice,
+            timePeriod);
     }
 
     /// <summary>
@@ -334,7 +332,7 @@ public static class FuturesItiSignalEventExtensions
     /// <exception cref="InvalidOperationException">Thrown if the operation fails to generate the futures ITI signal, such as when the underlying service returns an
     /// error.</exception>
     public static async ValueTask GenerateFuturesItiSignalAsync(
-        this IEventActorContext context,
+        this IActorMarketDataAnalyticsCommandApi commandApi,
         string contractId,
         DateOnly valueDate,
         TimeFrameType timePeriod,
@@ -342,15 +340,13 @@ public static class FuturesItiSignalEventExtensions
         double futuresPrice,
         double vixFuturesPrice)
     {
-        var entityId = new FuturesItiSignalEntityId(contractId, valueDate, timePeriod);
-        GenerateFuturesItiSignalCommand cmd = new(contractId, valueDate, timePeriod, timestamp, futuresPrice, vixFuturesPrice)
-        {
-            Subject = new ActorSubject(ActorType.Command, GenerateFuturesItiSignalCommand.Actor, GenerateFuturesItiSignalCommand.Verb, entityId.Format()),
-            EntityId = entityId
-        };
-        var serviceResult = await context.RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(cmd);
-        if (serviceResult?.Success != true)
-            throw new InvalidOperationException(serviceResult?.ErrorMessage);
+        _ = await commandApi.GenerateFuturesItiSignalAsync(
+            contractId,
+            valueDate,
+            timePeriod,
+            timestamp,
+            futuresPrice,
+            vixFuturesPrice);
     }
 
     /// <summary>

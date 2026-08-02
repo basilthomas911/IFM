@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event;
 
@@ -23,21 +24,26 @@ public static class FuturesBarDataStreamingStarted
    /// <param name="context"></param>
    /// <param name="p"></param>
    /// <returns></returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesBarDataStreamingStartedEvent e,  IEventActorContext context, FuturesBarDataEventParameters p)
+public static async ValueTask<bool> ExecuteAsync(
+    this FuturesBarDataStreamingStartedEvent e,
+    IEventActorContext context,
+    IActorMarketDataFeedCommandApi commandApi,
+    IActorMarketDataFeedEventApi eventApi,
+    FuturesBarDataEventParameters p)
     {
         var source = $"FuturesBarDataStreamingStartedEvent for EntityId: {e.EntityId}";
         var started = false;
         try
         {
             p.FuturesBarDataTimer.Start(async () => await InsertFuturesBarDataFromTickDataAsync());
-            await context.FuturesBarDataStreamingStartedCompleteAsync(e);
+            await eventApi.FuturesBarDataStreamingStartedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, source);
             p.Logger.LogInformationEvent(ServiceId, "{Source}", source);
             started = true;
         }
         catch (Exception ex)
         {
-            await context.FuturesBarDataStreamingStartedFailAsync(e, ex);
+            await eventApi.FuturesBarDataStreamingStartedFailAsync(e, ex);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
             p.Logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming start failed", source);
         }
@@ -57,7 +63,7 @@ public static class FuturesBarDataStreamingStarted
                             case "ES":
                             case "VX":
                                 var futuresTradeSignal = await context.GetLastFuturesTradeSignalAsync(o.Symbol, e.ValueDate);
-                                await context.InsertFuturesBarDataAsync(new FuturesBarDataReadModel(
+                                await commandApi.InsertFuturesBarDataAsync(new FuturesBarDataReadModel(
                                     contractId: o.ContractId,
                                     symbol: o.Symbol,
                                     valueDate: e.ValueDate,

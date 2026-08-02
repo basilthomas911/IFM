@@ -9,6 +9,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
 
@@ -21,7 +23,7 @@ public static class FuturesOptionTickBidAsk
 
     static string ServiceId { get; }
 
-    public static async ValueTask<bool> ExecuteAsync(this FuturesOptionTickBidAskEvent e,  IEventActorContext context, FuturesOptionTickDataEventParameters p)
+    public static async ValueTask<bool> ExecuteAsync(this FuturesOptionTickBidAskEvent e,  IEventActorContext context, IActorMarketDataFeedCommandApi feedCommandApi, IActorTradeCommandApi tradeCommandApi, FuturesOptionTickDataEventParameters p)
     {
         var source = $"FuturesOptionTickBidAskEvent for EntityId: {e.EntityId}";
 
@@ -46,7 +48,7 @@ public static class FuturesOptionTickBidAsk
                 if (futuresOptionTickData.IsValid)
                 {
                     // Persist the computed option tick data via the insert command.
-                    await context.InsertFuturesOptionTickDataAsync(streamingRequestId.UnderlyingContract, futuresOptionTickData);
+                    await feedCommandApi.InsertFuturesOptionTickDataAsync(streamingRequestId.UnderlyingContract, futuresOptionTickData);
 
                     // Compare the new bid/ask prices against the last recorded tick price data
                     // to determine whether a meaningful price change has occurred.
@@ -61,11 +63,11 @@ public static class FuturesOptionTickBidAsk
                         var optionTrades = p.OptionTradeLiveFeedMap[streamingRequestId.OptionContract.ContractId];
 
                         // Propagate the updated tick data to all matching option trade legs
-                        await context.UpdateFuturesOptionTradeLegDataAsync(futuresOptionTickData, riskFreeRate, optionTrades);
+                        await tradeCommandApi.UpdateFuturesOptionTradeLegDataAsync(futuresOptionTickData, riskFreeRate, optionTrades);
 
                         // Persist the new tick price data and update the in-memory blackboard
                         // state so subsequent comparisons use the latest values.
-                        await context.InsertFuturesOptionTickPriceDataAsync(streamingRequestId.UnderlyingContract, futuresOptionTickData);
+                        await feedCommandApi.InsertFuturesOptionTickPriceDataAsync(streamingRequestId.UnderlyingContract, futuresOptionTickData);
                         p.BlackboardService.MarketDataFeed.FuturesOptionTickPriceData.Set(futuresOptionTickData.ContractId, streamingRequestId.ValueDate, futuresOptionTickData);
                         p.Logger.LogInformationEvent(ServiceId, "{Source}: futures option tick {ContractId} price: {OptionPrice:F2}", source, streamingRequestId.OptionContract.ContractId, futuresOptionTickData.OptionPrice);
                     }
