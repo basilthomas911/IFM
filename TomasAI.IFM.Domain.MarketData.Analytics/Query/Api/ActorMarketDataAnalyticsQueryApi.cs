@@ -14,131 +14,390 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 
-    public Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalAsync(
+    public async Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalAsync(
         string contractId, DateOnly valueDate)
-        => ExecuteAsync(GetFuturesTradeSignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync(contractId, valueDate))!);
+    {
+        try
+        {
+            FuturesTradeSignalV2ReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync(contractId, valueDate))!;
+            return new ServiceOk<FuturesTradeSignalV2ReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesTradeSignalV2ReadModel>(
+                GetFuturesTradeSignalQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetLastFuturesTradeSignalAsync()
-        => ExecuteAsync(GetLastFuturesTradeSignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync())!);
+    public async Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetLastFuturesTradeSignalAsync()
+    {
+        try
+        {
+            FuturesTradeSignalV2ReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync())!;
+            return new ServiceOk<FuturesTradeSignalV2ReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesTradeSignalV2ReadModel>(
+                GetLastFuturesTradeSignalQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalBySymbolAsync(
+    public async Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalBySymbolAsync(
         string symbol, DateOnly valueDate)
-        => ExecuteAsync(GetFuturesTradeSignalBySymbolQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesTradeSignalBySymbolAsync(symbol, valueDate))!);
+    {
+        try
+        {
+            FuturesTradeSignalV2ReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesTradeSignalBySymbolAsync(symbol, valueDate))!;
+            return new ServiceOk<FuturesTradeSignalV2ReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesTradeSignalV2ReadModel>(
+                GetFuturesTradeSignalBySymbolQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesTradeSignalId[]>> GetFuturesTradeSignalIdsAsync(DateOnly valueDate)
-        => ExecuteAsync<FuturesTradeSignalId[]>(GetFuturesTradeSignalIdsQuery.ErrorId,
-            async () => [.. await _dbFactory.MarketDataDb.GetFuturesTradeSignalIdByValueDateAsync(valueDate)]);
+    public async Task<ServiceResult<FuturesTradeSignalId[]>> GetFuturesTradeSignalIdsAsync(DateOnly valueDate)
+    {
+        try
+        {
+            FuturesTradeSignalId[] result =
+                [.. await _dbFactory.MarketDataDb.GetFuturesTradeSignalIdByValueDateAsync(valueDate)];
+            return new ServiceOk<FuturesTradeSignalId[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesTradeSignalId[]>(
+                GetFuturesTradeSignalIdsQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiSignalAsync(
+    public async Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
-        => ExecuteAsync(GetFuturesRsiSignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
-                contractId, valueDate, timePeriod, periodLength))!);
+    {
+        try
+        {
+            FuturesRsiSignalReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
+                    contractId,
+                    valueDate,
+                    timePeriod,
+                    periodLength))!;
+            return new ServiceOk<FuturesRsiSignalReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesRsiSignalReadModel>(GetFuturesRsiSignalQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiDailySignalAsync(
+    public async Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiDailySignalAsync(
         string contractId, TimeFrameType timePeriod, int periodLength)
-        => ExecuteAsync(GetFuturesRsiDailySignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
-                contractId, timePeriod, periodLength))!);
+    {
+        try
+        {
+            FuturesRsiSignalReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
+                    contractId,
+                    timePeriod,
+                    periodLength))!;
+            return new ServiceOk<FuturesRsiSignalReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesRsiSignalReadModel>(
+                GetFuturesRsiDailySignalQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(
+    public async Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(
         string contractId, DateOnly valueDate, DateTime timestamp, int loopbackInterval,
         DateTime startTime, DateTime endTime)
-        => ExecuteAsync(GetFuturesTrendDirectionFromRSISignalQuery.ErrorId,
-            async () => await _dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
-                contractId, valueDate, timestamp, loopbackInterval, startTime, endTime));
+    {
+        try
+        {
+            FuturesTrendDirectionReadModel result =
+                await _dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
+                    contractId,
+                    valueDate,
+                    timestamp,
+                    loopbackInterval,
+                    startTime,
+                    endTime);
+            return new ServiceOk<FuturesTrendDirectionReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesTrendDirectionReadModel>(
+                GetFuturesTrendDirectionFromRSISignalQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(
+    public async Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(
         string contractId, DateOnly valueDate)
-        => ExecuteAsync(GetFuturesTdiSignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesTdiSignalAsync(contractId, valueDate))!);
+    {
+        try
+        {
+            FuturesTdiSignalReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesTdiSignalAsync(contractId, valueDate))!;
+            return new ServiceOk<FuturesTdiSignalReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesTdiSignalReadModel>(GetFuturesTdiSignalQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(
+    public async Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod)
-        => ExecuteAsync(GetFuturesItiSignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(contractId, valueDate))!);
+    {
+        try
+        {
+            FuturesItiSignalV2ReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(contractId, valueDate))!;
+            return new ServiceOk<FuturesItiSignalV2ReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesItiSignalV2ReadModel>(GetFuturesItiSignalQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(
+    public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod)
-        => ExecuteAsync<FuturesItiSignalV2ReadModel[]>(GetFuturesItiTrendDirectionChangedSignalsQuery.ErrorId,
-            async () => [.. await _dbFactory.MarketDataDb.GetFuturesItiTrendDirectionChangedSignalsAsync(
-                contractId, valueDate)]);
+    {
+        try
+        {
+            FuturesItiSignalV2ReadModel[] result =
+                [.. await _dbFactory.MarketDataDb.GetFuturesItiTrendDirectionChangedSignalsAsync(
+                    contractId,
+                    valueDate)];
+            return new ServiceOk<FuturesItiSignalV2ReadModel[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesItiSignalV2ReadModel[]>(
+                GetFuturesItiTrendDirectionChangedSignalsQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesItiSignalDataReadModel>> GetFuturesItiSignalDataAsync(
+    public async Task<ServiceResult<FuturesItiSignalDataReadModel>> GetFuturesItiSignalDataAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod)
-        => ExecuteAsync(GetFuturesItiSignalDataQuery.ErrorId, async () =>
+    {
+        try
         {
             var db = _dbFactory.MarketDataDb;
-            return new FuturesItiSignalDataReadModel(
+            var result = new FuturesItiSignalDataReadModel(
                 await db.GetLastFuturesItiSignalTrendDirectionChangeAsync(contractId, valueDate),
                 await db.GetLastFuturesItiSignalTrendExtremeChangeAsync(contractId, valueDate),
                 await db.GetLastFuturesItiSignalTrendReversalChangeAsync(contractId, valueDate));
-        });
+            return new ServiceOk<FuturesItiSignalDataReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesItiSignalDataReadModel>(
+                GetFuturesItiSignalDataQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesItiMDIDistributionReadModel>> GetFuturesItiMDIDistributionAsync(
+    public async Task<ServiceResult<FuturesItiMDIDistributionReadModel>> GetFuturesItiMDIDistributionAsync(
         string contractId, DateOnly valueDate)
-        => ExecuteAsync(GetFuturesItiMDIDistributionQuery.ErrorId, async () =>
-            new FuturesItiMDIDistributionReadModel(
-                [.. await _dbFactory.MarketDataDb.GetFuturesItiSignalMDIAsync(contractId, valueDate)]));
+    {
+        try
+        {
+            var result = new FuturesItiMDIDistributionReadModel(
+                [.. await _dbFactory.MarketDataDb.GetFuturesItiSignalMDIAsync(contractId, valueDate)]);
+            return new ServiceOk<FuturesItiMDIDistributionReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesItiMDIDistributionReadModel>(
+                GetFuturesItiMDIDistributionQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesItiMDIDistributionReadModel>> GetFuturesItiMDIDistributionByTrendAsync(
+    public async Task<ServiceResult<FuturesItiMDIDistributionReadModel>> GetFuturesItiMDIDistributionByTrendAsync(
         string contractId, DateOnly valueDate)
-        => ExecuteAsync(GetFuturesItiMDIDistributionByTrendQuery.ErrorId, async () =>
+    {
+        try
         {
             var signal = await _dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(contractId, valueDate);
             var values = await GetFuturesItiSignalMDIByTrendCoreAsync(
                 contractId, valueDate, signal?.IntrinsicTimeGroupId ?? 0);
-            return new FuturesItiMDIDistributionReadModel(values);
-        });
+            var result = new FuturesItiMDIDistributionReadModel(values);
+            return new ServiceOk<FuturesItiMDIDistributionReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesItiMDIDistributionReadModel>(
+                GetFuturesItiMDIDistributionByTrendQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesItiSignalMDIV2ReadModel[]>> GetFuturesItiSignalMDIAsync(
+    public async Task<ServiceResult<FuturesItiSignalMDIV2ReadModel[]>> GetFuturesItiSignalMDIAsync(
         string contractId, DateOnly valueDate)
-        => ExecuteAsync<FuturesItiSignalMDIV2ReadModel[]>(GetFuturesItiSignalMDIQuery.ErrorId,
-            async () => [.. await _dbFactory.MarketDataDb.GetFuturesItiSignalMDIAsync(contractId, valueDate)]);
+    {
+        try
+        {
+            FuturesItiSignalMDIV2ReadModel[] result =
+                [.. await _dbFactory.MarketDataDb.GetFuturesItiSignalMDIAsync(contractId, valueDate)];
+            return new ServiceOk<FuturesItiSignalMDIV2ReadModel[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesItiSignalMDIV2ReadModel[]>(
+                GetFuturesItiSignalMDIQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesItiSignalMDIV2ReadModel[]>> GetFuturesItiSignalMDIByTrendAsync(
+    public async Task<ServiceResult<FuturesItiSignalMDIV2ReadModel[]>> GetFuturesItiSignalMDIByTrendAsync(
         string contractId, DateOnly valueDate, int groupId)
-        => ExecuteAsync(GetFuturesItiSignalMDIByTrendQuery.ErrorId,
-            async () => await GetFuturesItiSignalMDIByTrendCoreAsync(contractId, valueDate, groupId));
+    {
+        try
+        {
+            FuturesItiSignalMDIV2ReadModel[] result =
+                await GetFuturesItiSignalMDIByTrendCoreAsync(contractId, valueDate, groupId);
+            return new ServiceOk<FuturesItiSignalMDIV2ReadModel[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesItiSignalMDIV2ReadModel[]>(
+                GetFuturesItiSignalMDIByTrendQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrSignalAsync(
+    public async Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
-        => ExecuteAsync(GetFuturesAtrSignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesAtrSignalAsync(
-                contractId, valueDate, timePeriod, periodLength))!);
+    {
+        try
+        {
+            FuturesAtrSignalReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesAtrSignalAsync(
+                    contractId,
+                    valueDate,
+                    timePeriod,
+                    periodLength))!;
+            return new ServiceOk<FuturesAtrSignalReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesAtrSignalReadModel>(GetFuturesAtrSignalQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrDailySignalAsync(
+    public async Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrDailySignalAsync(
         string contractId, TimeFrameType timePeriod, int periodLength)
-        => ExecuteAsync(GetFuturesAtrDailySignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
-                contractId, timePeriod, periodLength))!);
+    {
+        try
+        {
+            FuturesAtrSignalReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
+                    contractId,
+                    timePeriod,
+                    periodLength))!;
+            return new ServiceOk<FuturesAtrSignalReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesAtrSignalReadModel>(
+                GetFuturesAtrDailySignalQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxSignalAsync(
+    public async Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
-        => ExecuteAsync(GetFuturesAdxSignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesAdxSignalAsync(
-                contractId, valueDate, timePeriod, periodLength))!);
+    {
+        try
+        {
+            FuturesAdxSignalReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesAdxSignalAsync(
+                    contractId,
+                    valueDate,
+                    timePeriod,
+                    periodLength))!;
+            return new ServiceOk<FuturesAdxSignalReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesAdxSignalReadModel>(GetFuturesAdxSignalQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxDailySignalAsync(
+    public async Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxDailySignalAsync(
         string contractId, TimeFrameType timePeriod, int periodLength)
-        => ExecuteAsync(GetFuturesAdxDailySignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(
-                contractId, timePeriod, periodLength))!);
+    {
+        try
+        {
+            FuturesAdxSignalReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(
+                    contractId,
+                    timePeriod,
+                    periodLength))!;
+            return new ServiceOk<FuturesAdxSignalReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesAdxSignalReadModel>(
+                GetFuturesAdxDailySignalQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(
+    public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
-        => ExecuteAsync(GetFuturesMacdSignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesMacdSignalAsync(
-                contractId, valueDate, timePeriod, periodLength))!);
+    {
+        try
+        {
+            FuturesMacdSignalReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesMacdSignalAsync(
+                    contractId,
+                    valueDate,
+                    timePeriod,
+                    periodLength))!;
+            return new ServiceOk<FuturesMacdSignalReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesMacdSignalReadModel>(GetFuturesMacdSignalQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
+    public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
         string contractId, TimeFrameType timePeriod, int periodLength)
-        => ExecuteAsync(GetFuturesMacdDailySignalQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
-                contractId, timePeriod, periodLength))!);
+    {
+        try
+        {
+            FuturesMacdSignalReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
+                    contractId,
+                    timePeriod,
+                    periodLength))!;
+            return new ServiceOk<FuturesMacdSignalReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesMacdSignalReadModel>(
+                GetFuturesMacdDailySignalQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
     async Task<FuturesItiSignalMDIV2ReadModel[]> GetFuturesItiSignalMDIByTrendCoreAsync(
         string contractId, DateOnly valueDate, int groupId)
@@ -149,17 +408,5 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         var downTrend = await db.GetFuturesItiSignalMDIByTrendAsync(
             contractId, valueDate, IntrinsicTimeTrendType.DownTrend, groupId);
         return [.. upTrend, .. downTrend];
-    }
-
-    static async Task<ServiceResult<T>> ExecuteAsync<T>(int errorId, Func<Task<T>> query)
-    {
-        try
-        {
-            return new ServiceOk<T>(await query());
-        }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<T>(errorId, ex.Message);
-        }
     }
 }

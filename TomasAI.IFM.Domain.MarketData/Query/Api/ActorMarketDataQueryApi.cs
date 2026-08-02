@@ -14,36 +14,119 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 
-    public Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(string symbol)
-        => ExecuteAsync(GetCurrentlyTradedFuturesContractQuery.ErrorId,
-            async () => (await _dbFactory.SecuritiesDb.GetCurrentlyTradedFuturesContractAsync(symbol))!);
+    public async Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(
+        string symbol)
+    {
+        try
+        {
+            FuturesContractV2ReadModel result =
+                (await _dbFactory.SecuritiesDb.GetCurrentlyTradedFuturesContractAsync(symbol))!;
+            return new ServiceOk<FuturesContractV2ReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesContractV2ReadModel>(
+                GetCurrentlyTradedFuturesContractQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesContractV2ReadModel[]>> GetCurrentlyTradedFuturesContractsAsync(string symbol)
-        => ExecuteAsync<FuturesContractV2ReadModel[]>(GetCurrentlyTradedFuturesContractsQuery.ErrorId,
-            async () => [.. await _dbFactory.SecuritiesDb.GetCurrentlyTradedFuturesContractsAsync(symbol)]);
+    public async Task<ServiceResult<FuturesContractV2ReadModel[]>> GetCurrentlyTradedFuturesContractsAsync(
+        string symbol)
+    {
+        try
+        {
+            FuturesContractV2ReadModel[] result =
+                [.. await _dbFactory.SecuritiesDb.GetCurrentlyTradedFuturesContractsAsync(symbol)];
+            return new ServiceOk<FuturesContractV2ReadModel[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesContractV2ReadModel[]>(
+                GetCurrentlyTradedFuturesContractsQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesContractV2ReadModel>> GetFuturesContractAsync(string contractId)
-        => ExecuteAsync(GetFuturesContractQuery.ErrorId,
-            async () => (await _dbFactory.SecuritiesDb.GetFuturesContractAsync(contractId))!);
+    public async Task<ServiceResult<FuturesContractV2ReadModel>> GetFuturesContractAsync(string contractId)
+    {
+        try
+        {
+            FuturesContractV2ReadModel result =
+                (await _dbFactory.SecuritiesDb.GetFuturesContractAsync(contractId))!;
+            return new ServiceOk<FuturesContractV2ReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesContractV2ReadModel>(GetFuturesContractQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<string>> GetFuturesContractSymbolAsync(string contractId)
-        => ExecuteAsync(GetFuturesContractSymbolQuery.ErrorId, async () =>
-            (await _dbFactory.SecuritiesDb.GetFuturesContractAsync(contractId))?.Symbol ?? string.Empty);
+    public async Task<ServiceResult<string>> GetFuturesContractSymbolAsync(string contractId)
+    {
+        try
+        {
+            string result =
+                (await _dbFactory.SecuritiesDb.GetFuturesContractAsync(contractId))?.Symbol ?? string.Empty;
+            return new ServiceOk<string>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<string>(GetFuturesContractSymbolQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesOptionContractReadModel>> GetFuturesOptionContractAsync(string contractId)
-        => ExecuteAsync(GetFuturesOptionContractQuery.ErrorId,
-            async () => (await _dbFactory.SecuritiesDb.GetFuturesOptionContractAsync(contractId))!);
+    public async Task<ServiceResult<FuturesOptionContractReadModel>> GetFuturesOptionContractAsync(
+        string contractId)
+    {
+        try
+        {
+            FuturesOptionContractReadModel result =
+                (await _dbFactory.SecuritiesDb.GetFuturesOptionContractAsync(contractId))!;
+            return new ServiceOk<FuturesOptionContractReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesOptionContractReadModel>(
+                GetFuturesOptionContractQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesContractV2ReadModel[]>> GetFuturesContractsAsync()
-        => ExecuteAsync<FuturesContractV2ReadModel[]>(GetFuturesContractsQuery.ErrorId,
-            async () => [.. await _dbFactory.SecuritiesDb.GetFuturesContractsAsync()]);
+    public async Task<ServiceResult<FuturesContractV2ReadModel[]>> GetFuturesContractsAsync()
+    {
+        try
+        {
+            FuturesContractV2ReadModel[] result =
+                [.. await _dbFactory.SecuritiesDb.GetFuturesContractsAsync()];
+            return new ServiceOk<FuturesContractV2ReadModel[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesContractV2ReadModel[]>(GetFuturesContractsQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<FuturesOptionContractReadModel[]>> GetFuturesOptionContractsAsync(string symbol)
-        => ExecuteAsync<FuturesOptionContractReadModel[]>(GetFuturesOptionContractsQuery.ErrorId,
-            async () => [.. await _dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(symbol)]);
+    public async Task<ServiceResult<FuturesOptionContractReadModel[]>> GetFuturesOptionContractsAsync(
+        string symbol)
+    {
+        try
+        {
+            FuturesOptionContractReadModel[] result =
+                [.. await _dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(symbol)];
+            return new ServiceOk<FuturesOptionContractReadModel[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesOptionContractReadModel[]>(
+                GetFuturesOptionContractsQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<string[]>> GetFuturesOptionContractIdsAsync(string[] contractIds)
-        => ExecuteAsync<string[]>(GetFuturesOptionContractIdsQuery.ErrorId, async () =>
+    public async Task<ServiceResult<string[]>> GetFuturesOptionContractIdsAsync(string[] contractIds)
+    {
+        try
         {
             List<string> existingContractIds = [];
             foreach (var contractId in contractIds)
@@ -51,58 +134,157 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
                 if (await _dbFactory.SecuritiesDb.GetFuturesOptionContractAsync(contractId) is not null)
                     existingContractIds.Add(contractId);
             }
-            return [.. existingContractIds];
-        });
+            string[] result = [.. existingContractIds];
+            return new ServiceOk<string[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<string[]>(GetFuturesOptionContractIdsQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<YieldCurveRateReadModel>> GetLastYieldCurveRateAsync()
-        => ExecuteAsync(GetLastYieldCurveRateQuery.ErrorId,
-            async () => (await _dbFactory.MarketDataDb.GetLastYieldCurveRateAsync())!);
+    public async Task<ServiceResult<YieldCurveRateReadModel>> GetLastYieldCurveRateAsync()
+    {
+        try
+        {
+            YieldCurveRateReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastYieldCurveRateAsync())!;
+            return new ServiceOk<YieldCurveRateReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<YieldCurveRateReadModel>(GetLastYieldCurveRateQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<RateOfReturnReadModel>> GetLastRateOfReturnAsync(
+    public async Task<ServiceResult<RateOfReturnReadModel>> GetLastRateOfReturnAsync(
         string symbol, DateOnly valueDate)
-        => ExecuteAsync(GetLastRateOfReturnQuery.ErrorId,
-            async () => await _dbFactory.MarketDataDb.GetLastRateOfReturnAsync(symbol));
+    {
+        try
+        {
+            RateOfReturnReadModel result = await _dbFactory.MarketDataDb.GetLastRateOfReturnAsync(symbol);
+            return new ServiceOk<RateOfReturnReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<RateOfReturnReadModel>(GetLastRateOfReturnQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<ScalarReadModel<int>>> GetTradingDaysAsync(
+    public async Task<ServiceResult<ScalarReadModel<int>>> GetTradingDaysAsync(
         DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType)
-        => ExecuteAsync(GetTradingDaysQuery.ErrorId, async () =>
-            new ScalarReadModel<int>((await _dbFactory.MarketDataDb.GetTradingDatesAsync(
-                startDate, endDate, marketType, currencyType)).Length));
+    {
+        try
+        {
+            var result = new ScalarReadModel<int>((await _dbFactory.MarketDataDb.GetTradingDatesAsync(
+                startDate,
+                endDate,
+                marketType,
+                currencyType)).Length);
+            return new ServiceOk<ScalarReadModel<int>>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<ScalarReadModel<int>>(GetTradingDaysQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<DateOnly[]>> GetTradingDatesAsync(
+    public async Task<ServiceResult<DateOnly[]>> GetTradingDatesAsync(
         DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType)
-        => ExecuteAsync(GetTradingDatesQuery.ErrorId,
-            async () => await _dbFactory.MarketDataDb.GetTradingDatesAsync(
-                startDate, endDate, marketType, currencyType));
+    {
+        try
+        {
+            DateOnly[] result = await _dbFactory.MarketDataDb.GetTradingDatesAsync(
+                startDate,
+                endDate,
+                marketType,
+                currencyType);
+            return new ServiceOk<DateOnly[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<DateOnly[]>(GetTradingDatesQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<YieldCurveRateReadModel[]>> GetYieldCurveRatesAsync(
+    public async Task<ServiceResult<YieldCurveRateReadModel[]>> GetYieldCurveRatesAsync(
         DateOnly startDate, DateOnly endDate)
-        => ExecuteAsync<YieldCurveRateReadModel[]>(GetYieldCurveRatesQuery.ErrorId,
-            async () => [.. await _dbFactory.MarketDataDb.GetYieldCurveRatesAsync(startDate, endDate)]);
+    {
+        try
+        {
+            YieldCurveRateReadModel[] result =
+                [.. await _dbFactory.MarketDataDb.GetYieldCurveRatesAsync(startDate, endDate)];
+            return new ServiceOk<YieldCurveRateReadModel[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<YieldCurveRateReadModel[]>(GetYieldCurveRatesQuery.ErrorId, ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<YieldCurveRateReadModel[]>> GetExternalYieldCurveRatesAsync()
-        => ExecuteAsync<YieldCurveRateReadModel[]>(GetExternalYieldCurveRatesQuery.ErrorId, async () =>
+    public async Task<ServiceResult<YieldCurveRateReadModel[]>> GetExternalYieldCurveRatesAsync()
+    {
+        try
         {
             if (_dbFactory.YieldCurveRatesDb is not IYieldCurveRatesDbContext db)
-                return [];
-            return [.. await db.ReadAsync()];
-        });
+                return new ServiceOk<YieldCurveRateReadModel[]>([]);
+            YieldCurveRateReadModel[] result = [.. await db.ReadAsync()];
+            return new ServiceOk<YieldCurveRateReadModel[]>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<YieldCurveRateReadModel[]>(
+                GetExternalYieldCurveRatesQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<YieldCurveRateYearsReadModel>> GetYieldCurveRateYearsAsync()
-        => ExecuteAsync(GetYieldCurveRateYearsQuery.ErrorId,
-            async () => new YieldCurveRateYearsReadModel(
-                [.. await _dbFactory.MarketDataDb.GetYieldCurveRateYearsAsync()]));
+    public async Task<ServiceResult<YieldCurveRateYearsReadModel>> GetYieldCurveRateYearsAsync()
+    {
+        try
+        {
+            var result = new YieldCurveRateYearsReadModel(
+                [.. await _dbFactory.MarketDataDb.GetYieldCurveRateYearsAsync()]);
+            return new ServiceOk<YieldCurveRateYearsReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<YieldCurveRateYearsReadModel>(
+                GetYieldCurveRateYearsQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
-    public Task<ServiceResult<ScalarReadModel<bool>>> YieldCurveRateExistsAsync(DateOnly valueDate)
-        => ExecuteAsync(GetYieldCurveRateExistsQuery.ErrorId,
-            async () => new ScalarReadModel<bool>(
-                await _dbFactory.MarketDataDb.GetYieldCurveRateExistsAsync(valueDate)));
+    public async Task<ServiceResult<ScalarReadModel<bool>>> YieldCurveRateExistsAsync(DateOnly valueDate)
+    {
+        try
+        {
+            var result = new ScalarReadModel<bool>(
+                await _dbFactory.MarketDataDb.GetYieldCurveRateExistsAsync(valueDate));
+            return new ServiceOk<ScalarReadModel<bool>>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<ScalarReadModel<bool>>(GetYieldCurveRateExistsQuery.ErrorId, ex.Message);
+        }
+    }
 
     public Task<ServiceResult<ScalarReadModel<DateOnly>>> GetValueDateAsync()
-        => ExecuteAsync(GetValueDateQuery.ErrorId,
-            () => Task.FromResult(new ScalarReadModel<DateOnly>(CalculateValueDate(DateTime.Now))));
+    {
+        try
+        {
+            var result = new ScalarReadModel<DateOnly>(CalculateValueDate(DateTime.Now));
+            return Task.FromResult<ServiceResult<ScalarReadModel<DateOnly>>>(
+                new ServiceOk<ScalarReadModel<DateOnly>>(result));
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult<ServiceResult<ScalarReadModel<DateOnly>>>(
+                new ServiceFailed<ScalarReadModel<DateOnly>>(GetValueDateQuery.ErrorId, ex.Message));
+        }
+    }
 
-    public Task<ServiceResult<IronCondorMarketDataReadModel>> GetIronCondorMarketDataAsync(
+    public async Task<ServiceResult<IronCondorMarketDataReadModel>> GetIronCondorMarketDataAsync(
         string underlyingContractId,
         string shortPutOptionContractId,
         string longPutOptionContractId,
@@ -112,7 +294,8 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         DateOnly endDate,
         MarketType marketType,
         CurrencyType currencyType)
-        => ExecuteAsync(GetIronCondorMarketDataQuery.ErrorId, async () =>
+    {
+        try
         {
             var securitiesDb = _dbFactory.SecuritiesDb;
             var underlying = await securitiesDb.GetFuturesContractAsync(underlyingContractId);
@@ -124,11 +307,19 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
             var tradingDates = await _dbFactory.MarketDataDb.GetTradingDatesAsync(
                 startDate, endDate, marketType, currencyType);
 
-            return new IronCondorMarketDataReadModel(
+            var result = new IronCondorMarketDataReadModel(
                 underlying!, shortPut!, longPut!, shortCall!, longCall!,
                 (yieldCurve?.OneMonth ?? 0) / 100,
                 tradingDates.Length);
-        });
+            return new ServiceOk<IronCondorMarketDataReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<IronCondorMarketDataReadModel>(
+                GetIronCondorMarketDataQuery.ErrorId,
+                ex.Message);
+        }
+    }
 
     static DateOnly CalculateValueDate(DateTime today)
     {
@@ -139,17 +330,5 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
             && today.TimeOfDay >= TimeSpan.FromHours(18))
             return valueDate.AddDays(1);
         return valueDate;
-    }
-
-    static async Task<ServiceResult<T>> ExecuteAsync<T>(int errorId, Func<Task<T>> query)
-    {
-        try
-        {
-            return new ServiceOk<T>(await query());
-        }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<T>(errorId, ex.Message);
-        }
     }
 }

@@ -13,33 +13,62 @@ public sealed class ActorOptionPricerQueryApi(IDbContextFactory dbFactory) : IAc
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 
-    public Task<ServiceResult<OptionPricerDevicesReadModel>> GetOptionPricerDevicesAsync()
-        => ExecuteAsync(GetOptionPricerDevicesQuery.ErrorId, async () => new OptionPricerDevicesReadModel
-        {
-            Devices = [.. await _dbFactory.OptionPricerDb.GetOptionPricerDevicesAsync()]
-        });
-
-    public Task<ServiceResult<SpreadDistributionReadModel>> GetSpreadDistributionAsync(
-        int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry)
-        => ExecuteAsync(GetSpreadDistributionQuery.ErrorId,
-            async () => (await _dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
-                tradeId, tradeType, tradeStatus, valueDate, daysToExpiry))!);
-
-    public Task<ServiceResult<ScalarReadModel<bool>>> IsSpreadDistributionJobInProgressAsync(
-        int orderId, int tradeId)
-        => ExecuteAsync(GetSpreadDistributionJobInProgressQuery.ErrorId,
-            async () => new ScalarReadModel<bool>(
-                await _dbFactory.OptionPricerDb.GetSpreadDistributionJobInProgressCountAsync(orderId, tradeId) > 0));
-
-    static async Task<ServiceResult<T>> ExecuteAsync<T>(int errorId, Func<Task<T>> query)
+    public async Task<ServiceResult<OptionPricerDevicesReadModel>> GetOptionPricerDevicesAsync()
     {
         try
         {
-            return new ServiceOk<T>(await query());
+            var result = new OptionPricerDevicesReadModel
+            {
+                Devices = [.. await _dbFactory.OptionPricerDb.GetOptionPricerDevicesAsync()]
+            };
+            return new ServiceOk<OptionPricerDevicesReadModel>(result);
         }
         catch (Exception ex)
         {
-            return new ServiceFailed<T>(errorId, ex.Message);
+            return new ServiceFailed<OptionPricerDevicesReadModel>(
+                GetOptionPricerDevicesQuery.ErrorId,
+                ex.Message);
+        }
+    }
+
+    public async Task<ServiceResult<SpreadDistributionReadModel>> GetSpreadDistributionAsync(
+        int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry)
+    {
+        try
+        {
+            SpreadDistributionReadModel result =
+                (await _dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
+                    tradeId,
+                    tradeType,
+                    tradeStatus,
+                    valueDate,
+                    daysToExpiry))!;
+            return new ServiceOk<SpreadDistributionReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<SpreadDistributionReadModel>(
+                GetSpreadDistributionQuery.ErrorId,
+                ex.Message);
+        }
+    }
+
+    public async Task<ServiceResult<ScalarReadModel<bool>>> IsSpreadDistributionJobInProgressAsync(
+        int orderId, int tradeId)
+    {
+        try
+        {
+            var result = new ScalarReadModel<bool>(
+                await _dbFactory.OptionPricerDb.GetSpreadDistributionJobInProgressCountAsync(
+                    orderId,
+                    tradeId) > 0);
+            return new ServiceOk<ScalarReadModel<bool>>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<ScalarReadModel<bool>>(
+                GetSpreadDistributionJobInProgressQuery.ErrorId,
+                ex.Message);
         }
     }
 }
