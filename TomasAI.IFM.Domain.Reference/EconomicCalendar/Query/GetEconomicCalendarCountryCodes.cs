@@ -16,9 +16,7 @@ public static class GetEconomicCalendarCountryCodes
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static async ValueTask GetEconomicCalendarCountryCodesAsync(this GetEconomicCalendarCountryCodesQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var countryCodes = await dbFactory.ReferenceDb.GetEconomicCalendarCountryCodesAsync();
-        await context.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarQuery.Verb, new ServiceResult<EconomicCalendarCountryCodeReadModel[]>([.. countryCodes]));
-    }
+    public static async ValueTask<EconomicCalendarCountryCodeReadModel[]> GetEconomicCalendarCountryCodesAsync(
+        this GetEconomicCalendarCountryCodesQuery q, IDbContextFactory dbFactory)
+        => [.. await dbFactory.ReferenceDb.GetEconomicCalendarCountryCodesAsync()];
 }

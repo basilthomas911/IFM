@@ -1,6 +1,4 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -15,10 +13,7 @@ public static class GetFuturesTradeSignal
     /// <param name="dbFactory"></param>
     /// <param name="context"></param>
     /// <returns></returns>
-    internal static async ValueTask GetFuturesTradeSignalAsync(
-        this GetFuturesTradeSignalQuery q,IDbContextFactory dbFactory, IQueryActorContext context)
-    {
-        var result = await dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync(q.ContractId, q.ValueDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalQuery.Verb, new ServiceResult<FuturesTradeSignalV2ReadModel?>(result));
-    }
+    internal static async ValueTask<FuturesTradeSignalV2ReadModel?> GetFuturesTradeSignalAsync(
+        this GetFuturesTradeSignalQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync(q.ContractId, q.ValueDate);
 }

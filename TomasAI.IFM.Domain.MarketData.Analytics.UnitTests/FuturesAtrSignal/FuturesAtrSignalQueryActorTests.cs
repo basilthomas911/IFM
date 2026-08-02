@@ -484,10 +484,9 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     }
 
     [Fact]
-    public async Task OnExceptionAsync_GetFuturesAtrDailySignalQuery_RepliesWithGenericServiceFailed()
+    public async Task OnExceptionAsync_GetFuturesAtrDailySignalQuery_RepliesWithTypedServiceResult()
     {
-        // Arrange - the production OnExceptionAsync only special-cases GetFuturesAtrSignalQuery,
-        // so the daily-signal query falls through to the generic ServiceFailed<ActorEntityId> reply.
+        // Arrange
         var actor = _fixture.CreateAtrQueryActor();
 
         var query = CreateDailyQuery();
@@ -495,8 +494,9 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var exception = new InvalidOperationException("Test exception");
         var context = Substitute.For<IQueryActorContext>();
 
-        ServiceFailed<ActorEntityId>? capturedResult = null;
-        context.ReplyAsync(threadId, GetFuturesAtrDailySignalQuery.Verb, Arg.Do<ServiceFailed<ActorEntityId>>(r => capturedResult = r))
+        ServiceResult<FuturesAtrSignalReadModel?>? capturedResult = null;
+        context.ReplyAsync(threadId, GetFuturesAtrDailySignalQuery.Verb,
+                Arg.Do<ServiceResult<FuturesAtrSignalReadModel?>>(r => capturedResult = r))
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -505,7 +505,7 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         // Assert
         capturedResult.Should().NotBeNull();
         capturedResult!.Success.Should().BeFalse();
-        capturedResult.ErrorCode.Should().Be(9999);
+        capturedResult.ErrorCode.Should().Be(query.ErrorCode);
         capturedResult.ErrorMessage.Should().Be(exception.Message);
     }
 

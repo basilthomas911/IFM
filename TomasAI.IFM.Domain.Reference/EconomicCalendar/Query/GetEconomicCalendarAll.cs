@@ -16,9 +16,7 @@ public static class GetEconomicCalendarAll
     /// <param name="context">The query actor context for replying with results.</param>
     /// <param name="dbFactory">The database context factory used to access reference storage.</param>
     /// <returns>A value task that completes after the reply has been posted.</returns>
-    public static async ValueTask GetEconomicCalendarAllAsync(this GetEconomicCalendarAllQuery q,IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var economicCalendars = await dbFactory.ReferenceDb.GetEconomicCalendarAllAsync();
-        await context.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarAllQuery.Verb, new ServiceResult<EconomicCalendarReadModel[]>([.. economicCalendars]));
-    }
+    public static async ValueTask<EconomicCalendarReadModel[]> GetEconomicCalendarAllAsync(
+        this GetEconomicCalendarAllQuery q, IDbContextFactory dbFactory)
+        => [.. await dbFactory.ReferenceDb.GetEconomicCalendarAllAsync()];
 }

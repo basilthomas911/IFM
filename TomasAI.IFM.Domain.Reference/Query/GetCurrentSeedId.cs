@@ -14,9 +14,7 @@ public static class GetCurrentSeedId
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask GetCurrentSeedIdAsync(this GetCurrentSeedIdQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var result = await dbFactory.ReferenceDb.GetCurrentSeedIdAsync(q.SeedType);
-        await context.ReplyAsync(q.Subject.ThreadId, GetCurrentSeedIdQuery.Verb, new ServiceResult<ScalarReadModel<int>>(new ScalarReadModel<int>(result)));
-    }
+    public static async ValueTask<ScalarReadModel<int>> GetCurrentSeedIdAsync(
+        this GetCurrentSeedIdQuery q, IDbContextFactory dbFactory)
+        => new(await dbFactory.ReferenceDb.GetCurrentSeedIdAsync(q.SeedType));
 }

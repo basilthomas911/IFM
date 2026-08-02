@@ -85,17 +85,23 @@ public class FuturesItiSignalQueryActor(
         [typeof(GetFuturesItiSignalDataQuery).Name] = async (ctx, db, q) =>
         {
             var query = (q as GetFuturesItiSignalDataQuery)!;
-            await query.GetFuturesItiSignalDataAsync(db, ctx);
+            var result = await query.GetFuturesItiSignalDataAsync(db);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalDataQuery.Verb,
+                new ServiceResult<FuturesItiSignalDataReadModel>(result));
         },
         [typeof(GetFuturesItiSignalQuery).Name] = async (ctx, db, q) =>
         {
             var query = (q as GetFuturesItiSignalQuery)!;
-            await query.GetLastFuturesItiSignalAsync(db, ctx);
+            var result = await query.GetLastFuturesItiSignalAsync(db);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalQuery.Verb,
+                new ServiceResult<FuturesItiSignalV2ReadModel?>(result));
         },
         [typeof(GetFuturesItiTrendDirectionChangedSignalsQuery).Name] = async (ctx, db, q) =>
         {
             var query = (q as GetFuturesItiTrendDirectionChangedSignalsQuery)!;
-            await query.GetFuturesItiTrendDirectionChangedSignalsAsync(db, ctx);
+            var result = await query.GetFuturesItiTrendDirectionChangedSignalsAsync(db);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiTrendDirectionChangedSignalsQuery.Verb,
+                new ServiceResult<FuturesItiSignalV2ReadModel[]>(result));
         }
     };
 

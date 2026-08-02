@@ -10,10 +10,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query;
 
 public static class GetFuturesEodDataByDateRange
 {
-    internal static async ValueTask GetFuturesEodDataByDateRangeAsync(
-       this GetFuturesEodDataByDateRangeQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var result = await dbFactory.MarketDataDb.GetFuturesEodDataByDateRangeAsync(q.ContractId, q.StartDate, q.EndDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataByDateRangeQuery.Verb, new ServiceResult<FuturesEodDataV2ReadModel[]>([.. result]));
-    }
+    internal static async ValueTask<FuturesEodDataV2ReadModel[]> GetFuturesEodDataByDateRangeAsync(
+       this GetFuturesEodDataByDateRangeQuery q, IDbContextFactory dbFactory)
+        => [.. await dbFactory.MarketDataDb.GetFuturesEodDataByDateRangeAsync(q.ContractId, q.StartDate, q.EndDate)];
 }

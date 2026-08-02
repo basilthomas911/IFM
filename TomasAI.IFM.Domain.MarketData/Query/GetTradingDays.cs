@@ -15,9 +15,10 @@ public static class GetTradingDays
     /// <param name="dbFactory">The database context factory.</param>
     /// <param name="context">The query actor context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-	public static async ValueTask GetTradingDaysAsync(this GetTradingDaysQuery q, IDbContextFactory dbFactory, IQueryActorContext context)
+	public static async ValueTask<ScalarReadModel<int>> GetTradingDaysAsync(
+        this GetTradingDaysQuery q, IDbContextFactory dbFactory)
     {
         var tradingDates = await dbFactory.MarketDataDb.GetTradingDatesAsync(q.StartDate, q.EndDate, q.MarketType, q.CurrencyType);
-        await context.ReplyAsync(q.Subject.ThreadId, GetTradingDaysQuery.Verb, new ServiceResult<ScalarReadModel<int>>(new ScalarReadModel<int>(tradingDates.Length)));
+        return new ScalarReadModel<int>(tradingDates.Length);
     }
 }

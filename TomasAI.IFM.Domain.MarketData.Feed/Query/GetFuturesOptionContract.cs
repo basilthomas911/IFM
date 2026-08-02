@@ -15,8 +15,8 @@ public static class GetFuturesOptionContract
     /// <param name="context"></param>
     /// <param name="p"></param>
     /// <returns></returns>
-    internal static async ValueTask GetFuturesOptionContractFromBrokerAsync(
-        this GetFuturesOptionContractQuery q, IQueryActorContext context, IMarketDataSnapshotApi marketDataSnapshotApi)
+    internal static async ValueTask<FuturesOptionContractReadModel> GetFuturesOptionContractFromBrokerAsync(
+        this GetFuturesOptionContractQuery q, IMarketDataSnapshotApi marketDataSnapshotApi)
     {
         FuturesOptionContractReadModel futuresOptionContract;
         var streamId = 0;
@@ -31,7 +31,7 @@ public static class GetFuturesOptionContract
             marketDataSnapshotApi.StreamIds.Remove(streamId);
             marketDataSnapshotApi.Stop();
         }
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb, new ServiceResult<FuturesOptionContractReadModel>(futuresOptionContract!));
+        return futuresOptionContract;
     }
 
 }

@@ -78,11 +78,12 @@ public class SystemAdminQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<IQueryActorContext, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetDatabaseNamesQuery).Name] = (ctx, q) =>
+        [typeof(GetDatabaseNamesQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetDatabaseNamesQuery)!;
-            var result = SystemAdminQueryState.GetDatabaseNames();
-            return ctx.ReplyAsync(query.Subject.ThreadId, GetDatabaseNamesQuery.Verb, new ServiceOk<DatabaseNamesReadModel>(result));
+            var result = await query.GetDatabaseNamesAsync();
+            await ctx.ReplyAsync(query.Subject.ThreadId, GetDatabaseNamesQuery.Verb,
+                new ServiceResult<DatabaseNamesReadModel>(result));
         }
     };
 

@@ -102,27 +102,37 @@ public class EconomicCalendarQueryActor(
         [typeof(GetEconomicCalendarAllQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = q as GetEconomicCalendarAllQuery;
-            await query.GetEconomicCalendarAllAsync(ctx, dbFactory);
+            var result = await query.GetEconomicCalendarAllAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarAllQuery.Verb,
+                new ServiceResult<EconomicCalendarReadModel[]>(result));
         },
         [typeof(GetEconomicCalendarQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = q as GetEconomicCalendarQuery;
-            await query.GetEconomicCalendarAsync(ctx, dbFactory);
+            var result = await query.GetEconomicCalendarAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarQuery.Verb,
+                new ServiceResult<EconomicCalendarReadModel[]>(result));
         },
         [typeof(GetEconomicCalendarDateQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = q as GetEconomicCalendarDateQuery;
-            await query.GetEconomicCalendarDateAsync(ctx, dbFactory);
+            var result = await query.GetEconomicCalendarDateAsync();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarDateQuery.Verb,
+                new ServiceResult<string>(result));
         },
         [typeof(GetEconomicCalendarCountryCodesQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = q as GetEconomicCalendarCountryCodesQuery;
-             await query.GetEconomicCalendarCountryCodesAsync(ctx, dbFactory);
+            var result = await query.GetEconomicCalendarCountryCodesAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarCountryCodesQuery.Verb,
+                new ServiceResult<EconomicCalendarCountryCodeReadModel[]>(result));
         },
         [typeof(GetExternalEconomicCalendarsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = q as GetExternalEconomicCalendarsQuery;
-            await query.GetExternalEconomicCalendarsAsync(ctx, dbFactory);
+            var result = await query.GetExternalEconomicCalendarsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetExternalEconomicCalendarsQuery.Verb,
+                new ServiceResult<EconomicCalendarReadModel[]>(result));
         }
     };
 

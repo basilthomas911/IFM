@@ -15,9 +15,7 @@ internal static class GetLastYieldCurveRate
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static async ValueTask GetLastYieldCurveRateAsync(this GetLastYieldCurveRateQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var yieldCurveRate = await dbFactory.MarketDataDb.GetLastYieldCurveRateAsync();
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb, new ServiceResult<YieldCurveRateReadModel?>(yieldCurveRate));
-    }
+    public static async ValueTask<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync(
+        this GetLastYieldCurveRateQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.MarketDataDb.GetLastYieldCurveRateAsync();
 }

@@ -81,17 +81,19 @@ public class FuturesBarDataQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesBarDataQuery).Name] = (ctx,  dbFactory, q) =>
+        [typeof(GetFuturesBarDataQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetFuturesBarDataQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetFuturesBarDataQuery.Verb);
-            return query.GetFuturesBarDataAsync(ctx, dbFactory);
+            var result = await query.GetFuturesBarDataAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesBarDataQuery.Verb,
+                new ServiceResult<FuturesBarDataReadModel[]>(result));
         },
-        [typeof(GetLastFuturesBarDataQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetLastFuturesBarDataQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetLastFuturesBarDataQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetLastFuturesBarDataQuery.Verb);
-            return query.GetLastFuturesBarDataAsync(ctx, dbFactory);
+            var result = await query.GetLastFuturesBarDataAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesBarDataQuery.Verb,
+                new ServiceResult<FuturesBarDataReadModel>(result));
         }
     };
 

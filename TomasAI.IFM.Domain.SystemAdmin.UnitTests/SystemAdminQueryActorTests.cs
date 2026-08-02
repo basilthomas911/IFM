@@ -334,7 +334,7 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetDatabaseNamesQuery.Verb,
-            Arg.Is<ServiceOk<DatabaseNamesReadModel>>(r => r.Success && r.Value!.Names.Length == 7));
+            Arg.Is<ServiceResult<DatabaseNamesReadModel>>(r => r.Success && r.Value!.Names.Length == 7));
     }
 
     [Fact]
@@ -354,7 +354,7 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
         await context.Received(1).ReplyAsync(
             Arg.Is<ActorThreadId>(tid => tid == query.Subject.ThreadId),
             Arg.Is(GetDatabaseNamesQuery.Verb),
-            Arg.Any<ServiceOk<DatabaseNamesReadModel>>());
+            Arg.Any<ServiceResult<DatabaseNamesReadModel>>());
     }
 
     #endregion

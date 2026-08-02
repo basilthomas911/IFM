@@ -53,7 +53,8 @@ public class FuturesAdxSignalQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<NatsMsg<byte[]>, IQuery>> _parseMap = new()
     {
-        [GetFuturesAdxSignalQuery.Verb] = msg => msg.AsQuery<GetFuturesAdxSignalQuery, FuturesAdxSignalReadModel>()!
+        [GetFuturesAdxSignalQuery.Verb] = msg => msg.AsQuery<GetFuturesAdxSignalQuery, FuturesAdxSignalReadModel>()!,
+        [GetFuturesAdxDailySignalQuery.Verb] = msg => msg.AsQuery<GetFuturesAdxDailySignalQuery, FuturesAdxSignalReadModel>()!
     };
 
     /// <summary>
@@ -91,7 +92,7 @@ public class FuturesAdxSignalQueryActor(
             var query = (q as GetFuturesAdxDailySignalQuery)!;
             var queryResult = await query.GetLastFuturesAdxDailySignalAsync(dbFactory);
             var serviceResult = new ServiceResult<FuturesAdxSignalReadModel?>(queryResult);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAdxSignalQuery.Verb, serviceResult);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAdxDailySignalQuery.Verb, serviceResult);
         }
     };
 
@@ -116,6 +117,8 @@ public class FuturesAdxSignalQueryActor(
             var serviceResultTask = default(ValueTask) switch
             {
                 _ when query is GetFuturesAdxSignalQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesAdxSignalReadModel?>(query.ErrorCode, ex!.Message)),
+                _ when query is GetFuturesAdxDailySignalQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesAdxSignalReadModel?>(query.ErrorCode, ex!.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
             };

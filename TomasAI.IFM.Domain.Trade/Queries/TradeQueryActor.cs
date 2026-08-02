@@ -79,44 +79,49 @@ public class TradeQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, query.Subject.ThreadId, dbFactory, query);
+        await receiveFunc.Invoke(context, dbFactory, query);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding trade
     /// query logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, ActorThreadId, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetTradeHistoryQuery).Name] = (ctx, threadId, dbFactory, q) =>
+        [typeof(GetTradeHistoryQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetTradeHistoryQuery)!;
-            var msgInfo = ctx.GetMessageInfo(threadId, GetTradeHistoryQuery.Verb);
-            return query.GetTradeHistoryAsync(dbFactory, msgInfo!.Value);
+            var result = await query.GetTradeHistoryAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeHistoryQuery.Verb,
+                new ServiceResult<TradeHistoryReadModel[]>(result));
         },
-        [typeof(GetTradeLimitQuery).Name] = (ctx, threadId, dbFactory, q) =>
+        [typeof(GetTradeLimitQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetTradeLimitQuery)!;
-            var msgInfo = ctx.GetMessageInfo(threadId, GetTradeLimitQuery.Verb);
-            return query.GetTradeLimitAsync(dbFactory, msgInfo!.Value);
+            var result = await query.GetTradeLimitAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeLimitQuery.Verb,
+                new ServiceResult<TradeLimitReadModel>(result));
         },
-        [typeof(GetTradePositionQuery).Name] = (ctx, threadId, dbFactory, q) =>
+        [typeof(GetTradePositionQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetTradePositionQuery)!;
-            var msgInfo = ctx.GetMessageInfo(threadId, GetTradePositionQuery.Verb);
-            return query.GetTradePositionAsync(dbFactory, msgInfo!.Value);
+            var result = await query.GetTradePositionAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradePositionQuery.Verb,
+                new ServiceResult<TradePositionReadModel>(result));
         },
-        [typeof(GetTradeQuantityQuery).Name] = (ctx, threadId, dbFactory, q) =>
+        [typeof(GetTradeQuantityQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetTradeQuantityQuery)!;
-            var msgInfo = ctx.GetMessageInfo(threadId, GetTradeQuantityQuery.Verb);
-            return query.GetTradeQuantityAsync(dbFactory, msgInfo!.Value);
+            var result = await query.GetTradeQuantityAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeQuantityQuery.Verb,
+                new ServiceResult<ScalarReadModel<int>>(result));
         },
-        [typeof(GetTradeTypeLimitQuery).Name] = (ctx, threadId, dbFactory, q) =>
+        [typeof(GetTradeTypeLimitQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetTradeTypeLimitQuery)!;
-            var msgInfo = ctx.GetMessageInfo(threadId, GetTradeTypeLimitQuery.Verb);
-            return query.GetTradeTypeLimitAsync(dbFactory, msgInfo!.Value);
+            var result = await query.GetTradeTypeLimitAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeTypeLimitQuery.Verb,
+                new ServiceResult<TradeTypeLimitReadModel>(result));
         }
     };
 

@@ -152,10 +152,9 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     }
 
     [Fact]
-    public void ParseMessage_ThrowsInvalidOperationException_ForGetFuturesAdxDailySignalQuery_VerbNotRegistered()
+    public void ParseMessage_ParsesGetFuturesAdxDailySignalQuery()
     {
-        // Arrange - the production _parseMap only registers GetFuturesAdxSignalQuery.Verb, so the
-        // daily query verb is not resolvable via ParseMessage even though ReceiveAsync supports it.
+        // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
@@ -169,11 +168,14 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var context = Substitute.For<IQueryActorContext>();
 
         // Act
-        Action act = () => actor.InvokeParseMessage(context, natsMsg);
+        var result = actor.InvokeParseMessage(context, natsMsg);
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesAdxSignalQueryActor.ActorName} query from message: {subject}");
+        result.Should().BeOfType<GetFuturesAdxDailySignalQuery>();
+        context.Received(1).SetMessageInfo(
+            query.Subject.ThreadId,
+            GetFuturesAdxDailySignalQuery.Verb,
+            Arg.Any<ActorMessageInfo>());
     }
 
     [Fact]
@@ -356,7 +358,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var state = new DummyQueryState { Id = query.Subject.ThreadId };
         var context = Substitute.For<IQueryActorContext>();
 
-        context.ReplyAsync(query.Subject.ThreadId, GetFuturesAdxSignalQuery.Verb, Arg.Any<ServiceResult<FuturesAdxSignalReadModel?>>())
+        context.ReplyAsync(query.Subject.ThreadId, GetFuturesAdxDailySignalQuery.Verb, Arg.Any<ServiceResult<FuturesAdxSignalReadModel?>>())
             .Returns(ValueTask.CompletedTask);
 
         // Act
@@ -366,7 +368,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         await marketDataDb.Received(1).GetLastFuturesAdxDailySignalAsync(query.ContractId, query.TimePeriod, query.PeriodLength);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
-            GetFuturesAdxSignalQuery.Verb,
+            GetFuturesAdxDailySignalQuery.Verb,
             Arg.Is<ServiceResult<FuturesAdxSignalReadModel?>>(r => r.Success && r.Value == SampleData.FuturesAdxSignal));
     }
 

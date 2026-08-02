@@ -89,45 +89,54 @@ public class FuturesEodDataQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesEodDataByDateRangeQuery).Name] = (ctx, dbf, q) =>
+        [typeof(GetFuturesEodDataByDateRangeQuery).Name] = async (ctx, dbf, q) =>
         {
             var query = (q as GetFuturesEodDataByDateRangeQuery)!;
-            return query.GetFuturesEodDataByDateRangeAsync(ctx, dbf);
+            var result = await query.GetFuturesEodDataByDateRangeAsync(dbf);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataByDateRangeQuery.Verb,
+                new ServiceResult<FuturesEodDataV2ReadModel[]>(result));
         },
-        [typeof(GetFuturesEodDataParametersQuery).Name] = (ctx, dbf, q) =>
+        [typeof(GetFuturesEodDataParametersQuery).Name] = async (ctx, dbf, q) =>
         {
             var query = (q as GetFuturesEodDataParametersQuery)!;
-            return query.GetFuturesEodDataParametersAsync(ctx, dbf);
+            var result = await query.GetFuturesEodDataParametersAsync(dbf);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataParametersQuery.Verb,
+                new ServiceResult<FuturesEodDataParametersReadModel>(result));
         },
-        [typeof(GetFuturesEodDataQuery).Name] = (ctx, dbf, q) =>
+        [typeof(GetFuturesEodDataQuery).Name] = async (ctx, dbf, q) =>
         {
             var query = (q as GetFuturesEodDataQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetFuturesEodDataQuery.Verb);
-            return query.GetFuturesEodDataAsync(ctx, dbf);
+            var result = await query.GetFuturesEodDataAsync(dbf);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataQuery.Verb,
+                new ServiceResult<FuturesEodDataV2ReadModel>(result));
         },
-        [typeof(GetLastFuturesEodDataQuery).Name] = (ctx, dbf, q) =>
+        [typeof(GetLastFuturesEodDataQuery).Name] = async (ctx, dbf, q) =>
         {
             var query = (q as GetLastFuturesEodDataQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetLastFuturesEodDataQuery.Verb);
-            return query.GetLastFuturesEodDataAsync(ctx, dbf);
+            var result = await query.GetLastFuturesEodDataAsync(dbf);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesEodDataQuery.Verb,
+                new ServiceResult<FuturesEodDataV2ReadModel>(result));
         },
-        [typeof(GetFuturesEodDataMovingAveragesQuery).Name] = (ctx, dbf, q) =>
+        [typeof(GetFuturesEodDataMovingAveragesQuery).Name] = async (ctx, dbf, q) =>
         {
             var query = (q as GetFuturesEodDataMovingAveragesQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetFuturesEodDataMovingAveragesQuery.Verb);
-            return query.GetFuturesEodMovingAveragesAsync(ctx, dbf);
+            var result = await query.GetFuturesEodMovingAveragesAsync(dbf);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataMovingAveragesQuery.Verb,
+                new ServiceResult<FuturesEodDataMovingAveragesReadModel>(result));
         },
-        [typeof(GetLastVixFuturesEodDataQuery).Name] = (ctx, dbf, q) =>
+        [typeof(GetLastVixFuturesEodDataQuery).Name] = async (ctx, dbf, q) =>
         {
             var query = (q as GetLastVixFuturesEodDataQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetLastVixFuturesEodDataQuery.Verb);
-            return query.GetLastVixFuturesEodDataAsync(ctx, dbf);
+            var result = await query.GetLastVixFuturesEodDataAsync(dbf);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastVixFuturesEodDataQuery.Verb,
+                new ServiceResult<VixFuturesEodDataReadModel?>(result));
         },
-        [typeof(GetVixFuturesEodDataQuery).Name] = (ctx, dbf, q) =>
+        [typeof(GetVixFuturesEodDataQuery).Name] = async (ctx, dbf, q) =>
         {
             var query = (q as GetVixFuturesEodDataQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetVixFuturesEodDataQuery.Verb);
-            return query.GetVixFuturesEodDataAsync(ctx, dbf);
+            var result = await query.GetVixFuturesEodDataAsync(dbf);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetVixFuturesEodDataQuery.Verb,
+                new ServiceResult<VixFuturesEodDataReadModel[]>(result));
         }
     };
 

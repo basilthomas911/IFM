@@ -14,9 +14,7 @@ public static class GetLookupTypeNames
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask GetLookupTypeNamesAsync(this GetLookupTypeNamesQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var lookupTypeNames = await dbFactory.ReferenceDb.GetLookupTypeNamesAsync();
-        await context.ReplyAsync(q.Subject.ThreadId, GetLookupTypeNamesQuery.Verb, new ServiceResult<string[]>([.. lookupTypeNames]));
-    }
+    public static async ValueTask<string[]> GetLookupTypeNamesAsync(
+        this GetLookupTypeNamesQuery q, IDbContextFactory dbFactory)
+        => [.. await dbFactory.ReferenceDb.GetLookupTypeNamesAsync()];
 }

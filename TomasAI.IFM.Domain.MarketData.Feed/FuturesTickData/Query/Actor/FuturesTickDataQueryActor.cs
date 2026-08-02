@@ -81,15 +81,19 @@ public class FuturesTickDataQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetLastFuturesTickDataQuery).Name] = (ctx, dbf, q) =>
+        [typeof(GetLastFuturesTickDataQuery).Name] = async (ctx, dbf, q) =>
         {
             var query = (q as GetLastFuturesTickDataQuery)!;
-            return query.GetLastFuturesTickDataAsync(ctx, dbf);
+            var result = await query.GetLastFuturesTickDataAsync(dbf);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataQuery.Verb,
+                new ServiceResult<FuturesTickDataV2ReadModel?>(result));
         },
-        [typeof(GetLastFuturesTickDataByTickDateQuery).Name] = (ctx, dbf, q) =>
+        [typeof(GetLastFuturesTickDataByTickDateQuery).Name] = async (ctx, dbf, q) =>
         {
             var query = (q as GetLastFuturesTickDataByTickDateQuery)!;
-            return query.GetLastFuturesTickDataByTickDateAsync(ctx, dbf);
+            var result = await query.GetLastFuturesTickDataByTickDateAsync(dbf);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataByTickDateQuery.Verb,
+                new ServiceResult<FuturesTickDataV2ReadModel?>(result));
         }
     };
 

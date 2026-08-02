@@ -15,10 +15,10 @@ public static class GetValueDate
     /// <param name="q">The query requesting the current value date.</param>
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
-    public static async ValueTask GetValueDateAsync(this GetValueDateQuery q, IQueryActorContext context)
+    public static ValueTask<ScalarReadModel<DateOnly>> GetValueDateAsync(this GetValueDateQuery q)
     {
         var today = DateTime.Now;
-        var valueDate = default(ScalarReadModel<DateOnly>);
+        var valueDate = new ScalarReadModel<DateOnly>(DateOnly.FromDateTime(today));
         switch (today.DayOfWeek)
         {
             case DayOfWeek.Sunday:
@@ -39,6 +39,6 @@ public static class GetValueDate
                     valueDate = new ScalarReadModel<DateOnly>(new DateOnly(today.Year, today.Month, today.Day));
                 break;
         }
-        await context.ReplyAsync(q.Subject.ThreadId, GetValueDateQuery.Verb, new ServiceResult<ScalarReadModel<DateOnly>>(valueDate!));
+        return ValueTask.FromResult(valueDate!);
     }
 }

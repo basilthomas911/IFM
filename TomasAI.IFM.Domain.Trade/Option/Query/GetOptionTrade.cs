@@ -15,9 +15,7 @@ internal static class GetOptionTrade
     /// <param name="context">The query actor context used to send the reply containing the result.</param>
     /// <param name="dbFactory">The database context factory used to access option trade data.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    internal static async ValueTask GetOptionTradeAsync(this GetOptionTradeQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var result = await dbFactory.TradeDb.GetOptionTradeAsync(q.OrderId, q.TradeId);
-        await context.ReplyAsync(q.Subject.ThreadId, GetOptionTradeQuery.Verb, new ServiceResult<OptionTradeReadModel?>(result));
-    }
+    internal static async ValueTask<OptionTradeReadModel?> GetOptionTradeAsync(
+        this GetOptionTradeQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.TradeDb.GetOptionTradeAsync(q.OrderId, q.TradeId);
 }

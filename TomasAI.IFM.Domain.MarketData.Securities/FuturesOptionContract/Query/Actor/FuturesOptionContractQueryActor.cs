@@ -98,17 +98,23 @@ public class FuturesOptionContractQueryActor(
         [typeof(GetFuturesOptionContractQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetFuturesOptionContractQuery)!;
-            await query.GetFuturesOptionContractAsync(ctx, dbFactory);
+            var result = await query.GetFuturesOptionContractAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
+                new ServiceResult<FuturesOptionContractReadModel?>(result));
         },
         [typeof(GetFuturesOptionContractsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetFuturesOptionContractsQuery)!;
-            await query.GetFuturesOptionContractsAsync(ctx, dbFactory);
+            var result = await query.GetFuturesOptionContractsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractsQuery.Verb,
+                new ServiceResult<FuturesOptionContractReadModel[]>(result));
         },
         [typeof(GetFuturesOptionContractIdsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetFuturesOptionContractIdsQuery)!;
-            await query.GetFuturesOptionContractIdsAsync(ctx, dbFactory);
+            var result = await query.GetFuturesOptionContractIdsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractIdsQuery.Verb,
+                new ServiceResult<string[]>(result));
         }
     };
 

@@ -15,9 +15,7 @@ public static class GetTradingDates
     /// <param name="context">The query actor context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
 
-	public static async ValueTask GetTradingDatesAsync(this GetTradingDatesQuery q, IDbContextFactory dbFactory, IQueryActorContext context)
-    {
-        var tradingDates = await dbFactory.MarketDataDb.GetTradingDatesAsync(q.StartDate, q.EndDate, q.MarketType, q.CurrencyType);
-        await context.ReplyAsync(q.Subject.ThreadId, GetTradingDatesQuery.Verb, new ServiceResult<DateOnly[]>(tradingDates));
-    }
+	public static async ValueTask<DateOnly[]> GetTradingDatesAsync(
+        this GetTradingDatesQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.MarketDataDb.GetTradingDatesAsync(q.StartDate, q.EndDate, q.MarketType, q.CurrencyType);
 }

@@ -9,10 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query;
 
 public static class GetFuturesEodDataMovingAverages
 {
-    internal static async ValueTask GetFuturesEodMovingAveragesAsync(
-       this GetFuturesEodDataMovingAveragesQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var result = await dbFactory.GetFuturesEodMovingAveragesAsync(q.ContractId, q.Symbol, q.ValueDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataQuery.Verb, new ServiceResult<FuturesEodDataMovingAveragesReadModel>(result));
-    }
+    internal static async ValueTask<FuturesEodDataMovingAveragesReadModel> GetFuturesEodMovingAveragesAsync(
+       this GetFuturesEodDataMovingAveragesQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.GetFuturesEodMovingAveragesAsync(q.ContractId, q.Symbol, q.ValueDate);
 }

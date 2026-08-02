@@ -10,8 +10,8 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 public static class GetFuturesOptionSpreadData
 {
-    internal static async ValueTask GetFuturesOptionSpreadDataAsync(
-        this GetFuturesOptionSpreadDataQuery q, IQueryActorContext context, IMarketDataSnapshotApi marketDataSnapshotApi)
+    internal static async ValueTask<FuturesOptionSpreadDataReadModel> GetFuturesOptionSpreadDataAsync(
+        this GetFuturesOptionSpreadDataQuery q, IMarketDataSnapshotApi marketDataSnapshotApi)
     {
         var shortRequestId = 0;
         var longRequestId = 0;
@@ -66,6 +66,6 @@ public static class GetFuturesOptionSpreadData
             marketDataSnapshotApi.StreamIds.Remove(longRequestId);
             marketDataSnapshotApi.Stop();
         }
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionSpreadDataQuery.Verb, new ServiceResult<FuturesOptionSpreadDataReadModel>(spreadData));
+        return spreadData;
     }
 }

@@ -168,8 +168,8 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         await context.Received(1).ReplyAsync(
             Arg.Is<ActorThreadId>(id => id == query.Subject.ThreadId),
             Arg.Is<string>(v => v == GetFundTransactionsQuery.Verb),
-            Arg.Is<ServiceResult<ICollection<FundTransactionReadModel>>>(r =>
-                r.Success && r.Value.Count == 1 && r.Value.First().TransactionId == SampleData.FundTransaction.TransactionId));
+            Arg.Is<ServiceResult<FundTransactionReadModel[]>>(r =>
+                r.Success && r.Value.Length == 1 && r.Value[0].TransactionId == SampleData.FundTransaction.TransactionId));
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         await context.Received(1).ReplyAsync(
             Arg.Is<ActorThreadId>(id => id == query.Subject.ThreadId),
             Arg.Is<string>(v => v == GetFundTransactionsQuery.Verb),
-            Arg.Is<ServiceResult<ICollection<FundTransactionReadModel>>>(r => r.Success && r.Value.Count == 0));
+            Arg.Is<ServiceResult<FundTransactionReadModel[]>>(r => r.Success && r.Value.Length == 0));
     }
 
     [Fact]

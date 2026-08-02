@@ -87,35 +87,47 @@ public class OptionTradeQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetOptionTradeQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetOptionTradeQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetOptionTradeQuery)!;
-            return query.GetOptionTradeAsync(ctx, dbFactory);
+            var result = await query.GetOptionTradeAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionTradeQuery.Verb,
+                new ServiceResult<OptionTradeReadModel?>(result));
         },
-        [typeof(GetOptionTradesQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetOptionTradesQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetOptionTradesQuery)!;
-            return query.GetOptionTradesAsync(ctx, dbFactory);
+            var result = await query.GetOptionTradesAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionTradesQuery.Verb,
+                new ServiceResult<OptionTradeReadModel[]>(result));
         },
-        [typeof(GetOptionTradeSpreadDataQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetOptionTradeSpreadDataQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetOptionTradeSpreadDataQuery)!;
-            return query.GetOptionTradeSpreadDataAsync(ctx, dbFactory);
+            var result = await query.GetOptionTradeSpreadDataAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionTradeSpreadDataQuery.Verb,
+                new ServiceResult<OptionTradeSpreadsDataModel>(result));
         },
-        [typeof(GetOptionTradeSpreadBarDataQuery).Name] = (ctx,  dbFactory, q) =>
+        [typeof(GetOptionTradeSpreadBarDataQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetOptionTradeSpreadBarDataQuery)!;
-            return query.GetOptionTradeSpreadBarDataAsync(ctx, dbFactory);
+            var result = await query.GetOptionTradeSpreadBarDataAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionTradeSpreadBarDataQuery.Verb,
+                new ServiceResult<OptionTradeSpreadBarsDataModel[]>(result));
         },
-        [typeof(GetOptionLegContractIdsQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetOptionLegContractIdsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetOptionLegContractIdsQuery)!;
-            return query.GetOptionLegContractIdsAsync(ctx, dbFactory);
+            var result = await query.GetOptionLegContractIdsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionLegContractIdsQuery.Verb,
+                new ServiceResult<string[]>(result));
         },
-        [typeof(GetIronCondorTradePriceQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetIronCondorTradePriceQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetIronCondorTradePriceQuery)!;
-            return query.GetIronCondorTradePriceAsync(ctx, dbFactory);
+            var result = await query.GetIronCondorTradePriceAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetIronCondorTradePriceQuery.Verb,
+                new ServiceResult<TradePriceReadModel?>(result));
         }
     };
 

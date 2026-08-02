@@ -101,22 +101,30 @@ public class FuturesContractQueryActor(
         [typeof(GetCurrentlyTradedFuturesContractQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetCurrentlyTradedFuturesContractQuery)!;
-            await query.GetCurrentlyTradedFuturesContractAsync(ctx, dbFactory);
+            var result = await query.GetCurrentlyTradedFuturesContractAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetCurrentlyTradedFuturesContractQuery.Verb,
+                new ServiceResult<FuturesContractV2ReadModel?>(result));
         },
         [typeof(GetCurrentlyTradedFuturesContractsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetCurrentlyTradedFuturesContractsQuery)!;
-            await query.GetCurrentlyTradedFuturesContractsAsync(ctx, dbFactory);
+            var result = await query.GetCurrentlyTradedFuturesContractsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetCurrentlyTradedFuturesContractsQuery.Verb,
+                new ServiceResult<FuturesContractV2ReadModel[]>(result));
         },
         [typeof(GetFuturesContractQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetFuturesContractQuery)!;
-           await query.GetFuturesContractAsync(ctx, dbFactory);
+            var result = await query.GetFuturesContractAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesContractQuery.Verb,
+                new ServiceResult<FuturesContractV2ReadModel?>(result));
         },
         [typeof(GetFuturesContractsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetFuturesContractsQuery)!;
-            await query.GetFuturesContractsAsync(ctx, dbFactory);
+            var result = await query.GetFuturesContractsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesContractsQuery.Verb,
+                new ServiceResult<FuturesContractV2ReadModel[]>(result));
         }
     };
 

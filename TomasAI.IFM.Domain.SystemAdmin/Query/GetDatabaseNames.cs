@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.Queries;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ViewModels;
+using TomasAI.IFM.Domain.SystemAdmin.Command.State;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.Query;
 
@@ -17,22 +18,6 @@ public static class GetDatabaseNames
     /// <param name="query">The query to handle.</param>
     /// <param name="context">The query actor context.</param>
     /// <returns>A value task that completes after the reply has been posted.</returns>
-    public static async ValueTask GetDatabaseNamesAsync(this GetDatabaseNamesQuery query, IQueryActorContext context)
-    {
-        var result = new DatabaseNamesReadModel
-        {
-            Names =
-            [
-                DatabaseBackupNames.EventDb,
-                DatabaseBackupNames.FundDb,
-                DatabaseBackupNames.LogDb,
-                DatabaseBackupNames.MarketDataDb,
-                DatabaseBackupNames.OptionPricerDb,
-                DatabaseBackupNames.ReferenceDb,
-                DatabaseBackupNames.TradeDb
-            ]
-        };
-
-        await context.ReplyAsync(query.Subject.ThreadId, GetDatabaseNamesQuery.Verb, new ServiceResult<DatabaseNamesReadModel>(result));
-    }
+    public static ValueTask<DatabaseNamesReadModel> GetDatabaseNamesAsync(this GetDatabaseNamesQuery query)
+        => ValueTask.FromResult(SystemAdminQueryState.GetDatabaseNames());
 }

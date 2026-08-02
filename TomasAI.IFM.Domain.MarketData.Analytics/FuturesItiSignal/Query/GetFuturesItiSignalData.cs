@@ -4,8 +4,6 @@ using System.Text;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
@@ -21,14 +19,13 @@ public static class GetFuturesItiSignalData
     /// <param name="dbFactory">The factory for creating database contexts.</param>
     /// <param name="context">The query actor context for replying to the query.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    internal static async ValueTask GetFuturesItiSignalDataAsync(
-        this GetFuturesItiSignalDataQuery q, IDbContextFactory dbFactory, IQueryActorContext context)
+    internal static async ValueTask<FuturesItiSignalDataReadModel> GetFuturesItiSignalDataAsync(
+        this GetFuturesItiSignalDataQuery q, IDbContextFactory dbFactory)
     {
         var db = dbFactory.MarketDataDb;
-        var result = new FuturesItiSignalDataReadModel(
+        return new FuturesItiSignalDataReadModel(
             trendDirectionChange: await db.GetLastFuturesItiSignalTrendDirectionChangeAsync(q.ContractId, q.ValueDate),
             trendExtremeChange: await db.GetLastFuturesItiSignalTrendExtremeChangeAsync(q.ContractId, q.ValueDate),
             trendReversalChange: await db.GetLastFuturesItiSignalTrendReversalChangeAsync(q.ContractId, q.ValueDate));
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalDataQuery.Verb, new ServiceResult<FuturesItiSignalDataReadModel?>(result));
     }
 }

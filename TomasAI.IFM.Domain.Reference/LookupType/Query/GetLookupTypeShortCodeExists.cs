@@ -15,10 +15,11 @@ public static class GetLookupTypeShortCodeExists
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask GetLookupTypeShortCodeExistsAsync(this GetLookupTypeShortCodeExistsQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
+    public static async ValueTask<ScalarReadModel<bool>> GetLookupTypeShortCodeExistsAsync(
+        this GetLookupTypeShortCodeExistsQuery q, IDbContextFactory dbFactory)
     {
         var shortCodes = await dbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(q.LookupTypeName);
-        var result =  new ScalarReadModel<bool>(shortCodes.Any(e => e.ShortCode.Equals(q.ShortCode, StringComparison.OrdinalIgnoreCase)));
-        await context.ReplyAsync(q.Subject.ThreadId, GetLookupTypesQuery.Verb, new ServiceResult<ScalarReadModel<bool>>(result));
+        return new ScalarReadModel<bool>(shortCodes.Any(
+            e => e.ShortCode.Equals(q.ShortCode, StringComparison.OrdinalIgnoreCase)));
     }
 }

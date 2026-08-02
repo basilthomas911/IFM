@@ -11,10 +11,7 @@ public static class GetFuturesOptionContracts
     /// <summary>
     /// Handles a request to retrieve all futures option contracts by symbol.
     /// </summary>
-    public static async ValueTask GetFuturesOptionContractsAsync(
-        this GetFuturesOptionContractsQuery q,IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var futuresOptionContracts = await dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(q.Symbol);
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractsQuery.Verb, new ServiceResult<FuturesOptionContractReadModel[]>([.. futuresOptionContracts]));
-    }
+    public static async ValueTask<FuturesOptionContractReadModel[]> GetFuturesOptionContractsAsync(
+        this GetFuturesOptionContractsQuery q, IDbContextFactory dbFactory)
+        => [.. await dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(q.Symbol)];
 }

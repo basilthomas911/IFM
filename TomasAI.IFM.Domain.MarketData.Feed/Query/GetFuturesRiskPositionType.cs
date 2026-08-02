@@ -16,9 +16,8 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 public static class GetFuturesRiskPositionType
 {
-    internal static async ValueTask GetFuturesRiskPositionTypeAsync(
+    internal static async ValueTask<RiskPositionTypeReadModel> GetFuturesRiskPositionTypeAsync(
         this GetFuturesRiskPositionTypeQuery q,
-        IQueryActorContext context,
         IDbContextFactory dbFactory)
     {
         var riskPositionType = RiskPositionType.Unknown;
@@ -41,7 +40,7 @@ public static class GetFuturesRiskPositionType
             };
         }
 
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesRiskPositionTypeQuery.Verb, new ServiceResult<RiskPositionTypeReadModel>(new RiskPositionTypeReadModel(riskPositionType)));
+        return new RiskPositionTypeReadModel(riskPositionType);
 
         static int GetShortIronCondorRiskPosition(FuturesEodDataV2ReadModel futuresEodData)
         {

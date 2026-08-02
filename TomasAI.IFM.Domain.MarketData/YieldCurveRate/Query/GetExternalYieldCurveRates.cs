@@ -13,11 +13,9 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query;
 
 public static class GetExternalYieldCurveRates
 {
-    public static async ValueTask GetExternalYieldCurveRatesAsync(this GetExternalYieldCurveRatesQuery q,IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var externalRates = await dbFactory.GetExternalYieldCurveRatesAsync();
-        await context.ReplyAsync(q.Subject.ThreadId, GetExternalYieldCurveRatesQuery.Verb, new ServiceResult<YieldCurveRateReadModel[]>(externalRates));
-    }
+    public static async ValueTask<YieldCurveRateReadModel[]> GetExternalYieldCurveRatesAsync(
+        this GetExternalYieldCurveRatesQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.GetExternalYieldCurveRatesAsync();
 
     static async ValueTask<YieldCurveRateReadModel[]> GetExternalYieldCurveRatesAsync(this IDbContextFactory dbFactory)
     {

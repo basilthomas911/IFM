@@ -100,27 +100,37 @@ public class YieldCurveRateQueryActor(
         [typeof(GetLastYieldCurveRateQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = q as GetLastYieldCurveRateQuery;
-            await query.GetLastYieldCurveRateAsync(ctx, dbFactory);
+            var result = await query.GetLastYieldCurveRateAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastYieldCurveRateQuery.Verb,
+                new ServiceResult<YieldCurveRateReadModel?>(result));
         },
         [typeof(GetYieldCurveRatesQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = q as GetYieldCurveRatesQuery;
-            await query.GetYieldCurveRatesAsync(ctx, dbFactory);
+            var result = await query.GetYieldCurveRatesAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetYieldCurveRatesQuery.Verb,
+                new ServiceResult<YieldCurveRateReadModel[]>(result));
         },
         [typeof(GetYieldCurveRateExistsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = q as GetYieldCurveRateExistsQuery;
-            await query.GetYieldCurveRateExistsAsync(ctx, dbFactory);
+            var result = await query.GetYieldCurveRateExistsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetYieldCurveRateExistsQuery.Verb,
+                new ServiceResult<ScalarReadModel<bool>>(result));
         },
         [typeof(GetYieldCurveRateYearsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = q as GetYieldCurveRateYearsQuery;
-            await query.GetYieldCurveRateYearsAsync(ctx, dbFactory);
+            var result = await query.GetYieldCurveRateYearsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetYieldCurveRateYearsQuery.Verb,
+                new ServiceResult<YieldCurveRateYearsReadModel>(result));
         },
         [typeof(GetExternalYieldCurveRatesQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = q as GetExternalYieldCurveRatesQuery;
-            await query.GetExternalYieldCurveRatesAsync(ctx, dbFactory);
+            var result = await query.GetExternalYieldCurveRatesAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetExternalYieldCurveRatesQuery.Verb,
+                new ServiceResult<YieldCurveRateReadModel[]>(result));
         }
     };
 

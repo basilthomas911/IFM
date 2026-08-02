@@ -8,9 +8,7 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query;
 
 public static class GetYieldCurveRates
 {
-    public static async ValueTask GetYieldCurveRatesAsync(this GetYieldCurveRatesQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var yieldCurveRates = await dbFactory.MarketDataDb.GetYieldCurveRatesAsync(q.StartDate, q.EndDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetYieldCurveRatesQuery.Verb, new ServiceResult<YieldCurveRateReadModel[]>([.. yieldCurveRates]));
-    }
+    public static async ValueTask<YieldCurveRateReadModel[]> GetYieldCurveRatesAsync(
+        this GetYieldCurveRatesQuery q, IDbContextFactory dbFactory)
+        => [.. await dbFactory.MarketDataDb.GetYieldCurveRatesAsync(q.StartDate, q.EndDate)];
 }

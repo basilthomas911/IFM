@@ -82,7 +82,9 @@ public class FuturesTdiSignalQueryActor(
         [typeof(GetFuturesTdiSignalQuery).Name] = async (ctx, db, q) =>
         {
             var query = (q as GetFuturesTdiSignalQuery)!;
-            await query.GetFuturesTdiSignalAsync(db, ctx);
+            var result = await query.GetFuturesTdiSignalAsync(db);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTdiSignalQuery.Verb,
+                new ServiceResult<FuturesTdiSignalReadModel?>(result));
         }
     };
 

@@ -391,7 +391,7 @@ public class FuturesAtrSignalQueryTests
 
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
-    public async Task GivenADailyAtrQueryFailure_WhenTheActorHandlesIt_ThenAGenericFailureIsReturned(
+    public async Task GivenADailyAtrQueryFailure_WhenTheActorHandlesIt_ThenATypedFailureIsReturned(
         TimeFrameType timePeriod)
     {
         var (actor, _, context) = CreateScenario();
@@ -408,9 +408,9 @@ public class FuturesAtrSignalQueryTests
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesAtrDailySignalQuery.Verb,
-            Arg.Is<ServiceFailed<ActorEntityId>>(result =>
+            Arg.Is<ServiceResult<FuturesAtrSignalReadModel?>>(result =>
                 !result.Success
-                && result.ErrorCode == 9999
+                && result.ErrorCode == query.ErrorCode
                 && result.ErrorMessage == exception.Message));
     }
 

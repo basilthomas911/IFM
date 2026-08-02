@@ -16,10 +16,10 @@ internal static class GetFundTransactions
     /// <param name="dbFactory">The database context factory.</param>
     /// <param name="context">The query actor context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    internal static async ValueTask GetFundTransactionsAsync(this GetFundTransactionsQuery q, IDbContextFactory dbFactory, IQueryActorContext context)
+    internal static async ValueTask<FundTransactionReadModel[]> GetFundTransactionsAsync(
+        this GetFundTransactionsQuery q, IDbContextFactory dbFactory)
     {
         var db = dbFactory.FundDb;
-        var result = await db.GetFundTransactionsAsync(q.FundId, q.StartDate, q.EndDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetFundTransactionsQuery.Verb, new ServiceResult<ICollection<FundTransactionReadModel>>(result));
+        return [.. await db.GetFundTransactionsAsync(q.FundId, q.StartDate, q.EndDate)];
     }
 }

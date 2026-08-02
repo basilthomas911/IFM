@@ -63,11 +63,11 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
             (new GetFundIdFromOrderIdQuery(123), typeof(ScalarReadModel<int>)),
             (new GetFundOrdersQuery(), typeof(FundOrderReadModel[])),
             (new GetFundOrderTradesQuery(), typeof(FundOrderTradeReadModel[])),
-            (new GetFundPnlReportQuery(SampleData.Fund.FundId, now.AddDays(-7), now), typeof(FundPnlReportReadModel[])),
+            (new GetFundPnlReportQuery(SampleData.Fund.FundId, now.AddDays(-7), now), typeof(FundPnlReportReadModel)),
             (new GetFundsQuery(), typeof(FundReadModel[])),
             (new GetFundWinLossRatioQuery(SampleData.Fund.FundId, now.AddDays(-7), now), typeof(FundWinLossRatioReadModel)),
             (new GetOpeningFundBalanceQuery(SampleData.Fund.FundId, now), typeof(FundBalanceReadModel)),
-            (new GetFundMaxProfitGeneratedQuery(SampleData.Fund.FundId, now), typeof(ActorEntityId))
+            (new GetFundMaxProfitGeneratedQuery(SampleData.Fund.FundId, now), typeof(FundMaxProfitGeneratedReadModel))
         };
 
         foreach (var (query, resultType) in cases)
@@ -109,9 +109,9 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
                 {
                     await context.Received(1).ReplyAsync(Arg.Is<ActorThreadId>(id => id == threadId), Arg.Is<string>(v => v == verb), Arg.Is<ServiceResult<FundOrderTradeReadModel[]>>(r => !r.Success && r.ErrorCode == expectedErrorCode && r.ErrorMessage == ex.Message));
                 }
-                else if (resultType == typeof(FundPnlReportReadModel[]))
+                else if (resultType == typeof(FundPnlReportReadModel))
                 {
-                    await context.Received(1).ReplyAsync(Arg.Is<ActorThreadId>(id => id == threadId), Arg.Is<string>(v => v == verb), Arg.Is<ServiceResult<FundPnlReportReadModel[]>>(r => !r.Success && r.ErrorCode == expectedErrorCode && r.ErrorMessage == ex.Message));
+                    await context.Received(1).ReplyAsync(Arg.Is<ActorThreadId>(id => id == threadId), Arg.Is<string>(v => v == verb), Arg.Is<ServiceResult<FundPnlReportReadModel>>(r => !r.Success && r.ErrorCode == expectedErrorCode && r.ErrorMessage == ex.Message));
                 }
                 else if (resultType == typeof(FundReadModel[]))
                 {
@@ -120,6 +120,10 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
                 else if (resultType == typeof(FundWinLossRatioReadModel))
                 {
                     await context.Received(1).ReplyAsync<FundWinLossRatioReadModel>(Arg.Is<ActorThreadId>(id => id == threadId), Arg.Is<string>(v => v == verb), Arg.Is<ServiceResult<FundWinLossRatioReadModel>>(r => !r.Success && r.ErrorCode == expectedErrorCode && r.ErrorMessage == ex.Message));
+                }
+                else if (resultType == typeof(FundMaxProfitGeneratedReadModel))
+                {
+                    await context.Received(1).ReplyAsync(Arg.Is<ActorThreadId>(id => id == threadId), Arg.Is<string>(v => v == verb), Arg.Is<ServiceResult<FundMaxProfitGeneratedReadModel>>(r => !r.Success && r.ErrorCode == expectedErrorCode && r.ErrorMessage == ex.Message));
                 }
                 else
                 {

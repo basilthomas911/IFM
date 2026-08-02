@@ -85,25 +85,33 @@ public class MarketDataQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetLastRateOfReturnQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetLastRateOfReturnQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetLastRateOfReturnQuery)!;
-            return query.GetLastRateOfReturnAsync(dbFactory,ctx);
+            var result = await query.GetLastRateOfReturnAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastRateOfReturnQuery.Verb,
+                new ServiceResult<RateOfReturnReadModel>(result));
         },
-        [typeof(GetTradingDaysQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetTradingDaysQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetTradingDaysQuery)!;
-            return query.GetTradingDaysAsync(dbFactory, ctx);
+            var result = await query.GetTradingDaysAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradingDaysQuery.Verb,
+                new ServiceResult<ScalarReadModel<int>>(result));
         },
-        [typeof(GetTradingDatesQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetTradingDatesQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetTradingDatesQuery)!;
-            return query.GetTradingDatesAsync(dbFactory, ctx);
+            var result = await query.GetTradingDatesAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradingDatesQuery.Verb,
+                new ServiceResult<DateOnly[]>(result));
         },
-        [typeof(GetValueDateQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetValueDateQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetValueDateQuery)!;
-            return query.GetValueDateAsync(ctx);
+            var result = await query.GetValueDateAsync();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetValueDateQuery.Verb,
+                new ServiceResult<ScalarReadModel<DateOnly>>(result));
         }
     };
 

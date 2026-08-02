@@ -209,7 +209,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
 
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
-            GetFuturesEodDataQuery.Verb,
+            GetFuturesEodDataMovingAveragesQuery.Verb,
             Arg.Is<ServiceResult<FuturesEodDataMovingAveragesReadModel>>(result =>
                 result.Success && result.Value != null &&
                 result.Value.FiftyDMA == 0 && result.Value.TwoHundredDMA == 0));
@@ -369,9 +369,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     static async Task VerifySuccessfulReply(
         IQueryActorContext context, IQuery query, string requestedVerb)
     {
-        var replyVerb = query is GetFuturesEodDataByDateRangeQuery or GetVixFuturesEodDataQuery
-            ? requestedVerb
-            : GetFuturesEodDataQuery.Verb;
+        var replyVerb = requestedVerb;
         switch (query)
         {
             case GetFuturesEodDataByDateRangeQuery:

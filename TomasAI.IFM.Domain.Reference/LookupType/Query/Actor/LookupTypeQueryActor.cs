@@ -95,27 +95,37 @@ public class LookupTypeQueryActor(
         [typeof(GetLookupTypesQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypesQuery);
-            await query.GetLookupTypesAsync(ctx, dbFactory);
+            var result = await query.GetLookupTypesAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypesQuery.Verb,
+                new ServiceResult<LookupTypeCollection>(result));
         },
         [typeof(GetLookupTypeNamesQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeNamesQuery);
-            await query.GetLookupTypeNamesAsync(ctx, dbFactory);
+            var result = await query.GetLookupTypeNamesAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeNamesQuery.Verb,
+                new ServiceResult<string[]>(result));
         },
         [typeof(GetLookupTypeQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeQuery);
-            await query.GetLookupTypeAsync(ctx, dbFactory);
+            var result = await query.GetLookupTypeAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeQuery.Verb,
+                new ServiceResult<LookupTypeCollection>(result));
         },
         [typeof(GetLookupTypeShortCodesQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeShortCodesQuery);
-            await query.GetLookupTypeShortCodesAsync(ctx, dbFactory);
+            var result = await query.GetLookupTypeShortCodesAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeShortCodesQuery.Verb,
+                new ServiceResult<LookupTypeShortCodeReadModel[]>(result));
         },
         [typeof(GetLookupTypeShortCodeExistsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeShortCodeExistsQuery);
-            await query.GetLookupTypeShortCodeExistsAsync(ctx, dbFactory);
+            var result = await query.GetLookupTypeShortCodeExistsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeShortCodeExistsQuery.Verb,
+                new ServiceResult<ScalarReadModel<bool>>(result));
         }
     };
 

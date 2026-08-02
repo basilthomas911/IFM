@@ -1,6 +1,4 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -12,10 +10,7 @@ public static class GetFuturesItiSignal
     /// Handles <see cref="GetFuturesItiSignalQuery"/> by retrieving the latest ITI signal snapshot for the
     /// requested contract and value date, then replying to the caller.
     /// </summary>
-    internal static async ValueTask GetLastFuturesItiSignalAsync(
-        this GetFuturesItiSignalQuery q, IDbContextFactory dbFactory, IQueryActorContext context)
-    {
-        var result = await dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(q.ContractId, q.ValueDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalQuery.Verb, new ServiceResult<FuturesItiSignalV2ReadModel?>(result));
-    }
+    internal static async ValueTask<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(
+        this GetFuturesItiSignalQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(q.ContractId, q.ValueDate);
 }

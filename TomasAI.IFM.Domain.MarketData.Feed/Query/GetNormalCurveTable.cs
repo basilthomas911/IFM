@@ -8,10 +8,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 public static class GetNormalCurveTable
 {
-    internal static async ValueTask GetNormalCurveTableAsync(
-        this GetNormalCurveTableQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var result = await dbFactory.MarketDataDb.GetNormalCurveTableAsync();
-        await context.ReplyAsync(q.Subject.ThreadId, GetNormalCurveTableQuery.Verb, new ServiceResult<NormalCurveTableReadModel>(result));
-    }
+    internal static async ValueTask<NormalCurveTableReadModel> GetNormalCurveTableAsync(
+        this GetNormalCurveTableQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.MarketDataDb.GetNormalCurveTableAsync();
 }

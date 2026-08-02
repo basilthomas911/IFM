@@ -24,11 +24,9 @@ internal static class TradeQueryHandlers
     /// <param name="dbFactory">The database context factory used to access trade data.</param>
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
-    internal static async ValueTask GetTradeHistoryAsync(this GetTradeHistoryQuery q, IDbContextFactory dbFactory, ActorMessageInfo msgInfo)
-    {
-        var result = await dbFactory.GetTradeHistoryAsync(q.OrderId);
-        await msgInfo.ActorMessage.NatsReplyAsync(new ServiceResult<TradeHistoryReadModel[]>([.. result]));
-    }
+    internal static async ValueTask<TradeHistoryReadModel[]> GetTradeHistoryAsync(
+        this GetTradeHistoryQuery q, IDbContextFactory dbFactory)
+        => [.. await dbFactory.GetTradeHistoryAsync(q.OrderId)];
 
     /// <summary>
     /// Handles a <see cref="GetTradeLimitQuery"/> by retrieving the trade limit for the specified trade,
@@ -38,11 +36,9 @@ internal static class TradeQueryHandlers
     /// <param name="dbFactory">The database context factory used to access trade data.</param>
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
-    internal static async ValueTask GetTradeLimitAsync(this GetTradeLimitQuery q, IDbContextFactory dbFactory, ActorMessageInfo msgInfo)
-    {
-        var result = await dbFactory.GetTradeLimitAsync(q.TradeId);
-        await msgInfo.ActorMessage.NatsReplyAsync(new ServiceResult<TradeLimitReadModel>(result));
-    }
+    internal static async ValueTask<TradeLimitReadModel> GetTradeLimitAsync(
+        this GetTradeLimitQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.GetTradeLimitAsync(q.TradeId);
 
     /// <summary>
     /// Handles a <see cref="GetTradePositionQuery"/> by retrieving the trade position for the specified
@@ -53,11 +49,10 @@ internal static class TradeQueryHandlers
     /// <param name="dbFactory">The database context factory used to access trade data.</param>
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
-    internal static async ValueTask GetTradePositionAsync(this GetTradePositionQuery q, IDbContextFactory dbFactory, ActorMessageInfo msgInfo)
-    {
-        var result = await dbFactory.GetTradePositionAsync(q.OrderId, q.TradeId, q.TradeType, q.ValueDate, q.DaysToExpiry, q.TradeStatus);
-        await msgInfo.ActorMessage.NatsReplyAsync(new ServiceResult<TradePositionReadModel>(result));
-    }
+    internal static async ValueTask<TradePositionReadModel> GetTradePositionAsync(
+        this GetTradePositionQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.GetTradePositionAsync(
+            q.OrderId, q.TradeId, q.TradeType, q.ValueDate, q.DaysToExpiry, q.TradeStatus);
 
     /// <summary>
     /// Handles a <see cref="GetTradeQuantityQuery"/> by retrieving the quantity for the specified trade,
@@ -67,11 +62,9 @@ internal static class TradeQueryHandlers
     /// <param name="dbFactory">The database context factory used to access trade data.</param>
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
-    internal static async ValueTask GetTradeQuantityAsync(this GetTradeQuantityQuery q, IDbContextFactory dbFactory, ActorMessageInfo msgInfo)
-    {
-        var result = await dbFactory.GetTradeQuantityAsync(q.TradeId);
-        await msgInfo.ActorMessage.NatsReplyAsync(new ServiceResult<ScalarReadModel<int>>(result));
-    }
+    internal static async ValueTask<ScalarReadModel<int>> GetTradeQuantityAsync(
+        this GetTradeQuantityQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.GetTradeQuantityAsync(q.TradeId);
 
     /// <summary>
     /// Handles a <see cref="GetTradeTypeLimitQuery"/> by retrieving the trade type limit for the specified
@@ -81,9 +74,7 @@ internal static class TradeQueryHandlers
     /// <param name="dbFactory">The database context factory used to access trade data.</param>
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
-    internal static async ValueTask GetTradeTypeLimitAsync(this GetTradeTypeLimitQuery q, IDbContextFactory dbFactory, ActorMessageInfo msgInfo)
-    {
-        var result = await dbFactory.GetTradeTypeLimitAsync(q.TradeId, q.TradeType);
-        await msgInfo.ActorMessage.NatsReplyAsync(new ServiceResult<TradeTypeLimitReadModel>(result ?? new()));
-    }
+    internal static async ValueTask<TradeTypeLimitReadModel> GetTradeTypeLimitAsync(
+        this GetTradeTypeLimitQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.GetTradeTypeLimitAsync(q.TradeId, q.TradeType) ?? new();
 }

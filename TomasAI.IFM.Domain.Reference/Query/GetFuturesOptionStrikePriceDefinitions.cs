@@ -17,10 +17,10 @@ public static class GetFuturesOptionStrikePriceDefinitions
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask GetFuturesOptionStrikePriceDefinitionsAsync(this GetFuturesOptionStrikePriceDefinitionsQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
+    public static async ValueTask<FuturesOptionStrikePriceReadModel> GetFuturesOptionStrikePriceDefinitionsAsync(
+        this GetFuturesOptionStrikePriceDefinitionsQuery q, IDbContextFactory dbFactory)
     {
-        var result = await GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory.ReferenceDb);
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionStrikePriceDefinitionsQuery.Verb, new ServiceResult<FuturesOptionStrikePriceReadModel>(result));
+        return await GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory.ReferenceDb);
 
         static async ValueTask<FuturesOptionStrikePriceReadModel> GetFuturesOptionStrikePriceDefinitionsAsync( IReferenceDbContext db)
            => new()

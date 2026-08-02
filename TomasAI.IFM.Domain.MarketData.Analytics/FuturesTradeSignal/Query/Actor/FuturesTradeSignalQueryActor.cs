@@ -87,17 +87,23 @@ public class FuturesTradeSignalQueryActor(
         [typeof(GetFuturesTradeSignalQuery).Name] = async (ctx, db, q) =>
         {
             var query = (q as GetFuturesTradeSignalQuery)!;
-            await query.GetFuturesTradeSignalAsync(db, ctx);
+            var result = await query.GetFuturesTradeSignalAsync(db);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalQuery.Verb,
+                new ServiceResult<FuturesTradeSignalV2ReadModel?>(result));
         },
         [typeof(GetLastFuturesTradeSignalQuery).Name] = async (ctx, db, q) =>
         {
             var query = (q as GetLastFuturesTradeSignalQuery)!;
-            await query.GetLastFuturesTradeSignalAsync(db, ctx);
+            var result = await query.GetLastFuturesTradeSignalAsync(db);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTradeSignalQuery.Verb,
+                new ServiceResult<FuturesTradeSignalV2ReadModel?>(result));
         },
         [typeof(GetFuturesTradeSignalIdsQuery).Name] = async (ctx, db, q) =>
         {
             var query = (q as GetFuturesTradeSignalIdsQuery)!;
-            await query.GetFuturesTradeSignalIdsAsync(db, ctx);
+            var result = await query.GetFuturesTradeSignalIdsAsync(db);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalIdsQuery.Verb,
+                new ServiceResult<FuturesTradeSignalId[]>(result));
         }
     };
 

@@ -9,18 +9,17 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 public static class GetIronCondorMarketDataFeed
 {
-    public static async ValueTask GetIronCondorMarketDataFeedAsync(
-        this GetIronCondorMarketDataFeedQuery q,  IQueryActorContext context, IDbContextFactory dbFactory)
+    public static async ValueTask<IronCondorMarketDataFeedReadModel> GetIronCondorMarketDataFeedAsync(
+        this GetIronCondorMarketDataFeedQuery q, IDbContextFactory dbFactory)
     {
         var db = dbFactory.MarketDataDb;
-        var result = await GetIronCondorMarketDataFeedAsync(db,
+        return await GetIronCondorMarketDataFeedAsync(db,
             q.UnderlyingContractId,
             q.ShortPutOptionContractId,
             q.LongPutOptionContractId,
             q.ShortCallOptionContractId,
             q.LongCallOptionContractId,
             q.ValueDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetIronCondorMarketDataFeedQuery.Verb, new ServiceResult<IronCondorMarketDataFeedReadModel>(result));
 
         async ValueTask<IronCondorMarketDataFeedReadModel> GetIronCondorMarketDataFeedAsync(
             IMarketDataDbContext db,

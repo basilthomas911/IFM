@@ -118,6 +118,8 @@ public class FuturesMacdSignalQueryActor(
             {
                 _ when query is GetFuturesMacdSignalQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesMacdSignalReadModel?>(query.ErrorCode, ex!.Message)),
+                _ when query is GetFuturesMacdDailySignalQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesMacdSignalReadModel?>(query.ErrorCode, ex!.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
             };
             await serviceResultTask;

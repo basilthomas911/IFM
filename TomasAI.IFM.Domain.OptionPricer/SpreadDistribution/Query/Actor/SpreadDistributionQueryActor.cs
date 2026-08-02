@@ -73,10 +73,13 @@ public class SpreadDistributionQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<IQueryActorContext,  IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetSpreadDistributionQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetSpreadDistributionQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetSpreadDistributionQuery)!;
-            return query.GetSpreadDistributionAsync(ctx, dbFactory, query.TradeId, query.TradeType, query.TradeStatus, query.ValueDate, query.DaysToExpiry);
+            var result = await query.GetSpreadDistributionAsync(
+                dbFactory, query.TradeId, query.TradeType, query.TradeStatus, query.ValueDate, query.DaysToExpiry);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetSpreadDistributionQuery.Verb,
+                new ServiceResult<SpreadDistributionReadModel?>(result));
         }
     };
 

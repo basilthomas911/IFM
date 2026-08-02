@@ -16,9 +16,8 @@ internal static class GetOptionTradeSpreadBarData
     /// <param name="context">The query actor context used to send the reply containing the result.</param>
     /// <param name="dbFactory">The database context factory used to access option trade spread bar data.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    internal static async ValueTask GetOptionTradeSpreadBarDataAsync(this GetOptionTradeSpreadBarDataQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var result = await dbFactory.TradeDb.GetOptionTradeSpreadBarDataAsync(q.OrderId, q.TradeId, q.ValueDate, q.TradeType, q.StartDate, q.EndDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetOptionTradeSpreadBarDataQuery.Verb, new ServiceResult<OptionTradeSpreadBarsDataModel[]>([.. result]));
-    }
+    internal static async ValueTask<OptionTradeSpreadBarsDataModel[]> GetOptionTradeSpreadBarDataAsync(
+        this GetOptionTradeSpreadBarDataQuery q, IDbContextFactory dbFactory)
+        => [.. await dbFactory.TradeDb.GetOptionTradeSpreadBarDataAsync(
+            q.OrderId, q.TradeId, q.ValueDate, q.TradeType, q.StartDate, q.EndDate)];
 }

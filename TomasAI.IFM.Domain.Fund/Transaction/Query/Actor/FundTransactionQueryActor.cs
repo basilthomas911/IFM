@@ -94,10 +94,12 @@ public class FundTransactionQueryActor(
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
     static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFundTransactionsQuery).Name] = (ctx, dbFactory, q) =>
+        [typeof(GetFundTransactionsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetFundTransactionsQuery)!;
-             return query.GetFundTransactionsAsync(dbFactory, ctx);
+            var result = await query.GetFundTransactionsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFundTransactionsQuery.Verb,
+                new ServiceResult<FundTransactionReadModel[]>(result));
         }
     };
 

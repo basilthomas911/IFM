@@ -78,8 +78,8 @@ public class FundTransactionQueryTests
         await context.Received(1).ReplyAsync(
             Arg.Is<ActorThreadId>(id => id == query.Subject.ThreadId),
             Arg.Is<string>(v => v == GetFundTransactionsQuery.Verb),
-            Arg.Is<ServiceResult<ICollection<FundTransactionReadModel>>>(r =>
-                r.Success && r.Value!.Count == 1 && r.Value.First().TransactionId == SampleData.FundTransaction.TransactionId));
+            Arg.Is<ServiceResult<FundTransactionReadModel[]>>(r =>
+                r.Success && r.Value!.Length == 1 && r.Value[0].TransactionId == SampleData.FundTransaction.TransactionId));
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class FundTransactionQueryTests
         await context.Received(1).ReplyAsync(
             Arg.Is<ActorThreadId>(id => id == query.Subject.ThreadId),
             Arg.Is<string>(v => v == GetFundTransactionsQuery.Verb),
-            Arg.Is<ServiceResult<ICollection<FundTransactionReadModel>>>(r => r.Success && r.Value!.Count == 2));
+            Arg.Is<ServiceResult<FundTransactionReadModel[]>>(r => r.Success && r.Value!.Length == 2));
     }
 
     #endregion
@@ -131,7 +131,7 @@ public class FundTransactionQueryTests
         await context.Received(1).ReplyAsync(
             Arg.Is<ActorThreadId>(id => id == query.Subject.ThreadId),
             Arg.Is<string>(v => v == GetFundTransactionsQuery.Verb),
-            Arg.Is<ServiceResult<ICollection<FundTransactionReadModel>>>(r => r.Success && r.Value!.Count == 0));
+            Arg.Is<ServiceResult<FundTransactionReadModel[]>>(r => r.Success && r.Value!.Length == 0));
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class FundTransactionQueryTests
         await context.Received(1).ReplyAsync(
             Arg.Is<ActorThreadId>(id => id == query.Subject.ThreadId),
             Arg.Is<string>(v => v == GetFundTransactionsQuery.Verb),
-            Arg.Is<ServiceResult<ICollection<FundTransactionReadModel>>>(r => r.Success && r.Value!.Count == 1));
+            Arg.Is<ServiceResult<FundTransactionReadModel[]>>(r => r.Success && r.Value!.Length == 1));
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class FundTransactionQueryTests
         await context.Received(1).ReplyAsync(
             Arg.Is<ActorThreadId>(id => id == query.Subject.ThreadId),
             Arg.Is<string>(v => v == GetFundTransactionsQuery.Verb),
-            Arg.Is<ServiceResult<ICollection<FundTransactionReadModel>>>(r => r.Success && r.Value!.Count == 0));
+            Arg.Is<ServiceResult<FundTransactionReadModel[]>>(r => r.Success && r.Value!.Length == 0));
     }
 
     #endregion

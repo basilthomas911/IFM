@@ -13,10 +13,10 @@ public static class GetDefaultFuturesContractDefinitions
     /// <summary>
     /// Handles a request to retrieve default futures contract definitions.
     /// </summary>
-    public static async ValueTask GetDefaultFuturesContractDefinitionsAsync(this GetDefaultFuturesContractDefinitionsQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
+    public static async ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(
+        this GetDefaultFuturesContractDefinitionsQuery q, IDbContextFactory dbFactory)
     {
-        var result = await GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb);
-        await context.ReplyAsync(q.Subject.ThreadId, GetDefaultFuturesContractDefinitionsQuery.Verb, new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result));
+        return await GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb);
 
         static async ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(IReferenceDbContext db)
             => new()

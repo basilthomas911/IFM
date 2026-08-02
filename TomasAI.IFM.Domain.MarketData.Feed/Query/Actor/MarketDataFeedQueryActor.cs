@@ -85,47 +85,54 @@ public class MarketDataFeedQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<IQueryActorContext, MarketDataFeedQueryParameters, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesOptionContractQuery).Name] = (ctx, qryParams, q) =>
+        [typeof(GetFuturesOptionContractQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetFuturesOptionContractQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetFuturesOptionContractQuery.Verb);
-            return query.GetFuturesOptionContractFromBrokerAsync(ctx, qryParams.MarketDataSnapshotApi);
+            var result = await query.GetFuturesOptionContractFromBrokerAsync(qryParams.MarketDataSnapshotApi);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
+                new ServiceResult<FuturesOptionContractReadModel>(result));
         },
-        [typeof(GetFuturesOptionSpreadDataQuery).Name] = (ctx, qryParams, q) =>
+        [typeof(GetFuturesOptionSpreadDataQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetFuturesOptionSpreadDataQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetFuturesOptionSpreadDataQuery.Verb);
-            return query.GetFuturesOptionSpreadDataAsync(ctx, qryParams.MarketDataSnapshotApi);
+            var result = await query.GetFuturesOptionSpreadDataAsync(qryParams.MarketDataSnapshotApi);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionSpreadDataQuery.Verb,
+                new ServiceResult<FuturesOptionSpreadDataReadModel>(result));
         },
-        [typeof(GetFuturesRiskPositionTypeQuery).Name] = (ctx, qryParams, q) =>
+        [typeof(GetFuturesRiskPositionTypeQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetFuturesRiskPositionTypeQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetFuturesRiskPositionTypeQuery.Verb);
-            return query.GetFuturesRiskPositionTypeAsync(ctx, qryParams.DbFactory);
+            var result = await query.GetFuturesRiskPositionTypeAsync(qryParams.DbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRiskPositionTypeQuery.Verb,
+                new ServiceResult<RiskPositionTypeReadModel>(result));
         },
-        [typeof(GetIronCondorMarketDataFeedQuery).Name] = (ctx, qryParams, q) =>
+        [typeof(GetIronCondorMarketDataFeedQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetIronCondorMarketDataFeedQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetIronCondorMarketDataFeedQuery.Verb);
-            return query.GetIronCondorMarketDataFeedAsync(ctx, qryParams.DbFactory);
+            var result = await query.GetIronCondorMarketDataFeedAsync(qryParams.DbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetIronCondorMarketDataFeedQuery.Verb,
+                new ServiceResult<IronCondorMarketDataFeedReadModel>(result));
         },
-        [typeof(GetNormalCurveTableQuery).Name] = (ctx, qryParams, q) =>
+        [typeof(GetNormalCurveTableQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetNormalCurveTableQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetNormalCurveTableQuery.Verb);
-            return query.GetNormalCurveTableAsync(ctx, qryParams.DbFactory);
+            var result = await query.GetNormalCurveTableAsync(qryParams.DbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetNormalCurveTableQuery.Verb,
+                new ServiceResult<NormalCurveTableReadModel>(result));
         },
-        [typeof(GetOptionQuoteIdQuery).Name] = (ctx, qryParams, q) =>
+        [typeof(GetOptionQuoteIdQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetOptionQuoteIdQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetOptionQuoteIdQuery.Verb);
-            return query.GetOptionQuoteIdAsync(ctx, qryParams.BlackboardService.Application.SequenceCounter);
+            var result = await query.GetOptionQuoteIdAsync(qryParams.BlackboardService.Application.SequenceCounter);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionQuoteIdQuery.Verb,
+                new ServiceResult<ScalarValue<int>>(result));
         },
-        [typeof(GetStreamingRequestIdQuery).Name] = (ctx, qryParams, q) =>
+        [typeof(GetStreamingRequestIdQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetStreamingRequestIdQuery)!;
-            var msgInfo = ctx.GetMessageInfo(query.Subject.ThreadId, GetStreamingRequestIdQuery.Verb);
-            return query.GetStreamingRequestIdAsync(ctx, qryParams.BlackboardService.Application.SequenceCounter);
+            var result = await query.GetStreamingRequestIdAsync(qryParams.BlackboardService.Application.SequenceCounter);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetStreamingRequestIdQuery.Verb,
+                new ServiceResult<ScalarValue<int>>(result));
         }
     };
 

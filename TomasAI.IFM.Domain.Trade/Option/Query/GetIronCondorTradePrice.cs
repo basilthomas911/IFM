@@ -15,9 +15,7 @@ internal static class GetIronCondorTradePrice
     /// <param name="context"> </param>
     /// <param name="dbFactory"> </param>
     /// <returns></returns>
-    internal static async ValueTask GetIronCondorTradePriceAsync(this GetIronCondorTradePriceQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var result = await dbFactory.TradeDb.GetIronCondorTradePriceAsync(q.TradeId, q.ValueDate);
-        await context.ReplyAsync(q.Subject.ThreadId, GetIronCondorTradePriceQuery.Verb, new ServiceResult<TradePriceReadModel?>(result));
-    }
+    internal static async ValueTask<TradePriceReadModel?> GetIronCondorTradePriceAsync(
+        this GetIronCondorTradePriceQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.TradeDb.GetIronCondorTradePriceAsync(q.TradeId, q.ValueDate);
 }

@@ -10,7 +10,8 @@ public static class GetFuturesOptionContractIds
     /// <summary>
     /// Handles a request to retrieve existing futures option contract IDs from a list of contract IDs.
     /// </summary>
-    public static async ValueTask GetFuturesOptionContractIdsAsync(this GetFuturesOptionContractIdsQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
+    public static async ValueTask<string[]> GetFuturesOptionContractIdsAsync(
+        this GetFuturesOptionContractIdsQuery q, IDbContextFactory dbFactory)
     {
         var existingContractIds = new List<string>();
         var db = dbFactory.SecuritiesDb;
@@ -19,6 +20,6 @@ public static class GetFuturesOptionContractIds
             if (await db.GetFuturesOptionContractAsync(contractId) is not null)
                 existingContractIds.Add(contractId);
         }
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractIdsQuery.Verb, new ServiceResult<string[]>([.. existingContractIds]));
+        return [.. existingContractIds];
     }
 }

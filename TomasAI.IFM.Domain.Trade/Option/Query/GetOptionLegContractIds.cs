@@ -14,10 +14,8 @@ internal static class GetOptionLegContractIds
     /// <param name="context">The query actor context used to send the reply containing the result.</param>
     /// <param name="dbFactory">The database context factory used to access option leg contract identifiers.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    internal static async ValueTask GetOptionLegContractIdsAsync(this GetOptionLegContractIdsQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var result = await dbFactory.TradeDb.GetOptionLegContractIdsAsync(q.TradeId);
-        await context.ReplyAsync(q.Subject.ThreadId, GetOptionLegContractIdsQuery.Verb, new ServiceResult<string[]>([.. result]));
-    }
+    internal static async ValueTask<string[]> GetOptionLegContractIdsAsync(
+        this GetOptionLegContractIdsQuery q, IDbContextFactory dbFactory)
+        => [.. await dbFactory.TradeDb.GetOptionLegContractIdsAsync(q.TradeId)];
 
 }

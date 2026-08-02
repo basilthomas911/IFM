@@ -15,11 +15,8 @@ public static class GetEconomicCalendarDate
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask GetEconomicCalendarDateAsync(this GetEconomicCalendarDateQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var calendarDate = new ServiceResult<string>(GetEconomicCalendarEventDate(q.TodaysDate, q.CalendarViewType));
-        await context.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarAllQuery.Verb, calendarDate);
-    }
+    public static ValueTask<string> GetEconomicCalendarDateAsync(this GetEconomicCalendarDateQuery q)
+        => ValueTask.FromResult(GetEconomicCalendarEventDate(q.TodaysDate, q.CalendarViewType));
 
     /// <summary>
     /// Gets the economic calendar event date based on the provided date and calendar view type.

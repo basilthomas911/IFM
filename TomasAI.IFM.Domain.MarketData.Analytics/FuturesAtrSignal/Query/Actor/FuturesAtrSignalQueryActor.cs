@@ -118,6 +118,8 @@ public class FuturesAtrSignalQueryActor(
             {
                 _ when query is GetFuturesAtrSignalQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesAtrSignalReadModel?>(query.ErrorCode, ex!.Message)),
+                _ when query is GetFuturesAtrDailySignalQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesAtrSignalReadModel?>(query.ErrorCode, ex!.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
             };
             await serviceResultTask;

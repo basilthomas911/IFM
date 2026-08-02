@@ -10,9 +10,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query;
 
 public static class GetFuturesContracts
 {
-    public static async ValueTask GetFuturesContractsAsync(this GetFuturesContractsQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var futuresContracts = await dbFactory.SecuritiesDb.GetFuturesContractsAsync();
-        await context.ReplyAsync(q.Subject.ThreadId, GetFuturesContractsQuery.Verb, new ServiceResult<FuturesContractV2ReadModel[]>([.. futuresContracts]));
-    }
+    public static async ValueTask<FuturesContractV2ReadModel[]> GetFuturesContractsAsync(
+        this GetFuturesContractsQuery q, IDbContextFactory dbFactory)
+        => [.. await dbFactory.SecuritiesDb.GetFuturesContractsAsync()];
 }

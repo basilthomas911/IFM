@@ -17,11 +17,9 @@ public static class GetExternalEconomicCalendars
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static async ValueTask GetExternalEconomicCalendarsAsync(this GetExternalEconomicCalendarsQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var externalCalendars = await dbFactory.GetExternalEconomicCalendarsAsync();
-        await context.ReplyAsync(q.Subject.ThreadId, GetExternalEconomicCalendarsQuery.Verb, new ServiceResult<EconomicCalendarReadModel[]>(externalCalendars));
-    }
+    public static async ValueTask<EconomicCalendarReadModel[]> GetExternalEconomicCalendarsAsync(
+        this GetExternalEconomicCalendarsQuery q, IDbContextFactory dbFactory)
+        => await dbFactory.GetExternalEconomicCalendarsAsync();
 
     /// <summary>
     /// 

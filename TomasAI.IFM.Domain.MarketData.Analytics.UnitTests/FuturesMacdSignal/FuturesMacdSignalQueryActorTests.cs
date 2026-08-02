@@ -422,7 +422,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
     }
 
     [Fact]
-    public async Task OnExceptionAsync_ShouldReplyWithGenericServiceFailed_ForOtherQueryTypes()
+    public async Task OnExceptionAsync_ShouldReplyWithTypedServiceResult_ForDailyQuery()
     {
         // Arrange
         var actor = _fixture.CreateMacdQueryActor();
@@ -437,7 +437,8 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesMacdDailySignalQuery.Verb,
-            Arg.Is<ServiceResult<ActorEntityId>>(r => !r.Success && r.ErrorCode == 9999 && r.ErrorMessage == exception.Message));
+            Arg.Is<ServiceResult<FuturesMacdSignalReadModel?>>(r =>
+                !r.Success && r.ErrorCode == query.ErrorCode && r.ErrorMessage == exception.Message));
     }
 
     #endregion

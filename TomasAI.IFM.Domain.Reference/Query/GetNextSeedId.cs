@@ -14,9 +14,7 @@ public static class GetNextSeedId
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static async ValueTask GetNextSeedIdAsync(this GetNextSeedIdQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var result = await dbFactory.ReferenceDb.GetNextSeedIdAsync(q.SeedType);
-        await context.ReplyAsync(q.Subject.ThreadId, GetNextSeedIdQuery.Verb, new ServiceResult<ScalarReadModel<int>>(new ScalarReadModel<int>(result)));
-    }
+    public static async ValueTask<ScalarReadModel<int>> GetNextSeedIdAsync(
+        this GetNextSeedIdQuery q, IDbContextFactory dbFactory)
+        => new(await dbFactory.ReferenceDb.GetNextSeedIdAsync(q.SeedType));
 }

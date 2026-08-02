@@ -102,27 +102,37 @@ public class ReferenceQueryActor(
         [typeof(GetCurrentSeedIdQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = IsArgumentNull.Set(q as GetCurrentSeedIdQuery);
-            await query.GetCurrentSeedIdAsync( ctx, dbFactory);
+            var result = await query.GetCurrentSeedIdAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetCurrentSeedIdQuery.Verb,
+                new ServiceResult<ScalarReadModel<int>>(result));
         },
         [typeof(GetNextSeedIdQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = IsArgumentNull.Set(q as GetNextSeedIdQuery);
-            await query.GetNextSeedIdAsync(ctx, dbFactory);
+            var result = await query.GetNextSeedIdAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetNextSeedIdQuery.Verb,
+                new ServiceResult<ScalarReadModel<int>>(result));
         },
         [typeof(GetDefaultFuturesContractDefinitionsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = IsArgumentNull.Set(q as GetDefaultFuturesContractDefinitionsQuery);
-            await query.GetDefaultFuturesContractDefinitionsAsync(ctx, dbFactory);
+            var result = await query.GetDefaultFuturesContractDefinitionsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetDefaultFuturesContractDefinitionsQuery.Verb,
+                new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result));
         },
         [typeof(GetFuturesOptionStrikePriceDefinitionsQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = IsArgumentNull.Set(q as GetFuturesOptionStrikePriceDefinitionsQuery);
-            await query.GetFuturesOptionStrikePriceDefinitionsAsync(ctx, dbFactory);
+            var result = await query.GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionStrikePriceDefinitionsQuery.Verb,
+                new ServiceResult<FuturesOptionStrikePriceReadModel>(result));
         },
         [typeof(GetMDIForwardLossRatiosQuery).Name] = async (ctx, dbFactory, q) =>
         {
             var query = IsArgumentNull.Set(q as GetMDIForwardLossRatiosQuery);
-            await query.GetMDIForwardLossRatiosAsync(ctx, dbFactory);
+            var result = await query.GetMDIForwardLossRatiosAsync(dbFactory);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetMDIForwardLossRatiosQuery.Verb,
+                new ServiceResult<MDIForwardLossRatioReadModel[]>(result));
         }
     };
 

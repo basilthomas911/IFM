@@ -18,11 +18,9 @@ public static class GetEconomicCalendar
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask GetEconomicCalendarAsync(this GetEconomicCalendarQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
-    {
-        var result = await GetEconomicCalendarAsync(dbFactory.ReferenceDb, q.TodaysDate, q.CalendarViewType, q.CountryCode);
-        await context.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarQuery.Verb, new ServiceResult<EconomicCalendarReadModel[]>([.. result]));
-    }
+    public static async ValueTask<EconomicCalendarReadModel[]> GetEconomicCalendarAsync(
+        this GetEconomicCalendarQuery q, IDbContextFactory dbFactory)
+        => [.. await GetEconomicCalendarAsync(dbFactory.ReferenceDb, q.TodaysDate, q.CalendarViewType, q.CountryCode)];
 
     /// <summary>
     /// Gets the economic calendar data from the database based on the specified parameters.

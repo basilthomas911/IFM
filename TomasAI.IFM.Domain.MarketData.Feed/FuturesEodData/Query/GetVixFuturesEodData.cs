@@ -8,13 +8,13 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query;
 
 public static class GetVixFuturesEodData
 {
-    internal static async ValueTask GetVixFuturesEodDataAsync(
-       this GetVixFuturesEodDataQuery q, IQueryActorContext context, IDbContextFactory dbFactory)
+    internal static async ValueTask<VixFuturesEodDataReadModel[]> GetVixFuturesEodDataAsync(
+       this GetVixFuturesEodDataQuery q, IDbContextFactory dbFactory)
     {
         var db = dbFactory.MarketDataDb;
         var result = string.IsNullOrEmpty(q.ContractId)
             ? await db.GetVixFuturesEodDataByValueDateAsync(q.ValueDate)
             : [await db.GetVixFuturesEodDataAsync(q.ContractId, q.ValueDate)];
-        await context.ReplyAsync(q.Subject.ThreadId, GetVixFuturesEodDataQuery.Verb, new ServiceResult<VixFuturesEodDataReadModel[]>([.. result]));
+        return [.. result];
     }
 }

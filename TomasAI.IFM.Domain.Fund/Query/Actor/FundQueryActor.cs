@@ -210,13 +210,15 @@ public class FundQueryActor(
                 _ when query is GetFundOrderTradesQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FundOrderTradeReadModel[]>(query.ErrorCode, ex.Message)),
                 _ when query is GetFundPnlReportQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundPnlReportReadModel[]>(query.ErrorCode, ex.Message)),
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundPnlReportReadModel>(query.ErrorCode, ex.Message)),
                 _ when query is GetFundsQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FundReadModel[]>(query.ErrorCode, ex.Message)),
                 _ when query is GetFundWinLossRatioQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FundWinLossRatioReadModel>(query.ErrorCode, ex.Message)),
                 _ when query is GetOpeningFundBalanceQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FundBalanceReadModel>(query.ErrorCode, ex.Message)),
+                _ when query is GetFundMaxProfitGeneratedQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundMaxProfitGeneratedReadModel>(query.ErrorCode, ex.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message))
             };
             await serviceResultTask;
