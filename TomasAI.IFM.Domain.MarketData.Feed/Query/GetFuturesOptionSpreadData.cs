@@ -12,6 +12,23 @@ public static class GetFuturesOptionSpreadData
 {
     internal static async ValueTask<FuturesOptionSpreadDataReadModel> GetFuturesOptionSpreadDataAsync(
         this GetFuturesOptionSpreadDataQuery q, IMarketDataSnapshotApi marketDataSnapshotApi)
+        => await GetFuturesOptionSpreadDataAsync(
+            marketDataSnapshotApi,
+            q.ValueDate,
+            q.MaturityDate,
+            q.AssetPrice,
+            q.RiskFreeRate,
+            q.QueryForShortOptionContract,
+            q.QueryForLongOptionContract);
+
+    internal static async ValueTask<FuturesOptionSpreadDataReadModel> GetFuturesOptionSpreadDataAsync(
+        IMarketDataSnapshotApi marketDataSnapshotApi,
+        DateOnly valueDate,
+        DateOnly maturityDate,
+        double assetPrice,
+        double riskFreeRate,
+        FuturesOptionContractReadModel queryForShortOptionContract,
+        FuturesOptionContractReadModel queryForLongOptionContract)
     {
         var shortRequestId = 0;
         var longRequestId = 0;
@@ -19,7 +36,8 @@ public static class GetFuturesOptionSpreadData
         try
         {
             marketDataSnapshotApi.Start();
-            var (shortContract, longContract) = await marketDataSnapshotApi.GetFuturesOptionSpreadAsync(q.QueryForShortOptionContract, q.QueryForLongOptionContract);
+            var (shortContract, longContract) = await marketDataSnapshotApi.GetFuturesOptionSpreadAsync(
+                queryForShortOptionContract, queryForLongOptionContract);
             if (shortContract == null || longContract == null)
             {
                 marketDataSnapshotApi.Stop();
@@ -27,23 +45,25 @@ public static class GetFuturesOptionSpreadData
             }
             var shortOption = default(FuturesOptionTickDataV2ReadModel);
             shortRequestId = marketDataSnapshotApi.StreamIds.Add(shortContract.ContractId);
-            await marketDataSnapshotApi.GetFuturesOptionPriceAsync(shortRequestId, q.ValueDate, shortContract, e => shortOption = e);
+            await marketDataSnapshotApi.GetFuturesOptionPriceAsync(shortRequestId, valueDate, shortContract, e => shortOption = e);
             if (shortOption == null)
             {
                 marketDataSnapshotApi.Stop();
                 throw new InvalidOperationException($"MarketDataFeedQueryState.GetFuturesOptionSpreadDataAsync: Unknown short futures option contract definition '{shortContract.ContractId}'");
             }
-            var shortOptionGreeks = marketDataSnapshotApi.GetFuturesOptionGreeks(q.ValueDate, q.MaturityDate, shortContract, shortOption.OptionPrice, q.AssetPrice, q.RiskFreeRate);
+            var shortOptionGreeks = marketDataSnapshotApi.GetFuturesOptionGreeks(
+                valueDate, maturityDate, shortContract, shortOption.OptionPrice, assetPrice, riskFreeRate);
 
             var longOption = default(FuturesOptionTickDataV2ReadModel);
             longRequestId = marketDataSnapshotApi.StreamIds.Add(longContract.ContractId);
-            await marketDataSnapshotApi.GetFuturesOptionPriceAsync(longRequestId, q.ValueDate, longContract, e => longOption = e);
+            await marketDataSnapshotApi.GetFuturesOptionPriceAsync(longRequestId, valueDate, longContract, e => longOption = e);
             if (longOption == null)
             {
                 marketDataSnapshotApi.Stop();
                 throw new InvalidOperationException($"MarketDataFeedQueryState.GetFuturesOptionSpreadDataAsync: Unknown long futures option contract definition '{longContract.ContractId}'");
             }
-            var longOptionGreeks = marketDataSnapshotApi.GetFuturesOptionGreeks(q.ValueDate, q.MaturityDate, longContract, longOption.OptionPrice, q.AssetPrice, q.RiskFreeRate);
+            var longOptionGreeks = marketDataSnapshotApi.GetFuturesOptionGreeks(
+                valueDate, maturityDate, longContract, longOption.OptionPrice, assetPrice, riskFreeRate);
             spreadData = new(
                 shortLeg: new(
                     bidPrice: shortOption.BidPrice,

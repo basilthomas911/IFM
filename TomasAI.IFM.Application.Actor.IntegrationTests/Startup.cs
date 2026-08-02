@@ -77,6 +77,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
@@ -295,13 +296,21 @@ public static class Startup
             services.AddSingleton<IQueryServiceApiOptions>(_ => new QueryServiceApiOptions(config.GetValue<string>("AppSettings:QueryServerBaseUri")!));
             services.AddSingleton<IQueryServiceApi, QueryServiceApiClient>();
             services.AddSingleton<IFundQueryApi, FundQueryApi>();
+            services.AddSingleton<IActorFundQueryApi, TomasAI.IFM.Domain.Fund.Query.Api.ActorFundQueryApi>();
             services.AddSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
+            services.AddSingleton<IActorMarketDataAnalyticsQueryApi, TomasAI.IFM.Domain.MarketData.Analytics.Query.Api.ActorMarketDataAnalyticsQueryApi>();
             services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
+            services.AddSingleton<IActorMarketDataFeedQueryApi, TomasAI.IFM.Domain.MarketData.Feed.Query.Api.ActorMarketDataFeedQueryApi>();
             services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
+            services.AddSingleton<IActorMarketDataQueryApi, TomasAI.IFM.Domain.MarketData.Query.Api.ActorMarketDataQueryApi>();
             services.AddSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
+            services.AddSingleton<IActorOptionPricerQueryApi, TomasAI.IFM.Domain.OptionPricer.Query.Api.ActorOptionPricerQueryApi>();
             services.AddSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
             services.AddSingleton<ITradeQueryApi, OptionTradeQueryApi>();
+            services.AddSingleton<IActorTradeQueryApi, TomasAI.IFM.Domain.Trade.Query.Api.ActorTradeQueryApi>();
             services.AddSingleton<IReferenceQueryApi, ReferenceQueryApi>();
+            services.AddSingleton<IActorReferenceQueryApi, TomasAI.IFM.Domain.Reference.Query.Api.ActorReferenceQueryApi>();
+            services.AddSingleton<IActorSystemAdminQueryApi, TomasAI.IFM.Domain.SystemAdmin.Query.Api.ActorSystemAdminQueryApi>();
         }
 
         void RegisterStorageServices()

@@ -17,14 +17,22 @@ public static class GetFuturesOptionContract
     /// <returns></returns>
     internal static async ValueTask<FuturesOptionContractReadModel> GetFuturesOptionContractFromBrokerAsync(
         this GetFuturesOptionContractQuery q, IMarketDataSnapshotApi marketDataSnapshotApi)
+        => await GetFuturesOptionContractFromBrokerAsync(
+            marketDataSnapshotApi, q.ContractId, q.QueryForContract!);
+
+    internal static async ValueTask<FuturesOptionContractReadModel> GetFuturesOptionContractFromBrokerAsync(
+        IMarketDataSnapshotApi marketDataSnapshotApi,
+        string contractId,
+        FuturesOptionContractReadModel queryForContract)
     {
         FuturesOptionContractReadModel futuresOptionContract;
         var streamId = 0;
         try
         {
-            streamId = marketDataSnapshotApi.StreamIds.Add(q.ContractId);
+            streamId = marketDataSnapshotApi.StreamIds.Add(contractId);
             marketDataSnapshotApi.Start();
-            futuresOptionContract = (await marketDataSnapshotApi.GetFuturesOptionContractAsync(streamId, q.QueryForContract!))!;
+            futuresOptionContract = (await marketDataSnapshotApi.GetFuturesOptionContractAsync(
+                streamId, queryForContract))!;
         }
         finally
         {
