@@ -12,11 +12,22 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Reference.Query.Api;
 
-/// <summary>Provides direct, in-process Reference queries without actor messaging.</summary>
+/// <summary>
+/// Provides direct, in-process Reference queries without actor messaging.
+/// </summary>
+/// <remarks>
+/// Lookup, seed, futures-default, and economic-calendar data is read through Reference storage and the
+/// optional external calendar reader. Every public method owns its typed success/failure mapping. The
+/// implementation does not capture actor context and may be registered as a singleton.
+/// </remarks>
 public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActorReferenceQueryApi
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 
+    /// <summary>
+    /// Gets market data definition types.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<LookupTypeCollection>> GetMarketDataDefinitionTypesAsync()
     {
         try
@@ -30,6 +41,10 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets reference data definition types.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<LookupTypeCollection>> GetReferenceDataDefinitionTypesAsync()
     {
         try
@@ -43,6 +58,10 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets system admin function types.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<LookupTypeCollection>> GetSystemAdminFunctionTypesAsync()
     {
         try
@@ -56,6 +75,10 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets lookup types.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<LookupTypeCollection>> GetLookupTypesAsync()
     {
         try
@@ -69,6 +92,11 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets lookup types.
+    /// </summary>
+    /// <param name="lookupTypeName">The lookup-type name.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<LookupTypeCollection>> GetLookupTypesAsync(string lookupTypeName)
     {
         try
@@ -82,6 +110,10 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets lookup type names.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<string[]>> GetLookupTypeNamesAsync()
     {
         try
@@ -95,6 +127,11 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets lookup type short codes.
+    /// </summary>
+    /// <param name="lookupTypeName">The lookup-type name.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<LookupTypeShortCodeReadModel[]>> GetLookupTypeShortCodesAsync(
         string lookupTypeName)
     {
@@ -112,6 +149,11 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets next seed ID.
+    /// </summary>
+    /// <param name="seedType">The seed category.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<ScalarReadModel<int>>> GetNextSeedIdAsync(string seedType)
     {
         try
@@ -125,6 +167,11 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets current seed ID.
+    /// </summary>
+    /// <param name="seedType">The seed category.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<ScalarReadModel<int>>> GetCurrentSeedIdAsync(string seedType)
     {
         try
@@ -138,6 +185,10 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets default futures contract definitions.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<DefaultFuturesContractDefinitionsReadModel>>
         GetDefaultFuturesContractDefinitionsAsync()
     {
@@ -163,6 +214,10 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets futures option strike price definitions.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesOptionStrikePriceReadModel>>
         GetFuturesOptionStrikePriceDefinitionsAsync()
     {
@@ -185,6 +240,12 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Determines whether lookup type short code exists.
+    /// </summary>
+    /// <param name="lookupTypeName">The lookup-type name.</param>
+    /// <param name="shortCode">The lookup short code.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<ScalarReadModel<bool>>> LookupTypeShortCodeExistsAsync(
         string lookupTypeName, string shortCode)
     {
@@ -203,6 +264,13 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets economic calendars.
+    /// </summary>
+    /// <param name="todaysDate">The date used to select calendar events.</param>
+    /// <param name="calendarType">The economic-calendar view type.</param>
+    /// <param name="countryCode">The economic-calendar country code.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(
         DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode)
     {
@@ -222,6 +290,10 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets economic calendars.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync()
     {
         try
@@ -238,6 +310,10 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets external economic calendars.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync()
     {
         try
@@ -255,6 +331,12 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets economic calendar date.
+    /// </summary>
+    /// <param name="todaysDate">The date used to select calendar events.</param>
+    /// <param name="calendarType">The economic-calendar view type.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public Task<ServiceResult<string>> GetEconomicCalendarDateAsync(
         DateTime todaysDate, EconomicCalendarViewType calendarType)
     {
@@ -270,6 +352,10 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets economic calendar country codes.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>>
         GetEconomicCalendarCountryCodesAsync()
     {
@@ -287,6 +373,12 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
         }
     }
 
+    /// <summary>
+    /// Gets MDI forward loss ratios.
+    /// </summary>
+    /// <param name="trendDirection">The intrinsic-time trend direction.</param>
+    /// <param name="tradeType">The trade strategy type.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<MDIForwardLossRatioReadModel[]>> GetMDIForwardLossRatiosAsync(
         IntrinsicTimeTrendType trendDirection, TradeType tradeType)
     {

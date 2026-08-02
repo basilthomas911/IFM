@@ -8,12 +8,25 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Query.Api;
 
-/// <summary>Provides direct, in-process Market Data Analytics queries without actor messaging.</summary>
+/// <summary>
+/// Provides direct, in-process Market Data Analytics queries without actor messaging.
+/// </summary>
+/// <remarks>
+/// Signal and distribution data is read through <see cref="IDbContextFactory.MarketDataDb"/>. Every public
+/// operation owns its exception handling and returns a typed service result using the corresponding query
+/// error identifier. The implementation does not capture actor context and may be registered as a singleton.
+/// </remarks>
 public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory)
     : IActorMarketDataAnalyticsQueryApi
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 
+    /// <summary>
+    /// Gets futures trade signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalAsync(
         string contractId, DateOnly valueDate)
     {
@@ -31,6 +44,10 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets last futures trade signal.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetLastFuturesTradeSignalAsync()
     {
         try
@@ -47,6 +64,12 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures trade signal by symbol.
+    /// </summary>
+    /// <param name="symbol">The market symbol.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalBySymbolAsync(
         string symbol, DateOnly valueDate)
     {
@@ -64,6 +87,11 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures trade signal IDs.
+    /// </summary>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesTradeSignalId[]>> GetFuturesTradeSignalIdsAsync(DateOnly valueDate)
     {
         try
@@ -80,6 +108,14 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures RSI signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <param name="periodLength">The indicator period length.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
@@ -99,6 +135,13 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures RSI daily signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <param name="periodLength">The indicator period length.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiDailySignalAsync(
         string contractId, TimeFrameType timePeriod, int periodLength)
     {
@@ -119,6 +162,16 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures trend direction from RSI signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="timestamp">The signal timestamp.</param>
+    /// <param name="loopbackInterval">The number of intervals to inspect.</param>
+    /// <param name="startTime">The start of the intraday time window.</param>
+    /// <param name="endTime">The end of the intraday time window.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(
         string contractId, DateOnly valueDate, DateTime timestamp, int loopbackInterval,
         DateTime startTime, DateTime endTime)
@@ -143,6 +196,12 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures TDI signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(
         string contractId, DateOnly valueDate)
     {
@@ -158,6 +217,13 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ITI signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
@@ -173,6 +239,13 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ITI trend direction changed signals.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
@@ -192,6 +265,13 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ITI signal data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesItiSignalDataReadModel>> GetFuturesItiSignalDataAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
@@ -212,6 +292,12 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ITI MDI distribution.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesItiMDIDistributionReadModel>> GetFuturesItiMDIDistributionAsync(
         string contractId, DateOnly valueDate)
     {
@@ -229,6 +315,12 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ITI MDI distribution by trend.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesItiMDIDistributionReadModel>> GetFuturesItiMDIDistributionByTrendAsync(
         string contractId, DateOnly valueDate)
     {
@@ -248,6 +340,12 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ITI signal MDI.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesItiSignalMDIV2ReadModel[]>> GetFuturesItiSignalMDIAsync(
         string contractId, DateOnly valueDate)
     {
@@ -265,6 +363,13 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ITI signal MDI by trend.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="groupId">The intrinsic-time group identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesItiSignalMDIV2ReadModel[]>> GetFuturesItiSignalMDIByTrendAsync(
         string contractId, DateOnly valueDate, int groupId)
     {
@@ -282,6 +387,14 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ATR signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <param name="periodLength">The indicator period length.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
@@ -301,6 +414,13 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ATR daily signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <param name="periodLength">The indicator period length.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrDailySignalAsync(
         string contractId, TimeFrameType timePeriod, int periodLength)
     {
@@ -321,6 +441,14 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ADX signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <param name="periodLength">The indicator period length.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
@@ -340,6 +468,13 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures ADX daily signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <param name="periodLength">The indicator period length.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxDailySignalAsync(
         string contractId, TimeFrameType timePeriod, int periodLength)
     {
@@ -360,6 +495,14 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures MACD signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <param name="periodLength">The indicator period length.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
     {
@@ -379,6 +522,13 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
         }
     }
 
+    /// <summary>
+    /// Gets futures MACD daily signal.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <param name="periodLength">The indicator period length.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
         string contractId, TimeFrameType timePeriod, int periodLength)
     {

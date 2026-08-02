@@ -8,11 +8,22 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Query.Api;
 
-/// <summary>Provides direct, in-process Option Pricer queries without actor messaging.</summary>
+/// <summary>
+/// Provides direct, in-process Option Pricer queries without actor messaging.
+/// </summary>
+/// <remarks>
+/// Device, distribution, and job-state data is read directly through the Option Pricer storage context.
+/// Every operation returns a typed service result using its corresponding query error identifier. The
+/// implementation does not capture actor context and may be registered as a singleton.
+/// </remarks>
 public sealed class ActorOptionPricerQueryApi(IDbContextFactory dbFactory) : IActorOptionPricerQueryApi
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 
+    /// <summary>
+    /// Gets option pricer devices.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<OptionPricerDevicesReadModel>> GetOptionPricerDevicesAsync()
     {
         try
@@ -31,6 +42,15 @@ public sealed class ActorOptionPricerQueryApi(IDbContextFactory dbFactory) : IAc
         }
     }
 
+    /// <summary>
+    /// Gets spread distribution.
+    /// </summary>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeType">The trade strategy type.</param>
+    /// <param name="tradeStatus">The trade lifecycle status.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="daysToExpiry">The number of days remaining until expiry.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<SpreadDistributionReadModel>> GetSpreadDistributionAsync(
         int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry)
     {
@@ -53,6 +73,12 @@ public sealed class ActorOptionPricerQueryApi(IDbContextFactory dbFactory) : IAc
         }
     }
 
+    /// <summary>
+    /// Determines whether spread distribution job in progress.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<ScalarReadModel<bool>>> IsSpreadDistributionJobInProgressAsync(
         int orderId, int tradeId)
     {

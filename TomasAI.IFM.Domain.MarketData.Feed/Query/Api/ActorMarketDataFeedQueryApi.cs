@@ -14,7 +14,15 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Api;
 
-/// <summary>Provides direct, in-process Market Data Feed queries without actor messaging.</summary>
+/// <summary>
+/// Provides direct, in-process Market Data Feed queries without actor messaging.
+/// </summary>
+/// <remarks>
+/// Storage queries use <see cref="IDbContextFactory.MarketDataDb"/>; broker snapshot queries use
+/// <see cref="IMarketDataSnapshotApi"/> and are serialized by an internal semaphore; sequence identifiers
+/// are allocated through <see cref="IBlackboardService"/>. Every public method returns a typed service result
+/// with its query-specific error identifier. The implementation may be registered as a singleton.
+/// </remarks>
 public sealed class ActorMarketDataFeedQueryApi(
     IDbContextFactory dbFactory,
     IMarketDataSnapshotApi marketDataSnapshotApi,
@@ -25,6 +33,12 @@ public sealed class ActorMarketDataFeedQueryApi(
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly SemaphoreSlim _snapshotGate = new(1, 1);
 
+    /// <summary>
+    /// Gets last futures tick data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesTickDataV2ReadModel>> GetLastFuturesTickDataAsync(
         string contractId, DateOnly valueDate)
     {
@@ -40,6 +54,12 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets last futures tick data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="tickDate">The tick timestamp.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesTickDataV2ReadModel>> GetLastFuturesTickDataAsync(
         string contractId, DateTime tickDate)
     {
@@ -57,6 +77,12 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets last futures option tick data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesOptionTickDataV2ReadModel>> GetLastFuturesOptionTickDataAsync(
         string contractId, DateOnly valueDate)
     {
@@ -74,6 +100,12 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets futures EOD data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesEodDataV2ReadModel>> GetFuturesEodDataAsync(
         string contractId, DateOnly valueDate)
     {
@@ -97,6 +129,12 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets last futures EOD data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesEodDataV2ReadModel>> GetLastFuturesEodDataAsync(
         string contractId, DateOnly valueDate)
     {
@@ -121,6 +159,13 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets last futures bar data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="symbol">The market symbol.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesBarDataReadModel>> GetLastFuturesBarDataAsync(
         string contractId, string symbol, DateOnly valueDate)
     {
@@ -136,6 +181,13 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets futures EOD moving averages.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="symbol">The market symbol.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesEodDataMovingAveragesReadModel>> GetFuturesEodMovingAveragesAsync(
         string contractId, string symbol, DateOnly valueDate)
     {
@@ -153,6 +205,12 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets VIX futures EOD data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<VixFuturesEodDataReadModel[]>> GetVixFuturesEodDataAsync(
         string contractId, DateOnly valueDate)
     {
@@ -174,6 +232,12 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets last VIX futures EOD data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<VixFuturesEodDataReadModel>> GetLastVixFuturesEodDataAsync(
         string contractId, DateOnly valueDate)
     {
@@ -191,6 +255,13 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets futures EOD data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="startDate">The inclusive start date or timestamp.</param>
+    /// <param name="endDate">The inclusive end date or timestamp.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesEodDataV2ReadModel[]>> GetFuturesEodDataAsync(
         string contractId, DateOnly startDate, DateOnly endDate)
     {
@@ -211,6 +282,15 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets futures bar data.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="symbol">The market symbol.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="startDate">The inclusive start date or timestamp.</param>
+    /// <param name="endDate">The inclusive end date or timestamp.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesBarDataReadModel[]>> GetFuturesBarDataAsync(
         string contractId, string symbol, DateOnly valueDate, DateTime startDate, DateTime endDate)
     {
@@ -231,6 +311,16 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets iron condor market data feed.
+    /// </summary>
+    /// <param name="underlyingContractId">The underlying contract ID.</param>
+    /// <param name="shortPutOptionContractId">The short put option contract ID.</param>
+    /// <param name="longPutOptionContractId">The long put option contract ID.</param>
+    /// <param name="shortCallOptionContractId">The short call option contract ID.</param>
+    /// <param name="longCallOptionContractId">The long call option contract ID.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<IronCondorMarketDataFeedReadModel>> GetIronCondorMarketDataFeedAsync(
         string underlyingContractId,
         string shortPutOptionContractId,
@@ -258,6 +348,12 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets futures EOD data parameters.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesEodDataParametersReadModel>> GetFuturesEodDataParametersAsync(
         string contractId, DateOnly valueDate)
     {
@@ -279,6 +375,12 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets futures option contract.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="queryForContract">The contract template used for the broker lookup.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesOptionContractReadModel>> GetFuturesOptionContractAsync(
         string contractId, FuturesOptionContractReadModel queryForContract)
     {
@@ -307,6 +409,17 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets futures option spread data.
+    /// </summary>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="maturityDate">The option maturity date.</param>
+    /// <param name="assetPrice">The underlying asset price.</param>
+    /// <param name="riskFreeRate">The annualized risk-free rate.</param>
+    /// <param name="timeValue">The option time value supplied by the caller.</param>
+    /// <param name="qfShortOptionContract">The short option contract used for the spread snapshot.</param>
+    /// <param name="qfLongOptionContract">The long option contract used for the spread snapshot.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesOptionSpreadDataReadModel>> GetFuturesOptionSpreadDataAsync(
         DateOnly valueDate,
         DateOnly maturityDate,
@@ -345,6 +458,10 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets normal curve table.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<NormalCurveTableReadModel>> GetNormalCurveTableAsync()
     {
         try
@@ -358,6 +475,12 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets futures risk position type.
+    /// </summary>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="tradeType">The trade strategy type.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<RiskPositionTypeReadModel>> GetFuturesRiskPositionTypeAsync(
         DateOnly valueDate, TradeType tradeType)
     {
@@ -393,6 +516,10 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets streaming request ID.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public Task<ServiceResult<ScalarValue<int>>> GetStreamingRequestIdAsync()
     {
         try
@@ -410,6 +537,10 @@ public sealed class ActorMarketDataFeedQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets option quote ID.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public Task<ServiceResult<ScalarValue<int>>> GetOptionQuoteIdAsync()
     {
         try

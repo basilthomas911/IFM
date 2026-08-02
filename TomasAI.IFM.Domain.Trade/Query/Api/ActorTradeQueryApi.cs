@@ -9,7 +9,14 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Trade.Query.Api;
 
-/// <summary>Provides direct, in-process Trade queries without actor messaging.</summary>
+/// <summary>
+/// Provides direct, in-process Trade queries without actor messaging.
+/// </summary>
+/// <remarks>
+/// Trade data is read through <see cref="IDbContextFactory.TradeDb"/> and the iron-condor MDI limit is read
+/// from <see cref="IBlackboardService"/>. Every supported public query owns its typed success/failure mapping.
+/// <c>GetTradePlanSummaryAsync</c> is intentionally unsupported pending removal of its obsolete UI contract.
+/// </remarks>
 public sealed class ActorTradeQueryApi(
     IDbContextFactory dbFactory,
     IBlackboardService blackboardService) : IActorTradeQueryApi
@@ -17,6 +24,11 @@ public sealed class ActorTradeQueryApi(
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
 
+    /// <summary>
+    /// Gets trade history.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<TradeHistoryReadModel[]>> GetTradeHistoryAsync(int orderId)
     {
         try
@@ -30,6 +42,11 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets option leg contract IDs.
+    /// </summary>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<string[]>> GetOptionLegContractIdsAsync(int tradeId)
     {
         try
@@ -43,6 +60,11 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets trade limit.
+    /// </summary>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<TradeLimitReadModel>> GetTradeLimitAsync(int tradeId)
     {
         try
@@ -56,6 +78,12 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets trade type limit.
+    /// </summary>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeType">The trade strategy type.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<TradeTypeLimitReadModel>> GetTradeTypeLimitAsync(
         int tradeId, TradeType tradeType)
     {
@@ -71,6 +99,11 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets trade quantity.
+    /// </summary>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<ScalarReadModel<int>>> GetTradeQuantityAsync(int tradeId)
     {
         try
@@ -84,6 +117,12 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets option trade.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<OptionTradeReadModel>> GetOptionTradeAsync(int orderId, int tradeId)
     {
         try
@@ -97,6 +136,14 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets option trade spread data.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeType">The trade strategy type.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<OptionTradeSpreadsDataModel>> GetOptionTradeSpreadDataAsync(
         int orderId, int tradeId, TradeType tradeType, DateOnly valueDate)
     {
@@ -118,6 +165,16 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets option trade spread bar data.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeType">The trade strategy type.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="startDate">The inclusive start date or timestamp.</param>
+    /// <param name="endDate">The inclusive end date or timestamp.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<OptionTradeSpreadBarsDataModel[]>> GetOptionTradeSpreadBarDataAsync(
         int orderId, int tradeId, TradeType tradeType, DateOnly valueDate,
         DateTime startDate, DateTime endDate)
@@ -142,6 +199,11 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets option trades.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<OptionTradeReadModel[]>> GetOptionTradesAsync(int orderId)
     {
         try
@@ -155,6 +217,12 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets trade positions.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<TradePositionReadModel[]>> GetTradePositionsAsync(int orderId, int tradeId)
     {
         try
@@ -169,6 +237,16 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets trade position.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="tradeType">The trade strategy type.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="daysToExpiry">The number of days remaining until expiry.</param>
+    /// <param name="tradeStatus">The trade lifecycle status.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<TradePositionReadModel>> GetTradePositionAsync(
         int orderId, int tradeId, TradeType tradeType, DateOnly valueDate,
         int daysToExpiry, TradeStatus tradeStatus)
@@ -191,6 +269,12 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets iron condor trade price.
+    /// </summary>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<TradePriceReadModel>> GetIronCondorTradePriceAsync(
         int tradeId, DateOnly valueDate)
     {
@@ -206,11 +290,27 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets trade plan summary.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public Task<ServiceResult<TradePlanActionReadModel[]>> GetTradePlanSummaryAsync(
         int orderId, int tradeId, DateOnly valueDate)
         => throw new NotImplementedException(
             $"{nameof(GetTradePlanSummaryAsync)} is no longer supported and will be removed during the UI refactor.");
 
+    /// <summary>
+    /// Gets trade position trade types.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="daysToExpiry">The number of days remaining until expiry.</param>
+    /// <param name="tradeStatus">The trade lifecycle status.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<string[]>> GetTradePositionTradeTypesAsync(
         int orderId, int tradeId, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus)
     {
@@ -230,6 +330,13 @@ public sealed class ActorTradeQueryApi(
         }
     }
 
+    /// <summary>
+    /// Gets iron condor MDI limit.
+    /// </summary>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public Task<ServiceResult<IronCondorMDILimitDataModel>> GetIronCondorMDILimitAsync(
         int orderId, int tradeId, DateOnly valueDate)
     {

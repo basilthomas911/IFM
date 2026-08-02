@@ -9,11 +9,24 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Query.Api;
 
-/// <summary>Provides direct, in-process Market Data queries without actor messaging.</summary>
+/// <summary>
+/// Provides direct, in-process Market Data queries without actor messaging.
+/// </summary>
+/// <remarks>
+/// Futures and option contracts are read through the Securities store; market calendars, rates, and yield
+/// curves are read through Market Data storage and the optional external yield-curve reader. Every public
+/// query owns its typed success/failure mapping. The implementation does not capture actor context and may
+/// be registered as a singleton.
+/// </remarks>
 public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActorMarketDataQueryApi
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 
+    /// <summary>
+    /// Gets currently traded futures contract.
+    /// </summary>
+    /// <param name="symbol">The market symbol.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(
         string symbol)
     {
@@ -31,6 +44,11 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets currently traded futures contracts.
+    /// </summary>
+    /// <param name="symbol">The market symbol.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesContractV2ReadModel[]>> GetCurrentlyTradedFuturesContractsAsync(
         string symbol)
     {
@@ -48,6 +66,11 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets futures contract.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesContractV2ReadModel>> GetFuturesContractAsync(string contractId)
     {
         try
@@ -62,6 +85,11 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets futures contract symbol.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<string>> GetFuturesContractSymbolAsync(string contractId)
     {
         try
@@ -76,6 +104,11 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets futures option contract.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesOptionContractReadModel>> GetFuturesOptionContractAsync(
         string contractId)
     {
@@ -93,6 +126,10 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets futures contracts.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesContractV2ReadModel[]>> GetFuturesContractsAsync()
     {
         try
@@ -107,6 +144,11 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets futures option contracts.
+    /// </summary>
+    /// <param name="symbol">The market symbol.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesOptionContractReadModel[]>> GetFuturesOptionContractsAsync(
         string symbol)
     {
@@ -124,6 +166,11 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets futures option contract IDs.
+    /// </summary>
+    /// <param name="contractIds">The contract identifiers to evaluate.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<string[]>> GetFuturesOptionContractIdsAsync(string[] contractIds)
     {
         try
@@ -143,6 +190,10 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets last yield curve rate.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<YieldCurveRateReadModel>> GetLastYieldCurveRateAsync()
     {
         try
@@ -157,6 +208,12 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets last rate of return.
+    /// </summary>
+    /// <param name="symbol">The market symbol.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<RateOfReturnReadModel>> GetLastRateOfReturnAsync(
         string symbol, DateOnly valueDate)
     {
@@ -171,6 +228,14 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets trading days.
+    /// </summary>
+    /// <param name="startDate">The inclusive start date or timestamp.</param>
+    /// <param name="endDate">The inclusive end date or timestamp.</param>
+    /// <param name="marketType">The market type.</param>
+    /// <param name="currencyType">The market currency.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<ScalarReadModel<int>>> GetTradingDaysAsync(
         DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType)
     {
@@ -189,6 +254,14 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets trading dates.
+    /// </summary>
+    /// <param name="startDate">The inclusive start date or timestamp.</param>
+    /// <param name="endDate">The inclusive end date or timestamp.</param>
+    /// <param name="marketType">The market type.</param>
+    /// <param name="currencyType">The market currency.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<DateOnly[]>> GetTradingDatesAsync(
         DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType)
     {
@@ -207,6 +280,12 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets yield curve rates.
+    /// </summary>
+    /// <param name="startDate">The inclusive start date or timestamp.</param>
+    /// <param name="endDate">The inclusive end date or timestamp.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<YieldCurveRateReadModel[]>> GetYieldCurveRatesAsync(
         DateOnly startDate, DateOnly endDate)
     {
@@ -222,6 +301,10 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets external yield curve rates.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<YieldCurveRateReadModel[]>> GetExternalYieldCurveRatesAsync()
     {
         try
@@ -239,6 +322,10 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets yield curve rate years.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<YieldCurveRateYearsReadModel>> GetYieldCurveRateYearsAsync()
     {
         try
@@ -255,6 +342,11 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Determines whether yield curve rate exists.
+    /// </summary>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<ScalarReadModel<bool>>> YieldCurveRateExistsAsync(DateOnly valueDate)
     {
         try
@@ -269,6 +361,10 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets value date.
+    /// </summary>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public Task<ServiceResult<ScalarReadModel<DateOnly>>> GetValueDateAsync()
     {
         try
@@ -284,6 +380,19 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
         }
     }
 
+    /// <summary>
+    /// Gets iron condor market data.
+    /// </summary>
+    /// <param name="underlyingContractId">The underlying contract ID.</param>
+    /// <param name="shortPutOptionContractId">The short put option contract ID.</param>
+    /// <param name="longPutOptionContractId">The long put option contract ID.</param>
+    /// <param name="shortCallOptionContractId">The short call option contract ID.</param>
+    /// <param name="longCallOptionContractId">The long call option contract ID.</param>
+    /// <param name="startDate">The inclusive start date or timestamp.</param>
+    /// <param name="endDate">The inclusive end date or timestamp.</param>
+    /// <param name="marketType">The market type.</param>
+    /// <param name="currencyType">The market currency.</param>
+    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<IronCondorMarketDataReadModel>> GetIronCondorMarketDataAsync(
         string underlyingContractId,
         string shortPutOptionContractId,

@@ -10,11 +10,25 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Command.Api;
 
+/// <summary>
+/// Sends Market Data Analytics commands from a running event actor and returns their typed replies.
+/// </summary>
+/// <remarks>
+/// Each operation constructs the command subject, entity identity, and command error code before using
+/// <see cref="IEventActorContext.RequestAsync{TCommand,TEntityId}(TCommand)"/>. The instance captures one
+/// actor context and must be created through <see cref="ActorMarketDataAnalyticsCommandApiFactory"/>.
+/// </remarks>
 public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext context)
     : IActorMarketDataAnalyticsCommandApi
 {
     readonly IEventActorContext _context = IsArgumentNull.Set(context);
 
+    /// <summary>
+    /// Sends the generate futures RSI signal command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="signalId">The strongly typed signal identifier.</param>
+    /// <param name="futuresPrice">The current futures price.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> GenerateFuturesRsiSignalAsync(
         FuturesRsiSignalId signalId,
         decimal futuresPrice)
@@ -33,6 +47,13 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         return RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(command);
     }
 
+    /// <summary>
+    /// Sends the generate futures TDI signal command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="signalId">The strongly typed signal identifier.</param>
+    /// <param name="futuresRsiSignals">The RSI signals used to generate the result.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> GenerateFuturesTdiSignalAsync(
         FuturesTdiSignalId signalId,
         FuturesRsiSignalReadModel[] futuresRsiSignals,
@@ -52,6 +73,12 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         return RequestAsync<GenerateFuturesTdiSignalCommand, FuturesTdiSignalEntityId>(command);
     }
 
+    /// <summary>
+    /// Sends the generate futures MACD signal command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="signalId">The strongly typed signal identifier.</param>
+    /// <param name="futuresPrice">The current futures price.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> GenerateFuturesMacdSignalAsync(
         FuturesMacdSignalId signalId,
         decimal futuresPrice)
@@ -70,6 +97,12 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         return RequestAsync<GenerateFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(command);
     }
 
+    /// <summary>
+    /// Sends the generate futures ADX signal command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="signalId">The strongly typed signal identifier.</param>
+    /// <param name="futuresPrice">The current futures price.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> GenerateFuturesAdxSignalAsync(
         FuturesAdxSignalId signalId,
         decimal futuresPrice)
@@ -88,6 +121,12 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         return RequestAsync<GenerateFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(command);
     }
 
+    /// <summary>
+    /// Sends the generate futures ATR signal command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="signalId">The strongly typed signal identifier.</param>
+    /// <param name="futuresPrice">The current futures price.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> GenerateFuturesAtrSignalAsync(
         FuturesAtrSignalId signalId,
         decimal futuresPrice)
@@ -106,6 +145,16 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         return RequestAsync<GenerateFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(command);
     }
 
+    /// <summary>
+    /// Sends the update futures trade signal command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="futuresEodData">The futures EOD data used to update the signal.</param>
+    /// <param name="futuresRsiSignal">The optional RSI signal input.</param>
+    /// <param name="futuresTdiSignal">The optional TDI signal input.</param>
+    /// <param name="futuresItiSignalData">The optional ITI signal input.</param>
+    /// <param name="vixFuturesPrice">The current VIX futures price.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> UpdateFuturesTradeSignalAsync(
         FuturesEodDataV2ReadModel futuresEodData,
         FuturesRsiSignalReadModel? futuresRsiSignal,
@@ -136,6 +185,16 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         return RequestAsync<UpdateFuturesTradeSignalCommand, FuturesTradeSignalEntityId>(command);
     }
 
+    /// <summary>
+    /// Sends the generate futures ITI signal command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="timePeriod">The signal time-frame type.</param>
+    /// <param name="timestamp">The signal timestamp.</param>
+    /// <param name="futuresPrice">The current futures price.</param>
+    /// <param name="vixFuturesPrice">The current VIX futures price.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> GenerateFuturesItiSignalAsync(
         string contractId,
         DateOnly valueDate,
@@ -175,9 +234,17 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
     }
 }
 
+/// <summary>
+/// Creates Market Data Analytics command APIs bound to a running event actor.
+/// </summary>
 public sealed class ActorMarketDataAnalyticsCommandApiFactory
     : IActorMarketDataAnalyticsCommandApiFactory
 {
+    /// <summary>
+    /// Creates a command API that dispatches through the supplied actor context.
+    /// </summary>
+    /// <param name="context">The actor context used for command request/reply messaging.</param>
+    /// <returns>A context-bound Market Data Analytics command API.</returns>
     public IActorMarketDataAnalyticsCommandApi Create(IEventActorContext context)
         => new ActorMarketDataAnalyticsCommandApi(context);
 }

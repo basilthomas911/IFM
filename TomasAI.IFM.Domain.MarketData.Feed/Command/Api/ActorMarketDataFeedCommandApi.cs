@@ -11,11 +11,27 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Command.Api;
 
+/// <summary>
+/// Sends Market Data Feed commands from a running event actor and returns their typed replies.
+/// </summary>
+/// <remarks>
+/// Operations construct strongly typed subjects and entity identifiers for feed lifecycle, streaming, and
+/// persistence commands before dispatching them through the captured <see cref="IEventActorContext"/>.
+/// Create one instance per actor context through <see cref="ActorMarketDataFeedCommandApiFactory"/>.
+/// </remarks>
 public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
     : IActorMarketDataFeedCommandApi
 {
     readonly IEventActorContext _context = IsArgumentNull.Set(context);
 
+    /// <summary>
+    /// Sends the turn trade live feed off command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="commandId">The originating command identifier.</param>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> TurnTradeLiveFeedOffAsync(
         Guid commandId,
         int orderId,
@@ -36,6 +52,14 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<TurnTradeLiveFeedOffCommand, TradeLiveFeedId>(command);
     }
 
+    /// <summary>
+    /// Sends the turn trade live feed on command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="commandId">The originating command identifier.</param>
+    /// <param name="orderId">The order identifier.</param>
+    /// <param name="tradeId">The trade identifier.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> TurnTradeLiveFeedOnAsync(
         Guid commandId,
         int orderId,
@@ -56,6 +80,11 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<TurnTradeLiveFeedOnCommand, TradeLiveFeedId>(command);
     }
 
+    /// <summary>
+    /// Sends the stop futures bar data streaming command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> StopFuturesBarDataStreamingAsync(DateOnly valueDate)
     {
         var entityId = new FuturesBarDataStreamingId(valueDate);
@@ -71,6 +100,13 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<StopFuturesBarDataStreamingCommand, FuturesBarDataStreamingId>(command);
     }
 
+    /// <summary>
+    /// Sends the stop futures option tick data streaming command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="commandId">The originating command identifier.</param>
+    /// <param name="entityId">The target actor entity identifier.</param>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> StopFuturesOptionTickDataStreamingAsync(
         Guid commandId,
         FuturesOptionTickEntityId entityId,
@@ -89,6 +125,14 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<StopFuturesOptionTickDataStreamingCommand, FuturesOptionTickEntityId>(command);
     }
 
+    /// <summary>
+    /// Sends the start futures tick data streaming command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="futuresContract">The futures contract associated with the operation.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="resetStream">Whether the existing stream should be reset.</param>
+    /// <param name="entityId">The target actor entity identifier.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> StartFuturesTickDataStreamingAsync(
         FuturesContractV2ReadModel futuresContract,
         DateOnly valueDate,
@@ -107,6 +151,13 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<StartFuturesTickDataStreamingCommand, FuturesDataId>(command);
     }
 
+    /// <summary>
+    /// Sends the start futures bar data streaming command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="futuresContracts">The futures contracts associated with the operation.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="entityId">The target actor entity identifier.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> StartFuturesBarDataStreamingAsync(
         FuturesContractV2ReadModel[] futuresContracts,
         DateOnly valueDate,
@@ -124,6 +175,17 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<StartFuturesBarDataStreamingCommand, FuturesBarDataStreamingId>(command);
     }
 
+    /// <summary>
+    /// Sends the start futures option tick data streaming command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="commandId">The originating command identifier.</param>
+    /// <param name="entityId">The target actor entity identifier.</param>
+    /// <param name="contract">The futures-option contract.</param>
+    /// <param name="baseContract">The underlying futures contract.</param>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="maturityDate">The option maturity date.</param>
+    /// <param name="riskFreeRate">The annualized risk-free rate.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> StartFuturesOptionTickDataStreamingAsync(
         Guid commandId,
         FuturesOptionTickEntityId entityId,
@@ -152,6 +214,11 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<StartFuturesOptionTickDataStreamingCommand, FuturesOptionTickEntityId>(command);
     }
 
+    /// <summary>
+    /// Sends the insert futures bar data command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="futuresBarData">The futures bar data to persist.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> InsertFuturesBarDataAsync(FuturesBarDataReadModel futuresBarData)
     {
         InsertFuturesBarDataCommand command = new(futuresBarData)
@@ -167,6 +234,11 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<InsertFuturesBarDataCommand, FuturesBarDataId>(command);
     }
 
+    /// <summary>
+    /// Sends the delete streaming request ID command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="feedId">The streaming feed identifier.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> DeleteStreamingRequestIdAsync(FeedId feedId)
     {
         DeleteStreamingRequestIdCommand command = new(feedId)
@@ -181,6 +253,13 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<DeleteStreamingRequestIdCommand, FeedId>(command);
     }
 
+    /// <summary>
+    /// Sends the insert futures option quote data command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="quoteId">The quote identifier.</param>
+    /// <param name="contractId">The contract identifier.</param>
+    /// <param name="quoteData">The quote data to persist.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> InsertFuturesOptionQuoteDataAsync(
         int quoteId,
         string contractId,
@@ -199,6 +278,18 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<InsertFuturesOptionQuoteDataCommand, QuoteId>(command);
     }
 
+    /// <summary>
+    /// Sends the insert futures EOD data command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="valueDate">The applicable market value date.</param>
+    /// <param name="futuresTickData">The futures tick data used by the operation.</param>
+    /// <param name="futuresContract">The futures contract associated with the operation.</param>
+    /// <param name="eodDataToday">The current EOD data.</param>
+    /// <param name="eodDataRange">The historical EOD data used by the calculation.</param>
+    /// <param name="normalCurveData">The normal-curve lookup data.</param>
+    /// <param name="windowSize">The calculation window size.</param>
+    /// <param name="vixEodData">The VIX EOD data used by the calculation.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> InsertFuturesEodDataAsync(
         DateOnly valueDate,
         FuturesTickDataV2ReadModel futuresTickData,
@@ -230,6 +321,11 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<InsertFuturesEodDataCommand, FuturesEodDataId>(command);
     }
 
+    /// <summary>
+    /// Sends the insert VIX futures EOD data command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="futuresTickData">The futures tick data used by the operation.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> InsertVixFuturesEodDataAsync(
         FuturesTickDataV2ReadModel futuresTickData)
     {
@@ -246,6 +342,12 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<InsertVixFuturesEodDataCommand, FuturesEodDataId>(command);
     }
 
+    /// <summary>
+    /// Sends the insert futures tick data command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="futuresContract">The futures contract associated with the operation.</param>
+    /// <param name="futuresTickData">The futures tick data used by the operation.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> InsertFuturesTickDataAsync(
         FuturesContractV2ReadModel futuresContract,
         FuturesTickDataV2ReadModel futuresTickData)
@@ -263,6 +365,12 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<InsertFuturesTickDataCommand, FuturesDataId>(command);
     }
 
+    /// <summary>
+    /// Sends the insert futures option tick price data command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="underlyingContract">The underlying futures contract.</param>
+    /// <param name="optionContract">The futures-option tick data.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> InsertFuturesOptionTickPriceDataAsync(
         FuturesContractV2ReadModel underlyingContract,
         FuturesOptionTickDataV2ReadModel optionContract)
@@ -280,6 +388,12 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         return RequestAsync<InsertFuturesOptionTickPriceDataCommand, FuturesOptionTickEntityId>(command);
     }
 
+    /// <summary>
+    /// Sends the insert futures option tick data command and awaits its typed actor reply.
+    /// </summary>
+    /// <param name="underlyingContract">The underlying futures contract.</param>
+    /// <param name="optionContract">The futures-option tick data.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> InsertFuturesOptionTickDataAsync(
         FuturesContractV2ReadModel underlyingContract,
         FuturesOptionTickDataV2ReadModel optionContract)
@@ -311,8 +425,16 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         => new(ActorType.Command, actor, verb, entityId.Format());
 }
 
+/// <summary>
+/// Creates Market Data Feed command APIs bound to a running event actor.
+/// </summary>
 public sealed class ActorMarketDataFeedCommandApiFactory : IActorMarketDataFeedCommandApiFactory
 {
+    /// <summary>
+    /// Creates a command API that dispatches through the supplied actor context.
+    /// </summary>
+    /// <param name="context">The actor context used for command request/reply messaging.</param>
+    /// <returns>A context-bound Market Data Feed command API.</returns>
     public IActorMarketDataFeedCommandApi Create(IEventActorContext context)
         => new ActorMarketDataFeedCommandApi(context);
 }
