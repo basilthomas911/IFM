@@ -1,4 +1,0 @@
-﻿
-GO
-ALTER ROLE [db_backupoperator] ADD MEMBER [NT SERVICE\SQLAgent$DOMAINDATA];
-

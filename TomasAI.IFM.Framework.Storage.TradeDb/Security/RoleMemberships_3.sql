@@ -1,4 +1,0 @@
-﻿
-GO
-ALTER ROLE [db_securityadmin] ADD MEMBER [NT SERVICE\SQLAgent$DOMAINDATA];
-

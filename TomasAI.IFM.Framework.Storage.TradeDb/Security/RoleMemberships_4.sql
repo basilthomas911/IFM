@@ -1,4 +1,0 @@
-﻿
-GO
-ALTER ROLE [db_ddladmin] ADD MEMBER [DEV-SERVER\IFMApp];
-
