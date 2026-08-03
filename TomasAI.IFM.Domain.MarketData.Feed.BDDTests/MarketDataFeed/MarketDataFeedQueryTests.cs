@@ -195,7 +195,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var redis = Substitute.For<IRedisCache>();
         redis.Increment(Arg.Any<string>()).Returns(nextId);
         var blackboard = Substitute.For<IBlackboardService>();
-        blackboard.Application.SequenceCounter.Returns(new SequenceCounterModel(redis));
+        blackboard.Application.SequenceCounter.Returns(new SequenceCounterCacheModel(redis));
         var actor = _fixture.CreateMarketDataFeedQueryActor(blackboard: blackboard);
         var context = Substitute.For<IQueryActorContext>();
         var query = CreateQuery(kind);

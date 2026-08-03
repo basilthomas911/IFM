@@ -10,17 +10,17 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 
 namespace TomasAI.IFM.Application.Blackboard.UnitTests;
 
-#region EventNameIdModel Tests
+#region EventNameIdCacheModel Tests
 
 public class EventNameIdModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly EventNameIdModel _sut;
+    private readonly EventNameIdCacheModel _sut;
 
     public EventNameIdModelTests()
     {
-        _sut = new EventNameIdModel(_redisCache, _jsonSerializer);
+        _sut = new EventNameIdCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class EventNameIdModelTests
     public void BddConstructor_DoesNotThrow()
     {
         // Act
-        var model = new EventNameIdModel();
+        var model = new EventNameIdCacheModel();
 
         // Assert
         model.Should().NotBeNull();
@@ -105,17 +105,17 @@ public class EventNameIdModelTests
 
 #endregion
 
-#region EventStreamIdModel Tests
+#region EventStreamIdCacheModel Tests
 
 public class EventStreamIdModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly EventStreamIdModel _sut;
+    private readonly EventStreamIdCacheModel _sut;
 
     public EventStreamIdModelTests()
     {
-        _sut = new EventStreamIdModel(_redisCache, _jsonSerializer);
+        _sut = new EventStreamIdCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public class EventStreamIdModelTests
     public void BddConstructor_DoesNotThrow()
     {
         // Act
-        var model = new EventStreamIdModel();
+        var model = new EventStreamIdCacheModel();
 
         // Assert
         model.Should().NotBeNull();
@@ -211,17 +211,17 @@ public class EventStreamIdModelTests
 
 #endregion
 
-#region FuturesContractSymbolModel Tests
+#region FuturesContractSymbolCacheModel Tests
 
 public class FuturesContractSymbolModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesContractSymbolModel _sut;
+    private readonly FuturesContractSymbolCacheModel _sut;
 
     public FuturesContractSymbolModelTests()
     {
-        _sut = new FuturesContractSymbolModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesContractSymbolCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -301,17 +301,17 @@ public class FuturesContractSymbolModelTests
 
 #endregion
 
-#region FuturesOpenPriceModel Tests
+#region FuturesOpenPriceCacheModel Tests
 
 public class FuturesOpenPriceModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesOpenPriceModel _sut;
+    private readonly FuturesOpenPriceCacheModel _sut;
 
     public FuturesOpenPriceModelTests()
     {
-        _sut = new FuturesOpenPriceModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesOpenPriceCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -366,17 +366,17 @@ public class FuturesOpenPriceModelTests
 
 #endregion
 
-#region VixFuturesOpenPriceModel Tests
+#region VixFuturesOpenPriceCacheModel Tests
 
 public class VixFuturesOpenPriceModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly VixFuturesOpenPriceModel _sut;
+    private readonly VixFuturesOpenPriceCacheModel _sut;
 
     public VixFuturesOpenPriceModelTests()
     {
-        _sut = new VixFuturesOpenPriceModel(_redisCache, _jsonSerializer);
+        _sut = new VixFuturesOpenPriceCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -431,17 +431,17 @@ public class VixFuturesOpenPriceModelTests
 
 #endregion
 
-#region NormalCurveTableModel Tests
+#region NormalCurveTableCacheModel Tests
 
 public class NormalCurveTableModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly NormalCurveTableModel _sut;
+    private readonly NormalCurveTableCacheModel _sut;
 
     public NormalCurveTableModelTests()
     {
-        _sut = new NormalCurveTableModel(_redisCache, _jsonSerializer);
+        _sut = new NormalCurveTableCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -503,17 +503,17 @@ public class NormalCurveTableModelTests
 
 #endregion
 
-#region RiskFreeRateModel Tests
+#region RiskFreeRateCacheModel Tests
 
 public class RiskFreeRateModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly RiskFreeRateModel _sut;
+    private readonly RiskFreeRateCacheModel _sut;
 
     public RiskFreeRateModelTests()
     {
-        _sut = new RiskFreeRateModel(_redisCache, _jsonSerializer);
+        _sut = new RiskFreeRateCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]

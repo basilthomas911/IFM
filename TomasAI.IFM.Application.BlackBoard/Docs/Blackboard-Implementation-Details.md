@@ -100,7 +100,7 @@ public interface IBlackboardService
 }
 ```
 
-There are 40 exposed model properties backed by 39 distinct instances. `MarketDataFeed.FuturesOptionTickData` and `MarketDataFeed.FuturesOptionTickPriceData` deliberately return the same `FuturesOptionTickDataModel` instance and use the same Redis namespace.
+There are 40 exposed model properties backed by 39 distinct instances. `MarketDataFeed.FuturesOptionTickData` and `MarketDataFeed.FuturesOptionTickPriceData` deliberately return the same `FuturesOptionTickDataCacheModel` instance and use the same Redis namespace.
 
 The old flat model properties no longer exist. Callers must enter through a domain root:
 
@@ -120,38 +120,38 @@ The key patterns below show the suffix appended to the model's namespace. Exact 
 
 | Property/model | Operations and miss behavior | Redis identity |
 | --- | --- | --- |
-| `Application.SequenceCounter` / [`SequenceCounterModel`](../SequenceCounterModel.cs) | `Get<TEnum>` returns `0` on miss; `Increment<TEnum>` performs atomic Redis `INCR` and returns the new value. | `SequenceCounter:<enum-value>` |
+| `Application.SequenceCounter` / [`SequenceCounterCacheModel`](../SequenceCounterCacheModel.cs) | `Get<TEnum>` returns `0` on miss; `Increment<TEnum>` performs atomic Redis `INCR` and returns the new value. | `SequenceCounter:<enum-value>` |
 
 ### Event sourcing
 
 | Property/model | Operations and miss behavior | Redis identity |
 | --- | --- | --- |
-| `EventSourcing.DomainEvents` / [`DomainEventsModel`](../DomainEventsModel.cs) | Direct `Get`/`Set`; a miss returns an empty `DomainEventCollection`. | `DomainEvents:<command-guid>` |
-| `EventSourcing.EventStreamId` / [`EventStreamIdModel`](../EventStreamIdModel.cs) | Cache-aside `GetAsync`; `Remove` deletes the key. A loaded/null result ultimately falls back to an ID `0` read model. | `EventStreamId:<event-stream>` |
-| `EventSourcing.EventNameId` / [`EventNameIdModel`](../EventNameIdModel.cs) | Cache-aside `GetAsync`; an empty serialized result returns an invalid read model with ID `-1`. | `EventNameId:<event-name>.<event-type-name>` |
-| `EventSourcing.EventProjectorState` / [`EventProjectorStateModel`](../EventProjectorStateModel.cs) | Direct nullable `Get`, `Set`, and deleting `Clear`; projector name is required and isolates each projector's progress. | `EventProjectorState:<projector-name>:<event-id>` |
+| `EventSourcing.DomainEvents` / [`DomainEventsCacheModel`](../DomainEventsCacheModel.cs) | Direct `Get`/`Set`; a miss returns an empty `DomainEventCollection`. | `DomainEvents:<command-guid>` |
+| `EventSourcing.EventStreamId` / [`EventStreamIdCacheModel`](../EventStreamIdCacheModel.cs) | Cache-aside `GetAsync`; `Remove` deletes the key. A loaded/null result ultimately falls back to an ID `0` read model. | `EventStreamId:<event-stream>` |
+| `EventSourcing.EventNameId` / [`EventNameIdCacheModel`](../EventNameIdCacheModel.cs) | Cache-aside `GetAsync`; an empty serialized result returns an invalid read model with ID `-1`. | `EventNameId:<event-name>.<event-type-name>` |
+| `EventSourcing.EventProjectorState` / [`EventProjectorStateCacheModel`](../EventProjectorStateCacheModel.cs) | Direct nullable `Get`, `Set`, and deleting `Clear`; projector name is required and isolates each projector's progress. | `EventProjectorState:<projector-name>:<event-id>` |
 
 ### Fund
 
 | Property/model | Operations and miss behavior | Redis identity |
 | --- | --- | --- |
-| `Fund.FundBalance` / [`FundBalanceModel`](../FundBalanceModel.cs) | Nullable `Get`, `Set`, and `Exists`; cached by order rather than only by fund. | `FundBalanceByOrderId:<order-id>` |
+| `Fund.FundBalance` / [`FundBalanceCacheModel`](../FundBalanceCacheModel.cs) | Nullable `Get`, `Set`, and `Exists`; cached by order rather than only by fund. | `FundBalanceByOrderId:<order-id>` |
 
 ### Market data
 
 | Property/model | Operations and miss behavior | Redis identity |
 | --- | --- | --- |
-| `MarketData.RiskFreeRate` / [`RiskFreeRateModel`](../RiskFreeRateModel.cs) | Cache-aside `GetAsync`, cache-only `Get`, and empty-string `Clear`. Cache-only miss returns `0`; callback-loaded values receive a 60-minute TTL. | `RiskFreeRate:<yyyyMMdd>` |
+| `MarketData.RiskFreeRate` / [`RiskFreeRateCacheModel`](../RiskFreeRateCacheModel.cs) | Cache-aside `GetAsync`, cache-only `Get`, and empty-string `Clear`. Cache-only miss returns `0`; callback-loaded values receive a 60-minute TTL. | `RiskFreeRate:<yyyyMMdd>` |
 
 ### Market-data analytics
 
 | Property/model | Operations and miss behavior | Redis identity |
 | --- | --- | --- |
-| `FuturesItiSignalAveragePredictedTrendDelta` / [`FuturesItiSignalAveragePredictedTrendDeltaModel`](../FuturesItiSignalAveragePredictedTrendDeltaModel.cs) | Cache-aside `GetAsync`; nullable/default result on miss callback failure. | `FuturesItiSignalAveragePredictedTrendDelta:<contract-id>. <yyyyMMdd>` |
-| `FuturesItiSignalAveragePredictedTrendDeltaRange` / [`FuturesItiSignalAveragePredictedTrendDeltaRangeModel`](../FuturesItiSignalAveragePredictedTrendDeltaRangeModel.cs) | Cache-aside range `GetAsync`; nullable/default result. | `...Range:<symbol>.<start-yyyyMMdd>.<end-yyyyMMdd>` |
-| `FuturesItiSignalMDI` / [`FuturesItiSignalMDIModel`](../FuturesItiSignalMDModel.cs) | Cache-aside `GetAsync` returns an empty array on unresolved miss. `Set` currently updates only when the key already contains a value. | `FuturesItiSignalMDI:<contract-id>. <yyyyMMdd>` |
-| `FuturesRsiSignal` / [`FuturesRsiSignalModel`](../FuturesRsiSignalModel.cs) | Nullable `Get` and `Set`. | `FuturesRsiSignal:<entity-id.Format()>` |
-| `FuturesRsiDailySignal` / [`FuturesRsiDailySignalModel`](../FuturesRsiDailySignalModel.cs) | Nullable `Get` and `Set`. | `FuturesRsiDailySignal:<entity-id.Format()>` |
+| `FuturesItiSignalAveragePredictedTrendDelta` / [`FuturesItiSignalAveragePredictedTrendDeltaCacheModel`](../FuturesItiSignalAveragePredictedTrendDeltaCacheModel.cs) | Cache-aside `GetAsync`; nullable/default result on miss callback failure. | `FuturesItiSignalAveragePredictedTrendDelta:<contract-id>. <yyyyMMdd>` |
+| `FuturesItiSignalAveragePredictedTrendDeltaRange` / [`FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel`](../FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel.cs) | Cache-aside range `GetAsync`; nullable/default result. | `...Range:<symbol>.<start-yyyyMMdd>.<end-yyyyMMdd>` |
+| `FuturesItiSignalMDI` / [`FuturesItiSignalMDICacheModel`](../FuturesItiSignalMDICacheModel.cs) | Cache-aside `GetAsync` returns an empty array on unresolved miss. `Set` currently updates only when the key already contains a value. | `FuturesItiSignalMDI:<contract-id>. <yyyyMMdd>` |
+| `FuturesRsiSignal` / [`FuturesRsiSignalCacheModel`](../FuturesRsiSignalCacheModel.cs) | Nullable `Get` and `Set`. | `FuturesRsiSignal:<entity-id.Format()>` |
+| `FuturesRsiDailySignal` / [`FuturesRsiDailySignalCacheModel`](../FuturesRsiDailySignalCacheModel.cs) | Nullable `Get` and `Set`. | `FuturesRsiDailySignal:<entity-id.Format()>` |
 
 The dot followed by a literal space in two analytics key formats is intentional current behavior, not Markdown formatting.
 
@@ -159,48 +159,48 @@ The dot followed by a literal space in two analytics key formats is intentional 
 
 | Property/model | Operations and miss behavior | Redis identity/invalidation |
 | --- | --- | --- |
-| `FuturesTickData` / [`FuturesTickDataModel`](../FuturesTickDataModel.cs) | Direct `Get`/`Set`; miss returns the domain `Default` tick model. | `FuturesTickData:<contract-id>,<yyyyMMdd>` |
-| `FuturesOptionTickData` and `FuturesOptionTickPriceData` / [`FuturesOptionTickDataModel`](../FuturesOptionTickDataModel.cs) | Exact same model instance; direct `Get`/`Set`; miss returns the domain `Default`. | `FuturesOptionTickData:<contract-id>.<yyyyMMdd>` |
-| `FuturesTickDataStreamingParameter` / [`FuturesTickDataStreamingParameterModel`](../FuturesTickDataStreamingParameterModel.cs) | Direct `Get`/`Set`; miss returns a new invalid/default parameter instance. Uses `JsonConvert` directly. | `FuturesTickDataStreamingParameter:<request-id>` |
-| `FuturesOptionTickDataStreamingParameter` / [`FuturesOptionTickDataStreamingParameterModel`](../FuturesOptionTickDataStreamingParameterModel.cs) | Nullable `Get` and `Set`. | `FuturesOptionTickDataStreamingParameter:<request-id>` |
-| `FuturesEodData` / [`FuturesEodDataModel`](../FuturesEodDataModel.cs) | Nullable `Get` and `Set`. | `FuturesEodData:<contract-id>. <yyyyMMdd>` |
-| `VixFuturesEodData` / [`VixFuturesEodDataModel`](../VixFuturesEodDataModel.cs) | `Get`/`Set`; miss or null deserialization returns an empty collection. | `VixFuturesEodData:<contract-id>-<yyyyMMdd>` |
-| `FuturesEodDataRange` / [`FuturesEodDataRangeModel`](../FuturesEodDataRangeModel.cs) | Cache-aside one-year range. Empty data or a first item whose date differs from the requested date triggers refresh. Miss returns an empty array; `Remove` deletes. | `FuturesEodDataRange:<FuturesEodDataId.Format()>` |
-| `NormalCurveTable` / [`NormalCurveTableModel`](../NormalCurveTableModel.cs) | Cache-aside nullable `GetAsync`; `Remove` deletes. | `NormalCurveTable:<yyyyMMdd>` |
-| `VixFuturesContractId` / [`VixFuturesContractIdModel`](../VixFuturesContractIdModel.cs) | Raw-string nullable `Get` and `Set`. | `VixFuturesContractId:<yyyyMMdd>` |
-| `FuturesOptionQuote` / [`FuturesOptionQuoteModel`](../FuturesOptionQuoteModel.cs) | Stores an array and returns a dictionary keyed by request ID. Miss returns an empty dictionary; `Clear` writes an empty string. | `FuturesOptionQuote:<quote-id>` |
-| `FuturesOptionQuoteData` / [`FuturesOptionQuoteDataModel`](../FuturesOptionQuoteDataModel.cs) | Nullable `Get`, `Set`, and empty-string `Clear`. | `FuturesOptionQuoteData:<option-quote-id.Format()>` |
-| `FuturesOpenPrice` / [`FuturesOpenPriceModel`](../FuturesOpenPriceModel.cs) | Raw-decimal cache-aside `GetAsync`; `Clear` writes an empty string. | `FuturesOpenPrice:<FuturesDataId.Format()>` |
-| `VixFuturesOpenPrice` / [`VixFuturesOpenPriceModel`](../VixFuturesOpenPriceModel.cs) | Raw-decimal cache-aside `GetAsync`; `Clear` writes an empty string. | `VixFuturesOpenPrice:<entity-id.Format()>` |
-| `StreamingRequestId` / [`StreamingRequestIdModel`](../StreamingRequestIdModel.cs) | Lookup by contract ID or numeric request ID; miss returns a new invalid/default object. `Set` writes both keys for one day and `Remove` deletes both. | `StreamingRequestId:<contract-id>` and `StreamingRequestId:<request-id>` |
+| `FuturesTickData` / [`FuturesTickDataCacheModel`](../FuturesTickDataCacheModel.cs) | Direct `Get`/`Set`; miss returns the domain `Default` tick model. | `FuturesTickData:<contract-id>,<yyyyMMdd>` |
+| `FuturesOptionTickData` and `FuturesOptionTickPriceData` / [`FuturesOptionTickDataCacheModel`](../FuturesOptionTickDataCacheModel.cs) | Exact same model instance; direct `Get`/`Set`; miss returns the domain `Default`. | `FuturesOptionTickData:<contract-id>.<yyyyMMdd>` |
+| `FuturesTickDataStreamingParameter` / [`FuturesTickDataStreamingParameterCacheModel`](../FuturesTickDataStreamingParameterCacheModel.cs) | Direct `Get`/`Set`; miss returns a new invalid/default parameter instance. Uses `JsonConvert` directly. | `FuturesTickDataStreamingParameter:<request-id>` |
+| `FuturesOptionTickDataStreamingParameter` / [`FuturesOptionTickDataStreamingParameterCacheModel`](../FuturesOptionTickDataStreamingParameterCacheModel.cs) | Nullable `Get` and `Set`. | `FuturesOptionTickDataStreamingParameter:<request-id>` |
+| `FuturesEodData` / [`FuturesEodDataCacheModel`](../FuturesEodDataCacheModel.cs) | Nullable `Get` and `Set`. | `FuturesEodData:<contract-id>. <yyyyMMdd>` |
+| `VixFuturesEodData` / [`VixFuturesEodDataCacheModel`](../VixFuturesEodDataCacheModel.cs) | `Get`/`Set`; miss or null deserialization returns an empty collection. | `VixFuturesEodData:<contract-id>-<yyyyMMdd>` |
+| `FuturesEodDataRange` / [`FuturesEodDataRangeCacheModel`](../FuturesEodDataRangeCacheModel.cs) | Cache-aside one-year range. Empty data or a first item whose date differs from the requested date triggers refresh. Miss returns an empty array; `Remove` deletes. | `FuturesEodDataRange:<FuturesEodDataId.Format()>` |
+| `NormalCurveTable` / [`NormalCurveTableCacheModel`](../NormalCurveTableCacheModel.cs) | Cache-aside nullable `GetAsync`; `Remove` deletes. | `NormalCurveTable:<yyyyMMdd>` |
+| `VixFuturesContractId` / [`VixFuturesContractIdCacheModel`](../VixFuturesContractIdCacheModel.cs) | Raw-string nullable `Get` and `Set`. | `VixFuturesContractId:<yyyyMMdd>` |
+| `FuturesOptionQuote` / [`FuturesOptionQuoteCacheModel`](../FuturesOptionQuoteCacheModel.cs) | Stores an array and returns a dictionary keyed by request ID. Miss returns an empty dictionary; `Clear` writes an empty string. | `FuturesOptionQuote:<quote-id>` |
+| `FuturesOptionQuoteData` / [`FuturesOptionQuoteDataCacheModel`](../FuturesOptionQuoteDataCacheModel.cs) | Nullable `Get`, `Set`, and empty-string `Clear`. | `FuturesOptionQuoteData:<option-quote-id.Format()>` |
+| `FuturesOpenPrice` / [`FuturesOpenPriceCacheModel`](../FuturesOpenPriceCacheModel.cs) | Raw-decimal cache-aside `GetAsync`; `Clear` writes an empty string. | `FuturesOpenPrice:<FuturesDataId.Format()>` |
+| `VixFuturesOpenPrice` / [`VixFuturesOpenPriceCacheModel`](../VixFuturesOpenPriceCacheModel.cs) | Raw-decimal cache-aside `GetAsync`; `Clear` writes an empty string. | `VixFuturesOpenPrice:<entity-id.Format()>` |
+| `StreamingRequestId` / [`StreamingRequestIdCacheModel`](../StreamingRequestIdCacheModel.cs) | Lookup by contract ID or numeric request ID; miss returns a new invalid/default object. `Set` writes both keys for one day and `Remove` deletes both. | `StreamingRequestId:<contract-id>` and `StreamingRequestId:<request-id>` |
 
 ### Market-data securities
 
 | Property/model | Operations and miss behavior | Redis identity |
 | --- | --- | --- |
 | `DatabentoContractMapping` / [`DatabentoContractMappingCache`](../DatabentoContractMappingCache.cs) | Bidirectional `TryGet`, paired `SetMapping`, per-direction clear, and current dataset-partition clear. Miss returns `false`; conflicts throw. | Versioned dataset/UTC-date partitions; detailed below. |
-| `FuturesContract` / [`FuturesContractModel`](../FuturesContractModel.cs) | Nullable `Get` and `Set`. | `FuturesContract:<typed-contract-id>` |
-| `FuturesContractSymbol` / [`FuturesContractSymbolModel`](../FuturesContractSymbolModel.cs) | Cache-aside `GetAsync`; unresolved miss returns an empty string. | `FuturesContractSymbol:<contract-id>` |
+| `FuturesContract` / [`FuturesContractCacheModel`](../FuturesContractCacheModel.cs) | Nullable `Get` and `Set`. | `FuturesContract:<typed-contract-id>` |
+| `FuturesContractSymbol` / [`FuturesContractSymbolCacheModel`](../FuturesContractSymbolCacheModel.cs) | Cache-aside `GetAsync`; unresolved miss returns an empty string. | `FuturesContractSymbol:<contract-id>` |
 
 ### Reference
 
 | Property/model | Operations and miss behavior | Redis identity |
 | --- | --- | --- |
-| `Reference.ReferenceLookup` / [`ReferenceLookupModel`](../ReferenceLookupModel.cs) | Stores one dictionary for all lookup types. Nullable `Get` and `Set`. | `ReferenceLookup` |
+| `Reference.ReferenceLookup` / [`ReferenceLookupCacheModel`](../ReferenceLookupCacheModel.cs) | Stores one dictionary for all lookup types. Nullable `Get` and `Set`. | `ReferenceLookup` |
 
 ### Trade
 
 | Property/model | Operations and miss behavior | Redis identity/invalidation |
 | --- | --- | --- |
-| `Trade.OptionTrade` / [`OptionTradeModel`](../OptionTradeModel.cs) | Nullable `Get`, `Set`, and deleting `Remove`. | `OptionTrade:<option-trade-id.Format()>` |
-| `Trade.TradePositionAction` / [`TradePositionActionModel`](../TradePositionActionModel.cs) | Nullable `Get` and `Set`. | `TradePositionAction:<trade-position-id.Format()>` |
-| `Trade.TradePlanForwardLossLimit` / [`TradePlanForwardLossLimitModel`](../TradePlanForwardLossLimitModel.cs) | Nullable `Get`, `Set`, and deleting `Remove`. | `TradePlanForwardLossLimit:<entity-id.Format()>` |
-| `Trade.HedgePositionTradeId` / [`HedgePositionTradeIdModel`](../HedgePositionTradeIdModel.cs) | Nullable option-trade ID `Get` and `Set`. | `HedgePositionTradeId:<trade-position-id.Format()>` |
-| `Trade.TradeOrder` / [`TradeOrderModel`](../TradeOrderModel.cs) | Nullable `Get` and `Set`. | `TradeOrder:<trade-order-id.Format()>` |
-| `Trade.IronCondorMDILimit` / [`IronCondorMDILimitModel`](../IronCondorMDILimitModel.cs) | Nullable `Get` and `Set`. | `IronCondorMDILimit:<option-trade-id.Format()>,<yyyyMMdd>` |
-| `Trade.ForwardLossRatioMap` / [`ForwardLossRatioMapModel`](../ForwardLossRatioMapModel..cs) | `Get` returns an empty dictionary on miss; also exposes `Exists` and `Set`. | `ForwardLossRatioMap:<yyyyMMdd>` |
-| `Trade.StopLossLimit` / [`StopLossLimitModel`](../StopLossLimitModel.cs) | Nullable `Get`, `Set`, `Exists`, and deleting `Remove`. | `StopLossLimit:<option-trade-id.Format()>` |
-| `Trade.SignalProcessor` / [`SignalProcessorModel`](../SignalProcessorModel..cs) | Generic nullable `Get<TSignal>`, `Set<TSignal>`, and `Exists`; the generic type is not part of the key. | `SignalProcessor:<option-trade-id.Format()>` |
+| `Trade.OptionTrade` / [`OptionTradeCacheModel`](../OptionTradeCacheModel.cs) | Nullable `Get`, `Set`, and deleting `Remove`. | `OptionTrade:<option-trade-id.Format()>` |
+| `Trade.TradePositionAction` / [`TradePositionActionCacheModel`](../TradePositionActionCacheModel.cs) | Nullable `Get` and `Set`. | `TradePositionAction:<trade-position-id.Format()>` |
+| `Trade.TradePlanForwardLossLimit` / [`TradePlanForwardLossLimitCacheModel`](../TradePlanForwardLossLimitCacheModel.cs) | Nullable `Get`, `Set`, and deleting `Remove`. | `TradePlanForwardLossLimit:<entity-id.Format()>` |
+| `Trade.HedgePositionTradeId` / [`HedgePositionTradeIdCacheModel`](../HedgePositionTradeIdCacheModel.cs) | Nullable option-trade ID `Get` and `Set`. | `HedgePositionTradeId:<trade-position-id.Format()>` |
+| `Trade.TradeOrder` / [`TradeOrderCacheModel`](../TradeOrderCacheModel.cs) | Nullable `Get` and `Set`. | `TradeOrder:<trade-order-id.Format()>` |
+| `Trade.IronCondorMDILimit` / [`IronCondorMDILimitCacheModel`](../IronCondorMDILimitCacheModel.cs) | Nullable `Get` and `Set`. | `IronCondorMDILimit:<option-trade-id.Format()>,<yyyyMMdd>` |
+| `Trade.ForwardLossRatioMap` / [`ForwardLossRatioMapCacheModel`](../ForwardLossRatioMapCacheModel.cs) | `Get` returns an empty dictionary on miss; also exposes `Exists` and `Set`. | `ForwardLossRatioMap:<yyyyMMdd>` |
+| `Trade.StopLossLimit` / [`StopLossLimitCacheModel`](../StopLossLimitCacheModel.cs) | Nullable `Get`, `Set`, `Exists`, and deleting `Remove`. | `StopLossLimit:<option-trade-id.Format()>` |
+| `Trade.SignalProcessor` / [`SignalProcessorCacheModel`](../SignalProcessorCacheModel.cs) | Generic nullable `Get<TSignal>`, `Set<TSignal>`, and `Exists`; the generic type is not part of the key. | `SignalProcessor:<option-trade-id.Format()>` |
 
 ## Redis key and payload rules
 
@@ -226,11 +226,11 @@ Most object and collection models use the injected `IJsonSerializer`. Production
 
 Exceptions to the normal JSON path include:
 
-- `SequenceCounterModel`: raw Redis integer.
-- `RiskFreeRateModel`: interpolated `double` string.
-- `FuturesOpenPriceModel` and `VixFuturesOpenPriceModel`: interpolated `decimal` string.
-- `VixFuturesContractIdModel`: raw contract-ID string.
-- `FuturesTickDataStreamingParameterModel`: direct Newtonsoft `JsonConvert`, bypassing the injected serializer.
+- `SequenceCounterCacheModel`: raw Redis integer.
+- `RiskFreeRateCacheModel`: interpolated `double` string.
+- `FuturesOpenPriceCacheModel` and `VixFuturesOpenPriceCacheModel`: interpolated `decimal` string.
+- `VixFuturesContractIdCacheModel`: raw contract-ID string.
+- `FuturesTickDataStreamingParameterCacheModel`: direct Newtonsoft `JsonConvert`, bypassing the injected serializer.
 
 The numeric scalar models use current-culture string formatting and `Convert` parsing. A writer and reader using different cultures can therefore disagree on decimal separators.
 
@@ -239,8 +239,8 @@ The numeric scalar models use current-culture string formatting and `Convert` pa
 | Model | Expiration |
 | --- | --- |
 | Ordinary Blackboard models | No TTL; retained until overwritten, explicitly invalidated, evicted, or Redis is cleared. |
-| `RiskFreeRateModel` callback-loaded value | 60 minutes |
-| `StreamingRequestIdModel` paired values | 1 day |
+| `RiskFreeRateCacheModel` callback-loaded value | 60 minutes |
+| `StreamingRequestIdCacheModel` paired values | 1 day |
 | `DatabentoContractMappingCache` | 15-minute renewable sliding TTL, bounded by a 24-hour hard expiration |
 
 Calling plain `IRedisCache.Set` replaces the value without a TTL. Empty-string `Clear` methods therefore leave a persistent empty value that models interpret as a miss.
@@ -272,7 +272,7 @@ Build typed key
 
 Although the public method may be asynchronous, Redis operations surrounding the callback are synchronous. These calls run on the actor, event-handler, storage, or request thread that invoked the model.
 
-General cache-aside models do not coalesce concurrent misses. Multiple callers can invoke the same database/API loader and race to write the key; the last write wins. `SequenceCounterModel.Increment` is the only general atomic operation because it delegates to Redis `INCR`.
+General cache-aside models do not coalesce concurrent misses. Multiple callers can invoke the same database/API loader and race to write the key; the last write wins. `SequenceCounterCacheModel.Increment` is the only general atomic operation because it delegates to Redis `INCR`.
 
 There are no general compare-and-set operations, Redis transactions, distributed locks, cancellation tokens, timeouts, retries, circuit breakers, logging, metrics, or cache health reporting in this project.
 
@@ -416,13 +416,13 @@ The suite verifies facade construction, root identity, most canonical keys, hit/
 
 Direct model gaps currently include:
 
-- `EventProjectorStateModel` behavior and projector isolation
-- `FuturesRsiSignalModel`
-- `FuturesRsiDailySignalModel`
-- `RiskFreeRateModel.Get`
-- `FundBalanceModel.Exists`
-- `ForwardLossRatioMapModel.Exists`
-- `SignalProcessorModel.Exists`
+- `EventProjectorStateCacheModel` behavior and projector isolation
+- `FuturesRsiSignalCacheModel`
+- `FuturesRsiDailySignalCacheModel`
+- `RiskFreeRateCacheModel.Get`
+- `FundBalanceCacheModel.Exists`
+- `ForwardLossRatioMapCacheModel.Exists`
+- `SignalProcessorCacheModel.Exists`
 
 There is no focused Blackboard integration suite against a live StackExchange.Redis server covering real key creation, cross-process JSON, TTL, prefix removal, atomic increments, reconnects, or outages. Framework Redis tests and broader domain/storage integration suites provide partial coverage but do not replace that boundary test.
 
@@ -454,17 +454,16 @@ For an existing model, changing a key or payload requires a compatibility plan. 
 7. **Environment isolation is absent.** No environment prefix or Redis database selection is owned by Blackboard.
 8. **Serializer choice is host-controlled.** Production uses Newtonsoft while several tests use System.Text.Json; cross-serializer payload compatibility is not directly tested.
 9. **Scalar formatting is culture-sensitive.** Risk-free rates and open prices use interpolation plus `Convert` rather than invariant formatting.
-10. **`FuturesItiSignalMDIModel.Set` cannot populate a miss.** It writes only when the key already has a non-empty value.
-11. **`SignalProcessorModel` omits `TSignal` from the key.** Different generic signal types for one option trade can overwrite and later deserialize incompatible payloads.
+10. **`FuturesItiSignalMDICacheModel.Set` cannot populate a miss.** It writes only when the key already has a non-empty value.
+11. **`SignalProcessorCacheModel` omits `TSignal` from the key.** Different generic signal types for one option trade can overwrite and later deserialize incompatible payloads.
 12. **Futures EOD range freshness assumes array ordering.** It compares the requested date to the first cached item.
-13. **Duplicate quote request IDs throw.** `FuturesOptionQuoteModel.Get` builds a dictionary with `Add`.
+13. **Duplicate quote request IDs throw.** `FuturesOptionQuoteCacheModel.Get` builds a dictionary with `Add`.
 14. **BDD-only constructors contain null dependencies.** Parameterless constructors on several public models are safe only for test construction; calling cache methods on them can null-reference.
 15. **Databento pair writes are not transactional.** Rollback is best effort and cross-process races remain possible.
 16. **The Databento decorator is dormant.** It has unit coverage but no production DI registration or call site.
 17. **The direct MessagePack dependency appears unused.** Blackboard source does not use MessagePack or `IBinarySerializer`.
 18. **Case-sensitive checkout is at risk.** The tracked folder is `Application.BlackBoard`, while the solution and unit-test project reference `Application.Blackboard`; this works on Windows but can fail on Linux.
-19. **Two source filenames contain double periods.** `ForwardLossRatioMapModel..cs` and `SignalProcessorModel..cs` are valid on Windows but are source-hygiene and tooling concerns.
-20. **Some cache consumers are inactive through current DI.** In particular, the API Server's `IAlgorithmBuilder` registration remains commented out.
+19. **Some cache consumers are inactive through current DI.** In particular, the API Server's `IAlgorithmBuilder` registration remains commented out.
 
 ## Validation baseline
 

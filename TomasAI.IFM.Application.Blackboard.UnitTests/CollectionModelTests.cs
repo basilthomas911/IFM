@@ -12,11 +12,11 @@ public class VixFuturesEodDataModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly VixFuturesEodDataModel _sut;
+    private readonly VixFuturesEodDataCacheModel _sut;
 
     public VixFuturesEodDataModelTests()
     {
-        _sut = new VixFuturesEodDataModel(_redisCache, _jsonSerializer);
+        _sut = new VixFuturesEodDataCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -98,11 +98,11 @@ public class ReferenceLookupModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly ReferenceLookupModel _sut;
+    private readonly ReferenceLookupCacheModel _sut;
 
     public ReferenceLookupModelTests()
     {
-        _sut = new ReferenceLookupModel(_redisCache, _jsonSerializer);
+        _sut = new ReferenceLookupCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -154,11 +154,11 @@ public class DomainEventsModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly DomainEventsModel _sut;
+    private readonly DomainEventsCacheModel _sut;
 
     public DomainEventsModelTests()
     {
-        _sut = new DomainEventsModel(_redisCache, _jsonSerializer);
+        _sut = new DomainEventsCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -229,11 +229,11 @@ public class FuturesOptionQuoteModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesOptionQuoteModel _sut;
+    private readonly FuturesOptionQuoteCacheModel _sut;
 
     public FuturesOptionQuoteModelTests()
     {
-        _sut = new FuturesOptionQuoteModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesOptionQuoteCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]

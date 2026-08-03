@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 public static class GetStreamingRequestId
 {
     internal static ValueTask<ScalarValue<int>> GetStreamingRequestIdAsync(
-        this GetStreamingRequestIdQuery q, SequenceCounterModel sequenceCounter)
+        this GetStreamingRequestIdQuery q, SequenceCounterCacheModel sequenceCounter)
         => ValueTask.FromResult(new ScalarValue<int>(
             Convert.ToInt32(sequenceCounter.Increment(SequenceName.StreamingRequest_RequestId))));
 }

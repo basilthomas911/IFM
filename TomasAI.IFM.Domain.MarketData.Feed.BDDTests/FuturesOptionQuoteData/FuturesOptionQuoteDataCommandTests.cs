@@ -374,7 +374,7 @@ public class FuturesOptionQuoteDataCommandTests : IClassFixture<MarketDataFeedBd
     static FuturesOptionQuoteDataCommandState CreateState(ActorThreadId threadId)
     {
         var blackboard = Substitute.For<IBlackboardService>();
-        blackboard.MarketDataFeed.FuturesOptionQuoteData.Returns(new FuturesOptionQuoteDataModel());
+        blackboard.MarketDataFeed.FuturesOptionQuoteData.Returns(new FuturesOptionQuoteDataCacheModel());
         return new FuturesOptionQuoteDataCommandState(blackboard) { Id = threadId };
     }
 

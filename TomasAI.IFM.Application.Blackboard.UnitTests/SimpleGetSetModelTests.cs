@@ -15,11 +15,11 @@ public class FuturesTickDataModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesTickDataModel _sut;
+    private readonly FuturesTickDataCacheModel _sut;
 
     public FuturesTickDataModelTests()
     {
-        _sut = new FuturesTickDataModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesTickDataCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -105,11 +105,11 @@ public class FuturesOptionTickDataModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesOptionTickDataModel _sut;
+    private readonly FuturesOptionTickDataCacheModel _sut;
 
     public FuturesOptionTickDataModelTests()
     {
-        _sut = new FuturesOptionTickDataModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesOptionTickDataCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -188,11 +188,11 @@ public class FuturesEodDataModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesEodDataModel _sut;
+    private readonly FuturesEodDataCacheModel _sut;
 
     public FuturesEodDataModelTests()
     {
-        _sut = new FuturesEodDataModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesEodDataCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -252,11 +252,11 @@ public class FundBalanceModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FundBalanceModel _sut;
+    private readonly FundBalanceCacheModel _sut;
 
     public FundBalanceModelTests()
     {
-        _sut = new FundBalanceModel(_redisCache, _jsonSerializer);
+        _sut = new FundBalanceCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -316,11 +316,11 @@ public class TradeOrderModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly TradeOrderModel _sut;
+    private readonly TradeOrderCacheModel _sut;
 
     public TradeOrderModelTests()
     {
-        _sut = new TradeOrderModel(_redisCache, _jsonSerializer);
+        _sut = new TradeOrderCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -383,11 +383,11 @@ public class TradePositionActionModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly TradePositionActionModel _sut;
+    private readonly TradePositionActionCacheModel _sut;
 
     public TradePositionActionModelTests()
     {
-        _sut = new TradePositionActionModel(_redisCache, _jsonSerializer);
+        _sut = new TradePositionActionCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -450,11 +450,11 @@ public class HedgePositionTradeIdModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly HedgePositionTradeIdModel _sut;
+    private readonly HedgePositionTradeIdCacheModel _sut;
 
     public HedgePositionTradeIdModelTests()
     {
-        _sut = new HedgePositionTradeIdModel(_redisCache, _jsonSerializer);
+        _sut = new HedgePositionTradeIdCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -517,11 +517,11 @@ public class StopLossLimitModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly StopLossLimitModel _sut;
+    private readonly StopLossLimitCacheModel _sut;
 
     public StopLossLimitModelTests()
     {
-        _sut = new StopLossLimitModel(_redisCache, _jsonSerializer);
+        _sut = new StopLossLimitCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -619,11 +619,11 @@ public class IronCondorMDILimitModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly IronCondorMDILimitModel _sut;
+    private readonly IronCondorMDILimitCacheModel _sut;
 
     public IronCondorMDILimitModelTests()
     {
-        _sut = new IronCondorMDILimitModel(_redisCache, _jsonSerializer);
+        _sut = new IronCondorMDILimitCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -689,11 +689,11 @@ public class FuturesOptionTickDataStreamingParameterModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesOptionTickDataStreamingParameterModel _sut;
+    private readonly FuturesOptionTickDataStreamingParameterCacheModel _sut;
 
     public FuturesOptionTickDataStreamingParameterModelTests()
     {
-        _sut = new FuturesOptionTickDataStreamingParameterModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesOptionTickDataStreamingParameterCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]

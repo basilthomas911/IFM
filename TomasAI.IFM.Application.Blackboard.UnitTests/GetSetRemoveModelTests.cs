@@ -14,11 +14,11 @@ public class OptionTradeModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly OptionTradeModel _sut;
+    private readonly OptionTradeCacheModel _sut;
 
     public OptionTradeModelTests()
     {
-        _sut = new OptionTradeModel(_redisCache, _jsonSerializer);
+        _sut = new OptionTradeCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -112,11 +112,11 @@ public class TradePlanForwardLossLimitModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly TradePlanForwardLossLimitModel _sut;
+    private readonly TradePlanForwardLossLimitCacheModel _sut;
 
     public TradePlanForwardLossLimitModelTests()
     {
-        _sut = new TradePlanForwardLossLimitModel(_redisCache, _jsonSerializer);
+        _sut = new TradePlanForwardLossLimitCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -193,11 +193,11 @@ public class FuturesOptionQuoteDataModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesOptionQuoteDataModel _sut;
+    private readonly FuturesOptionQuoteDataCacheModel _sut;
 
     public FuturesOptionQuoteDataModelTests()
     {
-        _sut = new FuturesOptionQuoteDataModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesOptionQuoteDataCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -273,7 +273,7 @@ public class FuturesOptionQuoteDataModelTests
     public void BddConstructor_CreatesInstance()
     {
         // Arrange & Act
-        var model = new FuturesOptionQuoteDataModel();
+        var model = new FuturesOptionQuoteDataCacheModel();
 
         // Assert
         model.Should().NotBeNull();

@@ -370,9 +370,9 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
         var redis = Substitute.For<IRedisCache>();
         var serializer = Substitute.For<IJsonSerializer>();
         blackboard.MarketDataFeed.FuturesTickDataStreamingParameter.Returns(
-            new FuturesTickDataStreamingParameterModel(redis));
+            new FuturesTickDataStreamingParameterCacheModel(redis));
         blackboard.MarketDataFeed.VixFuturesContractId.Returns(
-            new VixFuturesContractIdModel(redis, serializer));
+            new VixFuturesContractIdCacheModel(redis, serializer));
         return (blackboard, redis);
     }
 

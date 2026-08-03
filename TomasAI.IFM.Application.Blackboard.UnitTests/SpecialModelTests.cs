@@ -19,11 +19,11 @@ public class StreamingRequestIdModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly StreamingRequestIdModel _sut;
+    private readonly StreamingRequestIdCacheModel _sut;
 
     public StreamingRequestIdModelTests()
     {
-        _sut = new StreamingRequestIdModel(_redisCache, _jsonSerializer);
+        _sut = new StreamingRequestIdCacheModel(_redisCache, _jsonSerializer);
     }
 
     private static StreamingRequestId CreateStreamingRequestId()
@@ -134,11 +134,11 @@ public class StreamingRequestIdModelTests
 public class FuturesTickDataStreamingParameterModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
-    private readonly FuturesTickDataStreamingParameterModel _sut;
+    private readonly FuturesTickDataStreamingParameterCacheModel _sut;
 
     public FuturesTickDataStreamingParameterModelTests()
     {
-        _sut = new FuturesTickDataStreamingParameterModel(_redisCache);
+        _sut = new FuturesTickDataStreamingParameterCacheModel(_redisCache);
     }
 
     [Fact]
@@ -207,11 +207,11 @@ public class VixFuturesContractIdModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly VixFuturesContractIdModel _sut;
+    private readonly VixFuturesContractIdCacheModel _sut;
 
     public VixFuturesContractIdModelTests()
     {
-        _sut = new VixFuturesContractIdModel(_redisCache, _jsonSerializer);
+        _sut = new VixFuturesContractIdCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -274,11 +274,11 @@ public class SignalProcessorModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly SignalProcessorModel _sut;
+    private readonly SignalProcessorCacheModel _sut;
 
     public SignalProcessorModelTests()
     {
-        _sut = new SignalProcessorModel(_redisCache, _jsonSerializer);
+        _sut = new SignalProcessorCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -334,11 +334,11 @@ public class ForwardLossRatioMapModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly ForwardLossRatioMapModel _sut;
+    private readonly ForwardLossRatioMapCacheModel _sut;
 
     public ForwardLossRatioMapModelTests()
     {
-        _sut = new ForwardLossRatioMapModel(_redisCache, _jsonSerializer);
+        _sut = new ForwardLossRatioMapCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -409,11 +409,11 @@ public class FuturesContractModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesContractModel _sut;
+    private readonly FuturesContractCacheModel _sut;
 
     public FuturesContractModelTests()
     {
-        _sut = new FuturesContractModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesContractCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]

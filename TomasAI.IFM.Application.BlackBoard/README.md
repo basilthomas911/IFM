@@ -23,5 +23,5 @@ domain-root API.
 `MarketDataFeed.FuturesOptionTickData` and
 `MarketDataFeed.FuturesOptionTickPriceData` intentionally reference the same cache
 model because both names address the same Redis namespace. The streaming-parameter
-property uses `FuturesOptionTickDataStreamingParameterModel`; it is distinct from
-`StreamingRequestIdModel`.
+property uses `FuturesOptionTickDataStreamingParameterCacheModel`; it is distinct from
+`StreamingRequestIdCacheModel`.

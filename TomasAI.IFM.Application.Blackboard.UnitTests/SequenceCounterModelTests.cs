@@ -7,13 +7,13 @@ namespace TomasAI.IFM.Application.Blackboard.UnitTests;
 public class SequenceCounterModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
-    private readonly SequenceCounterModel _sut;
+    private readonly SequenceCounterCacheModel _sut;
 
     private enum TestCounter { OrderSequence, TradeSequence }
 
     public SequenceCounterModelTests()
     {
-        _sut = new SequenceCounterModel(_redisCache);
+        _sut = new SequenceCounterCacheModel(_redisCache);
     }
 
     [Fact]

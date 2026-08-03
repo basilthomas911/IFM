@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 public static class GetOptionQuoteId
 {
     internal static ValueTask<ScalarValue<int>> GetOptionQuoteIdAsync(
-        this GetOptionQuoteIdQuery q, SequenceCounterModel sequenceCounter)
+        this GetOptionQuoteIdQuery q, SequenceCounterCacheModel sequenceCounter)
         => ValueTask.FromResult(new ScalarValue<int>(
             Convert.ToInt32(sequenceCounter.Increment(SequenceName.OptionQuote_QuoteId))));
 }

@@ -5,97 +5,97 @@ namespace TomasAI.IFM.Application.Blackboard;
 
 public interface IApplicationBlackboard
 {
-    SequenceCounterModel SequenceCounter { get; }
+    SequenceCounterCacheModel SequenceCounter { get; }
 }
 
 public interface IEventSourcingBlackboard
 {
-    DomainEventsModel DomainEvents { get; }
-    EventStreamIdModel EventStreamId { get; }
-    EventNameIdModel EventNameId { get; }
-    EventProjectorStateModel EventProjectorState { get; }
+    DomainEventsCacheModel DomainEvents { get; }
+    EventStreamIdCacheModel EventStreamId { get; }
+    EventNameIdCacheModel EventNameId { get; }
+    EventProjectorStateCacheModel EventProjectorState { get; }
 }
 
 public interface IFundBlackboard
 {
-    FundBalanceModel FundBalance { get; }
+    FundBalanceCacheModel FundBalance { get; }
 }
 
 public interface IMarketDataBlackboard
 {
-    RiskFreeRateModel RiskFreeRate { get; }
+    RiskFreeRateCacheModel RiskFreeRate { get; }
 }
 
 public interface IMarketDataAnalyticsBlackboard
 {
-    FuturesItiSignalAveragePredictedTrendDeltaModel
+    FuturesItiSignalAveragePredictedTrendDeltaCacheModel
         FuturesItiSignalAveragePredictedTrendDelta { get; }
-    FuturesItiSignalAveragePredictedTrendDeltaRangeModel
+    FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel
         FuturesItiSignalAveragePredictedTrendDeltaRange { get; }
-    FuturesItiSignalMDIModel FuturesItiSignalMDI { get; }
-    FuturesRsiSignalModel FuturesRsiSignal { get; }
-    FuturesRsiDailySignalModel FuturesRsiDailySignal { get; }
+    FuturesItiSignalMDICacheModel FuturesItiSignalMDI { get; }
+    FuturesRsiSignalCacheModel FuturesRsiSignal { get; }
+    FuturesRsiDailySignalCacheModel FuturesRsiDailySignal { get; }
 }
 
 public interface IMarketDataFeedBlackboard
 {
-    FuturesTickDataModel FuturesTickData { get; }
-    FuturesOptionTickDataModel FuturesOptionTickData { get; }
-    FuturesOptionTickDataModel FuturesOptionTickPriceData { get; }
-    FuturesTickDataStreamingParameterModel FuturesTickDataStreamingParameter { get; }
-    FuturesOptionTickDataStreamingParameterModel
+    FuturesTickDataCacheModel FuturesTickData { get; }
+    FuturesOptionTickDataCacheModel FuturesOptionTickData { get; }
+    FuturesOptionTickDataCacheModel FuturesOptionTickPriceData { get; }
+    FuturesTickDataStreamingParameterCacheModel FuturesTickDataStreamingParameter { get; }
+    FuturesOptionTickDataStreamingParameterCacheModel
         FuturesOptionTickDataStreamingParameter { get; }
-    FuturesEodDataModel FuturesEodData { get; }
-    VixFuturesEodDataModel VixFuturesEodData { get; }
-    FuturesEodDataRangeModel FuturesEodDataRange { get; }
-    NormalCurveTableModel NormalCurveTable { get; }
-    VixFuturesContractIdModel VixFuturesContractId { get; }
-    FuturesOptionQuoteModel FuturesOptionQuote { get; }
-    FuturesOptionQuoteDataModel FuturesOptionQuoteData { get; }
-    FuturesOpenPriceModel FuturesOpenPrice { get; }
-    VixFuturesOpenPriceModel VixFuturesOpenPrice { get; }
-    StreamingRequestIdModel StreamingRequestId { get; }
+    FuturesEodDataCacheModel FuturesEodData { get; }
+    VixFuturesEodDataCacheModel VixFuturesEodData { get; }
+    FuturesEodDataRangeCacheModel FuturesEodDataRange { get; }
+    NormalCurveTableCacheModel NormalCurveTable { get; }
+    VixFuturesContractIdCacheModel VixFuturesContractId { get; }
+    FuturesOptionQuoteCacheModel FuturesOptionQuote { get; }
+    FuturesOptionQuoteDataCacheModel FuturesOptionQuoteData { get; }
+    FuturesOpenPriceCacheModel FuturesOpenPrice { get; }
+    VixFuturesOpenPriceCacheModel VixFuturesOpenPrice { get; }
+    StreamingRequestIdCacheModel StreamingRequestId { get; }
 }
 
 public interface IMarketDataSecuritiesBlackboard
 {
     IDatabentoContractMappingCache DatabentoContractMapping { get; }
-    FuturesContractModel FuturesContract { get; }
-    FuturesContractSymbolModel FuturesContractSymbol { get; }
+    FuturesContractCacheModel FuturesContract { get; }
+    FuturesContractSymbolCacheModel FuturesContractSymbol { get; }
 }
 
 public interface IReferenceBlackboard
 {
-    ReferenceLookupModel ReferenceLookup { get; }
+    ReferenceLookupCacheModel ReferenceLookup { get; }
 }
 
 public interface ITradeBlackboard
 {
-    OptionTradeModel OptionTrade { get; }
-    TradePositionActionModel TradePositionAction { get; }
-    TradePlanForwardLossLimitModel TradePlanForwardLossLimit { get; }
-    HedgePositionTradeIdModel HedgePositionTradeId { get; }
-    TradeOrderModel TradeOrder { get; }
-    IronCondorMDILimitModel IronCondorMDILimit { get; }
-    ForwardLossRatioMapModel ForwardLossRatioMap { get; }
-    StopLossLimitModel StopLossLimit { get; }
-    SignalProcessorModel SignalProcessor { get; }
+    OptionTradeCacheModel OptionTrade { get; }
+    TradePositionActionCacheModel TradePositionAction { get; }
+    TradePlanForwardLossLimitCacheModel TradePlanForwardLossLimit { get; }
+    HedgePositionTradeIdCacheModel HedgePositionTradeId { get; }
+    TradeOrderCacheModel TradeOrder { get; }
+    IronCondorMDILimitCacheModel IronCondorMDILimit { get; }
+    ForwardLossRatioMapCacheModel ForwardLossRatioMap { get; }
+    StopLossLimitCacheModel StopLossLimit { get; }
+    SignalProcessorCacheModel SignalProcessor { get; }
 }
 
 internal sealed class ApplicationBlackboard(IRedisCache redisCache)
     : IApplicationBlackboard
 {
-    public SequenceCounterModel SequenceCounter { get; } = new(redisCache);
+    public SequenceCounterCacheModel SequenceCounter { get; } = new(redisCache);
 }
 
 internal sealed class EventSourcingBlackboard(
     IRedisCache redisCache,
     IJsonSerializer jsonSerializer) : IEventSourcingBlackboard
 {
-    public DomainEventsModel DomainEvents { get; } = new(redisCache, jsonSerializer);
-    public EventStreamIdModel EventStreamId { get; } = new(redisCache, jsonSerializer);
-    public EventNameIdModel EventNameId { get; } = new(redisCache, jsonSerializer);
-    public EventProjectorStateModel EventProjectorState { get; } =
+    public DomainEventsCacheModel DomainEvents { get; } = new(redisCache, jsonSerializer);
+    public EventStreamIdCacheModel EventStreamId { get; } = new(redisCache, jsonSerializer);
+    public EventNameIdCacheModel EventNameId { get; } = new(redisCache, jsonSerializer);
+    public EventProjectorStateCacheModel EventProjectorState { get; } =
         new(redisCache, jsonSerializer);
 }
 
@@ -103,35 +103,35 @@ internal sealed class FundBlackboard(
     IRedisCache redisCache,
     IJsonSerializer jsonSerializer) : IFundBlackboard
 {
-    public FundBalanceModel FundBalance { get; } = new(redisCache, jsonSerializer);
+    public FundBalanceCacheModel FundBalance { get; } = new(redisCache, jsonSerializer);
 }
 
 internal sealed class MarketDataBlackboard(
     IRedisCache redisCache,
     IJsonSerializer jsonSerializer) : IMarketDataBlackboard
 {
-    public RiskFreeRateModel RiskFreeRate { get; } = new(redisCache, jsonSerializer);
+    public RiskFreeRateCacheModel RiskFreeRate { get; } = new(redisCache, jsonSerializer);
 }
 
 internal sealed class MarketDataAnalyticsBlackboard(
     IRedisCache redisCache,
     IJsonSerializer jsonSerializer) : IMarketDataAnalyticsBlackboard
 {
-    public FuturesItiSignalAveragePredictedTrendDeltaModel
+    public FuturesItiSignalAveragePredictedTrendDeltaCacheModel
         FuturesItiSignalAveragePredictedTrendDelta { get; } =
             new(redisCache, jsonSerializer);
 
-    public FuturesItiSignalAveragePredictedTrendDeltaRangeModel
+    public FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel
         FuturesItiSignalAveragePredictedTrendDeltaRange { get; } =
             new(redisCache, jsonSerializer);
 
-    public FuturesItiSignalMDIModel FuturesItiSignalMDI { get; } =
+    public FuturesItiSignalMDICacheModel FuturesItiSignalMDI { get; } =
         new(redisCache, jsonSerializer);
 
-    public FuturesRsiSignalModel FuturesRsiSignal { get; } =
+    public FuturesRsiSignalCacheModel FuturesRsiSignal { get; } =
         new(redisCache, jsonSerializer);
 
-    public FuturesRsiDailySignalModel FuturesRsiDailySignal { get; } =
+    public FuturesRsiDailySignalCacheModel FuturesRsiDailySignal { get; } =
         new(redisCache, jsonSerializer);
 }
 
@@ -158,22 +158,22 @@ internal sealed class MarketDataFeedBlackboard : IMarketDataFeedBlackboard
         StreamingRequestId = new(redisCache, jsonSerializer);
     }
 
-    public FuturesTickDataModel FuturesTickData { get; }
-    public FuturesOptionTickDataModel FuturesOptionTickData { get; }
-    public FuturesOptionTickDataModel FuturesOptionTickPriceData { get; }
-    public FuturesTickDataStreamingParameterModel FuturesTickDataStreamingParameter { get; }
-    public FuturesOptionTickDataStreamingParameterModel
+    public FuturesTickDataCacheModel FuturesTickData { get; }
+    public FuturesOptionTickDataCacheModel FuturesOptionTickData { get; }
+    public FuturesOptionTickDataCacheModel FuturesOptionTickPriceData { get; }
+    public FuturesTickDataStreamingParameterCacheModel FuturesTickDataStreamingParameter { get; }
+    public FuturesOptionTickDataStreamingParameterCacheModel
         FuturesOptionTickDataStreamingParameter { get; }
-    public FuturesEodDataModel FuturesEodData { get; }
-    public VixFuturesEodDataModel VixFuturesEodData { get; }
-    public FuturesEodDataRangeModel FuturesEodDataRange { get; }
-    public NormalCurveTableModel NormalCurveTable { get; }
-    public VixFuturesContractIdModel VixFuturesContractId { get; }
-    public FuturesOptionQuoteModel FuturesOptionQuote { get; }
-    public FuturesOptionQuoteDataModel FuturesOptionQuoteData { get; }
-    public FuturesOpenPriceModel FuturesOpenPrice { get; }
-    public VixFuturesOpenPriceModel VixFuturesOpenPrice { get; }
-    public StreamingRequestIdModel StreamingRequestId { get; }
+    public FuturesEodDataCacheModel FuturesEodData { get; }
+    public VixFuturesEodDataCacheModel VixFuturesEodData { get; }
+    public FuturesEodDataRangeCacheModel FuturesEodDataRange { get; }
+    public NormalCurveTableCacheModel NormalCurveTable { get; }
+    public VixFuturesContractIdCacheModel VixFuturesContractId { get; }
+    public FuturesOptionQuoteCacheModel FuturesOptionQuote { get; }
+    public FuturesOptionQuoteDataCacheModel FuturesOptionQuoteData { get; }
+    public FuturesOpenPriceCacheModel FuturesOpenPrice { get; }
+    public VixFuturesOpenPriceCacheModel VixFuturesOpenPrice { get; }
+    public StreamingRequestIdCacheModel StreamingRequestId { get; }
 }
 
 internal sealed class MarketDataSecuritiesBlackboard(
@@ -183,10 +183,10 @@ internal sealed class MarketDataSecuritiesBlackboard(
     public IDatabentoContractMappingCache DatabentoContractMapping { get; } =
         new DatabentoContractMappingCache(redisCache, jsonSerializer);
 
-    public FuturesContractModel FuturesContract { get; } =
+    public FuturesContractCacheModel FuturesContract { get; } =
         new(redisCache, jsonSerializer);
 
-    public FuturesContractSymbolModel FuturesContractSymbol { get; } =
+    public FuturesContractSymbolCacheModel FuturesContractSymbol { get; } =
         new(redisCache, jsonSerializer);
 }
 
@@ -194,7 +194,7 @@ internal sealed class ReferenceBlackboard(
     IRedisCache redisCache,
     IJsonSerializer jsonSerializer) : IReferenceBlackboard
 {
-    public ReferenceLookupModel ReferenceLookup { get; } =
+    public ReferenceLookupCacheModel ReferenceLookup { get; } =
         new(redisCache, jsonSerializer);
 }
 
@@ -202,19 +202,19 @@ internal sealed class TradeBlackboard(
     IRedisCache redisCache,
     IJsonSerializer jsonSerializer) : ITradeBlackboard
 {
-    public OptionTradeModel OptionTrade { get; } = new(redisCache, jsonSerializer);
-    public TradePositionActionModel TradePositionAction { get; } =
+    public OptionTradeCacheModel OptionTrade { get; } = new(redisCache, jsonSerializer);
+    public TradePositionActionCacheModel TradePositionAction { get; } =
         new(redisCache, jsonSerializer);
-    public TradePlanForwardLossLimitModel TradePlanForwardLossLimit { get; } =
+    public TradePlanForwardLossLimitCacheModel TradePlanForwardLossLimit { get; } =
         new(redisCache, jsonSerializer);
-    public HedgePositionTradeIdModel HedgePositionTradeId { get; } =
+    public HedgePositionTradeIdCacheModel HedgePositionTradeId { get; } =
         new(redisCache, jsonSerializer);
-    public TradeOrderModel TradeOrder { get; } = new(redisCache, jsonSerializer);
-    public IronCondorMDILimitModel IronCondorMDILimit { get; } =
+    public TradeOrderCacheModel TradeOrder { get; } = new(redisCache, jsonSerializer);
+    public IronCondorMDILimitCacheModel IronCondorMDILimit { get; } =
         new(redisCache, jsonSerializer);
-    public ForwardLossRatioMapModel ForwardLossRatioMap { get; } =
+    public ForwardLossRatioMapCacheModel ForwardLossRatioMap { get; } =
         new(redisCache, jsonSerializer);
-    public StopLossLimitModel StopLossLimit { get; } = new(redisCache, jsonSerializer);
-    public SignalProcessorModel SignalProcessor { get; } =
+    public StopLossLimitCacheModel StopLossLimit { get; } = new(redisCache, jsonSerializer);
+    public SignalProcessorCacheModel SignalProcessor { get; } =
         new(redisCache, jsonSerializer);
 }

@@ -10,17 +10,17 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Blackboard.UnitTests;
 
-#region FuturesEodDataRangeModel Tests
+#region FuturesEodDataRangeCacheModel Tests
 
 public class FuturesEodDataRangeModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesEodDataRangeModel _sut;
+    private readonly FuturesEodDataRangeCacheModel _sut;
 
     public FuturesEodDataRangeModelTests()
     {
-        _sut = new FuturesEodDataRangeModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesEodDataRangeCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -155,17 +155,17 @@ public class FuturesEodDataRangeModelTests
 
 #endregion
 
-#region FuturesItiSignalAveragePredictedTrendDeltaModel Tests
+#region FuturesItiSignalAveragePredictedTrendDeltaCacheModel Tests
 
 public class FuturesItiSignalAveragePredictedTrendDeltaModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesItiSignalAveragePredictedTrendDeltaModel _sut;
+    private readonly FuturesItiSignalAveragePredictedTrendDeltaCacheModel _sut;
 
     public FuturesItiSignalAveragePredictedTrendDeltaModelTests()
     {
-        _sut = new FuturesItiSignalAveragePredictedTrendDeltaModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesItiSignalAveragePredictedTrendDeltaCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaModelTests
     public void BddConstructor_DoesNotThrow()
     {
         // Act
-        var model = new FuturesItiSignalAveragePredictedTrendDeltaModel();
+        var model = new FuturesItiSignalAveragePredictedTrendDeltaCacheModel();
 
         // Assert
         model.Should().NotBeNull();
@@ -243,17 +243,17 @@ public class FuturesItiSignalAveragePredictedTrendDeltaModelTests
 
 #endregion
 
-#region FuturesItiSignalAveragePredictedTrendDeltaRangeModel Tests
+#region FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel Tests
 
 public class FuturesItiSignalAveragePredictedTrendDeltaRangeModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesItiSignalAveragePredictedTrendDeltaRangeModel _sut;
+    private readonly FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel _sut;
 
     public FuturesItiSignalAveragePredictedTrendDeltaRangeModelTests()
     {
-        _sut = new FuturesItiSignalAveragePredictedTrendDeltaRangeModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -326,7 +326,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaRangeModelTests
     public void BddConstructor_DoesNotThrow()
     {
         // Act
-        var model = new FuturesItiSignalAveragePredictedTrendDeltaRangeModel();
+        var model = new FuturesItiSignalAveragePredictedTrendDeltaRangeCacheModel();
 
         // Assert
         model.Should().NotBeNull();
@@ -335,17 +335,17 @@ public class FuturesItiSignalAveragePredictedTrendDeltaRangeModelTests
 
 #endregion
 
-#region FuturesItiSignalMDIModel Tests
+#region FuturesItiSignalMDICacheModel Tests
 
 public class FuturesItiSignalMDIModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
     private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesItiSignalMDIModel _sut;
+    private readonly FuturesItiSignalMDICacheModel _sut;
 
     public FuturesItiSignalMDIModelTests()
     {
-        _sut = new FuturesItiSignalMDIModel(_redisCache, _jsonSerializer);
+        _sut = new FuturesItiSignalMDICacheModel(_redisCache, _jsonSerializer);
     }
 
     [Fact]
@@ -449,7 +449,7 @@ public class FuturesItiSignalMDIModelTests
     public void BddConstructor_DoesNotThrow()
     {
         // Act
-        var model = new FuturesItiSignalMDIModel();
+        var model = new FuturesItiSignalMDICacheModel();
 
         // Assert
         model.Should().NotBeNull();
