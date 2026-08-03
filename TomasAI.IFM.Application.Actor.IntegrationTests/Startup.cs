@@ -19,7 +19,6 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
-using TomasAI.IFM.Application.Query;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -187,7 +186,6 @@ public static class Startup
         RegisterEventApiServices();
         RegisterQueryApiServices();
         RegisterStorageServices();
-        //RegisterServiceHandlers();
         RegisterEventProducers();
         RegisterHostedServices();
         return services;
@@ -375,14 +373,6 @@ public static class Startup
                         .Add("DomainData", config.GetValue<string>("AppSettings:DomainDataStorageBaseUri")!)
                         .Add("QueryData", config.GetValue<string>("AppSettings:QueryDataStorageBaseUri")!)
                    );
-        }
-
-        void RegisterServiceHandlers()
-        {
-            logger.LogInformationEvent("ApiServer", "register service handlers...");
-            services.AddSingleton<IBoundedContextCommandResolver>(_ => new BoundedContextCommandResolver(cmdType => GetContainerInstance(cmdType)!));
-            services.AddSingleton<IQueryHandlerResolver>(_ => new QueryHandlerResolver(handlerType => GetContainerInstance(handlerType)!));
-            services.AddSingleton<Query.IQueryService, QueryService>();
         }
 
         void RegisterEventProducers()

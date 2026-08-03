@@ -11,7 +11,6 @@ namespace TomasAI.IFM.Application.ServerManager;
 public class ServerLauncherContext : WinForms.ApplicationContext
 {
     ServerLauncher? _telemetryServer;
-    ServerLauncher? _queryServer;
     ServerLauncher? _eventServer;
     ServerLauncher? _predictiveModelServer;
     WinForms.NotifyIcon _notifyIcon;
@@ -89,12 +88,6 @@ public class ServerLauncherContext : WinForms.ApplicationContext
             exeName: serverApp.Configuration.GetValue<string>("ServerManager:Event:ExeName") ?? "",
             exeArguments: "",
             onDataReceived: e => viewModel.AddServerLog(ServerLogType.Event, e.Data));
-        //Task.Delay(TimeSpan.FromSeconds(2)).Wait();
-        _queryServer = new ServerLauncher(
-            workingDirectory: serverApp.Configuration.GetValue<string>("ServerManager:Query:WorkingDirectory") ?? "",
-            exeName: serverApp.Configuration.GetValue<string>("ServerManager:Query:ExeName") ?? "",
-            exeArguments: "",
-            onDataReceived: e => viewModel.AddServerLog(ServerLogType.Query, e.Data));
         _predictiveModelServer = new ServerLauncher(
              workingDirectory: serverApp.Configuration.GetValue<string>("ServerManager:PredictiveModel:WorkingDirectory") ?? "",
              exeName: serverApp.Configuration.GetValue<string>("ServerManager:PredictiveModel:ExeName") ?? "",
@@ -108,11 +101,6 @@ public class ServerLauncherContext : WinForms.ApplicationContext
         {
             _predictiveModelServer.Dispose();
             _predictiveModelServer = null;
-        }
-        if (_queryServer is not null)
-        {
-            _queryServer.Dispose();
-            _queryServer = null;
         }
         if (_eventServer is not null)
         {
