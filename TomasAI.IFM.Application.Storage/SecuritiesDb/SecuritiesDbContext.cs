@@ -127,7 +127,7 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
     public async Task DeleteFuturesContractAsync(FuturesContractId e)
         => await _dbFactory.SecuritiesDb
             .Use(SecuritiesDbCql.DeleteFuturesContract)
-            .SetParameters(new DeleteFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate))
+            .SetParameters(new DeleteFuturesContract(e.ContractId))
             .ExecuteCommandAsync();
 
     /// <summary>
@@ -145,7 +145,7 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
         if (fc is not null)
             await db
                 .Use(SecuritiesDbCql.DeleteFuturesContract)
-                .SetParameters(new DeleteFuturesContractById(fc.ContractId, fc.Symbol, fc.LastTradeDate))
+                .SetParameters(new DeleteFuturesContract(fc.ContractId))
                 .ExecuteCommandAsync();
     }
 

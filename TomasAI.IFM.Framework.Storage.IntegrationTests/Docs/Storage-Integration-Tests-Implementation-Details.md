@@ -87,17 +87,18 @@ The active provider suites in `TomasAI.IFM.Application.Storage.IntegrationTests`
 | API behavior | ScyllaDB | PostgreSQL |
 | --- | --- | --- |
 | Commands with zero, one, and many parameter values | Covered | Covered |
-| Queue creation and execution modes | Sequential and logged batch | Both transaction-flag paths |
+| Queue creation and execution modes | Sequential and logged batch | Both transaction-flag paths through `NpgsqlBatch` |
+| Cancellable async streaming | Full enumeration, early disposal, cancellation | Full enumeration, early disposal, cancellation |
 | Mutable query materialization | Covered | Covered |
 | Immutable value-type materialization | Disposable pooled buffer | Read-only value list |
 | Single result found/missing | Covered | Covered |
 | Scalar result | Covered | Covered |
 | Map/reduce | Covered | Covered |
-| Query/single/immutable/map-reduce null delegates, excess query parameters, and empty queue guards | Covered | Covered |
+| Stream/query/single/immutable/map-reduce null delegates, excess query parameters, and empty queue guards | Covered | Covered |
 | Provider-specific type/ordinal mapping | All four Fund tables | All five event-source tables |
-| Failure atomicity | Logged-batch behavior | Queued-command rollback |
+| Failure atomicity | Logged-batch behavior | `NpgsqlBatch` transaction rollback |
 
-The ScyllaDB suite contains 14 tests and uses `fund`, `fund_order`, `fund_order_trade`, and `fund_transaction`. The PostgreSQL suite contains 15 tests and uses `event_stream_id`, `event_name_id`, `event_log`, `command_log`, and `event_projector_state`.
+The ScyllaDB suite contains 17 real-provider tests and uses `fund`, `fund_order`, `fund_order_trade`, and `fund_transaction`. Seven database-independent contract cases validate positional binding: two cover all 28 Fund `IBindValue` types, including CQL update-marker order, nullable trailing values, and `DateOnly` values; five dynamically validate all 236 Market Data, Option Pricer, Reference, Securities, and Trade bindings against the marker sequences in their checked-in CQL. The PostgreSQL suite contains 19 real-provider tests and uses `event_stream_id`, `event_name_id`, `event_log`, `command_log`, and `event_projector_state`. It validates both queued-command modes through `NpgsqlBatch`, transaction rollback, and explicit preparation through a `pg_prepared_statements` probe. Three additional database-independent catalog cases validate every Event Source, Log, and Sequence ID binding against its native `$n` SQL placeholders, explicit `NpgsqlDbType`, typed parameter implementation, value, and ordinal.
 
 Both fixtures create missing tables/schema objects but not the keyspace/database. Before the collection starts, before each test, after each test, and at collection disposal they remove only reserved test rows. Cleanup is verified after deletion. Collections are non-parallel, ScyllaDB reserves negative Fund IDs, and PostgreSQL reserves negative event IDs plus names prefixed with `__framework_storage_postgres_it__`; PostgreSQL does not consume event-source sequences.
 

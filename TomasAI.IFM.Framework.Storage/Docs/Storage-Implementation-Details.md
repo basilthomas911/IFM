@@ -83,7 +83,7 @@ ObjectDataRepository<TRepo>.Use(...)
 - select stored procedures by enum or expression;
 - select raw command text;
 - attach one object, an `IBindValue` struct, or an enumerable of parameter values;
-- execute commands, queries, scalar reads, single-result reads, immutable result reads, or map/reduce operations;
+- execute commands, materialized queries, cancellable async streams, scalar reads, single-result reads, immutable result reads, or map/reduce operations;
 - queue homogeneous text or stored-procedure commands;
 - begin a provider transaction; or
 - open a configured file URI context.
@@ -110,6 +110,7 @@ Every provider implements the same `IObjectRepositoryProvider` surface:
 | --- | --- |
 | `ExecuteCommandAsync` | Executes command text for zero, one, or multiple parameter objects. |
 | `QueueCommand` / `ExecuteQueuedCommandsAsync` | Creates provider-specific queued commands and executes the complete queue. |
+| `StreamObjectsAsync` | Returns a cancellable `IAsyncEnumerable<TResult>` and owns provider resources for the enumerator lifetime. |
 | `GetObjectsAsync` | Materializes mutable results through an ordinal mapper. |
 | `GetImmutableObjectsAsync` | Materializes value-type results through an ordinal mapper; ScyllaDB returns a disposable pooled buffer. |
 | `GetObjectAsync` | Maps the first row, or returns the default/null result when no row exists. |
@@ -130,15 +131,29 @@ Provider-name handling is not fully consistent: parameter and transaction factor
 
 ## Mapping and Record Access
 
-Database result mapping is ordinal-only. Query, single, scalar, immutable, map/reduce, data-reader, and file-reader APIs require a `Func<IObjectDataRecord, TResult>` supplied by the caller. The former result-type map, expression/property map, constructor map, and reflection-based object construction path has been removed.
+Database result mapping is ordinal-only. Stream, query, single, scalar, immutable, map/reduce, data-reader, and file-reader APIs require a `Func<IObjectDataRecord, TResult>` supplied by the caller. The former result-type map, expression/property map, constructor map, and reflection-based object construction path has been removed.
 
 Application contexts normally keep static mapper methods close to their SQL/CQL. A mapper constructs the result directly with `GetInt(0)`, `GetString(1)`, and the other typed ordinal accessors. Consequently, the selected column order is a compiled persistence contract: changing a projection requires changing its mapper in the same commit and exercising it through integration tests.
 
 `AdoNetDataRecord` adapts SQL Server/PostgreSQL `IDataReader` instances and `ScyllaDbDataRecord` adapts Cassandra rows. Both expose the same `IObjectDataRecord` typed API for numeric primitives, booleans, strings, GUIDs, byte arrays, enums, and date/time values. The hot result path no longer performs property lookup, reflective construction, or intermediate result-object arrays.
 
-Reflection still exists outside database result materialization. PostgreSQL, SQL Server, and ScyllaDB inspect and cache public properties when binding parameter objects; CSV/JSON readers inspect their source type to define a tabular schema; and the CSV writer reflects source properties. These paths are separate from ordinal result mapping.
+ScyllaDB accepts positional `object?[]` bind values and passes them directly to `PreparedStatement.Bind`; the provider contains no property discovery, name lookup, `PropertyInfo.GetValue`, or bind-property cache. Scylla application and compiled domain parameter catalogs implement `IBindValue` and emit values in prepared-statement marker order. Enumerable `SetParameters` calls invoke `Bind()` for every element, so single and batch commands share the same positional path.
+
+PostgreSQL accepts only `NpgsqlParameter[]` bind payloads ordered like the SQL command's native `$1`, `$2`, ... placeholders. `PostgresParameter` creates unnamed `NpgsqlParameter<T>` instances with an explicit `NpgsqlDbType`; this avoids runtime property discovery, `PropertyInfo.GetValue`, the old CLR-type dictionary, value-type boxing inside non-generic parameters, and the former second parameter-copy pass. The provider validates and adds these arrays directly while iterating the context's parameter values; it does not create the former iterator, intermediate list, or LINQ count/first operations. Parameterized text commands are explicitly prepared before execution, allowing Npgsql to reuse persistent prepared statements when pooled physical connections are reused. Parameterless commands and stored procedures are not prepared, limiting unnecessary server-side plan growth.
+
+PostgreSQL queued commands are packed into one `NpgsqlBatch` and sent in a single execution round trip inside the provider's explicit transaction. Eligible parameterized text batches are prepared before execution. A failure skips later batch commands and the provider rolls back the transaction, retaining the previous all-or-nothing queue contract. SQL Server continues to bind provider-specific parameter objects by name. CSV/JSON readers inspect their source type to define a tabular schema, and the CSV writer reflects source properties; those paths are separate from database result and PostgreSQL/ScyllaDB parameter mapping.
+
+The `TomasAI.IFM.Framework.Storage.Benchmarks` BenchmarkDotNet project retains a benchmark-only copy of the removed cached-reflection algorithm for comparison. On the development machine used for this change, positional binding was about 18–22 times faster for a single 12-value bind and about 15 times faster for batches of 100 or 1,000 binds, while allocating approximately 28 percent less memory. Results vary by hardware; the benchmark project is the repeatable performance contract.
 
 `PooledBufferBuilder<T>` rents memory from `MemoryPool<T>` and transfers ownership to `PooledReadOnlyBuffer<T>`. The returned buffer must be disposed to release the owner and rejects access after disposal.
+
+### Asynchronous database streaming
+
+`IObjectRepositoryContext.ExecuteStreamAsync` is additive; existing collection, immutable, single, scalar, and map/reduce APIs are unchanged. The returned stream is cold: the provider opens its resources when enumeration begins and disposes them when enumeration completes, throws, is cancelled, or its enumerator is disposed after an early `break`.
+
+PostgreSQL and SQL Server advance their data readers with `ReadAsync(CancellationToken)`. ScyllaDB disables driver auto-paging, consumes the available page, and awaits `FetchMoreResultsAsync` before consuming the next page. Cassandra driver operations do not accept `CancellationToken`, so ScyllaDB uses `Task.WaitAsync(cancellationToken)` and checks cancellation between mapped rows; cancellation stops the consumer wait and disposes the row set, although an already-issued driver operation may finish in the background.
+
+Callers should consume streams with `await foreach` or explicitly dispose an acquired async enumerator. Do not retain `IObjectDataRecord`; the mapper must return an independent result value/object for the current row.
 
 ## CSV, JSON, and URI Sources
 

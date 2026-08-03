@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Exceptions;
@@ -112,10 +113,10 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         var scope = ScyllaFundTestData.Scope(3);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
-            var parameters = new[]
+            var parameters = new object?[][]
             {
-                CreateOrderParameters(scope, scope.OrderId, "Open"),
-                CreateOrderParameters(scope, scope.SecondOrderId, "Closed")
+                CreateOrderBindValues(scope, scope.OrderId, "Open"),
+                CreateOrderBindValues(scope, scope.SecondOrderId, "Closed")
             };
 
             var result = await repository.Use(InsertFundOrder)
@@ -140,7 +141,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
                     .SetParameters(CreateFundParameters(scope.FundId, 100m))
                     .QueueCommand(),
                 repository.Use("UPDATE fund SET balance = :balance WHERE fundId = :fundId;")
-                    .SetParameters(new { balance = 225m, fundId = scope.FundId })
+                    .SetParameters(new UpdateFundBalanceParameters(225m, scope.FundId))
                     .QueueCommand()
             };
 
@@ -164,7 +165,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
                     .SetParameters(CreateFundParameters(scope.FundId, 300m))
                     .QueueCommand(),
                 repository.Use("UPDATE fund SET balance = :balance WHERE fundId = :fundId;")
-                    .SetParameters(new { balance = 450m, fundId = scope.FundId })
+                    .SetParameters(new UpdateFundBalanceParameters(450m, scope.FundId))
                     .QueueCommand()
             };
 
@@ -185,7 +186,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             await InsertOrdersAsync(repository, scope);
 
             var rows = await repository.Use(SelectFundOrders)
-                .SetParameters(new { fundId = scope.FundId })
+                .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteQueryAsync(MapOrder);
 
             Assert.Equal(2, rows.Count);
@@ -203,7 +204,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             await InsertOrdersAsync(repository, scope);
 
             var rows = await repository.Use(SelectFundOrders)
-                .SetParameters(new { fundId = scope.FundId })
+                .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteQueryImmutableAsync(static row => new ImmutableOrderRow(
                     row.GetInt(0), row.GetInt(1), row.GetEnum<TestOrderStatus>(3)));
 
@@ -240,7 +241,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
 
             var balance = await repository
                 .Use("SELECT balance AS deliberately_not_value FROM fund WHERE fundId = :fundId;")
-                .SetParameters(new { fundId = scope.FundId })
+                .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteScalarAsync(static row => row.GetDecimal(0));
 
             Assert.Equal(9876.54m, balance);
@@ -258,7 +259,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             var orderIdSum = 0;
 
             await repository.Use("SELECT orderId FROM fund_order WHERE fundId = :fundId;")
-                .SetParameters(new { fundId = scope.FundId })
+                .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteMapReduceAsync(
                     static row => row.GetInt(0),
                     rows =>
@@ -269,6 +270,75 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
 
             Assert.Equal(1, reducerCalls);
             Assert.Equal(scope.OrderId + scope.SecondOrderId, orderIdSum);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteStreamAsync_StreamsEveryOrdinalResult()
+    {
+        var scope = ScyllaFundTestData.Scope(16);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertOrdersAsync(repository, scope);
+            var orderIds = new List<int>();
+
+            await foreach (var row in repository.Use(SelectFundOrders)
+                .SetParameters(new FundLookup(scope.FundId))
+                .ExecuteStreamAsync(MapOrder))
+            {
+                orderIds.Add(row.OrderId);
+            }
+
+            Assert.Equal(
+                [scope.SecondOrderId, scope.OrderId],
+                orderIds.OrderBy(orderId => orderId).ToArray());
+        });
+    }
+
+    [Fact]
+    public Task ExecuteStreamAsync_EarlyTerminationReleasesRowSet()
+    {
+        var scope = ScyllaFundTestData.Scope(16);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertOrdersAsync(repository, scope);
+            var stream = repository.Use(SelectFundOrders)
+                .SetParameters(new FundLookup(scope.FundId))
+                .ExecuteStreamAsync(MapOrder);
+
+            await using (var rows = stream.GetAsyncEnumerator())
+            {
+                Assert.True(await rows.MoveNextAsync());
+                Assert.Equal(scope.FundId, rows.Current.FundId);
+            }
+
+            Assert.Equal(2, (await GetFundOrdersAsync(repository, scope.FundId)).Count);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteStreamAsync_CancellationStopsEnumerationAndReleasesRowSet()
+    {
+        var scope = ScyllaFundTestData.Scope(16);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertOrdersAsync(repository, scope);
+            using var cancellation = new CancellationTokenSource();
+            var rowsRead = 0;
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            {
+                await foreach (var _ in repository.Use(SelectFundOrders)
+                    .SetParameters(new FundLookup(scope.FundId))
+                    .ExecuteStreamAsync(MapOrder, cancellation.Token))
+                {
+                    rowsRead++;
+                    cancellation.Cancel();
+                }
+            });
+
+            Assert.Equal(1, rowsRead);
+            Assert.Equal(2, (await GetFundOrdersAsync(repository, scope.FundId)).Count);
         });
     }
 
@@ -291,23 +361,21 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
 
             var fund = await GetFundAsync(repository, scope.FundId);
             var order = await repository.Use(SelectFundOrders)
-                .SetParameters(new { fundId = scope.FundId })
+                .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteSingleAsync(MapOrder);
             var trade = await repository.Use(SelectFundOrderTrade)
-                .SetParameters(new { fundId = scope.FundId, orderId = scope.OrderId, tradeId = scope.TradeId })
+                .SetParameters(new FundOrderTradeLookup(scope.FundId, scope.OrderId, scope.TradeId))
                 .ExecuteSingleAsync(MapTrade);
             var transaction = await repository.Use(SelectFundTransaction)
-                .SetParameters(new
-                {
-                    fundId = scope.FundId,
-                    valueDate = ScyllaFundTestData.ValueDate,
-                    orderId = scope.OrderId,
-                    tradeId = scope.TradeId,
-                    tradeType = "LongIronCondor",
-                    transactionType = "OpeningTrade",
-                    transactionDate = ScyllaFundTestData.CreatedOn,
-                    transactionId = scope.TransactionId
-                })
+                .SetParameters(new FundTransactionLookup(
+                    scope.FundId,
+                    ScyllaFundTestData.ValueDate,
+                    scope.OrderId,
+                    scope.TradeId,
+                    "LongIronCondor",
+                    "OpeningTrade",
+                    ScyllaFundTestData.CreatedOn,
+                    scope.TransactionId))
                 .ExecuteSingleAsync(MapTransaction);
 
             Assert.NotNull(fund);
@@ -367,6 +435,8 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         var scope = ScyllaFundTestData.Scope(14);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
+            Assert.Throws<ArgumentNullException>(
+                () => repository.Use(SelectFund).ExecuteStreamAsync<FundRow>(null!));
             await Assert.ThrowsAsync<StorageException>(
                 () => repository.Use(SelectFund).ExecuteQueryAsync<FundRow>(null!));
             await Assert.ThrowsAsync<StorageException>(
@@ -396,16 +466,8 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             .ExecuteCommandAsync();
     }
 
-    static object CreateFundParameters(int fundId, decimal balance) => new
-    {
-        fundId,
-        name = "Scylla ordinal test",
-        description = "Framework.Storage integration test data",
-        balance,
-        isProduction = false,
-        createdOn = ScyllaFundTestData.CreatedOn,
-        createdBy = "framework-storage-scylla-it"
-    };
+    static FundParameters CreateFundParameters(int fundId, decimal balance)
+        => new(fundId, balance);
 
     static OrderParameters CreateOrderParameters(ScyllaFundTestScope scope, int orderId, string status)
         => new(
@@ -422,49 +484,37 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             ScyllaFundTestData.UpdatedOn,
             "framework-storage-scylla-it");
 
-    static object CreateTradeParameters(ScyllaFundTestScope scope) => new
-    {
-        fundId = scope.FundId,
-        orderId = scope.OrderId,
-        tradeId = scope.TradeId,
-        tradeType = "LongIronCondor",
-        tradeDate = ScyllaFundTestData.TradeDate,
-        maturityDate = ScyllaFundTestData.MaturityDate,
-        tradeState = "NewTrade",
-        tradeAction = "Buy",
-        reference = "ordinal-trade",
-        primaryTrade = true,
-        baseContractSymbol = "ES",
-        createdOn = ScyllaFundTestData.CreatedOn,
-        createdBy = "framework-storage-scylla-it",
-        updatedOn = ScyllaFundTestData.UpdatedOn,
-        updatedBy = "framework-storage-scylla-it"
-    };
+    static object?[] CreateOrderBindValues(ScyllaFundTestScope scope, int orderId, string status)
+        =>
+        [
+            scope.FundId,
+            orderId,
+            ScyllaFundTestData.CreatedOn,
+            status,
+            "ES-TEST",
+            ScyllaFundTestData.TradeDate,
+            ScyllaFundTestData.MaturityDate,
+            "ordinal-order",
+            ScyllaFundTestData.CreatedOn,
+            "framework-storage-scylla-it",
+            ScyllaFundTestData.UpdatedOn,
+            "framework-storage-scylla-it"
+        ];
 
-    static object CreateTransactionParameters(ScyllaFundTestScope scope) => new
-    {
-        transactionId = scope.TransactionId,
-        transactionDate = ScyllaFundTestData.CreatedOn,
-        transactionType = "OpeningTrade",
-        fundId = scope.FundId,
-        orderId = scope.OrderId,
-        tradeId = scope.TradeId,
-        tradeType = "LongIronCondor",
-        valueDate = ScyllaFundTestData.ValueDate,
-        tradeStatus = "Open",
-        description = "ordinal-transaction",
-        amount = 125.75m,
-        balance = 5557.85m
-    };
+    static TradeParameters CreateTradeParameters(ScyllaFundTestScope scope)
+        => new(scope.FundId, scope.OrderId, scope.TradeId);
+
+    static TransactionParameters CreateTransactionParameters(ScyllaFundTestScope scope)
+        => new(scope.TransactionId, scope.FundId, scope.OrderId, scope.TradeId);
 
     static Task<FundRow?> GetFundAsync(ScyllaTestRepository repository, int fundId)
         => repository.Use(SelectFund)
-            .SetParameters(new { fundId })
+            .SetParameters(new FundLookup(fundId))
             .ExecuteSingleAsync(MapFund);
 
     static Task<ICollection<OrderRow>> GetFundOrdersAsync(ScyllaTestRepository repository, int fundId)
         => repository.Use(SelectFundOrders)
-            .SetParameters(new { fundId })
+            .SetParameters(new FundLookup(fundId))
             .ExecuteQueryAsync(MapOrder);
 
     static FundRow MapFund(IObjectDataRecord row) => new(
@@ -523,10 +573,63 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
 
     readonly record struct InsertFundBindValue(int FundId, decimal Balance) : IBindValue
     {
-        public object Bind() => CreateFundParameters(FundId, Balance);
+        public object Bind() =>
+        new object?[]
+        {
+            FundId,
+            "Scylla integration fund",
+            "Framework.Storage provider coverage",
+            Balance,
+            false,
+            ScyllaFundTestData.CreatedOn,
+            "framework-storage-scylla-it"
+        };
     }
 
-    readonly record struct FundLookup(int fundId);
+    readonly record struct FundLookup(int FundId) : IBindValue
+    {
+        public object Bind() => new object?[] { FundId };
+    }
+
+    readonly record struct UpdateFundBalanceParameters(decimal Balance, int FundId) : IBindValue
+    {
+        public object Bind() => new object?[] { Balance, FundId };
+    }
+
+    readonly record struct FundOrderTradeLookup(int FundId, int OrderId, int TradeId) : IBindValue
+    {
+        public object Bind() => new object?[] { FundId, OrderId, TradeId };
+    }
+
+    readonly record struct FundTransactionLookup(
+        int FundId,
+        DateOnly ValueDate,
+        int OrderId,
+        int TradeId,
+        string TradeType,
+        string TransactionType,
+        DateTime TransactionDate,
+        long TransactionId) : IBindValue
+    {
+        public object Bind() => new object?[]
+        {
+            FundId, ValueDate, OrderId, TradeId, TradeType, TransactionType, TransactionDate, TransactionId
+        };
+    }
+
+    readonly record struct FundParameters(int FundId, decimal Balance) : IBindValue
+    {
+        public object Bind() => new object?[]
+        {
+            FundId,
+            "Scylla ordinal test",
+            "Framework.Storage integration test data",
+            Balance,
+            false,
+            ScyllaFundTestData.CreatedOn,
+            "framework-storage-scylla-it"
+        };
+    }
 
     readonly record struct OrderParameters(
         int fundId,
@@ -540,7 +643,34 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         DateTime createdOn,
         string createdBy,
         DateTime updatedOn,
-        string updatedBy);
+        string updatedBy) : IBindValue
+    {
+        public object Bind() => new object?[]
+        {
+            fundId, orderId, orderDate, orderStatus, baseContractId, tradeDate, maturityDate,
+            reference, createdOn, createdBy, updatedOn, updatedBy
+        };
+    }
+
+    readonly record struct TradeParameters(int FundId, int OrderId, int TradeId) : IBindValue
+    {
+        public object Bind() => new object?[]
+        {
+            FundId, OrderId, TradeId, "LongIronCondor", ScyllaFundTestData.TradeDate,
+            ScyllaFundTestData.MaturityDate, "NewTrade", "Buy", "ordinal-trade", true, "ES",
+            ScyllaFundTestData.CreatedOn, "framework-storage-scylla-it", ScyllaFundTestData.UpdatedOn,
+            "framework-storage-scylla-it"
+        };
+    }
+
+    readonly record struct TransactionParameters(long TransactionId, int FundId, int OrderId, int TradeId) : IBindValue
+    {
+        public object Bind() => new object?[]
+        {
+            TransactionId, ScyllaFundTestData.CreatedOn, "OpeningTrade", FundId, OrderId, TradeId,
+            "LongIronCondor", ScyllaFundTestData.ValueDate, "Open", "ordinal-transaction", 125.75m, 5557.85m
+        };
+    }
 
     sealed record FundRow(
         int FundId,

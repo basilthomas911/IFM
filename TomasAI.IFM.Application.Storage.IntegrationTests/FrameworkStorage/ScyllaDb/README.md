@@ -3,7 +3,11 @@
 These tests exercise the public `Framework.Storage` repository context against the four Fund tables in a real
 ScyllaDB keyspace. They cover simple and prepared commands, multi-value command batches, sequential and logged
 queued commands, mutable and pooled immutable result materialization, single and scalar queries, map/reduce, and
-ordinal mapping for the Fund data types.
+ordinal mapping for the Fund data types. Async-stream tests cover complete enumeration, early row-set disposal, and
+cancellation. Prepared single and multi-value commands exercise the positional `object?[]` binding fast path; the
+suite contains no name-bound parameter objects. Separate database-independent tests verify all 236 Market Data,
+Option Pricer, Reference, Securities, and Trade bindings against their CQL marker sequence. Fund tests verify its 28
+bindings, update ordering, nullable values, and CQL `date` values.
 
 ## Configuration
 

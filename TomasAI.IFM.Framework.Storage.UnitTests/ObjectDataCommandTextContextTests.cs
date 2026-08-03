@@ -4,6 +4,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System.Data;
+using System.Linq;
 
 namespace TomasAI.IFM.Framework.Storage.UnitTests;
 
@@ -128,6 +129,35 @@ public class ObjectDataCommandTextContextTests
     }
 
     [Fact]
+    public void SetParametersEnumerableInvokesBindValueForEveryItem()
+    {
+        var mockRepo = Substitute.For<IObjectRepository>();
+        mockRepo.ProviderName.Returns("System.Data.SqlServer");
+        var mockLogger = Substitute.For<ILogger<DbProvider>>();
+        var context = new ObjectDataCommandTextContext(mockRepo, mockLogger, "SELECT 1");
+
+        context.SetParameters(new[] { new PositionalBindValue(11), new PositionalBindValue(12) });
+
+        context.ParameterValues.Should().HaveCount(2);
+        context.ParameterValues[0].Should().BeEquivalentTo(new object?[] { 11 });
+        context.ParameterValues[1].Should().BeEquivalentTo(new object?[] { 12 });
+    }
+
+    [Fact]
+    public void SetParametersEnumerablePreservesNonBindValues()
+    {
+        var mockRepo = Substitute.For<IObjectRepository>();
+        mockRepo.ProviderName.Returns("System.Data.SqlServer");
+        var mockLogger = Substitute.For<ILogger<DbProvider>>();
+        var context = new ObjectDataCommandTextContext(mockRepo, mockLogger, "SELECT 1");
+        var values = new[] { new PlainParameter(11), new PlainParameter(12) };
+
+        context.SetParameters(values);
+
+        context.ParameterValues.Should().Equal(values.Cast<object>());
+    }
+
+    [Fact]
     public void GetParameterNameForSqlServer()
     {
         // Arrange
@@ -190,4 +220,11 @@ public class ObjectDataCommandTextContextTests
         // Assert
         result.Should().Be("id");
     }
+
+    readonly record struct PositionalBindValue(int Value) : IBindValue
+    {
+        public object Bind() => new object?[] { Value };
+    }
+
+    sealed record PlainParameter(int Value);
 }

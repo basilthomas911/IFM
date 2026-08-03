@@ -34,7 +34,7 @@ public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbCo
     public async Task<long> GetNextSequenceIdAsync(SequenceName sequenceName)
         => await _dbFactory.SequenceIdDb
                 .Use(SequenceIdDbSql.GetNextSequenceId)
-                .SetParameters(new { sequenceName = sequenceName.ToStringFast() })
+                .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
                 .ExecuteScalarAsync(MapToSequenceId);
     
 }

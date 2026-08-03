@@ -69,8 +69,25 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     {
         ParameterValues.Clear();
         if (parameterValues is null) throw new ArgumentException("ObjectDataRepositoryContext.SetParameters<TParam>: must set parameter values to parameter type ");
-        ParameterValues.AddRange(parameterValues.Cast<object>());
+        foreach (var parameterValue in parameterValues)
+        {
+            ParameterValues.Add(parameterValue is IBindValue bindValue
+                ? bindValue.Bind()
+                : parameterValue!);
+        }
         return this;
+    }
+
+    /// <summary>
+    /// Streams query results asynchronously using an ordinal record mapper.
+    /// The provider owns its database resources until enumeration completes or the enumerator is disposed.
+    /// </summary>
+    public IAsyncEnumerable<TResult> ExecuteStreamAsync<TResult>(
+        Func<IObjectDataRecord, TResult> dataMapper,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dataMapper);
+        return _provider.StreamObjectsAsync(this, dataMapper, cancellationToken);
     }
 
     /// <summary>

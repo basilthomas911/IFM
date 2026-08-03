@@ -336,7 +336,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 AND valueDate >= :startDate 
                 AND valueDate <= :endDate;
               """)
-            .SetParameters(new { fundId, startDate, endDate })
+            .SetParameters(new GetFundTransactions(fundId, startDate, endDate))
             .ExecuteQueryAsync(MapToFundTransaction!);
 
     /// <summary>
@@ -825,14 +825,4 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task BackupDatabaseAsync(DatabaseBackupType backupType, int commandTimeout, Action<string> onInfoMessage)
             => throw new NotImplementedException();
-    /*
-=> await _dbFactory.FundDb
-        .Use(StoredProcedure.spBackupDatabase)
-        .SetParameters(new { backupType = $"{backupType}" })
-        .WithNoTransaction()
-        .SetCommandTimeout(commandTimeout)
-        .ExecuteCommandAsync(onInfoMessage);
-
-}
-    */
 }

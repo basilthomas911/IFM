@@ -217,7 +217,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var valueDate = SampleData.FundTransaction.ValueDate;
         await db
             .Use($"delete from fund_transaction where fundId = :fundId")
-            .SetParameters(new { fundId })
+            .SetParameters(new DeleteFund(fundId))
             .ExecuteCommandAsync();
         await db.InsertFundTransactionAsync(SampleData.FundTransaction);
         var fundTransactions = await db.GetFundTransactionsAsync(
@@ -239,7 +239,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var valueDate = SampleData.FundTransaction.ValueDate;
         await db
             .Use($"delete from fund_transaction where fundId = :fundId")
-            .SetParameters(new { fundId })
+            .SetParameters(new DeleteFund(fundId))
             .ExecuteCommandAsync();
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TransactionType = FundTransactionType.RealizedTradePnl });
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 2, TransactionType = FundTransactionType.RealizedTradePnl });
@@ -260,7 +260,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var valueDate = SampleData.FundTransaction.ValueDate;
         await db
             .Use($"delete from fund where fundId = :fundId")
-            .SetParameters(new { fundId })
+            .SetParameters(new DeleteFund(fundId))
             .ExecuteCommandAsync();
         await db.InsertFundAsync(SampleData.Fund);
         var fundBalance = await db.GetFundBalanceAsync(fundId);
@@ -276,7 +276,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var startDate = SampleData.FundTransaction.ValueDate.AddDays(-1);
         await db
             .Use($"delete from fund_transaction where fundId = :fundId")
-            .SetParameters(new { fundId })
+            .SetParameters(new DeleteFund(fundId))
             .ExecuteCommandAsync();
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 1, Balance = 1000 });
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 2, Balance = 2000 });
@@ -294,7 +294,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var endDate = SampleData.FundTransaction.ValueDate.AddDays(1);
         await db
             .Use($"delete from fund_transaction where fundId = :fundId")
-            .SetParameters(new { fundId })
+            .SetParameters(new DeleteFund(fundId))
             .ExecuteCommandAsync();
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 1, Balance = 1000 });
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 2, Balance = 2000 });
@@ -313,7 +313,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var endDate = SampleData.FundTransaction.ValueDate.AddDays(1);
         await db
             .Use($"delete from fund_transaction where fundId = :fundId")
-            .SetParameters(new { fundId })
+            .SetParameters(new DeleteFund(fundId))
             .ExecuteCommandAsync();
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 1, Balance = 1000 , Amount = -300, TransactionType = FundTransactionType.RealizedTradePnl});
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 2, Balance = 2000, Amount = -400, TransactionType = FundTransactionType.RealizedTradePnl });
@@ -334,7 +334,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var endDate = SampleData.FundTransaction.ValueDate.AddDays(1);
         await db
             .Use($"delete from fund_transaction where fundId = :fundId")
-            .SetParameters(new { fundId })
+            .SetParameters(new DeleteFund(fundId))
             .ExecuteCommandAsync();
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 1, Balance = 1000, Amount = 300, TransactionType = FundTransactionType.RealizedTradePnl });
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 2, Balance = 2000, Amount = -400, TransactionType = FundTransactionType.RealizedTradePnl });
@@ -355,7 +355,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var endDate = new DateOnly(2025, 01, 28);
         await db
             .Use($"delete from fund_transaction where fundId = :fundId")
-            .SetParameters(new { fundId })
+            .SetParameters(new DeleteFund(fundId))
             .ExecuteCommandAsync();
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 1, Balance = 1000, ValueDate = new DateOnly(2025,01,2), Amount = 300, TransactionType = FundTransactionType.RealizedTradePnl });
         await db.InsertFundTransactionAsync(SampleData.FundTransaction with { TradeId = 2, Balance = 2000, ValueDate = new DateOnly(2025, 01, 15), Amount = -400, TransactionType = FundTransactionType.RealizedTradePnl });

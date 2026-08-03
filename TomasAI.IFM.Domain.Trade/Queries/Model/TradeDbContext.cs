@@ -196,36 +196,36 @@ internal static class TradeDbContext
 
     internal readonly record struct GetTradeHistory(int orderId) : IBindValue
     {
-        public object Bind() => new { orderId };
+        public object Bind() => new object?[] { orderId };
     }
 
     internal readonly record struct GetTradeLimit(int tradeId) : IBindValue
     {
-        public object Bind() => new { tradeId };
+        public object Bind() => new object?[] { tradeId };
     }
 
     internal readonly record struct GetTradeTypeLimit(int tradeId, string tradeType) : IBindValue
     {
-        public object Bind() => new { tradeId, tradeType };
+        public object Bind() => new object?[] { tradeId, tradeType };
     }
 
     internal readonly record struct GetTradePosition(int orderId, int tradeId, string tradeType, DateOnly valueDate, int daysToExpiry, string tradeStatus) : IBindValue
     {
-        public object Bind() => new { orderId, tradeId, tradeType, valueDate, daysToExpiry, tradeStatus };
+        public object Bind() => new object?[] { orderId, tradeId, valueDate, tradeStatus, daysToExpiry, tradeType };
     }
 
     internal readonly record struct GetTradePositions(int orderId, int tradeId) : IBindValue
     {
-        public object Bind() => new { orderId, tradeId };
+        public object Bind() => new object?[] { orderId, tradeId };
     }
 
     internal readonly record struct GetTradePositionsById(int orderId, int tradeId, DateOnly valueDate, string tradeStatus, int daysToExpiry) : IBindValue
     {
-        public object Bind() => new { orderId, tradeId, valueDate, tradeStatus, daysToExpiry };
+        public object Bind() => new object?[] { orderId, tradeId, valueDate, tradeStatus, daysToExpiry };
     }
 
     internal readonly record struct GetOptionLegs(int tradeId) : IBindValue
     {
-        public object Bind() => new { tradeId };
+        public object Bind() => new object?[] { tradeId };
     }
 }

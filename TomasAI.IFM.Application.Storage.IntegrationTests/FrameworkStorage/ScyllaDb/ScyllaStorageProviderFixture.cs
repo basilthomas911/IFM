@@ -121,12 +121,12 @@ public sealed class ScyllaStorageProviderFixture : IAsyncLifetime
 
     readonly record struct FundKey(int fundId) : IBindValue
     {
-        public object Bind() => new { fundId };
+        public object Bind() => new object?[] { fundId };
     }
 
     readonly record struct FundOrderKey(int fundId, int orderId) : IBindValue
     {
-        public object Bind() => new { fundId, orderId };
+        public object Bind() => new object?[] { fundId, orderId };
     }
 }
 

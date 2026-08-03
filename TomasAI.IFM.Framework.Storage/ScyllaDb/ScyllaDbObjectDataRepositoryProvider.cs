@@ -2,7 +2,7 @@ using Cassandra;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Data;
-using System.Reflection;
+using System.Runtime.CompilerServices;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
 
@@ -22,7 +22,6 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     readonly ILogger<DbProvider> _logger;
     readonly ScyllaDbConnection _conn;
     readonly ConcurrentDictionary<string, PreparedStatement> _preparedStatementCache = [];
-    static readonly ConcurrentDictionary<Type, IReadOnlyDictionary<string, PropertyInfo>> _bindPropertyCache = [];
 
     /// <summary>
     /// Creates or retrieves an <see cref="IObjectRepositoryProvider"/> instance for the specified context.
@@ -58,8 +57,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         => _preparedStatementCache.GetOrAdd(cql, static (key, s) => s.Prepare(key), session);
 
     /// <summary>
-    /// Binds a parameter object by matching its public properties to the prepared statement's named markers.
-    /// The Cassandra driver otherwise treats a record or anonymous object as one scalar parameter.
+    /// Binds positional values directly to the prepared statement. ScyllaDB parameter catalogs emit
+    /// <see cref="object"/> arrays in CQL marker order, avoiding reflection and property-map allocation.
     /// </summary>
     static BoundStatement Bind(PreparedStatement statement, object? parameterValue)
     {
@@ -68,35 +67,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         if (parameterValue is object[] values)
             return statement.Bind(values);
 
-        var parameterType = parameterValue.GetType();
-        var properties = _bindPropertyCache.GetOrAdd(parameterType, static type =>
-            type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-                .ToDictionary(property => property.Name, StringComparer.OrdinalIgnoreCase));
-
-        if (properties.Count == 0)
-            return statement.Bind(parameterValue);
-
-        var bindValues = new object?[statement.Variables.Columns.Length];
-        for (var index = 0; index < statement.Variables.Columns.Length; index++)
-        {
-            var column = statement.Variables.Columns[index];
-            var markerName = column.Name;
-            if (!properties.TryGetValue(markerName, out var property))
-            {
-                bindValues[index] = null;
-                continue;
-            }
-            var value = property.GetValue(parameterValue);
-            bindValues[index] = value switch
-            {
-                DateOnly date when column.Type == typeof(DateTime) =>
-                    date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                DateOnly date when column.Type == typeof(DateTimeOffset) =>
-                    new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)),
-                _ => value
-            };
-        }
-        return statement.Bind(bindValues);
+        return statement.Bind(parameterValue);
     }
 
     /// <summary>
@@ -299,6 +270,52 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 yield return dataMapper(record.SetRow(row));
         }
     }
+    /// <summary>
+    /// Asynchronously streams mapped rows and explicitly fetches ScyllaDB result pages without synchronous auto-paging.
+    /// Disposing the enumerator releases the active row set, including when enumeration stops early.
+    /// </summary>
+    public async IAsyncEnumerable<TResult> StreamObjectsAsync<TResult>(
+        IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TResult> dataMapper,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (dataMapper is null)
+            throw new StorageException($"{ClassName}.StreamObjectsAsync: dataMapper parameter is null");
+        if (ctx.ParameterValues.Count > 1)
+            throw new StorageException($"{ClassName}.StreamObjectsAsync: only single parameter value accepted");
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        IStatement statement;
+        if (ctx.ParameterValues.Count == 1)
+        {
+            var preparedStatement = GetOrPrepare(session, ctx.CommandText);
+            statement = Bind(preparedStatement, ctx.ParameterValues[0]);
+        }
+        else
+        {
+            statement = new SimpleStatement(ctx.CommandText);
+        }
+        statement.SetAutoPage(false);
+
+        using var rowSet = await session.ExecuteAsync(statement).WaitAsync(cancellationToken).ConfigureAwait(false);
+        var record = rowSet.ToObjectDataRecord();
+        while (true)
+        {
+            using var rows = rowSet.GetEnumerator();
+            while (rows.MoveNext())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return dataMapper(record.SetRow(rows.Current));
+            }
+
+            if (rowSet.IsFullyFetched)
+                yield break;
+
+            await rowSet.FetchMoreResultsAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     /// <summary>
     /// Executes a query asynchronously and maps the results to a collection using an <see cref="IObjectDataRecord"/>
     /// mapper, eliminating intermediate <c>object[]</c> allocation and value-type boxing.

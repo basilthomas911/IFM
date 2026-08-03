@@ -11,6 +11,10 @@ public interface IObjectRepositoryProvider
     ValueTask ExecuteMapReduceAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> mapper, Action<IEnumerable<TResult>> reducer);
 
     // query methods...
+    IAsyncEnumerable<TResult> StreamObjectsAsync<TResult>(
+        IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TResult> mapper,
+        CancellationToken cancellationToken = default);
     Task<ICollection<TResult>> GetObjectsAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> mapper);
     Task<IReadOnlyList<TResult>> GetImmutableObjectsAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> mapper) where TResult : struct;
 

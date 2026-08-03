@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Exceptions;
 using Xunit;
+using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.Postgres;
 
@@ -232,6 +234,29 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
     }
 
     [Fact]
+    public Task ParameterizedTextCommand_IsExplicitlyPreparedOnThePooledConnection()
+    {
+        var scope = PostgresEventSourceTestData.Scope(9);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            const string preparedSql = "SELECT $1::integer /* framework_storage_explicit_prepare_probe */;";
+            var value = await repository.Use(preparedSql)
+                .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                .ExecuteScalarAsync(static row => row.GetInt(0));
+
+            var preparedCount = await repository.Use("""
+                    SELECT count(*)
+                    FROM pg_prepared_statements
+                    WHERE statement LIKE '%framework_storage_explicit_prepare_probe%';
+                    """)
+                .ExecuteScalarAsync(static row => row.GetLong(0));
+
+            Assert.Equal(scope.EventStreamId, value);
+            Assert.True(preparedCount > 0);
+        });
+    }
+
+    [Fact]
     public Task ExecuteMapReduceAsync_StreamsOrdinalResultsIntoReducer()
     {
         var scope = PostgresEventSourceTestData.Scope(10);
@@ -253,6 +278,82 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
 
             Assert.Equal(1, reducerCalls);
             Assert.Equal(scope.EventVersion + scope.SecondEventVersion, versionSum);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteStreamAsync_StreamsEveryOrdinalResult()
+    {
+        var scope = PostgresEventSourceTestData.Scope(16);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertEventLogsAsync(repository, scope);
+            var versions = new List<long>();
+
+            await foreach (var row in repository.Use(SelectEventLogs)
+                .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                .ExecuteStreamAsync(MapEventLog))
+            {
+                versions.Add(row.EventVersion);
+            }
+
+            Assert.Equal([scope.EventVersion, scope.SecondEventVersion], versions);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteStreamAsync_EarlyTerminationReleasesReader()
+    {
+        var scope = PostgresEventSourceTestData.Scope(16);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertEventLogsAsync(repository, scope);
+            var stream = repository.Use(SelectEventLogs)
+                .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                .ExecuteStreamAsync(MapEventLog);
+
+            await using (var rows = stream.GetAsyncEnumerator())
+            {
+                Assert.True(await rows.MoveNextAsync());
+                Assert.Equal(scope.EventVersion, rows.Current.EventVersion);
+            }
+
+            var count = await repository
+                .Use("SELECT count(*) FROM event_log WHERE eventstreamid = $1;")
+                .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                .ExecuteScalarAsync(static row => row.GetLong(0));
+
+            Assert.Equal(2, count);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteStreamAsync_CancellationStopsEnumerationAndReleasesReader()
+    {
+        var scope = PostgresEventSourceTestData.Scope(16);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertEventLogsAsync(repository, scope);
+            using var cancellation = new CancellationTokenSource();
+            var rowsRead = 0;
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            {
+                await foreach (var _ in repository.Use(SelectEventLogs)
+                    .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                    .ExecuteStreamAsync(MapEventLog, cancellation.Token))
+                {
+                    rowsRead++;
+                    cancellation.Cancel();
+                }
+            });
+
+            Assert.Equal(1, rowsRead);
+            var count = await repository
+                .Use("SELECT count(*) FROM event_log WHERE eventstreamid = $1;")
+                .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                .ExecuteScalarAsync(static row => row.GetLong(0));
+            Assert.Equal(2, count);
         });
     }
 
@@ -370,6 +471,8 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         var scope = PostgresEventSourceTestData.Scope(14);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
+            Assert.Throws<ArgumentNullException>(
+                () => repository.Use(SelectEventStream).ExecuteStreamAsync<EventStreamRow>(null!));
             await Assert.ThrowsAsync<StorageException>(
                 () => repository.Use(SelectEventStream).ExecuteQueryAsync<EventStreamRow>(null!));
             await Assert.ThrowsAsync<StorageException>(
@@ -489,17 +592,38 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
 
     readonly record struct InsertEventStreamBindValue(int EventStreamId, string EventStream) : IBindValue
     {
-        public object Bind() => new { EventStreamId, EventStream };
+        public object Bind() => Values(Integer(EventStreamId), Text(EventStream));
     }
 
-    readonly record struct EventStreamParameters(int EventStreamId, string EventStream);
-    readonly record struct UpdateEventStreamParameters(string EventStream, int EventStreamId);
-    readonly record struct EventStreamLookup(int EventStreamId);
-    readonly record struct EventNameLookup(int EventNameId);
-    readonly record struct CommandLookup(Guid CommandId);
-    readonly record struct ProjectorLookup(long EventId, string ProjectorName);
+    readonly record struct EventStreamParameters(int EventStreamId, string EventStream) : IBindValue
+    {
+        public object Bind() => Values(Integer(EventStreamId), Text(EventStream));
+    }
+    readonly record struct UpdateEventStreamParameters(string EventStream, int EventStreamId) : IBindValue
+    {
+        public object Bind() => Values(Text(EventStream), Integer(EventStreamId));
+    }
+    readonly record struct EventStreamLookup(int EventStreamId) : IBindValue
+    {
+        public object Bind() => Values(Integer(EventStreamId));
+    }
+    readonly record struct EventNameLookup(int EventNameId) : IBindValue
+    {
+        public object Bind() => Values(Integer(EventNameId));
+    }
+    readonly record struct CommandLookup(Guid CommandId) : IBindValue
+    {
+        public object Bind() => Values(Uuid(CommandId));
+    }
+    readonly record struct ProjectorLookup(long EventId, string ProjectorName) : IBindValue
+    {
+        public object Bind() => Values(Bigint(EventId), Text(ProjectorName));
+    }
 
-    readonly record struct EventNameParameters(int EventNameId, string EventName, string EventTypeName);
+    readonly record struct EventNameParameters(int EventNameId, string EventName, string EventTypeName) : IBindValue
+    {
+        public object Bind() => Values(Integer(EventNameId), Text(EventName), Text(EventTypeName));
+    }
 
     readonly record struct EventLogParameters(
         int EventStreamId,
@@ -507,7 +631,12 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         long EventVersion,
         string EventData,
         Guid CommandId,
-        string EventTimestamp);
+        string EventTimestamp) : IBindValue
+    {
+        public object Bind() => Values(
+            Integer(EventStreamId), Integer(EventNameId), Bigint(EventVersion), Text(EventData),
+            Uuid(CommandId), Text(EventTimestamp));
+    }
 
     readonly record struct CommandParameters(
         Guid CommandId,
@@ -516,7 +645,12 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         string CommandName,
         string CommandTimestamp,
         string CommandStatus,
-        string CommandData);
+        string CommandData) : IBindValue
+    {
+        public object Bind() => Values(
+            Uuid(CommandId), Text(StreamId), Text(ActorName), Text(CommandName), Text(CommandTimestamp),
+            Text(CommandStatus), Text(CommandData));
+    }
 
     readonly record struct ProjectorParameters(
         long EventId,
@@ -528,7 +662,12 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         string Stage,
         string ErrorMessage,
         string CreatedTimestamp,
-        string UpdatedTimestamp);
+        string UpdatedTimestamp) : IBindValue
+    {
+        public object Bind() => Values(
+            Bigint(EventId), Text(ActorName), Text(ProjectorName), Boolean(IsReplay), Integer(AttemptNumber),
+            Text(Outcome), Text(Stage), Text(ErrorMessage), Text(CreatedTimestamp), Text(UpdatedTimestamp));
+    }
 
     sealed record EventStreamRow(int EventStreamId, string EventStream);
     sealed record EventNameRow(int EventNameId, string EventName, string EventTypeName);

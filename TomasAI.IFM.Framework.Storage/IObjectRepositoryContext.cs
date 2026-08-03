@@ -24,6 +24,9 @@ public interface IObjectRepositoryContext: IDisposable
     object QueueCommand();
 
     // async methods...
+    IAsyncEnumerable<TResult> ExecuteStreamAsync<TResult>(
+        Func<IObjectDataRecord, TResult> dataMapper,
+        CancellationToken cancellationToken = default);
     Task<ICollection<TResult>> ExecuteQueryAsync<TResult>(Func<IObjectDataRecord, TResult> dataMapper);
     Task<IReadOnlyList<TResult>> ExecuteQueryImmutableAsync<TResult>(Func<IObjectDataRecord, TResult> dataMapper) where TResult : struct;
     Task<TResult?> ExecuteSingleAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper);

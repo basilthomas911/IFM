@@ -7,6 +7,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
+using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.Postgres;
 
@@ -141,7 +142,7 @@ public sealed class PostgresStorageProviderFixture : IAsyncLifetime
 
     readonly record struct EventVersions(long eventVersion, long secondEventVersion) : IBindValue
     {
-        public object Bind() => new { eventVersion, secondEventVersion };
+        public object Bind() => Values(Bigint(eventVersion), Bigint(secondEventVersion));
     }
 
     readonly record struct EventLogKeys(
@@ -150,17 +151,17 @@ public sealed class PostgresStorageProviderFixture : IAsyncLifetime
         long eventVersion,
         long secondEventVersion) : IBindValue
     {
-        public object Bind() => new { eventStreamId, secondEventStreamId, eventVersion, secondEventVersion };
+        public object Bind() => Values(Integer(eventStreamId), Integer(secondEventStreamId), Bigint(eventVersion), Bigint(secondEventVersion));
     }
 
     readonly record struct CommandKey(Guid commandId) : IBindValue
     {
-        public object Bind() => new { commandId };
+        public object Bind() => Values(Uuid(commandId));
     }
 
     readonly record struct EventNameKey(int eventNameId) : IBindValue
     {
-        public object Bind() => new { eventNameId };
+        public object Bind() => Values(Integer(eventNameId));
     }
 
     readonly record struct EventStreamKeys(
@@ -169,7 +170,7 @@ public sealed class PostgresStorageProviderFixture : IAsyncLifetime
         string eventStream,
         string secondEventStream) : IBindValue
     {
-        public object Bind() => new { eventStreamId, secondEventStreamId, eventStream, secondEventStream };
+        public object Bind() => Values(Integer(eventStreamId), Integer(secondEventStreamId), Text(eventStream), Text(secondEventStream));
     }
 }
 

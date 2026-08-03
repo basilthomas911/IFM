@@ -7,13 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="EventDb\**" />
     <Compile Remove="SqlServer\**" />
     <Compile Remove="TradePlanDb\**" />
-    <EmbeddedResource Remove="EventDb\**" />
     <EmbeddedResource Remove="SqlServer\**" />
     <EmbeddedResource Remove="TradePlanDb\**" />
-    <None Remove="EventDb\**" />
     <None Remove="SqlServer\**" />
     <None Remove="TradePlanDb\**" />
   </ItemGroup>

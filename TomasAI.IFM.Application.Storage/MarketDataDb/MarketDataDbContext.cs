@@ -1162,10 +1162,8 @@ public class MarketDataDbContext(
                             :valueDate, 
                             :contractId);
                     """)
-                 .SetParameters(new {
-                     valueDate = e.ValueDate,
-                     contractId = e.ContractId
-                 }).QueueCommand(),
+                 .SetParameters(new InsertFuturesItiSignalIndex(e.ValueDate, e.ContractId))
+                 .QueueCommand(),
              db.Use("""
                     INSERT INTO futures_iti_signal (
                         contractId, 
@@ -1213,29 +1211,29 @@ public class MarketDataDbContext(
                         :tradeState
                     );
                 """)
-                .SetParameters(new {
-                    contractId = e.ContractId,
-                    valueDate = e.ValueDate,
-                    timePeriod = e.TimePeriod.ToStringFast(),
-                    sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesItiSignal_SequenceId),
-                    intrinsicTime = e.IntrinsicTime,
-                    intrinsicTimeGroupId = e.IntrinsicTimeGroupId,
-                    intrinsicTimeLength = e.IntrinsicTimeLength,
-                    intrinsicPrice =  e.IntrinsicPrice,
-                    intrinsicTimeTrend = e.IntrinsicTimeTrend.ToStringFast(),
-                    intrinsicTimeMode = e.IntrinsicTimeMode.ToStringFast(),
-                    trendPrice = e.TrendPrice,
-                    trendExtreme = e.TrendExtreme,
-                    trendReversal = e.TrendReversal,
-                    trendDelta = e.TrendDelta,
-                    targetDelta = e.TargetDelta,
-                    lambda = e.Lambda,
-                    tradingDays = e.TradingDays,
-                    threshold = e.Threshold,
-                    upTrendTrigger = e.UpTrendTrigger,
-                    downTrendTrigger = e.DownTrendTrigger,
-                    tradeState = e.TradeState.ToStringFast()
-                }).QueueCommand() ];
+                .SetParameters(new InsertFuturesItiSignal(
+                    e.ContractId,
+                    e.ValueDate,
+                    e.TimePeriod.ToStringFast(),
+                    await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesItiSignal_SequenceId),
+                    e.IntrinsicTime,
+                    e.IntrinsicTimeGroupId,
+                    e.IntrinsicTimeLength,
+                    e.IntrinsicPrice,
+                    e.IntrinsicTimeTrend.ToStringFast(),
+                    e.IntrinsicTimeMode.ToStringFast(),
+                    e.TrendPrice,
+                    e.TrendExtreme,
+                    e.TrendReversal,
+                    e.TrendDelta,
+                    e.TargetDelta,
+                    e.Lambda,
+                    e.TradingDays,
+                    e.Threshold,
+                    e.UpTrendTrigger,
+                    e.DownTrendTrigger,
+                    e.TradeState.ToStringFast()))
+                .QueueCommand() ];
         await db.ExecuteQueuedCommandsAsync(dbCommands);
     }
 
@@ -1247,23 +1245,22 @@ public class MarketDataDbContext(
     public async Task InsertFuturesRsiSignalAsync(FuturesRsiSignalReadModel e)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.InsertFuturesRsiSignal)
-            .SetParameters(new {
-                contractId = e.ContractId,
-                valueDate = e.ValueDate,
-                timePeriod = e.TimePeriod.ToStringFast(),
-                periodLength = e.PeriodLength,
-                timestamp = e.Timestamp,
-                price = e.Price,
-                priceChange = e.PriceChange,
-                priceGain = e.PriceGain,
-                priceLoss = e.PriceLoss,
-                averagePriceGain = e.AveragePriceGain,
-                averagePriceLoss = e.AveragePriceLoss,
-                rs = e.RS,
-                rsi = e.RSI,
-                rsiAverage = e.RSIAverage,
-                rsiSlope = e.RSISlope
-            })
+            .SetParameters(new InsertFuturesRsiSignal(
+                e.ContractId,
+                e.ValueDate,
+                e.TimePeriod.ToStringFast(),
+                e.PeriodLength,
+                e.Timestamp,
+                e.Price,
+                e.PriceChange,
+                e.PriceGain,
+                e.PriceLoss,
+                e.AveragePriceGain,
+                e.AveragePriceLoss,
+                e.RS,
+                e.RSI,
+                e.RSIAverage,
+                e.RSISlope))
             .ExecuteCommandAsync();
 
     /// <summary>
@@ -1892,18 +1889,14 @@ public class MarketDataDbContext(
     public async Task InsertFuturesAtrSignalAsync(FuturesAtrSignalReadModel futuresAtrSignal)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.InsertFuturesAtrSignal)
-            .SetParameters(new {
-                contractId = futuresAtrSignal.ContractId,
-                valueDate = futuresAtrSignal.ValueDate,
-                timePeriod = futuresAtrSignal.TimePeriod.ToStringFast(),
-                periodLength = futuresAtrSignal.PeriodLength,
-                timestamp = futuresAtrSignal.Timestamp,
-                futuresPrice = futuresAtrSignal.FuturesPrice,
-                atrValue =  futuresAtrSignal.AtrValue,
-                trueRange = futuresAtrSignal.TrueRange,
-                atr = futuresAtrSignal.ATR.ToStringFast(),
-                atrStrength = futuresAtrSignal.ATRStrength.ToStringFast()
-            })
+            .SetParameters(new InsertFuturesAtrSignal(
+                futuresAtrSignal.ContractId,
+                futuresAtrSignal.ValueDate,
+                futuresAtrSignal.Timestamp,
+                futuresAtrSignal.AtrValue,
+                futuresAtrSignal.TrueRange,
+                futuresAtrSignal.ATR.ToStringFast(),
+                futuresAtrSignal.ATRStrength.ToStringFast()))
             .ExecuteCommandAsync();
 
     /// <summary>
@@ -2815,7 +2808,7 @@ public class MarketDataDbContext(
     public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesRsiSignal)
-            .SetParameters(new { contractId, valueDate, timePeriod, periodLength })
+            .SetParameters(new GetLastFuturesRsiSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate))
             .ExecuteSingleAsync(MapToFuturesRsiSignal);
 
     /// <summary>
@@ -2828,7 +2821,7 @@ public class MarketDataDbContext(
     public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesRsiDailySignal)
-            .SetParameters(new { contractId, timePeriod = timePeriod.ToStringFast(), periodLength })
+            .SetParameters(new GetLastFuturesRsiDailySignal(contractId, timePeriod.ToStringFast(), periodLength))
             .ExecuteSingleAsync(MapToFuturesRsiSignal);
 
     /// <summary>
@@ -2856,13 +2849,7 @@ public class MarketDataDbContext(
     public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesMacdSignal)
-            .SetParameters(new
-            {
-                contractId,
-                valueDate,
-                timePeriod = timePeriod.ToStringFast(),
-                periodLength
-            })
+            .SetParameters(new GetLastFuturesMacdSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate))
             .ExecuteSingleAsync(MapToFuturesMacdSignal!);
 
     /// <summary>
@@ -2875,12 +2862,7 @@ public class MarketDataDbContext(
     public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesMacdDailySignal)
-            .SetParameters(new
-            {
-                contractId,
-                timePeriod = timePeriod.ToStringFast(),
-                periodLength
-            })
+            .SetParameters(new GetLastFuturesMacdDailySignal(contractId, timePeriod.ToStringFast(), periodLength))
             .ExecuteSingleAsync(MapToFuturesMacdSignal!);
 
     /// <summary>
@@ -2892,23 +2874,13 @@ public class MarketDataDbContext(
     public async Task<FuturesAtrSignalReadModel?> GetLastFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesAtrSignal)
-            .SetParameters(new {
-                contractId,
-                valueDate,
-                timePeriod = timePeriod.ToStringFast(),
-                periodLength
-            })
+            .SetParameters(new GetLastFuturesAtrSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate))
             .ExecuteSingleAsync(MapToFuturesAtrSignal!);
 
     public async Task<FuturesAtrSignalReadModel?> GetLastFuturesAtrDailySignalAsync(string contractId,  TimeFrameType timePeriod, int periodLength)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesDailyAtrSignal)
-            .SetParameters(new
-            {
-                contractId,
-                timePeriod = timePeriod.ToStringFast(),
-                periodLength
-            })
+            .SetParameters(new GetLastFuturesAtrDailySignal(contractId, timePeriod.ToStringFast(), periodLength))
             .ExecuteSingleAsync(MapToFuturesAtrSignal!);
 
     /// <summary>
@@ -2920,10 +2892,7 @@ public class MarketDataDbContext(
     public async Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesAdxSignal)
-            .SetParameters(new GetLastFuturesAdxSignal(
-                contractId,
-                valueDate
-            ))
+            .SetParameters(new GetLastFuturesAdxSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate))
             .ExecuteSingleAsync(MapToFuturesAdxSignal!);
 
     /// <summary>
@@ -2936,12 +2905,7 @@ public class MarketDataDbContext(
     public async Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesAdxDailySignal)
-            .SetParameters(new
-            {
-                contractId,
-                timePeriod = timePeriod.ToStringFast(),
-                periodLength
-            })
+            .SetParameters(new GetLastFuturesAdxDailySignal(contractId, timePeriod.ToStringFast(), periodLength))
             .ExecuteSingleAsync(MapToFuturesAdxSignal!);
 
     /// <summary>

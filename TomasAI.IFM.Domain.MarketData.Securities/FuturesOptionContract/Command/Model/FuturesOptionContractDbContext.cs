@@ -151,12 +151,12 @@ internal static class FuturesOptionContractDbContext
 
 	internal readonly record struct GetFuturesOptionContract(string contractId) : IBindValue
 	{
-		public object Bind() => new { contractId };
+		public object Bind() => new object?[] { contractId };
 	}
 
 	internal readonly record struct GetFuturesOptionContractsBySymbol(string symbol) : IBindValue
 	{
-		public object Bind() => new { symbol };
+		public object Bind() => new object?[] { symbol };
 	}
 
 	internal readonly record struct UpsertFuturesOptionContract(
@@ -172,7 +172,7 @@ internal static class FuturesOptionContractDbContext
 		double strikePrice,
 		string optionType) : IBindValue
 	{
-		public object Bind() => new
+		public object Bind() => new object?[]
 		{
 			contractId,
 			description,
@@ -190,6 +190,6 @@ internal static class FuturesOptionContractDbContext
 
 	internal readonly record struct DeleteFuturesOptionContractById(string contractId) : IBindValue
 	{
-		public object Bind() => new { contractId };
+		public object Bind() => new object?[] { contractId };
 	}
 }

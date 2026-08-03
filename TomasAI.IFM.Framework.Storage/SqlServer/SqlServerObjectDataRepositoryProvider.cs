@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Data.Common;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.Exceptions;
@@ -356,6 +357,35 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
 
     public void Dispose()
     {
+    }
+
+    /// <summary>
+    /// Asynchronously streams mapped rows while keeping the connection and reader scoped to the enumerator.
+    /// Disposing the enumerator releases both resources, including when enumeration stops early.
+    /// </summary>
+    public async IAsyncEnumerable<TResult> StreamObjectsAsync<TResult>(
+        IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TResult> dataMapper,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (dataMapper is null)
+            throw new StorageException("SqlServerObjectRepositoryProvider.StreamObjectsAsync: dataMapper parameter is null");
+        if (ctx.ParameterValues.Count > 1)
+            throw new StorageException("SqlServerObjectRepositoryProvider.StreamObjectsAsync: only single parameter value accepted");
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand();
+        ctx.SetCommand(cmd);
+        SetParameters(cmd);
+        await using var dataReader = await cmd.ExecuteReaderAsync(
+            CommandBehavior.CloseConnection,
+            cancellationToken).ConfigureAwait(false);
+        var record = new AdoNetDataRecord().SetReader(dataReader);
+
+        while (await dataReader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            yield return dataMapper(record);
     }
 
     /// <summary>

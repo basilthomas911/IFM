@@ -30,6 +30,6 @@ internal static class FuturesClosingPriceDbContext
 		DateTime createdOn,
 		string createdBy) : IBindValue
 	{
-		public object Bind() => new { contractId, valueDate, closingPrice, createdOn, createdBy };
+		public object Bind() => new object?[] { contractId, valueDate, closingPrice, createdOn, createdBy };
 	}
 }

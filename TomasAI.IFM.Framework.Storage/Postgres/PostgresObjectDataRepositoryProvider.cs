@@ -1,9 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
-using System.Collections.Concurrent;
 using System.Data;
-using System.Reflection;
+using System.Runtime.CompilerServices;
 using TomasAI.IFM.Shared.Exceptions;
 
 namespace TomasAI.IFM.Framework.Storage.Postgres;
@@ -12,38 +11,6 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
 {
     const string ProviderTypeName = "PostgresObjectDataRepositoryProvider";
     readonly IObjectRepositoryContext _ctx;
-
-    static readonly Dictionary<Type, NpgsqlDbType> _dbTypeMap = new()
-    {
-        { typeof(string), NpgsqlDbType.Text },
-        { typeof(int), NpgsqlDbType.Integer },
-        { typeof(long), NpgsqlDbType.Bigint },
-        { typeof(short), NpgsqlDbType.Smallint },
-        { typeof(byte), NpgsqlDbType.Smallint },
-        { typeof(bool), NpgsqlDbType.Boolean },
-        { typeof(DateTime), NpgsqlDbType.Timestamp },
-        { typeof(DateOnly), NpgsqlDbType.Date },
-        { typeof(decimal), NpgsqlDbType.Money },
-        { typeof(float), NpgsqlDbType.Real },
-        { typeof(double), NpgsqlDbType.Double },
-        { typeof(Guid), NpgsqlDbType.Uuid },
-        { typeof(TimeSpan), NpgsqlDbType.Bigint },
-        { typeof(byte[]), NpgsqlDbType.Bytea },
-        { typeof(int?), NpgsqlDbType.Integer },
-        { typeof(long?), NpgsqlDbType.Bigint },
-        { typeof(short?), NpgsqlDbType.Smallint },
-        { typeof(byte?), NpgsqlDbType.Smallint },
-        { typeof(bool?), NpgsqlDbType.Boolean },
-        { typeof(DateTime?), NpgsqlDbType.Timestamp },
-        { typeof(DateOnly?), NpgsqlDbType.Date },
-        { typeof(decimal?), NpgsqlDbType.Money },
-        { typeof(float?), NpgsqlDbType.Real },
-        { typeof(double?), NpgsqlDbType.Double },
-        { typeof(Guid?), NpgsqlDbType.Uuid },
-        { typeof(TimeSpan?), NpgsqlDbType.Bigint }
-    };
-
-    static readonly ConcurrentDictionary<Type, PropertyInfo[]> _propertyCache = [];
 
     /// <summary>
     /// create postgres object data repository provider 
@@ -115,33 +82,38 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
                 var schema = !string.IsNullOrEmpty(_ctx.Repository.Schema) ? _ctx.Repository.Schema : "public";
                 cmd.CommandText = $"{schema}.{cmd.CommandText}";
             }
-            var dbParametersList = GetParameters().ToList();
-            if (dbParametersList is not null && dbParametersList.Count > 0)
+            var executed = false;
+            foreach (var parameterValue in _ctx.ParameterValues)
             {
-                foreach (var dbParameters in dbParametersList)
+                var dbParameters = GetParameterArray(parameterValue);
+                if (dbParameters is null)
+                    continue;
+
+                cmd.Parameters.Clear();
+                foreach (var dbParameter in dbParameters)
+                    cmd.Parameters.Add(dbParameter);
+                if (cmd.CommandType == CommandType.StoredProcedure)
                 {
-                    cmd.Parameters.Clear();
-                    if (dbParameters is not null && dbParameters.Count() > 0)
-                        foreach (var dbParameter in dbParameters)
-                            cmd.Parameters.AddWithValue(dbParameter.NpgsqlDbType, dbParameter.NpgsqlValue);
-                    if (cmd.CommandType == CommandType.StoredProcedure)
-                    {
-                        var returnParameter = cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, default);
-                        returnParameter.Direction = ParameterDirection.Output;
-                        affectedRows.Add(await cmd.ExecuteNonQueryAsync());
-                    }
-                    else
-                        affectedRows.Add(await cmd.ExecuteNonQueryAsync());
+                    var returnParameter = cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, default);
+                    returnParameter.Direction = ParameterDirection.Output;
                 }
+
+                await PrepareParameterizedCommandAsync(cmd);
+                affectedRows.Add(await cmd.ExecuteNonQueryAsync());
+                executed = true;
             }
-            else if (cmd.CommandType == CommandType.StoredProcedure)
+
+            if (!executed)
             {
-                var returnParameter = cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, default);
-                returnParameter.Direction = ParameterDirection.Output;
+                if (cmd.CommandType == CommandType.StoredProcedure)
+                {
+                    var returnParameter = cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, default);
+                    returnParameter.Direction = ParameterDirection.Output;
+                }
+
                 affectedRows.Add(await cmd.ExecuteNonQueryAsync());
             }
-            else
-                affectedRows.Add(await cmd.ExecuteNonQueryAsync());
+
             return [.. affectedRows];
         }
     }
@@ -157,8 +129,15 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         if (string.IsNullOrWhiteSpace(commandText))
             throw new ArgumentException($"{ProviderTypeName}.QueueCommand: command text parameter is empty");
-        var dbParameters = GetParameters(parameterValues).FirstOrDefault(); 
-        return new ObjectDataQueuedCommand(commandType, commandText, dbParameters );
+        NpgsqlParameter[]? dbParameters = null;
+        foreach (var parameterValue in parameterValues)
+        {
+            dbParameters = GetParameterArray(parameterValue);
+            if (dbParameters is not null)
+                break;
+        }
+
+        return new ObjectDataQueuedCommand(commandType, commandText, dbParameters);
     }
 
     /// <summary>
@@ -170,39 +149,54 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         if (queuedCommands?.Count == 0)
             throw new InvalidOperationException($"{ProviderTypeName}.ExecuteQueuedCommandsAsync: no commands have been queued for execution");
         var commandText = string.Empty;
-        using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
+        await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
         await conn.OpenAsync();
-        using var tx = conn.BeginTransaction();
+        await using var tx = await conn.BeginTransactionAsync();
         try
         {
-            using var cmd = conn.CreateCommand();
-            cmd.Transaction = tx;
+            await using var batch = new NpgsqlBatch(conn, tx);
+            if (_ctx.CommandTimeout > 0)
+                batch.Timeout = _ctx.CommandTimeout;
+            var prepareBatch = true;
+            var hasParameterizedCommand = false;
             foreach (ObjectDataQueuedCommand queuedCommand in queuedCommands!)
             {
                 if (queuedCommand is null) continue;
                 if (string.IsNullOrWhiteSpace(queuedCommand.CommandText))
                     throw new ArgumentException($"{ProviderTypeName}.ExecuteQueuedCommandsAsync: command text parameter is empty");
-                cmd.CommandType = queuedCommand.CommandType;
-                cmd.CommandText = queuedCommand.CommandText;
-                commandText = cmd.CommandText;
-                cmd.Parameters.Clear();
+                commandText = queuedCommand.CommandText;
+                var batchCommand = new NpgsqlBatchCommand(commandText)
+                {
+                    CommandType = queuedCommand.CommandType
+                };
+                prepareBatch &= queuedCommand.CommandType == CommandType.Text;
                 if (queuedCommand.Parameters is not null && queuedCommand.Parameters.Length > 0)
+                {
+                    hasParameterizedCommand = true;
                     foreach (var spParameter in queuedCommand.Parameters)
-                    {
-                        var parameter = (NpgsqlParameter)spParameter;
-                        cmd.Parameters.AddWithValue(parameter.NpgsqlDbType, parameter.NpgsqlValue);
-                    }
-                await cmd.ExecuteNonQueryAsync();
-             }
-             tx.Commit();
-            conn.Close();
+                        batchCommand.Parameters.Add((NpgsqlParameter)spParameter);
+                }
+
+                batch.BatchCommands.Add(batchCommand);
+            }
+
+            if (batch.BatchCommands.Count > 0)
+            {
+                commandText = "NpgsqlBatch";
+                if (prepareBatch && hasParameterizedCommand)
+                    await batch.PrepareAsync();
+                await batch.ExecuteNonQueryAsync();
+            }
+
+            await tx.CommitAsync();
         }
         catch (Exception ex)
         {
             TryRollback(tx);
-            conn.Close();
             while (ex.InnerException != null) ex = ex.InnerException;
-               var errorMessage = $"{ProviderTypeName}.ExecuteQueuedCommandAsync: {commandText} {ex.Message}";
+            if (ex is NpgsqlException { BatchCommand: not null } npgsqlException)
+                commandText = npgsqlException.BatchCommand.CommandText;
+            var errorMessage = $"{ProviderTypeName}.ExecuteQueuedCommandAsync: {commandText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
         }
     }
@@ -277,6 +271,7 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
+        await PrepareParameterizedCommandAsync(cmd);
         using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
         var record = new AdoNetDataRecord().SetReader(dataReader);
         reducer?.Invoke(MapReduce());
@@ -288,57 +283,27 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         }
     }
     /// <summary>
-    /// return list of db parameters from list of update objects
+    /// Validates and returns an already-created positional parameter array.
     /// </summary>
-    /// <typeparam name="TParam"></typeparam>
-    /// <param name="paramValues">list of update objects</param>
+    /// <param name="value">provider bind payload</param>
     /// <returns></returns>
-    IEnumerable<NpgsqlParameter[]> GetParameters() => GetParameters(_ctx.ParameterValues);
-
-    IEnumerable<NpgsqlParameter[]> GetParameters(List<object> values)
+    static NpgsqlParameter[]? GetParameterArray(object? value)
     {
-        if (values.Count == 0) yield break;
-        PropertyInfo[]? paramProps = null;
-        foreach (var paramValue in values)
-        {
-            if (paramValue == null) continue;
-            paramProps ??= _propertyCache.GetOrAdd(paramValue.GetType(), t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance));
-            var dbParameters = new NpgsqlParameter[paramProps.Length];
-            for (var i = 0; i < paramProps.Length; i++)
-            {
-                var propInfo = paramProps[i];
-                var propValue = propInfo.GetValue(paramValue);
-                var paramType = propValue is not null
-                    ? GetDbTypeFromParameterValue(propValue)
-                    : GetDbTypeFromParameterValue(propInfo.PropertyType);
-                var dbParameter = new NpgsqlParameter(_ctx.GetParameterName(propInfo.Name), paramType);
-                dbParameter.Value = propValue;
-                dbParameter.Direction = ParameterDirection.Input;
-                dbParameters[i] = dbParameter;
-            }
-            yield return dbParameters;
-        }
+        if (value is null)
+            return null;
+        if (value is NpgsqlParameter[] parameters)
+            return parameters;
+
+        throw new StorageException(
+            $"{ProviderTypeName}.GetParameterArray: expected an NpgsqlParameter[] positional payload but received '{value.GetType()}'.");
     }
 
-    /// <summary>
-    /// return DbType from type of parameter value
-    /// </summary>
-    /// <param name="value">parameter value</param>
-    /// <returns></returns>
-    NpgsqlDbType GetDbTypeFromParameterValue(object value)
-        => GetDbTypeFromParameterValue(value.GetType());
-
-    /// <summary>
-    /// return DbType from type of parameter value
-    /// </summary>
-    /// <param name="valueType">parameter value type</param>
-    /// <returns></returns>
-    NpgsqlDbType GetDbTypeFromParameterValue(Type parameterValueType)
-    {
-        if (_dbTypeMap.TryGetValue(parameterValueType, out var dbType))
-            return dbType;
-        throw new StorageException($"{ProviderTypeName}.GetDbTypeFromParameterValue: unknown value type: '{parameterValueType}'");
-    }
+    static Task PrepareParameterizedCommandAsync(
+        NpgsqlCommand command,
+        CancellationToken cancellationToken = default)
+        => command.CommandType == CommandType.Text && command.Parameters.Count > 0
+            ? command.PrepareAsync(cancellationToken)
+            : Task.CompletedTask;
 
     /// <summary>
     /// set parameter values
@@ -349,12 +314,46 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         cmd.Parameters.Clear();
         if (_ctx.ParameterValues.Count == 1)
         {
-            foreach (var parameters in GetParameters())
-            {
+            var parameters = GetParameterArray(_ctx.ParameterValues[0]);
+            if (parameters is not null)
                 foreach (var e in parameters)
-                    cmd.Parameters.AddWithValue(e.NpgsqlDbType, e.NpgsqlValue);
-                break;
-            }
+                    cmd.Parameters.Add(e);
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously streams mapped rows while keeping the connection and reader scoped to the enumerator.
+    /// Disposing the enumerator releases both resources, including when enumeration stops early.
+    /// </summary>
+    public async IAsyncEnumerable<TResult> StreamObjectsAsync<TResult>(
+        IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TResult> dataMapper,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (dataMapper is null)
+            throw new StorageException($"{ProviderTypeName}.StreamObjectsAsync: dataMapper parameter is null");
+        if (ctx.ParameterValues.Count > 1)
+            throw new StorageException($"{ProviderTypeName}.StreamObjectsAsync: only single parameter value accepted");
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand();
+        ctx.SetCommand(cmd);
+        SetParameters(cmd);
+        await PrepareParameterizedCommandAsync(cmd, cancellationToken).ConfigureAwait(false);
+        await using var dataReader = await cmd.ExecuteReaderAsync(
+            CommandBehavior.CloseConnection,
+            cancellationToken).ConfigureAwait(false);
+        var record = new AdoNetDataRecord().SetReader(dataReader);
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!await dataReader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                yield break;
+
+            yield return dataMapper(record);
         }
     }
 
@@ -373,6 +372,7 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
+        await PrepareParameterizedCommandAsync(cmd);
         using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
         var record = new AdoNetDataRecord().SetReader(dataReader);
         List<TResult> resultSet = [];
@@ -396,6 +396,7 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
+        await PrepareParameterizedCommandAsync(cmd);
         using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
         var record = new AdoNetDataRecord().SetReader(dataReader);
         List<TResult> resultSet = [];
@@ -419,6 +420,7 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         using var cmd = conn.CreateCommand();
         _ctx.SetCommand(cmd);
         SetParameters(cmd);
+        await PrepareParameterizedCommandAsync(cmd);
         using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
         var record = new AdoNetDataRecord().SetReader(dataReader);
         if (dataReader.Read())
@@ -438,6 +440,7 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
+        await PrepareParameterizedCommandAsync(cmd);
         using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
         var record = new AdoNetDataRecord().SetReader(dataReader);
         if (dataReader.Read())

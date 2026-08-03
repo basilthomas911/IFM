@@ -23,7 +23,6 @@ The tree below records every directory currently present beneath the project roo
 TomasAI.IFM.Application.Storage/                    Project root
 ├── Docs/                                           Maintained project documentation
 ├── EconomicCalendarsDb/                            External economic-calendar reader
-├── EventDb/                                        Legacy event DB source (excluded from build)
 ├── EventSourceDb/                                  Active event-source persistence
 │   └── Schema/                                     Event-source SQL schema
 ├── FundDb/                                         Fund persistence
@@ -105,7 +104,6 @@ TomasAI.IFM.Application.Storage/                    Project root
 | Project root | Active | Context discovery/factory/pool contracts and implementations, event-source actor contract, command status, and project definition. |
 | `Docs/` | Active documentation leaf | Contains this implementation and complete folder reference. |
 | `EconomicCalendarsDb/` | Active source leaf | Maps externally read economic-calendar JSON records and converts valid records to reference-domain read models. |
-| `EventDb/` | Excluded source leaf | Older event database implementation and embedded SQL resource; the project file removes all code/resources/content in this folder from compilation. |
 | `EventSourceDb/` | Active | Event stream/name/log persistence, bounded-context and actor variants, serialization/replay, command logs, and projector state/results. |
 | `EventSourceDb/Schema/` | Active source leaf | Defines event sequences/tables and ordered create/drop operations. |
 | `FundDb/` | Active | Fund, order, trade, transaction, balance, P&L, drawdown, bulk insert, update/delete, and backup operations. |
@@ -173,7 +171,7 @@ The project uses `Microsoft.NET.Sdk`, targets `net10.0`, and enables nullable re
 
 Internals are visible to `TomasAI.IFM.Application.Storage.IntegrationTests`.
 
-The project explicitly removes `EventDb/**`, `TradePlanDb/**`, and a currently absent `SqlServer/**` path from Compile, EmbeddedResource, and None items. Files in the two existing excluded folders remain in the repository but do not appear in the built assembly.
+The project explicitly removes `TradePlanDb/**` and a currently absent `SqlServer/**` path from Compile, EmbeddedResource, and None items. `TradePlanDb` remains in the repository for future work but does not appear in the built assembly. The obsolete `EventDb` implementation and its excluded SQL Server integration test were removed; `EventSourceDb` is the active event-source implementation.
 
 ## Context resolution and factory
 
@@ -213,6 +211,7 @@ Operations then use the fluent framework surface:
 ```text
 repository.Use(command text / stored procedure / reader / bulk table)
           .SetParameters(...)
+          .ExecuteStreamAsync(ordinal mapper, cancellation token) /
           .ExecuteQueryAsync(ordinal mapper) /
            ExecuteQueryImmutableAsync(ordinal mapper) /
            ExecuteSingleAsync(ordinal mapper) / ExecuteScalarAsync(ordinal mapper) /
@@ -343,9 +342,13 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 
 - Domain contexts declare static mapper methods that read `IObjectDataRecord` by zero-based ordinal and construct shared read models directly.
 - Every SQL/CQL projection must remain in exactly the order expected by its mapper. Alias/name matching is not performed on the result hot path.
-- Query, single, scalar, immutable, and map/reduce calls receive the mapper explicitly; there is no `OnCreateModel`, result-map registry, property assignment, or reflection-based result construction.
-- Parameter objects remain name-bound by the provider. Framework Storage caches reflected parameter properties; this is distinct from result mapping.
-- Single-record writes typically execute checked-in CQL/SQL with parameter objects.
+- Stream, query, single, scalar, immutable, and map/reduce calls receive the mapper explicitly; there is no `OnCreateModel`, result-map registry, property assignment, or reflection-based result construction.
+- `ExecuteStreamAsync` is an additive, cold `IAsyncEnumerable<T>` API for large results. Existing methods remain available; an active stream must be fully enumerated or disposed because it owns its database reader/row set until then.
+- All ScyllaDB parameter catalogs—Fund, Market Data, Option Pricer, Reference, Securities, Trade, and the compiled domain-local bind values—emit positional `object?[]` values through `IBindValue` in prepared-statement marker order. Live Scylla context call sites do not use anonymous parameter objects, and the provider has no reflection fallback or bind-property cache.
+- PostgreSQL Event Source, Log, and Sequence ID catalogs emit strongly typed, unnamed `NpgsqlParameter<T>` arrays through `IBindValue`, ordered exactly like native `$n` SQL placeholders. The PostgreSQL provider no longer discovers properties, calls `PropertyInfo.GetValue`, uses a reflection/type cache, or clones generated parameters before command execution.
+- Parameterized PostgreSQL text commands are explicitly prepared and persist on pooled physical connections. Queued PostgreSQL commands execute through one `NpgsqlBatch` round trip inside an explicit transaction; failures retain all-or-nothing rollback behavior.
+- Single-record and batch Scylla writes execute checked-in CQL with the same positional contract. Enumerable `SetParameters` calls invoke each element's `IBindValue.Bind()`, avoiding per-item anonymous-object allocation and provider reflection.
+- Database-independent tests verify all 236 non-Fund catalog bindings against their CQL marker sequence; dedicated Fund tests verify its 28 bindings, nullable values, update-marker order, and `DateOnly` values for CQL `date` columns.
 - Several Fund, Market Data, and Trade APIs accept `IEnumerable<T>` and return inserted row counts for bulk operations.
 - Combined contexts commonly expose `DbReader => this` and `DbWriter => this`, giving consumers capability-oriented interfaces over one repository object.
 - Query methods generally return nullable single records and non-null collections.
@@ -362,7 +365,7 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 - **Schema management is not versioned migration.** Create/drop catalogs have no history, checksum, upgrade ordering across releases, or rollback metadata.
 - **Create/drop is not wrapped here in a cross-object transaction.** Partial schema state is possible after a failure.
 - **Actor and standard event sources can use different connections.** The shared schema manager targets only the standard event-source connection, so host configuration must intentionally align or separately provision actor storage.
-- **Excluded source can appear active to readers.** `EventDb` and `TradePlanDb` contain complete-looking code but are removed from all project item types.
+- **Excluded source can appear active to readers.** `TradePlanDb` contains complete-looking code but is removed from all project item types.
 - **External reader failure policies differ.** Economic Calendars converts/skips rows and returns empty on outer failure; Yield Curve Rates lets failures propagate.
 - **Some contexts are very broad.** `MarketDataDbContext` and `TradeDbContext` combine many aggregates and analytics tables, increasing change and regression scope.
 - **Provider syntax is mixed by design.** SQL and CQL catalogs coexist; connection provider settings must match the command/schema syntax selected by each context.
@@ -375,8 +378,8 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 Storage behavior is validated primarily outside this project:
 
 - `TomasAI.IFM.Application.Storage.IntegrationTests` exercises Event Source, Fund, Log, Market Data, Option Pricer, Predictive Model, Reference, Securities, and Trade contexts.
-- Its `FrameworkStorage/ScyllaDb` suite contains 14 real-provider tests across all four Fund tables. It covers every `IObjectRepositoryProvider` method, both Scylla queued-command modes, ordinal Fund types, argument guards, and disposable pooled immutable results.
-- Its `FrameworkStorage/Postgres` suite contains 15 real-provider tests across all five event-source tables. It covers the same provider API surface, ordinal PostgreSQL types, argument guards, and rollback when a later queued command fails.
+- Its `FrameworkStorage/ScyllaDb` suite contains 17 real-provider tests across all four Fund tables. It covers every `IObjectRepositoryProvider` method, both Scylla queued-command modes, ordinal Fund types, argument guards, disposable pooled immutable results, async streaming, early disposal, and cancellation.
+- Its `FrameworkStorage/Postgres` suite contains 19 real-provider tests across all five event-source tables. It covers the same provider API surface, ordinal PostgreSQL types, argument guards, async streaming lifecycle, server-side prepared-statement registration, single-round-trip queued batches, and rollback when a later queued command fails.
 - Both provider suites disable collection parallelism, reserve deterministic negative identifiers/names, clean before and after every test, verify cleanup, and avoid production databases. They are selected with `Category=ScyllaDBIntegration` or `Category=PostgresIntegration`.
 - `TomasAI.IFM.Application.Storage.LoadTests` covers storage load scenarios.
 - `TomasAI.IFM.Framework.Storage.UnitTests` validates lower-level provider-neutral repository behavior.

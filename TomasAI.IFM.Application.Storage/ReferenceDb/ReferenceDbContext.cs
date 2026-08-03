@@ -215,17 +215,6 @@ public class ReferenceDbContext(
             await db.Use(ReferenceDbCql.GetEconomicCalendarById)
                 .SetParameters(new GetEconomicCalendarById(id.EventDate, id.CountryCode, id.EventName))
                 .ExecuteSingleAsync(MapToEconomicCalendar!));
-    /*
-   => await _dbFactory.ReferenceDb
-          .Use(ReferenceDbCql.GetEconomicCalendarById)
-          .SetParameters(new
-          {
-              eventDate = id.EventDate,
-              countryCode = id.CountryCode,
-              eventName = id.EventName
-          })
-          .ExecuteSingleAsync<EconomicCalendarReadModel>(MapToEconomicCalendar!);
-    */
 
     /// <summary>
     /// return list of economic calendar events for selected event date
@@ -390,22 +379,6 @@ public class ReferenceDbContext(
                    .SetParameters(new InsertEconomicCalendar(e.EventDate, e.CountryCode, e.EventName, e.Actual, e.Forecast, e.Prior, e.CreatedOn, e.CreatedBy))
                    .ExecuteCommandAsync()
         );
-        /*
-       => await _dbFactory.ReferenceDb
-              .Use(ReferenceDbCql.InsertEconomicCalendar)
-              .SetParameters(new
-              {
-                  eventDate = e.EventDate,
-                  countryCode = e.CountryCode,
-                  eventName = e.EventName,
-                  actual = e.Actual,
-                  forecast = e.Forecast,
-                  prior = e.Prior,
-                  createdOn = e.CreatedOn,
-                  createdBy = e.CreatedBy
-              })
-              .ExecuteCommandAsync().ConfigureAwait(false);
-        */
 
     /// <summary>
     /// insert collection of economic calendars into storage

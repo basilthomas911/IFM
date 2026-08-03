@@ -78,7 +78,7 @@ PowerShell test environment setup:
 ```powershell
 $env:DOTNET_ENVIRONMENT = 'Test'
 $env:IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION = 'Host=localhost;Port=5432;Database=event-source-test-db'
-$env:IFM_SCYLLADB_TEST_CONNECTION = 'Contact Points=localhost;Port=9042;Default Keyspace=fund_test_db'
+$env:IFM_SCYLLA_TEST_CONNECTION = 'Contact Points=localhost;Port=9042;Default Keyspace=fund_test_db'
 $env:POSTGRES_TEST_KEY = '{"userid":"...","password":"..."}'
 $env:SCYLLADB_TEST_KEY = '{"userid":"...","password":"..."}'
 ```
