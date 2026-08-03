@@ -13,8 +13,7 @@ namespace TomasAI.IFM.UI.EventConsumer;
 /// Consumes futures option quote data update events and processes them using a specified action.
 /// </summary>
 /// <remarks>This class subscribes to market data feed events and invokes a user-defined action whenever a <see
-/// cref="FuturesOptionQuoteDataUpdatedEvent"/> is received. It is designed to be used in conjunction with a Kafka event
-/// consumer infrastructure.</remarks>
+/// cref="FuturesOptionQuoteDataUpdatedEvent"/> is received through the NATS event infrastructure.</remarks>
 /// <param name="options"></param>
 /// <param name="logger"></param>
 public class FuturesOptionQuoteDataUIEventConsumer(INatsEventListenerOptions options, ILogger logger)

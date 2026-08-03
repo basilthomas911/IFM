@@ -4,7 +4,6 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.CommandParameters;
 using TomasAI.IFM.Domain.Reference.Shared.Commands;
 using TomasAI.IFM.Domain.Reference.Shared;
-using TomasAI.IFM.Application.Command;
 using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Shared.CommandParameters;

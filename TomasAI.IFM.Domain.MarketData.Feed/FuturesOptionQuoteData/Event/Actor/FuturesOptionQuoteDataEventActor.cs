@@ -51,6 +51,12 @@ public class FuturesOptionQuoteDataEventActor(
         {
             var e = (evt as FuturesOptionQuoteDataStreamingStoppedCompleteEvent)!;
             return await e.ExecuteAsync(context, commandApi, eventParams);
+        },
+        [typeof(FuturesOptionQuoteStreamingDataEvent).Name] = async (evt, context, commandApi, _, eventParams) =>
+        {
+            var e = (evt as FuturesOptionQuoteStreamingDataEvent)!;
+            await e.ExecuteAsync(context, commandApi, eventParams);
+            return true;
         }
     };
 
@@ -96,7 +102,8 @@ public class FuturesOptionQuoteDataEventActor(
     {
         [FuturesOptionQuoteDataInsertedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesOptionQuoteDataInsertedCompleteEvent>()!,
         [FuturesOptionQuoteDataStreamingStartedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesOptionQuoteDataStreamingStartedCompleteEvent>()!,
-        [FuturesOptionQuoteDataStreamingStoppedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesOptionQuoteDataStreamingStoppedCompleteEvent>()!
+        [FuturesOptionQuoteDataStreamingStoppedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesOptionQuoteDataStreamingStoppedCompleteEvent>()!,
+        [FuturesOptionQuoteStreamingDataEvent.Verb] = msg => msg.AsEvent<FuturesOptionQuoteStreamingDataEvent>()!
     };
 
     /// <summary>

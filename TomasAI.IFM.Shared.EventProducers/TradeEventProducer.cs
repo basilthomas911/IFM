@@ -1,24 +1,23 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Framework.Messaging.Kafka;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.Shared.EventProducers;
 
 /// <summary>
-/// Provides functionality to publish option trade and related events to an event broker using Kafka.
+/// Provides functionality to publish option trade and related events through NATS and NATS JetStream.
 /// </summary>
 /// <remarks>TradeEventProducer supports a wide range of trade-related event types, including option trade
 /// snapshots, order placements, position updates, and plan actions. It is typically used to integrate trading systems
 /// with event-driven architectures, enabling downstream consumers to react to trade lifecycle changes in real time.
 /// This class is intended for use in production scenarios; a parameterless constructor is available for BDD testing
 /// purposes only.</remarks>
-public class TradeEventProducer : KafkaEventProducer,  ITradeEventProducer
+public class TradeEventProducer : NatsEventProducer,  ITradeEventProducer
 {
     public TradeEventProducer()
     {
@@ -29,8 +28,13 @@ public class TradeEventProducer : KafkaEventProducer,  ITradeEventProducer
     /// option trade event producer
     /// </summary>
     /// <param name="options"></param>
-    /// <param name="logger"></param>
-    public TradeEventProducer(IEventProducerOptions options, ILogger<TradeEventProducer> logger):base(options, logger)
+    /// <param name="jetStreamOptions"></param>
+    /// <param name="loggerFactory"></param>
+    public TradeEventProducer(
+        INatsProducerOptions options,
+        INatsJetStreamProducerOptions jetStreamOptions,
+        ILoggerFactory loggerFactory)
+        : base(options, jetStreamOptions, loggerFactory)
     {
     }
 

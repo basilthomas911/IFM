@@ -9,7 +9,8 @@ using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Messaging.Kafka;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.SystemAdmin.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.Command.Client;
@@ -34,7 +35,7 @@ try
         var loggerFactory = new SerilogLoggerFactory(Log.Logger);
         services.AddLogging(configure => configure.AddSerilog());
         services.AddSingleton(loggerFactory.CreateLogger("IFM-ScheduledTask-FuturesMarketClose"));
-        services.AddSingleton<IEventConsumerOptions>(sp => new KafkaEventConsumerOptions(null, hostCtx.Configuration.GetValue<string>("AppSettings:EventConsumer:BootstrapServers"), true));
+        services.AddSingleton<INatsEventListenerOptions, NatsEventListenerOptions>();
         services.AddSingleton<ISystemAdminUIEventConsumer, SystemAdminUIEventConsumer>();
         services.AddSingleton<IRestApiSerializer, NewtonSoftJsonSerializer>();
         services.AddSingleton<ICommandServiceRestApiOptions>(sp => new CommandServiceRestApiOptions(hostCtx.Configuration.GetValue<string>("AppSettings:CommandServerBaseUri")));

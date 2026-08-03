@@ -1,33 +1,36 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Framework.Messaging.Kafka;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.Shared.EventProducers;
 
 /// <summary>
-/// Produces and publishes market data feed events to an event broker using Kafka. Implements event production for
+/// Produces and publishes market data feed events through NATS and NATS JetStream. Implements event production for
 /// various market data scenarios, including streaming, insertion, and update events.
 /// </summary>
 /// <remarks>Use this class to send market data feed events such as tick data, bar data, option quotes, and feed
 /// status updates to the event broker. The producer supports a wide range of event types relevant to futures and
-/// options trading workflows. Thread safety and reliability depend on the underlying KafkaEventProducer implementation.
-/// For test scenarios, a parameterless constructor is available; production usage should use the constructor accepting
-/// options and logger for proper configuration.</remarks>
-public class MarketDataFeedEventProducer : KafkaEventProducer, IMarketDataFeedEventProducer
+/// options trading workflows. For test scenarios, a parameterless constructor is available; production usage should
+/// use the constructor accepting core NATS and JetStream options.</remarks>
+public class MarketDataFeedEventProducer : NatsEventProducer, IMarketDataFeedEventProducer
 {
     /// <summary>
     /// market data event producer
     /// </summary>
     /// <param name="options"></param>
-    /// <param name="logger"></param>
-    public MarketDataFeedEventProducer(IEventProducerOptions options, ILogger<MarketDataFeedEventProducer> logger) 
-        : base(options, logger)
+    /// <param name="jetStreamOptions"></param>
+    /// <param name="loggerFactory"></param>
+    public MarketDataFeedEventProducer(
+        INatsProducerOptions options,
+        INatsJetStreamProducerOptions jetStreamOptions,
+        ILoggerFactory loggerFactory)
+        : base(options, jetStreamOptions, loggerFactory)
     {
     }
 

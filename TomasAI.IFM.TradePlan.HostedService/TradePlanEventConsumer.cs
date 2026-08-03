@@ -1,21 +1,26 @@
 using System;
-using System.Collections.Generic;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Framework.Messaging.Kafka;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.TradePlan.HostedService
 {
-    public class TradePlanEventConsumer : KafkaEventConsumer, ITradePlanEventConsumer
+    /// <summary>
+    /// Consumes trade-plan events from NATS actor subjects and forwards them to the trade-plan service.
+    /// </summary>
+    public class TradePlanEventConsumer : NatsEventConsumer, ITradePlanEventConsumer
     {
         private readonly ITradePlanService _tradePlanService;
         private readonly Guid _siteId;
 
-        public TradePlanEventConsumer(ITradePlanService tradePlanService, IEventConsumerOptions options, ILogger<TradePlanEventConsumer> logger):base(options, logger)
+        public TradePlanEventConsumer(
+            ITradePlanService tradePlanService,
+            INatsEventListenerOptions options,
+            ILogger<TradePlanEventConsumer> logger)
+            : base(options, logger)
         {
             _tradePlanService = tradePlanService;
             _siteId = Guid.NewGuid();

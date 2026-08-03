@@ -11,7 +11,7 @@ The IFM system is architected in a modular fashion, comprising several key proje
 *   **Domain**: Contains the core business logic, entities, and rules that define the investment fund management domain.
 *   **Application**: Orchestrates domain logic, handles application-level events, and exposes services. This layer includes server-side components and client APIs for various functionalities.
 *   **Services**: Provides specific, often independently hostable, functionalities such as market data analysis, order execution, trade planning, option pricing, and more.
-*   **Framework**: Consists of reusable, cross-cutting components for common concerns like data storage, messaging (utilizing Kafka, REST, SignalR), caching (with Redis integration), and other foundational capabilities.
+*   **Framework**: Consists of reusable, cross-cutting components for common concerns like data storage, messaging (utilizing NATS, JetStream, REST, and SignalR), caching (with Redis integration), and other foundational capabilities.
 *   **Shared**: A collection of common libraries, data models, and utility functions used across multiple projects within the IFM ecosystem.
 *   **UI**: Includes various client applications for user interaction:
     *   Desktop Clients: `TomasAI.IFM.Application.ServerManager` (WPF/Windows Forms) for system management and `TomasAI.IFM.UI.Net` (Windows Forms) for user operations.
@@ -26,7 +26,7 @@ The IFM platform leverages a diverse set of technologies to deliver its function
 *   **Core Development**: .NET (primarily C#)
 *   **High-Performance Computing**: NVIDIA CUDA (for Monte Carlo simulations)
 *   **Real-time Communication**: SignalR
-*   **Messaging/Event Streaming**: Apache Kafka
+*   **Messaging/Event Streaming**: NATS and JetStream
 *   **Caching**: Redis
 *   **Web UI**: Angular
 *   **Database**: Microsoft SQL Server, with potential use of PostgreSQL and ScyllaDB for specific data storage requirements.
@@ -37,7 +37,7 @@ The TomasAI Investment Fund Manager follows a modern, distributed architecture:
 
 *   **Service-Oriented**: Functionality is broken down into distinct services that can be developed, deployed, and scaled independently.
 *   **Layered Design**: The system exhibits a clear separation of concerns with distinct layers for UI, Application Logic, Domain Model, and Infrastructure (Framework).
-*   **Event-Driven**: The use of Apache Kafka and numerous projects with "Event" and "EventConsumer" in their names indicates a strong reliance on event-driven patterns for inter-service communication and data propagation.
+*   **Event-Driven**: NATS and JetStream provide the event-driven messaging used for inter-service communication and data propagation.
 
 ## Getting Started
 

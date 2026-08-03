@@ -8,12 +8,11 @@ namespace TomasAI.IFM.Shared.StatusConsole;
 
 public enum ServerLogType
 {
-    Command,
-    Query,
-    Event,
-    ZooKeeper,
-    Kafka,
-    Telemetry
+    Command = 0,
+    Query = 1,
+    Event = 2,
+    Nats = 4,
+    Telemetry = 5
 }
 
 public static class ServerLogTypeExtensions
@@ -23,8 +22,7 @@ public static class ServerLogTypeExtensions
         ServerLogType.Command => nameof(ServerLogType.Command),
         ServerLogType.Query => nameof(ServerLogType.Query),
         ServerLogType.Event => nameof(ServerLogType.Event),
-        ServerLogType.ZooKeeper => nameof(ServerLogType.ZooKeeper),
-        ServerLogType.Kafka => nameof(ServerLogType.Kafka),
+        ServerLogType.Nats => nameof(ServerLogType.Nats),
         ServerLogType.Telemetry => nameof(ServerLogType.Telemetry),
         _ => value.ToString()
     };

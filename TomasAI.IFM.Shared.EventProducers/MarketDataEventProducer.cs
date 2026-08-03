@@ -1,7 +1,7 @@
-using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Framework.Messaging.Kafka;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -12,20 +12,24 @@ using TomasAI.IFM.Shared.StatusConsole.Events;
 namespace TomasAI.IFM.Shared.EventProducers;
 
 /// <summary>
-/// Produces and publishes market data events to an event broker using Kafka.
+/// Produces and publishes market data events through NATS and NATS JetStream.
 /// </summary>
-/// <remarks>This class specializes the KafkaEventProducer to handle various market data event types, such as
-/// futures contracts and yield curve rates. It is typically used to send domain-specific events to a Kafka topic for
-/// downstream processing or integration. Thread safety and reliability depend on the underlying KafkaEventProducer
-/// implementation. For test scenarios, a parameterless constructor is available.</remarks>
-public class MarketDataEventProducer : KafkaEventProducer, IMarketDataEventProducer
+/// <remarks>This class specializes <see cref="NatsEventProducer"/> to handle various market data event types,
+/// such as futures contracts and yield curve rates. Production events are sent through core NATS and JetStream;
+/// a parameterless constructor is available for test scenarios.</remarks>
+public class MarketDataEventProducer : NatsEventProducer, IMarketDataEventProducer
 {
     /// <summary>
     /// market data event producer
     /// </summary>
     /// <param name="options"></param>
-    /// <param name="logger"></param>
-    public MarketDataEventProducer(IEventProducerOptions options, ILogger<MarketDataEventProducer> logger):base(options, logger)
+    /// <param name="jetStreamOptions"></param>
+    /// <param name="loggerFactory"></param>
+    public MarketDataEventProducer(
+        INatsProducerOptions options,
+        INatsJetStreamProducerOptions jetStreamOptions,
+        ILoggerFactory loggerFactory)
+        : base(options, jetStreamOptions, loggerFactory)
     {
     }
 

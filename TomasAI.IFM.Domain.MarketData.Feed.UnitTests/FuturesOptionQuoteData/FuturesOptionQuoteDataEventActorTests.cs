@@ -85,6 +85,21 @@ public class FuturesOptionQuoteDataEventActorTests : IClassFixture<MarketDataFee
         inserted.OptionQuoteData.ContractId.Should().Be(SampleData.FuturesOptionQuotes[0].ContractId);
     }
 
+    [Fact]
+    public void ParseMessage_StreamingDataEvent_PreservesQuotePayload()
+    {
+        var actor = CreateActor();
+        var @event = CreateStreamingDataEvent();
+
+        var parsed = actor.InvokeParseMessage(
+            Substitute.For<IEventActorContext>(), CreateMessage(@event));
+
+        var streaming = parsed.Should().BeOfType<FuturesOptionQuoteStreamingDataEvent>().Which;
+        streaming.QuoteId.Should().Be(@event.QuoteId);
+        streaming.RequestId.Should().Be(@event.RequestId);
+        streaming.QuoteData.Price.Should().Be(@event.QuoteData.Price);
+    }
+
     [Theory]
     [InlineData(ActorType.Command, FuturesOptionQuoteDataEventActor.Actor, FuturesOptionQuoteDataInsertedCompleteEvent.Verb)]
     [InlineData(ActorType.Event, "WrongActor", FuturesOptionQuoteDataInsertedCompleteEvent.Verb)]
@@ -231,6 +246,17 @@ public class FuturesOptionQuoteDataEventActorTests : IClassFixture<MarketDataFee
     }
 
     [Fact]
+    public async Task ReceiveAsync_StreamingDataEvent_IsResolvedByTheActor()
+    {
+        var actor = CreateActor();
+
+        Func<Task> act = () => actor.InvokeReceiveAsync(
+            Substitute.For<IEventActorContext>(), CreateStreamingDataEvent()).AsTask();
+
+        await act.Should().NotThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
     public async Task ReceiveAsync_NullInputs_ThrowArgumentNullException()
     {
         var actor = CreateActor();
@@ -342,6 +368,7 @@ public class FuturesOptionQuoteDataEventActorTests : IClassFixture<MarketDataFee
         yield return [CreateInsertedCompleteEvent()];
         yield return [CreateStreamingStartedCompleteEvent()];
         yield return [CreateStreamingStoppedCompleteEvent()];
+        yield return [CreateStreamingDataEvent()];
     }
 
     static NatsMsg<byte[]> CreateMessage(IEvent @event)
@@ -352,8 +379,32 @@ public class FuturesOptionQuoteDataEventActorTests : IClassFixture<MarketDataFee
         FuturesOptionQuoteDataInsertedCompleteEvent value => ActorExtensions.DataSerializer!.Serialize(value),
         FuturesOptionQuoteDataStreamingStartedCompleteEvent value => ActorExtensions.DataSerializer!.Serialize(value),
         FuturesOptionQuoteDataStreamingStoppedCompleteEvent value => ActorExtensions.DataSerializer!.Serialize(value),
+        FuturesOptionQuoteStreamingDataEvent value => ActorExtensions.DataSerializer!.Serialize(value),
         _ => throw new ArgumentOutOfRangeException(nameof(@event))
     };
+
+    static FuturesOptionQuoteStreamingDataEvent CreateStreamingDataEvent()
+        => new()
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesOptionQuoteStreamingDataEvent.Actor,
+                FuturesOptionQuoteStreamingDataEvent.Verb,
+                $"{SampleData.OptionQuoteStreamId}"),
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EventId = 3,
+            ReceivedOn = DateTime.UtcNow,
+            EventSource = "test",
+            QuoteId = SampleData.OptionQuoteStreamId,
+            RequestId = 1001,
+            QuoteData = new QuoteData
+            {
+                QuoteTime = DateTime.UtcNow,
+                Price = 12.75,
+                Size = 5
+            }
+        };
 
     static FuturesOptionQuoteDataInsertedCompleteEvent CreateInsertedCompleteEvent(Guid? commandId = null)
     {

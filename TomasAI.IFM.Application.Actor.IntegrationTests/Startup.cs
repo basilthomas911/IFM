@@ -18,7 +18,6 @@ using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Command;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Query;
 using TomasAI.IFM.Application.Storage;
@@ -45,7 +44,6 @@ using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Framework.Messaging;
-using TomasAI.IFM.Framework.Messaging.Kafka;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.Nats;
@@ -258,6 +256,7 @@ public static class Startup
             services.AddSingleton<IActorFactory>(_ => new ActorFactory(actorType => GetContainerInstance(actorType)!));
             services.AddSingleton<INatsProducerOptions, NatsProducerOptions>();
             services.AddSingleton<INatsConsumerOptions, NatsConsumerOptions>();
+            services.AddSingleton<INatsEventListenerOptions, NatsEventListenerOptions>();
             services.AddTransient<IActorProducer, NatsActorProducer>();
             services.AddTransient<IActorConsumer, NatsActorConsumer>();
             services.AddSingleton<INatsJetStreamProducerOptions, NatsJetStreamProducerOptions>();
@@ -382,8 +381,6 @@ public static class Startup
         {
             logger.LogInformationEvent("ApiServer", "register service handlers...");
             services.AddSingleton<IBoundedContextCommandResolver>(_ => new BoundedContextCommandResolver(cmdType => GetContainerInstance(cmdType)!));
-            services.AddSingleton<ICommandHandlerResolver>(_ => new CommandHandlerResolver(cmdType => GetContainerInstance(cmdType)!));
-            services.AddSingleton<Command.ICommandService, CommandService>();
             services.AddSingleton<IQueryHandlerResolver>(_ => new QueryHandlerResolver(handlerType => GetContainerInstance(handlerType)!));
             services.AddSingleton<Query.IQueryService, QueryService>();
         }
@@ -391,7 +388,6 @@ public static class Startup
         void RegisterEventProducers()
         {
             logger.LogInformationEvent("ApiServer", "register event producers...");
-            services.AddSingleton<IEventProducerOptions>(new KafkaEventProducerOptions(config.GetValue<string>("AppSettings:EventProducer:BootstrapServers")!));
             services.AddSingleton<ITradeEventProducer, TradeEventProducer>();
             services.AddSingleton<ITradePlacementEventProducer, TradePlacementEventProducer>();
             services.AddSingleton<IStatusConsoleEventProducer, StatusConsoleEventProducer>();
@@ -405,8 +401,6 @@ public static class Startup
             services.AddSingleton<IStatusConsoleWriter, StatusConsoleWriter>();
             services.AddSingleton<IAzureStorageOptions>(sp => config.GetSection("AzureStorage").Get<AzureStorageOptions>()!);
             services.AddSingleton<IAzureStorage, AzureStorage>();
-            services.AddSingleton<IEventConsumerOptions>(new KafkaEventConsumerOptions(null!, config.GetValue<string>("AppSettings:EventProducer:BootstrapServers")!, true));
-
             // algo trader hosted service...
 
             // market data feed hosted service...

@@ -1,22 +1,22 @@
 using System;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.EventChannel ;
-using TomasAI.IFM.Framework.Messaging.Kafka;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 
 namespace TomasAI.IFM.UI.EventConsumer;
 
 /// <summary>
-/// Represents a consumer for market data UI events, utilizing Kafka for asynchronous event consumption.
+/// Represents a consumer for asynchronously forwarding market-data events received from NATS actor subjects.
 /// </summary>
-/// <remarks>This class is designed to handle market data events by subscribing to a Kafka topic and processing
+/// <remarks>This class is designed to handle market data events by subscribing to NATS routes and processing
 /// events asynchronously. It requires a collection of events to consume and a delegate to handle each event.</remarks>
 /// <param name="options"></param>
-/// <param name="jsonSerializer"></param>
 /// <param name="logger"></param>
-public class MarketDataUIEventConsumer(IEventConsumerOptions options, IJsonSerializer jsonSerializer, ILogger<EventChannel> logger)
-    : KafkaAsyncEventConsumer(options, jsonSerializer, logger), IMarketDataUIEventConsumer
+public class MarketDataUIEventConsumer(
+    INatsEventListenerOptions options,
+    ILogger logger)
+    : NatsEventConsumer(options, logger), IMarketDataUIEventConsumer
 {
     readonly Guid _siteId = Guid.NewGuid();
     ICollection<IEvent> _consumeEvents = [];

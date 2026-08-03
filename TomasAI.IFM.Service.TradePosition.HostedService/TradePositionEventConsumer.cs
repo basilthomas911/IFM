@@ -1,7 +1,8 @@
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Framework.Messaging.Kafka;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Service.TradePosition.HostedService;
@@ -10,11 +11,10 @@ namespace TomasAI.IFM.Service.TradePosition.HostedService;
 /// Consumes trade position-related events from the event broker and processes them using the provided trade position
 /// service.
 /// </summary>
-/// <remarks>This class subscribes to trade position events and delegates event handling to an implementation of
-/// <see cref="ITradePositionService"/>. It is typically used to integrate trade position event processing into systems
-/// that utilize Kafka-based event brokers. Inherits from <see cref="KafkaEventConsumer"/> and implements <see
-/// cref="ITradePositionEventConsumer"/>.</remarks>
-public class TradePositionEventConsumer : KafkaEventConsumer, ITradePositionEventConsumer
+/// <remarks>This class subscribes to NATS actor event subjects and delegates event handling to an implementation of
+/// <see cref="ITradePositionService"/>. It inherits from <see cref="NatsEventConsumer"/> and implements
+/// <see cref="ITradePositionEventConsumer"/>.</remarks>
+public class TradePositionEventConsumer : NatsEventConsumer, ITradePositionEventConsumer
 {
     private readonly ITradePositionService _tradePositionService;
     private readonly Guid _siteId;
@@ -25,7 +25,11 @@ public class TradePositionEventConsumer : KafkaEventConsumer, ITradePositionEven
     /// <param name="tradePositionService"></param>
     /// <param name="options"></param>
     /// <param name="logger"></param>
-    public TradePositionEventConsumer(ITradePositionService tradePositionService, IEventConsumerOptions options, ILogger<TradePositionEventConsumer> logger):base(options, logger)
+    public TradePositionEventConsumer(
+        ITradePositionService tradePositionService,
+        INatsEventListenerOptions options,
+        ILogger<TradePositionEventConsumer> logger)
+        : base(options, logger)
     {
         _tradePositionService = tradePositionService;
         _siteId = Guid.NewGuid();

@@ -7,12 +7,10 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 namespace TomasAI.IFM.Shared.EventProducers;
 
 /// <summary>
-/// Produces and streams status console events to an event broker using Kafka.
+/// Produces and streams status console events through NATS.
 /// </summary>
-/// <remarks>This class is intended for publishing status console events to a Kafka event broker. It implements
-/// the <see cref="IStatusConsoleEventProducer"/> interface and extends <see cref="KafkaEventProducer"/> to provide
-/// specialized handling for status console event types. Thread safety and reliability depend on the underlying Kafka
-/// producer implementation.</remarks>
+/// <remarks>This class implements <see cref="IStatusConsoleEventProducer"/> and extends
+/// <see cref="NatsActorProducer"/> to publish status console event types.</remarks>
 public class StatusConsoleEventProducer :NatsActorProducer, IStatusConsoleEventProducer
 {
     /// <summary>

@@ -6,10 +6,10 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.UI.EventConsumer;
 
 /// <summary>
-/// Represents a consumer for command response UI events, utilizing Kafka for event handling.
+/// Represents a consumer for command response UI events received through NATS.
 /// </summary>
 /// <remarks>This class is responsible for subscribing to and processing command response events specific to a
-/// site, identified by a unique site ID. It extends the functionality of <see cref="KafkaEventConsumer"/> and
+/// site, identified by a unique site ID. It extends the functionality of <see cref="NatsActorEventListener"/> and
 /// implements <see cref="ICommandResponseUIEventConsumer"/>.</remarks>
 /// <param name="options"></param>
 /// <param name="logger"></param>

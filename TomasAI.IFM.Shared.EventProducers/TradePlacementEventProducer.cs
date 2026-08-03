@@ -1,32 +1,35 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Framework.Messaging.Kafka;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.Shared.EventProducers;
 
 /// <summary>
-/// Produces trade placement events and publishes them to the event broker using Kafka.
+/// Produces trade placement events and publishes them through NATS and NATS JetStream.
 /// </summary>
 /// <remarks>This class is typically used to emit events related to trade placement operations, such as starting,
 /// stopping, setting, clearing, waiting, and handling rangebound scenarios. It supports integration with event-driven
-/// architectures by publishing domain events to a Kafka topic dedicated to trade placement. Thread safety and
-/// reliability depend on the underlying Kafka producer implementation. For testing purposes, a parameterless
-/// constructor is provided.</remarks>
-public class TradePlacementEventProducer : KafkaEventProducer,  ITradePlacementEventProducer
+/// architectures by publishing domain events to actor subjects dedicated to trade placement. For testing purposes,
+/// a parameterless constructor is provided.</remarks>
+public class TradePlacementEventProducer : NatsEventProducer,  ITradePlacementEventProducer
 {
 
     /// <summary>
     /// trade placement event producer
     /// </summary>
     /// <param name="options"></param>
-    /// <param name="logger"></param>
-    public TradePlacementEventProducer(IEventProducerOptions options, ILogger<TradePlacementEventProducer> logger) 
-        : base(options, logger)
+    /// <param name="jetStreamOptions"></param>
+    /// <param name="loggerFactory"></param>
+    public TradePlacementEventProducer(
+        INatsProducerOptions options,
+        INatsJetStreamProducerOptions jetStreamOptions,
+        ILoggerFactory loggerFactory)
+        : base(options, jetStreamOptions, loggerFactory)
     {
     }
 

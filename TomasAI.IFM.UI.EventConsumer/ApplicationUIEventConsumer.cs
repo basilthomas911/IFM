@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using TomasAI.IFM.Framework.Messaging.Kafka;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Domain.Application.Shared.Events;
@@ -14,8 +13,7 @@ namespace TomasAI.IFM.UI.EventConsumer;
 /// Consumes application UI events and triggers corresponding actions.
 /// </summary>
 /// <remarks>This class listens for application startup and shutdown events and executes specified actions when
-/// these events occur. It extends the <see cref="KafkaEventConsumer"/> to leverage Kafka for event subscription and
-/// handling.</remarks>
+/// these events occur. It extends <see cref="NatsActorEventListener"/> to receive events from NATS.</remarks>
 public class ApplicationUIEventConsumer(INatsEventListenerOptions options, ILogger logger)
     : NatsActorEventListener(options, logger), IApplicationUIEventConsumer
 {

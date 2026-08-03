@@ -1,5 +1,4 @@
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
-using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -11,7 +10,6 @@ using System.Reflection;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Framework.Messaging;
-using TomasAI.IFM.Framework.Messaging.Kafka;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.RestApi;
@@ -143,7 +141,6 @@ namespace TomasAI.IFM.UI.Net
 
         static void RegisterEventConsumers()
         {
-            _container!.RegisterSingleton<IEventConsumerOptions>(() => new KafkaEventConsumerOptions(default!, _config!.GetValue<string>("AppSettings:BootstrapServers")!, true));
             _container!.RegisterSingleton<IFuturesEodDataUIEventConsumer, FuturesEodDataUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesTradeSignalUIEventConsumer, FuturesTradeSignalUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesRsiSignalUIEventConsumer, FuturesRsiSignalUIEventConsumer>();
@@ -172,7 +169,6 @@ namespace TomasAI.IFM.UI.Net
 
         static void RegisterEventProducers()
         {
-            _container!.RegisterSingleton<IEventProducerOptions>(() => new KafkaEventProducerOptions(_config!.GetValue<string>("AppSettings:BootstrapServers")!));
             _container!.RegisterSingleton<IStatusConsoleEventProducer, StatusConsoleEventProducer>();
             _container!.RegisterSingleton<IStatusConsoleWriter, StatusConsoleWriter>();
         }

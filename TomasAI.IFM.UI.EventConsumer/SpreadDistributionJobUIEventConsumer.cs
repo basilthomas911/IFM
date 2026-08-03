@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using TomasAI.IFM.Framework.Messaging.Kafka;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
@@ -14,7 +13,7 @@ namespace TomasAI.IFM.UI.EventConsumer;
 /// <summary>
 /// Consumes UI events related to spread distribution jobs and processes them using the specified service API.
 /// </summary>
-/// <remarks>This class subscribes to Kafka events for spread distribution job submissions and executes the
+/// <remarks>This class subscribes to NATS events for spread distribution job submissions and executes the
 /// corresponding jobs using the provided <see cref="ISpreadDistributionServiceApi"/>. It is designed to handle events
 /// asynchronously and logs operations using the specified <see cref="ILogger"/>.</remarks>
 /// <param name="spreadDistributionService"></param>

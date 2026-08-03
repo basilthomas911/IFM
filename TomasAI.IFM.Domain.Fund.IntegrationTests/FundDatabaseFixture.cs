@@ -1,4 +1,3 @@
-using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using StackExchange.Redis;
