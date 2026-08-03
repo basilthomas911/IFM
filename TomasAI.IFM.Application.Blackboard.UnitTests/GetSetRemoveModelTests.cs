@@ -26,16 +26,19 @@ public class OptionTradeModelTests
     {
         // Arrange
         var entityId = new OptionTradeEntityId(1, 2);
+        var expectedKey = "OptionTrade:1.2";
+        var cachedJson = "{}";
         var expected = new OptionTradeReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<OptionTradeReadModel>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<OptionTradeReadModel>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<OptionTradeReadModel>(cachedJson);
     }
 
     [Fact]
@@ -43,14 +46,16 @@ public class OptionTradeModelTests
     {
         // Arrange
         var entityId = new OptionTradeEntityId(1, 2);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "OptionTrade:1.2";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<OptionTradeReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -58,14 +63,16 @@ public class OptionTradeModelTests
     {
         // Arrange
         var entityId = new OptionTradeEntityId(1, 2);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns(string.Empty);
+        var expectedKey = "OptionTrade:1.2";
+        _redisCache.Get(expectedKey).Returns(string.Empty);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<OptionTradeReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -74,14 +81,16 @@ public class OptionTradeModelTests
         // Arrange
         var entityId = new OptionTradeEntityId(1, 2);
         var data = new OptionTradeReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "OptionTrade:1.2";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set(entityId, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 
     [Fact]
@@ -89,13 +98,13 @@ public class OptionTradeModelTests
     {
         // Arrange
         var entityId = new OptionTradeEntityId(1, 2);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
+        var expectedKey = "OptionTrade:1.2";
 
         // Act
         _sut.Remove(entityId);
 
         // Assert
-        _redisCache.Received(1).Remove("key");
+        _redisCache.Received(1).Remove(expectedKey);
     }
 }
 
@@ -115,16 +124,19 @@ public class TradePlanForwardLossLimitModelTests
     {
         // Arrange
         var entityId = new TradePlanForwardLossLimitEntityId(1, 2, new DateOnly(2024, 12, 1), TradeType.Unknown);
+        var expectedKey = "TradePlanForwardLossLimit:1.2.20241201.Unknown";
+        var cachedJson = "{}";
         var expected = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanForwardLossLimitReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanForwardLossLimitReadModel>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanForwardLossLimitReadModel>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanForwardLossLimitReadModel>(cachedJson);
     }
 
     [Fact]
@@ -132,14 +144,16 @@ public class TradePlanForwardLossLimitModelTests
     {
         // Arrange
         var entityId = new TradePlanForwardLossLimitEntityId(1, 2, new DateOnly(2024, 12, 1), TradeType.Unknown);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "TradePlanForwardLossLimit:1.2.20241201.Unknown";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanForwardLossLimitReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -148,14 +162,16 @@ public class TradePlanForwardLossLimitModelTests
         // Arrange
         var entityId = new TradePlanForwardLossLimitEntityId(1, 2, new DateOnly(2024, 12, 1), TradeType.Unknown);
         var data = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanForwardLossLimitReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "TradePlanForwardLossLimit:1.2.20241201.Unknown";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set(entityId, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 
     [Fact]
@@ -163,13 +179,13 @@ public class TradePlanForwardLossLimitModelTests
     {
         // Arrange
         var entityId = new TradePlanForwardLossLimitEntityId(1, 2, new DateOnly(2024, 12, 1), TradeType.Unknown);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
+        var expectedKey = "TradePlanForwardLossLimit:1.2.20241201.Unknown";
 
         // Act
         _sut.Remove(entityId);
 
         // Assert
-        _redisCache.Received(1).Remove("key");
+        _redisCache.Received(1).Remove(expectedKey);
     }
 }
 
@@ -189,16 +205,19 @@ public class FuturesOptionQuoteDataModelTests
     {
         // Arrange
         var quoteId = new FuturesOptionQuoteId(1, "ESZ4_C5000", 100);
+        var expectedKey = "FuturesOptionQuoteData:1.ESZ4_C5000.100";
+        var cachedJson = "{}";
         var expected = new FuturesOptionQuoteDataReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<FuturesOptionQuoteDataReadModel>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<FuturesOptionQuoteDataReadModel>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get(quoteId);
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<FuturesOptionQuoteDataReadModel>(cachedJson);
     }
 
     [Fact]
@@ -206,14 +225,16 @@ public class FuturesOptionQuoteDataModelTests
     {
         // Arrange
         var quoteId = new FuturesOptionQuoteId(1, "ESZ4_C5000", 100);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "FuturesOptionQuoteData:1.ESZ4_C5000.100";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(quoteId);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<FuturesOptionQuoteDataReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -222,14 +243,16 @@ public class FuturesOptionQuoteDataModelTests
         // Arrange
         var quoteId = new FuturesOptionQuoteId(1, "ESZ4_C5000", 100);
         var data = new FuturesOptionQuoteDataReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "FuturesOptionQuoteData:1.ESZ4_C5000.100";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set(quoteId, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 
     [Fact]
@@ -237,13 +260,13 @@ public class FuturesOptionQuoteDataModelTests
     {
         // Arrange
         var quoteId = new FuturesOptionQuoteId(1, "ESZ4_C5000", 100);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
+        var expectedKey = "FuturesOptionQuoteData:1.ESZ4_C5000.100";
 
         // Act
         _sut.Clear(quoteId);
 
         // Assert
-        _redisCache.Received(1).Set("key", string.Empty);
+        _redisCache.Received(1).Set(expectedKey, string.Empty);
     }
 
     [Fact]

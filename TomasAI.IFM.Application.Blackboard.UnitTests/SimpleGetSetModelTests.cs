@@ -28,11 +28,10 @@ public class FuturesTickDataModelTests
         // Arrange
         var contractId = "ESZ4";
         var valueDate = new DateOnly(2024, 12, 1);
-        var expectedKey = "test-key";
+        var expectedKey = "FuturesTickData:ESZ4,20241201";
         var cachedJson = "{\"data\":true}";
         var expected = new FuturesTickDataV2ReadModel();
 
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns(expectedKey);
         _redisCache.Get(expectedKey).Returns(cachedJson);
         _jsonSerializer.Deserialize<FuturesTickDataV2ReadModel>(cachedJson).Returns(expected);
 
@@ -41,6 +40,8 @@ public class FuturesTickDataModelTests
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<FuturesTickDataV2ReadModel>(cachedJson);
     }
 
     [Fact]
@@ -49,14 +50,16 @@ public class FuturesTickDataModelTests
         // Arrange
         var contractId = "ESZ4";
         var valueDate = new DateOnly(2024, 12, 1);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "FuturesTickData:ESZ4,20241201";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(contractId, valueDate);
 
         // Assert
-        result.Should().BeNull();
+        result.Should().Be(FuturesTickDataV2ReadModel.Default);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<FuturesTickDataV2ReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -65,14 +68,16 @@ public class FuturesTickDataModelTests
         // Arrange
         var contractId = "ESZ4";
         var valueDate = new DateOnly(2024, 12, 1);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns(string.Empty);
+        var expectedKey = "FuturesTickData:ESZ4,20241201";
+        _redisCache.Get(expectedKey).Returns(string.Empty);
 
         // Act
         var result = _sut.Get(contractId, valueDate);
 
         // Assert
-        result.Should().BeNull();
+        result.Should().Be(FuturesTickDataV2ReadModel.Default);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<FuturesTickDataV2ReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -82,16 +87,16 @@ public class FuturesTickDataModelTests
         var contractId = "ESZ4";
         var valueDate = new DateOnly(2024, 12, 1);
         var data = new FuturesTickDataV2ReadModel();
-        var expectedKey = "test-key";
+        var expectedKey = "FuturesTickData:ESZ4,20241201";
         var serializedValue = "{\"serialized\":true}";
 
-        _jsonSerializer.Serialize(Arg.Is<object>(o => o != null && o != (object)data)).Returns(expectedKey);
         _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set(contractId, valueDate, data);
 
         // Assert
+        _jsonSerializer.Received(1).Serialize(data);
         _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 }
@@ -113,11 +118,10 @@ public class FuturesOptionTickDataModelTests
         // Arrange
         var contractId = "ESZ4_C5000";
         var valueDate = new DateOnly(2024, 12, 1);
-        var expectedKey = "key";
+        var expectedKey = "FuturesOptionTickData:ESZ4_C5000.20241201";
         var cachedJson = "{}";
         var expected = new FuturesOptionTickDataV2ReadModel();
 
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns(expectedKey);
         _redisCache.Get(expectedKey).Returns(cachedJson);
         _jsonSerializer.Deserialize<FuturesOptionTickDataV2ReadModel>(cachedJson).Returns(expected);
 
@@ -126,20 +130,40 @@ public class FuturesOptionTickDataModelTests
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<FuturesOptionTickDataV2ReadModel>(cachedJson);
     }
 
     [Fact]
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "FuturesOptionTickData:ESZ4_C5000.20241201";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get("ESZ4_C5000", new DateOnly(2024, 12, 1));
 
         // Assert
-        result.Should().BeNull();
+        result.Should().Be(FuturesOptionTickDataV2ReadModel.Default);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<FuturesOptionTickDataV2ReadModel>(Arg.Any<string>());
+    }
+
+    [Fact]
+    public void Get_WhenCacheReturnsEmpty_ReturnsDefault()
+    {
+        // Arrange
+        var expectedKey = "FuturesOptionTickData:ESZ4_C5000.20241201";
+        _redisCache.Get(expectedKey).Returns(string.Empty);
+
+        // Act
+        var result = _sut.Get("ESZ4_C5000", new DateOnly(2024, 12, 1));
+
+        // Assert
+        result.Should().Be(FuturesOptionTickDataV2ReadModel.Default);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<FuturesOptionTickDataV2ReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -147,14 +171,16 @@ public class FuturesOptionTickDataModelTests
     {
         // Arrange
         var data = new FuturesOptionTickDataV2ReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "FuturesOptionTickData:ESZ4_C5000.20241201";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set("ESZ4_C5000", new DateOnly(2024, 12, 1), data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 }
 
@@ -173,30 +199,35 @@ public class FuturesEodDataModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
+        var expectedKey = "FuturesEodData:ESZ4. 20241201";
+        var cachedJson = "{}";
         var expected = new FuturesEodDataV2ReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<FuturesEodDataV2ReadModel>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<FuturesEodDataV2ReadModel>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get("ESZ4", new DateOnly(2024, 12, 1));
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<FuturesEodDataV2ReadModel>(cachedJson);
     }
 
     [Fact]
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "FuturesEodData:ESZ4. 20241201";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get("ESZ4", new DateOnly(2024, 12, 1));
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<FuturesEodDataV2ReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -204,14 +235,16 @@ public class FuturesEodDataModelTests
     {
         // Arrange
         var data = new FuturesEodDataV2ReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "FuturesEodData:ESZ4. 20241201";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set("ESZ4", new DateOnly(2024, 12, 1), data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 }
 
@@ -230,30 +263,35 @@ public class FundBalanceModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
+        var expectedKey = "FundBalanceByOrderId:1";
+        var cachedJson = "{}";
         var expected = new FundBalanceReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<FundBalanceReadModel>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<FundBalanceReadModel>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get(1);
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<FundBalanceReadModel>(cachedJson);
     }
 
     [Fact]
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "FundBalanceByOrderId:1";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(1);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<FundBalanceReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -261,14 +299,16 @@ public class FundBalanceModelTests
     {
         // Arrange
         var data = new FundBalanceReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "FundBalanceByOrderId:1";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set(1, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 }
 
@@ -288,16 +328,19 @@ public class TradeOrderModelTests
     {
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
+        var expectedKey = "TradeOrder:1.2.20241201";
+        var cachedJson = "{}";
         var expected = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel>(cachedJson);
     }
 
     [Fact]
@@ -305,14 +348,16 @@ public class TradeOrderModelTests
     {
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "TradeOrder:1.2.20241201";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -321,14 +366,16 @@ public class TradeOrderModelTests
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderEntityId(1, 2, new DateOnly(2024, 12, 1));
         var data = new global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels.TradeOrderReadModel();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "TradeOrder:1.2.20241201";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set(entityId, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 }
 
@@ -348,16 +395,19 @@ public class TradePositionActionModelTests
     {
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
+        var expectedKey = "TradePositionAction:0.0.0001-01-01.Unknown.Open.0";
+        var cachedJson = "{}";
         var expected = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionActionReadModel(global::TomasAI.IFM.Domain.Trade.Shared.ActionSource.TradePosition, global::TomasAI.IFM.Domain.Trade.Shared.ActionType.PlaceOpenOrder, global::TomasAI.IFM.Domain.Trade.Shared.ActionSubType.None, global::TomasAI.IFM.Domain.Trade.Shared.ActionState.Normal, "test");
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionActionReadModel>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionActionReadModel>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionActionReadModel>(cachedJson);
     }
 
     [Fact]
@@ -365,14 +415,16 @@ public class TradePositionActionModelTests
     {
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "TradePositionAction:0.0.0001-01-01.Unknown.Open.0";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionActionReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -381,14 +433,16 @@ public class TradePositionActionModelTests
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
         var data = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionActionReadModel(global::TomasAI.IFM.Domain.Trade.Shared.ActionSource.TradePosition, global::TomasAI.IFM.Domain.Trade.Shared.ActionType.PlaceOpenOrder, global::TomasAI.IFM.Domain.Trade.Shared.ActionSubType.None, global::TomasAI.IFM.Domain.Trade.Shared.ActionState.Normal, "test");
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "TradePositionAction:0.0.0001-01-01.Unknown.Open.0";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set(entityId, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 }
 
@@ -408,16 +462,19 @@ public class HedgePositionTradeIdModelTests
     {
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
+        var expectedKey = "HedgePositionTradeId:0.0.0001-01-01.Unknown.Open.0";
+        var cachedJson = "{}";
         var expected = new global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId(1, 2);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId>(cachedJson);
     }
 
     [Fact]
@@ -425,14 +482,16 @@ public class HedgePositionTradeIdModelTests
     {
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "HedgePositionTradeId:0.0.0001-01-01.Unknown.Open.0";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId>(Arg.Any<string>());
     }
 
     [Fact]
@@ -441,14 +500,16 @@ public class HedgePositionTradeIdModelTests
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.TradePositionEntityId();
         var optionTradeId = new global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId(1, 2);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(optionTradeId).Returns("value");
+        var expectedKey = "HedgePositionTradeId:0.0.0001-01-01.Unknown.Open.0";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(optionTradeId).Returns(serializedValue);
 
         // Act
         _sut.Set(entityId, optionTradeId);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(optionTradeId);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 }
 
@@ -468,16 +529,19 @@ public class StopLossLimitModelTests
     {
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId(1, 2);
+        var expectedKey = "StopLossLimit:1.2";
+        var cachedJson = "{}";
         var expected = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanStopLossLimitReadModel(1.5);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanStopLossLimitReadModel>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanStopLossLimitReadModel>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanStopLossLimitReadModel>(cachedJson);
     }
 
     [Fact]
@@ -485,14 +549,16 @@ public class StopLossLimitModelTests
     {
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId(1, 2);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "StopLossLimit:1.2";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(entityId);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanStopLossLimitReadModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -501,14 +567,51 @@ public class StopLossLimitModelTests
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId(1, 2);
         var data = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePlanStopLossLimitReadModel(2.0);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "StopLossLimit:1.2";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set(entityId, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
+    }
+
+    [Fact]
+    public void Exists_UsesCanonicalCacheKey()
+    {
+        // Arrange
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId(1, 2);
+        var expectedKey = "StopLossLimit:1.2";
+        _redisCache.TryGet(expectedKey, out Arg.Any<string?>())
+            .Returns(callInfo =>
+            {
+                callInfo[1] = "value";
+                return true;
+            });
+
+        // Act
+        var result = _sut.Exists(entityId);
+
+        // Assert
+        result.Should().BeTrue();
+        _redisCache.Received(1).TryGet(expectedKey, out Arg.Any<string?>());
+    }
+
+    [Fact]
+    public void Remove_UsesCanonicalCacheKey()
+    {
+        // Arrange
+        var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId(1, 2);
+        var expectedKey = "StopLossLimit:1.2";
+
+        // Act
+        _sut.Remove(entityId);
+
+        // Assert
+        _redisCache.Received(1).Remove(expectedKey);
     }
 }
 
@@ -529,16 +632,19 @@ public class IronCondorMDILimitModelTests
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId(1, 2);
         var valueDate = new DateOnly(2024, 12, 1);
+        var expectedKey = "IronCondorMDILimit:1.2,20241201";
+        var cachedJson = "{}";
         var expected = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.IronCondorMDILimitDataModel(entityId, valueDate, 1.0, 0.8, 1.5);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.IronCondorMDILimitDataModel>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.IronCondorMDILimitDataModel>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get(entityId, valueDate);
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.IronCondorMDILimitDataModel>(cachedJson);
     }
 
     [Fact]
@@ -547,14 +653,16 @@ public class IronCondorMDILimitModelTests
         // Arrange
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId(1, 2);
         var valueDate = new DateOnly(2024, 12, 1);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "IronCondorMDILimit:1.2,20241201";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(entityId, valueDate);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.IronCondorMDILimitDataModel>(Arg.Any<string>());
     }
 
     [Fact]
@@ -564,14 +672,16 @@ public class IronCondorMDILimitModelTests
         var entityId = new global::TomasAI.IFM.Domain.Trade.Shared.OptionTradeEntityId(1, 2);
         var valueDate = new DateOnly(2024, 12, 1);
         var data = new global::TomasAI.IFM.Domain.Trade.Shared.ViewModels.IronCondorMDILimitDataModel(entityId, valueDate, 1.0, 0.8, 1.5);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "IronCondorMDILimit:1.2,20241201";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set(entityId, valueDate, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 }
 
@@ -592,30 +702,35 @@ public class FuturesOptionTickDataStreamingParameterModelTests
         // Arrange
         var contract = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         var optionContract = new global::TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel();
+        var expectedKey = "FuturesOptionTickDataStreamingParameter:123";
+        var cachedJson = "{}";
         var expected = new global::TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesOptionTickDataStreamingParameter(100, new DateOnly(2024, 12, 1), new DateOnly(2024, 12, 20), 0.05, contract, optionContract);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
-        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesOptionTickDataStreamingParameter>("{}").Returns(expected);
+        _redisCache.Get(expectedKey).Returns(cachedJson);
+        _jsonSerializer.Deserialize<global::TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesOptionTickDataStreamingParameter>(cachedJson).Returns(expected);
 
         // Act
         var result = _sut.Get(123);
 
         // Assert
         result.Should().Be(expected);
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.Received(1).Deserialize<global::TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesOptionTickDataStreamingParameter>(cachedJson);
     }
 
     [Fact]
     public void Get_WhenCacheMiss_ReturnsDefault()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var expectedKey = "FuturesOptionTickDataStreamingParameter:123";
+        _redisCache.Get(expectedKey).Returns((string?)null);
 
         // Act
         var result = _sut.Get(123);
 
         // Assert
         result.Should().BeNull();
+        _redisCache.Received(1).Get(expectedKey);
+        _jsonSerializer.DidNotReceive().Deserialize<global::TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesOptionTickDataStreamingParameter>(Arg.Any<string>());
     }
 
     [Fact]
@@ -625,13 +740,15 @@ public class FuturesOptionTickDataStreamingParameterModelTests
         var contract = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         var optionContract = new global::TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel();
         var data = new global::TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesOptionTickDataStreamingParameter(100, new DateOnly(2024, 12, 1), new DateOnly(2024, 12, 20), 0.05, contract, optionContract);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _jsonSerializer.Serialize(data).Returns("value");
+        var expectedKey = "FuturesOptionTickDataStreamingParameter:123";
+        var serializedValue = "value";
+        _jsonSerializer.Serialize(data).Returns(serializedValue);
 
         // Act
         _sut.Set(123, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _jsonSerializer.Received(1).Serialize(data);
+        _redisCache.Received(1).Set(expectedKey, serializedValue);
     }
 }

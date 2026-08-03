@@ -172,7 +172,9 @@ public class RedisCacheTests
     [Fact]
     public void DeleteAllKeys_RemovesAllKeysFromDatabase()
     {
-        IConnectionMultiplexer redisMultiplexer = ConnectionMultiplexer.Connect("localhost:6379");
+        var options = ConfigurationOptions.Parse("localhost:6379");
+        options.AllowAdmin = true;
+        using var redisMultiplexer = ConnectionMultiplexer.Connect(options);
         var redisCache = new RedisCache(redisMultiplexer);
 
         // Arrange: Set multiple keys

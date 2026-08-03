@@ -124,18 +124,14 @@ public class DataCacheService : IDataCacheService
         if (cacheName == DataCacheName.Undefined)
             throw new ArgumentNullException(nameof(cacheName), ERR_Get_CacheNameUndefined);
         if (!_dataCacheMap.TryGetValue(cacheName, out Dictionary<string, object>? dataCache))
-        {
-            dataCache = [];
-            _dataCacheMap.TryAdd(cacheName, dataCache);
-        }
+            throw new InvalidOperationException(string.Format(ERR_Get_CacheDoesNotExist, cacheName));
         if (cacheKey is null)
             throw new ArgumentNullException($"{cacheName}", ERR_Get_CacheKeyEmpty);
         lock (_root!)
         {
-            if (!dataCache.ContainsKey($"{cacheKey}"))
-                dataCache.Add($"{cacheKey}", null!);
-            var cacheItem = dataCache[$"{cacheKey}"] as TValue;
-            return cacheItem!;
+            if (!dataCache.TryGetValue($"{cacheKey}", out var cacheItem))
+                throw new InvalidOperationException(string.Format(ERR_Get_CacheKeyDoesNotExist, $"{cacheKey}"));
+            return (cacheItem as TValue)!;
         }
     }
 

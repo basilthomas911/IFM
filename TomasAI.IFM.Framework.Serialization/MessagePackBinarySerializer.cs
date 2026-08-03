@@ -18,7 +18,7 @@ public class MessagePackBinarySerializer : IBinarySerializer
     /// </summary>
     static readonly MessagePackSerializerOptions Options =
         MessagePackSerializerOptions.Standard
-            .WithResolver(StandardResolver.Instance)
+            .WithResolver(ContractlessStandardResolver.Instance)
             .WithCompression(MessagePackCompression.Lz4BlockArray);
 
     /// <summary>

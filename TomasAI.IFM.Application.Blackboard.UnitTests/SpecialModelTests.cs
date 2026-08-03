@@ -44,7 +44,8 @@ public class StreamingRequestIdModelTests
     {
         // Arrange
         var expected = CreateStreamingRequestId();
-        _redisCache.Get(Arg.Any<string>()).Returns("{}");
+        const string key = "StreamingRequestId:ESZ4_C5000";
+        _redisCache.Get(key).Returns("{}");
         _jsonSerializer.Deserialize<StreamingRequestId>("{}").Returns(expected);
 
         // Act
@@ -55,16 +56,18 @@ public class StreamingRequestIdModelTests
     }
 
     [Fact]
-    public void GetByString_WhenCacheMiss_ReturnsDefault()
+    public void GetByString_WhenCacheMiss_ReturnsInvalidSentinel()
     {
         // Arrange
-        _redisCache.Get(Arg.Any<string>()).Returns((string?)null);
+        const string key = "StreamingRequestId:ESZ4_C5000";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get("ESZ4_C5000");
 
         // Assert
-        result.Should().BeNull();
+        result.Should().BeEquivalentTo(new StreamingRequestId());
+        result.IsValid.Should().BeFalse();
     }
 
     [Fact]
@@ -72,7 +75,8 @@ public class StreamingRequestIdModelTests
     {
         // Arrange
         var expected = CreateStreamingRequestId();
-        _redisCache.Get(Arg.Any<string>()).Returns("{}");
+        const string key = "StreamingRequestId:100";
+        _redisCache.Get(key).Returns("{}");
         _jsonSerializer.Deserialize<StreamingRequestId>("{}").Returns(expected);
 
         // Act
@@ -83,16 +87,18 @@ public class StreamingRequestIdModelTests
     }
 
     [Fact]
-    public void GetByInt_WhenCacheMiss_ReturnsDefault()
+    public void GetByInt_WhenCacheMiss_ReturnsInvalidSentinel()
     {
         // Arrange
-        _redisCache.Get(Arg.Any<string>()).Returns((string?)null);
+        const string key = "StreamingRequestId:100";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get(100);
 
         // Assert
-        result.Should().BeNull();
+        result.Should().BeEquivalentTo(new StreamingRequestId());
+        result.IsValid.Should().BeFalse();
     }
 
     [Fact]
@@ -106,8 +112,8 @@ public class StreamingRequestIdModelTests
         _sut.Set(requestId);
 
         // Assert
-        _redisCache.Received(1).Set(Arg.Is<string>(k => k.Contains("ES20241220C5000")), "serialized", TimeSpan.FromDays(1));
-        _redisCache.Received(1).Set(Arg.Is<string>(k => k.Contains("100")), "serialized", TimeSpan.FromDays(1));
+        _redisCache.Received(1).Set("StreamingRequestId:ES20241220C5000", "serialized", TimeSpan.FromDays(1));
+        _redisCache.Received(1).Set("StreamingRequestId:100", "serialized", TimeSpan.FromDays(1));
     }
 
     [Fact]
@@ -120,8 +126,8 @@ public class StreamingRequestIdModelTests
         _sut.Remove(requestId);
 
         // Assert
-        _redisCache.Received(1).Remove(Arg.Is<string>(k => k.Contains("ES20241220C5000")));
-        _redisCache.Received(1).Remove(Arg.Is<string>(k => k.Contains("100")));
+        _redisCache.Received(1).Remove("StreamingRequestId:ES20241220C5000");
+        _redisCache.Received(1).Remove("StreamingRequestId:100");
     }
 }
 
@@ -142,39 +148,44 @@ public class FuturesTickDataStreamingParameterModelTests
         var contract = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         var expected = new FuturesTickDataStreamingParameter(100, new DateOnly(2024, 12, 1), contract);
         var json = Newtonsoft.Json.JsonConvert.SerializeObject(expected, Newtonsoft.Json.Formatting.None);
-        _redisCache.Get(Arg.Any<string>()).Returns(json);
+        const string key = "FuturesTickDataStreamingParameter:123";
+        _redisCache.Get(key).Returns(json);
 
         // Act
         var result = _sut.Get(123);
 
         // Assert
-        result.Should().NotBeNull();
+        result.Should().Be(expected);
     }
 
     [Fact]
-    public void Get_WhenCacheMiss_ReturnsDefault()
+    public void Get_WhenCacheMiss_ReturnsInvalidSentinel()
     {
         // Arrange
-        _redisCache.Get(Arg.Any<string>()).Returns((string?)null);
+        const string key = "FuturesTickDataStreamingParameter:123";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get(123);
 
         // Assert
-        result.Should().BeNull();
+        result.Should().Be(default(FuturesTickDataStreamingParameter));
+        result.IsValid.Should().BeFalse();
     }
 
     [Fact]
-    public void Get_WhenCacheReturnsEmpty_ReturnsDefault()
+    public void Get_WhenCacheReturnsEmpty_ReturnsInvalidSentinel()
     {
         // Arrange
-        _redisCache.Get(Arg.Any<string>()).Returns(string.Empty);
+        const string key = "FuturesTickDataStreamingParameter:123";
+        _redisCache.Get(key).Returns(string.Empty);
 
         // Act
         var result = _sut.Get(123);
 
         // Assert
-        result.Should().BeNull();
+        result.Should().Be(default(FuturesTickDataStreamingParameter));
+        result.IsValid.Should().BeFalse();
     }
 
     [Fact]
@@ -188,7 +199,7 @@ public class FuturesTickDataStreamingParameterModelTests
         _sut.Set(123, data);
 
         // Assert
-        _redisCache.Received(1).Set(Arg.Any<string>(), Arg.Any<string>());
+        _redisCache.Received(1).Set("FuturesTickDataStreamingParameter:123", Arg.Any<string>());
     }
 }
 
@@ -207,8 +218,8 @@ public class VixFuturesContractIdModelTests
     public void Get_WhenCacheHit_ReturnsRawString()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("VXZ4");
+        const string key = "VixFuturesContractId:20241201";
+        _redisCache.Get(key).Returns("VXZ4");
 
         // Act
         var result = _sut.Get(new DateOnly(2024, 12, 1));
@@ -221,8 +232,8 @@ public class VixFuturesContractIdModelTests
     public void Get_WhenCacheMiss_ReturnsNull()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        const string key = "VixFuturesContractId:20241201";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get(new DateOnly(2024, 12, 1));
@@ -235,8 +246,8 @@ public class VixFuturesContractIdModelTests
     public void Get_WhenCacheReturnsEmpty_ReturnsNull()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns(string.Empty);
+        const string key = "VixFuturesContractId:20241201";
+        _redisCache.Get(key).Returns(string.Empty);
 
         // Act
         var result = _sut.Get(new DateOnly(2024, 12, 1));
@@ -249,13 +260,13 @@ public class VixFuturesContractIdModelTests
     public void Set_CachesRawStringValue()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
+        const string key = "VixFuturesContractId:20241201";
 
         // Act
         _sut.Set(new DateOnly(2024, 12, 1), "VXZ4");
 
         // Assert
-        _redisCache.Received(1).Set("key", "VXZ4");
+        _redisCache.Received(1).Set(key, "VXZ4");
     }
 }
 
@@ -275,9 +286,9 @@ public class SignalProcessorModelTests
     {
         // Arrange
         var entityId = new OptionTradeEntityId(1, 2);
+        const string key = "SignalProcessor:1.2";
         var expected = new SignalProcessor<double>();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
+        _redisCache.Get(key).Returns("{}");
         _jsonSerializer.Deserialize<SignalProcessor<double>>("{}").Returns(expected);
 
         // Act
@@ -292,8 +303,8 @@ public class SignalProcessorModelTests
     {
         // Arrange
         var entityId = new OptionTradeEntityId(1, 2);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        const string key = "SignalProcessor:1.2";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get<double>(entityId);
@@ -307,15 +318,15 @@ public class SignalProcessorModelTests
     {
         // Arrange
         var entityId = new OptionTradeEntityId(1, 2);
+        const string key = "SignalProcessor:1.2";
         var data = new SignalProcessor<double>();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(data).Returns("value");
 
         // Act
         _sut.Set(entityId, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _redisCache.Received(1).Set(key, "value");
     }
 }
 
@@ -338,8 +349,8 @@ public class ForwardLossRatioMapModelTests
         {
             [new DateOnly(2024, 12, 1)] = new List<TradePlanForwardLossRatioReadModel> { new() }
         };
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
+        const string key = "ForwardLossRatioMap:20241201";
+        _redisCache.Get(key).Returns("{}");
         _jsonSerializer.Deserialize<Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>>>("{}").Returns(expected);
 
         // Act
@@ -353,8 +364,8 @@ public class ForwardLossRatioMapModelTests
     public void Get_WhenCacheMiss_ReturnsEmptyDictionary()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        const string key = "ForwardLossRatioMap:20241201";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get(new DateOnly(2024, 12, 1));
@@ -367,8 +378,8 @@ public class ForwardLossRatioMapModelTests
     public void Get_WhenDeserializationReturnsNull_ReturnsEmptyDictionary()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
+        const string key = "ForwardLossRatioMap:20241201";
+        _redisCache.Get(key).Returns("{}");
         _jsonSerializer.Deserialize<Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>>>("{}").Returns((Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>>?)null);
 
         // Act
@@ -383,14 +394,14 @@ public class ForwardLossRatioMapModelTests
     {
         // Arrange
         var data = new Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>>();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
+        const string key = "ForwardLossRatioMap:20241201";
         _jsonSerializer.Serialize(data).Returns("value");
 
         // Act
         _sut.Set(new DateOnly(2024, 12, 1), data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _redisCache.Received(1).Set(key, "value");
     }
 }
 
@@ -410,9 +421,9 @@ public class FuturesContractModelTests
     {
         // Arrange
         var contractId = new FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
+        var key = $"FuturesContract:{contractId}";
         var expected = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("{}");
+        _redisCache.Get(key).Returns("{}");
         _jsonSerializer.Deserialize<FuturesContractV2ReadModel>("{}").Returns(expected);
 
         // Act
@@ -427,8 +438,8 @@ public class FuturesContractModelTests
     {
         // Arrange
         var contractId = new FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var key = $"FuturesContract:{contractId}";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get(contractId);
@@ -442,14 +453,14 @@ public class FuturesContractModelTests
     {
         // Arrange
         var contractId = new FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
+        var key = $"FuturesContract:{contractId}";
         var data = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(data).Returns("value");
 
         // Act
         _sut.Set(contractId, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _redisCache.Received(1).Set(key, "value");
     }
 }

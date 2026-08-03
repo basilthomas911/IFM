@@ -81,7 +81,7 @@ public class AggregateIdTests
         dupHashCode.Should().NotBeNull();
         hashCode.Length.Should().Be(64);
         dupHashCode.Length.Should().Be(64);
-        hashCode.Should().Equals(dupHashCode);
+        hashCode.Should().Be(dupHashCode);
     }
 
 }

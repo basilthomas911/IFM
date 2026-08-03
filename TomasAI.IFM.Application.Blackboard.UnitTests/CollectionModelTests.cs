@@ -24,8 +24,8 @@ public class VixFuturesEodDataModelTests
     {
         // Arrange
         var expected = new List<VixFuturesEodDataReadModel> { new() };
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("[{}]");
+        const string key = "VixFuturesEodData:VXZ4-20241201";
+        _redisCache.Get(key).Returns("[{}]");
         _jsonSerializer.Deserialize<ICollection<VixFuturesEodDataReadModel>>("[{}]").Returns(expected);
 
         // Act
@@ -39,8 +39,8 @@ public class VixFuturesEodDataModelTests
     public void Get_WhenCacheMiss_ReturnsEmptyCollection()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        const string key = "VixFuturesEodData:VXZ4-20241201";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get("VXZ4", new DateOnly(2024, 12, 1));
@@ -53,8 +53,8 @@ public class VixFuturesEodDataModelTests
     public void Get_WhenCacheReturnsEmpty_ReturnsEmptyCollection()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns(string.Empty);
+        const string key = "VixFuturesEodData:VXZ4-20241201";
+        _redisCache.Get(key).Returns(string.Empty);
 
         // Act
         var result = _sut.Get("VXZ4", new DateOnly(2024, 12, 1));
@@ -67,8 +67,8 @@ public class VixFuturesEodDataModelTests
     public void Get_WhenDeserializationReturnsNull_ReturnsEmptyCollection()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("[{}]");
+        const string key = "VixFuturesEodData:VXZ4-20241201";
+        _redisCache.Get(key).Returns("[{}]");
         _jsonSerializer.Deserialize<ICollection<VixFuturesEodDataReadModel>>("[{}]").Returns((ICollection<VixFuturesEodDataReadModel>?)null);
 
         // Act
@@ -83,14 +83,14 @@ public class VixFuturesEodDataModelTests
     {
         // Arrange
         ICollection<VixFuturesEodDataReadModel> data = [new()];
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
+        const string key = "VixFuturesEodData:VXZ4-20241201";
         _jsonSerializer.Serialize(data).Returns("value");
 
         // Act
         _sut.Set("VXZ4", new DateOnly(2024, 12, 1), data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _redisCache.Received(1).Set(key, "value");
     }
 }
 
@@ -110,7 +110,8 @@ public class ReferenceLookupModelTests
     {
         // Arrange
         var expected = new Dictionary<string, List<string>> { { "key1", new List<string> { "value1" } } };
-        _redisCache.Get(Arg.Any<string>()).Returns("[{}]");
+        const string key = "ReferenceLookup";
+        _redisCache.Get(key).Returns("[{}]");
         _jsonSerializer.Deserialize<Dictionary<string, List<string>>>("[{}]").Returns(expected);
 
         // Act
@@ -124,7 +125,8 @@ public class ReferenceLookupModelTests
     public void Get_WhenCacheMiss_ReturnsNull()
     {
         // Arrange
-        _redisCache.Get(Arg.Any<string>()).Returns((string?)null);
+        const string key = "ReferenceLookup";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get();
@@ -144,7 +146,7 @@ public class ReferenceLookupModelTests
         _sut.Set(data);
 
         // Assert
-        _redisCache.Received(1).Set(Arg.Is<string>(k => k.Contains("ReferenceLookup")), Arg.Any<string>());
+        _redisCache.Received(1).Set("ReferenceLookup", "value");
     }
 }
 
@@ -164,16 +166,16 @@ public class DomainEventsModelTests
     {
         // Arrange
         var commandId = Guid.NewGuid();
+        var key = $"DomainEvents:{commandId}";
         var expected = new DomainEventCollection();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("[]");
+        _redisCache.Get(key).Returns("[]");
         _jsonSerializer.Deserialize<DomainEventCollection>("[]").Returns(expected);
 
         // Act
         var result = _sut.Get(commandId);
 
         // Assert
-        result.Should().NotBeNull();
+        result.Should().BeSameAs(expected);
     }
 
     [Fact]
@@ -181,8 +183,8 @@ public class DomainEventsModelTests
     {
         // Arrange
         var commandId = Guid.NewGuid();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        var key = $"DomainEvents:{commandId}";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get(commandId);
@@ -196,8 +198,8 @@ public class DomainEventsModelTests
     {
         // Arrange
         var commandId = Guid.NewGuid();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns(string.Empty);
+        var key = $"DomainEvents:{commandId}";
+        _redisCache.Get(key).Returns(string.Empty);
 
         // Act
         var result = _sut.Get(commandId);
@@ -211,15 +213,15 @@ public class DomainEventsModelTests
     {
         // Arrange
         var commandId = Guid.NewGuid();
+        var key = $"DomainEvents:{commandId}";
         var data = new DomainEventCollection();
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
         _jsonSerializer.Serialize(data).Returns("value");
 
         // Act
         _sut.Set(commandId, data);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _redisCache.Received(1).Set(key, "value");
     }
 }
 
@@ -243,8 +245,8 @@ public class FuturesOptionQuoteModelTests
             new FuturesOptionQuoteReadModel(1, "ESZ4_C5000", 100, "test", DateTime.UtcNow),
             new FuturesOptionQuoteReadModel(1, "ESZ4_P5000", 101, "test", DateTime.UtcNow)
         };
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("[{},{}]");
+        const string key = "FuturesOptionQuote:1";
+        _redisCache.Get(key).Returns("[{},{}]");
         _jsonSerializer.Deserialize<FuturesOptionQuoteReadModel[]>("[{},{}]").Returns(quotes);
 
         // Act
@@ -260,8 +262,8 @@ public class FuturesOptionQuoteModelTests
     public void Get_WhenCacheMiss_ReturnsEmptyDictionary()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns((string?)null);
+        const string key = "FuturesOptionQuote:1";
+        _redisCache.Get(key).Returns((string?)null);
 
         // Act
         var result = _sut.Get(1);
@@ -274,8 +276,8 @@ public class FuturesOptionQuoteModelTests
     public void Get_WhenCacheReturnsEmpty_ReturnsEmptyDictionary()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns(string.Empty);
+        const string key = "FuturesOptionQuote:1";
+        _redisCache.Get(key).Returns(string.Empty);
 
         // Act
         var result = _sut.Get(1);
@@ -288,8 +290,8 @@ public class FuturesOptionQuoteModelTests
     public void Get_WhenDeserializationReturnsNull_ReturnsEmptyDictionary()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
-        _redisCache.Get("key").Returns("[]");
+        const string key = "FuturesOptionQuote:1";
+        _redisCache.Get(key).Returns("[]");
         _jsonSerializer.Deserialize<FuturesOptionQuoteReadModel[]>("[]").Returns((FuturesOptionQuoteReadModel[]?)null);
 
         // Act
@@ -304,26 +306,26 @@ public class FuturesOptionQuoteModelTests
     {
         // Arrange
         var quotes = new[] { new FuturesOptionQuoteReadModel() };
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
+        const string key = "FuturesOptionQuote:1";
         _jsonSerializer.Serialize(quotes).Returns("value");
 
         // Act
         _sut.Set(1, quotes);
 
         // Assert
-        _redisCache.Received(1).Set("key", Arg.Any<string>());
+        _redisCache.Received(1).Set(key, "value");
     }
 
     [Fact]
     public void Clear_SetsEmptyStringInCache()
     {
         // Arrange
-        _jsonSerializer.Serialize(Arg.Any<object>()).Returns("key");
+        const string key = "FuturesOptionQuote:1";
 
         // Act
         _sut.Clear(1);
 
         // Assert
-        _redisCache.Received(1).Set("key", string.Empty);
+        _redisCache.Received(1).Set(key, string.Empty);
     }
 }

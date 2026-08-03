@@ -27,7 +27,7 @@ namespace TomasAI.IFM.Shared.UnitTests.Util
 
             var spikedData = new TickPriceData(DateTime.Now, 11, 10.75, 1, string.Empty);
             var spikedDataOut = sp.Filter(spikedData, 10, sigIn => sigIn.Price);
-            spikedDataOut.Price.Should().NotBe(spikedData.Price);
+            spikedDataOut.Should().BeNull();
 
         }
 

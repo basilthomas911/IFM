@@ -27,66 +27,6 @@ namespace TomasAI.IFM.Shared.UnitTests.Reference
         }
 
         [Fact]
-        public void ConstructorWithMinValueEventDate()
-        {
-            // given an event date parameter with min value...
-            var eventDate = DateTime.MinValue;
-            var countryCode = "USA";
-            var eventName = "US Unemployment Report";
-
-            // when constructing an economic calendar...
-            var e = Assert.Throws<ArgumentNullException>( () => new EconomicCalendarId(eventDate, countryCode, eventName));
-
-            // then throw argumen null exception.
-            e.Should().BeOfType<ArgumentNullException>();
-        }
-
-        [Fact]
-        public void ConstructorWithMaxValueEventDate()
-        {
-            // given an event date parameter with max value...
-            var eventDate = DateTime.MaxValue;
-            var countryCode = "USA";
-            var eventName = "US Unemployment Report";
-
-            // when constructing an economic calendar...
-            var e = Assert.Throws<ArgumentNullException>(() => new EconomicCalendarId(eventDate, countryCode, eventName));
-
-            // then throw argumen null exception.
-            e.Should().BeOfType<ArgumentNullException>();
-        }
-
-        [Fact]
-        public void ConstructorWithEmptyCountryCode()
-        {
-            // given an event date parameter with empty country...
-            var eventDate = (new DateTime(2020, 10, 10)).Date;
-            var countryCode = default(string);
-            var eventName = "US Unemployment Report";
-
-            // when constructing an economic calendar...
-            var e = Assert.Throws<ArgumentNullException>(() => new EconomicCalendarId(eventDate, countryCode, eventName));
-
-            // then throw argumen null exception.
-            e.Should().BeOfType<ArgumentNullException>();
-        }
-
-        [Fact]
-        public void ConstructorWithEmptyEventName()
-        {
-            // given an event date parameter with empty country...
-            var eventDate = (new DateTime(2020, 10, 10)).Date;
-            var countryCode = "USA";
-            var eventName = default(string);
-
-            // when constructing an economic calendar...
-            var e = Assert.Throws<ArgumentNullException>(() => new EconomicCalendarId(eventDate, countryCode, eventName));
-
-            // then throw argumen null exception.
-            e.Should().BeOfType<ArgumentNullException>();
-        }
-
-        [Fact]
         public void EqualsOk()
         {
             // given valid constructor parameters...

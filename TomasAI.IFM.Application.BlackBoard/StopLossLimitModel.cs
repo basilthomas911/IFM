@@ -51,7 +51,7 @@ public class StopLossLimitModel(IRedisCache redisCache, IJsonSerializer jsonSeri
     /// <returns></returns>
     public bool Exists(OptionTradeEntityId optionTradeId)
     {
-        var key = _jsonSerializer.Serialize(new { CacheName, optionTradeId });
+        var key = $"{CacheName}:{optionTradeId.Format()}";
         return _redisCache.TryGet(key, out _);
     }
 
@@ -61,7 +61,7 @@ public class StopLossLimitModel(IRedisCache redisCache, IJsonSerializer jsonSeri
     /// <param name="optionTradeId"></param>
     public void Remove(OptionTradeEntityId optionTradeId)
     {
-        var key = _jsonSerializer.Serialize(new { CacheName, optionTradeId });
+        var key = $"{CacheName}:{optionTradeId.Format()}";
         _redisCache.Remove(key);
     }
 }

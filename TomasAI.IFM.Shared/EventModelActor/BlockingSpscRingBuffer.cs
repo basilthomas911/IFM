@@ -66,9 +66,11 @@ public sealed class BlockingSpscRingBuffer<TMessage>
     PaddedInt _head;
     PaddedInt _tail;
 
-    // Transition-notification events (ManualResetEventSlim: user-mode spin before kernel)
-    // _itemAvailable: signalled by producer on empty → non-empty; waited by consumer.
-    // _slotAvailable: signalled by consumer on full → non-full; waited by producer.
+    // Progress-notification events (ManualResetEventSlim: user-mode spin before kernel).
+    // Signals are issued after every published index update because the remote index
+    // snapshot can legally be stale; transition-only signalling can lose a wake-up.
+    // _itemAvailable: signalled by producer; waited by consumer.
+    // _slotAvailable: signalled by consumer; waited by producer.
     readonly ManualResetEventSlim _itemAvailable;
     readonly ManualResetEventSlim _slotAvailable;
 
@@ -269,9 +271,6 @@ public sealed class BlockingSpscRingBuffer<TMessage>
         if ((uint)(head - tail) >= (uint)_capacity)
             return false;
 
-        // Snapshot empty state before publishing, using the same head/tail values.
-        var wasEmpty = head == tail;
-
         // Store item at the masked slot index — Unsafe.Add eliminates bounds check.
         Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_buffer), head & _mask) = item;
 
@@ -279,9 +278,9 @@ public sealed class BlockingSpscRingBuffer<TMessage>
         // sees the stored item before the updated index.
         Volatile.Write(ref _head.Value, head + 1);
 
-        // Signal consumer only on empty → non-empty transition.
-        if (wasEmpty)
-            _itemAvailable.Set();
+        // Always signal progress. The consumer may have decided to wait from a
+        // different, valid index snapshot, so transition-only signalling is unsafe.
+        _itemAvailable.Set();
 
         return true;
     }
@@ -305,9 +304,6 @@ public sealed class BlockingSpscRingBuffer<TMessage>
             return false;
         }
 
-        // Snapshot full state before publishing, using the same head/tail values.
-        var wasFull = (uint)(head - tail) >= (uint)_capacity;
-
         // Bounds-check-free slot access via Unsafe.Add on the array data reference.
         ref TMessage slot = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_buffer), tail & _mask);
         item = slot;
@@ -321,9 +317,8 @@ public sealed class BlockingSpscRingBuffer<TMessage>
         // Publish the new tail with release semantics.
         Volatile.Write(ref _tail.Value, tail + 1);
 
-        // Signal producer only on full → non-full transition.
-        if (wasFull)
-            _slotAvailable.Set();
+        // Always signal progress for the symmetric producer wait race.
+        _slotAvailable.Set();
 
         return true;
     }
