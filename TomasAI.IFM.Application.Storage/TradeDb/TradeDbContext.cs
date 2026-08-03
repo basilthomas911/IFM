@@ -1874,10 +1874,10 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         // save any trade fills...
         if (tradeFills.Count  > 0)
         {
-            var queuedCommands = new List<object>();    
             var db = _dbFactory.TradeDb;
             foreach (var tf in tradeFills)
             {
+                var queuedCommands = new List<object>();
                 queuedCommands.Add(
                 db.Use(TradeDbCql.DeleteTradeFill)
                 .SetParameters(new DeleteTradeFill(
@@ -1921,8 +1921,8 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                                 tfd.CreatedOn,
                                 tfd.CreatedBy))
                             .QueueCommand());
+                await db.ExecuteQueuedCommandsAsync(queuedCommands, true);
             }
-            await db.ExecuteQueuedCommandsAsync(queuedCommands, true);
         }
     }
 
@@ -2028,14 +2028,11 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         for(var index =0; index < optionTradeSpreadsData.Count; index += 1000)
         {
             batchData.Clear();
-            optionTradeSpreadsData
-                .Skip(index)
-                .Take(1000)
-                .ToList()
-                .ForEach(async e =>  {
-                    var id = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId);
-                    batchData.Add((id, e));
-                });
+            foreach (var e in optionTradeSpreadsData.Skip(index).Take(1000))
+            {
+                var id = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId);
+                batchData.Add((id, e));
+            }
             await db
                 .Use(TradeDbCql.InsertOptionTradeSpreadData)
                 .SetParameters(batchData.Select(e => new InsertOptionTradeSpreadData(
@@ -2069,35 +2066,29 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var rowCount = 0L;
         var db = _dbFactory.TradeDb;
-        await db
-            .Use(TradeDbCql.InsertOptionTradeSpreadData)
-            .SetParameters(GetOptionTradeSpreadData().Select(e => new InsertOptionTradeSpreadData(
+        var parameters = new List<InsertOptionTradeSpreadData>();
+        foreach (var e in optionTradeSpreadsData)
+        {
+            var sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId);
+            parameters.Add(new InsertOptionTradeSpreadData(
                 e.OrderId,
                 e.TradeId,
                 e.ValueDate,
                 e.TradeType.ToStringFast(),
-                e.SequenceId,
+                sequenceId,
                 e.LossLimit,
                 e.WinLimit,
                 e.ForwardSpread,
                 e.NetSpread,
                 e.CreatedOn,
-                e.CreatedBy
-            )))
+                e.CreatedBy));
+            rowCount++;
+        }
+        await db
+            .Use(TradeDbCql.InsertOptionTradeSpreadData)
+            .SetParameters(parameters)
             .ExecuteCommandAsync();
         return rowCount;
-
-        IEnumerable<OptionTradeSpreadsDataModel> GetOptionTradeSpreadData()
-        {
-            foreach (var e in optionTradeSpreadsData)
-            {
-                rowCount++;
-                var id = _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId).GetAwaiter().GetResult();
-                yield return e with { SequenceId = id};
-            }
-        }
-
-
     }
 
     /// <summary>

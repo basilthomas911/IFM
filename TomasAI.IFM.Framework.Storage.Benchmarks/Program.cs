@@ -5,5 +5,8 @@ namespace TomasAI.IFM.Framework.Storage.Benchmarks;
 internal static class Program
 {
     public static void Main(string[] args)
-        => BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+    {
+        var summaries = BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+        ScyllaBulkWriteComparisonWriter.Write(summaries);
+    }
 }

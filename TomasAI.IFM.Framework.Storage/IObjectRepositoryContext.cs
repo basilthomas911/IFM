@@ -33,6 +33,7 @@ public interface IObjectRepositoryContext: IDisposable
     Task<TResult> ExecuteScalarAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper) where TResult : struct;
 
     Task<long[]> ExecuteCommandAsync(Action<string> onInfoMessage = default!);
+    Task<long[]> ExecuteCommandAsync(CancellationToken cancellationToken, Action<string> onInfoMessage = default!);
     Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false);
 
     ValueTask ExecuteMapReduceAsync<TResult>(Func<IObjectDataRecord, TResult> mapper, Action<IEnumerable<TResult>> reducer);

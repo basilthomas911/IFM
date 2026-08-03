@@ -6,6 +6,11 @@ public interface IObjectRepositoryProvider
 {
     // command methods...
     Task<long[]> ExecuteCommandAsync(IObjectRepositoryContext ctx, Action<string> onInfoMessage = null);
+    async Task<long[]> ExecuteCommandAsync(
+        IObjectRepositoryContext ctx,
+        CancellationToken cancellationToken,
+        Action<string> onInfoMessage = null)
+        => await ExecuteCommandAsync(ctx, onInfoMessage).WaitAsync(cancellationToken).ConfigureAwait(false);
     object QueueCommand(string commandText, CommandType commandType, List<object> parameterValues);
     Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false);
     ValueTask ExecuteMapReduceAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> mapper, Action<IEnumerable<TResult>> reducer);

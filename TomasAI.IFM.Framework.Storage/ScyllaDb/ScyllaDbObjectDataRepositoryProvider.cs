@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
+using System.Threading.Channels;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
 
@@ -21,6 +23,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     const string ClassName = nameof(ScyllaDbObjectDataRepositoryProvider);
     readonly ILogger<DbProvider> _logger;
     readonly ScyllaDbConnection _conn;
+    readonly ScyllaDbBulkWriteOptions _bulkWriteOptions;
     readonly ConcurrentDictionary<string, PreparedStatement> _preparedStatementCache = [];
 
     /// <summary>
@@ -47,6 +50,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         _logger = logger;
         _conn = new ScyllaDbConnection(ctx.Repository.ConnectionString);
+        _bulkWriteOptions = ScyllaDbBulkWriteOptions.FromEnvironment();
     }
 
     /// <summary>
@@ -76,69 +80,198 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// <param name="onInfoMessage"></param>
     /// <returns></returns>
     public async Task<long[]> ExecuteCommandAsync(IObjectRepositoryContext ctx, Action<string> onInfoMessage = null!)
+        => await ExecuteCommandAsync(ctx, CancellationToken.None, onInfoMessage).ConfigureAwait(false);
+
+    /// <summary>
+    /// Executes a ScyllaDB command with bounded multi-row scheduling and cooperative cancellation.
+    /// Cassandra driver 3.x requests cannot be cancelled after submission, so cancellation prevents new writes and
+    /// stops awaiting in-flight requests while the driver may complete those requests in the background.
+    /// </summary>
+    public async Task<long[]> ExecuteCommandAsync(
+        IObjectRepositoryContext ctx,
+        CancellationToken cancellationToken,
+        Action<string> onInfoMessage = null!)
     {
-        for (int retryCount = 1; retryCount <= 5; retryCount++)
+        try
         {
-            var batchSize = retryCount switch
+            cancellationToken.ThrowIfCancellationRequested();
+            var parameterCount = ctx is ObjectDataRepositoryContext repositoryContext
+                ? repositoryContext.ParameterValueCount
+                : ctx.ParameterValues.Count;
+            _logger.LogDebug(
+                "{ClassName}.ExecuteCommandAsync: {CommandText} with {ParameterValuesCount} parameter values",
+                ClassName,
+                ctx.CommandText,
+                parameterCount ?? -1);
+
+            var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (ctx is ObjectDataRepositoryContext deferredContext && deferredContext.HasDeferredParameterValues)
             {
-                1 => 2000,
-                2 =>1000,
-                3 => 500,
-                4 => 250,
-                _ => 100
-            };
+                await ExecuteDeferredCommandsAsync(
+                    session,
+                    deferredContext.ReadParameterValues(),
+                    deferredContext.ParameterValueCount).ConfigureAwait(false);
+            }
+            else
+            {
+                var parameterValues = ctx.ParameterValues;
+                if (parameterValues.Count > 1)
+                    await ExecuteIndexedCommandsAsync(session, parameterValues).ConfigureAwait(false);
+                else if (parameterValues.Count == 1)
+                    await ExecuteSingleCommandAsync(session, parameterValues[0]).ConfigureAwait(false);
+                else
+                {
+                    using var rowSet = await session.ExecuteAsync(new SimpleStatement(ctx.CommandText))
+                        .WaitAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+            return [-1L];
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            while (ex.InnerException != null) ex = ex.InnerException;
+            var errorMessage = $"{ClassName}.ExecuteCommandAsync: {ctx.CommandText} {ex.Message}";
+            throw new StorageException(errorMessage, ex);
+        }
+
+        async Task ExecuteSingleCommandAsync(ISession session, object bindValues)
+        {
+            var ps = GetOrPrepare(session, ctx.CommandText);
+            var boundStatement = Bind(ps, bindValues);
+            using var rowSet = await session.ExecuteAsync(boundStatement)
+                .WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        async Task ExecuteIndexedCommandsAsync(ISession session, IReadOnlyList<object> parameterValues)
+        {
+            var preparedStatement = GetOrPrepare(session, ctx.CommandText);
+            var nextIndex = -1;
+            ExceptionDispatchInfo? failure = null;
+            var workerCount = Math.Min(_bulkWriteOptions.MaxConcurrency, parameterValues.Count);
+            var workers = new Task[workerCount];
+
+            for (var workerIndex = 0; workerIndex < workers.Length; workerIndex++)
+                workers[workerIndex] = ExecuteWorkerAsync();
+
+            await Task.WhenAll(workers).ConfigureAwait(false);
+            failure?.Throw();
+
+            async Task ExecuteWorkerAsync()
+            {
+                while (Volatile.Read(ref failure) is null)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var index = Interlocked.Increment(ref nextIndex);
+                    if (index >= parameterValues.Count)
+                        return;
+
+                    try
+                    {
+                        using var rowSet = await session.ExecuteAsync(Bind(preparedStatement, parameterValues[index]))
+                            .WaitAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Interlocked.CompareExchange(ref failure, ExceptionDispatchInfo.Capture(ex), null);
+                        return;
+                    }
+                }
+            }
+        }
+
+        async Task ExecuteDeferredCommandsAsync(ISession session, IEnumerable<object> parameterValues, int? knownCount)
+        {
+            using var enumerator = parameterValues.GetEnumerator();
+            if (!enumerator.MoveNext())
+            {
+                using var rowSet = await session.ExecuteAsync(new SimpleStatement(ctx.CommandText))
+                    .WaitAsync(cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            var first = enumerator.Current;
+            if (!enumerator.MoveNext())
+            {
+                await ExecuteSingleCommandAsync(session, first).ConfigureAwait(false);
+                return;
+            }
+
+            var second = enumerator.Current;
+            var preparedStatement = GetOrPrepare(session, ctx.CommandText);
+            var channel = Channel.CreateBounded<object>(new BoundedChannelOptions(_bulkWriteOptions.BoundedCapacity)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleWriter = true,
+                SingleReader = false,
+                AllowSynchronousContinuations = false
+            });
+            using var stopSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            ExceptionDispatchInfo? failure = null;
+            var workerCount = Math.Min(
+                _bulkWriteOptions.MaxConcurrency,
+                Math.Max(2, knownCount ?? _bulkWriteOptions.MaxConcurrency));
+            var tasks = new Task[workerCount + 1];
+
+            for (var workerIndex = 0; workerIndex < workerCount; workerIndex++)
+                tasks[workerIndex] = ExecuteWorkerAsync();
+
+            tasks[^1] = ProduceAsync();
             try
             {
-                _logger.LogInformationEvent(ClassName, "ExecuteCommandAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
-                var session = await _conn.CreateSessionAsync();
-                if (ctx.ParameterValues.Count > 1)
-                    await ExecuteBatchCommandsAsync(session, batchSize);
-                else if (ctx.ParameterValues.Count == 1)
-                    await ExecuteSingleCommandsAsync(session);
-                else
-                    await session.ExecuteAsync(new SimpleStatement(ctx.CommandText));
-                return [-1L];
+                await Task.WhenAll(tasks).ConfigureAwait(false);
             }
-            catch (Exception ex)
+            catch (OperationCanceledException) when (failure is not null)
             {
-                if (retryCount < 5)
-                {
-                    await Task.Delay(1000);
-                    continue;
-                }
-                while (ex.InnerException != null) ex = ex.InnerException;
-                var errorMessage = $"{ClassName}.ExecuteCommandAsync: {ctx.CommandText} {ex.Message}";
-                throw new StorageException(errorMessage, ex);
+                // The first database or enumeration failure is rethrown below.
             }
-        }
-        return [-1L];
+            failure?.Throw();
 
-        async Task ExecuteBatchCommandsAsync(ISession session, int batchSize)
-        {
-            var ps = GetOrPrepare(session, ctx.CommandText);
-            for (var i = 0; i < ctx.ParameterValues.Count; i += batchSize)
+            async Task ProduceAsync()
             {
-                var count = Math.Min(batchSize, ctx.ParameterValues.Count - i);
-                var items = ctx.ParameterValues.GetRange(i, count);
-                var batchStatement = new BatchStatement();
-                batchStatement.SetBatchType(BatchType.Logged);
-                batchStatement.SetSerialConsistencyLevel(ConsistencyLevel.Serial);
-                foreach (var bindValues in items)
+                try
                 {
-                    var boundStatement = Bind(ps, bindValues);
-                    batchStatement.Add(boundStatement);
+                    await channel.Writer.WriteAsync(first, stopSource.Token).ConfigureAwait(false);
+                    await channel.Writer.WriteAsync(second, stopSource.Token).ConfigureAwait(false);
+                    while (enumerator.MoveNext())
+                        await channel.Writer.WriteAsync(enumerator.Current, stopSource.Token).ConfigureAwait(false);
+                    channel.Writer.TryComplete();
                 }
-                await session.ExecuteAsync(batchStatement);
-                batchStatement = null;
+                catch (OperationCanceledException) when (failure is not null)
+                {
+                    channel.Writer.TryComplete();
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.CompareExchange(ref failure, ExceptionDispatchInfo.Capture(ex), null);
+                    stopSource.Cancel();
+                    channel.Writer.TryComplete(ex);
+                }
             }
-        }
 
-        async Task ExecuteSingleCommandsAsync(ISession session)
-        {
-            var ps = GetOrPrepare(session, ctx.CommandText);
-            var bindValues = ctx.ParameterValues[0];
-            var boundStatement = Bind(ps, bindValues);
-            await session.ExecuteAsync(boundStatement);
+            async Task ExecuteWorkerAsync()
+            {
+                try
+                {
+                    await foreach (var bindValues in channel.Reader.ReadAllAsync(stopSource.Token).ConfigureAwait(false))
+                    {
+                        using var rowSet = await session.ExecuteAsync(Bind(preparedStatement, bindValues))
+                            .WaitAsync(stopSource.Token).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException) when (failure is not null)
+                {
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.CompareExchange(ref failure, ExceptionDispatchInfo.Capture(ex), null);
+                    stopSource.Cancel();
+                    channel.Writer.TryComplete(ex);
+                }
+            }
         }
     }
 
@@ -185,7 +318,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             foreach (ScyllaDbObjectDataQueuedCommand cmd in queuedCommands.Cast<ScyllaDbObjectDataQueuedCommand>())
             {
                 if (cmd is null) continue;
-                _logger.LogInformationEvent(ClassName, "ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", cmd.CommandText, cmd.BindValues?.Count ?? 0);
+                _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandText, cmd.BindValues?.Count ?? 0);
                 commandText = cmd.CommandText;
                 if (cmd.BindValues!.Count > 0)
                 {
@@ -193,13 +326,13 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                     foreach (var bindValues in cmd.BindValues)
                     {
                         var boundStatement = Bind(ps, bindValues);
-                        await session.ExecuteAsync(boundStatement);
+                        using var rowSet = await session.ExecuteAsync(boundStatement).ConfigureAwait(false);
                     }
                 }
                 else
                 {
                     var simpleStatement = new SimpleStatement(commandText);
-                    await session.ExecuteAsync(simpleStatement);
+                    using var rowSet = await session.ExecuteAsync(simpleStatement).ConfigureAwait(false);
                 }
             }
         }
@@ -208,17 +341,33 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         {
             var batchStatement = new BatchStatement();
             batchStatement.SetBatchType(BatchType.Logged);
-            batchStatement.SetSerialConsistencyLevel(ConsistencyLevel.Serial);
+            var statementCount = 0;
             foreach (ScyllaDbObjectDataQueuedCommand cmd in queuedCommands.Cast<ScyllaDbObjectDataQueuedCommand>())
             {
-                _logger.LogInformationEvent(ClassName, "ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", cmd.CommandText, cmd.BindValues?.Count ?? 0);
+                _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandText, cmd.BindValues?.Count ?? 0);
                 var ps = GetOrPrepare(session, cmd.CommandText);
-                var bindValues = cmd.BindValues!.Count == 1 ? cmd.BindValues[0]: default;
-                var boundStatement = Bind(ps, bindValues);
-                batchStatement.Add(boundStatement);
+                if (cmd.BindValues is { Count: > 0 })
+                {
+                    foreach (var bindValues in cmd.BindValues)
+                    {
+                        batchStatement.Add(Bind(ps, bindValues));
+                        statementCount++;
+                    }
+                }
+                else
+                {
+                    batchStatement.Add(Bind(ps, null));
+                    statementCount++;
+                }
             }
-            await session.ExecuteAsync(batchStatement);
-            batchStatement = null;
+            if (statementCount > 50)
+            {
+                _logger.LogWarning(
+                    "{ClassName}.ExecuteQueuedCommandsAsync is executing an explicit logged batch containing {StatementCount} statements; keep atomic batches small and partition-local where possible",
+                    ClassName,
+                    statementCount);
+            }
+            using var rowSet = await session.ExecuteAsync(batchStatement).ConfigureAwait(false);
         }
     }
 

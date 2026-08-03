@@ -7,6 +7,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
 {
     readonly IObjectRepository _db;
     List<object>? _parameterValues;
+    IParameterValueSource? _parameterValueSource;
       IObjectRepositoryProvider _provider;   
     bool _useTransaction;
     int _commandTimeout;
@@ -38,7 +39,36 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     public abstract CommandType GetCommandType();
     public abstract string GetCommandText();
     public abstract string GetParameterName(string parameterName);
-    public List<object> ParameterValues => _parameterValues ??= [];
+    public List<object> ParameterValues
+    {
+        get
+        {
+            if (_parameterValues is not null)
+                return _parameterValues;
+
+            _parameterValues = _parameterValueSource is null
+                ? []
+                : [.. _parameterValueSource.Read()];
+            _parameterValueSource = null;
+            return _parameterValues;
+        }
+    }
+
+    internal int? ParameterValueCount
+    {
+        get
+        {
+            if (_parameterValues is not null)
+                return _parameterValues.Count;
+            if (_parameterValueSource is not null)
+                return _parameterValueSource.Count;
+            return 0;
+        }
+    }
+    internal bool HasDeferredParameterValues => _parameterValueSource is not null;
+
+    internal IEnumerable<object> ReadParameterValues()
+        => _parameterValues ?? _parameterValueSource?.Read() ?? [];
     public bool UseTransaction => _useTransaction;
     public int CommandTimeout => _commandTimeout;
     public IObjectRepository Repository => _db;
@@ -51,6 +81,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     /// <returns></returns>
     public IObjectRepositoryContext SetParameters(object parameterValue = default!)
     {
+        _parameterValueSource = null;
         ParameterValues.Clear();
         if (parameterValue is  null)
             throw new ArgumentException("ObjectDataRepositoryContext.SetParameters: must set parameter value to parameter type ");
@@ -60,6 +91,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
 
     public IObjectRepositoryContext SetParameters<TParam>(in TParam parameterValue) where TParam : struct, IBindValue
     {
+        _parameterValueSource = null;
         ParameterValues.Clear();
         ParameterValues.Add(parameterValue.Bind());
         return this;
@@ -67,14 +99,9 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
 
     public IObjectRepositoryContext SetParameters<TParam>(IEnumerable<TParam> parameterValues)
     {
-        ParameterValues.Clear();
         if (parameterValues is null) throw new ArgumentException("ObjectDataRepositoryContext.SetParameters<TParam>: must set parameter values to parameter type ");
-        foreach (var parameterValue in parameterValues)
-        {
-            ParameterValues.Add(parameterValue is IBindValue bindValue
-                ? bindValue.Bind()
-                : parameterValue!);
-        }
+        _parameterValues = null;
+        _parameterValueSource = new ParameterValueSource<TParam>(parameterValues);
         return this;
     }
 
@@ -130,6 +157,13 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
         => _provider.ExecuteCommandAsync(this, onInfoMessage);
 
     /// <summary>
+    /// Executes a command while allowing the caller to stop scheduling/waiting for provider work.
+    /// A provider whose driver does not support cancellation may still finish already-issued requests.
+    /// </summary>
+    public Task<long[]> ExecuteCommandAsync(CancellationToken cancellationToken, Action<string> onInfoMessage = null!)
+        => _provider.ExecuteCommandAsync(this, cancellationToken, onInfoMessage);
+
+    /// <summary>
     /// return execution command parameters
     /// </summary>
     /// <returns></returns>
@@ -151,6 +185,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
             _parameterValues.Clear();
             _parameterValues = null;
         }
+        _parameterValueSource = null;
 
     }
 

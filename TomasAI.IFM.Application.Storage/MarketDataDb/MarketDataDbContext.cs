@@ -2145,18 +2145,16 @@ public class MarketDataDbContext(
             .SetParameters(new DeleteFuturesItiTrendClassData(symbol, startDate, endDate))
             .ExecuteCommandAsync();
         await db.Use(MarketDataDbCql.InsertFuturesItiTrendClassData)
-            .SetParameters(sourceSignals.Select(e => new
-            {
+            .SetParameters(sourceSignals.Select(e => new InsertFuturesItiTrendClassData(
                 symbol,
-                valueDate = e.ValueDate,
-                timestamp = e.IntrinsicTime,
-                sequenceId = e.SequenceId,
-                trendClass = (float)e.IntrinsicTimeGroupId,
-                trendDirection = (float)e.IntrinsicTimeTrend,
-                trendDirectionMode = (float)e.IntrinsicTimeMode,
-                trendDelta = (float)e.TrendDelta,
-                futuresRsi = 0f
-            }))
+                e.ValueDate,
+                e.IntrinsicTime,
+                e.SequenceId,
+                (float)e.IntrinsicTimeGroupId,
+                (float)e.IntrinsicTimeTrend,
+                (float)e.IntrinsicTimeMode,
+                (float)e.TrendDelta,
+                0f)))
             .ExecuteCommandAsync();
         return CalculateStatistics(sourceSignals.Select(e => (double)e.IntrinsicTimeGroupId));
     }
@@ -2181,19 +2179,17 @@ public class MarketDataDbContext(
             .SetParameters(new DeleteFuturesItiTrendDeltaData(symbol, startDate, endDate))
             .ExecuteCommandAsync();
         await db.Use(MarketDataDbCql.InsertFuturesItiTrendDeltaData)
-            .SetParameters(sourceSignals.Select(e => new
-            {
+            .SetParameters(sourceSignals.Select(e => new InsertFuturesItiTrendDeltaData(
                 symbol,
-                valueDate = e.ValueDate,
-                timestamp = e.IntrinsicTime,
-                sequenceId = e.SequenceId,
-                trendDelta = (float)e.TrendDelta,
-                trendDirection = (float)e.IntrinsicTimeTrend,
-                trendDirectionMode = (float)e.IntrinsicTimeMode,
-                futuresPrice = (float)e.IntrinsicPrice,
-                trendExtreme = (float)e.TrendExtreme,
-                futuresRsi = 0f
-            }))
+                e.ValueDate,
+                e.IntrinsicTime,
+                e.SequenceId,
+                (float)e.TrendDelta,
+                (float)e.IntrinsicTimeTrend,
+                (float)e.IntrinsicTimeMode,
+                (float)e.IntrinsicPrice,
+                (float)e.TrendExtreme,
+                0f)))
             .ExecuteCommandAsync();
         return CalculateStatistics(sourceSignals.Select(e => e.TrendDelta));
     }

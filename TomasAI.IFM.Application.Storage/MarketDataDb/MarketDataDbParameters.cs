@@ -398,6 +398,14 @@ internal readonly record struct InsertFuturesItiSignalIndex(DateOnly valueDate, 
 {
     public object Bind() => new object?[] { valueDate, contractId };
 }
+internal readonly record struct InsertFuturesItiTrendClassData(string symbol, DateOnly valueDate, DateTime timestamp, long sequenceId, float trendClass, float trendDirection, float trendDirectionMode, float trendDelta, float futuresRSI) : IBindValue
+{
+    public object Bind() => new object?[] { symbol, valueDate, timestamp, sequenceId, trendClass, trendDirection, trendDirectionMode, trendDelta, futuresRSI };
+}
+internal readonly record struct InsertFuturesItiTrendDeltaData(string symbol, DateOnly valueDate, DateTime timestamp, long sequenceId, float trendDelta, float trendDirection, float trendDirectionMode, float futuresPrice, float trendExtreme, float futuresRSI) : IBindValue
+{
+    public object Bind() => new object?[] { symbol, valueDate, timestamp, sequenceId, trendDelta, trendDirection, trendDirectionMode, futuresPrice, trendExtreme, futuresRSI };
+}
 internal readonly record struct InsertFuturesItiTrendClassModel(string symbol, DateOnly valueDate, DateOnly startDate, DateOnly endDate, int count, double maximum, double mean, double median, double minimum, double skewness, double stdDev, double variance, double accuracy, double areaUnderPrecisionRecallCurve, double areaUnderRocCurve, double entropy, double f1Score, byte[] modelData) : IBindValue
 {
     public object Bind() => new object?[] { symbol, valueDate, startDate, endDate, count, maximum, mean, median, minimum, skewness, stdDev, variance, accuracy, areaUnderPrecisionRecallCurve, areaUnderRocCurve, entropy, f1Score, modelData };

@@ -108,7 +108,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
     }
 
     [Fact]
-    public Task ExecuteCommandAsync_WithManyParameterValues_ExecutesBatch()
+    public Task ExecuteCommandAsync_WithManyParameterValues_ExecutesBoundedConcurrentWrites()
     {
         var scope = ScyllaFundTestData.Scope(3);
         return fixture.RunIsolatedAsync(scope, async repository =>
@@ -126,6 +126,59 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             Assert.Equal([-1L], result);
             var orders = await GetFundOrdersAsync(repository, scope.FundId);
             Assert.Equal(2, orders.Count);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteCommandAsync_WithLargeDeferredParameterSequence_ExecutesEveryRow()
+    {
+        var scope = ScyllaFundTestData.Scope(3);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var enumerationCount = 0;
+            var parameters = GetParameters();
+
+            await repository.Use(InsertFundOrder)
+                .SetParameters(parameters)
+                .ExecuteCommandAsync();
+
+            var orders = await GetFundOrdersAsync(repository, scope.FundId);
+            Assert.Equal(256, orders.Count);
+            Assert.Equal(256, enumerationCount);
+
+            IEnumerable<object?[]> GetParameters()
+            {
+                for (var index = 0; index < 256; index++)
+                {
+                    enumerationCount++;
+                    yield return CreateOrderBindValues(scope, scope.OrderId + index, "Open");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public Task ExecuteCommandAsync_WithCancelledToken_DoesNotEnumerateOrWriteRows()
+    {
+        var scope = ScyllaFundTestData.Scope(3);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var enumerationCount = 0;
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.Use(InsertFundOrder)
+                .SetParameters(GetParameters())
+                .ExecuteCommandAsync(cancellation.Token));
+
+            Assert.Equal(0, enumerationCount);
+            Assert.Empty(await GetFundOrdersAsync(repository, scope.FundId));
+
+            IEnumerable<object?[]> GetParameters()
+            {
+                enumerationCount++;
+                yield return CreateOrderBindValues(scope, scope.OrderId, "Open");
+            }
         });
     }
 
@@ -174,6 +227,30 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             var fund = await GetFundAsync(repository, scope.FundId);
             Assert.NotNull(fund);
             Assert.Equal(450m, fund.Balance);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteQueuedCommandsAsync_LoggedBatch_ExecutesEveryBindValue()
+    {
+        var scope = ScyllaFundTestData.Scope(5);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var queuedCommands = new List<object>
+            {
+                repository.Use(InsertFundOrder)
+                    .SetParameters(new object?[][]
+                    {
+                        CreateOrderBindValues(scope, scope.OrderId, "Open"),
+                        CreateOrderBindValues(scope, scope.SecondOrderId, "Closed")
+                    })
+                    .QueueCommand()
+            };
+
+            await repository.ExecuteQueuedCommandsAsync(queuedCommands, useTransaction: true);
+
+            var orders = await GetFundOrdersAsync(repository, scope.FundId);
+            Assert.Equal(2, orders.Count);
         });
     }
 
