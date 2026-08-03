@@ -110,9 +110,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Prompts", "Prompts", "{719E
 		prompts\ifm-code-prompts.txt = prompts\ifm-code-prompts.txt
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Messaging.Nats", "TomasAI.IFM.Framework.Messaging.NatsJetStream\TomasAI.IFM.Framework.Messaging.Nats.csproj", "{5523824A-782D-4579-BF45-B6B1E018E991}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Messaging.Nats", "TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj", "{5523824A-782D-4579-BF45-B6B1E018E991}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Messaging.Nats.UnitTests", "TomasAI.IFM.Framework.Messaging.NatsJetStream.UnitTests\TomasAI.IFM.Framework.Messaging.Nats.UnitTests.csproj", "{E8986D94-5AAB-4676-B833-C9F8C6E654B4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Messaging.Nats.UnitTests", "TomasAI.IFM.Framework.Messaging.Nats.UnitTests\TomasAI.IFM.Framework.Messaging.Nats.UnitTests.csproj", "{E8986D94-5AAB-4676-B833-C9F8C6E654B4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests", "TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests\TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests.csproj", "{14F012BD-FCCF-449E-B5FD-7E7E2705035F}"
 EndProject
@@ -158,13 +158,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Stora
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.Blackboard.UnitTests", "TomasAI.IFM.Application.Blackboard.UnitTests\TomasAI.IFM.Application.Blackboard.UnitTests.csproj", "{C12E5545-CC0D-4529-B584-FF823BFB006B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Application.Actor", "TomasAI.IFM.Domain.Application.Actor\TomasAI.IFM.Domain.Application.Actor.csproj", "{BD9F1624-5D19-435A-A1AC-7DED989A4641}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Application.Actor", "TomasAI.IFM.Domain.Application\TomasAI.IFM.Domain.Application.Actor.csproj", "{BD9F1624-5D19-435A-A1AC-7DED989A4641}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Application.Actor.BDDTests", "TomasAI.IFM.Domain.Application.Actor.BDDTests\TomasAI.IFM.Domain.Application.Actor.BDDTests.csproj", "{543B7B45-BB66-4EA1-BDF9-1A85B8E553DC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Application.Actor.BDDTests", "TomasAI.IFM.Domain.Application.BDDTests\TomasAI.IFM.Domain.Application.Actor.BDDTests.csproj", "{543B7B45-BB66-4EA1-BDF9-1A85B8E553DC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Application.Actor.UnitTests", "TomasAI.IFM.Domain.Application.Actor.UnitTests\TomasAI.IFM.Domain.Application.Actor.UnitTests.csproj", "{CC353550-6EA2-48F2-AD7C-A86EBD11A906}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Application.Actor.UnitTests", "TomasAI.IFM.Domain.Application.UnitTests\TomasAI.IFM.Domain.Application.Actor.UnitTests.csproj", "{CC353550-6EA2-48F2-AD7C-A86EBD11A906}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Application.Actor.IntegratedTests", "TomasAI.IFM.Domain.Application.Actor.IntegratedTests\TomasAI.IFM.Domain.Application.Actor.IntegratedTests.csproj", "{6EF4B4F1-83EF-43A8-8FA6-9A67ADCF15EC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Application.Actor.IntegratedTests", "TomasAI.IFM.Domain.Application.IntegratedTests\TomasAI.IFM.Domain.Application.Actor.IntegratedTests.csproj", "{6EF4B4F1-83EF-43A8-8FA6-9A67ADCF15EC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Fund.Shared", "TomasAI.IFM.Domain.Fund.Shared\TomasAI.IFM.Domain.Fund.Shared.csproj", "{B4CDF026-9BDA-4A93-940F-12D138EF6F30}"
 EndProject
