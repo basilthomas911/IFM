@@ -6,7 +6,7 @@
 
 - repository, command, query, transaction, and result-mapping abstractions;
 - SQL Server, PostgreSQL, and ScyllaDB provider implementations;
-- ADO.NET record adapters and expression-based object maps;
+- ADO.NET/Cassandra record adapters and explicit ordinal mapper delegates;
 - CSV and JSON `IDataReader` implementations;
 - local-file and HTTP string readers;
 - SQL Server bulk copy; and
@@ -75,10 +75,10 @@ ObjectDataRepository<TRepo>.Use(...)
   -> DbProvider creates a command/data/URI context
   -> ObjectDataRepositoryContext selects a provider by ProviderName
   -> SQL Server, PostgreSQL, or ScyllaDB provider executes
-  -> IObjectMapReader or IObjectDataRecord maps each result
+  -> caller-supplied Func<IObjectDataRecord, TResult> maps each row by ordinal
 ```
 
-`ObjectDataRepository<TRepo>` is the base for application repositories. At construction it reads an `IDbConnectionSetting`, stores the connection string and provider name, creates an `ObjectDataDbProvider`, and invokes `OnCreateModel`. Consumers can then:
+`ObjectDataRepository<TRepo>` is the base for application repositories. At construction it reads an `IDbConnectionSetting`, stores the credential-free connection string and provider name, and creates an `ObjectDataDbProvider`. Consumers can then:
 
 - select stored procedures by enum or expression;
 - select raw command text;
@@ -104,18 +104,39 @@ SQL Server and PostgreSQL providers implement command execution, queued commands
 
 ScyllaDB uses prepared/bound statements, Cassandra `RowSet` results, typed row accessors, and custom `DateOnly`, `DateTime`, and `TimeOnly` serializers. Cassandra/Scylla transactions are not implemented.
 
+Every provider implements the same `IObjectRepositoryProvider` surface:
+
+| Contract method | Behavior |
+| --- | --- |
+| `ExecuteCommandAsync` | Executes command text for zero, one, or multiple parameter objects. |
+| `QueueCommand` / `ExecuteQueuedCommandsAsync` | Creates provider-specific queued commands and executes the complete queue. |
+| `GetObjectsAsync` | Materializes mutable results through an ordinal mapper. |
+| `GetImmutableObjectsAsync` | Materializes value-type results through an ordinal mapper; ScyllaDB returns a disposable pooled buffer. |
+| `GetObjectAsync` | Maps the first row, or returns the default/null result when no row exists. |
+| `GetScalarAsync` | Maps a scalar/value result through the same record contract. |
+| `ExecuteMapReduceAsync` | Lazily maps rows and invokes the reducer while the provider result is available. |
+
+### PostgreSQL and ScyllaDB credentials
+
+PostgreSQL and ScyllaDB base connection strings must contain endpoint/database settings only. Connection creation resolves credentials from environment variables and rejects base strings containing `Username`, `User ID`, or `Password` values.
+
+`DatabaseCredentialResolver` selects the credential key from `DOTNET_ENVIRONMENT` and `ASPNETCORE_ENVIRONMENT`. The default is Development; if both variables are present they must resolve to the same supported environment. Credentials use case-insensitive JSON properties in the form `{"userid":"...","password":"..."}`.
+
+PostgreSQL injects the resolved values with `NpgsqlConnectionStringBuilder` immediately before constructing `NpgsqlConnection`. ScyllaDB parses the credential-free connection string with `CassandraConnectionStringBuilder` and applies the values through `Cluster.Builder().WithCredentials(...)`. Parsed credentials are cached by environment-variable name and JSON value, and validation messages do not include the secret. See [`docs/database-credentials.md`](../../docs/database-credentials.md) for the complete key matrix and deployment examples.
+
+This environment credential path is limited to PostgreSQL and ScyllaDB; the retained SQL Server provider's connection configuration is unchanged.
+
 Provider-name handling is not fully consistent: parameter and transaction factories check `System.Data.Cassandra` or `System.Data.Scylla`, while the connection/provider factories check `System.Data.ScyllaDb`. New configuration must be tested end to end; centralizing these identifiers would prevent a Scylla configuration from accidentally taking a SQL Server fallback path.
 
 ## Mapping and Record Access
 
-`DbModel<TRepo>`, `DbMap<TEntity>`, and `ObjectDataTypeMapper<TEntity>` build entity maps from expressions during `OnCreateModel`. Two mapping styles are supported:
+Database result mapping is ordinal-only. Query, single, scalar, immutable, map/reduce, data-reader, and file-reader APIs require a `Func<IObjectDataRecord, TResult>` supplied by the caller. The former result-type map, expression/property map, constructor map, and reflection-based object construction path has been removed.
 
-- property maps assign database fields to writable entity properties; and
-- parameter maps describe constructor parameters by field name and index.
+Application contexts normally keep static mapper methods close to their SQL/CQL. A mapper constructs the result directly with `GetInt(0)`, `GetString(1)`, and the other typed ordinal accessors. Consequently, the selected column order is a compiled persistence contract: changing a projection requires changing its mapper in the same commit and exercising it through integration tests.
 
-Maps are stored in `IObjectRepository.ResultTypeMap` by result type. `ObjectDataReader<TResult>` selects a map, iterates an underlying `IDataReader`, and creates objects by reflection or a caller-supplied mapper.
+`AdoNetDataRecord` adapts SQL Server/PostgreSQL `IDataReader` instances and `ScyllaDbDataRecord` adapts Cassandra rows. Both expose the same `IObjectDataRecord` typed API for numeric primitives, booleans, strings, GUIDs, byte arrays, enums, and date/time values. The hot result path no longer performs property lookup, reflective construction, or intermediate result-object arrays.
 
-`IObjectMapReader<TResult>` offers expression-based typed reads. `IObjectDataRecord` offers allocation-conscious, index-based reads. `AdoNetDataRecord` adapts an `IDataReader`; `ScyllaDbDataRecord` adapts a Cassandra row. Supported values include numeric primitives, booleans, strings, GUIDs, byte arrays, enums, and date/time types.
+Reflection still exists outside database result materialization. PostgreSQL, SQL Server, and ScyllaDB inspect and cache public properties when binding parameter objects; CSV/JSON readers inspect their source type to define a tabular schema; and the CSV writer reflects source properties. These paths are separate from ordinal result mapping.
 
 `PooledBufferBuilder<T>` rents memory from `MemoryPool<T>` and transfers ownership to `PooledReadOnlyBuffer<T>`. The returned buffer must be disposed to release the owner and rejects access after disposal.
 
@@ -128,7 +149,7 @@ Maps are stored in `IObjectRepository.ResultTypeMap` by result type. `ObjectData
 
 `CsvDataReader<TData>` reflects public properties to define its schema, treats the first input line as a header by default, builds a case-insensitive header index, and converts cells to common primitive/nullable types. `CsvWriter` reflects public properties into a header and rows.
 
-`JsonDataReader<TData>` uses Newtonsoft.Json to deserialize a JSON array, then exposes reflected property values through `IDataReader`. `ObjectDataMapReader<TResult>` maps either reader through expression-selected result properties.
+`JsonDataReader<TData>` uses Newtonsoft.Json to deserialize a JSON array, then exposes reflected property values through `IDataReader`. `ObjectDataReaderContext` and `ObjectFileUriContext` adapt either reader to `IObjectDataRecord` and invoke the caller's ordinal mapper.
 
 Current parser constraints are important:
 
@@ -152,13 +173,19 @@ Most provider errors are logged and/or wrapped according to the concrete provide
 
 To add a provider, implement connection, parameter, transaction, reader, and `IObjectRepositoryProvider` adapters, then update every provider factory consistently. Add unit tests for routing and conversions plus opt-in integration tests for commands, queries, transactions, and cleanup.
 
-To add a mapped model, override `OnCreateModel` in the application repository and call `model.Map(...).Properties(...)` or `.Parameters(...)`. Treat field names, constructor indexes, provider identifiers, and stored-procedure names as persistence contracts.
+To add a result model, add a static `IObjectDataRecord` mapper beside the repository operation and pass it explicitly to the execution method. Keep every selected column and typed ordinal accessor in identical order. Treat projection order, parameter names, provider identifiers, and stored-procedure names as persistence contracts.
 
 ## Build and Test
 
 ```powershell
 dotnet build TomasAI.IFM.Framework.Storage/TomasAI.IFM.Framework.Storage.csproj --configuration Debug
 dotnet test TomasAI.IFM.Framework.Storage.UnitTests/TomasAI.IFM.Framework.Storage.UnitTests.csproj --configuration Debug
+
+# Real ScyllaDB provider contract suite
+dotnet test TomasAI.IFM.Application.Storage.IntegrationTests/TomasAI.IFM.Application.Storage.IntegrationTests.csproj --filter Category=ScyllaDBIntegration
+
+# Real PostgreSQL provider contract suite
+dotnet test TomasAI.IFM.Application.Storage.IntegrationTests/TomasAI.IFM.Application.Storage.IntegrationTests.csproj --filter Category=PostgresIntegration
 ```
 
-The unit and integration test implementations are documented in their respective `Docs` folders.
+The provider suites cover every `IObjectRepositoryProvider` method plus validation behavior, deterministic cleanup, ordinal type mapping, and PostgreSQL rollback. Their configuration and isolation contracts are documented in the ScyllaDB and PostgreSQL README files under `TomasAI.IFM.Application.Storage.IntegrationTests/FrameworkStorage`.

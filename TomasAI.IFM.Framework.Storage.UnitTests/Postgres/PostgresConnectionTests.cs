@@ -7,8 +7,22 @@ using TomasAI.IFM.Framework.Storage.Postgres;
 
 namespace TomasAI.IFM.Framework.Storage.UnitTests.Postgres;
 
-public class PostgresConnectionTests
+[Collection(PostgresCredentialEnvironmentCollection.Name)]
+public class PostgresConnectionTests : IDisposable
 {
+    readonly string? _previousDotNetEnvironment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+    readonly string? _previousAspNetCoreEnvironment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+    readonly string? _previousPostgresTestKey = Environment.GetEnvironmentVariable("POSTGRES_TEST_KEY");
+
+    public PostgresConnectionTests()
+    {
+        Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", "Test");
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
+        Environment.SetEnvironmentVariable(
+            "POSTGRES_TEST_KEY",
+            "{\"userid\":\"unit-test-user\",\"password\":\"unit-test-password\"}");
+    }
+
     // --- PostgresObjectDataRepositoryConnection ---
 
     [Fact]
@@ -16,7 +30,7 @@ public class PostgresConnectionTests
     {
         // Arrange
         var connection = new PostgresObjectDataRepositoryConnection();
-        var connectionString = "Host=localhost;Database=testdb;Username=user;Password=pass";
+        var connectionString = "Host=localhost;Database=testdb";
 
         // Act
         var result = connection.As<NpgsqlConnection>(connectionString);
@@ -25,6 +39,9 @@ public class PostgresConnectionTests
         result.Should().NotBeNull();
         result.Should().BeOfType<NpgsqlConnection>();
         result.ConnectionString.Should().Contain("localhost");
+        var builder = new NpgsqlConnectionStringBuilder(result.ConnectionString);
+        builder.Username.Should().Be("unit-test-user");
+        builder.Password.Should().Be("unit-test-password");
     }
 
     [Fact]
@@ -32,7 +49,7 @@ public class PostgresConnectionTests
     {
         // Arrange
         var connection = new PostgresObjectDataRepositoryConnection();
-        var connectionString = "Host=localhost;Database=testdb;Username=user;Password=pass";
+        var connectionString = "Host=localhost;Database=testdb";
 
         // Act
         var result1 = connection.As<NpgsqlConnection>(connectionString);
@@ -40,6 +57,13 @@ public class PostgresConnectionTests
 
         // Assert
         result1.Should().NotBeSameAs(result2);
+    }
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", _previousDotNetEnvironment);
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", _previousAspNetCoreEnvironment);
+        Environment.SetEnvironmentVariable("POSTGRES_TEST_KEY", _previousPostgresTestKey);
     }
 
     // --- PostgresObjectDataRepositoryParameter ---
@@ -71,4 +95,10 @@ public class PostgresConnectionTests
         // Assert
         result1.Should().NotBeSameAs(result2);
     }
+}
+
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class PostgresCredentialEnvironmentCollection
+{
+    public const string Name = "PostgreSQL credential environment";
 }

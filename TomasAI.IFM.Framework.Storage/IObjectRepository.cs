@@ -12,11 +12,8 @@ public interface IObjectRepository
     string Schema { get; set; }
     CommandType CommandType { get; }
     CommandType QueuedCommandType { get; }
-    Dictionary<Type, object> ResultTypeMap { get; }
-
     IObjectRepositoryConnection CreateConnection();
     DbParameter CreateParameter();
-    void AddResultTypeMap<TEntity>(DbMap<TEntity> mappedEntity);
     IObjectRepositoryContext Use(string commandText);
     //IObjectRepositoryContext Use<TStoredProc>(Expression<Func<TStoredProc, object>> spPropertyNameExpr, bool useParamNameAsDbName = true) where TStoredProc : class;
     //IObjectRepositoryContext Use<TStoredProc>(Expression<Func<TStoredProc, Enum>> spPropertyNameExpr) where TStoredProc : Enum;

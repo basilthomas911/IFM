@@ -23,7 +23,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
         public ReferenceDatabaseFixture()
         {
             var dbConn = new DbConnectionSettings()
-                             .Add("ReferenceDbConnection", "Contact Points=localhost;Port=9042;Username=ifmapp;Password=monkey35907;Default Keyspace=reference_test_db", "System.Data.ScyllaDb");
+                             .Add("ReferenceDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=reference_test_db", "System.Data.ScyllaDb");
 
             var diContainer = new Dictionary<Type, ReferenceDbContext>();
             var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);

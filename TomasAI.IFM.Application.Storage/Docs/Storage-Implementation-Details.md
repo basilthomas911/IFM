@@ -13,7 +13,7 @@
 - external data-reader contexts for economic calendars and yield curves; and
 - a DI-backed context factory, resolver, and limited context pool.
 
-The project does not select a database vendor directly. Each context receives a named `IDbConnectionSetting`; its `ProviderName` and connection string determine which framework provider creates connections, commands, parameters, readers, and bulk-copy operations.
+The project does not select a database vendor directly. Each context receives a named `IDbConnectionSetting`; its `ProviderName` and credential-free connection string determine which framework provider creates connections, commands, parameters, readers, and bulk-copy operations. Result materialization is explicit ordinal mapping through `IObjectDataRecord`; application contexts do not register reflection-based result maps.
 
 ## Complete project folder map
 
@@ -205,20 +205,21 @@ Each factory property resolves on access rather than retaining a context instanc
 Every active context inherits `ObjectDataRepository<TRepo>` from Framework Storage. Construction:
 
 1. selects a named connection from `IDbConnectionSettings`;
-2. stores its provider name and connection string;
-3. creates the provider adapter; and
-4. invokes `OnCreateModel` to register result/parameter mappings.
+2. stores its provider name and credential-free connection string; and
+3. creates the provider adapter.
 
 Operations then use the fluent framework surface:
 
 ```text
 repository.Use(command text / stored procedure / reader / bulk table)
           .SetParameters(...)
-          .ExecuteQueryAsync / ExecuteSingleAsync / ExecuteScalarAsync /
-           ExecuteCommandAsync / ExecuteMapReduceAsync
+          .ExecuteQueryAsync(ordinal mapper) /
+           ExecuteQueryImmutableAsync(ordinal mapper) /
+           ExecuteSingleAsync(ordinal mapper) / ExecuteScalarAsync(ordinal mapper) /
+           ExecuteCommandAsync / ExecuteMapReduceAsync(ordinal mapper, reducer)
 ```
 
-Provider-specific ADO.NET objects are created below this application project according to the connection setting's `ProviderName`.
+Provider-specific objects are created below this application project according to the connection setting's `ProviderName`. PostgreSQL and ScyllaDB credentials are added by Framework Storage only when their physical connection/cluster is created.
 
 ## Named connection settings
 
@@ -241,6 +242,19 @@ Hosts must register settings for the contexts they resolve:
 | Yield curve external reader | `YieldCurveRatesDbConnection` |
 
 Schema contexts reuse their corresponding runtime context setting. `EventSourceSchemaDb` uses `EventSourceDbConnection`; it does not use the actor-specific connection key.
+
+### Credential-free configuration
+
+All PostgreSQL and ScyllaDB connection strings in solution source/configuration omit user IDs and passwords. Hosts provide a provider- and environment-specific JSON environment variable instead:
+
+| Environment | PostgreSQL | ScyllaDB |
+| --- | --- | --- |
+| Development (default) | `POSTGRES_DEV_KEY` | `SCYLLADB_DEV_KEY` |
+| Test | `POSTGRES_TEST_KEY` | `SCYLLADB_TEST_KEY` |
+| Staging | `POSTGRES_STAGING_KEY` | `SCYLLADB_STAGING_KEY` |
+| Production | `POSTGRES_PROD_KEY` | `SCYLLADB_PROD_KEY` |
+
+Each value has the case-insensitive schema `{"userid":"...","password":"..."}`. `DOTNET_ENVIRONMENT` and `ASPNETCORE_ENVIRONMENT` select the row; neither being set means Development, while conflicting or unsupported values fail before connection creation. A PostgreSQL or ScyllaDB base connection string containing an inline user ID or password is rejected. See [`docs/database-credentials.md`](../../docs/database-credentials.md) for aliases, examples, validation, and rotation guidance.
 
 ## Domain context catalog
 
@@ -327,7 +341,10 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 
 ## Bulk, mapping, and read/write conventions
 
-- Domain contexts map database columns/parameters to shared read models in `OnCreateModel`.
+- Domain contexts declare static mapper methods that read `IObjectDataRecord` by zero-based ordinal and construct shared read models directly.
+- Every SQL/CQL projection must remain in exactly the order expected by its mapper. Alias/name matching is not performed on the result hot path.
+- Query, single, scalar, immutable, and map/reduce calls receive the mapper explicitly; there is no `OnCreateModel`, result-map registry, property assignment, or reflection-based result construction.
+- Parameter objects remain name-bound by the provider. Framework Storage caches reflected parameter properties; this is distinct from result mapping.
 - Single-record writes typically execute checked-in CQL/SQL with parameter objects.
 - Several Fund, Market Data, and Trade APIs accept `IEnumerable<T>` and return inserted row counts for bulk operations.
 - Combined contexts commonly expose `DbReader => this` and `DbWriter => this`, giving consumers capability-oriented interfaces over one repository object.
@@ -349,6 +366,8 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 - **External reader failure policies differ.** Economic Calendars converts/skips rows and returns empty on outer failure; Yield Curve Rates lets failures propagate.
 - **Some contexts are very broad.** `MarketDataDbContext` and `TradeDbContext` combine many aggregates and analytics tables, increasing change and regression scope.
 - **Provider syntax is mixed by design.** SQL and CQL catalogs coexist; connection provider settings must match the command/schema syntax selected by each context.
+- **Ordinal projections are intentionally strict.** A reordered or inserted selected column can silently map the wrong value when compatible types are involved; projection and mapper changes must be reviewed and tested together.
+- **Database credentials are runtime requirements.** PostgreSQL and ScyllaDB fail fast when their selected environment variable is absent, malformed, conflicts with the application environment, or when a base string still embeds credentials.
 - **Legacy build artifacts remain.** `net8.0` output/intermediate folders are not part of the current `net10.0` target.
 
 ## Verification locations
@@ -356,6 +375,9 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 Storage behavior is validated primarily outside this project:
 
 - `TomasAI.IFM.Application.Storage.IntegrationTests` exercises Event Source, Fund, Log, Market Data, Option Pricer, Predictive Model, Reference, Securities, and Trade contexts.
+- Its `FrameworkStorage/ScyllaDb` suite contains 14 real-provider tests across all four Fund tables. It covers every `IObjectRepositoryProvider` method, both Scylla queued-command modes, ordinal Fund types, argument guards, and disposable pooled immutable results.
+- Its `FrameworkStorage/Postgres` suite contains 15 real-provider tests across all five event-source tables. It covers the same provider API surface, ordinal PostgreSQL types, argument guards, and rollback when a later queued command fails.
+- Both provider suites disable collection parallelism, reserve deterministic negative identifiers/names, clean before and after every test, verify cleanup, and avoid production databases. They are selected with `Category=ScyllaDBIntegration` or `Category=PostgresIntegration`.
 - `TomasAI.IFM.Application.Storage.LoadTests` covers storage load scenarios.
 - `TomasAI.IFM.Framework.Storage.UnitTests` validates lower-level provider-neutral repository behavior.
 - Event projector persistence tests exercise per-projector state in the Event Source database.
@@ -363,9 +385,9 @@ Storage behavior is validated primarily outside this project:
 ## Safe extension points
 
 1. Add new operations to capability-specific read/write interfaces before implementing the context method.
-2. Keep parameter and command catalogs aligned with model mappings and integration tests.
+2. Keep command projection order, ordinal mapper access, parameter objects, and integration tests aligned.
 3. Add schema objects in dependency order and drop them in reverse through `SchemaObjectDefinition`.
-4. Treat connection-setting names and provider syntax as deployment contracts.
+4. Treat connection-setting names, credential environment keys, and provider syntax as deployment contracts; never add PostgreSQL or ScyllaDB credentials back to a base connection string.
 5. Complete and test pool overloads before exposing additional pooled contexts.
 6. Prefer explicit resolution errors over null-forgiving casts when evolving the factory/resolver.
 7. Decide whether excluded legacy folders should be migrated, split into separate projects, or removed to avoid ambiguity.

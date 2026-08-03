@@ -9,11 +9,15 @@ namespace TomasAI.IFM.Framework.Storage;
 /// </summary>
 /// <param name="db"></param>
 /// <param name="options"></param>
-public class ObjectDataReaderContext(IObjectRepository db, IDataReaderOptions options)
-    : IObjectDataReaderContext
+public class ObjectDataReaderContext : IObjectDataReaderContext
 {
-    readonly IObjectRepository _db = IsArgumentNull.Set(db);
-    readonly IDataReaderOptions _options = IsArgumentNull.Set(options);
+    readonly IDataReaderOptions _options;
+
+    public ObjectDataReaderContext(IObjectRepository db, IDataReaderOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        _options = IsArgumentNull.Set(options);
+    }
 
     /// <summary>
     /// read data external data by data reader type
@@ -22,8 +26,9 @@ public class ObjectDataReaderContext(IObjectRepository db, IDataReaderOptions op
     /// <returns></returns>
     /// <exception cref="NotImplementedException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
-    public async Task<ICollection<TResult>> ReadAsync<TResult>()
+    public async Task<ICollection<TResult>> ReadAsync<TResult>(Func<IObjectDataRecord, TResult> mapper)
     {
+        ArgumentNullException.ThrowIfNull(mapper);
         var resultSet = default(ICollection<TResult>);
         return _options.DataReaderType switch
         {
@@ -34,29 +39,27 @@ public class ObjectDataReaderContext(IObjectRepository db, IDataReaderOptions op
 
         async ValueTask< ICollection<TResult>> GetCsvDataAsync()
         {
-            if (!_db.ResultTypeMap.ContainsKey(typeof(TResult)))
-                throw new InvalidOperationException($"ObjectDataReaderContext.GetCsvDataAsync: unable to map resultset to type: '{typeof(TResult).Name}'");
-
             var stringReader = new HttpStringReader(_options.Uri);
-            using (var dataReader = new CsvDataReader<TResult>(stringReader))
-            {
-               resultSet = new CsvObjectDataReader<TResult>(dataReader, _db.ResultTypeMap).ReadAll();
-            }
+            using var dataReader = new CsvDataReader<TResult>(stringReader);
+            resultSet = ReadAll(dataReader);
             return await ValueTask.FromResult(resultSet);
         }
 
         async ValueTask<ICollection<TResult>> GetJsonDataAsync()
         {
-            if (!_db.ResultTypeMap.ContainsKey(typeof(TResult)))
-                throw new InvalidOperationException($"ObjectDataReaderContext.GetJsonDataAsync: unable to map resultset to type: '{typeof(TResult).Name}'");
-
             var stringReader = new HttpStringReader(_options.Uri);
-            using (var dataReader = new JsonDataReader<TResult>(stringReader))
-            {
-                resultSet = new JsonObjectDataReader<TResult>(dataReader, _db.ResultTypeMap).ReadAll();
-            }
+            using var dataReader = new JsonDataReader<TResult>(stringReader);
+            resultSet = ReadAll(dataReader);
             return await ValueTask.FromResult(resultSet);
         }
-       
+
+        ICollection<TResult> ReadAll(System.Data.IDataReader dataReader)
+        {
+            List<TResult> results = [];
+            var record = new AdoNetDataRecord().SetReader(dataReader);
+            while (dataReader.Read())
+                results.Add(mapper(record));
+            return results;
+        }
     }
 }

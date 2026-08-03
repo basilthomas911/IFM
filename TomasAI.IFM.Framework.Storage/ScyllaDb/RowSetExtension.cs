@@ -25,7 +25,7 @@ public static class RowSetExtension
 /// <remarks>
 /// This class is designed for reuse across rows. Call <see cref="SetRow"/> to advance to the next row
 /// without allocating a new instance. All accessor methods return the default value when the column
-/// is null, matching the behaviour of <c>ObjectArrayExtension</c>.
+/// is null.
 /// </remarks>
 public sealed class ScyllaDbDataRecord : IObjectDataRecord
 {
@@ -47,6 +47,16 @@ public sealed class ScyllaDbDataRecord : IObjectDataRecord
     {
         _row = row;
         return this;
+    }
+
+    /// <inheritdoc />
+    public bool IsNull(int index) => _row.IsNull(index);
+
+    /// <inheritdoc />
+    public short GetShort(int index)
+    {
+        if (_row.IsNull(index)) return default;
+        try { return _row.GetValue<short>(index); } catch { return default; }
     }
 
     /// <inheritdoc />
@@ -154,6 +164,13 @@ public sealed class ScyllaDbDataRecord : IObjectDataRecord
             }
             catch { return default; }
         }
+    }
+
+    /// <inheritdoc />
+    public TimeSpan GetTimeSpan(int index)
+    {
+        if (_row.IsNull(index)) return default;
+        try { return _row.GetValue<TimeSpan>(index); } catch { return default; }
     }
 
     /// <inheritdoc />

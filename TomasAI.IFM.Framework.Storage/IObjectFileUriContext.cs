@@ -5,5 +5,5 @@
 /// </summary>
 public interface IObjectFileUriContext 
 {
-    Task<ICollection<TResult>> ReadAsync<TResult>(Func<IObjectMapReader<TResult>, TResult> dataReaderMapper);
+    Task<ICollection<TResult>> ReadAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper);
 }

@@ -29,14 +29,6 @@ public class OptionPricerDbContext(
     /// </summary>
     public override OptionPricerDbContext Database => this;
 
-    /// <summary>
-    /// initialize option pricer view model mappings
-    /// </summary>
-    /// <param name="model"></param>
-    public override void OnCreateModel(DbModel<OptionPricerDbContext> model)
-    {
-    }
-
     static OptionPricerDeviceReadModel MapToOptionPricerDevice<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new (
             deviceId: e.GetInt(0),

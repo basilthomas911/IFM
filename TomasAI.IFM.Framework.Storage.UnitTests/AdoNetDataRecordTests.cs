@@ -27,6 +27,24 @@ public class AdoNetDataRecordTests
         result.Should().BeSameAs(record);
     }
 
+    [Fact]
+    public void IsNullDelegatesToReader()
+    {
+        var mockReader = CreateMockReader(isDbNull: true);
+        var record = new AdoNetDataRecord().SetReader(mockReader);
+        record.IsNull(2).Should().BeTrue();
+        mockReader.Received(1).IsDBNull(2);
+    }
+
+    [Fact]
+    public void GetShortReturnsValueWhenNotNull()
+    {
+        var mockReader = CreateMockReader();
+        mockReader.GetInt16(0).Returns((short)42);
+        var record = new AdoNetDataRecord().SetReader(mockReader);
+        record.GetShort(0).Should().Be(42);
+    }
+
     // --- GetInt ---
 
     [Fact]
@@ -336,6 +354,16 @@ public class AdoNetDataRecordTests
         record.GetTimeOnly(0).Should().Be(new TimeOnly(14, 30, 0));
     }
 
+    [Fact]
+    public void GetTimeSpanReturnsValueWhenNotNull()
+    {
+        var expected = TimeSpan.FromMinutes(90);
+        var mockReader = CreateMockReader();
+        mockReader.GetValue(0).Returns(expected);
+        var record = new AdoNetDataRecord().SetReader(mockReader);
+        record.GetTimeSpan(0).Should().Be(expected);
+    }
+
     // --- GetEnum ---
 
     [Fact]
@@ -394,12 +422,13 @@ public class AdoNetDataRecordTests
     }
 
     [Fact]
-    public void GetStringReturnsEmptyOnException()
+    public void GetStringConvertsTypedValueWhenDirectReadFails()
     {
         var mockReader = CreateMockReader();
         mockReader.GetString(0).Throws(new InvalidCastException());
+        mockReader.GetValue(0).Returns(42);
         var record = new AdoNetDataRecord().SetReader(mockReader);
-        record.GetString(0).Should().Be(string.Empty);
+        record.GetString(0).Should().Be("42");
     }
 
     // --- GetBytes ---

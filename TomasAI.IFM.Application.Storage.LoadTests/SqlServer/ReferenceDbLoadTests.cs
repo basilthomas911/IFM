@@ -40,16 +40,16 @@ namespace TomasAI.IFM.Application.Storage.LoadTests.SqlServer
             await dbRef.InsertEconomicCalendarsAsync(resultSet);
             return;
 
-            static EconomicCalendarReadModel MapToEconomicCalendar(IObjectMapReader<EconomicCalendarReadModel> o)
+            static EconomicCalendarReadModel MapToEconomicCalendar(IObjectDataRecord o)
                 => new(
-                    o.Get(e => e.EventDate),
-                    o.Get(e => e.CountryCode),
-                    o.Get(e => e.EventName),
-                    o.Get(e => e.Actual),
-                    o.Get(e => e.Forecast),
-                    o.Get(e => e.Prior),
-                    o.Get(e => e.CreatedOn),
-                    o.Get(e => e.CreatedBy)
+                    o.GetDateTime(0),
+                    o.GetString(1),
+                    o.GetString(2),
+                    o.GetString(3),
+                    o.GetString(4),
+                    o.GetString(5),
+                    o.GetDateTime(6),
+                    o.GetString(7)
                 );
         }
     }

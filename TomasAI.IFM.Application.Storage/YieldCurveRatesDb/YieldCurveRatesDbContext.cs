@@ -27,31 +27,21 @@ public class YieldCurveRatesDbContext(
     /// </summary>
     public override YieldCurveRatesDbContext Database => this;
 
-    /// <summary>
-    /// initialize yield curve rates view model mappings
-    /// </summary>
-    /// <param name="model"></param>
-    public override void OnCreateModel(DbModel<YieldCurveRatesDbContext> model)
-    {
-        YieldCurveRates = model.Map(e => e.YieldCurveRates)
-            .Parameters(e =>
-                e.Set(o => o.Date)
-                 .Set(o => o.Month1)
-                 .Set(o => o.Month2)
-                 .Set(o => o.Month3)
-                 .Set(o => o.Month6)
-                 .Set(o => o.Year1)
-                 .Set(o => o.Year2)
-                 .Set(o => o.Year3)
-                 .Set(o => o.Year5)
-                 .Set(o => o.Year7)
-                 .Set(o => o.Year10)
-                 .Set(o => o.Year20)
-                 .Set(o => o.Year30)
-            );
-    }
-
-    public DbMap<YieldCurveRateJsonModel> YieldCurveRates { get; private set; }
+    static YieldCurveRateJsonModel MapYieldCurveRate(IObjectDataRecord row)
+        => new(
+            row.GetDateTime(0),
+            row.GetDouble(1),
+            row.GetDouble(2),
+            row.GetDouble(3),
+            row.GetDouble(4),
+            row.GetDouble(5),
+            row.GetDouble(6),
+            row.GetDouble(7),
+            row.GetDouble(8),
+            row.GetDouble(9),
+            row.GetDouble(10),
+            row.GetDouble(11),
+            row.GetDouble(12));
 
     /// <summary>
     /// read yield curve rates from external web site
@@ -61,7 +51,7 @@ public class YieldCurveRatesDbContext(
     {
         var yieldCurveRates = await _dbFactory.YieldCurveRatesDb
             .Use(connectionString => new DataReaderOptions(connectionString))
-            .ReadAsync<YieldCurveRateJsonModel>();
+            .ReadAsync(MapYieldCurveRate);
         return [.. yieldCurveRates.Select(e => e.ToViewModel())];
     }
 

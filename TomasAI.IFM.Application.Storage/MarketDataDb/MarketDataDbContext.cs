@@ -284,17 +284,17 @@ public class MarketDataDbContext(
             futuresRsi: e.GetFloat(9)
         );
 
-    static FuturesItiTrendClassDataReadModel MapToFuturesItiTrendClassData(string e, int o)
+    static FuturesItiTrendClassDataReadModel MapToFuturesItiTrendClassData(IObjectDataRecord e)
         => new(
-            symbol: e.GetString(ref o),
-            valueDate: e.GetDateOnly(ref o),
-            timestamp: e.GetDateTime(ref o),
-            sequenceId: e.GetLong(ref o),
-            trendClass: e.GetFloat(ref o),
-            trendDirection: e.GetFloat(ref o),
-            trendDirectionMode: e.GetInt(ref o),
-            trendDelta: e.GetFloat(ref o),
-            futuresRsi: e.GetFloat(ref o)
+            symbol: e.GetString(0),
+            valueDate: e.GetDateOnly(1),
+            timestamp: e.GetDateTime(2),
+            sequenceId: e.GetLong(3),
+            trendClass: e.GetFloat(4),
+            trendDirection: e.GetFloat(5),
+            trendDirectionMode: e.GetInt(6),
+            trendDelta: e.GetFloat(7),
+            futuresRsi: e.GetFloat(8)
         );
 
     static FuturesItiTrendDeltaModelReadModel MapToFuturesItiTrendDeltaModel<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -530,18 +530,18 @@ public class MarketDataDbContext(
             rsiSlope: e.GetDouble(14)
         );
 
-    static FuturesContractV2ReadModel MapToFuturesContract(IObjectMapReader<FuturesContractV2ReadModel> o)
+    static FuturesContractV2ReadModel MapToFuturesContract(IObjectDataRecord o)
             => new(
-               o.Get(e => e.ContractId),
-               o.Get(e => e.Description),
-               o.Get(e => e.Symbol),
-               o.Get(e => e.LocalSymbol),
-               o.Get(e => e.SecurityType),
-               o.Get(e => e.Currency),
-               o.Get(e => e.Exchange),
-               o.Get(e => e.Multiplier),
-               o.Get(e => e.LastTradeDate),
-               o.Get(e => e.CurrentlyTraded));
+               o.GetString(0),
+               o.GetString(1),
+               o.GetString(2),
+               o.GetString(3),
+               o.GetString(4),
+               o.GetString(5),
+               o.GetString(6),
+               o.GetString(7),
+               o.GetDateOnly(8),
+               o.GetBool(9));
 
     static TradeLiveFeedReadModel MapToTradeLiveFeed<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(

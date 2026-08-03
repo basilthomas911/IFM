@@ -4,13 +4,22 @@ namespace TomasAI.IFM.Framework.Storage;
 /// Provides index-based typed access to column values in a data row.
 /// </summary>
 /// <remarks>
-/// This interface mirrors the accessor methods defined in <c>ObjectArrayExtension</c>,
-/// enabling implementations to read column values directly from the underlying data source
+/// This interface enables implementations to read column values directly from the underlying data source
 /// (e.g., a Cassandra <c>Row</c> or ADO.NET <c>IDataRecord</c>) without requiring an
 /// intermediate <c>object[]</c> allocation or boxing for value types.
 /// </remarks>
 public interface IObjectDataRecord
 {
+    /// <summary>
+    /// Determines whether the value at the specified column index is null.
+    /// </summary>
+    bool IsNull(int index);
+
+    /// <summary>
+    /// Retrieves the 16-bit integer value at the specified column index.
+    /// </summary>
+    short GetShort(int index);
+
     /// <summary>
     /// Retrieves the integer value at the specified column index.
     /// </summary>
@@ -55,6 +64,11 @@ public interface IObjectDataRecord
     /// Retrieves the TimeOnly value at the specified column index.
     /// </summary>
     TimeOnly GetTimeOnly(int index);
+
+    /// <summary>
+    /// Retrieves the TimeSpan value at the specified column index.
+    /// </summary>
+    TimeSpan GetTimeSpan(int index);
 
     /// <summary>
     /// Retrieves the enum value of type <typeparamref name="T"/> at the specified column index.

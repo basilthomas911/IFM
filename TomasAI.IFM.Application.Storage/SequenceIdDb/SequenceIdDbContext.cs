@@ -24,14 +24,7 @@ public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbCo
     public override SequenceIdDbContext Database => this;
 
     public const string SequenceIdDbConnection = "SequenceIdDbConnection";
-    static Func<IObjectMapReader<Scalar<long>>, long>? MapToSequenceId;
-
-
-
-    public override void OnCreateModel(DbModel<SequenceIdDbContext> model)
-    {
-        MapToSequenceId ??= (o => o.Get(e => e.Value));
-    }
+    static long MapToSequenceId(IObjectDataRecord o) => o.GetLong(0);
 
     /// <summary>
     /// get next sequence id
@@ -42,6 +35,6 @@ public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbCo
         => await _dbFactory.SequenceIdDb
                 .Use(SequenceIdDbSql.GetNextSequenceId)
                 .SetParameters(new { sequenceName = sequenceName.ToStringFast() })
-                .ExecuteScalarAsync(MapToSequenceId!);
+                .ExecuteScalarAsync(MapToSequenceId);
     
 }

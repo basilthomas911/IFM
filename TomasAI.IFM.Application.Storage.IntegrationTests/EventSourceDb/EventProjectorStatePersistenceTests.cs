@@ -1,5 +1,4 @@
 using System;
-using System.Linq.Expressions;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -18,27 +17,17 @@ public sealed class EventProjectorStatePersistenceTests
     {
         var created = new DateTime(2026, 7, 30, 12, 0, 0, DateTimeKind.Utc);
         var updated = created.AddMinutes(1);
-        var reader = Substitute.For<IObjectMapReader<EventProjectorStateReadModel>>();
-        reader.Get(Arg.Any<Expression<Func<EventProjectorStateReadModel, long>>>()).Returns(101L);
-        reader.Get(Arg.Any<Expression<Func<EventProjectorStateReadModel, string>>>()).Returns(call =>
-        {
-            var propertyName = ((MemberExpression)call.Arg<Expression<Func<EventProjectorStateReadModel, string>>>().Body).Member.Name;
-            return propertyName switch
-            {
-                nameof(EventProjectorStateReadModel.ActorName) => "FundCommandActor",
-                nameof(EventProjectorStateReadModel.ProjectorName) => "FundEventProjector",
-                nameof(EventProjectorStateReadModel.ErrorMessage) => "retry",
-                _ => string.Empty
-            };
-        });
-        reader.Get(Arg.Any<Expression<Func<EventProjectorStateReadModel, bool>>>()).Returns(true);
-        reader.Get(Arg.Any<Expression<Func<EventProjectorStateReadModel, int>>>()).Returns(2);
-        reader.Get<EventProjectorOutcomeType>(Arg.Any<Expression<Func<EventProjectorStateReadModel, EventProjectorOutcomeType>>>())
-            .Returns(EventProjectorOutcomeType.Retrying);
-        reader.Get<EventProjectorStageType>(Arg.Any<Expression<Func<EventProjectorStateReadModel, EventProjectorStageType>>>())
-            .Returns(EventProjectorStageType.ApplyProjection);
-        reader.GetISODateTime(Arg.Any<Expression<Func<EventProjectorStateReadModel, DateTime>>>())
-            .Returns(created, updated);
+        var reader = Substitute.For<IObjectDataRecord>();
+        reader.GetLong(0).Returns(101L);
+        reader.GetString(1).Returns("FundCommandActor");
+        reader.GetString(2).Returns("FundEventProjector");
+        reader.GetBool(3).Returns(true);
+        reader.GetInt(4).Returns(2);
+        reader.GetEnum<EventProjectorOutcomeType>(5).Returns(EventProjectorOutcomeType.Retrying);
+        reader.GetEnum<EventProjectorStageType>(6).Returns(EventProjectorStageType.ApplyProjection);
+        reader.GetString(7).Returns("retry");
+        reader.GetDateTime(8).Returns(created);
+        reader.GetDateTime(9).Returns(updated);
 
         var state = EventSourceActorDbContext.MapToEventProjectorState(reader);
 

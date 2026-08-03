@@ -28,27 +28,17 @@ public class EconomicCalendarsDbContext(IDbConnectionSettings connectionSettings
     /// </summary>
     public override EconomicCalendarsDbContext Database => this;
 
-    /// <summary>
-    /// initialize economic calendar view model mappings
-    /// </summary>
-    /// <param name="model"></param>
-    public override void OnCreateModel(DbModel<EconomicCalendarsDbContext> model)
-    {
-        EconomicCalendars = model.Map(e => e.EconomicCalendars)
-            .Parameters(e =>
-                e.Set(o => o.Event)
-                 .Set(o => o.Date)
-                 .Set(o => o.Country)
-                 .Set(o => o.Actual)
-                 .Set(o => o.Previous)
-                 .Set(o => o.Change)
-                 .Set(o => o.ChangePercentage)
-                 .Set(o => o.Estimate)
-                 .Set(o => o.Impact)
-            );
-    }
-
-    public DbMap<EconomicCalendarJsonModel> EconomicCalendars { get; private set; } = null!;
+    static EconomicCalendarJsonModel MapEconomicCalendar(IObjectDataRecord row)
+        => new(
+            row.GetString(0),
+            row.GetDateTime(1),
+            row.GetString(2),
+            row.GetString(3),
+            row.GetString(4),
+            row.GetString(5),
+            row.GetString(6),
+            row.GetString(7),
+            row.GetString(8));
 
     /// <summary>
     /// read economic calendars from external web site
@@ -60,7 +50,7 @@ public class EconomicCalendarsDbContext(IDbConnectionSettings connectionSettings
         {
             var db = _dbFactory.EconomicCalendarsDb;
             var economicCalendarJson = await db.Use(connectionString => new DataReaderOptions(connectionString))
-                .ReadAsync<EconomicCalendarJsonModel>();
+                .ReadAsync(MapEconomicCalendar);
             var economicCalendars = new List<EconomicCalendarReadModel>();
             foreach (var e in economicCalendarJson)
             {

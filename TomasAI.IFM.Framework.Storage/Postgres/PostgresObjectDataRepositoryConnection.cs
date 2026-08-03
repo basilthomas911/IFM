@@ -10,8 +10,10 @@ namespace TomasAI.IFM.Framework.Storage.Postgres
     public class PostgresObjectDataRepositoryConnection : IObjectRepositoryConnection<NpgsqlConnection>
     {
         public TConnection As<TConnection>(string connectionString) where TConnection : class, IDbConnection
-        { 
-           return new NpgsqlConnection(connectionString) as TConnection;
+        {
+           var credentials = DatabaseCredentialResolver.Resolve(DatabaseProvider.Postgres);
+           var resolvedConnectionString = DatabaseCredentialResolver.AddPostgresCredentials(connectionString, credentials);
+           return new NpgsqlConnection(resolvedConnectionString) as TConnection;
         }
     }
 }

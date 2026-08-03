@@ -56,18 +56,18 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     public const string ERR_EventDbContext_SaveEventsAsync = "EventSourceActorDbContext: Unable to execute SaveEventsAsync";
 
     /// <summary>
-    /// Maps data from an <see cref="IObjectMapReader{T}"/> to a <see cref="CommandLogReadModel"/> instance.
+    /// Maps ordinal data from an <see cref="IObjectDataRecord"/> to a <see cref="CommandLogReadModel"/> instance.
     /// </summary>
     /// <param name="o">The object map reader containing the source data for the mapping operation.</param>
     /// <returns>A <see cref="CommandLogReadModel"/> populated with values retrieved from the specified object map reader.</returns>
-    internal static CommandLogReadModel MapToCommandLog(IObjectMapReader<CommandLogReadModel> o)
+    internal static CommandLogReadModel MapToCommandLog(IObjectDataRecord o)
         => new (
-            CommandId: o.Get(e => e.CommandId),
-            StreamId: o.Get(e => e.StreamId),
-            AggregateName: o.Get(e => e.AggregateName),
-            CommandName: o.Get(e => e.CommandName),
-            CommandTimestamp: o.Get(e => e.CommandTimestamp),
-            CommandData: o.Get(e => e.CommandData)
+            CommandId: o.GetGuid(0),
+            StreamId: o.GetString(1),
+            AggregateName: o.GetEnum<BoundedContextName>(2),
+            CommandName: o.GetString(3),
+            CommandTimestamp: o.GetDateTime(4),
+            CommandData: o.GetString(5)
         );
 
     /// <summary>
@@ -75,27 +75,27 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// </summary>
     /// <param name="o">The object reader used to retrieve values for the <see cref="EventStreamIdReadModel"/> properties.</param>
     /// <returns>An <see cref="EventStreamIdReadModel"/> instance populated with values from the object reader.</returns>
-    internal static EventStreamIdReadModel MapToEventStreamId(IObjectMapReader<EventStreamIdReadModel> o)
+    internal static EventStreamIdReadModel MapToEventStreamId(IObjectDataRecord o)
         => new (
-            EventStreamId: o.Get(e => e.EventStreamId),
-            EventStream: o.Get(e => e.EventStream)
+            EventStreamId: o.GetLong(0),
+            EventStream: o.GetString(1)
         );  
 
     /// <summary>
-    /// Maps data from an <see cref="IObjectMapReader{T}"/> to an instance of <see cref="EventNameIdReadModel"/>.
+    /// Maps ordinal data from an <see cref="IObjectDataRecord"/> to an instance of <see cref="EventNameIdReadModel"/>.
     /// </summary>
     /// <param name="o">The object map reader containing the source data for the mapping operation.</param>
     /// <returns>A new <see cref="EventNameIdReadModel"/> instance populated with values retrieved from the specified object map
     /// reader.</returns>
-    internal static EventNameIdReadModel MapToEventNameId(IObjectMapReader<EventNameIdReadModel> o)
+    internal static EventNameIdReadModel MapToEventNameId(IObjectDataRecord o)
         => new(
-            EventNameId: o.Get(e => e.EventNameId),
-            EventName: o.Get(e => e.EventName),
-            EventTypeName: o.Get(e => e.EventTypeName)
+            EventNameId: o.GetInt(0),
+            EventName: o.GetString(1),
+            EventTypeName: o.GetString(2)
         );
 
     /// <summary>
-    /// Maps data from an <see cref="IObjectMapReader{T}"/> to an <see cref="EventLogReadModel"/> instance.
+    /// Maps ordinal data from an <see cref="IObjectDataRecord"/> to an <see cref="EventLogReadModel"/> instance.
     /// </summary>
     /// <remarks>This method performs a direct mapping of properties from the object map reader to the <see
     /// cref="EventLogReadModel"/>. Ensure that the object map reader contains valid data for all required
@@ -103,46 +103,46 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <param name="o">An object map reader containing the source data for the mapping operation.  Each property of <see
     /// cref="EventLogReadModel"/> is populated using corresponding values retrieved from this reader.</param>
     /// <returns>A new <see cref="EventLogReadModel"/> instance populated with data from the specified <see
-    /// cref="IObjectMapReader{T}"/>.</returns>
-    internal static EventLogReadModel MapToEventLog(IObjectMapReader<EventLogReadModel> o)
+    /// cref="IObjectDataRecord"/>.</returns>
+    internal static EventLogReadModel MapToEventLog(IObjectDataRecord o)
         =>  new  (
-                EventStreamId: o.Get(e => e.EventStreamId),
-                EventName: o.Get(e => e.EventName),
-                EventTypeName: o.Get(e => e.EventTypeName),
-                EventVersion: o.Get(e => e.EventVersion),
-                EventData: o.Get(e => e.EventData),
-                CommandId: o.Get(e => e.CommandId),
-                EventTimestamp: o.Get(e => e.EventTimestamp)
+                EventStreamId: o.GetLong(0),
+                EventName: o.GetString(1),
+                EventTypeName: o.GetString(2),
+                EventVersion: o.GetLong(3),
+                EventData: o.GetString(4),
+                CommandId: o.GetGuid(5),
+                EventTimestamp: o.GetString(6)
             );
 
     /// <summary>
     /// Maps durable projection state from the event-source database.
     /// </summary>
     internal static EventProjectorStateReadModel MapToEventProjectorState(
-        IObjectMapReader<EventProjectorStateReadModel> o)
+        IObjectDataRecord o)
         => new(
-            eventId: o.Get(e => e.EventId),
-            actorName: o.Get(e => e.ActorName),
-            projectorName: o.Get(e => e.ProjectorName),
-            isReplay: o.Get(e => e.IsReplay),
-            attemptNumber: o.Get(e => e.AttemptNumber),
-            outcome: o.Get<EventProjectorOutcomeType>(e => e.Outcome),
-            stage: o.Get<EventProjectorStageType>(e => e.Stage),
-            errorMessage: o.Get(e => e.ErrorMessage),
-            createdTimestamp: o.GetISODateTime(e => e.CreatedTimestamp),
-            updatedTimestamp: o.GetISODateTime(e => e.UpdatedTimestamp));
+            eventId: o.GetLong(0),
+            actorName: o.GetString(1),
+            projectorName: o.GetString(2),
+            isReplay: o.GetBool(3),
+            attemptNumber: o.GetInt(4),
+            outcome: o.GetEnum<EventProjectorOutcomeType>(5),
+            stage: o.GetEnum<EventProjectorStageType>(6),
+            errorMessage: o.GetString(7),
+            createdTimestamp: o.GetDateTime(8),
+            updatedTimestamp: o.GetDateTime(9));
 
     /// <summary>
     /// Maps the specified object map reader to an <see cref="EventStreamReadModel"/> instance.
     /// </summary>
     /// <param name="o">The object map reader containing the event data to map.</param>
     /// <returns>An <see cref="EventStreamReadModel"/> populated with data from the object map reader.</returns>
-    internal static EventStreamReadModel MapToEventStream(IObjectMapReader<EventStreamReadModel> o)
+    internal static EventStreamReadModel MapToEventStream(IObjectDataRecord o)
         => new()
         {
-            EventTypeName = o.Get(e => e.EventTypeName),
-            EventVersion = o.Get(e => e.EventVersion),
-            EventData = o.Get(e => e.EventData)
+            EventTypeName = o.GetString(2),
+            EventVersion = o.GetLong(3),
+            EventData = o.GetString(4)
         };
 
     static long MapToLong<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -637,11 +637,11 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
                 .ExecuteMapReduceAsync(EventStreamMapper, reducerAction);
 
-        EventStreamReadModel EventStreamMapper(IObjectMapReader<EventStreamReadModel> o)
+        EventStreamReadModel EventStreamMapper(IObjectDataRecord o)
         {
-            eventStream.EventVersion = o.Get(e => e.EventVersion);
-            eventStream.EventTypeName = o.Get(e => e.EventTypeName);
-            eventStream.EventData = o.Get(e => e.EventData);
+            eventStream.EventVersion = o.GetLong(3);
+            eventStream.EventTypeName = o.GetString(2);
+            eventStream.EventData = o.GetString(4);
             return eventStream;
         }
     }
@@ -666,11 +666,11 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             .ExecuteMapReduceAsync<EventStreamReadModel>(EventStreamMapper,
                 reducer => reducerAction.Invoke(reducer.Take(lastNRange).OrderBy(e => e.EventVersion)));
 
-        EventStreamReadModel EventStreamMapper(IObjectMapReader<EventStreamReadModel> o)
+        EventStreamReadModel EventStreamMapper(IObjectDataRecord o)
         {
-            eventStream.EventVersion = o.Get(e => e.EventVersion);
-            eventStream.EventTypeName = o.Get(e => e.EventTypeName);
-            eventStream.EventData = o.Get(e => e.EventData);
+            eventStream.EventVersion = o.GetLong(3);
+            eventStream.EventTypeName = o.GetString(2);
+            eventStream.EventData = o.GetString(4);
             return eventStream;
         }
     }
@@ -702,11 +702,11 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
                 .ExecuteMapReduceAsync(EventStreamMapper, reducerAction);
 
-        EventStreamReadModel EventStreamMapper(IObjectMapReader<EventStreamReadModel> o)
+        EventStreamReadModel EventStreamMapper(IObjectDataRecord o)
         {
-            eventStream.EventVersion = o.Get(e => e.EventVersion);
-            eventStream.EventTypeName = o.Get(e => e.EventTypeName);
-            eventStream.EventData = o.Get(e => e.EventData);
+            eventStream.EventVersion = o.GetLong(3);
+            eventStream.EventTypeName = o.GetString(2);
+            eventStream.EventData = o.GetString(4);
             return eventStream;
         }
     }

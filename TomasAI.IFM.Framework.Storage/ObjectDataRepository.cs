@@ -9,7 +9,6 @@ namespace TomasAI.IFM.Framework.Storage;
 public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> where TRepo : IObjectRepository
 {
     readonly static SemaphoreSlim _semaphoreSlim = new(1, 1);
-    readonly Dictionary<Type, object> _resultTypeMap;
     readonly IObjectCreateProvider _provider;
     IObjectRepositoryTransaction<TRepo>? _transaction;
     readonly ILogger _logger;
@@ -21,7 +20,6 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
     public ObjectDataRepository(IDbConnectionSetting connectionSetting, ILogger<DbProvider> logger)
     {
         // only initialize object data repos that have been configured from startup settings...
-        _resultTypeMap = [];
         _transaction = null;
         _logger = logger;
         _provider = new ObjectDataDbProvider(this, logger);
@@ -32,7 +30,6 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
         if (string.IsNullOrEmpty(connectionSetting.ProviderName))
             throw new InvalidOperationException($"ObjectDataRepository: no provider name set for connection string '{ConnectionString}'");
         ProviderName = connectionSetting.ProviderName;
-        OnCreateModel(new DbModel<TRepo>(this));
     }
 
     /// <summary>
@@ -46,43 +43,7 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
     public string CommandText { get; set; } = string.Empty;
     public string Schema { get; set; } = string.Empty;
     public CommandType CommandType { get; private set; } = CommandType.Text;
-    public Dictionary<Type, object> ResultTypeMap => _resultTypeMap;
-
     public CommandType QueuedCommandType => default;
-
-    public virtual void OnCreateModel(DbModel<TRepo> model)
-    {
-    }
-
-    /// <summary>
-    /// type map expression that will be source of entity property map
-    /// </summary>
-    /// <typeparam name="TEntity"></typeparam>
-    /// <param name="typeMapPropertyExpr"></param>
-    /// <returns></returns>
-    public IObjectTypeMapper<TEntity> Map<TEntity>(Expression<Func<TRepo, DbMap<TEntity>>> typeMapPropertyExpr, string tableName = null)
-    {
-        if (typeMapPropertyExpr is null)
-            throw new ArgumentException("ObjectDataRepository.Map: type map property expression is empty");
-        if (typeMapPropertyExpr.Body is not MemberExpression propExpr)
-            throw new InvalidOperationException($"ObjectDataRepository.Map: type map property expression does not map to property of '{typeof(TEntity).Name}'");
-        tableName = string.IsNullOrWhiteSpace(tableName) ? propExpr.Member.Name : tableName;
-        return new ObjectDataTypeMapper<TEntity>(this, tableName);
-    }
-
-    /// <summary>
-    /// add mapped entity to result type map
-    /// </summary>
-    /// <typeparam name="TResult"></typeparam>
-    /// <param name="dbMap"></param>
-    public void AddResultTypeMap<TResult>(DbMap<TResult> dbMap)
-    {
-        if (dbMap is null)
-            throw new ArgumentException("ObjectDataRepository.AddResultTypeMap: dbMap parameter is empty");
-        if (_resultTypeMap.ContainsKey(typeof(TResult)))
-            _resultTypeMap.Remove(typeof(TResult));
-        _resultTypeMap.Add(typeof(TResult), dbMap);
-    }
 
         /// <summary>
     /// create db connection using create provider

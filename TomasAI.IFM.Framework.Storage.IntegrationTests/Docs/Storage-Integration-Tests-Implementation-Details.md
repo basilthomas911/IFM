@@ -2,9 +2,11 @@
 
 ## Purpose
 
-`TomasAI.IFM.Framework.Storage.IntegrationTests` contains opt-in tests for storage behaviors that depend on real infrastructure. The assembly name retains the older `IntegratedTests` spelling from its project file. It targets .NET 10 and is non-packable.
+`TomasAI.IFM.Framework.Storage.IntegrationTests` contains the legacy opt-in tests for storage behaviors that depend on real infrastructure. The assembly name retains the older `IntegratedTests` spelling from its project file. It targets .NET 10 and is non-packable.
 
 The project references the application storage layer, the core and Azure storage projects, and shared/domain contracts. Its test stack is xUnit 2.9.3, Microsoft.NET.Test.Sdk 18.8.1, FluentAssertions 8.10.0, NSubstitute 6.0.0, and Microsoft.Extensions.Hosting 10.0.10.
+
+Full PostgreSQL and ScyllaDB `IObjectRepositoryProvider` contract coverage now lives in `TomasAI.IFM.Application.Storage.IntegrationTests/FrameworkStorage`. It is colocated there so it can reuse the real Event Source and Fund schema catalogs while testing the public Framework Storage API directly.
 
 ## Root-to-Leaf Directory Inventory
 
@@ -76,6 +78,31 @@ The two active tests:
 
 These tests require a reachable local PostgreSQL database with the expected event-source schema and credentials. They mutate `command_log` and therefore must not be pointed at production.
 
+The connection string in `EventDatabaseFixture` is credential-free. With the default Development environment it resolves `POSTGRES_DEV_KEY`; when the process is explicitly set to Test it resolves `POSTGRES_TEST_KEY`.
+
+## Full Provider Contract Suites
+
+The active provider suites in `TomasAI.IFM.Application.Storage.IntegrationTests` cover all methods declared by `IObjectRepositoryProvider`:
+
+| API behavior | ScyllaDB | PostgreSQL |
+| --- | --- | --- |
+| Commands with zero, one, and many parameter values | Covered | Covered |
+| Queue creation and execution modes | Sequential and logged batch | Both transaction-flag paths |
+| Mutable query materialization | Covered | Covered |
+| Immutable value-type materialization | Disposable pooled buffer | Read-only value list |
+| Single result found/missing | Covered | Covered |
+| Scalar result | Covered | Covered |
+| Map/reduce | Covered | Covered |
+| Query/single/immutable/map-reduce null delegates, excess query parameters, and empty queue guards | Covered | Covered |
+| Provider-specific type/ordinal mapping | All four Fund tables | All five event-source tables |
+| Failure atomicity | Logged-batch behavior | Queued-command rollback |
+
+The ScyllaDB suite contains 14 tests and uses `fund`, `fund_order`, `fund_order_trade`, and `fund_transaction`. The PostgreSQL suite contains 15 tests and uses `event_stream_id`, `event_name_id`, `event_log`, `command_log`, and `event_projector_state`.
+
+Both fixtures create missing tables/schema objects but not the keyspace/database. Before the collection starts, before each test, after each test, and at collection disposal they remove only reserved test rows. Cleanup is verified after deletion. Collections are non-parallel, ScyllaDB reserves negative Fund IDs, and PostgreSQL reserves negative event IDs plus names prefixed with `__framework_storage_postgres_it__`; PostgreSQL does not consume event-source sequences.
+
+Every query supplies `Func<IObjectDataRecord, TResult>` and reads typed values by zero-based ordinal. The suites therefore detect mismatches between projection order, provider record adapters, and application mapper contracts without using the removed reflection-based result mapper.
+
 ## Azure and Remote Feed Tests
 
 The Azure test binds `AppSettings:AzureStorage`, constructs `AzureStorage`, and attempts a real backup-file upload. It is skipped because it needs both a valid account and the configured local source file.
@@ -84,9 +111,13 @@ The CSV and JSON tests instantiate `HttpStringReader` against licensed remote fe
 
 ## Configuration and Secret Handling
 
-`appsettings.json` is copied to the output directory on every build. The current file contains credential-bearing connection material and local file paths; the transaction fixture also embeds a database credential in source. Do not reproduce those values in documentation, logs, or new tests. Treat committed credentials as exposed, rotate them, and migrate the suite to environment variables, user secrets, or a dedicated test-secret provider.
+PostgreSQL and ScyllaDB test connection strings contain no database user ID or password. Framework Storage selects credentials from the runtime environment and injects them only when creating the physical connection. Set `DOTNET_ENVIRONMENT=Test`, then provide `POSTGRES_TEST_KEY` and/or `SCYLLADB_TEST_KEY` as `{"userid":"...","password":"..."}`. The full provider suites additionally require `IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION` and `IFM_SCYLLA_TEST_CONNECTION`; both must target dedicated test infrastructure.
+
+The legacy `appsettings.json` is copied to the output directory on every build and still contains separate Azure Storage configuration and local file paths. The skipped Azure test is outside the PostgreSQL/ScyllaDB credential resolver. Do not reproduce its value in documentation or logs; any committed Azure secret should be treated as exposed and rotated independently.
 
 The configuration file is optional at load time, but tests that dereference its bound options still require the expected section and entries.
+
+See [`docs/database-credentials.md`](../../docs/database-credentials.md) and the provider-suite README files under `TomasAI.IFM.Application.Storage.IntegrationTests/FrameworkStorage` for the environment matrix and exact setup commands.
 
 ## Running Safely
 
@@ -100,6 +131,13 @@ Running `dotnet test` executes the two PostgreSQL tests even though the other ei
 
 ```powershell
 dotnet test TomasAI.IFM.Framework.Storage.IntegrationTests/TomasAI.IFM.Framework.Storage.IntegratedTests.csproj --configuration Debug
+```
+
+Run the isolated provider contract suites independently:
+
+```powershell
+dotnet test TomasAI.IFM.Application.Storage.IntegrationTests/TomasAI.IFM.Application.Storage.IntegrationTests.csproj --filter Category=ScyllaDBIntegration
+dotnet test TomasAI.IFM.Application.Storage.IntegrationTests/TomasAI.IFM.Application.Storage.IntegrationTests.csproj --filter Category=PostgresIntegration
 ```
 
 Keep new infrastructure-dependent tests explicitly isolated and ensure every mutation has deterministic cleanup.

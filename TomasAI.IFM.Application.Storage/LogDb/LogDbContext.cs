@@ -22,18 +22,12 @@ public class LogDbContext(IDbConnectionSettings connectionSettings,
     /// </summary>
     public override LogDbContext Database => this;
 
-    internal static Func<IObjectMapReader<LogEventReadModel>, LogEventReadModel>? MapToLogEvent;
-
-    public override void OnCreateModel(DbModel<LogDbContext> model)
-    {
-        MapToLogEvent ??= (o => new LogEventReadModel(
-            timestamp: o.Get(e => e.Timestamp),
-            logLevel: o.Get(e => e.LogLevel),
-            message: o.Get(e => e.Message),
-            serviceId: o.Get(e => e.ServiceId)
-        ));
-
-    }
+    internal static LogEventReadModel MapToLogEvent(IObjectDataRecord o)
+        => new(
+            timestamp: o.GetDateTime(0),
+            logLevel: o.GetString(1),
+            message: o.GetString(2),
+            serviceId: o.GetString(3));
 
     /// <summary>
     /// get telemetry logs by date range
@@ -45,7 +39,7 @@ public class LogDbContext(IDbConnectionSettings connectionSettings,
         => await _dbFactory.LogDb
                 .Use(LogDbSql.GetTelemtryLogsByDateRange)
                 .SetParameters(new GetTelemetryLogsByDateRange(startDate, endDate))
-                .ExecuteQueryAsync(MapToLogEvent!);
+                .ExecuteQueryAsync(MapToLogEvent);
 
     /// <summary>
     /// insert telemetry log    

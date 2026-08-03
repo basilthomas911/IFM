@@ -49,12 +49,12 @@ public class ObjectFileUriContext(Uri uri, IDataReaderOptions dataReaderOptions)
     /// <see cref="DataReaderOptions.DataReaderType"/> property. The caller must ensure that the <paramref
     /// name="dataReaderMapper"/> function is capable of handling the data structure provided by the source.</remarks>
     /// <typeparam name="TResult">The type of the objects to be returned in the result collection.</typeparam>
-    /// <param name="dataReaderMapper">A function that maps data from an <see cref="IObjectMapReader{TResult}"/> to an instance of <typeparamref
+    /// <param name="dataReaderMapper">A function that maps ordinal data from an <see cref="IObjectDataRecord"/> to an instance of <typeparamref
     /// name="TResult"/>. This function is invoked for each record in the data source.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a collection of <typeparamref
     /// name="TResult"/>  objects representing the mapped data.</returns>
     /// <exception cref="NotImplementedException">Thrown if the <see cref="DataReaderOptions.DataReaderType"/> is not supported.</exception>
-    public async Task<ICollection<TResult>> ReadAsync<TResult>(Func<IObjectMapReader<TResult>, TResult> dataReaderMapper)
+    public async Task<ICollection<TResult>> ReadAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper)
     {
         return DataReaderOptions.DataReaderType switch
         {
@@ -82,13 +82,13 @@ public class ObjectFileUriContext(Uri uri, IDataReaderOptions dataReaderOptions)
         ICollection<TResult> ReadAll(IDataReader  dataReader)
         {
             var resultSet = new List<TResult>();
-            var objectDataMapReader = new ObjectDataMapReader<TResult>(dataReader);
+            var record = new AdoNetDataRecord().SetReader(dataReader);
             while (dataReader.Read())
             {
                 try
                 {
 
-                    var result = dataReaderMapper(objectDataMapReader);
+                    var result = dataReaderMapper(record);
                     if (result is not null)
                         resultSet.Add(result);
                 }
@@ -113,12 +113,12 @@ public static class ObjectFileUriContextExtensions
     /// <typeparam name="TResult">The type of the objects to be read and mapped.</typeparam>
     /// <param name="uriCtx">The context representing the source of the data to be read. Must be an instance of <see
     /// cref="ObjectFileUriContext"/>.</param>
-    /// <param name="dataReaderMapper">A function that maps an <see cref="IObjectMapReader{TResult}"/> to an instance of <typeparamref
+    /// <param name="dataReaderMapper">A function that maps an <see cref="IObjectDataRecord"/> to an instance of <typeparamref
     /// name="TResult"/>.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a collection of <typeparamref
     /// name="TResult"/> objects mapped from the data source.</returns>
     /// <exception cref="ArgumentException">Thrown if <paramref name="uriCtx"/> is not an instance of <see cref="ObjectFileUriContext"/>.</exception>
-    public static async Task<ICollection<TResult>> ReadAsync<TResult>(this IObjectUriContext uriCtx, Func<IObjectMapReader<TResult>, TResult> dataReaderMapper)
+    public static async Task<ICollection<TResult>> ReadAsync<TResult>(this IObjectUriContext uriCtx, Func<IObjectDataRecord, TResult> dataReaderMapper)
     {
         if (uriCtx is not ObjectFileUriContext objectFileUriContext)
         {

@@ -1,0 +1,578 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Exceptions;
+using Xunit;
+
+namespace TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.Postgres;
+
+[Collection(PostgresStorageProviderCollection.Name)]
+[Trait("Category", "PostgresIntegration")]
+public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProviderFixture fixture)
+{
+    const string InsertEventStream = """
+        INSERT INTO event_stream_id (eventstreamid, eventstream)
+        VALUES ($1, $2);
+        """;
+
+    const string InsertEventName = """
+        INSERT INTO event_name_id (eventnameid, eventname, eventtypename)
+        VALUES ($1, $2, $3);
+        """;
+
+    const string InsertEventLog = """
+        INSERT INTO event_log (
+            eventstreamid, eventnameid, eventversion, eventdata, commandid, eventtimestamp)
+        VALUES ($1, $2, $3, $4, $5, $6);
+        """;
+
+    const string InsertCommandLog = """
+        INSERT INTO command_log (
+            commandid, streamid, actorname, commandname, commandtimestamp, commandstatus, commanddata)
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
+        """;
+
+    const string InsertProjectorState = """
+        INSERT INTO event_projector_state (
+            eventid, actorname, projectorname, isreplay, attemptnumber, outcome, stage,
+            errormessage, createdtimestamp, updatedtimestamp)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+        """;
+
+    const string SelectEventStream = """
+        SELECT eventstreamid AS ignored_1, eventstream AS ignored_0
+        FROM event_stream_id
+        WHERE eventstreamid = $1;
+        """;
+
+    const string SelectEventLogs = """
+        SELECT eventstreamid, eventnameid, eventversion, eventdata, commandid,
+               eventtimestamp::timestamp
+        FROM event_log
+        WHERE eventstreamid = $1
+        ORDER BY eventversion;
+        """;
+
+    [Fact]
+    public Task ExecuteCommandAsync_WithoutParameters_ExecutesTextCommand()
+    {
+        var scope = PostgresEventSourceTestData.Scope(1);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var result = await repository.Use($"""
+                    INSERT INTO event_stream_id (eventstreamid, eventstream)
+                    VALUES ({scope.EventStreamId}, '{scope.EventStream}');
+                    """)
+                .ExecuteCommandAsync();
+
+            Assert.Equal([1L], result);
+            Assert.NotNull(await GetEventStreamAsync(repository, scope.EventStreamId));
+        });
+    }
+
+    [Fact]
+    public Task ExecuteCommandAsync_WithBindValue_InsertsOneRow()
+    {
+        var scope = PostgresEventSourceTestData.Scope(2);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var result = await repository.Use(InsertEventStream)
+                .SetParameters(new InsertEventStreamBindValue(scope.EventStreamId, scope.EventStream))
+                .ExecuteCommandAsync();
+
+            Assert.Equal([1L], result);
+            var stream = await GetEventStreamAsync(repository, scope.EventStreamId);
+            Assert.NotNull(stream);
+            Assert.Equal(scope.EventStream, stream.EventStream);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteCommandAsync_WithManyParameterValues_ExecutesEveryCommand()
+    {
+        var scope = PostgresEventSourceTestData.Scope(3);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var parameters = new[]
+            {
+                new EventStreamParameters(scope.EventStreamId, scope.EventStream),
+                new EventStreamParameters(scope.SecondEventStreamId, scope.SecondEventStream)
+            };
+
+            var result = await repository.Use(InsertEventStream)
+                .SetParameters(parameters)
+                .ExecuteCommandAsync();
+
+            Assert.Equal([1L, 1L], result);
+            Assert.NotNull(await GetEventStreamAsync(repository, scope.EventStreamId));
+            Assert.NotNull(await GetEventStreamAsync(repository, scope.SecondEventStreamId));
+        });
+    }
+
+    [Fact]
+    public Task ExecuteQueuedCommandsAsync_WithFalseFlag_ExecutesEveryQueuedCommand()
+    {
+        var scope = PostgresEventSourceTestData.Scope(4);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var queuedCommands = new List<object>
+            {
+                repository.Use(InsertEventStream)
+                    .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.EventStream))
+                    .QueueCommand(),
+                repository.Use("UPDATE event_stream_id SET eventstream = $1 WHERE eventstreamid = $2;")
+                    .SetParameters(new UpdateEventStreamParameters(scope.SecondEventStream, scope.EventStreamId))
+                    .QueueCommand()
+            };
+
+            await repository.ExecuteQueuedCommandsAsync(queuedCommands, useTransaction: false);
+
+            var stream = await GetEventStreamAsync(repository, scope.EventStreamId);
+            Assert.NotNull(stream);
+            Assert.Equal(scope.SecondEventStream, stream.EventStream);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteQueuedCommandsAsync_WithTrueFlag_ExecutesEveryQueuedCommand()
+    {
+        var scope = PostgresEventSourceTestData.Scope(5);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var queuedCommands = new List<object>
+            {
+                repository.Use(InsertEventStream)
+                    .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.EventStream))
+                    .QueueCommand(),
+                repository.Use("UPDATE event_stream_id SET eventstream = $1 WHERE eventstreamid = $2;")
+                    .SetParameters(new UpdateEventStreamParameters(scope.SecondEventStream, scope.EventStreamId))
+                    .QueueCommand()
+            };
+
+            await repository.ExecuteQueuedCommandsAsync(queuedCommands, useTransaction: true);
+
+            var stream = await GetEventStreamAsync(repository, scope.EventStreamId);
+            Assert.NotNull(stream);
+            Assert.Equal(scope.SecondEventStream, stream.EventStream);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteQueryAsync_UsesOrdinalMapperForMultipleRows()
+    {
+        var scope = PostgresEventSourceTestData.Scope(6);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertEventLogsAsync(repository, scope);
+
+            var rows = await repository.Use(SelectEventLogs)
+                .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                .ExecuteQueryAsync(MapEventLog);
+
+            Assert.Equal(2, rows.Count);
+            Assert.Equal(
+                [scope.EventVersion, scope.SecondEventVersion],
+                rows.Select(row => row.EventVersion).ToArray());
+        });
+    }
+
+    [Fact]
+    public Task ExecuteQueryImmutableAsync_ReturnsValueTypeOrdinalResults()
+    {
+        var scope = PostgresEventSourceTestData.Scope(7);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertEventLogsAsync(repository, scope);
+
+            var rows = await repository.Use(SelectEventLogs)
+                .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                .ExecuteQueryImmutableAsync(static row => new ImmutableEventRow(
+                    row.GetLong(0), row.GetLong(2), row.GetGuid(4)));
+
+            Assert.IsType<List<ImmutableEventRow>>(rows);
+            Assert.Equal(2, rows.Count);
+            Assert.Equal(scope.EventStreamId, rows[0].EventStreamId);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteSingleAsync_ReturnsMappedRowOrNull()
+    {
+        var scope = PostgresEventSourceTestData.Scope(8);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertEventStreamAsync(repository, scope);
+
+            var existing = await GetEventStreamAsync(repository, scope.EventStreamId);
+            var missing = await GetEventStreamAsync(repository, scope.EventStreamId - 1000);
+
+            Assert.NotNull(existing);
+            Assert.Equal(scope.EventStream, existing.EventStream);
+            Assert.Null(missing);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteScalarAsync_MapsFirstColumnByOrdinal()
+    {
+        var scope = PostgresEventSourceTestData.Scope(9);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertEventStreamAsync(repository, scope);
+
+            var eventStreamId = await repository
+                .Use("SELECT eventstreamid AS deliberately_not_value FROM event_stream_id WHERE eventstreamid = $1;")
+                .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                .ExecuteScalarAsync(static row => row.GetInt(0));
+
+            Assert.Equal(scope.EventStreamId, eventStreamId);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteMapReduceAsync_StreamsOrdinalResultsIntoReducer()
+    {
+        var scope = PostgresEventSourceTestData.Scope(10);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertEventLogsAsync(repository, scope);
+            var reducerCalls = 0;
+            var versionSum = 0L;
+
+            await repository.Use("SELECT eventversion FROM event_log WHERE eventstreamid = $1 ORDER BY eventversion;")
+                .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                .ExecuteMapReduceAsync(
+                    static row => row.GetLong(0),
+                    rows =>
+                    {
+                        reducerCalls++;
+                        versionSum = rows.Sum();
+                    });
+
+            Assert.Equal(1, reducerCalls);
+            Assert.Equal(scope.EventVersion + scope.SecondEventVersion, versionSum);
+        });
+    }
+
+    [Fact]
+    public Task OrdinalMapping_ReadsEveryEventSourceTableAndCorePostgresType()
+    {
+        var scope = PostgresEventSourceTestData.Scope(11);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await InsertCompleteEventSourceGraphAsync(repository, scope);
+
+            var stream = await GetEventStreamAsync(repository, scope.EventStreamId);
+            var eventName = await repository.Use("""
+                    SELECT eventnameid AS ignored_2, eventname AS ignored_1, eventtypename AS ignored_0
+                    FROM event_name_id WHERE eventnameid = $1;
+                    """)
+                .SetParameters(new EventNameLookup(scope.EventNameId))
+                .ExecuteSingleAsync(static row => new EventNameRow(
+                    row.GetInt(0), row.GetString(1), row.GetString(2)));
+            var eventLog = await repository.Use(SelectEventLogs)
+                .SetParameters(new EventStreamLookup(scope.EventStreamId))
+                .ExecuteSingleAsync(MapEventLog);
+            var command = await repository.Use("""
+                    SELECT commandid, streamid, actorname, commandname, commandtimestamp::timestamp,
+                           commandstatus, commanddata
+                    FROM command_log WHERE commandid = $1;
+                    """)
+                .SetParameters(new CommandLookup(scope.CommandId))
+                .ExecuteSingleAsync(static row => new CommandRow(
+                    row.GetGuid(0),
+                    row.GetString(1),
+                    row.GetString(2),
+                    row.GetString(3),
+                    row.GetDateTime(4),
+                    row.GetEnum<TestCommandStatus>(5),
+                    row.GetString(6)));
+            var projector = await repository.Use("""
+                    SELECT eventid, actorname, projectorname, isreplay, attemptnumber, outcome, stage,
+                           errormessage, createdtimestamp::timestamp, updatedtimestamp::timestamp
+                    FROM event_projector_state WHERE eventid = $1 AND projectorname = $2;
+                    """)
+                .SetParameters(new ProjectorLookup(scope.EventVersion, scope.ProjectorName))
+                .ExecuteSingleAsync(static row => new ProjectorRow(
+                    row.GetLong(0),
+                    row.GetString(1),
+                    row.GetString(2),
+                    row.GetBool(3),
+                    row.GetInt(4),
+                    row.GetEnum<TestProjectorOutcome>(5),
+                    row.GetString(6),
+                    row.GetString(7),
+                    row.GetDateTime(8),
+                    row.GetDateTime(9)));
+
+            Assert.NotNull(stream);
+            Assert.Equal((scope.EventStreamId, scope.EventStream), (stream.EventStreamId, stream.EventStream));
+
+            Assert.NotNull(eventName);
+            Assert.Equal((scope.EventNameId, scope.EventName, scope.EventTypeName),
+                (eventName.EventNameId, eventName.EventName, eventName.EventTypeName));
+
+            Assert.NotNull(eventLog);
+            Assert.Equal(scope.EventVersion, eventLog.EventVersion);
+            Assert.Equal(scope.CommandId, eventLog.CommandId);
+            Assert.Equal(new DateTime(2026, 1, 15, 13, 30, 0).Ticks, eventLog.EventTimestamp.Ticks);
+
+            Assert.NotNull(command);
+            Assert.Equal(TestCommandStatus.Completed, command.Status);
+            Assert.Equal(scope.CommandId, command.CommandId);
+
+            Assert.NotNull(projector);
+            Assert.True(projector.IsReplay);
+            Assert.Equal(3, projector.AttemptNumber);
+            Assert.Equal(TestProjectorOutcome.Completed, projector.Outcome);
+        });
+    }
+
+    [Fact]
+    public Task QueryMethods_RejectMoreThanOneParameterValue()
+    {
+        var scope = PostgresEventSourceTestData.Scope(12);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var context = repository.Use(SelectEventStream)
+                .SetParameters(new[]
+                {
+                    new EventStreamLookup(scope.EventStreamId),
+                    new EventStreamLookup(scope.SecondEventStreamId)
+                });
+
+            var exception = await Assert.ThrowsAsync<StorageException>(
+                () => context.ExecuteQueryAsync(MapEventStream));
+
+            Assert.Contains("only single parameter value accepted", exception.Message);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteQueuedCommandsAsync_RejectsEmptyQueue()
+    {
+        var scope = PostgresEventSourceTestData.Scope(13);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var context = repository.Use("SELECT 1;");
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => context.ExecuteQueuedCommandsAsync([]));
+
+            Assert.Contains("no commands have been queued", exception.Message);
+        });
+    }
+
+    [Fact]
+    public Task MappingMethods_RejectNullDelegates()
+    {
+        var scope = PostgresEventSourceTestData.Scope(14);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            await Assert.ThrowsAsync<StorageException>(
+                () => repository.Use(SelectEventStream).ExecuteQueryAsync<EventStreamRow>(null!));
+            await Assert.ThrowsAsync<StorageException>(
+                () => repository.Use(SelectEventStream).ExecuteSingleAsync<EventStreamRow>(null!));
+            await Assert.ThrowsAsync<StorageException>(
+                () => repository.Use(SelectEventStream).ExecuteQueryImmutableAsync<ImmutableEventRow>(null!));
+            await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+                await repository.Use(SelectEventStream).ExecuteMapReduceAsync<int>(null!, _ => { }));
+            await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+                await repository.Use(SelectEventStream).ExecuteMapReduceAsync(static row => row.GetInt(0), null!));
+        });
+    }
+
+    [Fact]
+    public Task ExecuteQueuedCommandsAsync_RollsBackEarlierCommandsWhenLaterCommandFails()
+    {
+        var scope = PostgresEventSourceTestData.Scope(15);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var queuedCommands = new List<object>
+            {
+                repository.Use(InsertEventStream)
+                    .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.EventStream))
+                    .QueueCommand(),
+                repository.Use(InsertEventStream)
+                    .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.SecondEventStream))
+                    .QueueCommand()
+            };
+
+            await Assert.ThrowsAsync<StorageException>(
+                () => repository.ExecuteQueuedCommandsAsync(queuedCommands, useTransaction: true));
+
+            Assert.Null(await GetEventStreamAsync(repository, scope.EventStreamId));
+        });
+    }
+
+    static Task InsertEventStreamAsync(PostgresTestRepository repository, PostgresEventSourceTestScope scope)
+        => repository.Use(InsertEventStream)
+            .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.EventStream))
+            .ExecuteCommandAsync();
+
+    static async Task InsertEventLogsAsync(PostgresTestRepository repository, PostgresEventSourceTestScope scope)
+    {
+        await repository.Use(InsertEventLog)
+            .SetParameters(new[]
+            {
+                CreateEventLogParameters(scope, scope.EventVersion, "{\"index\":1}"),
+                CreateEventLogParameters(scope, scope.SecondEventVersion, "{\"index\":2}")
+            })
+            .ExecuteCommandAsync();
+    }
+
+    static async Task InsertCompleteEventSourceGraphAsync(
+        PostgresTestRepository repository,
+        PostgresEventSourceTestScope scope)
+    {
+        await InsertEventStreamAsync(repository, scope);
+        await repository.Use(InsertEventName)
+            .SetParameters(new EventNameParameters(scope.EventNameId, scope.EventName, scope.EventTypeName))
+            .ExecuteCommandAsync();
+        await repository.Use(InsertEventLog)
+            .SetParameters(CreateEventLogParameters(scope, scope.EventVersion, "{\"ordinal\":true}"))
+            .ExecuteCommandAsync();
+        await repository.Use(InsertCommandLog)
+            .SetParameters(new CommandParameters(
+                scope.CommandId,
+                scope.EventStream,
+                "FundActor",
+                "CreateFund",
+                PostgresEventSourceTestData.Timestamp,
+                "Completed",
+                "{\"fundId\":1}"))
+            .ExecuteCommandAsync();
+        await repository.Use(InsertProjectorState)
+            .SetParameters(new ProjectorParameters(
+                scope.EventVersion,
+                "FundActor",
+                scope.ProjectorName,
+                true,
+                3,
+                "Completed",
+                "Projection",
+                string.Empty,
+                PostgresEventSourceTestData.Timestamp,
+                PostgresEventSourceTestData.UpdatedTimestamp))
+            .ExecuteCommandAsync();
+    }
+
+    static EventLogParameters CreateEventLogParameters(
+        PostgresEventSourceTestScope scope,
+        long eventVersion,
+        string eventData)
+        => new(
+            scope.EventStreamId,
+            scope.EventNameId,
+            eventVersion,
+            eventData,
+            scope.CommandId,
+            PostgresEventSourceTestData.Timestamp);
+
+    static Task<EventStreamRow?> GetEventStreamAsync(PostgresTestRepository repository, int eventStreamId)
+        => repository.Use(SelectEventStream)
+            .SetParameters(new EventStreamLookup(eventStreamId))
+            .ExecuteSingleAsync(MapEventStream);
+
+    static EventStreamRow MapEventStream(IObjectDataRecord row)
+        => new(row.GetInt(0), row.GetString(1));
+
+    static EventLogRow MapEventLog(IObjectDataRecord row)
+        => new(
+            row.GetLong(0),
+            row.GetInt(1),
+            row.GetLong(2),
+            row.GetString(3),
+            row.GetGuid(4),
+            row.GetDateTime(5));
+
+    readonly record struct InsertEventStreamBindValue(int EventStreamId, string EventStream) : IBindValue
+    {
+        public object Bind() => new { EventStreamId, EventStream };
+    }
+
+    readonly record struct EventStreamParameters(int EventStreamId, string EventStream);
+    readonly record struct UpdateEventStreamParameters(string EventStream, int EventStreamId);
+    readonly record struct EventStreamLookup(int EventStreamId);
+    readonly record struct EventNameLookup(int EventNameId);
+    readonly record struct CommandLookup(Guid CommandId);
+    readonly record struct ProjectorLookup(long EventId, string ProjectorName);
+
+    readonly record struct EventNameParameters(int EventNameId, string EventName, string EventTypeName);
+
+    readonly record struct EventLogParameters(
+        int EventStreamId,
+        int EventNameId,
+        long EventVersion,
+        string EventData,
+        Guid CommandId,
+        string EventTimestamp);
+
+    readonly record struct CommandParameters(
+        Guid CommandId,
+        string StreamId,
+        string ActorName,
+        string CommandName,
+        string CommandTimestamp,
+        string CommandStatus,
+        string CommandData);
+
+    readonly record struct ProjectorParameters(
+        long EventId,
+        string ActorName,
+        string ProjectorName,
+        bool IsReplay,
+        int AttemptNumber,
+        string Outcome,
+        string Stage,
+        string ErrorMessage,
+        string CreatedTimestamp,
+        string UpdatedTimestamp);
+
+    sealed record EventStreamRow(int EventStreamId, string EventStream);
+    sealed record EventNameRow(int EventNameId, string EventName, string EventTypeName);
+
+    sealed record EventLogRow(
+        long EventStreamId,
+        int EventNameId,
+        long EventVersion,
+        string EventData,
+        Guid CommandId,
+        DateTime EventTimestamp);
+
+    readonly record struct ImmutableEventRow(long EventStreamId, long EventVersion, Guid CommandId);
+
+    sealed record CommandRow(
+        Guid CommandId,
+        string StreamId,
+        string ActorName,
+        string CommandName,
+        DateTime CommandTimestamp,
+        TestCommandStatus Status,
+        string CommandData);
+
+    sealed record ProjectorRow(
+        long EventId,
+        string ActorName,
+        string ProjectorName,
+        bool IsReplay,
+        int AttemptNumber,
+        TestProjectorOutcome Outcome,
+        string Stage,
+        string ErrorMessage,
+        DateTime CreatedTimestamp,
+        DateTime UpdatedTimestamp);
+
+    enum TestCommandStatus
+    {
+        Unknown,
+        Completed
+    }
+
+    enum TestProjectorOutcome
+    {
+        Unknown,
+        Completed
+    }
+}

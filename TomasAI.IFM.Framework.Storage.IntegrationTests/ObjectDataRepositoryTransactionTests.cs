@@ -17,7 +17,7 @@ public class EventDatabaseFixture : IDisposable
     public EventDatabaseFixture()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("EventSourceDbConnection", "Host=localhost;Port=5432;Username=postgres;Password=monkey35907;Database=event-source-test-db", "System.Data.Postgres");
+             .Add("EventSourceDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
         var diContainer = new Dictionary<Type, EventSourceDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         DbFactory = new DbContextFactory(dbResolver);

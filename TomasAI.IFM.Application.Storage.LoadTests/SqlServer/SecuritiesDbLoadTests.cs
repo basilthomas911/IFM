@@ -46,18 +46,18 @@ public class SecuritiesDbLoadTests(SecuritiesDatabaseFixture testFixture) : ICla
         resultSet.Count.Should().Be(futuresContractDataFromCsv.Count);
         return;
 
-        static FuturesContractV2ReadModel MapToFuturesContract(IObjectMapReader<FuturesContractV2ReadModel> o)
+        static FuturesContractV2ReadModel MapToFuturesContract(IObjectDataRecord o)
              => new(
-                o.Get(e => e.ContractId),
-                o.Get(e => e.Description),
-                o.Get(e => e.Symbol),
-                o.Get(e => e.LocalSymbol),
-                o.Get(e => e.SecurityType),
-                o.Get(e => e.Currency),
-                o.Get(e => e.Exchange),
-                o.Get(e => e.Multiplier),
-                o.Get(e => e.LastTradeDate),
-                o.Get(e => e.CurrentlyTraded));
+                o.GetString(0),
+                o.GetString(1),
+                o.GetString(2),
+                o.GetString(3),
+                o.GetString(4),
+                o.GetString(5),
+                o.GetString(6),
+                o.GetString(7),
+                o.GetDateOnly(8),
+                o.GetBool(9));
     }
 
     [Fact]
@@ -77,18 +77,18 @@ public class SecuritiesDbLoadTests(SecuritiesDatabaseFixture testFixture) : ICla
         resultSet.Count.Should().Be(futuresOptionContractDataFromCsv.Count);
         return;
 
-        static FuturesOptionContractReadModel MapToFuturesOptionContract(IObjectMapReader<FuturesOptionContractReadModel> o)
+        static FuturesOptionContractReadModel MapToFuturesOptionContract(IObjectDataRecord o)
              => new(
-                o.Get(e => e.ContractId),
-                o.Get(e => e.Description),
-                o.Get(e => e.Symbol),
-                o.Get(e => e.LocalSymbol),
-                o.Get(e => e.SecurityType),
-                o.Get(e => e.Currency),
-                o.Get(e => e.Exchange),
-                o.Get(e => e.Multiplier),
-                o.Get(e => e.ContractMonth),
-                o.Get(e => e.StrikePrice),
-                o.Get(e => e.OptionType));
+                o.GetString(0),
+                o.GetString(1),
+                o.GetString(2),
+                o.GetString(3),
+                o.GetString(4),
+                o.GetString(5),
+                o.GetString(6),
+                o.GetString(7),
+                o.GetDateOnly(8),
+                o.GetDouble(9),
+                o.GetString(10));
     }
 }

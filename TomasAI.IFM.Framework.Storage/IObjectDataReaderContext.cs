@@ -2,5 +2,5 @@
 
 public interface IObjectDataReaderContext
 {
-    Task<ICollection<TResult>> ReadAsync<TResult>();
+    Task<ICollection<TResult>> ReadAsync<TResult>(Func<IObjectDataRecord, TResult> mapper);
 }

@@ -35,9 +35,6 @@ internal class  ScyllaDbConnection
     public string DefaultKeyspace => _stringBuilder!.DefaultKeyspace;    
     public int Port => _stringBuilder!.Port;
     public string[] ContactPoints => _stringBuilder!.ContactPoints;
-    public string Username => _stringBuilder!.Username;
-    public string Password => _stringBuilder!.Password;
-
     /// <summary>
     /// Returns the cached session or creates one on first call.
     /// The Cassandra ISession is thread-safe and designed for reuse.
@@ -79,11 +76,12 @@ internal class  ScyllaDbConnection
             //definitions.Define(new DateTimeToLocalDateTypeSerializer());
             definitions.Define(new DateOnlyToLocalDateTypeSerializer());
             definitions.Define(new TimeOnlyToLocalTimeTypeSerializer());
-            _stringBuilder = new CassandraConnectionStringBuilder(connectionString);
+            _stringBuilder = DatabaseCredentialResolver.GetScyllaConnectionSettings(connectionString);
+            var credentials = DatabaseCredentialResolver.Resolve(DatabaseProvider.ScyllaDb);
             return Cluster.Builder()
                 .AddContactPoints(ContactPoints)
                 .WithPort(Port)
-                .WithCredentials(Username, Password)
+                .WithCredentials(credentials.UserId, credentials.Password)
                 .WithTypeSerializers(definitions)
                 .WithQueryTimeout(30000)
                 .WithSocketOptions(new SocketOptions().SetConnectTimeoutMillis(30000))

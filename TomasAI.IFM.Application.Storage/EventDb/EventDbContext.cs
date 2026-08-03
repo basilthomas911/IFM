@@ -41,49 +41,20 @@ namespace TomasAI.IFM.Application.Storage.EventDb
             _dbFactory = IsArgumentNull.Set(dbFactory);
         }
 
-        /// <summary>
-        /// initialize view model mappings
-        /// </summary>
-        /// <param name="model"></param>
-        public override void OnCreateModel(DbModel<EventDbContext> model)
-        {
-            EventLog = Map(e => e.EventLog)
-                .Parameters(e =>
-                      e.Set(o => o.EventId)
-                       .Set(o => o.EventSourceId)
-                       .Set(o => o.EventSourceVersion)
-                       .Set(o => o.EventTypeName)
-                       .Set(o => o.EventData)
-                       .Set(o => o.EventDate)
-                  );
-
-            EventSource =  Map(e => e.EventSource)
-               .Parameters(e =>
-                    e.Set(o => o.EventSourceId)
-                     .Set(o => o.EntityId)
-                     .Set(o => o.EntityTypeId)
-                     .Set(o => o.EventSourceVersion)
-                     .Set(o => o.EventSourceDate)
-                );
-
-            EventSourceETL = Map(e => e.EventSourceETL)
-                .Parameters(e =>
-                     e.Set(o => o.EventSourceId)
-                      .Set(o => o.EntityTypeName)
-                 );
-
-            EventLogETL = Map(e => e.EventLogETL)
-                .Parameters(e => 
-                    e.Set(o => o.EventId)
-                        .Set(o => o.EventTypeName));
-        }
-       
         public IDbCache DbCache => _dbCache;
 
-        public DbMap<EventLog> EventLog { get; private set; }
-        public DbMap<EventSource> EventSource { get; private set; }
-        public DbMap<EventSourceETL> EventSourceETL { get; private set; }
-        public DbMap<EventLogETL> EventLogETL { get; private set; }
+        static long MapLong(IObjectDataRecord row) => row.GetLong(0);
+        static DateTime MapDateTime(IObjectDataRecord row) => row.GetDateTime(0);
+        static EventLog MapEventLog(IObjectDataRecord row)
+            => new(row.GetLong(0), row.GetLong(1), row.GetLong(2), row.GetString(3), row.GetString(4), row.GetDateTime(5));
+        static IEvent MapDomainEvent(IObjectDataRecord row)
+            => MapEventLog(row).ToDomainEvent(row.GetLong(0));
+        static EventSource MapEventSource(IObjectDataRecord row)
+            => new(row.GetLong(0), row.GetLong(1), row.GetLong(2), row.GetLong(3), row.GetDateTime(4));
+        static EventSourceETL MapEventSourceEtl(IObjectDataRecord row)
+            => new(row.GetLong(0), row.GetString(1));
+        static EventLogETL MapEventLogEtl(IObjectDataRecord row)
+            => new(row.GetLong(0), row.GetString(1));
 
         /// <summary>
         /// stored procedure names
@@ -128,7 +99,7 @@ namespace TomasAI.IFM.Application.Storage.EventDb
             var db = _dbFactory.EventDb;
             return await db.Use(StoredProcedure.spGetEntityId)
                  .SetParameters(new { entityIdValue })
-                 .ExecuteScalarAsync<long>("EntityId");
+                 .ExecuteScalarAsync(MapLong);
         }
 
         /// <summary>
@@ -148,7 +119,7 @@ namespace TomasAI.IFM.Application.Storage.EventDb
                      .SetParameters(new {
                          entityId,
                          entityTypeId })
-                     .ExecuteQueryAsync<EventLog, IEvent>(e => e.ToDomainEvent(e.EventId));
+                     .ExecuteQueryAsync(MapDomainEvent);
                 var eventSourceVersion = await GetEventSourceVersionAsync(entityId, entityTypeId);
                 return new DomainEventCollection(eventSourceVersion, events);
             }
@@ -162,12 +133,12 @@ namespace TomasAI.IFM.Application.Storage.EventDb
                     .SetParameters(new {
                         entityId,
                         entityTypeId })
-                    .ExecuteScalarAsync<long>("EventSourceVersion");
+                    .ExecuteScalarAsync(MapLong);
 
             long GetEntityTypeId(string entityTypeName)
                 => db.Use(StoredProcedure.spGetEntityTypeId)
                     .SetParameters(new { entityTypeName })
-                    .ExecuteScalarAsync<long>().Result;
+                    .ExecuteScalarAsync(MapLong).Result;
         }
 
         /// <summary>
@@ -186,11 +157,11 @@ namespace TomasAI.IFM.Application.Storage.EventDb
                 var entityTypeName = GetEntityTypeName(typeof(TBoundedContext));
                 var entityTypeId = this.GetEntityTypeId(entityTypeName, e => GetEntityTypeId(e));
                 var eventsName = typeof(TEvent).Name;
-                var eventsRange = await db.Use(StoredProcedure.spGetEventLogFromLastNRange)
+                var eventsRange = (await db.Use(StoredProcedure.spGetEventLogFromLastNRange)
                      .SetParameters(new {
                          entityId,
                          entityTypeId })
-                     .ExecuteQueryAsync<EventLog, IEvent>(e => e.ToDomainEvent(e.EventId), lastNRange * 4);
+                     .ExecuteQueryAsync(MapDomainEvent)).Take(lastNRange * 4);
                 var eventSourceVersion = await GetEventSourceVersionAsync(entityId, entityTypeId);
                 var events = eventsRange.Where(e => e.GetType().Name == eventsName).Take(lastNRange).OrderBy(e => e.EventId).ToArray();
                 return new DomainEventCollection(eventSourceVersion, events);
@@ -205,12 +176,12 @@ namespace TomasAI.IFM.Application.Storage.EventDb
                     .SetParameters(new {
                         entityId,
                         entityTypeId })
-                    .ExecuteScalarAsync<long>("EventSourceVersion");
+                    .ExecuteScalarAsync(MapLong);
 
             long GetEntityTypeId(string entityTypeName)
                 => db.Use( StoredProcedure.spGetEntityTypeId)
                     .SetParameters(new { entityTypeName })
-                    .ExecuteScalarAsync<long>().Result;
+                    .ExecuteScalarAsync(MapLong).Result;
 
         }
         /// <summary>
@@ -235,7 +206,7 @@ namespace TomasAI.IFM.Application.Storage.EventDb
                          entityId,
                          entityTypeId,
                          snapshotEventTypeId })
-                     .ExecuteQueryAsync<EventLog, IEvent>(e => e.ToDomainEvent(e.EventId)));
+                     .ExecuteQueryAsync(MapDomainEvent));
                 return new DomainEventCollection(eventSourceVersion, events);
             }
             catch (Exception ex)
@@ -248,12 +219,12 @@ namespace TomasAI.IFM.Application.Storage.EventDb
                     .SetParameters(new {
                         entityId,
                         entityTypeId })
-                    .ExecuteScalarAsync<long>("EventSourceVersion");
+                    .ExecuteScalarAsync(MapLong);
 
             long GetEntityTypeId(string entityTypeName)
                  => db.Use(StoredProcedure.spGetEntityTypeId)
                      .SetParameters(new { entityTypeName })
-                     .ExecuteScalarAsync<long>().Result;
+                     .ExecuteScalarAsync(MapLong).Result;
         }
 
         /// <summary>
@@ -336,7 +307,7 @@ namespace TomasAI.IFM.Application.Storage.EventDb
                       .SetParameters(new {
                           entityId,
                           entityTypeId })
-                      .ExecuteSingleAsync<EventSource>();
+                      .ExecuteSingleAsync(MapEventSource);
 
             async Task UpdateEventSourceVersionAsync(EventSource e)
                 => await db.Use(StoredProcedure.spInsertEventSource)
@@ -352,7 +323,7 @@ namespace TomasAI.IFM.Application.Storage.EventDb
                      .SetParameters(new {
                          entityId,
                          entityTypeId })
-                     .ExecuteScalarAsync<long>("EventSourceVersion");
+                     .ExecuteScalarAsync(MapLong);
 
             async Task <DomainEventCollection> WriteEventsToEventLogAsync(DateTime eventDate, EventSource eventSource, Guid commandId)
             {
@@ -379,7 +350,7 @@ namespace TomasAI.IFM.Application.Storage.EventDb
             long GetEntityTypeId(string entityTypeName)
                  => db.Use(StoredProcedure.spGetEntityTypeId)
                      .SetParameters(new { entityTypeName })
-                     .ExecuteScalarAsync<long>().Result;
+                     .ExecuteScalarAsync(MapLong).Result;
         }
 
         public string GetEntityTypeName(Type entityType) => entityType.Name.Replace("State", "");
@@ -421,7 +392,7 @@ namespace TomasAI.IFM.Application.Storage.EventDb
         public async Task UpdateEventSourceEntityTypeIdAsync()
         {
             var db = _dbFactory.EventDb;
-            var eventSources = await db.Use("select * from event_source").ExecuteQueryAsync<EventSourceETL>();
+            var eventSources = await db.Use("select EventSourceId, EntityTypeName from event_source").ExecuteQueryAsync(MapEventSourceEtl);
             var queuedCommands = new List<object>();    
             foreach (var e in eventSources)
             {
@@ -434,15 +405,15 @@ namespace TomasAI.IFM.Application.Storage.EventDb
         public async Task UpdateEventLogEventTypeIdAsync()
         {
             var db = _dbFactory.EventDb;
-            var startDate = (await db.Use("select min(EventDate) from event_log").ExecuteScalarAsync<DateTime>()).Date;
-            var endDate = (await db.Use("select max(EventDate) from event_log").ExecuteScalarAsync<DateTime>()).Date;
+            var startDate = (await db.Use("select min(EventDate) from event_log").ExecuteScalarAsync(MapDateTime)).Date;
+            var endDate = (await db.Use("select max(EventDate) from event_log").ExecuteScalarAsync(MapDateTime)).Date;
             var eventTypeIdMap = new Dictionary<string, long>();
             foreach(var runDate in GetRunDates())
             {
                   var minDate = runDate.Date;
                 var maxDate = minDate.Date.AddDays(1);
-                var dateRangeQry = $"select * from event_log where EventDate between '{minDate:yyyy-MM-dd}' and '{maxDate:yyyy-MM-dd}'";
-                var eventLogs = db.Use(dateRangeQry).ExecuteQueryAsync<EventLogETL>().Result;
+                var dateRangeQry = $"select EventId, EventTypeName from event_log where EventDate between '{minDate:yyyy-MM-dd}' and '{maxDate:yyyy-MM-dd}'";
+                var eventLogs = db.Use(dateRangeQry).ExecuteQueryAsync(MapEventLogEtl).Result;
                 if (eventLogs != null && eventLogs.Count > 0)
                 {
                     var queuedCommands = new List<object>();    
@@ -480,7 +451,7 @@ namespace TomasAI.IFM.Application.Storage.EventDb
                 () => _dbFactory.EventDb
                   .Use(StoredProcedure.spGetEventTypeId)
                   .SetParameters(new { eventTypeName })
-                  .ExecuteScalarAsync<long>().Result);
+                  .ExecuteScalarAsync(MapLong).Result);
 
     }
 

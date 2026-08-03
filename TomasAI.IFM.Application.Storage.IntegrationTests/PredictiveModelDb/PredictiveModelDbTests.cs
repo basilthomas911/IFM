@@ -31,7 +31,7 @@ public class PredictiveModelFixture : IDisposable
      void SetDevDatabase()
     {
         var dbConn = new DbConnectionSettings()
-            .Add("PredictiveModelDbConnection", "Contact Points=localhost;Port=9042;Username=ifmapp;Password=monkey35907;Default Keyspace=predictive_model_test_db", "System.Data.ScyllaDb");
+            .Add("PredictiveModelDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=predictive_model_test_db", "System.Data.ScyllaDb");
         var diContainer = new Dictionary<Type, PredictiveModelDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var redisCacheMap = new Dictionary<string, string>();

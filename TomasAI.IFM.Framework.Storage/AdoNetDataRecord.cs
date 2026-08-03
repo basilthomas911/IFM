@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Framework.Storage;
 /// This class is designed for reuse across rows. The underlying <see cref="IDataReader"/> is advanced
 /// externally (via <c>Read()</c>); all accessor methods read from the current row position.
 /// All accessors return the default value when the column is null, matching the behaviour
-/// of <c>ObjectArrayExtension</c> and <see cref="ScyllaDb.ScyllaDbDataRecord"/>.
+/// of <see cref="ScyllaDb.ScyllaDbDataRecord"/>.
 /// </remarks>
 public sealed class AdoNetDataRecord : IObjectDataRecord
 {
@@ -24,6 +24,16 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     {
         _reader = reader;
         return this;
+    }
+
+    /// <inheritdoc />
+    public bool IsNull(int index) => _reader.IsDBNull(index);
+
+    /// <inheritdoc />
+    public short GetShort(int index)
+    {
+        if (_reader.IsDBNull(index)) return default;
+        try { return _reader.GetInt16(index); } catch { return default; }
     }
 
     /// <inheritdoc />
@@ -131,6 +141,25 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    public TimeSpan GetTimeSpan(int index)
+    {
+        if (_reader.IsDBNull(index)) return default;
+        try
+        {
+            var value = _reader.GetValue(index);
+            return value switch
+            {
+                TimeSpan timeSpan => timeSpan,
+                TimeOnly timeOnly => timeOnly.ToTimeSpan(),
+                long ticks => new TimeSpan(ticks),
+                string text when TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out var parsed) => parsed,
+                _ => default
+            };
+        }
+        catch { return default; }
+    }
+
+    /// <inheritdoc />
     public T GetEnum<T>(int index) where T : struct, Enum
     {
         if (_reader.IsDBNull(index)) return default;
@@ -166,7 +195,12 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     public string GetString(int index)
     {
         if (_reader.IsDBNull(index)) return string.Empty;
-        try { return _reader.GetString(index) ?? string.Empty; } catch { return string.Empty; }
+        try { return _reader.GetString(index) ?? string.Empty; }
+        catch
+        {
+            try { return Convert.ToString(_reader.GetValue(index), CultureInfo.InvariantCulture) ?? string.Empty; }
+            catch { return string.Empty; }
+        }
     }
 
     /// <inheritdoc />

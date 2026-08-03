@@ -38,10 +38,6 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb
         public ITradePlanDbReadContext DbReader => this;
         public ITradePlanDbWriteContext DbWriter => this;
 
-        public DbMap<IronCondorTradePlanReadModel> IronCondorTradePlan { get; private set; }
-        public DbMap<TradePlanForwardLossRatioReadModel> TradePlanForwardLossRatio { get; private set; }
-        public DbMap<TradePlanStopLossLimitReadModel> TradePlanStopLossLimit { get; private set; }
-
         public enum StoredProcedure
         {
             spBackupDatabase,
@@ -58,70 +54,27 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb
             public readonly string TradePositionState;
         }
 
-        /// <summary>
-        /// initialize trade plan model mappings
-        /// </summary>
-        /// <param name="model"></param>
-        public override void OnCreateModel(DbModel<TradePlanDbContext> model)
-        {
+        static IronCondorTradePlanReadModel MapTradePlan(IObjectDataRecord row)
+            => new(
+                row.GetGuid(0), row.GetInt(1), row.GetInt(2), row.GetEnum<TradeType>(3),
+                row.GetDateTime(4), row.GetDateOnly(5), row.GetDateTime(6), row.GetDateTime(7),
+                row.GetEnum<ActionType>(8), row.GetEnum<ActionSubType>(9), row.GetEnum<ActionState>(10),
+                row.GetString(11), row.GetDecimal(12), row.GetDouble(13), row.GetDouble(14),
+                row.GetDouble(15), row.GetDecimal(16), row.GetDecimal(17), row.GetDecimal(18),
+                row.GetDecimal(19), row.GetDecimal(20), row.GetDouble(21), row.GetDouble(22),
+                row.GetDouble(23), row.GetEnum<MarketDirectionType>(24),
+                row.GetEnum<MarketVolatilityType>(25), row.GetEnum<PriceDirectionType>(26),
+                row.GetEnum<PriceVolatilityType>(27), row.GetEnum<TradeRiskType>(28),
+                row.GetDouble(29), row.GetDouble(30), row.GetDouble(31), row.GetDouble(32),
+                row.GetDouble(33), row.GetDouble(34), row.GetEnum<GammaRiskType>(35),
+                row.GetDecimal(36), row.GetDecimal(37), row.GetDouble(38),
+                row.GetDateTime(39), row.GetString(40));
 
-            IronCondorTradePlan = Map(e => e.IronCondorTradePlan)
-                .Parameters(e =>
-                    e.Set(o => o.TradePlanId, o => o.AsGuid())
-                     .Set(o => o.OrderId)
-                     .Set(o => o.TradeId)
-                     .Set(o => o.TradeType, o => o.AsEnum<TradeType>())
-                     .Set(o => o.TradeDate)
-                     .Set(o => o.ValueDate)
-                     .Set(o => o.MaturityDate)
-                     .Set(o => o.ActionDate)
-                     .Set(o => o.ActionType, o => o.AsEnum<ActionType>())
-                     .Set(o => o.ActionSubType, o => o.AsEnum<ActionSubType>())
-                     .Set(o => o.ActionState, o => o.AsEnum<ActionState>())
-                     .Set(o => o.ActionReason)
-                     .Set(o => o.TradePnl)
-                     .Set(o => o.ForwardLossRatio)
-                     .Set(o => o.LossProbability)
-                     .Set(o => o.MScore)
-                     .Set(o => o.MaxProfit)
-                     .Set(o => o.MaxLoss)
-                     .Set(o => o.MinProfitTarget)
-                     .Set(o => o.DailyProfitTarget)
-                     .Set(o => o.AssetPrice)
-                     .Set(o => o.AssetStdDev)
-                     .Set(o => o.AssetMean)
-                     .Set(o => o.AssetPriceChange)
-                     .Set(o => o.MarketTrend, o => o.AsEnum<MarketDirectionType>())
-                     .Set(o => o.MarketVolatility, o => o.AsEnum<MarketVolatilityType>())
-                     .Set(o => o.MarketDirection, o => o.AsEnum<PriceDirectionType>())
-                     .Set(o => o.VixVolatility, o => o.AsEnum<PriceVolatilityType>())
-                     .Set(o => o.TradeRisk, o => o.AsEnum<TradeRiskType>())
-                     .Set(o => o.FiftyDayMA)
-                     .Set(o => o.FiveDayXMA)
-                     .Set(o => o.PutOTMProbability)
-                     .Set(o => o.CallOTMProbability)
-                     .Set(o => o.ShortPutGamma)
-                     .Set(o => o.ShortCallGamma)
-                     .Set(o => o.GammaRisk, o => o.AsEnum<GammaRiskType>())
-                     .Set(o => o.NetPrice)
-                     .Set(o => o.ForwardPrice)
-                     .Set(o => o.StopLossLimit)
-                     .Set(o => o.CreatedOn)
-                     .Set(o => o.CreatedBy)
-                );
+        static TradePlanForwardLossRatioReadModel MapForwardLossRatio(IObjectDataRecord row)
+            => new(row.GetDouble(0));
 
-
-            TradePlanForwardLossRatio = Map(e => e.TradePlanForwardLossRatio)
-                .Parameters(e =>
-                    e.Set(o => o.ForwardLossRatio)
-                );
-
-            TradePlanStopLossLimit = Map(e => e.TradePlanStopLossLimit)
-                .Parameters(e =>
-                    e.Set(o => o.StopLossLimit)
-                );
-
-        }
+        static TradePlanStopLossLimitReadModel MapStopLossLimit(IObjectDataRecord row)
+            => new(row.GetDouble(0));
       
         /// <summary>
         /// return iron condor trade plans
@@ -129,10 +82,10 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb
         /// <param name="orderId"></param>
         /// <returns></returns>
         public async Task<IReadOnlyList<IronCondorTradePlanReadModel>> GetIronCondorTradePlansAsync(int orderId, int tradeId, DateTime valueDate)
-            => await _dbFactory.TradePlanDb
+            => (await _dbFactory.TradePlanDb
                 .Use(StoredProcedure.spGetIronCondorTradePlans)
                 .SetParameters(new { orderId, tradeId, valueDate = valueDate.Date })
-                .ExecuteQueryAsync<IronCondorTradePlanReadModel>();
+                .ExecuteQueryAsync(MapTradePlan)).ToArray();
 
         /// <summary>
         /// return last iron condor trade plan stop loss limit
@@ -142,7 +95,7 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb
             => await _dbFactory.TradePlanDb
                 .Use(StoredProcedure.spGetIronCondorTradePlanStopLossLimit)
                 .SetParameters(new { orderId, tradeId})
-                .ExecuteSingleAsync<TradePlanStopLossLimitReadModel>();
+                .ExecuteSingleAsync(MapStopLossLimit);
 
         /// <summary>
         /// return iron condors trade plan by date range
@@ -150,10 +103,10 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb
         /// <param name="startDate"></param>
         /// <param name="endDate"></param>
         public async Task<IReadOnlyList<IronCondorTradePlanReadModel>> GetIronCondorTradePlansAsync(DateTime startDate, DateTime endDate)
-            => await _dbFactory.TradePlanDb
+            => (await _dbFactory.TradePlanDb
                 .Use(StoredProcedure.spGetIronCondorTradePlanByDateRange)
                 .SetParameters(new { startDate, endDate })
-                .ExecuteQueryAsync<IronCondorTradePlanReadModel>();
+                .ExecuteQueryAsync(MapTradePlan)).ToArray();
 
         /// <summary>
         /// return iron condor trade plan forward loss ratios by date range
@@ -161,10 +114,10 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb
         /// <param name="orderId"></param>
         /// <returns></returns>
         public async Task<IReadOnlyList<TradePlanForwardLossRatioReadModel>> GetIronCondorTradePlanForwardLossRatiosAsync(DateTime startDate, DateTime endDate)
-            => await _dbFactory.TradePlanDb
+            => (await _dbFactory.TradePlanDb
                 .Use(StoredProcedure.spGetIronCondorTradePlanForwardLossRatio)
                 .SetParameters(new { startDate, endDate })
-                .ExecuteQueryAsync<TradePlanForwardLossRatioReadModel>();
+                .ExecuteQueryAsync(MapForwardLossRatio)).ToArray();
 
         /// <summary>
         /// return iron condor trade plan forward loss ration by vaue date
@@ -175,7 +128,7 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb
             => await _dbFactory.TradePlanDb
                 .Use(StoredProcedure.spGetLastIronCondorTradePlanForwardLossRatio)
                 .SetParameters(new { valueDate })
-                .ExecuteSingleAsync<TradePlanForwardLossRatioReadModel>();
+                .ExecuteSingleAsync(MapForwardLossRatio);
 
         /// <summary>
         /// insert iron condor trade plan

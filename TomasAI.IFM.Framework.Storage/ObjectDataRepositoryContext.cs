@@ -74,27 +74,6 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     }
 
     /// <summary>
-    /// execute query asynchronously and return result set
-    /// </summary>
-    /// <typeparam name="TResult"></typeparam>
-    /// <returns></returns>
-    public Task<ICollection<TResult>> ExecuteQueryAsync<TResult>(Func<IObjectMapReader<TResult>, TResult> dataReaderMapper) 
-        => _provider.GetObjectsAsync(this, dataReaderMapper);
-
-    /// <summary>
-    /// Executes a query asynchronously and maps the results to a collection of objects.
-    /// </summary>
-    /// <remarks>The <paramref name="dataReaderMapper"/> function is invoked for each record in the query
-    /// result set. Ensure that the function is thread-safe if it accesses shared resources.</remarks>
-    /// <typeparam name="TResult">The type of the objects in the resulting collection.</typeparam>
-    /// <param name="dataReaderMapper">A function that maps a data record to an instance of <typeparamref name="TResult"/>. The function takes a string
-    /// and an integer as input parameters and returns a <typeparamref name="TResult"/> object.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains a collection of  <typeparamref
-    /// name="TResult"/> objects created by the <paramref name="dataReaderMapper"/>.</returns>
-    public Task<ICollection<TResult>> ExecuteQueryAsync<TResult>(Func<string, int, TResult> dataReaderMapper)
-        => _provider.GetObjectsAsync(this, dataReaderMapper);
-
-    /// <summary>
     /// Executes the query asynchronously and maps the results to a collection using an <see cref="IObjectDataRecord"/> mapper.
     /// </summary>
     public Task<ICollection<TResult>> ExecuteQueryAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper)
@@ -106,22 +85,6 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     public Task<IReadOnlyList<TResult>> ExecuteQueryImmutableAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper) where TResult : struct
         => _provider.GetImmutableObjectsAsync(this, dataReaderMapper);
 
-    /// <summary>
-    /// Executes a map-reduce operation asynchronously using the specified mapper and reducer functions.
-    /// </summary>
-    /// <typeparam name="TResult">The type of the result produced by the mapper function.</typeparam>
-    /// <param name="mapper">A function that maps each item to a result of type <typeparamref name="TResult"/>.  Cannot be <see
-    /// langword="null"/>.</param>
-    /// <param name="reducer">An action that processes the collection of mapped results.  Cannot be <see langword="null"/>.</param>
-    /// <returns></returns>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="mapper"/> or <paramref name="reducer"/> is <see langword="null"/>.</exception>
-    public ValueTask ExecuteMapReduceAsync<TResult>(Func<IObjectMapReader<TResult>, TResult> mapper, Action<IEnumerable<TResult>> reducer)
-    {
-        ArgumentNullException.ThrowIfNull(mapper);
-        ArgumentNullException.ThrowIfNull(reducer);
-        return _provider.ExecuteMapReduceAsync(this, mapper, reducer);
-    }
-
     public ValueTask ExecuteMapReduceAsync<TResult>(Func<IObjectDataRecord, TResult> mapper, Action<IEnumerable<TResult>> reducer)
     {
         ArgumentNullException.ThrowIfNull(mapper);
@@ -129,33 +92,11 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
         return _provider.ExecuteMapReduceAsync(this, mapper, reducer);
     }
 
-    /// execute stored procedure asynchronously and return single result
-    /// </summary>
-    /// <typeparam name="TResult"></typeparam>
-    /// <returns></returns>
-    public Task<TResult?> ExecuteSingleAsync<TResult>(Func<IObjectMapReader<TResult>, TResult> dataReaderMapper) 
-        => _provider.GetObjectAsync(this, dataReaderMapper);
-
     /// <summary>
     /// Executes the query and maps the first row to a single object using an <see cref="IObjectDataRecord"/> mapper.
     /// </summary>
     public Task<TResult?> ExecuteSingleAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper)
         => _provider.GetObjectAsync(this, dataReaderMapper);
-
-    public Task<TResult?> ExecuteSingleAsync<TResult>(IObjectDataRecord dataReaderMapper)
-    { 
-        //_provider.GetObjectAsync(this, dataReaderMapper);
-        return Task.FromResult<TResult?>(default);
-    }
-
-    /// <summary>
-    ///  return scalar result
-    /// </summary>
-    /// <typeparam name="TResult"></typeparam>
-    /// <param name="dataReaderMapper"></param>
-    /// <returns></returns>
-    public Task<TResult> ExecuteScalarAsync<TResult>(Func<IObjectMapReader<Scalar<TResult>>, TResult> dataReaderMapper) where TResult : struct
-        => _provider.GetObjectFromSourceAsync(this, dataReaderMapper);
 
     /// <summary>
     /// Executes a scalar query asynchronously and maps the result using an <see cref="IObjectDataRecord"/> mapper.

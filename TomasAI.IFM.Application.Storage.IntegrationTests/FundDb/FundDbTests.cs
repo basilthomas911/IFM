@@ -41,7 +41,7 @@ public class FundDatabaseFixture : IDisposable
     void SetFundDatabase()
     {
         var dbConn = new DbConnectionSettings()
-                         .Add("FundDbConnection", "Contact Points=localhost;Port=9042;Username=ifmapp;Password=monkey35907;Default Keyspace=fund_test_db", "System.Data.ScyllaDb");
+                         .Add("FundDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=fund_test_db", "System.Data.ScyllaDb");
 
         var diContainer = new Dictionary<Type, Storage.FundDb.FundDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
@@ -64,7 +64,7 @@ public class FundDatabaseFixture : IDisposable
     void SetSeqIdDatabase()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("SequenceIdDbConnection", "Host=localhost;Port=5432;Username=postgres;Password=monkey35907;Database=sequence-id-test-db", "System.Data.Postgres");
+             .Add("SequenceIdDbConnection", "Host=localhost;Port=5432;Database=sequence-id-test-db", "System.Data.Postgres");
         var diContainer = new Dictionary<Type, SequenceIdDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
