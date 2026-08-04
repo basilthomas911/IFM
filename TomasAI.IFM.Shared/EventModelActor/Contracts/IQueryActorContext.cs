@@ -19,6 +19,8 @@ public interface IQueryActorContext
 
     bool SetMessageInfo(ActorThreadId threadId, string verb, ActorMessageInfo info);
     ActorMessageInfo? GetMessageInfo(ActorThreadId threadId, string verb);
+    ActorMessageInfo? TakeMessageInfo(ActorThreadId threadId, string verb);
+    bool RemoveMessageInfo(ActorThreadId threadId, string verb);
 
     ValueTask ReplyAsync<TResult>(ActorThreadId threadId, string verb, ServiceResult<TResult> replyResult);
 

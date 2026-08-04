@@ -29,4 +29,7 @@ public class NatsConsumerOptions : INatsConsumerOptions
 
     /// <inheritdoc />
     public bool UseOwnedCommandPayloads { get; set; } = true;
+
+    /// <inheritdoc />
+    public bool UseOwnedQueryPayloads { get; set; } = true;
 }

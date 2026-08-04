@@ -10,10 +10,10 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 /// <summary>
-/// Command message that owns a NATS pooled payload until the command is deserialized.
-/// Ownership is transferred linearly from ingress to stripe, mailbox, and actor processing.
+/// Query message that owns a NATS pooled payload until the query is deserialized.
+/// Reply metadata remains valid after the serialized request payload is released.
 /// </summary>
-public sealed class NatsOwnedCommandMessage : IActorMessage
+public sealed class NatsOwnedQueryMessage : IActorMessage
 {
     static readonly MessagePackSerializerOptions SerializerOptions =
         MessagePackSerializerOptions.Standard
@@ -25,7 +25,7 @@ public sealed class NatsOwnedCommandMessage : IActorMessage
     NatsMemoryOwner<byte> _owner;
     int _released;
 
-    public NatsOwnedCommandMessage(
+    public NatsOwnedQueryMessage(
         NatsMsg<NatsMemoryOwner<byte>> sourceMessage,
         ActorSubject subject)
     {
@@ -42,21 +42,23 @@ public sealed class NatsOwnedCommandMessage : IActorMessage
     internal bool IsPayloadReleased => Volatile.Read(ref _released) != 0;
 
     public TCommand? AsCommand<TCommand>() where TCommand : class, ICommand
-        => Deserialize<TCommand>();
+        => throw new InvalidOperationException(
+            "An owned query message cannot be deserialized as a command.");
 
     public TEvent? AsEvent<TEvent>() where TEvent : class, IEvent
-        => throw new InvalidOperationException("An owned command message cannot be deserialized as an event.");
+        => throw new InvalidOperationException(
+            "An owned query message cannot be deserialized as an event.");
 
     public TQuery? AsQuery<TQuery, TResult>()
         where TQuery : class, IQuery<TResult>
         where TResult : class
-        => throw new InvalidOperationException("An owned command message cannot be deserialized as a query.");
+        => Deserialize<TQuery>();
 
     T? Deserialize<T>()
     {
         ObjectDisposedException.ThrowIf(
             Volatile.Read(ref _released) != 0,
-            nameof(NatsOwnedCommandMessage));
+            nameof(NatsOwnedQueryMessage));
         var owner = _owner;
         if (owner.Memory.IsEmpty)
             return default;
@@ -86,5 +88,6 @@ public sealed class NatsOwnedCommandMessage : IActorMessage
     public void Dispose() => ReleasePayload();
 
     public NatsMsg<byte[]> GetMessage()
-        => throw new InvalidOperationException("Owned command payloads cannot be exposed as byte arrays.");
+        => throw new InvalidOperationException(
+            "Owned query payloads cannot be exposed as byte arrays.");
 }

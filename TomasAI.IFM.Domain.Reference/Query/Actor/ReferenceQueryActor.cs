@@ -37,10 +37,10 @@ public class ReferenceQueryActor(
     /// <param name="message">The actor message to parse. This parameter cannot be <see langword="null"/>.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
             || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
@@ -61,7 +61,7 @@ public class ReferenceQueryActor(
     /// their verb. Each entry associates a specific query verb with a function that converts a NATS message payload
     /// into a strongly typed query object implementing the IQuery interface. The mapping is intended for internal
     /// use in query deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, IQuery>> _parseMap = new()
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
         [GetCurrentSeedIdQuery.Verb] = msg => msg.AsQuery<GetCurrentSeedIdQuery, ScalarReadModel<int>>()!,
         [GetNextSeedIdQuery.Verb] = msg => msg.AsQuery<GetNextSeedIdQuery, ScalarReadModel<int>>()!,

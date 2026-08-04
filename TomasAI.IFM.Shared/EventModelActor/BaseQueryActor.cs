@@ -111,10 +111,18 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
     {
         IQuery query = default!;
-        string verb = default!;
+        var verb = message.Subject.Verb;
         try
         {
-            query = ParseMessage(_context!, message.GetMessage());
+            try
+            {
+                query = ParseMessage(_context!, message);
+            }
+            finally
+            {
+                // Query execution and reply metadata no longer need the serialized request.
+                message.ReleasePayload();
+            }
 
             /// check if the message is a command and validate it
             await OnValidateAsync(_context!, query);
@@ -124,8 +132,13 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
         }
         catch (Exception ex)
         {
-            verb = message.Subject.Verb;
             await OnExceptionAsync(_context!, threadId, query, verb, ex);
+        }
+        finally
+        {
+            // ReplyAsync normally removes this entry. This terminal cleanup also
+            // covers handlers that throw, time out, or forget to reply.
+            _context!.RemoveMessageInfo(threadId, verb);
         }
     }
 
@@ -137,7 +150,14 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     ValueTask IQueryActor<TActor>.OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex) => OnExceptionAsync(context, threadId, query, verb, ex);
 
     // Protected hooks for derived classes
-    protected abstract IQuery ParseMessage(IQueryActorContext context, NatsMsg<byte[]> message);
+    protected abstract IQuery ParseMessage(IQueryActorContext context, IActorMessage message);
+
+    /// <summary>
+    /// Compatibility entry point for existing query actor tests during the staged mailbox migration.
+    /// Runtime query ingress uses <see cref="IActorMessage"/> directly.
+    /// </summary>
+    protected IQuery ParseMessage(IQueryActorContext context, in NatsMsg<byte[]> message)
+        => ParseMessage(context, new LegacyNatsActorMessage(message));
     protected virtual ValueTask OnStartup(IQueryActorContext context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnShutdown(IQueryActorContext context) => ValueTask.CompletedTask;
     protected abstract ValueTask ReceiveAsync(IQueryActorContext context, IQuery query);

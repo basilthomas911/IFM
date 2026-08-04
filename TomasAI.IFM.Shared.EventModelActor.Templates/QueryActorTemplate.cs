@@ -21,7 +21,7 @@ public class QueryActorTemplate(
 {
     public const string ActorName = "QueryActorTemplate";
 
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, IQuery>> _parseMap = [];
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = [];
 
     static readonly Dictionary<string, Func<
         IQuery,
@@ -29,10 +29,10 @@ public class QueryActorTemplate(
         IQueryActorContext,
         ValueTask>> _receiveMap = [];
 
-    protected override IQuery ParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var subject = message.Subject.ToSubject();
+        var subject = message.Subject;
         if (subject is not { ActorType: ActorType.Query, Name: ActorName }
             || !_parseMap.TryGetValue(subject.Verb, out var parser))
             throw new InvalidOperationException(

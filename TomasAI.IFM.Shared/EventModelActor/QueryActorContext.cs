@@ -21,7 +21,10 @@ public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
     IJSActorProducer? _jsProducer;
     IActorProducer? _producer;
-    ConcurrentDictionary<ActorThreadId, Dictionary<string, ActorMessageInfo>> _messageInfo = [];
+    readonly ConcurrentDictionary<(ActorThreadId ThreadId, string Verb), ActorMessageInfo>
+        _messageInfo = [];
+
+    public int PendingMessageCount => _messageInfo.Count;
 
     /// <summary>
     /// Gets the mailbox identifier for the actor associated with this context.
@@ -58,10 +61,7 @@ public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// <returns>true if the message information was set successfully; otherwise, false.</returns>
     public bool SetMessageInfo(ActorThreadId threadId, string verb, ActorMessageInfo info)
     {
-        if (!_messageInfo.ContainsKey(threadId))
-            _messageInfo[threadId] = [];
-        _messageInfo[threadId].Remove(verb);
-        _messageInfo[threadId].Add(verb, info);
+        _messageInfo[(threadId, verb)] = info;
         return true;
     }
 
@@ -73,14 +73,17 @@ public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// <returns>An <see cref="ActorMessageInfo"/> instance containing information about the message if found; otherwise, <see
     /// langword="null"/>.</returns>
     public ActorMessageInfo? GetMessageInfo(ActorThreadId threadId, string verb)
-    {
-        if (_messageInfo.TryGetValue(threadId, out Dictionary<string, ActorMessageInfo>? threadMap))
-        {
-            if (threadMap!.TryGetValue(verb, out ActorMessageInfo msgInfo))
-                return msgInfo;
-        }
-        return default;
-    }
+        => _messageInfo.TryGetValue((threadId, verb), out var info)
+            ? info
+            : null;
+
+    public ActorMessageInfo? TakeMessageInfo(ActorThreadId threadId, string verb)
+        => _messageInfo.TryRemove((threadId, verb), out var info)
+            ? info
+            : null;
+
+    public bool RemoveMessageInfo(ActorThreadId threadId, string verb)
+        => _messageInfo.TryRemove((threadId, verb), out _);
 
 
     /// <summary>
@@ -92,8 +95,12 @@ public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// <param name="replyResult">The result to be sent in the reply, encapsulated in a <see cref="ServiceResult{TResult}"/> object.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     public async ValueTask ReplyAsync<TResult>(ActorThreadId threadId, string verb, ServiceResult<TResult> replyResult)
-    { 
-        var msgInfo = GetMessageInfo(threadId, verb);
-        await ActorExtensions.NatsReplyAsync(msgInfo!.Value.ActorMessage, replyResult);
+    {
+        var msgInfo = TakeMessageInfo(threadId, verb)
+            ?? throw new InvalidOperationException(
+                $"Query reply context not found for thread {threadId} and verb {verb}.");
+        var message = msgInfo.Message
+            ?? new LegacyNatsActorMessage(msgInfo.ActorMessage);
+        await message.ReplyAsync(replyResult).ConfigureAwait(false);
     }
 }

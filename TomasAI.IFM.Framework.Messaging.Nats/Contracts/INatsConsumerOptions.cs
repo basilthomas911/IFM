@@ -24,4 +24,10 @@ public interface INatsConsumerOptions
     /// through actor deserialization. Disable only for controlled A/B diagnostics.
     /// </summary>
     bool UseOwnedCommandPayloads { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether query ingress retains NATS pooled payload ownership
+    /// through actor deserialization. Disable only for controlled A/B diagnostics.
+    /// </summary>
+    bool UseOwnedQueryPayloads { get; set; }
 }

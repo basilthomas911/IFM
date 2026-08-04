@@ -31,10 +31,10 @@ public class FuturesAtrSignalQueryActor(
     /// <param name="message">The actor message to parse.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
             || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
@@ -51,7 +51,7 @@ public class FuturesAtrSignalQueryActor(
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, IQuery>> _parseMap = new()
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
         [GetFuturesAtrSignalQuery.Verb] = msg => msg.AsQuery<GetFuturesAtrSignalQuery, FuturesAtrSignalReadModel>(),
         [GetFuturesAtrDailySignalQuery.Verb] = msg => msg.AsQuery<GetFuturesAtrDailySignalQuery, FuturesAtrSignalReadModel>()

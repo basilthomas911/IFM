@@ -43,4 +43,17 @@ The command consumer now receives `NatsMemoryOwner<byte>` and transfers that own
 | Legacy `byte[]` copy + MessagePack | 4,096 B | 1,875.96 ns | 8,512 B |
 | Direct MessagePack from owned pooled sequence | 4,096 B | 1,453.07 ns | 4,256 B |
 
-This removes 400 B per 256-byte command (10.5% faster in this benchmark) and 4,256 B per 4 KB command (22.5% faster). Queries and events intentionally remain on `byte[]` until their separate ownership stages; events require a fan-out ownership design for routed mailboxes.
+This removes 400 B per 256-byte command (10.5% faster in this benchmark) and 4,256 B per 4 KB command (22.5% faster).
+
+## Query owned-memory and typed-reply stage
+
+The query consumer now uses the same single-owner pooled ingress contract as commands. The typed query is materialized from the owned sequence, the request buffer is returned immediately, and only NATS reply metadata remains until `ReplyAsync`. The reply serializer writes directly to NATS without an intermediate `byte[]`. The requester also deserializes the typed response directly from the received sequence.
+
+| Query hot path | Payload | Legacy mean | Optimized mean | Change | Legacy allocated | Optimized allocated |
+|---|---:|---:|---:|---:|---:|---:|
+| Request ingress | 256 B | 802.3 ns | 685.2 ns | 14.6% faster | 824 B | 424 B |
+| Reply serialization | 256 B | 881.8 ns | 792.7 ns | 10.1% faster | 408 B | 0 B |
+| Request ingress | 4,096 B | 1,757.1 ns | 1,423.8 ns | 19.0% faster | 8,528 B | 4,264 B |
+| Reply serialization | 4,096 B | 2,580.9 ns | 2,030.2 ns | 21.3% faster | 4,264 B | 0 B |
+
+The owned request path removes the NATS `byte[]` copy while retaining the expected typed query allocation. Direct reply serialization removes the intermediate reply buffer entirely. Events still require a fan-out ownership design for routed mailboxes and remain on the legacy path.

@@ -26,8 +26,8 @@ public interface IActorMessage : IDisposable
     void ReleasePayload();
 
     /// <summary>
-    /// Returns the legacy byte-array NATS message while query and event processing remain on the staged legacy path.
-    /// Owned command messages do not support this operation.
+    /// Returns the legacy byte-array NATS message while event and denormalizer processing remain on the staged
+    /// legacy path. Owned command and query messages do not support this operation.
     /// </summary>
     NatsMsg<byte[]> GetMessage();
 

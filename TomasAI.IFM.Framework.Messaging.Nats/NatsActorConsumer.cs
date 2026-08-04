@@ -257,7 +257,14 @@ public class NatsActorConsumer(
                     }
                     break;
                 case ActorType.Query:
-                    await ReqReplMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    if (_options.UseOwnedQueryPayloads)
+                        await QueryMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    else
+                    {
+                        _logger.LogWarning(
+                            "NATS query consumer is using the legacy byte[] payload path for diagnostics.");
+                        await ReqReplMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    }
                     break;
             }
         }
@@ -444,6 +451,56 @@ public class NatsActorConsumer(
         {
             while (reader.TryRead(out var pending))
                 pending.Msg.Dispose();
+        }
+    }
+
+    async ValueTask QueryMessageLoopAsync(CancellationToken cancellationToken)
+    {
+        var stripes = _stripeChannels!;
+        var stripeCount = stripes.Length;
+        _logger.LogInformationEvent(
+            _serviceId,
+            "NATS query consumer started with owned pooled payloads");
+
+        await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in _nc!.SubscribeAsync<NatsMemoryOwner<byte>>(
+            _subscriptionSubject,
+            serializer: NatsDefaultSerializer<NatsMemoryOwner<byte>>.Default,
+            opts: _requestOptions,
+            cancellationToken: cancellationToken).ConfigureAwait(false))
+        {
+            var owner = msg.Data;
+            var transferred = false;
+            try
+            {
+                msg.EnsureSuccess();
+                var subject = msg.Subject.ToSubject();
+                var actorMessage = new NatsOwnedQueryMessage(msg, subject);
+                var stripe = (subject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
+
+                await stripes[stripe].Writer.WriteAsync(
+                    (actorMessage, subject),
+                    cancellationToken).ConfigureAwait(false);
+
+                transferred = true;
+                NatsMessagingMetrics.Received.Add(1);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                NatsMessagingMetrics.DispatchFailures.Add(1);
+                _logger.LogErrorEvent(
+                    _serviceId,
+                    ex,
+                    "NATS query consumer failed before ownership transfer.");
+            }
+            finally
+            {
+                if (!transferred)
+                    owner.Dispose();
+            }
         }
     }
 }

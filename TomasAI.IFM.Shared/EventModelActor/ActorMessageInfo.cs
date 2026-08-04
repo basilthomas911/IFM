@@ -25,10 +25,20 @@ public readonly struct ActorMessageInfo
     public ActorMessageInfo(NatsMsg<byte[]> actorMessage, IQuery query)
     {
         ActorMessage = actorMessage;
+        Message = new LegacyNatsActorMessage(actorMessage);
         Query = query;
     }
 
+    public ActorMessageInfo(IActorMessage actorMessage, IQuery query)
+    {
+        Message = actorMessage;
+        Query = query;
+        if (actorMessage is LegacyNatsActorMessage)
+            ActorMessage = actorMessage.GetMessage();
+    }
+
     public NatsMsg<byte[]> ActorMessage { get; } = default;
+    public IActorMessage? Message { get; }
     public ICommand Command { get; }
     public IEvent Event { get; }
     public IQuery Query { get; }

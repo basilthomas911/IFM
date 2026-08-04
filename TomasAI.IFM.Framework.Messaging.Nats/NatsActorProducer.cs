@@ -225,12 +225,16 @@ public class NatsActorProducer(
             if (!IsRunning)
                 await StartAsync(_actorId).ConfigureAwait(false);
 
-            /// send query request and await the response...
-            var subjectString = subject.ToString();
-            var replyMessageData = await RequestAsync(subjectString, query).ConfigureAwait(false);
-
-            /// Deserialize the result from the reply message data...
-            result = _dataSerializer.Deserialize<ServiceResult<TResult>>(replyMessageData)!;
+            // Deserialize the typed reply directly from NATS's receive sequence;
+            // do not materialize an intermediate reply byte[].
+            var reply = await _nc!.RequestAsync<TQuery, ServiceResult<TResult>>(
+                subject.ToString(),
+                query,
+                requestSerializer: NatsMessagePackSerializer<TQuery>.Default,
+                replySerializer: NatsMessagePackSerializer<ServiceResult<TResult>>.Default)
+                .ConfigureAwait(false);
+            result = IsArgumentNull.Set(reply.Data);
+            NatsMessagingMetrics.Published.Add(1);
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Requested query to subject {Subject} query={Name}", subject, query.GetType().Name);
         }

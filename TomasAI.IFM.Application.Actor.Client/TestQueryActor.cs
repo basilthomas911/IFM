@@ -19,9 +19,9 @@ public class TestQueryActor(ILogger<TestQueryActor> logger)
     : BaseQueryActor<TestQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
 {
     const string ActorName = "Test";
-    protected override IQuery ParseMessage(IQueryActorContext context, NatsMsg<byte[]> message )
+    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
     {
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         IQuery query = default(IQuery) switch
         {
             _ when msgSubject.Is(ActorType.Query, TestQuery.Actor, TestQuery.Verb) =>
@@ -42,8 +42,8 @@ public class TestQueryActor(ILogger<TestQueryActor> logger)
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var msgInfo = IsArgumentNull.Set(context.GetMessageInfo(query.Subject.ThreadId, query.Subject.Verb)).Value;
-        var qry = msgInfo.ActorMessage.AsQuery<TestQuery, string>();
-        await msgInfo.ActorMessage.ReplyAsync(new ServiceResult<string>( "The rain in Spain stays mainly in the plain."));
+        var actorMessage = IsArgumentNull.Set(msgInfo.Message);
+        await actorMessage.ReplyAsync(new ServiceResult<string>( "The rain in Spain stays mainly in the plain."));
     }
 
     protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
@@ -54,7 +54,8 @@ public class TestQueryActor(ILogger<TestQueryActor> logger)
             var serviceResultTask = default(ValueTask) switch
             {
                 _ when msgInfo.Query is TestQuery
-                    => msgInfo.ActorMessage.ReplyAsync(new ServiceResult<string>(msgInfo.Query.ErrorCode, ex.Message)),
+                    => IsArgumentNull.Set(msgInfo.Message).ReplyAsync(
+                        new ServiceResult<string>(msgInfo.Query.ErrorCode, ex.Message)),
                 _ => throw new InvalidOperationException($"Unable to process {ActorName} query: {msgInfo.Query.GetType().Name}")
             };
             await serviceResultTask;
