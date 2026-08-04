@@ -12,9 +12,22 @@ public interface INatsJetStreamConsumerOptions
     string DurableConsumerName { get; set; }
 
     /// <summary>
+    /// Optional consumer-level subject filter. The stream continues to own the
+    /// full actor-type subject space. Empty uses the default actor-type wildcard.
+    /// </summary>
+    string FilterSubject { get; set; }
+
+    /// <summary>
     /// Gets or sets the number of parallel dispatch stripes used by the consumer
     /// to route messages to actor mailboxes concurrently while preserving per-entity ordering.
     /// </summary>
     /// <remarks>Defaults to 4. Values less than 1 are clamped to 1.</remarks>
     int DispatcherCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether event ingress uses a reference-counted NATS pooled
+    /// payload across the primary and routed actor mailboxes. Disable only for
+    /// controlled legacy A/B diagnostics.
+    /// </summary>
+    bool UseOwnedEventPayloads { get; set; }
 }

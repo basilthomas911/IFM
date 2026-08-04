@@ -29,10 +29,10 @@ public class ApplicationEventActor(IActorSupervisor supervisor, ILogger<Applicat
     /// <param name="message">The NATS message containing the event data to parse. Cannot be null.</param>
     /// <returns>An event object representing the parsed event corresponding to the message and verb, or <see langword="null"/> if the message subject
     /// does not correspond to a known event (indicating the message should be ignored).</returns>
-    protected override IEvent ParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
             || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             return default!;
@@ -49,7 +49,7 @@ public class ApplicationEventActor(IActorSupervisor supervisor, ILogger<Applicat
     /// each event verb with a function that constructs the appropriate event type. The mapping assumes that each verb
     /// is unique and corresponds to a specific event class. The functions expect the message payload to be compatible
     /// with the target event type.</remarks>
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, IEvent>> _parseMap = [];
+    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
 
     /// <summary>
     /// Handles the execution of a received event by invoking the corresponding processing function based on the event's

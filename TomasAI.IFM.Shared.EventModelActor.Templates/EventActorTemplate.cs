@@ -21,7 +21,7 @@ public class EventActorTemplate(
 {
     public const string ActorName = "EventActorTemplate";
 
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, IEvent>> _parseMap = [];
+    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
 
     readonly Dictionary<string, Func<
         IEvent,
@@ -29,10 +29,10 @@ public class EventActorTemplate(
         ILogger,
         ValueTask<bool>>> _receiveMap = [];
 
-    protected override IEvent ParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var subject = message.Subject.ToSubject();
+        var subject = message.Subject;
         if (subject is not { ActorType: ActorType.Event, Name: ActorName }
             || !_parseMap.TryGetValue(subject.Verb, out var parser))
             return default!;

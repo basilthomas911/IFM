@@ -23,5 +23,11 @@ public class NatsJetStreamConsumerOptions : INatsJetStreamConsumerOptions
     public string DurableConsumerName { get; set; } = string.Empty;
 
     /// <inheritdoc />
+    public string FilterSubject { get; set; } = string.Empty;
+
+    /// <inheritdoc />
     public int DispatcherCount { get; set; } = 4;
+
+    /// <inheritdoc />
+    public bool UseOwnedEventPayloads { get; set; } = true;
 }

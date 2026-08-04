@@ -20,15 +20,15 @@ public class TestEventActor(IActorSupervisor superisor, ILogger<TestEventActor> 
 {
     public const string ActorName = "TestEvent";
 
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, IEvent>> _parseMap = new()
+    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
         ["TestEvent"] = msg => msg.AsEvent<TestEvent>()!
     };
 
-    protected override IEvent ParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Event, Name: ActorName }
             || !_parseMap.ContainsKey(msgSubject.Verb))
             return default!;

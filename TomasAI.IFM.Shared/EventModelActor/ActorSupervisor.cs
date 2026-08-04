@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
 using QLNet;
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
@@ -22,7 +23,7 @@ public class ActorSupervisor : IActorSupervisor
     readonly ConcurrentDictionary<ActorType, IJSActorConsumer> _jsConsumers;
     readonly ConcurrentDictionary<ActorThreadId, IActorState> _threadState;
     readonly ConcurrentDictionary<ActorMailboxId, IActor> _children;
-    readonly ConcurrentDictionary<ActorTypeId, List<ActorMailboxId>> _eventRouters;
+    readonly EventRouteRegistry _eventRouters;
     readonly ILogger<ActorSupervisor> _logger;
     readonly IContainerInstance _container;
     readonly static string _serviceId = "ActorSupervisor";
@@ -40,7 +41,7 @@ public class ActorSupervisor : IActorSupervisor
         _jsConsumers = new ConcurrentDictionary<ActorType, IJSActorConsumer>();
         _threadState = new ConcurrentDictionary<ActorThreadId, IActorState>();
         _children = new ConcurrentDictionary<ActorMailboxId, IActor>();
-        _eventRouters = new ConcurrentDictionary<ActorTypeId, List<ActorMailboxId>>();
+        _eventRouters = new EventRouteRegistry();
 
         // Initialize thread pool with one thread per logical processor.
         //var pool = new ActorThreadPool(this, _logger);
@@ -381,9 +382,7 @@ public class ActorSupervisor : IActorSupervisor
     {
         IsArgumentNull.Check(fromActorTypeId);
         IsArgumentNull.Check(toMailboxId);
-        _eventRouters.AddOrUpdate(fromActorTypeId,
-            _ => [toMailboxId],
-            (_, list) => { list.Add(toMailboxId); return list; });
+        _eventRouters.Add(fromActorTypeId, toMailboxId);
     }
 
     /// <summary>
@@ -396,13 +395,15 @@ public class ActorSupervisor : IActorSupervisor
     {
         IsArgumentNull.Check(fromActorTypeId);
         IsArgumentNull.Check(toMailboxId);
-        if (_eventRouters.TryGetValue(fromActorTypeId, out var routes))
-        {
-            routes.Remove(toMailboxId);
-            if (routes.Count == 0)
-                _eventRouters.TryRemove(fromActorTypeId, out _);
-        }
+        _eventRouters.Remove(fromActorTypeId, toMailboxId);
     }
+
+    /// <summary>
+    /// Returns a stable, deduplicated route snapshot for one source event type.
+    /// Route changes made after this call affect only later events.
+    /// </summary>
+    public ImmutableHashSet<ActorMailboxId> GetEventRoutes(ActorTypeId fromActorTypeId)
+        => _eventRouters.GetSnapshot(fromActorTypeId);
 
     
     public async ValueTask RouteEventToAsync(NatsMsg<byte[]> routedFromMsg)
@@ -410,7 +411,8 @@ public class ActorSupervisor : IActorSupervisor
         try
         {
             var msgSubject = routedFromMsg.Subject.ToSubject();
-            if (_eventRouters.TryGetValue(msgSubject.ActorTypeId, out var routedToMailboxIds))
+            var routedToMailboxIds = GetEventRoutes(msgSubject.ActorTypeId);
+            if (!routedToMailboxIds.IsEmpty)
             {
                 var jsEventConsumer = _jsConsumers[msgSubject.ActorType];
                 foreach (var e in routedToMailboxIds)

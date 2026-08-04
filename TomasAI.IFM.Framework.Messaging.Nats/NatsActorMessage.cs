@@ -52,8 +52,7 @@ public sealed class NatsActorMessage(NatsMsg<byte[]> natsMessage)
 
     public void ReleasePayload()
     {
-        // Legacy byte[] messages are GC-owned. Query and event processing will be
-        // migrated to explicit ownership in later stages.
+        // Legacy byte[] messages are GC-owned and have no explicit payload lease.
     }
 
     public void Dispose()

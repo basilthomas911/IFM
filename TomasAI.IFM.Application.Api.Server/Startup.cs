@@ -250,9 +250,7 @@ public static class Startup
                 instance ??= GetContainerInstance(type)!;
                 return instance;
             }));
-            services.AddTransient<IActorThreadQueue, ActorThreadQueue>();
-            //services.AddTransient<IActorThreadQueue, NatsActorThreadQueue>();
-            //services.AddTransient<IActorSpscRingBuffer<NatsMsg<byte[]>>>(_ => new NatsActorSpscRingBuffer(8192,64,64));
+            services.AddTransient<IActorThreadQueue>(_ => new ActorThreadQueueV2(8192, 32, 32));
 
 
         }

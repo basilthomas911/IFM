@@ -24,4 +24,8 @@ internal static class NatsMessagingMetrics
     public static readonly Counter<long> DuplicatesSuppressed = Meter.CreateCounter<long>(
         "ifm.nats.duplicates.suppressed",
         description: "Duplicate domain events suppressed by the compatibility consumer.");
+
+    public static readonly Counter<long> ListenerOnlyEvents = Meter.CreateCounter<long>(
+        "ifm.nats.events.listener_only",
+        description: "JetStream events acknowledged without actor delivery because they target only Core NATS listeners.");
 }

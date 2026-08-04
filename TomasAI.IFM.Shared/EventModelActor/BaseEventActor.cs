@@ -95,10 +95,22 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
         {
             // check if we can handle this event...
             if (_context is null)
+            {
+                message.ReleasePayload();
                 return;
+            }
 
 
-            @event = ParseMessage(_context!, message.GetMessage());
+            try
+            {
+                @event = ParseMessage(_context!, message);
+            }
+            finally
+            {
+                // Every fan-out branch releases its reference immediately after
+                // materializing its own typed event instance.
+                message.ReleasePayload();
+            }
             if (@event == null)
                 return;
 
@@ -122,7 +134,14 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     ValueTask IEventActor<TActor>.OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex) => OnExceptionAsync(context, threadId, @event, ex);
 
     // Protected hooks for derived classes
-    protected abstract IEvent ParseMessage(IEventActorContext context, NatsMsg<byte[]> message);
+    protected abstract IEvent ParseMessage(IEventActorContext context, IActorMessage message);
+
+    /// <summary>
+    /// Compatibility entry point for existing event actor tests while the
+    /// runtime path uses owned <see cref="IActorMessage"/> branches directly.
+    /// </summary>
+    protected IEvent ParseMessage(IEventActorContext context, in NatsMsg<byte[]> message)
+        => ParseMessage(context, new LegacyNatsActorMessage(message));
     protected virtual ValueTask OnStartup(IEventActorContext context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnShutdown(IEventActorContext context) => ValueTask.CompletedTask;
     protected abstract ValueTask ReceiveAsync(IEventActorContext context, IEvent @event);

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -44,6 +45,7 @@ public interface IActorSupervisor
 
     void AddEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
     void RemoveEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
+    ImmutableHashSet<ActorMailboxId> GetEventRoutes(ActorTypeId fromActorTypeId);
     ValueTask RouteEventToAsync(NatsMsg<byte[]> routedFromMsg);
 
     ValueTask StartConsumersAsync();

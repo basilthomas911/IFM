@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="TomasAI.IFM.Shared.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="EventModelActor\Supervisor\**" />
     <EmbeddedResource Remove="EventModelActor\Supervisor\**" />
     <None Remove="EventModelActor\Supervisor\**" />

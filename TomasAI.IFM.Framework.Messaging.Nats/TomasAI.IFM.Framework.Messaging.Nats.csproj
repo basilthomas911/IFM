@@ -29,6 +29,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="TomasAI.IFM.Framework.Messaging.Nats.UnitTests" />
     <InternalsVisibleTo Include="TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Framework.Messaging.Nats.Benchmarks" />
   </ItemGroup>
 
 </Project>

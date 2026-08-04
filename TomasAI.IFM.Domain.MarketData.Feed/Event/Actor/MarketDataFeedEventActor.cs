@@ -90,10 +90,10 @@ public class MarketDataFeedEventActor(
     /// <returns>An event object representing the parsed event corresponding to the message and verb.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
     /// resolved from the message.</exception>
-    protected override IEvent ParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
             || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             return default!;
@@ -106,7 +106,7 @@ public class MarketDataFeedEventActor(
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, IEvent>> _parseMap = new()
+    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
         [MarketDataFeedStartedEvent.Verb] = msg => msg.AsEvent<MarketDataFeedStartedEvent>()!,
         [MarketDataFeedStartedCompleteEvent.Verb] = msg => msg.AsEvent<MarketDataFeedStartedCompleteEvent>()!,

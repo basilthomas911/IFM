@@ -56,4 +56,27 @@ The query consumer now uses the same single-owner pooled ingress contract as com
 | Request ingress | 4,096 B | 1,757.1 ns | 1,423.8 ns | 19.0% faster | 8,528 B | 4,264 B |
 | Reply serialization | 4,096 B | 2,580.9 ns | 2,030.2 ns | 21.3% faster | 4,264 B | 0 B |
 
-The owned request path removes the NATS `byte[]` copy while retaining the expected typed query allocation. Direct reply serialization removes the intermediate reply buffer entirely. Events still require a fan-out ownership design for routed mailboxes and remain on the legacy path.
+The owned request path removes the NATS `byte[]` copy while retaining the expected typed query allocation. Direct reply serialization removes the intermediate reply buffer entirely.
+
+## Event shared-ownership fan-out stage
+
+The event consumer now receives one NATS pooled owner, creates one reference-counted
+branch per primary/routed mailbox, and returns the pooled buffer only after every
+actor has materialized its own typed event. The benchmark includes ingress buffer
+creation/copy, mailbox branch objects, and per-destination event deserialization.
+
+| Application payload | Destinations | Legacy mean | Owned mean | Change | Legacy allocated | Owned allocated | Allocation change |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 256 B | 1 | 1.204 us | 1.120 us | 7.0% faster | 1,224 B | 752 B | 38.6% less |
+| 256 B | 2 | 2.381 us | 2.205 us | 7.4% faster | 2,016 B | 1,448 B | 28.2% less |
+| 256 B | 5 | 5.839 us | 5.544 us | 5.1% faster | 4,393 B | 3,536 B | 19.5% less |
+| 256 B | 17 | 19.790 us | 18.468 us | 6.7% faster | 13,898 B | 11,888 B | 14.5% less |
+| 4,096 B | 1 | 2.320 us | 2.147 us | 7.5% faster | 8,929 B | 4,592 B | 48.6% less |
+| 4,096 B | 2 | 4.628 us | 3.908 us | 15.6% faster | 13,562 B | 9,128 B | 32.7% less |
+| 4,096 B | 5 | 9.674 us | 9.140 us | 5.5% faster | 27,460 B | 22,736 B | 17.2% less |
+| 4,096 B | 17 | 35.635 us | 31.089 us | 12.8% faster | 83,052 B | 77,168 B | 7.1% less |
+
+The percentage narrows as fan-out grows because each actor intentionally owns a
+separate typed event object graph; that isolation prevents routed actors from
+sharing mutable domain objects. The eliminated ingress `byte[]` remains one fixed
+allocation per JetStream event regardless of route count.

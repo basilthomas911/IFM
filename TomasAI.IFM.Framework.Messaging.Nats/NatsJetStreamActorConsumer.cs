@@ -53,6 +53,8 @@ public class NatsJetStreamActorConsumer(
 
     // striped dispatch channels for concurrent mailbox delivery with deferred ACK
     Channel<(NatsMsg<byte[]> Msg, ActorSubject Subject, INatsJSMsg<byte[]>? JsMsg, bool IsRoutedMessage)>[]? _stripeChannels;
+    Channel<(NatsOwnedEventMessage Msg, ActorSubject Subject, EventFanoutDelivery Delivery)>[]?
+        _ownedStripeChannels;
     Task[]? _dispatcherTasks;
 
     public async ValueTask StartAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName = default!)
@@ -109,19 +111,24 @@ public class NatsJetStreamActorConsumer(
                 : _options.StreamName;
 
             var durableName = !string.IsNullOrWhiteSpace(consumerName)
-               ? $"{_actorType}Consumer-{consumerName}"
-               : $"{_actorType}Consumer";
+                ? $"{_actorType}Consumer-{consumerName}"
+                : !string.IsNullOrWhiteSpace(_options.DurableConsumerName)
+                    ? _options.DurableConsumerName
+                    : $"{_actorType}Consumer";
 
-            var subjectFilter = $"{_actorType}.>";
+            var streamSubject = $"{_actorType}.>";
+            var consumerSubjectFilter = string.IsNullOrWhiteSpace(_options.FilterSubject)
+                ? streamSubject
+                : _options.FilterSubject;
 
             // A subject overlap is a configuration error. Never delete server streams implicitly:
             // another service may own the overlapping stream and its retained messages.
-            await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [subjectFilter]));
+            await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamSubject]));
 
             // Create or update the durable consumer...
             var consumer = await js.CreateOrUpdateConsumerAsync(streamName, new ConsumerConfig(durableName)
             {
-                FilterSubject = subjectFilter,
+                FilterSubject = consumerSubjectFilter,
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
                 DeliverPolicy = ConsumerConfigDeliverPolicy.All,
                 MaxAckPending = DefaultStripeCapacity * Math.Max(1, _options.DispatcherCount)
@@ -140,19 +147,47 @@ public class NatsJetStreamActorConsumer(
 
             // create striped dispatch channels and start dispatcher tasks
             var dispatcherCount = Math.Max(1, _options.DispatcherCount);
-            _stripeChannels = new Channel<(NatsMsg<byte[]>, ActorSubject, INatsJSMsg<byte[]>?, bool)>[dispatcherCount];
             _dispatcherTasks = new Task[dispatcherCount];
-            for (var i = 0; i < dispatcherCount; i++)
+            if (_options.UseOwnedEventPayloads)
             {
-                _stripeChannels[i] = Channel.CreateBounded<(NatsMsg<byte[]>, ActorSubject, INatsJSMsg<byte[]>?, bool)>(
-                    new BoundedChannelOptions(DefaultStripeCapacity)
-                    {
-                        SingleWriter = true,
-                        SingleReader = true,
-                        FullMode = BoundedChannelFullMode.Wait
-                    });
-                var reader = _stripeChannels[i].Reader;
-                _dispatcherTasks[i] = DispatchLoopAsync(reader);
+                _ownedStripeChannels =
+                    new Channel<(NatsOwnedEventMessage, ActorSubject, EventFanoutDelivery)>[dispatcherCount];
+                for (var i = 0; i < dispatcherCount; i++)
+                {
+                    _ownedStripeChannels[i] = Channel.CreateBounded<(
+                        NatsOwnedEventMessage,
+                        ActorSubject,
+                        EventFanoutDelivery)>(new BoundedChannelOptions(DefaultStripeCapacity)
+                        {
+                            SingleWriter = true,
+                            SingleReader = true,
+                            FullMode = BoundedChannelFullMode.Wait
+                        });
+                    _dispatcherTasks[i] = OwnedDispatchLoopAsync(
+                        _ownedStripeChannels[i].Reader);
+                }
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "NATS JetStream event consumer is using the legacy byte[] payload path for diagnostics.");
+                _stripeChannels =
+                    new Channel<(NatsMsg<byte[]>, ActorSubject, INatsJSMsg<byte[]>?, bool)>[dispatcherCount];
+                for (var i = 0; i < dispatcherCount; i++)
+                {
+                    _stripeChannels[i] = Channel.CreateBounded<(
+                        NatsMsg<byte[]>,
+                        ActorSubject,
+                        INatsJSMsg<byte[]>?,
+                        bool)>(new BoundedChannelOptions(DefaultStripeCapacity)
+                        {
+                            // Routed legacy messages can be written by every dispatcher.
+                            SingleWriter = false,
+                            SingleReader = true,
+                            FullMode = BoundedChannelFullMode.Wait
+                        });
+                    _dispatcherTasks[i] = DispatchLoopAsync(_stripeChannels[i].Reader);
+                }
             }
 
             _isRunning = true;
@@ -215,6 +250,11 @@ public class NatsJetStreamActorConsumer(
                 foreach (var ch in _stripeChannels)
                     ch.Writer.TryComplete();
             }
+            if (_ownedStripeChannels is not null)
+            {
+                foreach (var ch in _ownedStripeChannels)
+                    ch.Writer.TryComplete();
+            }
 
             // Await all dispatcher tasks.
             if (_dispatcherTasks is not null)
@@ -223,6 +263,7 @@ public class NatsJetStreamActorConsumer(
                 catch (OperationCanceledException) { /* expected */ }
             }
             _stripeChannels = null;
+            _ownedStripeChannels = null;
             _dispatcherTasks = null;
 
             _cts.Dispose();
@@ -257,7 +298,10 @@ public class NatsJetStreamActorConsumer(
     {
         try
         {
-            await JetStreamMessageLoopAsync(consumer, cancellationToken).ConfigureAwait(false);
+            if (_options.UseOwnedEventPayloads)
+                await OwnedJetStreamMessageLoopAsync(consumer, cancellationToken).ConfigureAwait(false);
+            else
+                await JetStreamMessageLoopAsync(consumer, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -296,7 +340,34 @@ public class NatsJetStreamActorConsumer(
                     // parse subject and route to a dispatch stripe by entity hash.
                     // Same entity always maps to the same stripe, preserving per-entity FIFO ordering.
                     var msgSubject = msg.Subject.ToSubject();
+                    var primaryExists = _supervisor.ActorExists(msgSubject.ActorId);
+                    var routes = _supervisor.GetEventRoutes(msgSubject.ActorTypeId);
+                    if (!primaryExists && routes.IsEmpty)
+                    {
+                        NatsMessagingMetrics.ListenerOnlyEvents.Add(1);
+                        await msg.AckAsync(cancellationToken: CancellationToken.None)
+                            .ConfigureAwait(false);
+                        continue;
+                    }
                     var natsMsg = new NatsMsg<byte[]>(msg.Subject, msg.ReplyTo, default, default, msg.Data, msg.Connection, default);
+                    if (!primaryExists)
+                    {
+                        foreach (var route in routes)
+                        {
+                            var routedSubject = new ActorSubject(
+                                route.ActorType,
+                                route.Name,
+                                msgSubject.Verb,
+                                msgSubject.EntityId);
+                            var routedStripe = (routedSubject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
+                            await stripes[routedStripe].Writer.WriteAsync(
+                                (natsMsg, routedSubject, null, true),
+                                ctsRequestToken).ConfigureAwait(false);
+                        }
+                        await msg.AckAsync(cancellationToken: CancellationToken.None)
+                            .ConfigureAwait(false);
+                        continue;
+                    }
                     var stripe = (msgSubject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
                     await stripes[stripe].Writer.WriteAsync((natsMsg, msgSubject, msg, false), ctsRequestToken);
                 }
@@ -307,6 +378,190 @@ public class NatsJetStreamActorConsumer(
             }
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("NATS JetStream {ActorType} consumer read {MessagesRead} messages.", _actorType, messagesRead);
+        }
+    }
+
+    async ValueTask OwnedJetStreamMessageLoopAsync(
+        INatsJSConsumer consumer,
+        CancellationToken cancellationToken)
+    {
+        var stripes = _ownedStripeChannels!;
+        var stripeCount = stripes.Length;
+        _logger.LogInformationEvent(
+            _serviceId,
+            "JetStream {ActorType} consumer started with shared owned event payloads",
+            _actorType);
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var messagesRead = 0;
+            await foreach (var msg in consumer.ConsumeAsync(
+                opts: _consumerOpts,
+                serializer: NatsDefaultSerializer<NatsMemoryOwner<byte>>.Default,
+                cancellationToken: cancellationToken).ConfigureAwait(false))
+            {
+                NatsSharedEventPayload? payload = null;
+                var ownerTransferred = false;
+                try
+                {
+                    msg.EnsureSuccess();
+                    if (msg.Data.Memory.IsEmpty)
+                    {
+                        await msg.AckAsync(cancellationToken: CancellationToken.None)
+                            .ConfigureAwait(false);
+                        continue;
+                    }
+
+                    payload = new NatsSharedEventPayload(msg.Data);
+                    ownerTransferred = true;
+                    messagesRead++;
+                    NatsMessagingMetrics.Received.Add(1);
+
+                    var sourceSubject = msg.Subject.ToSubject();
+                    var routes = _supervisor.GetEventRoutes(sourceSubject.ActorTypeId);
+                    var destinations = EventFanoutRoutes.Build(
+                        sourceSubject,
+                        routes,
+                        _supervisor.ActorExists(sourceSubject.ActorId));
+
+                    if (destinations.Count == 0)
+                    {
+                        NatsMessagingMetrics.ListenerOnlyEvents.Add(1);
+                        await msg.AckAsync(cancellationToken: CancellationToken.None)
+                            .ConfigureAwait(false);
+                        continue;
+                    }
+
+                    var delivery = EventFanoutDelivery.Create(msg, destinations.Count);
+                    foreach (var destination in destinations)
+                    {
+                        await ScheduleOwnedBranchAsync(
+                            payload,
+                            destination,
+                            delivery,
+                            stripes,
+                            stripeCount,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    NatsMessagingMetrics.DispatchFailures.Add(1);
+                    _logger.LogErrorEvent(
+                        _serviceId,
+                        ex,
+                        "NATS JetStream {ActorType} owned event ingress failed.",
+                        _actorType);
+                }
+                finally
+                {
+                    if (ownerTransferred)
+                        payload!.Dispose();
+                    else
+                        msg.Data.Dispose();
+                }
+            }
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug(
+                    "NATS JetStream {ActorType} owned consumer read {MessagesRead} messages.",
+                    _actorType,
+                    messagesRead);
+        }
+    }
+
+    async ValueTask ScheduleOwnedBranchAsync(
+        NatsSharedEventPayload payload,
+        ActorSubject destination,
+        EventFanoutDelivery delivery,
+        Channel<(NatsOwnedEventMessage Msg, ActorSubject Subject, EventFanoutDelivery Delivery)>[] stripes,
+        int stripeCount,
+        CancellationToken cancellationToken)
+    {
+        NatsOwnedEventMessage? branch = null;
+        var transferred = false;
+        try
+        {
+            branch = payload.CreateBranch(destination);
+            var stripe = (destination.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
+            await stripes[stripe].Writer.WriteAsync(
+                (branch, destination, delivery),
+                cancellationToken).ConfigureAwait(false);
+            transferred = true;
+        }
+        catch (Exception ex)
+        {
+            if (!transferred)
+                branch?.Dispose();
+            NatsMessagingMetrics.DispatchFailures.Add(1);
+            _logger.LogErrorEvent(
+                _serviceId,
+                ex,
+                "Failed to schedule owned event branch for {ActorId}.",
+                destination.ActorId);
+            try
+            {
+                await delivery.CompleteHandoffAsync(false).ConfigureAwait(false);
+            }
+            catch (Exception acknowledgementException)
+            {
+                _logger.LogErrorEvent(
+                    _serviceId,
+                    acknowledgementException,
+                    "Failed to negatively acknowledge event after scheduling failure for {ActorId}.",
+                    destination.ActorId);
+            }
+        }
+    }
+
+    async Task OwnedDispatchLoopAsync(
+        ChannelReader<(NatsOwnedEventMessage Msg, ActorSubject Subject, EventFanoutDelivery Delivery)> reader)
+    {
+        await foreach (var (message, subject, delivery) in reader.ReadAllAsync().ConfigureAwait(false))
+        {
+            var accepted = false;
+            try
+            {
+                var actor = _supervisor.Children.GetValueOrDefault(subject.ActorId)
+                    ?? throw new InvalidOperationException(
+                        $"Actor not found in context children for mailbox {subject.ActorId}");
+                accepted = await actor.Mailbox.ThreadQueues.WriteAsync(
+                    message,
+                    subject,
+                    CancellationToken.None).ConfigureAwait(false);
+                if (!accepted)
+                    throw new InvalidOperationException(
+                        $"Mailbox rejected owned JetStream event for {subject.ActorId}.");
+            }
+            catch (Exception ex)
+            {
+                if (!accepted)
+                    message.Dispose();
+                NatsMessagingMetrics.DispatchFailures.Add(1);
+                _logger.LogErrorEvent(
+                    _serviceId,
+                    ex,
+                    "Owned event dispatch failed for {ActorId}.",
+                    subject.ActorId);
+            }
+
+            try
+            {
+                await delivery.CompleteHandoffAsync(accepted).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                NatsMessagingMetrics.DispatchFailures.Add(1);
+                _logger.LogErrorEvent(
+                    _serviceId,
+                    ex,
+                    "JetStream ACK/NAK finalization failed for {ActorId}.",
+                    subject.ActorId);
+            }
         }
     }
 

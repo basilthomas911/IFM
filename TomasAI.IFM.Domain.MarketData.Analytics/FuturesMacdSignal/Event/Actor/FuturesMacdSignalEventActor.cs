@@ -40,10 +40,10 @@ public class FuturesMacdSignalEventActor(IActorSupervisor supervisor,
     /// <param name="context">The actor context used for event processing. Cannot be null.</param>
     /// <param name="message">The NATS message containing the event data to parse. Cannot be null.</param>
     /// <returns>An event object representing the parsed event corresponding to the message and verb.</returns>
-    protected override IEvent ParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
             || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             return default!;
@@ -56,7 +56,7 @@ public class FuturesMacdSignalEventActor(IActorSupervisor supervisor,
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, IEvent>> _parseMap = new()
+    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
         [FuturesMacdSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesMacdSignalGeneratedCompleteEvent>()!
     };

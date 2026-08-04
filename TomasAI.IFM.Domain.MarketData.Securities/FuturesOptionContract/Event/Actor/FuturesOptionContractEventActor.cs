@@ -12,7 +12,7 @@ public class FuturesOptionContractEventActor(IActorSupervisor supervisor, ILogge
 {
     public const string Actor = "FuturesOptionContractEvent";
     readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = [];
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, IEvent>> _parseMap = [];
+    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -22,10 +22,10 @@ public class FuturesOptionContractEventActor(IActorSupervisor supervisor, ILogge
     /// <param name="message">The NATS message containing the event data to parse. Cannot be null.</param>
     /// <returns>An event object representing the parsed event corresponding to the message and verb, or <see langword="null"/> if the message subject
     /// does not correspond to a known event (indicating the message should be ignored).</returns>
-    protected override IEvent ParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
             || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             return default!;
