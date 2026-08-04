@@ -8,7 +8,12 @@ public interface IObjectCreateProvider
     IObjectRepositoryParameter CreateParameter();
     IObjectRepositoryContext CreateStoredProcedureContext(string storedProcName);
     IObjectRepositoryContext CreateCommandTextContext(string commandText);
+    [Obsolete("Use CreateQueuedCommandsContext(IReadOnlyCollection<object>) so queue metadata can be validated.")]
     IObjectRepositoryContext CreateQueuedCommandsContext();
+    IObjectRepositoryContext CreateQueuedCommandsContext(IReadOnlyCollection<object> queuedCommands)
+#pragma warning disable CS0618 // Compatibility fallback for existing IObjectCreateProvider implementations.
+        => CreateQueuedCommandsContext();
+#pragma warning restore CS0618
     IObjectRepositoryTransaction<TRepo>? CreateTransaction<TRepo>() where TRepo : IObjectRepository;
     IObjectBulkCopyContext CreateBulkCopyContext(DataTable bulkCopyDataTable);
     IObjectDataReaderContext CreateDataReaderContext(IDataReaderOptions dataReaderOptions);

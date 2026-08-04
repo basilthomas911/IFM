@@ -41,7 +41,7 @@ public class PostgresConnectionTests : IDisposable
         result.ConnectionString.Should().Contain("localhost");
         var builder = new NpgsqlConnectionStringBuilder(result.ConnectionString);
         builder.Username.Should().Be("unit-test-user");
-        builder.Password.Should().Be("unit-test-password");
+        builder.Password.Should().BeNull("NpgsqlDataSource redacts passwords from created connections");
     }
 
     [Fact]
@@ -57,6 +57,42 @@ public class PostgresConnectionTests : IDisposable
 
         // Assert
         result1.Should().NotBeSameAs(result2);
+    }
+
+    [Fact]
+    public void As_ReusesCachedDataSourceForEquivalentConnectionString()
+    {
+        var connection = new PostgresObjectDataRepositoryConnection();
+        var databaseName = $"cache_test_{Guid.NewGuid():N}";
+        var connectionString = $"Host=localhost;Database={databaseName}";
+        var reorderedConnectionString = $"Database={databaseName};Host=localhost";
+        var before = PostgresObjectDataRepositoryConnection.CachedDataSourceCount;
+
+        using var result1 = connection.As<NpgsqlConnection>(connectionString);
+        using var result2 = connection.As<NpgsqlConnection>(reorderedConnectionString);
+
+        PostgresObjectDataRepositoryConnection.CachedDataSourceCount.Should().Be(before + 1);
+    }
+
+    [Fact]
+    public void As_WhenDataSourceCreationFails_DoesNotPoisonCache()
+    {
+        var connection = new PostgresObjectDataRepositoryConnection();
+        var connectionString = $"Host=localhost;Database=retry_test_{Guid.NewGuid():N}";
+        var before = PostgresObjectDataRepositoryConnection.CachedDataSourceCount;
+        Environment.SetEnvironmentVariable("POSTGRES_TEST_KEY", null);
+
+        FluentActions.Invoking(() => connection.As<NpgsqlConnection>(connectionString))
+            .Should().Throw<InvalidOperationException>();
+        PostgresObjectDataRepositoryConnection.CachedDataSourceCount.Should().Be(before);
+
+        Environment.SetEnvironmentVariable(
+            "POSTGRES_TEST_KEY",
+            "{\"userid\":\"unit-test-user\",\"password\":\"unit-test-password\"}");
+        using var result = connection.As<NpgsqlConnection>(connectionString);
+
+        result.Should().NotBeNull();
+        PostgresObjectDataRepositoryConnection.CachedDataSourceCount.Should().Be(before + 1);
     }
 
     public void Dispose()

@@ -22,6 +22,10 @@ internal readonly record struct DeleteFuturesEodData(string contractId, DateOnly
 {
     public object Bind() => new object?[] { contractId, valueDate };
 }
+internal readonly record struct DeleteFuturesEodDataByMonth(int yearMonth, DateOnly valueDate, string contractId) : IBindValue
+{
+    public object Bind() => new object?[] { yearMonth, valueDate, contractId };
+}
 internal readonly record struct DeleteFuturesItiSignal(string contractId, DateOnly valueDate, string timePeriod) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod };
@@ -56,6 +60,10 @@ internal readonly record struct DeleteFuturesTickData(string contractId, DateOnl
 {
     public object Bind() => new object?[] { contractId, valueDate };
 }
+internal readonly record struct DeleteFuturesTickDataByTime(string contractId, DateOnly valueDate) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, valueDate };
+}
 internal readonly record struct DeleteMarketHoliday(string currencyType, DateOnly holidayDate) : IBindValue
 {
     public object Bind() => new object?[] { currencyType, holidayDate };
@@ -72,17 +80,21 @@ internal readonly record struct DeleteVixFuturesEodData(string contractId, DateO
 {
     public object Bind() => new object?[] { contractId, valueDate };
 }
+internal readonly record struct DeleteVixFuturesContractIndex(int bucket, string contractId) : IBindValue
+{
+    public object Bind() => new object?[] { bucket, contractId };
+}
 internal readonly record struct DeleteYieldCurveRate(DateOnly valueDate) : IBindValue
 {
     public object Bind() => new object?[] { valueDate };
 }
-internal readonly record struct GetCurrentFuturesEodDataByDateRange(DateOnly startDate, DateOnly endDate) : IBindValue
+internal readonly record struct GetCurrentFuturesEodDataByDateRange(int yearMonth, DateOnly startDate, DateOnly endDate) : IBindValue
 {
-    public object Bind() => new object?[] { startDate, endDate };
+    public object Bind() => new object?[] { yearMonth, startDate, endDate };
 }
-internal readonly record struct GetCurrentFuturesEodDataIndex(DateOnly valueDate) : IBindValue
+internal readonly record struct GetCurrentFuturesEodDataByMonth(int yearMonth, DateOnly valueDate) : IBindValue
 {
-    public object Bind() => new object?[] { valueDate };
+    public object Bind() => new object?[] { yearMonth, valueDate };
 }
 internal readonly record struct GetFuturesBarData(string contractId, string symbol, DateOnly valueDate, DateTime startDate, DateTime endDate) : IBindValue
 {
@@ -108,13 +120,9 @@ internal readonly record struct GetFuturesEodDataByDateRange(string contractId, 
 {
     public object Bind() => new object?[] { contractId, startDate, endDate };
 }
-internal readonly record struct GetFuturesEodClosingPrices(string contractId, string symbol, DateOnly startDate, DateOnly endDate, int maxDays) : IBindValue
+internal readonly record struct GetFuturesEodClosingPrices(string contractId, DateOnly startDate, DateOnly endDate) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, startDate, endDate, symbol, maxDays };
-}
-internal readonly record struct GetFuturesEodMovingAverages(string symbol, DateTime startDate, DateTime endDate) : IBindValue
-{
-    public object Bind() => new object?[] { startDate, endDate, symbol };
+    public object Bind() => new object?[] { contractId, startDate, endDate };
 }
 internal readonly record struct GetFuturesIntraDayData(string contractId, DateOnly valueDate) : IBindValue
 {
@@ -326,6 +334,24 @@ internal readonly record struct GetMarketHolidaysByDateRange(string currencyType
 {
     public object Bind() => new object?[] { currencyType, startDate, endDate };
 }
+internal readonly record struct GetMarketDataProjectionMonths(string projectionName, int yearMonth) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, yearMonth };
+}
+internal readonly record struct GetMarketDataProjectionState(string projectionName) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName };
+}
+internal readonly record struct GetMarketDataProjectionMutation(string projectionName) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName };
+}
+internal readonly record struct GetMarketDataProjectionScopeStatesV3(
+    string projectionName,
+    ICollection<string> scopeKeys) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, scopeKeys };
+}
 internal readonly record struct GetMaxFuturesItiSignalSequenceIdByTrendDirectionChanged(string contractId, DateOnly valueDate) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate };
@@ -342,17 +368,21 @@ internal readonly record struct GetVixFuturesEodData(string contractId, DateOnly
 {
     public object Bind() => new object?[] { contractId, valueDate };
 }
-internal readonly record struct GetVixFuturesEodDataByValueDate(DateOnly valueDate) : IBindValue
+internal readonly record struct GetVixFuturesEodDataThroughDate(string contractId, DateOnly valueDate) : IBindValue
 {
-    public object Bind() => new object?[] { valueDate };
+    public object Bind() => new object?[] { contractId, valueDate };
+}
+internal readonly record struct GetVixFuturesContractIds(int bucket) : IBindValue
+{
+    public object Bind() => new object?[] { bucket };
 }
 internal readonly record struct GetYesterdaysFuturesClosingPrice(string contractId, DateOnly valueDate) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate };
 }
-internal readonly record struct GetYesterdaysFuturesEodData(DateOnly valueDate) : IBindValue
+internal readonly record struct GetYesterdaysFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public object Bind() => new object?[] { valueDate };
+    public object Bind() => new object?[] { contractId, valueDate };
 }
 internal readonly record struct GetYieldCurveRate(DateOnly valueDate) : IBindValue
 {
@@ -381,6 +411,10 @@ internal readonly record struct InsertFuturesClosingPrice(string contractId, Dat
 internal readonly record struct InsertFuturesEodData(string contractId, DateOnly valueDate, string symbol, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, int volume, double dailyPercentChange, double dailyStdDev, double dailyStdDevAmount, double upperBand, double mean, double lowerBand, string marketDirection, string marketVolatility, string priceDirection, string priceVolatility, double marketDirectionIndicator, int windowSize) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize };
+}
+internal readonly record struct InsertFuturesEodDataByMonth(int yearMonth, string contractId, DateOnly valueDate, string symbol, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, int volume, double dailyPercentChange, double dailyStdDev, double dailyStdDevAmount, double upperBand, double mean, double lowerBand, string marketDirection, string marketVolatility, string priceDirection, string priceVolatility, double marketDirectionIndicator, int windowSize) : IBindValue
+{
+    public object Bind() => new object?[] { yearMonth, contractId, valueDate, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize };
 }
 internal readonly record struct InsertFuturesEodDataIndex(DateOnly valueDate, string contractId) : IBindValue
 {
@@ -442,6 +476,10 @@ internal readonly record struct InsertFuturesTickData(string contractId, DateOnl
 {
     public object Bind() => new object?[] { contractId, valueDate, tickId, tickTime, price, size };
 }
+internal readonly record struct InsertFuturesTickDataByTime(string contractId, DateOnly valueDate, TimeOnly tickTime, long tickId, decimal price, int size) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, valueDate, tickTime, tickId, price, size };
+}
 internal readonly record struct InsertFuturesTradeSignal(string contractId, DateOnly valueDate, string timePeriod, long sequenceId, TimeOnly timestamp, double mean, double stdDev, double futuresPrice, double priceChangePercent, double fundRiskPercent, double rsi, double rsiSlope, string trendType, string trendStrength, string tradeSignal, string tdi, string tdiStrength, double mdi, string mdiTrend, double mdiUpTrendLimit, double mdiDownTrendLimit, double upTrendingTrigger, double downTrendingTrigger, double entryTrigger, double exitTrigger, double trendDelta, double trendExtreme, double trendReversal, decimal fiftyDma, decimal twoHundredDma, string tradeExecuteState) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod, sequenceId, timestamp, mean, stdDev, futuresPrice, priceChangePercent, fundRiskPercent, rsi, rsiSlope, trendType, trendStrength, tradeSignal, tdi, tdiStrength, mdi, mdiTrend, mdiUpTrendLimit, mdiDownTrendLimit, upTrendingTrigger, downTrendingTrigger, entryTrigger, exitTrigger, trendDelta, trendExtreme, trendReversal, fiftyDma, twoHundredDma, tradeExecuteState };
@@ -449,6 +487,181 @@ internal readonly record struct InsertFuturesTradeSignal(string contractId, Date
 internal readonly record struct InsertMarketHoliday(string currencyType, DateOnly holidayDate, string description) : IBindValue
 {
     public object Bind() => new object?[] { currencyType, holidayDate, description };
+}
+internal readonly record struct InsertMarketDataProjectionMonth(string projectionName, int yearMonth) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, yearMonth };
+}
+internal readonly record struct InsertMarketDataProjectionMutation(string projectionName, Guid mutationId, DateTime startedOn) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, mutationId, startedOn };
+}
+internal readonly record struct DeleteMarketDataProjectionMutation(string projectionName, Guid mutationId) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, mutationId };
+}
+internal readonly record struct FailMarketDataProjectionMutation(
+    string projectionName,
+    Guid mutationId,
+    DateTime startedOn) : IBindValue
+{
+    public object Bind() => new object?[] { startedOn, projectionName, mutationId };
+}
+internal readonly record struct BeginMarketDataProjectionOperation(
+    string projectionName,
+    Guid generation,
+    HashSet<Guid> activeOperations) : IBindValue
+{
+    public object Bind() => new object?[] { generation, activeOperations, projectionName };
+}
+internal readonly record struct EndMarketDataProjectionOperation(
+    string projectionName,
+    Guid generation,
+    HashSet<Guid> activeOperations) : IBindValue
+{
+    public object Bind() => new object?[] { generation, activeOperations, projectionName };
+}
+internal readonly record struct RemoveMarketDataProjectionOperations(
+    string projectionName,
+    HashSet<Guid> activeOperations) : IBindValue
+{
+    public object Bind() => new object?[] { activeOperations, projectionName };
+}
+internal readonly record struct RestoreMarketDataProjectionState(
+    string projectionName,
+    Guid generation,
+    HashSet<Guid> activeOperations,
+    DateTime completedOn,
+    HashSet<Guid> expectedActiveOperations) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        activeOperations,
+        completedOn,
+        projectionName,
+        generation,
+        expectedActiveOperations
+    };
+}
+internal readonly record struct CompleteMarketDataProjectionState(
+    string projectionName,
+    Guid generation,
+    HashSet<Guid> activeOperations,
+    long sourceRowCount,
+    long projectedRowCount,
+    string sourceFingerprint,
+    string projectedFingerprint,
+    DateTime completedOn,
+    HashSet<Guid> expectedActiveOperations) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        activeOperations,
+        sourceRowCount,
+        projectedRowCount,
+        sourceFingerprint,
+        projectedFingerprint,
+        completedOn,
+        projectionName,
+        generation,
+        expectedActiveOperations
+    };
+}
+internal readonly record struct BeginMarketDataProjectionScopeOperationV3(
+    string projectionName,
+    string scopeKey,
+    Guid generation,
+    HashSet<Guid> activeOperations) : IBindValue
+{
+    public object Bind() => new object?[] { generation, activeOperations, projectionName, scopeKey };
+}
+internal readonly record struct EndMarketDataProjectionScopeOperationV3(
+    string projectionName,
+    string scopeKey,
+    Guid generation,
+    HashSet<Guid> activeOperations) : IBindValue
+{
+    public object Bind() => new object?[] { generation, activeOperations, projectionName, scopeKey };
+}
+internal readonly record struct MarkMarketDataProjectionScopeAtomicWriteV3(
+    string projectionName,
+    string scopeKey,
+    Guid generation) : IBindValue
+{
+    public object Bind() => new object?[] { generation, projectionName, scopeKey };
+}
+internal readonly record struct RegisterMarketDataProjectionGuardOperationV3(
+    string projectionName,
+    string scopeKey,
+    HashSet<Guid> activeOperations) : IBindValue
+{
+    public object Bind() => new object?[] { activeOperations, projectionName, scopeKey };
+}
+internal readonly record struct CompleteMarketDataProjectionGuardOperationV3(
+    string projectionName,
+    string scopeKey,
+    Guid generation,
+    HashSet<Guid> activeOperations,
+    DateTime completedOn,
+    HashSet<Guid> expectedActiveOperations) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        generation,
+        activeOperations,
+        completedOn,
+        projectionName,
+        scopeKey,
+        expectedActiveOperations
+    };
+}
+internal readonly record struct CompleteMarketDataProjectionScopeOperationV3(
+    string projectionName,
+    string scopeKey,
+    Guid generation,
+    HashSet<Guid> activeOperations,
+    DateTime completedOn,
+    HashSet<Guid> expectedActiveOperations) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        activeOperations,
+        completedOn,
+        projectionName,
+        scopeKey,
+        generation,
+        expectedActiveOperations
+    };
+}
+internal readonly record struct RemoveMarketDataProjectionScopeOperationV3(
+    string projectionName,
+    string scopeKey,
+    Guid operationId) : IBindValue
+{
+    public object Bind() => new object?[] { operationId, projectionName, scopeKey };
+}
+internal readonly record struct InsertMarketDataProjectionScopeMutationV3(
+    string projectionName,
+    string scopeKey,
+    Guid mutationId,
+    DateTime startedOn) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, scopeKey, mutationId, startedOn };
+}
+internal readonly record struct FailMarketDataProjectionScopeMutationV3(
+    string projectionName,
+    string scopeKey,
+    Guid mutationId,
+    DateTime startedOn) : IBindValue
+{
+    public object Bind() => new object?[] { startedOn, projectionName, scopeKey, mutationId };
+}
+internal readonly record struct DeleteMarketDataProjectionScopeMutationV3(
+    string projectionName,
+    string scopeKey,
+    Guid mutationId) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, scopeKey, mutationId };
 }
 internal readonly record struct InsertRateOfReturn(string symbol, DateOnly valueDate, double rateOfReturn) : IBindValue
 {
@@ -466,9 +679,20 @@ internal readonly record struct DeleteTradeLiveFeed(int orderId, int tradeId) : 
 {
     public object Bind() => new object?[] { orderId, tradeId };
 }
-internal readonly record struct InsertVixFuturesEodData(string contractId, DateOnly valueDate, decimal price, int size) : IBindValue
+internal readonly record struct InsertVixFuturesEodData(
+    string contractId,
+    DateOnly valueDate,
+    decimal openPrice,
+    decimal highPrice,
+    decimal lowPrice,
+    decimal closePrice,
+    int volume) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, price, price, price, price, size };
+    public object Bind() => new object?[] { contractId, valueDate, openPrice, highPrice, lowPrice, closePrice, volume };
+}
+internal readonly record struct InsertVixFuturesContractIndex(int bucket, string contractId) : IBindValue
+{
+    public object Bind() => new object?[] { bucket, contractId };
 }
 internal readonly record struct InsertYieldCurveRate(int id, DateOnly valueDate, double oneMonth, double twoMonth, double threeMonth, double sixMonth, double oneYear, double twoYear, double threeYear, double fiveYear, double sevenYear, double tenYear, double twentyYear, double thirtyYear) : IBindValue
 {

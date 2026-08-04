@@ -152,6 +152,18 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (valueDate ASC, tickId ASC);
     """;
 
+    public const string CreateFuturesTickDataByTimeTable = """
+    CREATE TABLE IF NOT EXISTS futures_tick_data_by_time (
+    contractId text,
+    valueDate date,
+    tickTime time,
+    tickId bigint,
+    price decimal,
+    size int,
+    PRIMARY KEY ((contractId, valueDate), tickTime, tickId)
+    ) WITH CLUSTERING ORDER BY (tickTime DESC, tickId DESC);
+    """;
+
     public const string CreateFuturesOptionTickDataTable = """
     CREATE TABLE IF NOT EXISTS futures_option_tick_data (
     contractId text,
@@ -247,6 +259,33 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (valueDate DESC, symbol ASC);
     """;
 
+    public const string CreateFuturesEodDataByMonthTable = """
+    CREATE TABLE IF NOT EXISTS futures_eod_data_by_month (
+    yearMonth int,
+    contractId text,
+    valueDate date,
+    symbol text,
+    openPrice decimal,
+    highPrice decimal,
+    lowPrice decimal,
+    closePrice decimal,
+    volume int,
+    dailyPercentChange double,
+    dailyStdDev double,
+    dailyStdDevAmount double,
+    upperBand double,
+    mean double,
+    lowerBand double,
+    marketDirection text,
+    marketVolatility text,
+    priceDirection text,
+    priceVolatility text,
+    marketDirectionIndicator double,
+    windowSize int,
+    PRIMARY KEY ((yearMonth), valueDate, contractId, symbol)
+    ) WITH CLUSTERING ORDER BY (valueDate DESC, contractId ASC, symbol ASC);
+    """;
+
     public const string CreateFuturesIntraDayDataTable = """
     CREATE TABLE IF NOT EXISTS futures_intra_day_data (
     contractId text,
@@ -285,6 +324,74 @@ internal static class MarketDataSchemaCql
     volume int,
     PRIMARY KEY (contractId, valueDate)
     ) WITH CLUSTERING ORDER BY (valueDate DESC);
+    """;
+
+    public const string CreateVixFuturesContractIndexTable = """
+    CREATE TABLE IF NOT EXISTS vix_futures_contract_index (
+    bucket int,
+    contractId text,
+    PRIMARY KEY ((bucket), contractId)
+    ) WITH CLUSTERING ORDER BY (contractId ASC);
+    """;
+
+    public const string CreateMarketDataProjectionMonthTable = """
+    CREATE TABLE IF NOT EXISTS market_data_projection_month (
+    projectionName text,
+    yearMonth int,
+    PRIMARY KEY (projectionName, yearMonth)
+    ) WITH CLUSTERING ORDER BY (yearMonth DESC);
+    """;
+
+    public const string CreateMarketDataProjectionStateV2Table = """
+    CREATE TABLE IF NOT EXISTS market_data_projection_state_v2 (
+    projectionName text PRIMARY KEY,
+    generation uuid,
+    isReady boolean,
+    blocked boolean,
+    activeOperations set<uuid>,
+    sourceRowCount bigint,
+    projectedRowCount bigint,
+    sourceFingerprint text,
+    projectedFingerprint text,
+    completedOn timestamp
+    );
+    """;
+
+    public const string CreateMarketDataProjectionMutationTable = """
+    CREATE TABLE IF NOT EXISTS market_data_projection_mutation (
+    projectionName text,
+    mutationId uuid,
+    startedOn timestamp,
+    PRIMARY KEY ((projectionName), mutationId)
+    );
+    """;
+
+    // Ordinary dual writes are coordinated at the query-partition scope. Keeping the
+    // scope in the partition key prevents live tick traffic for unrelated contracts
+    // from contending on the projection-wide migration state row.
+    public const string CreateMarketDataProjectionScopeStateV3Table = """
+    CREATE TABLE IF NOT EXISTS market_data_projection_scope_state_v3 (
+    projectionName text,
+    scopeKey text,
+    generation uuid,
+    isReady boolean,
+    blocked boolean,
+    activeOperations set<uuid>,
+    completedOn timestamp,
+    PRIMARY KEY ((projectionName, scopeKey))
+    );
+    """;
+
+    // Mutation rows are partitioned by the same query scope. They are durable recovery
+    // evidence and intentionally have no TTL; age alone must never release a writer.
+    public const string CreateMarketDataProjectionScopeMutationV3Table = """
+    CREATE TABLE IF NOT EXISTS market_data_projection_scope_mutation_v3 (
+    projectionName text,
+    scopeKey text,
+    mutationId uuid,
+    startedOn timestamp,
+    PRIMARY KEY ((projectionName, scopeKey), mutationId)
+    );
     """;
 
     public const string CreateFuturesTradeSignalTable = """

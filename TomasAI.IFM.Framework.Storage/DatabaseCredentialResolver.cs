@@ -1,4 +1,8 @@
 using System.Collections.Concurrent;
+using System.Collections;
+using System.Data.Common;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Cassandra;
@@ -99,11 +103,17 @@ internal static class DatabaseCredentialResolver
 
     internal static string AddPostgresCredentials(string connectionString, DatabaseCredentials credentials)
     {
-        var builder = new NpgsqlConnectionStringBuilder(connectionString);
-        RejectInlineCredentials(builder.Username, builder.Password, DatabaseProvider.Postgres);
+        var builder = GetPostgresConnectionSettings(connectionString);
         builder.Username = credentials.UserId;
         builder.Password = credentials.Password;
         return builder.ConnectionString;
+    }
+
+    internal static NpgsqlConnectionStringBuilder GetPostgresConnectionSettings(string connectionString)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        RejectInlineCredentials(builder.Username, builder.Password, DatabaseProvider.Postgres);
+        return builder;
     }
 
     internal static CassandraConnectionStringBuilder GetScyllaConnectionSettings(string connectionString)
@@ -111,6 +121,61 @@ internal static class DatabaseCredentialResolver
         var builder = new CassandraConnectionStringBuilder(connectionString);
         RejectInlineCredentials(builder.Username, builder.Password, DatabaseProvider.ScyllaDb);
         return builder;
+    }
+
+    /// <summary>
+    /// Produces an order-independent cache key from a parsed connection string.
+    /// Connection-string builders preserve the caller's keyword order in
+    /// <see cref="DbConnectionStringBuilder.ConnectionString"/>, so that value is not a
+    /// reliable identity for a process-wide data-source/session cache.
+    /// </summary>
+    internal static string GetCanonicalConnectionKey(DbConnectionStringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var keys = builder.Keys
+            .Cast<string>()
+            .OrderBy(static key => key, StringComparer.OrdinalIgnoreCase);
+        var result = new StringBuilder(builder.ConnectionString.Length);
+        foreach (var key in keys)
+        {
+            var value = FormatConnectionValue(builder[key]);
+            // Length prefixes make the key unambiguous even when values contain
+            // connection-string separator characters.
+            result.Append(key.Length)
+                .Append(':')
+                .Append(key.ToUpperInvariant())
+                .Append('=')
+                .Append(value.Length)
+                .Append(':')
+                .Append(value)
+                .Append(';');
+        }
+
+        return result.ToString();
+    }
+
+    static string FormatConnectionValue(object? value)
+    {
+        if (value is null)
+            return string.Empty;
+        if (value is string text)
+            return text;
+        if (value is IEnumerable values)
+        {
+            var result = new StringBuilder();
+            foreach (var item in values)
+            {
+                var itemText = FormatConnectionValue(item);
+                result.Append(itemText.Length).Append(':').Append(itemText).Append(';');
+            }
+
+            return result.ToString();
+        }
+
+        return value is IFormattable formattable
+            ? formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty
+            : value.ToString() ?? string.Empty;
     }
 
     static DatabaseCredentials Parse(string variableName, string json)

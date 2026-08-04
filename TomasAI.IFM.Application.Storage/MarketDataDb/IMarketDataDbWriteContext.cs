@@ -11,6 +11,15 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbWriteContext
 {
+    Task<MarketDataProjectionBackfillResult> BackfillQueryProjectionsV2Async(
+        int batchSize = 256,
+        CancellationToken cancellationToken = default,
+        DateTime? staleOperationCutoffUtc = null)
+        => throw new NotSupportedException();
+    Task<MarketDataProjectionReadiness> GetQueryProjectionReadinessAsync(
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
     Task DeleteFuturesBarDataAsync(FuturesBarDataId e);
     Task DeleteFuturesEodDataAsync(string contractId, DateOnly valueDate);
     Task DeleteFuturesTickDataAsync(string contractId, DateOnly valueDate);

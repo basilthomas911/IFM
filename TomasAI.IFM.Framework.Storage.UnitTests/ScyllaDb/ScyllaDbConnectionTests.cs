@@ -3,6 +3,7 @@ using System.Data;
 using Xunit;
 using FluentAssertions;
 using TomasAI.IFM.Framework.Storage.ScyllaDb;
+using Cassandra;
 
 namespace TomasAI.IFM.Framework.Storage.UnitTests.ScyllaDb;
 
@@ -35,5 +36,14 @@ public class ScyllaDbConnectionTests
 
         // Assert
         act.Should().Throw<NotImplementedException>();
+    }
+
+    [Fact]
+    public void QueryOptions_UseReplicaSafeLocalConsistency()
+    {
+        var options = ScyllaDbConnection.CreateQueryOptions();
+
+        options.GetConsistencyLevel().Should().Be(ConsistencyLevel.LocalQuorum);
+        options.GetSerialConsistencyLevel().Should().Be(ConsistencyLevel.LocalSerial);
     }
 }

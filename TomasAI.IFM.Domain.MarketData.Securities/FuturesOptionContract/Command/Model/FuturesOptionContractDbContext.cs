@@ -1,6 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -14,24 +12,16 @@ internal static class FuturesOptionContractDbContext
 	internal static async ValueTask<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(
 		this IDbContextFactory dbFactory,
 		string contractId)
-		=> await dbFactory.SecuritiesDb
-			.Use(FuturesOptionContractDbCql.GetFuturesOptionContract)
-			.SetParameters(new GetFuturesOptionContract(contractId))
-			.ExecuteSingleAsync(MapToFuturesOptionContract);
+		=> await dbFactory.SecuritiesDb.GetFuturesOptionContractAsync(contractId);
 
 	internal static async ValueTask<FuturesOptionContractReadModel[]> GetFuturesOptionContractsAsync(
 		this IDbContextFactory dbFactory,
 		string symbol)
-		=> [.. await dbFactory.SecuritiesDb
-			.Use(FuturesOptionContractDbCql.GetFuturesOptionContractsBySymbol)
-			.SetParameters(new GetFuturesOptionContractsBySymbol(symbol))
-			.ExecuteQueryAsync(MapToFuturesOptionContract)];
+		=> [.. await dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(symbol)];
 
 	internal static async ValueTask<FuturesOptionContractReadModel[]> GetFuturesOptionContractsAsync(
 		this IDbContextFactory dbFactory)
-		=> [.. await dbFactory.SecuritiesDb
-			.Use(FuturesOptionContractDbCql.GetFuturesOptionContracts)
-			.ExecuteQueryAsync(MapToFuturesOptionContract)];
+		=> [.. await dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync()];
 
 	internal static async ValueTask<string[]> GetFuturesOptionContractIdsAsync(
 		this IDbContextFactory dbFactory,
@@ -61,21 +51,7 @@ internal static class FuturesOptionContractDbContext
 		};
 		var serviceResult = await actorService.RequestAsync<FuturesOptionContractReadModel, GetFuturesOptionContractQuery>(qry);
 		oc = serviceResult.Success && serviceResult.Value is not null ? serviceResult.Value : oc;
-		await dbFactory.SecuritiesDb
-			.Use(FuturesOptionContractDbCql.InsertFuturesOptionContract)
-			.SetParameters(new UpsertFuturesOptionContract(
-				oc.ContractId,
-				oc.Description,
-				oc.Symbol,
-				oc.LocalSymbol,
-				oc.SecurityType,
-				oc.Currency,
-				oc.Exchange,
-				oc.Multiplier,
-				oc.ContractMonth,
-				oc.StrikePrice,
-				oc.OptionType))
-			.ExecuteCommandAsync();
+		await dbFactory.SecuritiesDb.InsertFuturesOptionContractAsync(oc);
 	}
 
 	internal static async ValueTask InsertFuturesOptionContractsAsync(
@@ -103,93 +79,11 @@ internal static class FuturesOptionContractDbContext
 		};
 		var serviceResult = await actorService.RequestAsync<FuturesOptionContractReadModel, GetFuturesOptionContractQuery>(qry);
 		oc = serviceResult.Success && serviceResult.Value is not null ? serviceResult.Value : oc;
-		var db = dbFactory.SecuritiesDb;
-		List<object> queuedCommands =
-		[
-			db.Use(FuturesOptionContractDbCql.DeleteFuturesOptionContractById)
-				.SetParameters(new DeleteFuturesOptionContractById(originalContractId))
-				.QueueCommand(),
-			db.Use(FuturesOptionContractDbCql.InsertFuturesOptionContract)
-				.SetParameters(new UpsertFuturesOptionContract(
-					oc.ContractId,
-					oc.Description,
-					oc.Symbol,
-					oc.LocalSymbol,
-					oc.SecurityType,
-					oc.Currency,
-					oc.Exchange,
-					oc.Multiplier,
-					oc.ContractMonth,
-					oc.StrikePrice,
-					oc.OptionType))
-				.QueueCommand()
-		];
-		await db.ExecuteQueuedCommandsAsync(queuedCommands, false);
+		await dbFactory.SecuritiesDb.UpdateFuturesOptionContractAsync(originalContractId, oc);
 	}
 
 	internal static async ValueTask DeleteFuturesOptionContractAsync(
 		this IDbContextFactory dbFactory,
 		string contractId)
-		=> await dbFactory.SecuritiesDb
-			.Use(FuturesOptionContractDbCql.DeleteFuturesOptionContractById)
-			.SetParameters(new DeleteFuturesOptionContractById(contractId))
-			.ExecuteCommandAsync();
-
-	static FuturesOptionContractReadModel MapToFuturesOptionContract<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-		=> new(
-			contractId: e.GetString(0),
-			description: e.GetString(1),
-			symbol: e.GetString(2),
-			localSymbol: e.GetString(3),
-			securityType: e.GetString(4),
-			currency: e.GetString(5),
-			exchange: e.GetString(6),
-			multiplier: e.GetString(7),
-			contractMonth: e.GetDateOnly(8),
-			strikePrice: e.GetDouble(9),
-			optionType: e.GetString(10));
-
-	internal readonly record struct GetFuturesOptionContract(string contractId) : IBindValue
-	{
-		public object Bind() => new object?[] { contractId };
-	}
-
-	internal readonly record struct GetFuturesOptionContractsBySymbol(string symbol) : IBindValue
-	{
-		public object Bind() => new object?[] { symbol };
-	}
-
-	internal readonly record struct UpsertFuturesOptionContract(
-		string contractId,
-		string description,
-		string symbol,
-		string localSymbol,
-		string securityType,
-		string currency,
-		string exchange,
-		string multiplier,
-		DateOnly contractMonth,
-		double strikePrice,
-		string optionType) : IBindValue
-	{
-		public object Bind() => new object?[]
-		{
-			contractId,
-			description,
-			symbol,
-			localSymbol,
-			securityType,
-			currency,
-			exchange,
-			multiplier,
-			contractMonth,
-			strikePrice,
-			optionType
-		};
-	}
-
-	internal readonly record struct DeleteFuturesOptionContractById(string contractId) : IBindValue
-	{
-		public object Bind() => new object?[] { contractId };
-	}
+		=> await dbFactory.SecuritiesDb.DeleteFuturesOptionContractAsync(contractId);
 }

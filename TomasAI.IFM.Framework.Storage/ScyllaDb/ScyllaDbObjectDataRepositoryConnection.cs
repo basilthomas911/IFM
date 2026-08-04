@@ -21,10 +21,9 @@ public class ScyllaDbObjectDataRepositoryConnection : IObjectRepositoryConnectio
 internal class  ScyllaDbConnection  
 {
     const string ClassName = nameof(ScyllaDbConnection);
-    Cluster _cluster;
+    readonly Cluster _cluster;
     CassandraConnectionStringBuilder? _stringBuilder;
-    ISession? _session;
-    readonly SemaphoreSlim _sessionLock = new(1, 1);
+    Lazy<Task<ISession>>? _sessionFactory;
 
     public ScyllaDbConnection(string connectionString)
     {
@@ -35,21 +34,34 @@ internal class  ScyllaDbConnection
     public string DefaultKeyspace => _stringBuilder!.DefaultKeyspace;    
     public int Port => _stringBuilder!.Port;
     public string[] ContactPoints => _stringBuilder!.ContactPoints;
+
+    internal static QueryOptions CreateQueryOptions()
+        => new QueryOptions()
+            .SetConsistencyLevel(ConsistencyLevel.LocalQuorum)
+            .SetSerialConsistencyLevel(ConsistencyLevel.LocalSerial);
     /// <summary>
     /// Returns the cached session or creates one on first call.
     /// The Cassandra ISession is thread-safe and designed for reuse.
     /// </summary>
     public async Task<ISession> CreateSessionAsync()
     {
-        if (_session is not null) return _session;
-        await _sessionLock.WaitAsync();
+        var factory = Volatile.Read(ref _sessionFactory);
+        if (factory is null)
+        {
+            var candidate = new Lazy<Task<ISession>>(
+                () => _cluster.ConnectAsync(DefaultKeyspace),
+                LazyThreadSafetyMode.ExecutionAndPublication);
+            factory = Interlocked.CompareExchange(ref _sessionFactory, candidate, null) ?? candidate;
+        }
+
         try
         {
-            return _session ??= await _cluster.ConnectAsync(DefaultKeyspace);
+            return await factory.Value.ConfigureAwait(false);
         }
-        finally
+        catch
         {
-            _sessionLock.Release();
+            Interlocked.CompareExchange(ref _sessionFactory, null, factory);
+            throw;
         }
     }
 
@@ -86,6 +98,7 @@ internal class  ScyllaDbConnection
                 .WithQueryTimeout(30000)
                 .WithSocketOptions(new SocketOptions().SetConnectTimeoutMillis(30000))
                 .WithPoolingOptions(poolingOptions)
+                .WithQueryOptions(CreateQueryOptions())
                 .Build();
         }
         catch (Exception ex)

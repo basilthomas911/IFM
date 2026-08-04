@@ -193,6 +193,32 @@ public sealed class DatabaseCredentialResolverTests
             DatabaseCredentialResolver.GetScyllaConnectionSettings(builder.ConnectionString));
     }
 
+    [Fact]
+    public void GetCanonicalConnectionKey_IgnoresPostgresKeywordOrder()
+    {
+        var first = DatabaseCredentialResolver.GetPostgresConnectionSettings(
+            "Host=localhost;Port=5432;Database=event-source-test-db");
+        var second = DatabaseCredentialResolver.GetPostgresConnectionSettings(
+            "Database=event-source-test-db;Host=localhost;Port=5432");
+
+        Assert.Equal(
+            DatabaseCredentialResolver.GetCanonicalConnectionKey(first),
+            DatabaseCredentialResolver.GetCanonicalConnectionKey(second));
+    }
+
+    [Fact]
+    public void GetCanonicalConnectionKey_IgnoresScyllaKeywordOrder()
+    {
+        var first = DatabaseCredentialResolver.GetScyllaConnectionSettings(
+            "Contact Points=localhost;Port=9042;Default Keyspace=fund_test_db");
+        var second = DatabaseCredentialResolver.GetScyllaConnectionSettings(
+            "Default Keyspace=fund_test_db;Contact Points=localhost;Port=9042");
+
+        Assert.Equal(
+            DatabaseCredentialResolver.GetCanonicalConnectionKey(first),
+            DatabaseCredentialResolver.GetCanonicalConnectionKey(second));
+    }
+
     static Dictionary<string, string?> TestEnvironment(string credentialName, string credentialValue)
         => new()
         {

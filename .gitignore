@@ -262,3 +262,4 @@ __pycache__/
 *.pyc
 /Docker/vLLM
 /BenchmarkDotNet.Artifacts/
+/.test-results/

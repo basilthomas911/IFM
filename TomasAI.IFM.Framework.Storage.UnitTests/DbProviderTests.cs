@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -120,11 +123,14 @@ public class DbProviderTests
         var mockRepo = Substitute.For<IObjectRepository>();
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
-        dbProvider.CreateCommandTextContext("SELECT 1");
-        dbProvider.CreateCommandTextContext("SELECT 2");
+        List<object> queuedCommands =
+        [
+            new ObjectDataQueuedCommand(CommandType.Text, "SELECT 1", null),
+            new ObjectDataQueuedCommand(CommandType.Text, "SELECT 2", null)
+        ];
 
         // Act
-        var queuedCtx = dbProvider.CreateQueuedCommandsContext();
+        var queuedCtx = dbProvider.CreateQueuedCommandsContext(queuedCommands);
 
         // Assert
         queuedCtx.Should().NotBeNull();
@@ -137,18 +143,21 @@ public class DbProviderTests
         var mockRepo = Substitute.For<IObjectRepository>();
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
-        dbProvider.CreateStoredProcedureContext("spProc1");
-        dbProvider.CreateStoredProcedureContext("spProc2");
+        List<object> queuedCommands =
+        [
+            new ObjectDataQueuedCommand(CommandType.StoredProcedure, "spProc1", null),
+            new ObjectDataQueuedCommand(CommandType.StoredProcedure, "spProc2", null)
+        ];
 
         // Act
-        var queuedCtx = dbProvider.CreateQueuedCommandsContext();
+        var queuedCtx = dbProvider.CreateQueuedCommandsContext(queuedCommands);
 
         // Assert
         queuedCtx.Should().NotBeNull();
     }
 
     [Fact]
-    public void CreateQueuedCommandsContextWithNoQueuedCommandsThrows()
+    public void CreateQueuedCommandsContextLegacyOverloadCreatesNeutralTextContext()
     {
         // Arrange
         var mockRepo = Substitute.For<IObjectRepository>();
@@ -156,10 +165,13 @@ public class DbProviderTests
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
 
         // Act
-        var act = () => dbProvider.CreateQueuedCommandsContext();
+#pragma warning disable CS0618 // Deliberately exercise the legacy compatibility overload.
+        var queuedCtx = dbProvider.CreateQueuedCommandsContext();
+#pragma warning restore CS0618
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        queuedCtx.Should().BeOfType<ObjectDataCommandTextContext>();
+        ((ObjectDataRepositoryContext)queuedCtx).GetCommandType().Should().Be(CommandType.Text);
     }
 
     [Fact]
@@ -169,14 +181,123 @@ public class DbProviderTests
         var mockRepo = Substitute.For<IObjectRepository>();
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
-        dbProvider.CreateCommandTextContext("SELECT 1");
-        dbProvider.CreateStoredProcedureContext("spProc1");
+        List<object> queuedCommands =
+        [
+            new ObjectDataQueuedCommand(CommandType.Text, "SELECT 1", null),
+            new ObjectDataQueuedCommand(CommandType.StoredProcedure, "spProc1", null)
+        ];
 
         // Act
-        var act = () => dbProvider.CreateQueuedCommandsContext();
+        var act = () => dbProvider.CreateQueuedCommandsContext(queuedCommands);
 
         // Assert
         act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void CreateQueuedCommandsContextWithDifferentProviderThrows()
+    {
+        // Arrange
+        var mockRepo = Substitute.For<IObjectRepository>();
+        mockRepo.ProviderName.Returns("System.Data.Postgres");
+        var mockLogger = Substitute.For<ILogger<DbProvider>>();
+        var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
+        List<object> queuedCommands =
+        [
+            new ObjectDataQueuedCommand(
+                CommandType.Text,
+                "SELECT 1",
+                null,
+                "System.Data.SqlServer",
+                null)
+        ];
+
+        // Act
+        var act = () => dbProvider.CreateQueuedCommandsContext(queuedCommands);
+
+        // Assert
+        act.Should().Throw<ArgumentException>()
+            .WithMessage("*repository provider*");
+    }
+
+    [Fact]
+    public void CreateQueuedCommandsContextWithDifferentScyllaKeyspaceThrows()
+    {
+        var targetRepo = Substitute.For<IObjectRepository>();
+        targetRepo.ProviderName.Returns("System.Data.ScyllaDb");
+        targetRepo.ConnectionString.Returns(
+            "Contact Points=localhost;Default Keyspace=market_data;User Id=test-user;Password=test-password");
+        var sourceRepo = Substitute.For<IObjectRepository>();
+        sourceRepo.ProviderName.Returns("System.Data.ScyllaDb");
+        sourceRepo.ConnectionString.Returns(
+            "Contact Points=localhost;Default Keyspace=fund;User Id=test-user;Password=test-password");
+        var dbProvider = new ObjectDataDbProvider(
+            targetRepo,
+            Substitute.For<ILogger<DbProvider>>());
+        List<object> queuedCommands =
+        [
+            new ObjectDataQueuedCommand(
+                CommandType.Text,
+                "SELECT 1",
+                null,
+                sourceRepo.ProviderName,
+                RepositoryConnectionIdentity.Get(sourceRepo))
+        ];
+
+        var act = () => dbProvider.CreateQueuedCommandsContext(queuedCommands);
+
+        act.Should().Throw<ArgumentException>()
+            .WithMessage("*repository connection*");
+    }
+
+    [Fact]
+    public void CreateQueuedCommandsContextWithSameConnectionFromDifferentRepositorySucceeds()
+    {
+        const string connection =
+            "Host=localhost;Database=events";
+        var targetRepo = Substitute.For<IObjectRepository>();
+        targetRepo.ProviderName.Returns("System.Data.Postgres");
+        targetRepo.ConnectionString.Returns(connection);
+        var sourceRepo = Substitute.For<IObjectRepository>();
+        sourceRepo.ProviderName.Returns("System.Data.Postgres");
+        sourceRepo.ConnectionString.Returns(connection);
+        var dbProvider = new ObjectDataDbProvider(
+            targetRepo,
+            Substitute.For<ILogger<DbProvider>>());
+        List<object> queuedCommands =
+        [
+            new ObjectDataQueuedCommand(
+                CommandType.Text,
+                "SELECT 1",
+                null,
+                sourceRepo.ProviderName,
+                RepositoryConnectionIdentity.Get(sourceRepo))
+        ];
+
+        var queuedCtx = dbProvider.CreateQueuedCommandsContext(queuedCommands);
+
+        queuedCtx.Should().BeOfType<ObjectDataCommandTextContext>();
+    }
+
+    [Fact]
+    public void RepositoryConnectionIdentityCachesPerRepositoryAndComparesEquivalentRepositoriesByValue()
+    {
+        const string connection =
+            "Contact Points=localhost;Default Keyspace=fund";
+        var firstRepo = Substitute.For<IObjectRepository>();
+        firstRepo.ProviderName.Returns("System.Data.ScyllaDb");
+        firstRepo.ConnectionString.Returns(connection);
+        var secondRepo = Substitute.For<IObjectRepository>();
+        secondRepo.ProviderName.Returns("System.Data.ScyllaDb");
+        secondRepo.ConnectionString.Returns(connection);
+
+        var firstIdentity = RepositoryConnectionIdentity.Get(firstRepo);
+        var cachedFirstIdentity = RepositoryConnectionIdentity.Get(firstRepo);
+        var equivalentIdentity = RepositoryConnectionIdentity.Get(secondRepo);
+
+        cachedFirstIdentity.Should().BeSameAs(firstIdentity);
+        equivalentIdentity.Should().NotBeSameAs(firstIdentity);
+        equivalentIdentity.Should().Be(firstIdentity);
     }
 
     [Fact]
@@ -223,20 +344,57 @@ public class DbProviderTests
     }
 
     [Fact]
-    public void CreateQueuedCommandsContextClearsQueueAfterCreate()
+    public void CreateQueuedCommandsContextIgnoresUnrelatedContextCreation()
     {
         // Arrange
         var mockRepo = Substitute.For<IObjectRepository>();
         var mockLogger = Substitute.For<ILogger<DbProvider>>();
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
+        // These contexts can be created concurrently by unrelated callers and must
+        // not become hidden input to execution of this explicit queue.
         dbProvider.CreateCommandTextContext("SELECT 1");
-        var queuedCtx = dbProvider.CreateQueuedCommandsContext();
-        queuedCtx.Should().NotBeNull();
+        dbProvider.CreateStoredProcedureContext("spProc1");
+        List<object> queuedCommands =
+        [
+            new ObjectDataQueuedCommand(CommandType.Text, "SELECT 2", null)
+        ];
 
         // Act
-        var act = () => dbProvider.CreateQueuedCommandsContext();
+        var queuedCtx = dbProvider.CreateQueuedCommandsContext(queuedCommands);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        queuedCtx.Should().BeOfType<ObjectDataCommandTextContext>();
+    }
+
+    [Fact]
+    public async Task CreateQueuedCommandsContextConcurrentQueuesAreIndependent()
+    {
+        // Arrange
+        var mockRepo = Substitute.For<IObjectRepository>();
+        var mockLogger = Substitute.For<ILogger<DbProvider>>();
+        var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var workers = Enumerable.Range(0, 32).Select(async index =>
+        {
+            var commandType = index % 2 == 0
+                ? CommandType.Text
+                : CommandType.StoredProcedure;
+            List<object> queue =
+            [
+                new ObjectDataQueuedCommand(commandType, $"command-{index}", null)
+            ];
+            await start.Task;
+
+            for (var iteration = 0; iteration < 100; iteration++)
+            {
+                var context = dbProvider.CreateQueuedCommandsContext(queue);
+                context.Should().BeAssignableTo<ObjectDataRepositoryContext>();
+                ((ObjectDataRepositoryContext)context).GetCommandType().Should().Be(commandType);
+            }
+        }).ToArray();
+
+        // Act
+        start.SetResult();
+        await Task.WhenAll(workers);
     }
 }

@@ -45,10 +45,17 @@ public class ScyllaBulkWriteBenchmarks
         DELETE FROM framework_storage_bulk_write_benchmark WHERE partitionId = :partitionId;
         """;
 
+    const string CountPartition = """
+        SELECT COUNT(*)
+        FROM framework_storage_bulk_write_benchmark
+        WHERE partitionId = :partitionId;
+        """;
+
     Cluster _legacyCluster = null!;
     ISession _legacySession = null!;
     PreparedStatement _legacyInsert = null!;
     PreparedStatement _deletePartition = null!;
+    PreparedStatement _countPartition = null!;
     BenchmarkRepository _repository = null!;
     BulkWriteBindValue[] _legacyValues = null!;
     BulkWriteBindValue[] _redesignedValues = null!;
@@ -85,6 +92,9 @@ public class ScyllaBulkWriteBenchmarks
             .WithCredentials(credentials.UserId, credentials.Password)
             .WithQueryTimeout(30_000)
             .WithSocketOptions(new SocketOptions().SetConnectTimeoutMillis(30_000))
+            .WithQueryOptions(new QueryOptions()
+                .SetConsistencyLevel(ConsistencyLevel.LocalQuorum)
+                .SetSerialConsistencyLevel(ConsistencyLevel.LocalSerial))
             .WithPoolingOptions(new PoolingOptions()
                 .SetMaxConnectionsPerHost(HostDistance.Local, 32)
                 .SetCoreConnectionsPerHost(HostDistance.Local, 2)
@@ -96,6 +106,7 @@ public class ScyllaBulkWriteBenchmarks
         }
         _legacyInsert = await _legacySession.PrepareAsync(InsertRow);
         _deletePartition = await _legacySession.PrepareAsync(DeletePartition);
+        _countPartition = await _legacySession.PrepareAsync(CountPartition);
 
         var settings = new DbConnectionSettings().Add(ConnectionName, connectionString, ProviderName);
         _repository = new BenchmarkRepository(settings[ConnectionName]);
@@ -104,13 +115,41 @@ public class ScyllaBulkWriteBenchmarks
         await CleanupAsync();
     }
 
-    [GlobalCleanup]
-    public async Task GlobalCleanup()
+    [GlobalCleanup(Target = nameof(LegacyLoggedBatch))]
+    public Task LegacyGlobalCleanup()
+        => VerifyAndCleanupAsync(LegacyPartitionBase);
+
+    [GlobalCleanup(Target = nameof(RedesignedBoundedConcurrency))]
+    public Task RedesignedGlobalCleanup()
+        => VerifyAndCleanupAsync(RedesignedPartitionBase);
+
+    async Task VerifyAndCleanupAsync(int partitionBase)
     {
-        if (_legacySession is not null)
-            await CleanupAsync();
-        _legacySession?.Dispose();
-        _legacyCluster?.Dispose();
+        try
+        {
+            if (_legacySession is null)
+                return;
+
+            long persistedRows = 0;
+            for (var partition = 0; partition < PartitionCount; partition++)
+            {
+                using var rows = await _legacySession.ExecuteAsync(
+                    _countPartition.Bind(partitionBase + partition));
+                persistedRows += rows.First().GetValue<long>(0);
+            }
+            if (persistedRows != RowCount)
+            {
+                throw new InvalidOperationException(
+                    $"Scylla benchmark persisted {persistedRows} rows; expected {RowCount}.");
+            }
+        }
+        finally
+        {
+            if (_legacySession is not null)
+                await CleanupAsync();
+            _legacySession?.Dispose();
+            _legacyCluster?.Dispose();
+        }
     }
 
     [Benchmark(Baseline = true, Description = "Before: logged batch")]

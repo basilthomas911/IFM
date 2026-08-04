@@ -19,12 +19,13 @@ namespace TomasAI.IFM.Framework.Storage.ScyllaDb;
 /// batching, and transactions.</remarks>
 public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
 {
-    static readonly ConcurrentDictionary<string, IObjectRepositoryProvider> _providers = [];
+    static readonly ConcurrentDictionary<string, Lazy<IObjectRepositoryProvider>> _providers = [];
     const string ClassName = nameof(ScyllaDbObjectDataRepositoryProvider);
     readonly ILogger<DbProvider> _logger;
     readonly ScyllaDbConnection _conn;
     readonly ScyllaDbBulkWriteOptions _bulkWriteOptions;
-    readonly ConcurrentDictionary<string, PreparedStatement> _preparedStatementCache = [];
+    readonly object _connectionIdentity;
+    readonly ConcurrentDictionary<string, Lazy<Task<PreparedStatement>>> _preparedStatementCache = [];
 
     /// <summary>
     /// Creates or retrieves an <see cref="IObjectRepositoryProvider"/> instance for the specified context.
@@ -37,8 +38,24 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// <returns>An <see cref="IObjectRepositoryProvider"/> instance associated with the specified context.</returns>
     public static IObjectRepositoryProvider CreateProvider(IObjectRepositoryContext ctx, ILogger<DbProvider> logger)
     {
-        var key = ctx.Repository.ConnectionString;
-        return _providers.GetOrAdd(key, _ => new ScyllaDbObjectDataRepositoryProvider(ctx, logger));
+        var connectionSettings = DatabaseCredentialResolver
+            .GetScyllaConnectionSettings(ctx.Repository.ConnectionString);
+        var key = DatabaseCredentialResolver.GetCanonicalConnectionKey(connectionSettings);
+        var providerFactory = _providers.GetOrAdd(
+            key,
+            _ => new Lazy<IObjectRepositoryProvider>(
+                () => new ScyllaDbObjectDataRepositoryProvider(ctx, logger),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+        try
+        {
+            return providerFactory.Value;
+        }
+        catch
+        {
+            ((ICollection<KeyValuePair<string, Lazy<IObjectRepositoryProvider>>>)_providers)
+                .Remove(new KeyValuePair<string, Lazy<IObjectRepositoryProvider>>(key, providerFactory));
+            throw;
+        }
     }
 
     /// <summary>
@@ -51,14 +68,43 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         _logger = logger;
         _conn = new ScyllaDbConnection(ctx.Repository.ConnectionString);
         _bulkWriteOptions = ScyllaDbBulkWriteOptions.FromEnvironment();
+        _connectionIdentity = RepositoryConnectionIdentity.Get(ctx.Repository);
     }
 
     /// <summary>
     /// Returns a cached <see cref="PreparedStatement"/> for the given CQL text, or prepares and caches one
     /// on first access. Eliminates repeated <c>session.Prepare()</c> round-trips for the same query.
     /// </summary>
-    PreparedStatement GetOrPrepare(ISession session, string cql)
-        => _preparedStatementCache.GetOrAdd(cql, static (key, s) => s.Prepare(key), session);
+    async Task<PreparedStatement> GetOrPrepareAsync(
+        ISession session,
+        string cql,
+        CancellationToken cancellationToken = default)
+    {
+        var prepared = _preparedStatementCache.GetOrAdd(
+            cql,
+            _ => new Lazy<Task<PreparedStatement>>(
+                () => session.PrepareAsync(cql),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+        try
+        {
+            var pendingPreparation = prepared.Value;
+            return cancellationToken.CanBeCanceled
+                ? await pendingPreparation.WaitAsync(cancellationToken).ConfigureAwait(false)
+                : await pendingPreparation.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The shared preparation remains cached and can complete for another caller.
+            // Cancelling one waiter must neither poison nor duplicate that work.
+            throw;
+        }
+        catch
+        {
+            ((ICollection<KeyValuePair<string, Lazy<Task<PreparedStatement>>>>)_preparedStatementCache)
+                .Remove(new KeyValuePair<string, Lazy<Task<PreparedStatement>>>(cql, prepared));
+            throw;
+        }
+    }
 
     /// <summary>
     /// Binds positional values directly to the prepared statement. ScyllaDB parameter catalogs emit
@@ -72,6 +118,15 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             return statement.Bind(values);
 
         return statement.Bind(parameterValue);
+    }
+
+    Task<RowSet> ExecuteOwnedStatementAsync(
+        ISession session,
+        IStatement statement,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ScyllaDbWriteAwaiter.AwaitAsync(session.ExecuteAsync(statement), cancellationToken);
     }
 
     /// <summary>
@@ -105,7 +160,32 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 parameterCount ?? -1);
 
             var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-            if (ctx is ObjectDataRepositoryContext deferredContext && deferredContext.HasDeferredParameterValues)
+            if (ctx is ObjectDataRepositoryContext repositoryContextWithIndex &&
+                repositoryContextWithIndex.IndexedParameterValues is { } indexedParameterValues)
+            {
+                var indexedCount = indexedParameterValues.Count.GetValueOrDefault();
+                if (indexedCount > 1)
+                {
+                    // Bind values on the single bounded producer. IBindValue does not
+                    // promise that Bind() is safe to call concurrently.
+                    await ExecuteDeferredCommandsAsync(
+                        session,
+                        indexedParameterValues.Read(),
+                        indexedCount).ConfigureAwait(false);
+                }
+                else if (indexedCount == 1)
+                {
+                    await ExecuteSingleCommandAsync(session, indexedParameterValues.ReadAt(0)).ConfigureAwait(false);
+                }
+                else
+                {
+                    using var rowSet = await ExecuteOwnedStatementAsync(
+                        session,
+                        new SimpleStatement(ctx.CommandText),
+                        cancellationToken).ConfigureAwait(false);
+                }
+            }
+            else if (ctx is ObjectDataRepositoryContext deferredContext && deferredContext.HasDeferredParameterValues)
             {
                 await ExecuteDeferredCommandsAsync(
                     session,
@@ -116,13 +196,18 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             {
                 var parameterValues = ctx.ParameterValues;
                 if (parameterValues.Count > 1)
-                    await ExecuteIndexedCommandsAsync(session, parameterValues).ConfigureAwait(false);
+                    await ExecuteIndexedCommandsAsync(
+                        session,
+                        parameterValues.Count,
+                        index => parameterValues[index]).ConfigureAwait(false);
                 else if (parameterValues.Count == 1)
                     await ExecuteSingleCommandAsync(session, parameterValues[0]).ConfigureAwait(false);
                 else
                 {
-                    using var rowSet = await session.ExecuteAsync(new SimpleStatement(ctx.CommandText))
-                        .WaitAsync(cancellationToken).ConfigureAwait(false);
+                    using var rowSet = await ExecuteOwnedStatementAsync(
+                        session,
+                        new SimpleStatement(ctx.CommandText),
+                        cancellationToken).ConfigureAwait(false);
                 }
             }
             return [-1L];
@@ -140,18 +225,23 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
 
         async Task ExecuteSingleCommandAsync(ISession session, object bindValues)
         {
-            var ps = GetOrPrepare(session, ctx.CommandText);
+            var ps = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
             var boundStatement = Bind(ps, bindValues);
-            using var rowSet = await session.ExecuteAsync(boundStatement)
-                .WaitAsync(cancellationToken).ConfigureAwait(false);
+            using var rowSet = await ExecuteOwnedStatementAsync(
+                session,
+                boundStatement,
+                cancellationToken).ConfigureAwait(false);
         }
 
-        async Task ExecuteIndexedCommandsAsync(ISession session, IReadOnlyList<object> parameterValues)
+        async Task ExecuteIndexedCommandsAsync(
+            ISession session,
+            int parameterCount,
+            Func<int, object> readParameterValue)
         {
-            var preparedStatement = GetOrPrepare(session, ctx.CommandText);
+            var preparedStatement = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
             var nextIndex = -1;
             ExceptionDispatchInfo? failure = null;
-            var workerCount = Math.Min(_bulkWriteOptions.MaxConcurrency, parameterValues.Count);
+            var workerCount = Math.Min(_bulkWriteOptions.MaxConcurrency, parameterCount);
             var workers = new Task[workerCount];
 
             for (var workerIndex = 0; workerIndex < workers.Length; workerIndex++)
@@ -166,13 +256,15 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var index = Interlocked.Increment(ref nextIndex);
-                    if (index >= parameterValues.Count)
+                    if (index >= parameterCount)
                         return;
 
                     try
                     {
-                        using var rowSet = await session.ExecuteAsync(Bind(preparedStatement, parameterValues[index]))
-                            .WaitAsync(cancellationToken).ConfigureAwait(false);
+                        using var rowSet = await ExecuteOwnedStatementAsync(
+                            session,
+                            Bind(preparedStatement, readParameterValue(index)),
+                            cancellationToken).ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
@@ -188,8 +280,10 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             using var enumerator = parameterValues.GetEnumerator();
             if (!enumerator.MoveNext())
             {
-                using var rowSet = await session.ExecuteAsync(new SimpleStatement(ctx.CommandText))
-                    .WaitAsync(cancellationToken).ConfigureAwait(false);
+                using var rowSet = await ExecuteOwnedStatementAsync(
+                    session,
+                    new SimpleStatement(ctx.CommandText),
+                    cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -201,7 +295,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             }
 
             var second = enumerator.Current;
-            var preparedStatement = GetOrPrepare(session, ctx.CommandText);
+            var preparedStatement = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
             var channel = Channel.CreateBounded<object>(new BoundedChannelOptions(_bulkWriteOptions.BoundedCapacity)
             {
                 FullMode = BoundedChannelFullMode.Wait,
@@ -258,8 +352,10 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 {
                     await foreach (var bindValues in channel.Reader.ReadAllAsync(stopSource.Token).ConfigureAwait(false))
                     {
-                        using var rowSet = await session.ExecuteAsync(Bind(preparedStatement, bindValues))
-                            .WaitAsync(stopSource.Token).ConfigureAwait(false);
+                        using var rowSet = await ExecuteOwnedStatementAsync(
+                            session,
+                            Bind(preparedStatement, bindValues),
+                            stopSource.Token).ConfigureAwait(false);
                     }
                 }
                 catch (OperationCanceledException) when (failure is not null)
@@ -286,7 +382,12 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         if (string.IsNullOrWhiteSpace(commandText))
             throw new StorageException($"{ClassName}.QueueCommand: command text parameter is empty");
-        return new ScyllaDbObjectDataQueuedCommand(commandType, commandText, bindValues);
+        return new ScyllaDbObjectDataQueuedCommand(
+            commandType,
+            commandText,
+            bindValues,
+            "System.Data.ScyllaDb",
+            _connectionIdentity);
     }
 
     /// <summary>
@@ -322,7 +423,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 commandText = cmd.CommandText;
                 if (cmd.BindValues!.Count > 0)
                 {
-                    var ps = GetOrPrepare(session, commandText);
+                    var ps = await GetOrPrepareAsync(session, commandText).ConfigureAwait(false);
                     foreach (var bindValues in cmd.BindValues)
                     {
                         var boundStatement = Bind(ps, bindValues);
@@ -345,7 +446,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             foreach (ScyllaDbObjectDataQueuedCommand cmd in queuedCommands.Cast<ScyllaDbObjectDataQueuedCommand>())
             {
                 _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandText, cmd.BindValues?.Count ?? 0);
-                var ps = GetOrPrepare(session, cmd.CommandText);
+                var ps = await GetOrPrepareAsync(session, cmd.CommandText).ConfigureAwait(false);
                 if (cmd.BindValues is { Count: > 0 })
                 {
                     foreach (var bindValues in cmd.BindValues)
@@ -390,7 +491,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             var session = await _conn.CreateSessionAsync();
             if (ctx.ParameterValues.Count > 0)
             {
-                var ps = GetOrPrepare(session, ctx.CommandText);
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText).ConfigureAwait(false);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
                     var boundStatement = Bind(ps, bindValues);
@@ -438,30 +539,55 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         IStatement statement;
         if (ctx.ParameterValues.Count == 1)
         {
-            var preparedStatement = GetOrPrepare(session, ctx.CommandText);
+            var preparedStatement = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
             statement = Bind(preparedStatement, ctx.ParameterValues[0]);
         }
         else
         {
             statement = new SimpleStatement(ctx.CommandText);
         }
-        statement.SetAutoPage(false);
-
-        using var rowSet = await session.ExecuteAsync(statement).WaitAsync(cancellationToken).ConfigureAwait(false);
-        var record = rowSet.ToObjectDataRecord();
-        while (true)
+        var rowSet = await ExecuteOwnedStatementAsync(session, statement, cancellationToken).ConfigureAwait(false);
+        var disposeOnExit = true;
+        try
         {
-            using var rows = rowSet.GetEnumerator();
-            while (rows.MoveNext())
+            var record = rowSet.ToObjectDataRecord();
+            while (true)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return dataMapper(record.SetRow(rows.Current));
+                // Consume exactly the already-buffered rows. Calling MoveNext once beyond
+                // this count would make the driver's synchronous enumerator fetch the next
+                // page; fetching it explicitly below keeps the async path non-blocking.
+                var available = rowSet.GetAvailableWithoutFetching();
+                using var rows = rowSet.GetEnumerator();
+                for (var index = 0; index < available; index++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!rows.MoveNext())
+                        yield break;
+                    yield return dataMapper(record.SetRow(rows.Current));
+                }
+
+                if (rowSet.PagingState is null)
+                    yield break;
+
+                var fetchTask = rowSet.FetchMoreResultsAsync();
+                try
+                {
+                    await fetchTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Fetch mutates the existing RowSet. Keep it alive until the driver
+                    // task settles, then let the drain release it.
+                    disposeOnExit = false;
+                    _ = ScyllaDbWriteAwaiter.DrainAndDisposeAsync(fetchTask, rowSet);
+                    throw;
+                }
             }
-
-            if (rowSet.IsFullyFetched)
-                yield break;
-
-            await rowSet.FetchMoreResultsAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (disposeOnExit)
+                rowSet.Dispose();
         }
     }
 
@@ -482,7 +608,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             var session = await _conn.CreateSessionAsync();
             if (ctx.ParameterValues.Count > 0)
             {
-                var ps = GetOrPrepare(session, ctx.CommandText);
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText).ConfigureAwait(false);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
                     var boundStatement = Bind(ps, bindValues);
@@ -522,7 +648,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             var session = await _conn.CreateSessionAsync();
             if (ctx.ParameterValues.Count > 0)
             {
-                var ps = GetOrPrepare(session, ctx.CommandText);
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText).ConfigureAwait(false);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
                     var boundStatement = Bind(ps, bindValues);
@@ -563,7 +689,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             var session = await _conn.CreateSessionAsync();
             if (ctx.ParameterValues.Count == 1)
             {
-                var ps = GetOrPrepare(session, ctx.CommandText);
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText).ConfigureAwait(false);
                 var boundStatement = Bind(ps, ctx.ParameterValues[0]);
                 rowSet = await session.ExecuteAsync(boundStatement);
             }
@@ -572,7 +698,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 var simpleStatement = new SimpleStatement(ctx.CommandText);
                 rowSet = await session.ExecuteAsync(simpleStatement);
             }
-            return GetSingle(rowSet, dataMapper)!;
+            using (rowSet)
+                return GetSingle(rowSet, dataMapper)!;
         }
         catch (Exception ex)
         {
@@ -596,7 +723,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             var session = await _conn.CreateSessionAsync();
             if (ctx.ParameterValues.Count == 1)
             {
-                var ps = GetOrPrepare(session, ctx.CommandText);
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText).ConfigureAwait(false);
                 var boundStatement = Bind(ps, ctx.ParameterValues[0]);
                 rowSet = await session.ExecuteAsync(boundStatement);
             }
@@ -605,7 +732,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 var simpleStatement = new SimpleStatement(ctx.CommandText);
                 rowSet = await session.ExecuteAsync(simpleStatement);
             }
-            return GetScalar(rowSet, dataMapper);
+            using (rowSet)
+                return GetScalar(rowSet, dataMapper);
         }
         catch (Exception ex)
         {

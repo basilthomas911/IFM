@@ -17,6 +17,49 @@ internal static class ReferenceSchemaCql
     WITH CLUSTERING ORDER BY (countryCode ASC, eventName ASC);
     """;
 
+    public const string CreateEconomicCalendarByCountryMonthV2Table = """
+    CREATE TABLE IF NOT EXISTS economic_calendar_by_country_month_v2 (
+    countryCode text,
+    monthBucket int,
+    eventDate timestamp,
+    eventName text,
+    actual text,
+    forecast text,
+    prior text,
+    createdOn timestamp,
+    createdBy text,
+    PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)
+    )
+    WITH CLUSTERING ORDER BY (eventDate DESC, eventName ASC);
+    """;
+
+    public const string CreateReferenceProjectionStateV3Table = """
+    CREATE TABLE IF NOT EXISTS reference_projection_state_v3 (
+    projectionName text PRIMARY KEY,
+    generation uuid,
+    completed boolean,
+    completedOn timestamp
+    );
+    """;
+
+    public const string CreateReferenceProjectionMutationV3Table = """
+    CREATE TABLE IF NOT EXISTS reference_projection_mutation_v3 (
+    projectionName text,
+    mutationId uuid,
+    startedOn timestamp,
+    PRIMARY KEY ((projectionName), mutationId)
+    );
+    """;
+
+    public const string CreateReferenceProjectionOwnershipV3Table = """
+    CREATE TABLE IF NOT EXISTS reference_projection_ownership_v3 (
+    projectionName text PRIMARY KEY,
+    ownerMutationId uuid,
+    conflicted boolean,
+    claimedOn timestamp
+    );
+    """;
+
     public const string CreateLookupTypeTable = """
     CREATE table if not Exists lookup_type (
     LookupTypeName text,
@@ -73,10 +116,35 @@ internal static class ReferenceSchemaCql
     );
     """;
 
+    public const string CreateScheduledJobByNameV3Table = """
+    CREATE TABLE IF NOT EXISTS scheduled_job_by_name_v3 (
+    jobName text PRIMARY KEY,
+    jobId int,
+    reservationToken uuid
+    );
+    """;
+
+    public const string CreateScheduledJobWriteOwnershipV3Table = """
+    CREATE TABLE IF NOT EXISTS scheduled_job_write_ownership_v3 (
+    scopeType text,
+    scopeKey text,
+    operationId uuid,
+    startedOn timestamp,
+    PRIMARY KEY ((scopeType, scopeKey))
+    );
+    """;
+
     public const string CreateSeedIdTable = """
     CREATE TABLE IF NOT EXISTS seed_id (
     SeedType text PRIMARY KEY,
     NextSeedId counter
+    );
+    """;
+
+    public const string CreateSeedIdV2Table = """
+    CREATE TABLE IF NOT EXISTS seed_id_v2 (
+    SeedType text PRIMARY KEY,
+    NextSeedId bigint
     );
     """;
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
+using NSubstitute;
 using Xunit;
 
 namespace TomasAI.IFM.Framework.Storage.UnitTests;
@@ -49,6 +50,39 @@ public sealed class ParameterValueSourceTests
                 yield return new CountingBindValue(index, () => bound++);
             }
         }
+    }
+
+    [Fact]
+    public void IndexedSource_BindsOnlyClaimedIndexesOnce()
+    {
+        var bindCounts = new int[4];
+        CountingBindValue[] values =
+        [
+            new(10, () => bindCounts[0]++),
+            new(20, () => bindCounts[1]++),
+            new(30, () => bindCounts[2]++),
+            new(40, () => bindCounts[3]++)
+        ];
+        var source = new IndexedParameterValueSource<CountingBindValue>(values);
+
+        source.Count.Should().Be(4);
+        ((object?[])source.ReadAt(3))[0].Should().Be(40);
+        ((object?[])source.ReadAt(1))[0].Should().Be(20);
+
+        bindCounts.Should().Equal(0, 1, 0, 1);
+    }
+
+    [Fact]
+    public void BindValueArray_SelectsIndexedRepositoryOverload()
+    {
+        var context = Substitute.For<IObjectRepositoryContext>();
+        CountingBindValue[] values = [new(1, static () => { })];
+
+        context.SetParameters(values);
+
+        var call = context.ReceivedCalls().Should().ContainSingle().Subject;
+        call.GetMethodInfo().GetParameters().Should().ContainSingle()
+            .Which.ParameterType.Should().Be(typeof(CountingBindValue[]));
     }
 
     readonly record struct CountingBindValue(int Value, Action OnBind) : IBindValue

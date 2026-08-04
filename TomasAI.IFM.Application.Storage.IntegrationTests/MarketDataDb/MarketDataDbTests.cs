@@ -503,6 +503,1073 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     }
 
     [Fact]
+    public async Task GetLastFuturesTickDataByTickDateAsync_UsesTimeProjectionAndHighestTickId()
+    {
+        const string contractId = "ALLOW_FREE_TICK";
+        var valueDate = new DateOnly(2042, 1, 5);
+        var tickTime = new TimeOnly(10, 15, 30);
+        FuturesTickDataV2ReadModel[] ticks =
+        [
+            SampleData.FuturesTickData with
+            {
+                ContractId = contractId,
+                ValueDate = valueDate,
+                TickId = 4101,
+                TickTime = tickTime,
+                Price = 101.25m
+            },
+            SampleData.FuturesTickData with
+            {
+                ContractId = contractId,
+                ValueDate = valueDate,
+                TickId = 4102,
+                TickTime = tickTime,
+                Price = 102.50m
+            },
+            SampleData.FuturesTickData with
+            {
+                ContractId = contractId,
+                ValueDate = valueDate,
+                TickId = 4103,
+                TickTime = tickTime.Add(TimeSpan.FromSeconds(1)),
+                Price = 103.75m
+            }
+        ];
+
+        await TestFixture.DevDatabase.DeleteFuturesTickDataAsync(contractId, valueDate);
+        try
+        {
+            await TestFixture.DevDatabase.InsertFuturesTickDataAsync(ticks);
+
+            var result = await TestFixture.DevDatabase.GetLastFuturesTickDataByTickDateAsync(
+                contractId,
+                valueDate.ToDateTime(tickTime));
+
+            result.Should().NotBeNull();
+            result!.TickId.Should().Be(4102);
+            result.Price.Should().Be(102.50m);
+        }
+        finally
+        {
+            await TestFixture.DevDatabase.DeleteFuturesTickDataAsync(contractId, valueDate);
+        }
+    }
+
+    [Fact]
+    public async Task GetFuturesEodDataAsync_PriorDateRemainsInRequestedContractPartition()
+    {
+        const string expectedContractId = "ALLOW_FREE_EOD_A";
+        const string distractorContractId = "ALLOW_FREE_EOD_B";
+        var priorDate = new DateOnly(2042, 1, 7);
+        var requestedDate = priorDate.AddDays(1);
+        var expected = SampleData.FuturesEodData with
+        {
+            ContractId = expectedContractId,
+            ValueDate = priorDate,
+            Symbol = "AFEODA",
+            ClosePrice = 201.25m
+        };
+        var distractor = SampleData.FuturesEodData with
+        {
+            ContractId = distractorContractId,
+            ValueDate = priorDate,
+            Symbol = "AFEODB",
+            ClosePrice = 999.00m
+        };
+
+        await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(expectedContractId, priorDate);
+        await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(distractorContractId, priorDate);
+        try
+        {
+            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(new[] { expected, distractor });
+
+            var result = await TestFixture.DevDatabase.GetFuturesEodDataAsync(expectedContractId, requestedDate);
+
+            result.Should().NotBeNull();
+            result!.ContractId.Should().Be(expectedContractId);
+            result.ValueDate.Should().Be(priorDate);
+            result.ClosePrice.Should().Be(201.25m);
+        }
+        finally
+        {
+            await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(expectedContractId, priorDate);
+            await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(distractorContractId, priorDate);
+        }
+    }
+
+    [Fact]
+    public async Task FuturesEodMonthlyProjection_ReadsAcrossMonthsAndFiltersBeforeLimit()
+    {
+        const string contractId = "ALLOW_FREE_EOD_RANGE";
+        const string symbol = "AFRANGE";
+        var januaryDate = new DateOnly(2042, 1, 31);
+        var februaryDate = new DateOnly(2042, 2, 1);
+        var distractorDate = new DateOnly(2042, 2, 2);
+        var january = SampleData.FuturesEodData with
+        {
+            ContractId = contractId,
+            ValueDate = januaryDate,
+            Symbol = symbol,
+            ClosePrice = 301.00m
+        };
+        var february = SampleData.FuturesEodData with
+        {
+            ContractId = contractId,
+            ValueDate = februaryDate,
+            Symbol = symbol,
+            ClosePrice = 302.00m
+        };
+        var distractor = SampleData.FuturesEodData with
+        {
+            ContractId = contractId,
+            ValueDate = distractorDate,
+            Symbol = "OTHER",
+            ClosePrice = 999.00m
+        };
+
+        foreach (var valueDate in new[] { januaryDate, februaryDate, distractorDate })
+            await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(contractId, valueDate);
+
+        try
+        {
+            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(new[] { january, february, distractor });
+
+            var range = await TestFixture.DevDatabase.GetCurrentFuturesEodDataByDateRangeAsync(
+                januaryDate,
+                distractorDate);
+            var matchingRange = range.Where(e => e.ContractId == contractId && e.Symbol == symbol).ToArray();
+            matchingRange.Should().HaveCount(2);
+            matchingRange.Select(e => e.ValueDate).Should().BeEquivalentTo(new[] { januaryDate, februaryDate });
+
+            var closingPrices = await TestFixture.DevDatabase.GetFuturesEodClosingPricesAsync(
+                contractId,
+                symbol,
+                januaryDate,
+                distractorDate,
+                maxDays: 1);
+            closingPrices.Should().ContainSingle();
+            closingPrices.Single().ValueDate.Should().Be(februaryDate);
+            closingPrices.Single().ClosingPrice.Should().Be(302.00m);
+        }
+        finally
+        {
+            foreach (var valueDate in new[] { januaryDate, februaryDate, distractorDate })
+                await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(contractId, valueDate);
+        }
+    }
+
+    [Fact]
+    public async Task GetVixFuturesEodDataByValueDateAsync_ReturnsEveryRowThroughDate()
+    {
+        const string contractA = "ALLOW_FREE_VIX_A";
+        const string contractB = "ALLOW_FREE_VIX_B";
+        var firstDate = new DateOnly(2042, 3, 1);
+        var asOfDate = new DateOnly(2042, 3, 2);
+        var futureDate = new DateOnly(2042, 3, 3);
+        var rows = new[]
+        {
+            SampleData.VixFuturesTickData with
+            {
+                ContractId = contractA,
+                ValueDate = firstDate,
+                Price = 21.00m,
+                Size = 100
+            },
+            SampleData.VixFuturesTickData with
+            {
+                ContractId = contractA,
+                ValueDate = asOfDate,
+                Price = 22.00m,
+                Size = 200
+            },
+            SampleData.VixFuturesTickData with
+            {
+                ContractId = contractA,
+                ValueDate = futureDate,
+                Price = 23.00m,
+                Size = 300
+            },
+            SampleData.VixFuturesTickData with
+            {
+                ContractId = contractB,
+                ValueDate = asOfDate,
+                Price = 22.00m,
+                Size = 200
+            }
+        };
+
+        foreach (var row in rows)
+            await TestFixture.DevDatabase.DeleteVixFuturesEodDataAsync(row.ContractId, row.ValueDate);
+
+        try
+        {
+            foreach (var row in rows)
+                await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(row);
+
+            var result = await TestFixture.DevDatabase.GetVixFuturesEodDataByValueDateAsync(asOfDate);
+            var matching = result.Where(e => e.ContractId == contractA || e.ContractId == contractB).ToArray();
+
+            matching.Should().HaveCount(3);
+            matching.Where(e => e.ContractId == contractA)
+                .Select(e => e.ValueDate)
+                .Should().Equal(asOfDate, firstDate);
+            matching.Single(e => e.ContractId == contractA && e.ValueDate == firstDate)
+                .ClosePrice.Should().Be(21.00m);
+            matching.Single(e => e.ContractId == contractB).ValueDate.Should().Be(asOfDate);
+            matching.Should().NotContain(e => e.ValueDate == futureDate);
+        }
+        finally
+        {
+            foreach (var row in rows)
+                await TestFixture.DevDatabase.DeleteVixFuturesEodDataAsync(row.ContractId, row.ValueDate);
+        }
+    }
+
+    [Fact]
+    public async Task BackfillQueryProjectionsV2Async_ReconcilesIdentitiesAndCompletesCutover()
+    {
+        var result = await TestFixture.DevDatabase.BackfillQueryProjectionsV2Async(batchSize: 64);
+        var readiness = await TestFixture.DevDatabase.GetQueryProjectionReadinessAsync();
+
+        result.IsReconciled.Should().BeTrue();
+        result.CutoverCompleted.Should().BeTrue();
+        result.FuturesTicksProjected.Should().Be(result.FuturesTicksSource);
+        result.FuturesTicksProjectedFingerprint.Should().Be(result.FuturesTicksSourceFingerprint);
+        result.FuturesEodRowsProjected.Should().Be(result.FuturesEodRowsSource);
+        result.FuturesEodProjectedFingerprint.Should().Be(result.FuturesEodSourceFingerprint);
+        result.VixContractsIndexed.Should().Be(result.VixContractsSource);
+        result.VixContractsIndexedFingerprint.Should().Be(result.VixContractsSourceFingerprint);
+        readiness.IsReady.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task BackfillQueryProjectionsV2Async_WithGuardConflict_DoesNotPublishReadiness()
+    {
+        var db = TestFixture.DevDatabase;
+        const string projectionName = "futures_tick_data_by_time";
+        const string guardScope = "$guard:0";
+        var conflictingOperationId = Guid.NewGuid();
+        var conflictingOperations = new HashSet<Guid> { conflictingOperationId };
+
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        await db.Use(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
+            .SetParameters(new InsertMarketDataProjectionScopeMutationV3(
+                projectionName,
+                guardScope,
+                conflictingOperationId,
+                DateTime.UtcNow))
+            .ExecuteCommandAsync();
+        await db.Use(MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)
+            .SetParameters(new BeginMarketDataProjectionScopeOperationV3(
+                projectionName,
+                guardScope,
+                conflictingOperationId,
+                conflictingOperations))
+            .ExecuteCommandAsync();
+
+        try
+        {
+            var conflicted = await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+            var readiness = await db.GetQueryProjectionReadinessAsync();
+
+            conflicted.CutoverCompleted.Should().BeFalse();
+            readiness.FuturesTickByTime.Should().BeFalse();
+        }
+        finally
+        {
+            await db.Use(MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)
+                .SetParameters(new RemoveMarketDataProjectionScopeOperationV3(
+                    projectionName,
+                    guardScope,
+                    conflictingOperationId))
+                .ExecuteCommandAsync();
+            await db.Use(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
+                .SetParameters(new DeleteMarketDataProjectionScopeMutationV3(
+                    projectionName,
+                    guardScope,
+                    conflictingOperationId))
+                .ExecuteCommandAsync();
+
+            var repaired = await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+            repaired.CutoverCompleted.Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task BackfillQueryProjectionsV2Async_WithUnknownTargetMutationResponse_RemainsUnclassifiedUntilExplicitCutoff()
+    {
+        var db = TestFixture.DevDatabase;
+        string[] projectionNames =
+        [
+            "futures_tick_data_by_time",
+            "futures_eod_data_by_month",
+            "vix_futures_contract_index"
+        ];
+
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        db.ProjectionBackfillTargetMutationSubmittingForTestingAsync = () =>
+            Task.FromException(new TimeoutException("Simulated unknown Scylla TRUNCATE response."));
+
+        try
+        {
+            await Assert.ThrowsAsync<TimeoutException>(() =>
+                db.BackfillQueryProjectionsV2Async(batchSize: 64));
+
+            List<(string ProjectionName, DateTime StartedOn)> globalMarkers = [];
+            foreach (var projectionName in projectionNames)
+            {
+                var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionMutations)
+                    .SetParameters(new GetMarketDataProjectionMutation(projectionName))
+                    .ExecuteQueryAsync(record => (
+                        ProjectionName: projectionName,
+                        StartedOn: record.GetDateTime(1)));
+                globalMarkers.AddRange(markers);
+            }
+            globalMarkers.Should().HaveCount(projectionNames.Length)
+                .And.OnlyContain(static marker => marker.StartedOn != DateTime.UnixEpoch);
+
+            var scopedMarkers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+                .ExecuteQueryAsync(record => (
+                    ProjectionName: record.GetString(0),
+                    ScopeKey: record.GetString(1),
+                    StartedOn: record.GetDateTime(3)));
+            var guardMarkers = scopedMarkers.Where(marker =>
+                    projectionNames.Contains(marker.ProjectionName, StringComparer.Ordinal) &&
+                    marker.ScopeKey.StartsWith("$guard:", StringComparison.Ordinal))
+                .ToArray();
+            guardMarkers.Should().HaveCount(projectionNames.Length * 32)
+                .And.OnlyContain(static marker => marker.StartedOn != DateTime.UnixEpoch);
+            (await db.GetQueryProjectionReadinessAsync()).IsReady.Should().BeFalse();
+        }
+        finally
+        {
+            db.ProjectionBackfillTargetMutationSubmittingForTestingAsync = null;
+            var repaired = await db.BackfillQueryProjectionsV2Async(
+                batchSize: 64,
+                staleOperationCutoffUtc: DateTime.UtcNow);
+            repaired.CutoverCompleted.Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task TickGuardRegistration_WithUnknownResponse_RemainsUnclassifiedUntilExplicitCutoff()
+    {
+        var db = TestFixture.DevDatabase;
+        var suffix = Guid.NewGuid().ToString("N");
+        var row = SampleData.FuturesTickData with
+        {
+            ContractId = $"TICK-BEGIN-UNKNOWN-{suffix}",
+            ValueDate = new DateOnly(2049, 1, 16),
+            TickId = 9_200_001,
+            TickTime = new TimeOnly(10, 11, 12)
+        };
+        var scopeKey = GetTestTickScope(row.ContractId, row.ValueDate);
+        var guardScope = $"$guard:{GetTestVixBucket(scopeKey)}";
+
+        await db.DeleteFuturesTickDataAsync(row.ContractId, row.ValueDate);
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        db.TickProjectionGuardRegistrationForTestingAsync = async registration =>
+        {
+            await registration();
+            throw new TimeoutException("Simulated lost Scylla registration acknowledgement.");
+        };
+
+        try
+        {
+            await Assert.ThrowsAsync<TimeoutException>(() =>
+                db.InsertFuturesTickDataAsync(new[] { row }));
+
+            var states = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+                .SetParameters(new GetMarketDataProjectionScopeStatesV3(
+                    "futures_tick_data_by_time",
+                    new[] { guardScope }))
+                .ExecuteQueryAsync(record => record.IsCollectionEmpty(5));
+            states.Should().ContainSingle().Which.Should().BeFalse();
+
+            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+                .ExecuteQueryAsync(record => (
+                    ProjectionName: record.GetString(0),
+                    ScopeKey: record.GetString(1),
+                    StartedOn: record.GetDateTime(3)));
+            markers.Where(marker =>
+                    marker.ProjectionName == "futures_tick_data_by_time" &&
+                    marker.ScopeKey == guardScope)
+                .Should().ContainSingle()
+                .Which.StartedOn.Should().NotBe(DateTime.UnixEpoch);
+        }
+        finally
+        {
+            db.TickProjectionGuardRegistrationForTestingAsync = null;
+            var repaired = await db.BackfillQueryProjectionsV2Async(
+                batchSize: 64,
+                staleOperationCutoffUtc: DateTime.UtcNow);
+            repaired.CutoverCompleted.Should().BeTrue();
+            await db.DeleteFuturesTickDataAsync(row.ContractId, row.ValueDate);
+        }
+    }
+
+    [Fact]
+    public async Task TickGuardRegistration_WithAcknowledgedPreDataFailure_IsAutomaticallyRecoverable()
+    {
+        var db = TestFixture.DevDatabase;
+        var suffix = Guid.NewGuid().ToString("N");
+        var row = SampleData.FuturesTickData with
+        {
+            ContractId = $"TICK-BEGIN-ACK-{suffix}",
+            ValueDate = new DateOnly(2049, 1, 17),
+            TickId = 9_200_002,
+            TickTime = new TimeOnly(10, 11, 13)
+        };
+        var scopeKey = GetTestTickScope(row.ContractId, row.ValueDate);
+        var guardScope = $"$guard:{GetTestVixBucket(scopeKey)}";
+
+        await db.DeleteFuturesTickDataAsync(row.ContractId, row.ValueDate);
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        db.TickProjectionGuardRegisteredForTestingAsync = () =>
+            Task.FromException(new InvalidOperationException("Known pre-data failure after registration acknowledgement."));
+
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                db.InsertFuturesTickDataAsync(new[] { row }));
+
+            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+                .ExecuteQueryAsync(record => (
+                    ProjectionName: record.GetString(0),
+                    ScopeKey: record.GetString(1),
+                    StartedOn: record.GetDateTime(3)));
+            markers.Where(marker =>
+                    marker.ProjectionName == "futures_tick_data_by_time" &&
+                    marker.ScopeKey == guardScope)
+                .Should().ContainSingle()
+                .Which.StartedOn.Should().Be(DateTime.UnixEpoch);
+        }
+        finally
+        {
+            db.TickProjectionGuardRegisteredForTestingAsync = null;
+            var repaired = await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+            repaired.CutoverCompleted.Should().BeTrue();
+            await db.DeleteFuturesTickDataAsync(row.ContractId, row.ValueDate);
+        }
+    }
+
+    [Fact]
+    public async Task FuturesEodScopeActivation_WithUnknownResponse_RemainsUnclassifiedUntilExplicitCutoff()
+    {
+        var db = TestFixture.DevDatabase;
+        var suffix = Guid.NewGuid().ToString("N");
+        var row = SampleData.FuturesEodData with
+        {
+            ContractId = $"EOD-BEGIN-UNKNOWN-{suffix}",
+            Symbol = "EBU",
+            ValueDate = new DateOnly(2049, 2, 17)
+        };
+        const string projectionName = "futures_eod_data_by_month";
+        const string scopeKey = "204902";
+        var guardScope = $"$guard:{GetTestVixBucket(scopeKey)}";
+
+        await db.DeleteFuturesEodDataAsync(row.ContractId, row.ValueDate);
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        db.MaintainedProjectionScopeActivationForTestingAsync = async activation =>
+        {
+            await activation();
+            throw new TimeoutException("Simulated lost Scylla scope-Begin acknowledgement.");
+        };
+
+        try
+        {
+            await Assert.ThrowsAsync<TimeoutException>(() =>
+                db.InsertFuturesEodDataAsync(new[] { row }));
+
+            var states = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+                .SetParameters(new GetMarketDataProjectionScopeStatesV3(
+                    projectionName,
+                    new[] { scopeKey, guardScope }))
+                .ExecuteQueryAsync(record => (
+                    Blocked: record.GetBool(4),
+                    ActiveOperationsEmpty: record.IsCollectionEmpty(5)));
+            states.Should().HaveCount(2)
+                .And.OnlyContain(static state => state.Blocked && !state.ActiveOperationsEmpty);
+
+            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+                .ExecuteQueryAsync(record => (
+                    ProjectionName: record.GetString(0),
+                    ScopeKey: record.GetString(1),
+                    StartedOn: record.GetDateTime(3)));
+            markers.Where(marker =>
+                    marker.ProjectionName == projectionName &&
+                    (marker.ScopeKey == scopeKey || marker.ScopeKey == guardScope))
+                .Should().HaveCount(2)
+                .And.OnlyContain(static marker => marker.StartedOn != DateTime.UnixEpoch);
+        }
+        finally
+        {
+            db.MaintainedProjectionScopeActivationForTestingAsync = null;
+            var repaired = await db.BackfillQueryProjectionsV2Async(
+                batchSize: 64,
+                staleOperationCutoffUtc: DateTime.UtcNow);
+            repaired.CutoverCompleted.Should().BeTrue();
+            await db.DeleteFuturesEodDataAsync(row.ContractId, row.ValueDate);
+        }
+    }
+
+    [Fact]
+    public async Task BackfillGlobalActivation_WithUnknownResponse_RemainsUnclassifiedUntilExplicitCutoff()
+    {
+        var db = TestFixture.DevDatabase;
+        const string projectionName = "futures_tick_data_by_time";
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        db.ProjectionBackfillGlobalActivationForTestingAsync = async activation =>
+        {
+            await activation();
+            throw new TimeoutException("Simulated lost Scylla global-Begin acknowledgement.");
+        };
+
+        try
+        {
+            await Assert.ThrowsAsync<TimeoutException>(() =>
+                db.BackfillQueryProjectionsV2Async(batchSize: 64));
+
+            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionMutations)
+                .SetParameters(new GetMarketDataProjectionMutation(projectionName))
+                .ExecuteQueryAsync(record => record.GetDateTime(1));
+            markers.Should().ContainSingle()
+                .Which.Should().NotBe(DateTime.UnixEpoch);
+            (await db.GetQueryProjectionReadinessAsync()).FuturesTickByTime.Should().BeFalse();
+        }
+        finally
+        {
+            db.ProjectionBackfillGlobalActivationForTestingAsync = null;
+            var repaired = await db.BackfillQueryProjectionsV2Async(
+                batchSize: 64,
+                staleOperationCutoffUtc: DateTime.UtcNow);
+            repaired.CutoverCompleted.Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task BackfillScopeActivation_WithUnknownResponse_RemainsUnclassifiedUntilExplicitCutoff()
+    {
+        var db = TestFixture.DevDatabase;
+        const string projectionName = "futures_tick_data_by_time";
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        db.ProjectionBackfillScopeActivationForTestingAsync = async activation =>
+        {
+            await activation();
+            throw new TimeoutException("Simulated lost Scylla scoped-Begin acknowledgement.");
+        };
+
+        try
+        {
+            await Assert.ThrowsAsync<TimeoutException>(() =>
+                db.BackfillQueryProjectionsV2Async(batchSize: 64));
+
+            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+                .ExecuteQueryAsync(record => (
+                    ProjectionName: record.GetString(0),
+                    ScopeKey: record.GetString(1),
+                    StartedOn: record.GetDateTime(3)));
+            markers.Where(marker =>
+                    marker.ProjectionName == projectionName &&
+                    marker.ScopeKey.StartsWith("$guard:", StringComparison.Ordinal))
+                .Should().HaveCount(32)
+                .And.OnlyContain(static marker => marker.StartedOn != DateTime.UnixEpoch);
+            (await db.GetQueryProjectionReadinessAsync()).FuturesTickByTime.Should().BeFalse();
+        }
+        finally
+        {
+            db.ProjectionBackfillScopeActivationForTestingAsync = null;
+            var repaired = await db.BackfillQueryProjectionsV2Async(
+                batchSize: 64,
+                staleOperationCutoffUtc: DateTime.UtcNow);
+            repaired.CutoverCompleted.Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public async Task BackfillQueryProjectionsV2Async_WithTickRegisteredBeforeScanAndCommittedAfterReconciliation_DoesNotPublishReadiness()
+    {
+        var db = TestFixture.DevDatabase;
+        var suffix = Guid.NewGuid().ToString("N");
+        var row = SampleData.FuturesTickData with
+        {
+            ContractId = $"FENCED-TICK-{suffix}",
+            ValueDate = new DateOnly(2048, 3, 18),
+            TickId = 9_100_000,
+            TickTime = new TimeOnly(11, 22, 33),
+            Price = 412.25m,
+            Size = 17
+        };
+        var scopeKey = GetTestTickScope(row.ContractId, row.ValueDate);
+        var guardScope = $"$guard:{GetTestVixBucket(scopeKey)}";
+        var tickRegistered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseTickData = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var backfillReconciled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBackfill = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task? tickWrite = null;
+        Task<MarketDataProjectionBackfillResult>? backfill = null;
+
+        await db.DeleteFuturesTickDataAsync(row.ContractId, row.ValueDate);
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        db.TickProjectionGuardRegisteredForTestingAsync = async () =>
+        {
+            tickRegistered.TrySetResult(true);
+            await releaseTickData.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        };
+        db.ProjectionBackfillReconciledForTestingAsync = async () =>
+        {
+            backfillReconciled.TrySetResult(true);
+            await releaseBackfill.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        };
+
+        try
+        {
+            tickWrite = db.InsertFuturesTickDataAsync(new[] { row });
+            await tickRegistered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            backfill = db.BackfillQueryProjectionsV2Async(batchSize: 64);
+            await backfillReconciled.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            // The source and target identity scans have both finished. Commit the tick
+            // now so only the pre-registered guard can veto this cutover.
+            releaseTickData.TrySetResult(true);
+            await tickWrite.WaitAsync(TimeSpan.FromSeconds(30));
+
+            var failedGuardMarkers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+                .ExecuteQueryAsync(record => (
+                    ProjectionName: record.GetString(0),
+                    ScopeKey: record.GetString(1),
+                    StartedOn: record.GetDateTime(3)));
+            failedGuardMarkers.Should().Contain(marker =>
+                marker.ProjectionName == "futures_tick_data_by_time" &&
+                marker.ScopeKey == guardScope &&
+                marker.StartedOn == DateTime.UnixEpoch);
+
+            releaseBackfill.TrySetResult(true);
+            var result = await backfill.WaitAsync(TimeSpan.FromSeconds(30));
+            var readiness = await db.GetQueryProjectionReadinessAsync();
+
+            result.IsReconciled.Should().BeTrue();
+            result.CutoverCompleted.Should().BeFalse();
+            readiness.FuturesTickByTime.Should().BeFalse();
+        }
+        finally
+        {
+            db.TickProjectionGuardRegisteredForTestingAsync = null;
+            db.ProjectionBackfillReconciledForTestingAsync = null;
+            releaseTickData.TrySetResult(true);
+            releaseBackfill.TrySetResult(true);
+            if (tickWrite is not null)
+            {
+                try { await tickWrite; }
+                catch { }
+            }
+            if (backfill is not null)
+            {
+                try { await backfill; }
+                catch { }
+            }
+
+            await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+            await db.DeleteFuturesTickDataAsync(row.ContractId, row.ValueDate);
+        }
+    }
+
+    [Fact]
+    public async Task FuturesEodMutation_WithUnknownSubmissionResponse_RemainsUnclassifiedUntilExplicitCutoff()
+    {
+        var db = TestFixture.DevDatabase;
+        var suffix = Guid.NewGuid().ToString("N");
+        var row = SampleData.FuturesEodData with
+        {
+            ContractId = $"FENCED-EOD-{suffix}",
+            Symbol = "FENCE",
+            ValueDate = new DateOnly(2049, 3, 18),
+            ClosePrice = 512.25m
+        };
+        const string projectionName = "futures_eod_data_by_month";
+        var scopeKey = "204903";
+        var guardScope = $"$guard:{GetTestVixBucket(scopeKey)}";
+
+        await db.DeleteFuturesEodDataAsync(row.ContractId, row.ValueDate);
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        db.MaintainedProjectionMutationSubmittingForTestingAsync = () =>
+            Task.FromException(new TimeoutException("Simulated unknown Scylla mutation response."));
+
+        try
+        {
+            await Assert.ThrowsAsync<TimeoutException>(() =>
+                db.InsertFuturesEodDataAsync(new[] { row }));
+
+            var states = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+                .SetParameters(new GetMarketDataProjectionScopeStatesV3(
+                    projectionName,
+                    new[] { scopeKey, guardScope }))
+                .ExecuteQueryAsync(record => (
+                    ScopeKey: record.GetString(1),
+                    Blocked: record.GetBool(4),
+                    ActiveOperationsEmpty: record.IsCollectionEmpty(5)));
+            states.Should().HaveCount(2);
+            states.Should().OnlyContain(static state =>
+                state.Blocked && !state.ActiveOperationsEmpty);
+
+            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+                .ExecuteQueryAsync(record => (
+                    ProjectionName: record.GetString(0),
+                    ScopeKey: record.GetString(1),
+                    StartedOn: record.GetDateTime(3)));
+            markers.Where(marker =>
+                    marker.ProjectionName == projectionName &&
+                    (marker.ScopeKey == scopeKey || marker.ScopeKey == guardScope))
+                .Should().HaveCount(2)
+                .And.OnlyContain(static marker => marker.StartedOn != DateTime.UnixEpoch);
+        }
+        finally
+        {
+            db.MaintainedProjectionMutationSubmittingForTestingAsync = null;
+            var repaired = await db.BackfillQueryProjectionsV2Async(
+                batchSize: 64,
+                staleOperationCutoffUtc: DateTime.UtcNow);
+            repaired.CutoverCompleted.Should().BeTrue();
+            await db.DeleteFuturesEodDataAsync(row.ContractId, row.ValueDate);
+        }
+    }
+
+    [Fact]
+    public async Task VixMutation_StartedBeforeBackfillAndCommittedAfterReconciliation_DoesNotPublishReadiness()
+    {
+        var db = TestFixture.DevDatabase;
+        var suffix = Guid.NewGuid().ToString("N");
+        var row = SampleData.VixFuturesTickData with
+        {
+            ContractId = $"FENCED-VIX-{suffix}",
+            ValueDate = new DateOnly(2049, 4, 19),
+            Price = 44.25m,
+            Size = 23
+        };
+        var mutationSubmitting = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseMutation = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var backfillReconciled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseBackfill = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task? write = null;
+        Task<MarketDataProjectionBackfillResult>? backfill = null;
+
+        await db.DeleteVixFuturesEodDataAsync(row.ContractId, row.ValueDate);
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        db.MaintainedProjectionMutationSubmittingForTestingAsync = async () =>
+        {
+            mutationSubmitting.TrySetResult(true);
+            await releaseMutation.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        };
+        db.ProjectionBackfillReconciledForTestingAsync = async () =>
+        {
+            backfillReconciled.TrySetResult(true);
+            await releaseBackfill.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        };
+
+        try
+        {
+            write = db.InsertVixFuturesEodDataAsync(row);
+            await mutationSubmitting.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            backfill = db.BackfillQueryProjectionsV2Async(batchSize: 64);
+            await backfillReconciled.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            releaseMutation.TrySetResult(true);
+            await write.WaitAsync(TimeSpan.FromSeconds(30));
+            releaseBackfill.TrySetResult(true);
+
+            var result = await backfill.WaitAsync(TimeSpan.FromSeconds(30));
+            var readiness = await db.GetQueryProjectionReadinessAsync();
+            result.IsReconciled.Should().BeTrue();
+            result.CutoverCompleted.Should().BeFalse();
+            readiness.VixFuturesContractIndex.Should().BeFalse();
+        }
+        finally
+        {
+            db.MaintainedProjectionMutationSubmittingForTestingAsync = null;
+            db.ProjectionBackfillReconciledForTestingAsync = null;
+            releaseMutation.TrySetResult(true);
+            releaseBackfill.TrySetResult(true);
+            if (write is not null)
+            {
+                try { await write; }
+                catch { }
+            }
+            if (backfill is not null)
+            {
+                try { await backfill; }
+                catch { }
+            }
+
+            await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+            await db.DeleteVixFuturesEodDataAsync(row.ContractId, row.ValueDate);
+        }
+    }
+
+    [Fact]
+    public async Task GetCurrentFuturesEodDataAsync_NewMonthBeforeInventoryInsert_FallsBackToCanonicalData()
+    {
+        var db = TestFixture.DevDatabase;
+        const string projectionName = "futures_eod_data_by_month";
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+
+        var indexedMonths = await db.Use(MarketDataDbCql.GetMarketDataProjectionMonths)
+            .SetParameters(new GetMarketDataProjectionMonths(projectionName, 999912))
+            .ExecuteQueryAsync(record => record.GetInt(0));
+        var valueDate = FindMonthWhoseGuardIsAbsentFromEarlierInventory(indexedMonths);
+        var yearMonth = valueDate.Year * 100 + valueDate.Month;
+        var suffix = Guid.NewGuid().ToString("N");
+        var row = SampleData.FuturesEodData with
+        {
+            ContractId = $"EOD-INVENTORY-RACE-{suffix}",
+            Symbol = $"EIR-{suffix}",
+            ValueDate = valueDate,
+            ClosePrice = 612.75m
+        };
+        var projectionWritten = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseMonthInventory = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task? write = null;
+
+        db.FuturesEodProjectionMonthSubmittingForTestingAsync = async () =>
+        {
+            projectionWritten.TrySetResult(true);
+            await releaseMonthInventory.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        };
+
+        try
+        {
+            write = db.InsertFuturesEodDataAsync(new[] { row });
+            await projectionWritten.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            var monthsBeforeInventoryInsert = await db.Use(MarketDataDbCql.GetMarketDataProjectionMonths)
+                .SetParameters(new GetMarketDataProjectionMonths(projectionName, yearMonth))
+                .ExecuteQueryAsync(record => record.GetInt(0));
+            monthsBeforeInventoryInsert.Should().NotContain(yearMonth);
+
+            // The canonical and projected rows are visible, but the month inventory is
+            // deliberately still absent. The all-guard stamp must reject the projection
+            // path so this semantically global <= target read observes canonical data.
+            var result = await db.GetCurrentFuturesEodDataAsync(valueDate);
+            result.Should().NotBeNull();
+            result!.ContractId.Should().Be(row.ContractId);
+            result.ValueDate.Should().Be(row.ValueDate);
+            result.ClosePrice.Should().Be(row.ClosePrice);
+
+            releaseMonthInventory.TrySetResult(true);
+            await write.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            db.FuturesEodProjectionMonthSubmittingForTestingAsync = null;
+            releaseMonthInventory.TrySetResult(true);
+            if (write is not null)
+            {
+                try { await write; }
+                catch { }
+            }
+
+            await db.DeleteFuturesEodDataAsync(row.ContractId, row.ValueDate);
+            await db.Use("DELETE FROM market_data_projection_month " +
+                    "WHERE projectionName = :projectionName AND yearMonth = :yearMonth;")
+                .SetParameters(new InsertMarketDataProjectionMonth(projectionName, yearMonth))
+                .ExecuteCommandAsync();
+        }
+    }
+
+    [Fact]
+    public async Task DisjointTickEodAndVixWrites_KeepScopedProjectionReadsReady()
+    {
+        var db = TestFixture.DevDatabase;
+        var suffix = Guid.NewGuid().ToString("N");
+        var tickDate = new DateOnly(2047, 1, 12);
+        var tickRows = Enumerable.Range(0, 8)
+            .Select(index => SampleData.FuturesTickData with
+            {
+                ContractId = $"SCOPED-TICK-{suffix}-{index}",
+                ValueDate = tickDate.AddDays(index),
+                TickId = 9_000_000 + index,
+                TickTime = new TimeOnly(10, 0, index),
+                Price = 200m + index
+            })
+            .ToArray();
+        var eodRows = Enumerable.Range(0, 6)
+            .Select(index => SampleData.FuturesEodData with
+            {
+                ContractId = $"SCOPED-EOD-{suffix}-{index}",
+                Symbol = $"SE{index}",
+                ValueDate = new DateOnly(2047, index + 1, 15),
+                ClosePrice = 300m + index
+            })
+            .ToArray();
+
+        var firstVixContract = $"SCOPED-VIX-{suffix}-0";
+        var secondVixContract = Enumerable.Range(1, 128)
+            .Select(index => $"SCOPED-VIX-{suffix}-{index}")
+            .First(contractId => GetTestVixBucket(contractId) != GetTestVixBucket(firstVixContract));
+        var vixDate = new DateOnly(2047, 7, 20);
+        var vixRows = new[]
+        {
+            SampleData.VixFuturesTickData with
+            {
+                ContractId = firstVixContract,
+                ValueDate = vixDate,
+                Price = 31m,
+                Size = 101
+            },
+            SampleData.VixFuturesTickData with
+            {
+                ContractId = secondVixContract,
+                ValueDate = vixDate,
+                Price = 32m,
+                Size = 102
+            }
+        };
+
+        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        var missingTickScope = GetTestTickScope($"SCOPED-MISSING-{suffix}", tickDate);
+        var missingState = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+            .SetParameters(new GetMarketDataProjectionScopeStatesV3(
+                "futures_tick_data_by_time",
+                new[] { missingTickScope }))
+            .ExecuteQueryAsync(record => record.GetString(1));
+        missingState.Should().BeEmpty();
+        await AssertProjectionScopeStampAvailableAsync(
+            db,
+            "futures_tick_data_by_time",
+            missingTickScope);
+        try
+        {
+            await Task.WhenAll(tickRows.Select(row =>
+                db.InsertFuturesTickDataAsync(new[] { row })));
+            (await db.GetQueryProjectionReadinessAsync()).FuturesTickByTime.Should().BeTrue();
+            await AssertProjectionScopesReadyAsync(
+                db,
+                "futures_tick_data_by_time",
+                tickRows.Select(row => GetTestTickScope(row.ContractId, row.ValueDate)));
+            foreach (var row in tickRows)
+            {
+                var projected = await db.GetLastFuturesTickDataByTickDateAsync(
+                    row.ContractId,
+                    row.ValueDate.ToDateTime(row.TickTime));
+                projected.Should().NotBeNull();
+                projected!.TickId.Should().Be(row.TickId);
+            }
+
+            await Task.WhenAll(eodRows.Select(row =>
+                db.InsertFuturesEodDataAsync(new[] { row })));
+            (await db.GetQueryProjectionReadinessAsync()).FuturesEodByMonth.Should().BeTrue();
+            await AssertProjectionScopesReadyAsync(
+                db,
+                "futures_eod_data_by_month",
+                eodRows.Select(row => (row.ValueDate.Year * 100 + row.ValueDate.Month)
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            var projectedEod = await db.GetCurrentFuturesEodDataByDateRangeAsync(
+                eodRows.Min(static row => row.ValueDate),
+                eodRows.Max(static row => row.ValueDate));
+            projectedEod.Where(row => row.ContractId.StartsWith($"SCOPED-EOD-{suffix}", StringComparison.Ordinal))
+                .Should().HaveCount(eodRows.Length);
+
+            await Task.WhenAll(vixRows.Select(db.InsertVixFuturesEodDataAsync));
+            (await db.GetQueryProjectionReadinessAsync()).VixFuturesContractIndex.Should().BeTrue();
+            await AssertProjectionScopesReadyAsync(
+                db,
+                "vix_futures_contract_index",
+                vixRows.Select(row => GetTestVixBucket(row.ContractId)
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            var projectedVix = await db.GetVixFuturesEodDataByValueDateAsync(vixDate);
+            projectedVix.Where(row => row.ContractId == firstVixContract || row.ContractId == secondVixContract)
+                .Should().HaveCount(vixRows.Length);
+        }
+        finally
+        {
+            await Task.WhenAll(tickRows.Select(row =>
+                db.DeleteFuturesTickDataAsync(row.ContractId, row.ValueDate)));
+            await Task.WhenAll(eodRows.Select(row =>
+                db.DeleteFuturesEodDataAsync(row.ContractId, row.ValueDate)));
+            await Task.WhenAll(vixRows.Select(row =>
+                db.DeleteVixFuturesEodDataAsync(row.ContractId, row.ValueDate)));
+        }
+    }
+
+    static async Task AssertProjectionScopesReadyAsync(
+        MarketDataDbContext db,
+        string projectionName,
+        IEnumerable<string> scopeKeys)
+    {
+        var expectedScopes = scopeKeys.Distinct(StringComparer.Ordinal).ToArray();
+        var states = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+            .SetParameters(new GetMarketDataProjectionScopeStatesV3(projectionName, expectedScopes))
+            .ExecuteQueryAsync(record => (
+                ScopeKey: record.GetString(1),
+                IsReady: record.GetBool(3),
+                Blocked: record.GetBool(4),
+                ActiveOperationsEmpty: record.IsCollectionEmpty(5)));
+
+        states.Select(static state => state.ScopeKey)
+            .Should().BeEquivalentTo(expectedScopes);
+        states.Should().OnlyContain(static state =>
+            state.IsReady && !state.Blocked && state.ActiveOperationsEmpty);
+    }
+
+    static async Task AssertProjectionScopeStampAvailableAsync(
+        MarketDataDbContext db,
+        string projectionName,
+        string scopeKey)
+    {
+        var method = typeof(MarketDataDbContext).GetMethod(
+            "GetProjectionScopeReadStampAsync",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var task = (Task)method.Invoke(
+            db,
+            new object[] { projectionName, new[] { scopeKey } })!;
+        await task;
+        var stamp = task.GetType().GetProperty("Result")!.GetValue(task);
+        stamp.Should().NotBeNull();
+    }
+
+    static string GetTestTickScope(string contractId, DateOnly valueDate)
+        => $"{contractId.Length}:{contractId}:{valueDate.DayNumber}";
+
+    static DateOnly FindMonthWhoseGuardIsAbsentFromEarlierInventory(IEnumerable<int> indexedMonths)
+    {
+        var indexed = indexedMonths.ToHashSet();
+        var earlierInventoryGuards = new HashSet<int>();
+        for (var year = 1; year <= 9999; year++)
+        {
+            for (var month = 1; month <= 12; month++)
+            {
+                var yearMonth = year * 100 + month;
+                var scopeKey = yearMonth.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (indexed.Contains(yearMonth))
+                {
+                    earlierInventoryGuards.Add(GetTestVixBucket(scopeKey));
+                    continue;
+                }
+
+                if (!earlierInventoryGuards.Contains(GetTestVixBucket(scopeKey)))
+                    return new DateOnly(year, month, 15);
+            }
+        }
+
+        throw new InvalidOperationException("No unindexed EOD month with an unstamped inventory guard was available.");
+    }
+
+    static int GetTestVixBucket(string contractId)
+    {
+        const ulong offsetBasis = 14695981039346656037UL;
+        const ulong prime = 1099511628211UL;
+        var hash = offsetBasis;
+        foreach (var character in contractId)
+        {
+            hash = unchecked((hash ^ (byte)character) * prime);
+            hash = unchecked((hash ^ (byte)(character >> 8)) * prime);
+        }
+        hash = unchecked((hash ^ 0xFF) * prime);
+        return (int)(hash % 32);
+    }
+
+    [Fact]
     public async Task GetYesterdaysFuturesClosingPriceAsync_Ok()
     {
         // Arrange: Get sample FuturesClosingPriceReadModel instances for today and yesterday
@@ -588,8 +1655,32 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     public async Task GetCurrentFuturesEodDataAsync_ShouldReturnCorrectData()
     {
         // Arrange
-        var todayClosingPrice = SampleData.FuturesClosingPrice;
-        var yesterdayClosingPrice = SampleData.YesterdaysFuturesClosingPrice;
+        var suffix = Guid.NewGuid().ToString("N");
+        var contractId = $"!current-eod-{suffix}";
+        var symbol = $"current-eod-{suffix}";
+        var valueDate = new DateOnly(9999, 12, 30);
+        var todayClosingPrice = SampleData.FuturesClosingPrice with
+        {
+            ContractId = contractId,
+            ValueDate = valueDate
+        };
+        var yesterdayClosingPrice = SampleData.YesterdaysFuturesClosingPrice with
+        {
+            ContractId = contractId,
+            ValueDate = valueDate.AddDays(-1)
+        };
+        var expectedEodData = SampleData.FuturesEodData with
+        {
+            ContractId = contractId,
+            Symbol = symbol,
+            ValueDate = valueDate
+        };
+        var yesterdayEodData = SampleData.YesterdaysFuturesEodData with
+        {
+            ContractId = contractId,
+            Symbol = symbol,
+            ValueDate = valueDate.AddDays(-1)
+        };
 
         // Insert the sample data for today and yesterday into the database
         await TestFixture.DevDatabase.Use($"delete from futures_closing_price where contractId = '{todayClosingPrice.ContractId}' and valueDate = '{todayClosingPrice.ValueDate}'").ExecuteCommandAsync();
@@ -597,26 +1688,32 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(todayClosingPrice);
         await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(yesterdayClosingPrice);
 
-        var expectedEodData = SampleData.FuturesEodData;
-        var futuresDataId = SampleData.FuturesEodData.DataId;
-        await TestFixture.DevDatabase.Use("truncate futures_eod_data_index").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_eod_data where contractId = '{futuresDataId.ContractId}' ").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(expectedEodData);
-        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(SampleData.YesterdaysFuturesEodData);
+        try
+        {
+            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(expectedEodData);
+            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(yesterdayEodData);
 
-        // Act
-        var result = await TestFixture.DevDatabase.GetCurrentFuturesEodDataAsync(futuresDataId.ValueDate);
+            // Act
+            var result = await TestFixture.DevDatabase.GetCurrentFuturesEodDataAsync(valueDate);
 
-        // Assert
-        result.Should().NotBeNull();
-        result.ContractId.Should().Be(expectedEodData.ContractId);
-        result.ValueDate.Should().Be(expectedEodData.ValueDate);
-        result.Symbol.Should().Be(expectedEodData.Symbol);
-        result.OpenPrice.Should().Be(yesterdayClosingPrice.ClosingPrice);
-        result.HighPrice.Should().Be(expectedEodData.HighPrice);
-        result.LowPrice.Should().Be(expectedEodData.LowPrice);
-        result.ClosePrice.Should().Be(expectedEodData.ClosePrice);
-        result.Volume.Should().Be(expectedEodData.Volume);
+            // Assert
+            result.Should().NotBeNull();
+            result.ContractId.Should().Be(expectedEodData.ContractId);
+            result.ValueDate.Should().Be(expectedEodData.ValueDate);
+            result.Symbol.Should().Be(expectedEodData.Symbol);
+            result.OpenPrice.Should().Be(yesterdayClosingPrice.ClosingPrice);
+            result.HighPrice.Should().Be(expectedEodData.HighPrice);
+            result.LowPrice.Should().Be(expectedEodData.LowPrice);
+            result.ClosePrice.Should().Be(expectedEodData.ClosePrice);
+            result.Volume.Should().Be(expectedEodData.Volume);
+        }
+        finally
+        {
+            await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(contractId, valueDate);
+            await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(contractId, valueDate.AddDays(-1));
+            await TestFixture.DevDatabase.DeleteFuturesClosingPriceAsync(contractId, valueDate);
+            await TestFixture.DevDatabase.DeleteFuturesClosingPriceAsync(contractId, valueDate.AddDays(-1));
+        }
     }
 
     /// <summary>

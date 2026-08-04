@@ -2,12 +2,13 @@
 
 PostgreSQL and ScyllaDB connection strings throughout solution source/configuration contain only endpoint, database
 or keyspace, and non-secret provider settings. `Framework.Storage` reads credentials from a provider- and
-environment-specific environment variable immediately before creating a connection.
+environment-specific environment variable before creating the provider-owned data source or cluster.
 
 PostgreSQL resolves the base string with `NpgsqlConnectionStringBuilder`, injects `Username` and `Password`, and then
-constructs `NpgsqlConnection`. ScyllaDB parses its base string with `CassandraConnectionStringBuilder` and passes the
-credentials to `Cluster.Builder().WithCredentials(...)`. `Application.Storage` stores and forwards only the
-credential-free base string.
+constructs a cached `NpgsqlDataSource` whose pool creates logical connections. ScyllaDB parses its base string with
+`CassandraConnectionStringBuilder` and passes the credentials to a cached
+`Cluster.Builder().WithCredentials(...)`. `Application.Storage` stores and forwards only the credential-free base
+string.
 
 This resolver currently applies only to PostgreSQL and ScyllaDB. SQL Server provider behavior and configuration are
 unchanged.
@@ -21,8 +22,10 @@ The credential resolver reads `DOTNET_ENVIRONMENT` and `ASPNETCORE_ENVIRONMENT`.
 - Supported values and aliases are `Development`/`Dev`, `Test`/`Testing`, `Staging`/`Stage`, and
   `Production`/`Prod`.
 - An unsupported environment or conflicting variables stops connection creation.
-- Parsed credentials are cached by variable name and exact JSON value. The resolver reads the selected variable on
-  each connection creation and refreshes the cached value when its JSON changes.
+- Parsed credentials are cached by variable name and exact JSON value. A resolver call observes a changed JSON value,
+  but an already-created PostgreSQL data source or ScyllaDB cluster deliberately keeps its process-lifetime pool and
+  credential snapshot. Rotate either credential with an orderly application restart; changing only the environment
+  variable inside a running process does not rebuild provider pools.
 
 ## Credential variables
 

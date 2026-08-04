@@ -40,10 +40,12 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     };
     static readonly ConcurrentDictionary<Type, PropertyInfo[]> _propertyCache = [];
     readonly IObjectRepositoryContext _ctx;
+    readonly object _connectionIdentity;
 
     public SqlServerObjectDataRepositoryProvider(IObjectRepositoryContext ctx, ILogger logger)
     {
         _ctx = ctx;
+        _connectionIdentity = RepositoryConnectionIdentity.Get(ctx.Repository);
     }
 
     /// <summary>
@@ -154,7 +156,12 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
         if (string.IsNullOrWhiteSpace(commandText))
             throw new ArgumentException("ObjectDataRepository.QueueCommand: command text parameter is empty");
         var dbParameters = GetParameters(parameterValues).FirstOrDefault();
-        return new ObjectDataQueuedCommand(commandType, commandText, dbParameters);
+        return new ObjectDataQueuedCommand(
+            commandType,
+            commandText,
+            dbParameters,
+            _ctx.Repository.ProviderName,
+            _connectionIdentity);
     }
 
     /// <summary>

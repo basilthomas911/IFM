@@ -7,8 +7,8 @@ namespace TomasAI.IFM.Framework.Storage
     public abstract class DbProvider : IObjectCreateProvider
     {
         readonly  IObjectRepository _repo;
-        List<CommandType>? _queuedCommandTypes;
         readonly ILogger<DbProvider> _logger;
+        readonly Lazy<object> _connectionIdentity;
 
         /// <summary>
         /// create objects that are requested by repository object
@@ -20,6 +20,11 @@ namespace TomasAI.IFM.Framework.Storage
                 throw new ArgumentException("DbCreateProvider: repository parameter is empty");
             _repo = repo;
             _logger = logger;
+            // ObjectDataRepository creates this provider before assigning its immutable
+            // connection settings, so defer the digest until the first queue validation.
+            _connectionIdentity = new Lazy<object>(
+                () => RepositoryConnectionIdentity.Get(repo),
+                LazyThreadSafetyMode.ExecutionAndPublication);
         }
 
           /// <summary>
@@ -42,10 +47,7 @@ namespace TomasAI.IFM.Framework.Storage
         /// <param name="storedProcName"></param>
         /// <returns></returns>
         public IObjectRepositoryContext CreateStoredProcedureContext(string storedProcName)
-        {
-            (_queuedCommandTypes ??= []).Add(CommandType.StoredProcedure);
-            return new ObjectDataStoredProcedureContext(_repo, _logger,  storedProcName);
-        }
+            => new ObjectDataStoredProcedureContext(_repo, _logger, storedProcName);
 
         /// <summary>
         /// create command text context
@@ -53,30 +55,64 @@ namespace TomasAI.IFM.Framework.Storage
         /// <param name="cmdText"></param>
         /// <returns></returns>
         public IObjectRepositoryContext CreateCommandTextContext(string cmdText)
-        {
-            (_queuedCommandTypes ??= []).Add(CommandType.Text);
-            return new ObjectDataCommandTextContext(_repo, _logger, cmdText);
-        }
+            => new ObjectDataCommandTextContext(_repo, _logger, cmdText);
 
         /// <summary>
         /// create queued commands context
         /// </summary>
         /// <param name="queuedCommands"></param>
         /// <returns></returns>
+        [Obsolete("Use CreateQueuedCommandsContext(IReadOnlyCollection<object>) so queue metadata can be validated.")]
         public virtual IObjectRepositoryContext CreateQueuedCommandsContext()
+            => new ObjectDataCommandTextContext(_repo, _logger);
+
+        /// <summary>
+        /// Creates an execution context from metadata carried by the supplied queue.
+        /// Independent callers can therefore build and execute queues concurrently
+        /// without sharing or clearing repository-global bookkeeping.
+        /// </summary>
+        public virtual IObjectRepositoryContext CreateQueuedCommandsContext(
+            IReadOnlyCollection<object> queuedCommands)
         {
-            if (_queuedCommandTypes is null || _queuedCommandTypes.Count == 0)
+            ArgumentNullException.ThrowIfNull(queuedCommands);
+            if (queuedCommands.Count == 0)
                 throw new ArgumentException("DbProvider.CreateQueuedCommandsContext: no queued commands");
-            IObjectRepositoryContext? repoContext = _queuedCommandTypes switch
+
+            CommandType? commandType = null;
+            foreach (var queuedCommand in queuedCommands)
             {
-                _ when _queuedCommandTypes.All( e => e == CommandType.Text) => new ObjectDataCommandTextContext(_repo, _logger),
-                _ when _queuedCommandTypes.All(e => e ==  CommandType.StoredProcedure) => new ObjectDataStoredProcedureContext(_repo, _logger),
-                _ => default
+                if (queuedCommand is not IObjectDataQueuedCommandMetadata metadata)
+                {
+                    throw new ArgumentException(
+                        "DbProvider.CreateQueuedCommandsContext: unsupported queued command type");
+                }
+                if (!string.IsNullOrEmpty(metadata.ProviderName) &&
+                    !string.Equals(metadata.ProviderName, _repo.ProviderName, StringComparison.Ordinal))
+                {
+                    throw new ArgumentException(
+                        "DbProvider.CreateQueuedCommandsContext: all queued commands must use the repository provider");
+                }
+                if (metadata.ConnectionIdentity is not null &&
+                    !metadata.ConnectionIdentity.Equals(_connectionIdentity.Value))
+                {
+                    throw new ArgumentException(
+                        "DbProvider.CreateQueuedCommandsContext: all queued commands must use the repository connection");
+                }
+                if (commandType.HasValue && commandType.Value != metadata.CommandType)
+                {
+                    throw new ArgumentException(
+                        "DbProvider.CreateQueuedCommandsContext: all queued commands must use same context type");
+                }
+                commandType = metadata.CommandType;
+            }
+
+            return commandType switch
+            {
+                CommandType.Text => new ObjectDataCommandTextContext(_repo, _logger),
+                CommandType.StoredProcedure => new ObjectDataStoredProcedureContext(_repo, _logger),
+                _ => throw new ArgumentException(
+                    "DbProvider.CreateQueuedCommandsContext: unsupported queued command context type")
             };
-            _queuedCommandTypes.Clear();
-            if (repoContext is  null)
-                throw new ArgumentException("DbProvider.CreateQueuedCommandsContext: all queued commands must use same context type");
-            return repoContext;
         }
 
         /// <summary>

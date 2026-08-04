@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
 using Xunit;
 using FluentAssertions;
@@ -34,6 +35,33 @@ public class AdoNetDataRecordTests
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.IsNull(2).Should().BeTrue();
         mockReader.Received(1).IsDBNull(2);
+    }
+
+    [Fact]
+    public void IsCollectionEmptyReturnsTrueForNullAndEmptyValues()
+    {
+        var nullReader = CreateMockReader(isDbNull: true);
+        new AdoNetDataRecord().SetReader(nullReader)
+            .IsCollectionEmpty(0).Should().BeTrue();
+
+        var emptyReader = CreateMockReader();
+        emptyReader.GetValue(0).Returns(Array.Empty<Guid>());
+        new AdoNetDataRecord().SetReader(emptyReader)
+            .IsCollectionEmpty(0).Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsCollectionEmptyReturnsFalseForElementsOrUnreadableValues()
+    {
+        var populatedReader = CreateMockReader();
+        populatedReader.GetValue(0).Returns(new HashSet<Guid> { Guid.NewGuid() });
+        new AdoNetDataRecord().SetReader(populatedReader)
+            .IsCollectionEmpty(0).Should().BeFalse();
+
+        var unreadableReader = CreateMockReader();
+        unreadableReader.GetValue(0).Returns(new object());
+        new AdoNetDataRecord().SetReader(unreadableReader)
+            .IsCollectionEmpty(0).Should().BeFalse();
     }
 
     [Fact]

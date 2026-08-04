@@ -27,6 +27,11 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             :reference, :createdOn, :createdBy, :updatedOn, :updatedBy);
         """;
 
+    const string InsertFundOrderKey = """
+        INSERT INTO fund_order (fundId, orderId)
+        VALUES (:fundId, :orderId);
+        """;
+
     const string InsertFundOrderTrade = """
         INSERT INTO fund_order_trade (
             fundId, orderId, tradeId, tradeType, tradeDate, maturityDate, tradeState, tradeAction,
@@ -56,6 +61,12 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         SELECT fundId, orderId, orderDate, orderStatus, baseContractId, tradeDate, maturityDate,
                reference, createdOn, createdBy, updatedOn, updatedBy
         FROM fund_order WHERE fundId = :fundId;
+        """;
+
+    const string SelectFundOrderIds = """
+        SELECT orderId
+        FROM fund_order
+        WHERE fundId = :fundId;
         """;
 
     const string SelectFundOrderTrade = """
@@ -126,6 +137,29 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             Assert.Equal([-1L], result);
             var orders = await GetFundOrdersAsync(repository, scope.FundId);
             Assert.Equal(2, orders.Count);
+        });
+    }
+
+    [Fact]
+    public Task ExecuteCommandAsync_WithIndexedBindValues_BindsOnOneProducer()
+    {
+        var scope = ScyllaFundTestData.Scope(2);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var probe = new BindConcurrencyProbe();
+            var parameters = Enumerable.Range(0, 64)
+                .Select(index => new SerialOnlyOrderParameters(
+                    scope,
+                    scope.OrderId + index,
+                    probe))
+                .ToArray();
+
+            await repository.Use(InsertFundOrder)
+                .SetParameters(parameters)
+                .ExecuteCommandAsync();
+
+            Assert.Equal(1, probe.MaxConcurrency);
+            Assert.Equal(parameters.Length, (await GetFundOrdersAsync(repository, scope.FundId)).Count);
         });
     }
 
@@ -309,6 +343,20 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
     }
 
     [Fact]
+    public Task ExecuteSingleAsync_WithNullableStruct_ReturnsNullWhenNoRowExists()
+    {
+        var scope = ScyllaFundTestData.Scope(8);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var missing = await repository.Use(SelectFund)
+                .SetParameters(new FundLookup(scope.FundId))
+                .ExecuteSingleAsync<FundIdentityRow?>(static row => new FundIdentityRow(row.GetInt(0)));
+
+            Assert.Null(missing);
+        });
+    }
+
+    [Fact]
     public Task ExecuteScalarAsync_MapsFirstColumnByOrdinal()
     {
         var scope = ScyllaFundTestData.Scope(9);
@@ -369,6 +417,49 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             Assert.Equal(
                 [scope.SecondOrderId, scope.OrderId],
                 orderIds.OrderBy(orderId => orderId).ToArray());
+        });
+    }
+
+    [Fact]
+    public Task ExecuteStreamAsync_FetchesRowsBeyondTheDefaultFiveThousandRowPage()
+    {
+        const int rowCount = 5_001;
+        const int firstOrderId = 1_000_000;
+        const int lastOrderId = firstOrderId + rowCount - 1;
+        var scope = ScyllaFundTestData.Scope(15);
+
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            await repository.Use(InsertFundOrderKey)
+                .SetParameters(Parameters())
+                .ExecuteCommandAsync(timeout.Token);
+
+            var streamedCount = 0;
+            var lastSeen = 0;
+            var distinctOrderIds = new HashSet<int>();
+
+            await foreach (var orderId in repository.Use(SelectFundOrderIds)
+                .SetParameters(new FundLookup(scope.FundId))
+                .ExecuteStreamAsync(static row => row.GetInt(0), timeout.Token))
+            {
+                streamedCount++;
+                lastSeen = orderId;
+                distinctOrderIds.Add(orderId);
+            }
+
+            Assert.Equal(rowCount, streamedCount);
+            Assert.Equal(rowCount, distinctOrderIds.Count);
+            Assert.Contains(lastOrderId, distinctOrderIds);
+            Assert.Equal(lastOrderId, lastSeen);
+
+            IEnumerable<PagingOrderParameters> Parameters()
+            {
+                for (var index = 0; index < rowCount; index++)
+                {
+                    yield return new PagingOrderParameters(scope.FundId, firstOrderId + index);
+                }
+            }
         });
     }
 
@@ -729,6 +820,54 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         };
     }
 
+    readonly record struct PagingOrderParameters(int FundId, int OrderId) : IBindValue
+    {
+        public object Bind() => new object?[] { FundId, OrderId };
+    }
+
+    readonly record struct SerialOnlyOrderParameters(
+        ScyllaFundTestScope Scope,
+        int OrderId,
+        BindConcurrencyProbe Probe) : IBindValue
+    {
+        public object Bind()
+        {
+            Probe.Enter();
+            try
+            {
+                Thread.Sleep(2);
+                return CreateOrderBindValues(Scope, OrderId, "Open");
+            }
+            finally
+            {
+                Probe.Exit();
+            }
+        }
+    }
+
+    sealed class BindConcurrencyProbe
+    {
+        int _active;
+        int _maxConcurrency;
+
+        public int MaxConcurrency => Volatile.Read(ref _maxConcurrency);
+
+        public void Enter()
+        {
+            var active = Interlocked.Increment(ref _active);
+            var observed = Volatile.Read(ref _maxConcurrency);
+            while (active > observed)
+            {
+                var prior = Interlocked.CompareExchange(ref _maxConcurrency, active, observed);
+                if (prior == observed)
+                    break;
+                observed = prior;
+            }
+        }
+
+        public void Exit() => Interlocked.Decrement(ref _active);
+    }
+
     readonly record struct TradeParameters(int FundId, int OrderId, int TradeId) : IBindValue
     {
         public object Bind() => new object?[]
@@ -757,6 +896,8 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         bool IsProduction,
         DateTime CreatedOn,
         string CreatedBy);
+
+    readonly record struct FundIdentityRow(int FundId);
 
     sealed record OrderRow(
         int FundId,

@@ -53,6 +53,26 @@ public sealed class ScyllaDbDataRecord : IObjectDataRecord
     public bool IsNull(int index) => _row.IsNull(index);
 
     /// <inheritdoc />
+    public bool IsCollectionEmpty(int index)
+    {
+        if (_row.IsNull(index)) return true;
+        try { return IsEmptyCollection(_row.GetValue(_columns[index].Type, index)); }
+        catch { return false; }
+    }
+
+    static bool IsEmptyCollection(object value)
+    {
+        if (value is System.Collections.ICollection collection)
+            return collection.Count == 0;
+        if (value is not System.Collections.IEnumerable enumerable)
+            return false;
+
+        var enumerator = enumerable.GetEnumerator();
+        try { return !enumerator.MoveNext(); }
+        finally { (enumerator as IDisposable)?.Dispose(); }
+    }
+
+    /// <inheritdoc />
     public short GetShort(int index)
     {
         if (_row.IsNull(index)) return default;

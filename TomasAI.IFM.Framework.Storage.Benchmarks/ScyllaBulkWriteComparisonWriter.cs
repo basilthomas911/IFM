@@ -7,13 +7,37 @@ namespace TomasAI.IFM.Framework.Storage.Benchmarks;
 
 internal static class ScyllaBulkWriteComparisonWriter
 {
-    const string BenchmarkTypeName = nameof(ScyllaBulkWriteBenchmarks);
-    const string LegacyMethodName = nameof(ScyllaBulkWriteBenchmarks.LegacyLoggedBatch);
-    const string RedesignedMethodName = nameof(ScyllaBulkWriteBenchmarks.RedesignedBoundedConcurrency);
-
     public static void Write(IEnumerable<Summary> summaries)
     {
-        foreach (var summary in summaries.Where(summary => summary.Title.Contains(BenchmarkTypeName, StringComparison.Ordinal)))
+        var results = summaries.ToArray();
+        WriteComparison(
+            results,
+            nameof(ScyllaBulkWriteBenchmarks),
+            nameof(ScyllaBulkWriteBenchmarks.LegacyLoggedBatch),
+            nameof(ScyllaBulkWriteBenchmarks.RedesignedBoundedConcurrency),
+            "ScyllaBulkWriteComparison.md",
+            "ScyllaDB bulk-write BenchmarkDotNet comparison",
+            "ScyllaDB");
+        WriteComparison(
+            results,
+            nameof(PostgresBulkWriteBenchmarks),
+            nameof(PostgresBulkWriteBenchmarks.LegacySequentialCommands),
+            nameof(PostgresBulkWriteBenchmarks.RedesignedBoundedBatch),
+            "PostgresBulkWriteComparison.md",
+            "PostgreSQL bulk-write BenchmarkDotNet comparison",
+            "PostgreSQL");
+    }
+
+    static void WriteComparison(
+        IEnumerable<Summary> summaries,
+        string benchmarkTypeName,
+        string legacyMethodName,
+        string redesignedMethodName,
+        string reportFileName,
+        string reportTitle,
+        string providerName)
+    {
+        foreach (var summary in summaries.Where(summary => summary.Title.Contains(benchmarkTypeName, StringComparison.Ordinal)))
         {
             var measurements = summary.Reports
                 .Where(report => report.ResultStatistics is not null)
@@ -22,18 +46,18 @@ internal static class ScyllaBulkWriteComparisonWriter
             var comparisons = measurements
                 .GroupBy(measurement => (measurement.RowCount, measurement.PartitionCount))
                 .Select(group => Compare(
-                    group.Single(measurement => measurement.Method == LegacyMethodName),
-                    group.Single(measurement => measurement.Method == RedesignedMethodName)))
+                    group.Single(measurement => measurement.Method == legacyMethodName),
+                    group.Single(measurement => measurement.Method == redesignedMethodName)))
                 .OrderBy(comparison => comparison.RowCount)
                 .ThenBy(comparison => comparison.PartitionCount)
                 .ToArray();
             if (comparisons.Length == 0)
                 continue;
 
-            var reportPath = Path.Combine(summary.ResultsDirectoryPath, "ScyllaBulkWriteComparison.md");
+            var reportPath = Path.Combine(summary.ResultsDirectoryPath, reportFileName);
             Directory.CreateDirectory(summary.ResultsDirectoryPath);
-            File.WriteAllText(reportPath, CreateMarkdown(comparisons));
-            Console.WriteLine($"Scylla before/after percentage report: {reportPath}");
+            File.WriteAllText(reportPath, CreateMarkdown(comparisons, reportTitle));
+            Console.WriteLine($"{providerName} before/after percentage report: {reportPath}");
         }
     }
 
@@ -77,10 +101,10 @@ internal static class ScyllaBulkWriteComparisonWriter
             before.Gen2Collections,
             after.Gen2Collections);
 
-    static string CreateMarkdown(IReadOnlyList<Comparison> comparisons)
+    static string CreateMarkdown(IReadOnlyList<Comparison> comparisons, string reportTitle)
     {
         var builder = new StringBuilder()
-            .AppendLine("# ScyllaDB bulk-write BenchmarkDotNet comparison")
+            .AppendLine($"# {reportTitle}")
             .AppendLine()
             .AppendLine("Positive throughput percentages are improvements. Negative latency and allocation percentages are improvements.")
             .AppendLine()

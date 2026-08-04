@@ -2,6 +2,235 @@
 
 internal static class MarketDataDbCql
 {
+    public const string TruncateFuturesTickDataByTime = "TRUNCATE futures_tick_data_by_time;";
+    public const string TruncateFuturesEodDataByMonth = "TRUNCATE futures_eod_data_by_month;";
+    public const string TruncateVixFuturesContractIndex = "TRUNCATE vix_futures_contract_index;";
+    public const string TruncateMarketDataProjectionMonth = "TRUNCATE market_data_projection_month;";
+
+    public const string GetMarketDataProjectionState = """
+        SELECT projectionName AS "ProjectionName",
+            generation AS "Generation",
+            isReady AS "IsReady"
+        FROM market_data_projection_state_v2
+        WHERE projectionName = :projectionName;
+    """;
+
+    public const string BeginMarketDataProjectionOperation = """
+        UPDATE market_data_projection_state_v2
+        SET generation = :generation,
+            isReady = false,
+            activeOperations = activeOperations + :activeOperations
+        WHERE projectionName = :projectionName;
+    """;
+
+    public const string EndMarketDataProjectionOperation = """
+        UPDATE market_data_projection_state_v2
+        SET generation = :generation,
+            isReady = false,
+            activeOperations = activeOperations - :activeOperations
+        WHERE projectionName = :projectionName;
+    """;
+
+    public const string RemoveMarketDataProjectionOperations = """
+        UPDATE market_data_projection_state_v2
+        SET activeOperations = activeOperations - :activeOperations
+        WHERE projectionName = :projectionName;
+    """;
+
+    public const string CompleteMarketDataProjectionState = """
+        UPDATE market_data_projection_state_v2
+        SET isReady = true,
+            activeOperations = activeOperations - :activeOperations,
+            sourceRowCount = :sourceRowCount,
+            projectedRowCount = :projectedRowCount,
+            sourceFingerprint = :sourceFingerprint,
+            projectedFingerprint = :projectedFingerprint,
+            completedOn = :completedOn
+        WHERE projectionName = :projectionName
+        IF generation = :generation
+        AND activeOperations = :expectedActiveOperations;
+    """;
+
+    public const string RestoreMarketDataProjectionState = """
+        UPDATE market_data_projection_state_v2
+        SET isReady = true,
+            activeOperations = activeOperations - :activeOperations,
+            completedOn = :completedOn
+        WHERE projectionName = :projectionName
+        IF generation = :generation
+        AND activeOperations = :expectedActiveOperations;
+    """;
+
+    public const string InsertMarketDataProjectionMutation = """
+        INSERT INTO market_data_projection_mutation (projectionName, mutationId, startedOn)
+        VALUES (:projectionName, :mutationId, :startedOn);
+    """;
+
+    public const string DeleteMarketDataProjectionMutation = """
+        DELETE FROM market_data_projection_mutation
+        WHERE projectionName = :projectionName AND mutationId = :mutationId;
+    """;
+
+    public const string FailMarketDataProjectionMutation = """
+        UPDATE market_data_projection_mutation
+        SET startedOn = :startedOn
+        WHERE projectionName = :projectionName AND mutationId = :mutationId;
+    """;
+
+    public const string GetMarketDataProjectionMutation = """
+        SELECT mutationId AS "MutationId",
+            startedOn AS "StartedOn"
+        FROM market_data_projection_mutation
+        WHERE projectionName = :projectionName
+        LIMIT 1;
+    """;
+
+    public const string GetMarketDataProjectionMutations = """
+        SELECT mutationId AS "MutationId",
+            startedOn AS "StartedOn"
+        FROM market_data_projection_mutation
+        WHERE projectionName = :projectionName;
+    """;
+
+    public const string GetMarketDataProjectionScopeStatesV3 = """
+        SELECT projectionName AS "ProjectionName",
+            scopeKey AS "ScopeKey",
+            generation AS "Generation",
+            isReady AS "IsReady",
+            blocked AS "Blocked",
+            activeOperations AS "ActiveOperations"
+        FROM market_data_projection_scope_state_v3
+        WHERE projectionName = :projectionName
+        AND scopeKey IN :scopeKeys;
+    """;
+
+    public const string GetMarketDataProjectionScopeStatesV3All = """
+        SELECT projectionName AS "ProjectionName",
+            scopeKey AS "ScopeKey",
+            generation AS "Generation",
+            isReady AS "IsReady",
+            blocked AS "Blocked",
+            activeOperations AS "ActiveOperations"
+        FROM market_data_projection_scope_state_v3;
+    """;
+
+    public const string BeginMarketDataProjectionScopeOperationV3 = """
+        UPDATE market_data_projection_scope_state_v3
+        SET generation = :generation,
+            isReady = false,
+            blocked = true,
+            activeOperations = activeOperations + :activeOperations
+        WHERE projectionName = :projectionName
+        AND scopeKey = :scopeKey;
+    """;
+
+    public const string EndMarketDataProjectionScopeOperationV3 = """
+        UPDATE market_data_projection_scope_state_v3
+        SET generation = :generation,
+            isReady = false,
+            blocked = true,
+            activeOperations = activeOperations - :activeOperations
+        WHERE projectionName = :projectionName
+        AND scopeKey = :scopeKey;
+    """;
+
+    public const string CompleteMarketDataProjectionScopeOperationV3 = """
+        UPDATE market_data_projection_scope_state_v3
+        SET isReady = true,
+            blocked = false,
+            activeOperations = activeOperations - :activeOperations,
+            completedOn = :completedOn
+        WHERE projectionName = :projectionName
+        AND scopeKey = :scopeKey
+        IF generation = :generation
+        AND activeOperations = :expectedActiveOperations;
+    """;
+
+    public const string MarkMarketDataProjectionScopeAtomicWriteV3 = """
+        UPDATE market_data_projection_scope_state_v3
+        SET generation = :generation,
+            isReady = true
+        WHERE projectionName = :projectionName
+        AND scopeKey = :scopeKey;
+    """;
+
+    public const string RegisterMarketDataProjectionGuardOperationV3 = """
+        UPDATE market_data_projection_scope_state_v3
+        SET activeOperations = activeOperations + :activeOperations
+        WHERE projectionName = :projectionName
+        AND scopeKey = :scopeKey;
+    """;
+
+    public const string CompleteMarketDataProjectionGuardOperationV3 = """
+        UPDATE market_data_projection_scope_state_v3
+        SET generation = :generation,
+            isReady = true,
+            blocked = false,
+            activeOperations = activeOperations - :activeOperations,
+            completedOn = :completedOn
+        WHERE projectionName = :projectionName
+        AND scopeKey = :scopeKey
+        IF blocked = false
+        AND activeOperations = :expectedActiveOperations;
+    """;
+
+    public const string RemoveMarketDataProjectionScopeOperationV3 = """
+        DELETE activeOperations[:operationId]
+        FROM market_data_projection_scope_state_v3
+        WHERE projectionName = :projectionName
+        AND scopeKey = :scopeKey;
+    """;
+
+    public const string InsertMarketDataProjectionScopeMutationV3 = """
+        INSERT INTO market_data_projection_scope_mutation_v3 (
+            projectionName, scopeKey, mutationId, startedOn)
+        VALUES (:projectionName, :scopeKey, :mutationId, :startedOn);
+    """;
+
+    public const string FailMarketDataProjectionScopeMutationV3 = """
+        UPDATE market_data_projection_scope_mutation_v3
+        SET startedOn = :startedOn
+        WHERE projectionName = :projectionName
+        AND scopeKey = :scopeKey
+        AND mutationId = :mutationId
+        IF EXISTS;
+    """;
+
+    public const string DeleteMarketDataProjectionScopeMutationV3 = """
+        DELETE FROM market_data_projection_scope_mutation_v3
+        WHERE projectionName = :projectionName
+        AND scopeKey = :scopeKey
+        AND mutationId = :mutationId;
+    """;
+
+    public const string GetMarketDataProjectionScopeMutationsV3All = """
+        SELECT projectionName AS "ProjectionName",
+            scopeKey AS "ScopeKey",
+            mutationId AS "MutationId",
+            startedOn AS "StartedOn"
+        FROM market_data_projection_scope_mutation_v3;
+    """;
+
+    public const string GetFuturesTickProjectionScopesSource = """
+        SELECT contractId, valueDate
+        FROM futures_tick_data;
+    """;
+
+    public const string GetFuturesTickProjectionScopesTarget = """
+        SELECT contractId, valueDate
+        FROM futures_tick_data_by_time;
+    """;
+
+    public const string GetFuturesEodProjectionScopesSource = """
+        SELECT valueDate
+        FROM futures_eod_data;
+    """;
+
+    public const string GetFuturesEodProjectionScopesTarget = """
+        SELECT yearMonth
+        FROM futures_eod_data_by_month;
+    """;
+
     public const string DeleteFuturesBarData = """
         DELETE FROM futures_bar_data
         WHERE contractId = :contractId AND symbol = :symbol AND valueDate = :valueDate;
@@ -22,9 +251,24 @@ internal static class MarketDataDbCql
         WHERE contractId = :contractId AND valueDate = :valueDate;
     """;
 
+    public const string DeleteFuturesTickDataByTime = """
+        DELETE FROM futures_tick_data_by_time
+        WHERE contractId = :contractId AND valueDate = :valueDate;
+    """;
+
     public const string DeleteVixFuturesEodData = """
         DELETE FROM vix_futures_eod_data
         WHERE contractId = :contractId AND valueDate = :valueDate;
+    """;
+
+    public const string DeleteVixFuturesContractIndex = """
+        DELETE FROM vix_futures_contract_index
+        WHERE bucket = :bucket AND contractId = :contractId;
+    """;
+
+    public const string DeleteFuturesEodDataByMonth = """
+        DELETE FROM futures_eod_data_by_month
+        WHERE yearMonth = :yearMonth AND valueDate = :valueDate AND contractId = :contractId;
     """;
 
     public const string DeleteFuturesOptionTickData = """
@@ -197,6 +441,39 @@ internal static class MarketDataDbCql
         WHERE contractId = :contractId AND valueDate = :valueDate AND tickId = :tickId;
     """;
 
+    public const string GetFuturesTickDataByDate = """
+        SELECT
+            contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            tickId AS "TickId",
+            tickTime AS "TickTime",
+            price AS "Price",
+            size AS "Size"
+        FROM futures_tick_data
+        WHERE contractId = :contractId AND valueDate = :valueDate;
+    """;
+
+    public const string GetFuturesTickDataAll = """
+        SELECT
+            contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            tickId AS "TickId",
+            tickTime AS "TickTime",
+            price AS "Price",
+            size AS "Size"
+        FROM futures_tick_data;
+    """;
+
+    public const string GetFuturesTickDataByTimeAll = """
+        SELECT contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            tickId AS "TickId",
+            tickTime AS "TickTime",
+            price AS "Price",
+            size AS "Size"
+        FROM futures_tick_data_by_time;
+    """;
+
     public const string GetLastFuturesTickData = """
         SELECT 
             contractId AS "ContractId", 
@@ -219,13 +496,12 @@ internal static class MarketDataDbCql
             tickTime AS "TickTime", 
             price AS "Price", 
             size AS "Size"
-        FROM futures_tick_data
+        FROM futures_tick_data_by_time
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
         AND tickTime = :tickTime
-        ORDER BY valueDate DESC, tickId DESC
-        LIMIT 1
-        ALLOW FILTERING;
+        ORDER BY tickTime DESC, tickId DESC
+        LIMIT 1;
     """;
 
     public const string GetFuturesHighPrice = """
@@ -376,6 +652,54 @@ internal static class MarketDataDbCql
         );
     """;
 
+    public const string InsertFuturesEodDataByMonth = """
+        INSERT INTO futures_eod_data_by_month (
+            yearMonth,
+            contractId,
+            valueDate,
+            symbol,
+            openPrice,
+            highPrice,
+            lowPrice,
+            closePrice,
+            volume,
+            dailyPercentChange,
+            dailyStdDev,
+            dailyStdDevAmount,
+            upperBand,
+            mean,
+            lowerBand,
+            marketDirection,
+            marketVolatility,
+            priceDirection,
+            priceVolatility,
+            marketDirectionIndicator,
+            windowSize
+        ) VALUES (
+            :yearMonth,
+            :contractId,
+            :valueDate,
+            :symbol,
+            :openPrice,
+            :highPrice,
+            :lowPrice,
+            :closePrice,
+            :volume,
+            :dailyPercentChange,
+            :dailyStdDev,
+            :dailyStdDevAmount,
+            :upperBand,
+            :mean,
+            :lowerBand,
+            :marketDirection,
+            :marketVolatility,
+            :priceDirection,
+            :priceVolatility,
+            :marketDirectionIndicator,
+            :windowSize
+        );
+    """;
+
     public const string InsertFuturesIntraDayData = """
         INSERT INTO futures_intra_day_data (
             contractId, 
@@ -446,6 +770,11 @@ internal static class MarketDataDbCql
         VALUES (:contractId, :valueDate, :tickId, :tickTime, :price, :size);
     """;
 
+    public const string InsertFuturesTickDataByTime = """
+        INSERT INTO futures_tick_data_by_time (contractId, valueDate, tickTime, tickId, price, size)
+        VALUES (:contractId, :valueDate, :tickTime, :tickId, :price, :size);
+    """;
+
     public const string UpdateNextFuturesTickId = """
         UPDATE futures_tick_id_counter
         SET nextTickId = nextTickId + 1
@@ -458,37 +787,6 @@ internal static class MarketDataDbCql
         FROM futures_tick_id_counter 
         WHERE contractId = :contractId
         AND valueDate = :valueDate;
-    """;
-
-    public const string GetCurrentFuturesEodData = """
-        SELECT 
-            contractId AS "ContractId",
-            valueDate AS "ValueDate",
-            symbol AS "Symbol",
-            openPrice AS "OpenPrice",
-            highPrice AS "HighPrice",
-            lowPrice AS "LowPrice",
-            closePrice AS "ClosePrice",
-            volume AS "Volume",
-            dailyPercentChange AS "DailyPercentChange",
-            dailyStdDev AS "DailyStdDev",
-            dailyStdDevAmount AS "DailyStdDevAmount",
-            upperBand AS "UpperBand",
-            mean AS "Mean",
-            lowerBand AS "LowerBand",
-            marketDirection AS "MarketDirection",
-            marketVolatility AS "MarketVolatility",
-            priceDirection AS "PriceDirection",
-            priceVolatility AS "PriceVolatility",
-            marketDirectionIndicator AS "MarketDirectionIndicator",
-            windowSize AS "WindowSize",
-            fiftyDMA AS "FiftyDMA",
-            twoHundredDMA AS "TwoHundredDMA"
-        FROM futures_eod_data
-        WHERE valueDate <= :valueDate
-        ORDER BY valueDate DESC
-        LIMIT 1
-        ALLOW FILTERING;
     """;
 
     public const string GetCurrentFuturesEodDataByDateRange = """
@@ -512,10 +810,39 @@ internal static class MarketDataDbCql
             priceDirection AS "PriceDirection",
             priceVolatility AS "PriceVolatility",
             marketDirectionIndicator AS "MarketDirectionIndicator",
-            windowSize AS "WindowSize" 
-        FROM futures_eod_data
-        WHERE valueDate >= :startDate AND valueDate <= :endDate
-        ALLOW FILTERING;
+            windowSize AS "WindowSize"
+        FROM futures_eod_data_by_month
+        WHERE yearMonth = :yearMonth
+        AND valueDate >= :startDate
+        AND valueDate <= :endDate;
+    """;
+
+    public const string GetCurrentFuturesEodDataByMonth = """
+        SELECT 
+            contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            symbol AS "Symbol",
+            openPrice AS "OpenPrice",
+            highPrice AS "HighPrice",
+            lowPrice AS "LowPrice",
+            closePrice AS "ClosePrice",
+            volume AS "Volume",
+            dailyPercentChange AS "DailyPercentChange",
+            dailyStdDev AS "DailyStdDev",
+            dailyStdDevAmount AS "DailyStdDevAmount",
+            upperBand AS "UpperBand",
+            mean AS "Mean",
+            lowerBand AS "LowerBand",
+            marketDirection AS "MarketDirection",
+            marketVolatility AS "MarketVolatility",
+            priceDirection AS "PriceDirection",
+            priceVolatility AS "PriceVolatility",
+            marketDirectionIndicator AS "MarketDirectionIndicator",
+            windowSize AS "WindowSize"
+        FROM futures_eod_data_by_month
+        WHERE yearMonth = :yearMonth
+        AND valueDate <= :valueDate
+        LIMIT 1;
     """;
 
     public const string GetFuturesEodClosingPrices = """
@@ -525,12 +852,9 @@ internal static class MarketDataDbCql
             closePrice AS "ClosingPrice"
         FROM futures_eod_data
         WHERE contractId = :contractId
-        and valueDate >= :startDate
+        AND valueDate >= :startDate
         AND valueDate <= :endDate
-        AND symbol = :symbol
-        ORDER BY valueDate DESC
-        LIMIT :maxDays
-        ALLOW FILTERING;
+        ORDER BY valueDate DESC;
     """;
 
     public const string GetFuturesEodData = """
@@ -643,6 +967,30 @@ internal static class MarketDataDbCql
         FROM futures_eod_data
     """;
 
+    public const string GetFuturesEodDataByMonthAll = """
+        SELECT contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            symbol AS "Symbol",
+            openPrice AS "OpenPrice",
+            highPrice AS "HighPrice",
+            lowPrice AS "LowPrice",
+            closePrice AS "ClosePrice",
+            volume AS "Volume",
+            dailyPercentChange AS "DailyPercentChange",
+            dailyStdDev AS "DailyStdDev",
+            dailyStdDevAmount AS "DailyStdDevAmount",
+            upperBand AS "UpperBand",
+            mean AS "Mean",
+            lowerBand AS "LowerBand",
+            marketDirection AS "MarketDirection",
+            marketVolatility AS "MarketVolatility",
+            priceDirection AS "PriceDirection",
+            priceVolatility AS "PriceVolatility",
+            marketDirectionIndicator AS "MarketDirectionIndicator",
+            windowSize AS "WindowSize"
+        FROM futures_eod_data_by_month;
+    """;
+
 
     public const string GetFuturesEodDataByDateRange = """
         SELECT 
@@ -670,20 +1018,6 @@ internal static class MarketDataDbCql
         WHERE contractId = :contractId
         AND valueDate >= :startDate AND valueDate <= :endDate
         ORDER BY valueDate DESC;
-    """;
-
-    public const string GetFuturesEodMovingAverages = """
-        SELECT 
-            contractId AS "ContractId",
-            valueDate AS "ValueDate",
-            AVG(closePrice) AS "MovingAverage"
-        FROM futures_eod_data
-        WHERE 
-            valueDate >= :startDate
-            AND valueDate <= :endDate
-            AND symbol = :symbol
-        GROUP BY contractId, valueDate
-        ALLOW FILTERING;
     """;
 
     public const string GetFuturesDataId = """
@@ -745,9 +1079,10 @@ internal static class MarketDataDbCql
             marketDirectionIndicator AS "MarketDirectionIndicator",
             windowSize AS "WindowSize" 
         FROM futures_eod_data
-        WHERE valueDate < :valueDate 
-        LIMIT 1
-        ALLOW FILTERING;
+        WHERE contractId = :contractId
+        AND valueDate < :valueDate
+        ORDER BY valueDate DESC
+        LIMIT 1;
     """;
 
     public const string GetFuturesTickHLVData = """
@@ -768,12 +1103,16 @@ internal static class MarketDataDbCql
         VALUES (:valueDate, :contractId);
     """;
 
-    public const string GetCurrentFuturesEodDataIndex = """
-        SELECT 
-            valueDate as "ValueDate",
-            contractId as "ContractId"
-        FROM futures_eod_data_index
-        WHERE token(valueDate) <= token(:valueDate);
+    public const string InsertMarketDataProjectionMonth = """
+        INSERT INTO market_data_projection_month (projectionName, yearMonth)
+        VALUES (:projectionName, :yearMonth);
+    """;
+
+    public const string GetMarketDataProjectionMonths = """
+        SELECT yearMonth AS "YearMonth"
+        FROM market_data_projection_month
+        WHERE projectionName = :projectionName
+        AND yearMonth <= :yearMonth;
     """;
 
     public const string InsertFuturesItiSignal = """
@@ -1877,7 +2216,24 @@ internal static class MarketDataDbCql
 
     public const string InsertVixFuturesEodData = """
         INSERT INTO vix_futures_eod_data (contractId, valueDate, openPrice, highPrice, lowPrice, closePrice, volume)
-        VALUES (:contractId, :valueDate, :price, :price, :price, :price, :size);
+        VALUES (:contractId, :valueDate, :openPrice, :highPrice, :lowPrice, :closePrice, :volume);
+    """;
+
+    public const string InsertVixFuturesContractIndex = """
+        INSERT INTO vix_futures_contract_index (bucket, contractId)
+        VALUES (:bucket, :contractId);
+    """;
+
+    public const string GetVixFuturesContractIds = """
+        SELECT contractId AS "ContractId"
+        FROM vix_futures_contract_index
+        WHERE bucket = :bucket;
+    """;
+
+    public const string GetVixFuturesContractIndexAll = """
+        SELECT bucket AS "Bucket",
+            contractId AS "ContractId"
+        FROM vix_futures_contract_index;
     """;
 
     public const string GetLastVixFuturesEodData = """
@@ -1912,6 +2268,32 @@ internal static class MarketDataDbCql
             contractId = :contractId 
             AND valueDate = :valueDate
         LIMIT 1;
+    """;
+
+    public const string GetVixFuturesEodDataThroughDate = """
+        SELECT
+            contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            openPrice AS "OpenPrice",
+            highPrice AS "HighPrice",
+            lowPrice AS "LowPrice",
+            closePrice AS "ClosePrice",
+            volume AS "Volume"
+        FROM vix_futures_eod_data
+        WHERE contractId = :contractId
+        AND valueDate <= :valueDate;
+    """;
+
+    public const string GetVixFuturesEodDataAll = """
+        SELECT
+            contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            openPrice AS "OpenPrice",
+            highPrice AS "HighPrice",
+            lowPrice AS "LowPrice",
+            closePrice AS "ClosePrice",
+            volume AS "Volume"
+        FROM vix_futures_eod_data;
     """;
 
     public const string GetMinFuturesTickDataTickId = """
@@ -2216,20 +2598,6 @@ internal static class MarketDataDbCql
         WHERE ValueDate = :valueDate
         AND TimePeriod = :timePeriod
         GROUP BY ContractId;
-    """;
-
-    public const string GetVixFuturesEodDataByValueDate = """
-        SELECT 
-            ContractId AS "ContractId",
-            ValueDate AS "ValueDate",
-            OpenPrice AS "OpenPrice",
-            HighPrice AS "HighPrice",
-            LowPrice AS "LowPrice",
-            ClosePrice AS "ClosePrice",
-            Volume AS "Volume"
-        FROM vix_futures_eod_data
-        WHERE ValueDate <= :valueDate
-        ORDER BY ValueDate DESC ALLOW FILTERING;
     """;
 
     public const string InsertFuturesMacdSignal = """

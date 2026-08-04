@@ -9,6 +9,14 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 
 public interface IReferenceDbWriteContext 
 {
+    Task<ReferenceProjectionBackfillResult> BackfillQueryProjectionsV2Async(
+        int batchSize = 256,
+        CancellationToken cancellationToken = default,
+        DateTime? staleOperationCutoffUtc = null)
+        => throw new NotSupportedException();
+    Task<ReferenceProjectionReconciliationResult> ReconcileQueryProjectionsV2Async(
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
     Task DeleteLookupTypeAsync(LookupTypeId lookupTypeId);
     Task DeleteScheduledJobAsync(int jobId);
     Task DeleteEconomicCalendarAsync(EconomicCalendarId id);

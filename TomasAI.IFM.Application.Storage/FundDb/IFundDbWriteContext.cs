@@ -19,12 +19,24 @@ public interface IFundDbWriteContext
     Task InsertFundOrderAsync(FundOrderReadModel fundOrder);
     Task InsertFundOrdersAsync(ICollection<FundOrderReadModel> fundOrders);
     Task<long> InsertFundOrdersAsync(IEnumerable<FundOrderReadModel> fundOrders);
+    Task<FundOrderProjectionBackfillResult> BackfillFundOrderByOrderIdProjectionAsync(
+        CancellationToken cancellationToken = default,
+        DateTime? staleOperationCutoffUtc = null)
+        => throw new NotSupportedException();
     Task InsertFundOrderTradeAsync(FundOrderTradeReadModel fundOrderTrade);
     Task InsertFundOrderTradesAsync(ICollection<FundOrderTradeReadModel> fundOrderTrades);
     Task<long> InsertFundOrderTradesAsync(IEnumerable<FundOrderTradeReadModel> fundOrderTrades);
     Task InsertFundTransactionAsync(FundTransactionReadModel fundTransaction);
     Task InsertFundTransactionsAsync(ICollection<FundTransactionReadModel> fundTransactions);
     Task<long> InsertFundTransactionsAsync(IEnumerable<FundTransactionReadModel> fundTransactions);
+    Task<FundTransactionProjectionBackfillResult> BackfillFundTransactionProjectionsAsync(
+        int fundId,
+        DateOnly startDate,
+        DateOnly endDate,
+        int batchSize = 500,
+        CancellationToken cancellationToken = default,
+        DateTime? staleOperationCutoffUtc = null)
+        => throw new NotSupportedException();
     Task UpdateFundOrderStatusAsync(int fundId, int orderId, Domain.Fund.Shared.OrderStatus orderStatus);
     Task UpdateFundOrderTradeStateAsync(int fundId, int orderId, int tradeId, TradeState tradeState, DateTime updatedOn, string updatedBy);
     Task BackupDatabaseAsync(DatabaseBackupType backupType, int commandTimeout, Action<string> onInfoMessage);

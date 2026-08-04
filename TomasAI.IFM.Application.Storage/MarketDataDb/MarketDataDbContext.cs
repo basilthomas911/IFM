@@ -41,11 +41,33 @@ public class MarketDataDbContext(
     : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
 {
     public const string MarketDataDbConnection = "MarketDataDbConnection";
+    const string FuturesTickByTimeProjection = "futures_tick_data_by_time";
+    const string FuturesEodProjection = "futures_eod_data_by_month";
+    const string VixFuturesContractIndexProjection = "vix_futures_contract_index";
+    const int ProjectionWriteBatchSize = 256;
+    const int TickAtomicBatchRowCount = 24;
+    const int VixContractBucketCount = 32;
+    const int ProjectionGuardScopeCount = 32;
+    const string ProjectionGuardScopePrefix = "$guard:";
+    const int ProjectionReadConcurrency = 8;
+    const int ProjectionScopeStateReadBatchSize = 32;
     readonly static Dictionary<TradingDaysKey, int> _tradingDaysMap = [];
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
     static NormalCurveTableReadModel? _normalCurveTable;
+
+    // Deterministic integration-test seams for the two sides of the online-backfill
+    // fence. They remain null in production and do not expose migration state publicly.
+    internal Func<Func<Task>, Task>? TickProjectionGuardRegistrationForTestingAsync { get; set; }
+    internal Func<Task>? TickProjectionGuardRegisteredForTestingAsync { get; set; }
+    internal Func<Func<Task>, Task>? MaintainedProjectionScopeActivationForTestingAsync { get; set; }
+    internal Func<Task>? MaintainedProjectionMutationSubmittingForTestingAsync { get; set; }
+    internal Func<Task>? FuturesEodProjectionMonthSubmittingForTestingAsync { get; set; }
+    internal Func<Func<Task>, Task>? ProjectionBackfillGlobalActivationForTestingAsync { get; set; }
+    internal Func<Func<Task>, Task>? ProjectionBackfillScopeActivationForTestingAsync { get; set; }
+    internal Func<Task>? ProjectionBackfillTargetMutationSubmittingForTestingAsync { get; set; }
+    internal Func<Task>? ProjectionBackfillReconciledForTestingAsync { get; set; }
 
     /// <summary>
     /// Gets the database context.
@@ -58,6 +80,763 @@ public class MarketDataDbContext(
 
     static long MapToNextTickId<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => e.GetLong(0);
+
+    static int MapToYearMonth<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+        => e.GetInt(0);
+
+    static string MapToString<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+        => e.GetString(0);
+
+    static Guid MapToGuid<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+        => e.GetGuid(0);
+
+    static bool MapToBoolean<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+        => e.GetBool(0);
+
+    static MarketDataProjectionMutationData MapToProjectionMutation<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord
+        => new(e.GetGuid(0), e.GetDateTime(1));
+
+    static MarketDataProjectionScopeMutationData MapToProjectionScopeMutation<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord
+        => new(e.GetString(0), e.GetString(1), e.GetGuid(2), e.GetDateTime(3));
+
+    static VixFuturesContractIndexData MapToVixFuturesContractIndex<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord
+        => new(e.GetInt(0), e.GetString(1));
+
+    static MarketDataProjectionStateData MapToProjectionState<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord
+        => new(e.GetString(0), e.GetGuid(1), e.GetBool(2));
+
+    static MarketDataProjectionScopeStateData MapToProjectionScopeState<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord
+        => new(
+            e.GetString(0),
+            e.GetString(1),
+            e.GetGuid(2),
+            e.GetBool(3),
+            e.GetBool(4),
+            e.IsCollectionEmpty(5));
+
+    static string MapToFuturesTickProjectionScope<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord
+        => GetFuturesTickScopeKey(e.GetString(0), e.GetDateOnly(1));
+
+    static string MapToFuturesEodProjectionSourceScope<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord
+        => GetFuturesEodScopeKey(e.GetDateOnly(0));
+
+    static string MapToFuturesEodProjectionTargetScope<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord
+        => GetFuturesEodScopeKey(e.GetInt(0));
+
+    static int ToYearMonth(DateOnly valueDate)
+        => checked(valueDate.Year * 100 + valueDate.Month);
+
+    static DateOnly GetMonthStart(int yearMonth)
+        => new(yearMonth / 100, yearMonth % 100, 1);
+
+    static DateOnly GetMonthEnd(int yearMonth)
+    {
+        var monthStart = GetMonthStart(yearMonth);
+        if (monthStart.Year == DateOnly.MaxValue.Year && monthStart.Month == DateOnly.MaxValue.Month)
+            return DateOnly.MaxValue;
+        return monthStart.AddMonths(1).AddDays(-1);
+    }
+
+    static IEnumerable<int> GetYearMonths(DateOnly startDate, DateOnly endDate)
+    {
+        if (startDate > endDate)
+            throw new ArgumentOutOfRangeException(nameof(startDate), startDate, "Start date must be on or before end date.");
+
+        for (var month = new DateOnly(startDate.Year, startDate.Month, 1); month <= endDate;)
+        {
+            yield return ToYearMonth(month);
+            if (month.Year == DateOnly.MaxValue.Year && month.Month == DateOnly.MaxValue.Month)
+                yield break;
+            month = month.AddMonths(1);
+        }
+    }
+
+    static ulong GetFuturesTickIdentity(FuturesTickDataV2ReadModel row)
+    {
+        var hash = MarketDataProjectionHash.Start();
+        hash = MarketDataProjectionHash.Add(hash, row.ContractId);
+        hash = MarketDataProjectionHash.Add(hash, row.ValueDate);
+        hash = MarketDataProjectionHash.Add(hash, row.TickId);
+        hash = MarketDataProjectionHash.Add(hash, row.TickTime);
+        hash = MarketDataProjectionHash.Add(hash, row.Price);
+        return MarketDataProjectionHash.Add(hash, row.Size);
+    }
+
+    static ulong GetFuturesEodIdentity(FuturesEodDataV2ReadModel row)
+    {
+        var hash = MarketDataProjectionHash.Start();
+        hash = MarketDataProjectionHash.Add(hash, row.ContractId);
+        hash = MarketDataProjectionHash.Add(hash, row.ValueDate);
+        hash = MarketDataProjectionHash.Add(hash, row.Symbol);
+        hash = MarketDataProjectionHash.Add(hash, row.OpenPrice);
+        hash = MarketDataProjectionHash.Add(hash, row.HighPrice);
+        hash = MarketDataProjectionHash.Add(hash, row.LowPrice);
+        hash = MarketDataProjectionHash.Add(hash, row.ClosePrice);
+        hash = MarketDataProjectionHash.Add(hash, row.Volume);
+        hash = MarketDataProjectionHash.Add(hash, row.DailyPercentChange);
+        hash = MarketDataProjectionHash.Add(hash, row.DailyStdDev);
+        hash = MarketDataProjectionHash.Add(hash, row.DailyStdDevAmount);
+        hash = MarketDataProjectionHash.Add(hash, row.UpperBand);
+        hash = MarketDataProjectionHash.Add(hash, row.Mean);
+        hash = MarketDataProjectionHash.Add(hash, row.LowerBand);
+        hash = MarketDataProjectionHash.Add(hash, (int)row.MarketDirection);
+        hash = MarketDataProjectionHash.Add(hash, (int)row.MarketVolatility);
+        hash = MarketDataProjectionHash.Add(hash, (int)row.PriceDirection);
+        hash = MarketDataProjectionHash.Add(hash, (int)row.PriceVolatility);
+        hash = MarketDataProjectionHash.Add(hash, row.MarketDirectionIndicator);
+        return MarketDataProjectionHash.Add(hash, row.WindowSize);
+    }
+
+    internal static void EnsureDistinctFuturesTickWrites(
+        ICollection<FuturesTickDataV2ReadModel> rows)
+    {
+        var canonicalKeys = new HashSet<(string ContractId, DateOnly ValueDate, long TickId)>(rows.Count);
+        foreach (var row in rows)
+        {
+            if (!canonicalKeys.Add((row.ContractId, row.ValueDate, row.TickId)))
+            {
+                throw new ArgumentException(
+                    $"The futures-tick write contains duplicate canonical key " +
+                    $"('{row.ContractId}', '{row.ValueDate:yyyy-MM-dd}', {row.TickId}).",
+                    nameof(rows));
+            }
+        }
+    }
+
+    internal static void EnsureDistinctFuturesEodWrites(
+        ICollection<FuturesEodDataV2ReadModel> rows)
+    {
+        var canonicalKeys = new HashSet<(string ContractId, DateOnly ValueDate, string Symbol)>(rows.Count);
+        foreach (var row in rows)
+        {
+            if (!canonicalKeys.Add((row.ContractId, row.ValueDate, row.Symbol)))
+            {
+                throw new ArgumentException(
+                    $"The futures-EOD write contains duplicate canonical key " +
+                    $"('{row.ContractId}', '{row.ValueDate:yyyy-MM-dd}', '{row.Symbol}').",
+                    nameof(rows));
+            }
+        }
+    }
+
+    static ulong GetVixContractIdentity(string contractId)
+        => GetVixContractIdentity(GetVixContractBucket(contractId), contractId);
+
+    static ulong GetVixContractIdentity(int bucket, string contractId)
+    {
+        var hash = MarketDataProjectionHash.Add(MarketDataProjectionHash.Start(), bucket);
+        return MarketDataProjectionHash.Add(hash, contractId);
+    }
+
+    static int GetVixContractBucket(string contractId)
+        => (int)(MarketDataProjectionHash.Add(MarketDataProjectionHash.Start(), contractId) % VixContractBucketCount);
+
+    static string GetFuturesTickScopeKey(string contractId, DateOnly valueDate)
+        => string.Concat(
+            contractId.Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ":",
+            contractId,
+            ":",
+            valueDate.DayNumber.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    static string GetFuturesEodScopeKey(DateOnly valueDate)
+        => GetFuturesEodScopeKey(ToYearMonth(valueDate));
+
+    static string GetFuturesEodScopeKey(int yearMonth)
+        => yearMonth.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    static string GetVixContractIndexScopeKey(string contractId)
+        => GetVixContractIndexScopeKey(GetVixContractBucket(contractId));
+
+    static string GetVixContractIndexScopeKey(int bucket)
+        => bucket.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    static string GetProjectionGuardScopeKey(string scopeKey)
+        => string.Concat(
+            ProjectionGuardScopePrefix,
+            (MarketDataProjectionHash.Add(MarketDataProjectionHash.Start(), scopeKey) %
+                ProjectionGuardScopeCount)
+            .ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    static bool IsProjectionGuardScopeKey(string scopeKey)
+        => scopeKey.StartsWith(ProjectionGuardScopePrefix, StringComparison.Ordinal);
+
+    static string[] GetProjectionGuardScopeKeys()
+        => Enumerable.Range(0, ProjectionGuardScopeCount)
+            .Select(bucket => string.Concat(
+                ProjectionGuardScopePrefix,
+                bucket.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+            .ToArray();
+
+    static string[] AddProjectionGuardScopes(IEnumerable<string> scopeKeys)
+    {
+        var dataScopes = scopeKeys.Distinct(StringComparer.Ordinal).ToArray();
+        return dataScopes
+            .Concat(dataScopes
+                .Where(static scope => !IsProjectionGuardScopeKey(scope))
+                .Select(GetProjectionGuardScopeKey))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    async Task<MarketDataProjectionStateData?> GetProjectionStateAsync(string projectionName)
+        => await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetMarketDataProjectionState)
+            .SetParameters(new GetMarketDataProjectionState(projectionName))
+            .ExecuteSingleAsync<MarketDataProjectionStateData?>(
+                static row => MapToProjectionState(row));
+
+    async Task<bool> HasProjectionMutationAsync(string projectionName)
+        => (await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetMarketDataProjectionMutation)
+            .SetParameters(new GetMarketDataProjectionMutation(projectionName))
+            .ExecuteQueryAsync(MapToGuid)).Count != 0;
+
+    async Task<Guid?> GetProjectionReadGenerationAsync(string projectionName)
+    {
+        var state = await GetProjectionStateAsync(projectionName);
+        if (state is null || !state.Value.IsReady || await HasProjectionMutationAsync(projectionName))
+            return null;
+        return state.Value.Generation;
+    }
+
+    async Task<bool> IsProjectionReadGenerationValidAsync(string projectionName, Guid generation)
+    {
+        var state = await GetProjectionStateAsync(projectionName);
+        return state is { IsReady: true } &&
+            state.Value.Generation == generation &&
+            !await HasProjectionMutationAsync(projectionName);
+    }
+
+    async Task<Dictionary<string, MarketDataProjectionScopeStateData?>> GetProjectionScopeStatesAsync(
+        string projectionName,
+        IReadOnlyList<string> scopeKeys)
+    {
+        var states = new Dictionary<string, MarketDataProjectionScopeStateData?>(
+            scopeKeys.Count,
+            StringComparer.Ordinal);
+        for (var offset = 0; offset < scopeKeys.Count; offset += ProjectionScopeStateReadBatchSize)
+        {
+            var count = Math.Min(ProjectionScopeStateReadBatchSize, scopeKeys.Count - offset);
+            var keys = scopeKeys.Skip(offset).Take(count).ToArray();
+            foreach (var key in keys)
+                states.Add(key, null);
+            var values = await _dbFactory.MarketDataDb
+                .Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+                .SetParameters(new GetMarketDataProjectionScopeStatesV3(projectionName, keys))
+                .ExecuteQueryAsync(MapToProjectionScopeState);
+            foreach (var value in values)
+                states[value.ScopeKey] = value;
+        }
+        return states;
+    }
+
+    async Task<MarketDataProjectionScopeReadStamp?> GetProjectionScopeReadStampAsync(
+        string projectionName,
+        IEnumerable<string> scopeKeys)
+    {
+        var scopes = AddProjectionGuardScopes(scopeKeys);
+        var globalGeneration = await GetProjectionReadGenerationAsync(projectionName);
+        if (globalGeneration is null)
+            return null;
+
+        var states = await GetProjectionScopeStatesAsync(projectionName, scopes);
+        var generations = new MarketDataProjectionScopeGeneration[scopes.Length];
+        for (var index = 0; index < scopes.Length; index++)
+        {
+            var state = states[scopes[index]];
+            if (state is null)
+            {
+                // A globally ready projection plus a stable ready guard is a valid
+                // negative cache entry. Any writer that creates this data scope also
+                // changes its guard, and validation below rejects an appeared scope.
+                if (IsProjectionGuardScopeKey(scopes[index]))
+                    return null;
+                generations[index] = new(scopes[index], Guid.Empty, IsMissing: true);
+                continue;
+            }
+            if (!state.Value.CanRead)
+                return null;
+            generations[index] = new(scopes[index], state.Value.Generation, IsMissing: false);
+        }
+
+        return new(projectionName, globalGeneration.Value, generations);
+    }
+
+    async Task<bool> IsProjectionScopeReadStampValidAsync(MarketDataProjectionScopeReadStamp stamp)
+    {
+        if (!await IsProjectionReadGenerationValidAsync(
+            stamp.ProjectionName,
+            stamp.GlobalGeneration))
+        {
+            return false;
+        }
+
+        var states = await GetProjectionScopeStatesAsync(
+            stamp.ProjectionName,
+            stamp.Scopes.Select(static scope => scope.ScopeKey).ToArray());
+        foreach (var scope in stamp.Scopes)
+        {
+            var state = states[scope.ScopeKey];
+            if (scope.IsMissing)
+            {
+                if (state is not null)
+                    return false;
+                continue;
+            }
+            if (state is null || !state.Value.CanRead || state.Value.Generation != scope.Generation)
+                return false;
+        }
+        return true;
+    }
+
+    async Task ExecuteMaintainedProjectionMutationAsync(
+        string projectionName,
+        IEnumerable<string> scopeKeys,
+        Func<Task> mutation)
+    {
+        var scopes = AddProjectionGuardScopes(scopeKeys);
+        if (scopes.Length == 0)
+        {
+            await mutation();
+            return;
+        }
+
+        var globalGeneration = await GetProjectionReadGenerationAsync(projectionName);
+        var initialStates = await GetProjectionScopeStatesAsync(projectionName, scopes);
+        var restorableScopes = globalGeneration is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : scopes.Where(scope => initialStates[scope] is null || initialStates[scope]!.Value.CanRead)
+                .ToHashSet(StringComparer.Ordinal);
+        var mutationId = Guid.NewGuid();
+        var activeOperations = new HashSet<Guid> { mutationId };
+        var db = _dbFactory.MarketDataDb;
+        var scopeActivationAcknowledged = false;
+        var mutationSubmissionStarted = false;
+
+        await db.Use(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
+            .SetParameters(scopes.Select(scope => new InsertMarketDataProjectionScopeMutationV3(
+                projectionName,
+                scope,
+                mutationId,
+                DateTime.UtcNow)))
+            .ExecuteCommandAsync();
+
+        try
+        {
+            async Task ActivateScopesAsync()
+                => await db.Use(MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)
+                    .SetParameters(scopes.Select(scope => new BeginMarketDataProjectionScopeOperationV3(
+                        projectionName,
+                        scope,
+                        mutationId,
+                        activeOperations)))
+                    .ExecuteCommandAsync();
+
+            if (MaintainedProjectionScopeActivationForTestingAsync is { } scopeActivation)
+                await scopeActivation(ActivateScopesAsync);
+            else
+                await ActivateScopesAsync();
+            scopeActivationAcknowledged = true;
+
+            mutationSubmissionStarted = true;
+            if (MaintainedProjectionMutationSubmittingForTestingAsync is { } mutationSubmitting)
+                await mutationSubmitting();
+            await mutation();
+
+            var globalStillValid = globalGeneration.HasValue &&
+                await IsProjectionReadGenerationValidAsync(projectionName, globalGeneration.Value);
+            var scopesToEnd = new List<string>();
+            foreach (var scopeBatch in scopes.Chunk(ProjectionReadConcurrency))
+            {
+                var completions = scopeBatch.Select(async scope =>
+                {
+                    if (!globalStillValid || !restorableScopes.Contains(scope))
+                        return (Scope: scope, Completed: false);
+                    var completed = await db.Use(MarketDataDbCql.CompleteMarketDataProjectionScopeOperationV3)
+                        .SetParameters(new CompleteMarketDataProjectionScopeOperationV3(
+                            projectionName,
+                            scope,
+                            mutationId,
+                            activeOperations,
+                            DateTime.UtcNow,
+                            activeOperations))
+                        .ExecuteSingleAsync(MapToBoolean) == true;
+                    return (Scope: scope, Completed: completed);
+                }).ToArray();
+                foreach (var completion in await Task.WhenAll(completions))
+                {
+                    if (!completion.Completed)
+                        scopesToEnd.Add(completion.Scope);
+                }
+            }
+
+            await EndProjectionScopeOperationsAsync(
+                db,
+                projectionName,
+                scopesToEnd,
+                activeOperations);
+
+            await db.Use(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
+                .SetParameters(scopes.Select(scope => new DeleteMarketDataProjectionScopeMutationV3(
+                    projectionName,
+                    scope,
+                    mutationId)))
+                .ExecuteCommandAsync();
+        }
+        catch
+        {
+            if (!scopeActivationAcknowledged || mutationSubmissionStarted)
+            {
+                // A Begin or target mutation may have reached Scylla even when its
+                // response is a timeout. Keep the original nonfailed journals and
+                // active data/guard IDs so only an explicit cutoff after writers are
+                // drained can recover without racing delayed server-side application.
+                throw;
+            }
+
+            try
+            {
+                // A definitively acknowledged Begin can be classified without issuing
+                // a racing End. The active ID remains paired with its failed journal
+                // for exact removal by the next repair.
+                await db.Use(MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)
+                    .SetParameters(scopes.Select(scope => new FailMarketDataProjectionScopeMutationV3(
+                        projectionName,
+                        scope,
+                        mutationId,
+                        DateTime.UnixEpoch)))
+                    .ExecuteCommandAsync();
+            }
+            catch
+            {
+                // An unclassified in-flight marker is never cleared automatically.
+            }
+
+            throw;
+        }
+    }
+
+    static Task<long[]> EndProjectionScopeOperationsAsync(
+        IObjectRepository db,
+        string projectionName,
+        IEnumerable<string> scopeKeys,
+        HashSet<Guid> activeOperations,
+        CancellationToken cancellationToken = default)
+    {
+        var scopes = scopeKeys as ICollection<string> ?? scopeKeys.ToArray();
+        return scopes.Count == 0
+            ? Task.FromResult(Array.Empty<long>())
+            : db.Use(MarketDataDbCql.EndMarketDataProjectionScopeOperationV3)
+                .SetParameters(scopes.Select(scope => new EndMarketDataProjectionScopeOperationV3(
+                    projectionName,
+                    scope,
+                    Guid.NewGuid(),
+                    activeOperations)))
+                .ExecuteCommandAsync(cancellationToken);
+    }
+
+    async Task ExecuteAtomicTickWriteAsync(
+        string scopeKey,
+        IReadOnlyCollection<InsertFuturesTickData> canonicalRows,
+        IReadOnlyCollection<InsertFuturesTickDataByTime> projectionRows)
+    {
+        if (canonicalRows.Count == 0)
+            return;
+        if (canonicalRows.Count != projectionRows.Count || canonicalRows.Count > TickAtomicBatchRowCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(canonicalRows),
+                canonicalRows.Count,
+                $"Atomic tick writes require matching collections of at most {TickAtomicBatchRowCount} rows.");
+        }
+
+        await ExecuteGuardedAtomicTickMutationAsync(scopeKey, db =>
+        [
+            db.Use(MarketDataDbCql.InsertFuturesTickData)
+                .SetParameters(canonicalRows)
+                .QueueCommand(),
+            db.Use(MarketDataDbCql.InsertFuturesTickDataByTime)
+                .SetParameters(projectionRows)
+                .QueueCommand(),
+            db.Use(MarketDataDbCql.MarkMarketDataProjectionScopeAtomicWriteV3)
+                .SetParameters(new MarkMarketDataProjectionScopeAtomicWriteV3(
+                    FuturesTickByTimeProjection,
+                    scopeKey,
+                    Guid.NewGuid()))
+                .QueueCommand()
+        ]);
+    }
+
+    async Task ExecuteGuardedAtomicTickMutationAsync(
+        string scopeKey,
+        Func<IObjectRepository, List<object>> createDataCommands)
+    {
+        var db = _dbFactory.MarketDataDb;
+        var guardScopeKey = GetProjectionGuardScopeKey(scopeKey);
+        var operationId = Guid.NewGuid();
+        var activeOperations = new HashSet<Guid> { operationId };
+
+        // This registration is deliberately a separate request before the data batch.
+        // Set additions commute with a backfill claim, so an already-in-flight tick
+        // cannot be hidden by scalar last-write-wins timestamps on the guard row.
+        List<object> registrationCommands =
+        [
+            db.Use(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
+                .SetParameters(new InsertMarketDataProjectionScopeMutationV3(
+                    FuturesTickByTimeProjection,
+                    guardScopeKey,
+                    operationId,
+                    DateTime.UtcNow))
+                .QueueCommand(),
+            db.Use(MarketDataDbCql.RegisterMarketDataProjectionGuardOperationV3)
+                .SetParameters(new RegisterMarketDataProjectionGuardOperationV3(
+                    FuturesTickByTimeProjection,
+                    guardScopeKey,
+                    activeOperations))
+                .QueueCommand()
+        ];
+        try
+        {
+            async Task RegisterGuardAsync()
+                => await db.ExecuteQueuedCommandsAsync(registrationCommands, useTransaction: true);
+
+            if (TickProjectionGuardRegistrationForTestingAsync is { } registration)
+                await registration(RegisterGuardAsync);
+            else
+                await RegisterGuardAsync();
+        }
+        catch
+        {
+            // A timed-out logged registration batch may still be replayed server-side.
+            // Preserve its original journal timestamp so automatic recovery cannot
+            // remove the marker before a delayed guard activation is applied.
+            await TryClassifyTickGuardOperationFailureAsync(
+                db,
+                guardScopeKey,
+                operationId,
+                TickProjectionGuardFailureStage.RegistrationResponseUnknown);
+            throw;
+        }
+
+        if (TickProjectionGuardRegisteredForTestingAsync is { } guardRegistered)
+        {
+            try
+            {
+                await guardRegistered();
+            }
+            catch
+            {
+                // No data request has started, so this operation is safe for automatic
+                // recovery even if its registration response was delayed.
+                await TryClassifyTickGuardOperationFailureAsync(
+                    db,
+                    guardScopeKey,
+                    operationId,
+                    TickProjectionGuardFailureStage.RegisteredBeforeDataSubmission);
+                throw;
+            }
+        }
+
+        try
+        {
+            await db.ExecuteQueuedCommandsAsync(createDataCommands(db), useTransaction: true);
+        }
+        catch
+        {
+            // A logged data batch timeout is ambiguous: batchlog replay can still apply
+            // canonical data after this catch. Keep the original nonfailed journal row
+            // and active guard ID. Only an explicit cutoff after writers are drained may
+            // reclaim it; automatic failed-operation recovery would reopen a race.
+            await TryClassifyTickGuardOperationFailureAsync(
+                db,
+                guardScopeKey,
+                operationId,
+                TickProjectionGuardFailureStage.DataBatchResponseUnknown);
+            throw;
+        }
+
+        bool guardCompleted;
+        try
+        {
+            guardCompleted = await db.Use(MarketDataDbCql.CompleteMarketDataProjectionGuardOperationV3)
+                .SetParameters(new CompleteMarketDataProjectionGuardOperationV3(
+                    FuturesTickByTimeProjection,
+                    guardScopeKey,
+                    Guid.NewGuid(),
+                    activeOperations,
+                    DateTime.UtcNow,
+                    activeOperations))
+                .ExecuteSingleAsync(MapToBoolean) == true;
+        }
+        catch
+        {
+            await TryClassifyTickGuardOperationFailureAsync(
+                db,
+                guardScopeKey,
+                operationId,
+                TickProjectionGuardFailureStage.AfterDataAcknowledged);
+            throw;
+        }
+
+        if (guardCompleted)
+        {
+            try
+            {
+                await db.Use(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
+                    .SetParameters(new DeleteMarketDataProjectionScopeMutationV3(
+                        FuturesTickByTimeProjection,
+                        guardScopeKey,
+                        operationId))
+                    .ExecuteCommandAsync();
+            }
+            catch
+            {
+                // The data and guard are committed. Retain a recoverable failed marker
+                // instead of making the caller retry a successful tick write.
+                await TryClassifyTickGuardOperationFailureAsync(
+                    db,
+                    guardScopeKey,
+                    operationId,
+                    TickProjectionGuardFailureStage.AfterDataAcknowledged);
+            }
+            return;
+        }
+
+        MarketDataProjectionScopeStateData? guardState;
+        try
+        {
+            var states = await GetProjectionScopeStatesAsync(
+                FuturesTickByTimeProjection,
+                new[] { guardScopeKey });
+            guardState = states[guardScopeKey];
+        }
+        catch
+        {
+            await TryClassifyTickGuardOperationFailureAsync(
+                db,
+                guardScopeKey,
+                operationId,
+                TickProjectionGuardFailureStage.AfterDataAcknowledged);
+            return;
+        }
+
+        if (guardState is { Blocked: true })
+        {
+            // Backfill owns the guard. Leaving this ID active makes its conditional
+            // release fail; the failed marker lets the next repair reclaim it exactly.
+            await TryClassifyTickGuardOperationFailureAsync(
+                db,
+                guardScopeKey,
+                operationId,
+                TickProjectionGuardFailureStage.AfterDataAcknowledged);
+            return;
+        }
+
+        // Another ordinary tick sharing this guard may have prevented the singleton
+        // LWT. Its own data-scope generation still protects readers, so remove only
+        // this operation and marker. Calls from one bulk write are serialized per guard
+        // to keep this uncommon cross-process path off the normal fast path.
+        try
+        {
+            List<object> cleanupCommands =
+            [
+                db.Use(MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)
+                    .SetParameters(new RemoveMarketDataProjectionScopeOperationV3(
+                        FuturesTickByTimeProjection,
+                        guardScopeKey,
+                        operationId))
+                    .QueueCommand(),
+                db.Use(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
+                    .SetParameters(new DeleteMarketDataProjectionScopeMutationV3(
+                        FuturesTickByTimeProjection,
+                        guardScopeKey,
+                        operationId))
+                    .QueueCommand()
+            ];
+            await db.ExecuteQueuedCommandsAsync(cleanupCommands, useTransaction: true);
+        }
+        catch
+        {
+            await TryClassifyTickGuardOperationFailureAsync(
+                db,
+                guardScopeKey,
+                operationId,
+                TickProjectionGuardFailureStage.AfterDataAcknowledged);
+        }
+    }
+
+    internal static bool IsTickGuardFailureAutomaticallyRecoverable(
+        TickProjectionGuardFailureStage stage)
+        => stage is TickProjectionGuardFailureStage.RegisteredBeforeDataSubmission or
+            TickProjectionGuardFailureStage.AfterDataAcknowledged;
+
+    static Task TryClassifyTickGuardOperationFailureAsync(
+        IObjectRepository db,
+        string guardScopeKey,
+        Guid operationId,
+        TickProjectionGuardFailureStage stage)
+        => IsTickGuardFailureAutomaticallyRecoverable(stage)
+            ? TryFailTickGuardOperationAsync(db, guardScopeKey, operationId)
+            : Task.CompletedTask;
+
+    static async Task TryFailTickGuardOperationAsync(
+        IObjectRepository db,
+        string guardScopeKey,
+        Guid operationId)
+    {
+        try
+        {
+            await db.Use(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
+                .SetParameters(new InsertMarketDataProjectionScopeMutationV3(
+                    FuturesTickByTimeProjection,
+                    guardScopeKey,
+                    operationId,
+                    DateTime.UnixEpoch))
+                .ExecuteCommandAsync();
+        }
+        catch
+        {
+            // Never remove ambiguous recovery evidence after another storage failure.
+        }
+    }
+
+    static Task<long[]> EndProjectionOperationAsync(
+        IObjectRepository db,
+        string projectionName,
+        HashSet<Guid> activeOperations,
+        CancellationToken cancellationToken = default)
+        => db.Use(MarketDataDbCql.EndMarketDataProjectionOperation)
+            .SetParameters(new EndMarketDataProjectionOperation(
+                projectionName,
+                Guid.NewGuid(),
+                activeOperations))
+            .ExecuteCommandAsync(cancellationToken);
+
+    public async Task<MarketDataProjectionReadiness> GetQueryProjectionReadinessAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return new(
+            await GetProjectionScopeReadStampAsync(
+                FuturesTickByTimeProjection,
+                GetProjectionGuardScopeKeys()) is not null,
+            await GetProjectionScopeReadStampAsync(
+                FuturesEodProjection,
+                GetProjectionGuardScopeKeys()) is not null,
+            await GetProjectionScopeReadStampAsync(
+                VixFuturesContractIndexProjection,
+                GetProjectionGuardScopeKeys()) is not null);
+    }
 
     static FuturesDataId MapToFuturesDataId<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
@@ -173,7 +952,7 @@ public class MarketDataDbContext(
             marketVolatility: e.GetEnum<MarketVolatilityType>(15),
             priceDirection: e.GetEnum<PriceDirectionType>(16),
             priceVolatility: e.GetEnum<PriceVolatilityType>(17),
-            marketDirectionIndicator: e.GetInt(18),
+            marketDirectionIndicator: e.GetDouble(18),
             windowSize: e.GetInt(19)
         );
 
@@ -202,12 +981,6 @@ public class MarketDataDbContext(
             windowSize: e.GetInt(20)
          );
 
-    static FuturesEodMovingAverageReadModel MapToFuturesEodMovingAverage<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
-            symbol: e.GetString(0),
-            movingAverage: e.GetDouble(1)
-        );
-
     static FuturesEodClosingPriceReadModel MapToFuturesEodClosingPrice<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
             symbol: e.GetString(0),
@@ -222,12 +995,6 @@ public class MarketDataDbContext(
             HighPrice: e.GetDecimal(2),
             LowPrice: e.GetDecimal(3),
             Volume: e.GetInt(4)
-        );
-
-    static FuturesEodDataIndexReadModel MapToFuturesEodDataIndex<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
-            ValueDate: e.GetDateOnly(0),
-            ContractId: e.GetString(1)
         );
 
     static FuturesItiSignalV2ReadModel MapToFuturesItiSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -456,6 +1223,197 @@ public class MarketDataDbContext(
             volume: e.GetInt(6)
         );
 
+    static InsertFuturesEodData CreateFuturesEodDataParameters(FuturesEodDataV2ReadModel e, decimal openPrice)
+        => new(
+            contractId: e.ContractId,
+            valueDate: e.ValueDate,
+            symbol: e.Symbol,
+            openPrice,
+            highPrice: e.HighPrice,
+            lowPrice: e.LowPrice,
+            closePrice: e.ClosePrice,
+            volume: e.Volume,
+            dailyPercentChange: e.DailyPercentChange,
+            dailyStdDev: e.DailyStdDev,
+            dailyStdDevAmount: e.DailyStdDevAmount,
+            upperBand: e.UpperBand,
+            mean: e.Mean,
+            lowerBand: e.LowerBand,
+            marketDirection: e.MarketDirection.ToStringFast(),
+            marketVolatility: e.MarketVolatility.ToStringFast(),
+            priceDirection: e.PriceDirection.ToStringFast(),
+            priceVolatility: e.PriceVolatility.ToStringFast(),
+            marketDirectionIndicator: e.MarketDirectionIndicator,
+            windowSize: e.WindowSize);
+
+    static InsertFuturesEodDataByMonth CreateFuturesEodDataByMonthParameters(FuturesEodDataV2ReadModel e, decimal openPrice)
+        => new(
+            yearMonth: ToYearMonth(e.ValueDate),
+            contractId: e.ContractId,
+            valueDate: e.ValueDate,
+            symbol: e.Symbol,
+            openPrice,
+            highPrice: e.HighPrice,
+            lowPrice: e.LowPrice,
+            closePrice: e.ClosePrice,
+            volume: e.Volume,
+            dailyPercentChange: e.DailyPercentChange,
+            dailyStdDev: e.DailyStdDev,
+            dailyStdDevAmount: e.DailyStdDevAmount,
+            upperBand: e.UpperBand,
+            mean: e.Mean,
+            lowerBand: e.LowerBand,
+            marketDirection: e.MarketDirection.ToStringFast(),
+            marketVolatility: e.MarketVolatility.ToStringFast(),
+            priceDirection: e.PriceDirection.ToStringFast(),
+            priceVolatility: e.PriceVolatility.ToStringFast(),
+            marketDirectionIndicator: e.MarketDirectionIndicator,
+            windowSize: e.WindowSize);
+
+    async Task UpsertFuturesEodProjectionAsync(FuturesEodDataV2ReadModel e, decimal openPrice)
+    {
+        var db = _dbFactory.MarketDataDb;
+        var yearMonth = ToYearMonth(e.ValueDate);
+        List<object> commands =
+        [
+            db.Use(MarketDataDbCql.InsertFuturesEodDataByMonth)
+                .SetParameters(CreateFuturesEodDataByMonthParameters(e, openPrice))
+                .QueueCommand(),
+            db.Use(MarketDataDbCql.InsertMarketDataProjectionMonth)
+                .SetParameters(new InsertMarketDataProjectionMonth(FuturesEodProjection, yearMonth))
+                .QueueCommand()
+        ];
+        await db.ExecuteQueuedCommandsAsync(commands);
+    }
+
+    async Task UpsertVixFuturesContractIndexAsync(string contractId)
+        => await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.InsertVixFuturesContractIndex)
+            .SetParameters(new InsertVixFuturesContractIndex(
+                GetVixContractBucket(contractId),
+                contractId))
+            .ExecuteCommandAsync();
+
+    async Task InsertFuturesEodBatchAsync(ICollection<FuturesEodDataV2ReadModel> batch)
+    {
+        if (batch.Count == 0)
+            return;
+
+        EnsureDistinctFuturesEodWrites(batch);
+        await ExecuteMaintainedProjectionMutationAsync(
+            FuturesEodProjection,
+            batch.Select(static e => GetFuturesEodScopeKey(e.ValueDate)),
+            async () =>
+        {
+            var db = _dbFactory.MarketDataDb;
+            await db.Use(MarketDataDbCql.InsertFuturesEodData)
+                .SetParameters(batch.Select(e => CreateFuturesEodDataParameters(e, e.OpenPrice)))
+                .ExecuteCommandAsync();
+            await db.Use(MarketDataDbCql.InsertFuturesEodDataByMonth)
+                .SetParameters(batch.Select(e => CreateFuturesEodDataByMonthParameters(e, e.OpenPrice)))
+                .ExecuteCommandAsync();
+
+            var projectionMonths = batch.Select(e => ToYearMonth(e.ValueDate)).Distinct().ToArray();
+            if (FuturesEodProjectionMonthSubmittingForTestingAsync is { } projectionMonthSubmitting)
+                await projectionMonthSubmitting();
+            await db.Use(MarketDataDbCql.InsertMarketDataProjectionMonth)
+                .SetParameters(projectionMonths.Select(yearMonth =>
+                    new InsertMarketDataProjectionMonth(FuturesEodProjection, yearMonth)))
+                .ExecuteCommandAsync();
+        });
+    }
+
+    async Task<FuturesEodDataV2ReadModel?> ReadLegacyCurrentFuturesEodDataAsync(DateOnly valueDate)
+    {
+        FuturesEodDataV2ReadModel? latest = null;
+        await foreach (var row in _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetFuturesEodDataAll)
+            .ExecuteStreamAsync(MapToFuturesEodData!))
+        {
+            if (row.ValueDate > valueDate)
+                continue;
+            if (latest is null ||
+                row.ValueDate > latest.ValueDate ||
+                row.ValueDate == latest.ValueDate && string.CompareOrdinal(row.ContractId, latest.ContractId) < 0 ||
+                row.ValueDate == latest.ValueDate && row.ContractId == latest.ContractId &&
+                    string.CompareOrdinal(row.Symbol, latest.Symbol) < 0)
+            {
+                latest = row;
+            }
+        }
+
+        return latest;
+    }
+
+    async Task<ICollection<FuturesEodDataV2ReadModel>> ReadLegacyFuturesEodDataByMonthsAsync(
+        DateOnly startDate,
+        DateOnly endDate,
+        IReadOnlySet<int> yearMonths)
+    {
+        List<FuturesEodDataV2ReadModel> results = [];
+        await foreach (var row in _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetFuturesEodDataAll)
+            .ExecuteStreamAsync(MapToFuturesEodData!))
+        {
+            if (row.ValueDate >= startDate &&
+                row.ValueDate <= endDate &&
+                yearMonths.Contains(ToYearMonth(row.ValueDate)))
+                results.Add(row);
+        }
+
+        return results;
+    }
+
+    async Task<ICollection<VixFuturesEodDataReadModel>> ReadLegacyVixFuturesEodDataByValueDateAsync(
+        DateOnly valueDate)
+    {
+        List<VixFuturesEodDataReadModel> results = [];
+        await foreach (var row in _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetVixFuturesEodDataAll)
+            .ExecuteStreamAsync(MapToVixFuturesEodData))
+        {
+            if (row.ValueDate <= valueDate)
+                results.Add(row);
+        }
+
+        return [.. results
+            .OrderByDescending(static row => row.ValueDate)
+            .ThenBy(static row => row.ContractId, StringComparer.Ordinal)];
+    }
+
+    async Task<ICollection<VixFuturesEodDataReadModel>> ReadIndexedVixFuturesEodDataByValueDateAsync(
+        DateOnly valueDate)
+    {
+        var db = _dbFactory.MarketDataDb;
+        HashSet<string> contractIds = new(StringComparer.Ordinal);
+        for (var firstBucket = 0; firstBucket < VixContractBucketCount; firstBucket += ProjectionReadConcurrency)
+        {
+            var bucketCount = Math.Min(ProjectionReadConcurrency, VixContractBucketCount - firstBucket);
+            var bucketReads = Enumerable.Range(firstBucket, bucketCount)
+                .Select(async bucket => await db.Use(MarketDataDbCql.GetVixFuturesContractIds)
+                    .SetParameters(new GetVixFuturesContractIds(bucket))
+                    .ExecuteQueryAsync(MapToString))
+                .ToArray();
+            foreach (var bucket in await Task.WhenAll(bucketReads))
+                contractIds.UnionWith(bucket);
+        }
+
+        List<VixFuturesEodDataReadModel> results = [];
+        var orderedContractIds = contractIds.Order(StringComparer.Ordinal).ToArray();
+        for (var offset = 0; offset < orderedContractIds.Length; offset += ProjectionReadConcurrency)
+        {
+            var count = Math.Min(ProjectionReadConcurrency, orderedContractIds.Length - offset);
+            var contractReads = orderedContractIds.AsSpan(offset, count).ToArray()
+                .Select(async contractId => await db.Use(MarketDataDbCql.GetVixFuturesEodDataThroughDate)
+                    .SetParameters(new GetVixFuturesEodDataThroughDate(contractId, valueDate))
+                    .ExecuteQueryAsync(MapToVixFuturesEodData))
+                .ToArray();
+            foreach (var rows in await Task.WhenAll(contractReads))
+                results.AddRange(rows);
+        }
+
+        return [.. results
+            .OrderByDescending(static row => row.ValueDate)
+            .ThenBy(static row => row.ContractId, StringComparer.Ordinal)];
+    }
+
     static long MapToMinTickId<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => e.GetLong(0);
 
@@ -582,10 +1540,25 @@ public class MarketDataDbContext(
     /// <param name="valueDate"></param>
     /// <returns></returns>
     public async Task DeleteFuturesEodDataAsync(string contractId, DateOnly valueDate)
-        => await _dbFactory.MarketDataDb
-                .Use(MarketDataDbCql.DeleteFuturesEodData)
-                .SetParameters(new DeleteFuturesEodData(contractId, valueDate))
-                .ExecuteCommandAsync();
+    {
+        await ExecuteMaintainedProjectionMutationAsync(
+            FuturesEodProjection,
+            new[] { GetFuturesEodScopeKey(valueDate) },
+            async () =>
+        {
+            var db = _dbFactory.MarketDataDb;
+            List<object> commands =
+            [
+                db.Use(MarketDataDbCql.DeleteFuturesEodData)
+                    .SetParameters(new DeleteFuturesEodData(contractId, valueDate))
+                    .QueueCommand(),
+                db.Use(MarketDataDbCql.DeleteFuturesEodDataByMonth)
+                    .SetParameters(new DeleteFuturesEodDataByMonth(ToYearMonth(valueDate), valueDate, contractId))
+                    .QueueCommand()
+            ];
+            await db.ExecuteQueuedCommandsAsync(commands);
+        });
+    }
 
     /// <summary>
     /// Asynchronously deletes all futures tick data for the specified contract and value date from the market data
@@ -597,10 +1570,24 @@ public class MarketDataDbContext(
     /// <param name="valueDate">The date for which the futures tick data should be deleted.</param>
     /// <returns>A task that represents the asynchronous delete operation.</returns>
     public async Task DeleteFuturesTickDataAsync(string contractId, DateOnly valueDate)
-        => await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.DeleteFuturesTickData)
-            .SetParameters(new DeleteFuturesTickData(contractId, valueDate))
-            .ExecuteCommandAsync();
+    {
+        var scopeKey = GetFuturesTickScopeKey(contractId, valueDate);
+        await ExecuteGuardedAtomicTickMutationAsync(scopeKey, db =>
+        [
+            db.Use(MarketDataDbCql.DeleteFuturesTickData)
+                .SetParameters(new DeleteFuturesTickData(contractId, valueDate))
+                .QueueCommand(),
+            db.Use(MarketDataDbCql.DeleteFuturesTickDataByTime)
+                .SetParameters(new DeleteFuturesTickDataByTime(contractId, valueDate))
+                .QueueCommand(),
+            db.Use(MarketDataDbCql.MarkMarketDataProjectionScopeAtomicWriteV3)
+                .SetParameters(new MarkMarketDataProjectionScopeAtomicWriteV3(
+                    FuturesTickByTimeProjection,
+                    scopeKey,
+                    Guid.NewGuid()))
+                .QueueCommand()
+        ]);
+    }
 
     /// <summary>
     /// Deletes a trade live feed record from the database.
@@ -621,10 +1608,30 @@ public class MarketDataDbContext(
     /// <param name="valueDate"></param>
     /// <returns></returns>
     public async Task DeleteVixFuturesEodDataAsync(string contractId, DateOnly valueDate)
-        => await _dbFactory.MarketDataDb
-                .Use(MarketDataDbCql.DeleteVixFuturesEodData)
+    {
+        await ExecuteMaintainedProjectionMutationAsync(
+            VixFuturesContractIndexProjection,
+            new[] { GetVixContractIndexScopeKey(contractId) },
+            async () =>
+        {
+            var db = _dbFactory.MarketDataDb;
+            await db.Use(MarketDataDbCql.DeleteVixFuturesEodData)
                 .SetParameters(new DeleteVixFuturesEodData(contractId, valueDate))
                 .ExecuteCommandAsync();
+
+            var remaining = await db.Use(MarketDataDbCql.GetLastVixFuturesEodData)
+                .SetParameters(new GetLastVixFuturesEodData(contractId, DateOnly.MaxValue))
+                .ExecuteSingleAsync(MapToVixFuturesEodData);
+            if (remaining is null)
+            {
+                await db.Use(MarketDataDbCql.DeleteVixFuturesContractIndex)
+                    .SetParameters(new DeleteVixFuturesContractIndex(
+                        GetVixContractBucket(contractId),
+                        contractId))
+                    .ExecuteCommandAsync();
+            }
+        });
+    }
 
     /// <summary>
     /// Deletes yield curve rate data
@@ -731,24 +1738,14 @@ public class MarketDataDbContext(
     /// <returns></returns>
     public async Task<long> GetNextTickIdAsync(FuturesDataId e)
     {
-        long nextTickId;
         var db = _dbFactory.MarketDataDb;
-        try
-        {
-            await db.LockAsync();
-            await db.Use(MarketDataDbCql.UpdateNextFuturesTickId)
-               .SetParameters(new UpdateNextFuturesTickId(contractId: e.ContractId, valueDate: e.ValueDate))
-               .ExecuteCommandAsync();
+        await db.Use(MarketDataDbCql.UpdateNextFuturesTickId)
+            .SetParameters(new UpdateNextFuturesTickId(contractId: e.ContractId, valueDate: e.ValueDate))
+            .ExecuteCommandAsync();
 
-            nextTickId = await db.Use(MarketDataDbCql.GetNextFuturesTickId)
-               .SetParameters(new GetNextFuturesTickId(contractId: e.ContractId, valueDate: e.ValueDate))
-               .ExecuteScalarAsync(MapToNextTickId!);
-        }
-        finally
-        {
-            db.Unlock();
-        }
-        return nextTickId;
+        return await db.Use(MarketDataDbCql.GetNextFuturesTickId)
+            .SetParameters(new GetNextFuturesTickId(contractId: e.ContractId, valueDate: e.ValueDate))
+            .ExecuteScalarAsync(MapToNextTickId!);
     }
 
     /// <summary>
@@ -819,12 +1816,29 @@ public class MarketDataDbContext(
 	/// <param name="tickDate"></param>
 	/// <returns></returns>
 	public async Task<FuturesTickDataV2ReadModel?> GetLastFuturesTickDataByTickDateAsync(string contractId, DateTime tickDate)
-            => await _dbFactory.MarketDataDb
-               .Use(MarketDataDbCql.GetLastFuturesTickDataByTickTime)
-               .SetParameters(new GetLastFuturesTickDataByTickTime(contractId,
-                   valueDate: DateOnly.FromDateTime(tickDate),
-                   tickTime: TimeOnly.FromDateTime(tickDate)))
-               .ExecuteSingleAsync(MapToFuturesTickData!);
+    {
+        var db = _dbFactory.MarketDataDb;
+        var valueDate = DateOnly.FromDateTime(tickDate);
+        var tickTime = TimeOnly.FromDateTime(tickDate);
+        var stamp = await GetProjectionScopeReadStampAsync(
+            FuturesTickByTimeProjection,
+            new[] { GetFuturesTickScopeKey(contractId, valueDate) });
+        if (stamp is not null)
+        {
+            var projected = await db.Use(MarketDataDbCql.GetLastFuturesTickDataByTickTime)
+                .SetParameters(new GetLastFuturesTickDataByTickTime(contractId, valueDate, tickTime))
+                .ExecuteSingleAsync(MapToFuturesTickData!);
+            if (await IsProjectionScopeReadStampValidAsync(stamp.Value))
+                return projected;
+        }
+
+        return (await db.Use(MarketDataDbCql.GetFuturesTickDataByDate)
+                .SetParameters(new GetLastFuturesTickData(contractId, valueDate))
+                .ExecuteQueryAsync(MapToFuturesTickData!))
+            .Where(e => e.TickTime == tickTime)
+            .OrderByDescending(e => e.TickId)
+            .FirstOrDefault();
+    }
 
     /// <summary>
     /// get last futures option tick data
@@ -1114,17 +2128,28 @@ public class MarketDataDbContext(
     public async Task InsertFuturesTickDataAsync(FuturesTickDataV2ReadModel e)
     {
         var tickId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTickData_TickId);
-        await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.InsertFuturesTickData)
-            .SetParameters(new InsertFuturesTickData(
-                contractId: e.ContractId,
-                valueDate: e.ValueDate,
-                tickId,
-                tickTime: e.TickTime,
-                price: e.Price,
-                size: e.Size
-            ))
-            .ExecuteCommandAsync();
+        await ExecuteAtomicTickWriteAsync(
+            GetFuturesTickScopeKey(e.ContractId, e.ValueDate),
+            new[]
+            {
+                new InsertFuturesTickData(
+                    contractId: e.ContractId,
+                    valueDate: e.ValueDate,
+                    tickId,
+                    tickTime: e.TickTime,
+                    price: e.Price,
+                    size: e.Size)
+            },
+            new[]
+            {
+                new InsertFuturesTickDataByTime(
+                    contractId: e.ContractId,
+                    valueDate: e.ValueDate,
+                    tickTime: e.TickTime,
+                    tickId,
+                    price: e.Price,
+                    size: e.Size)
+            });
     }
 
     /// <summary>
@@ -1133,17 +2158,43 @@ public class MarketDataDbContext(
     /// <param name="tickData"></param>
     /// <returns></returns>
     public async Task InsertFuturesTickDataAsync(ICollection<FuturesTickDataV2ReadModel> tickData)
-        => await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.InsertFuturesTickData)
-            .SetParameters(tickData.Select(e => new InsertFuturesTickData(
-                contractId: e.ContractId,
-                valueDate: e.ValueDate,
-                tickId: e.TickId,
-                tickTime: e.TickTime,
-                price: e.Price,
-                size: e.Size
-            )))
-            .ExecuteCommandAsync();
+    {
+        if (tickData.Count == 0)
+            return;
+
+        EnsureDistinctFuturesTickWrites(tickData);
+        var batchesByGuard = tickData
+            .GroupBy(static e => (e.ContractId, e.ValueDate))
+            .SelectMany(group => group.Chunk(TickAtomicBatchRowCount)
+                .Select(chunk => (group.Key.ContractId, group.Key.ValueDate, Rows: chunk)))
+            .GroupBy(batch => GetProjectionGuardScopeKey(
+                GetFuturesTickScopeKey(batch.ContractId, batch.ValueDate)));
+        foreach (var guardGroupBatch in batchesByGuard.Chunk(ProjectionReadConcurrency))
+        {
+            await Task.WhenAll(guardGroupBatch.Select(async guardBatches =>
+            {
+                foreach (var batch in guardBatches)
+                {
+                    await ExecuteAtomicTickWriteAsync(
+                        GetFuturesTickScopeKey(batch.ContractId, batch.ValueDate),
+                        batch.Rows.Select(e => new InsertFuturesTickData(
+                            contractId: e.ContractId,
+                            valueDate: e.ValueDate,
+                            tickId: e.TickId,
+                            tickTime: e.TickTime,
+                            price: e.Price,
+                            size: e.Size)).ToArray(),
+                        batch.Rows.Select(e => new InsertFuturesTickDataByTime(
+                            contractId: e.ContractId,
+                            valueDate: e.ValueDate,
+                            tickTime: e.TickTime,
+                            tickId: e.TickId,
+                            price: e.Price,
+                            size: e.Size)).ToArray());
+                }
+            }));
+        }
+    }
 
     /// <summary>
     /// Inserts a new futures ITI signal record into the database.
@@ -1565,7 +2616,7 @@ public class MarketDataDbContext(
            .SetParameters(new GetFuturesEodData(contractId, valueDate))
            .ExecuteSingleAsync(MapToFuturesEodData!);
         futuresEodData ??= await db.Use(MarketDataDbCql.GetYesterdaysFuturesEodData)
-            .SetParameters(new GetYesterdaysFuturesEodData(valueDate))
+            .SetParameters(new GetYesterdaysFuturesEodData(contractId, valueDate))
             .ExecuteSingleAsync(MapToFuturesEodData!);
         return futuresEodData;
     }
@@ -1633,14 +2684,40 @@ public class MarketDataDbContext(
     public async Task<FuturesEodDataV2ReadModel?> GetCurrentFuturesEodDataAsync(DateOnly valueDate)
     {
         var db = _dbFactory.MarketDataDb;
-        var dataIndexes = await db.Use(MarketDataDbCql.GetCurrentFuturesEodDataIndex)
-            .SetParameters(new GetCurrentFuturesEodDataIndex(valueDate))
-            .ExecuteQueryAsync(MapToFuturesEodDataIndex!);
+        var targetYearMonth = ToYearMonth(valueDate);
+        var projectionMonths = await db.Use(MarketDataDbCql.GetMarketDataProjectionMonths)
+            .SetParameters(new GetMarketDataProjectionMonths(FuturesEodProjection, targetYearMonth))
+            .ExecuteQueryAsync(MapToYearMonth);
+        var orderedProjectionMonths = projectionMonths.ToArray();
+        var stamp = await GetProjectionScopeReadStampAsync(
+            FuturesEodProjection,
+            orderedProjectionMonths
+                .Select(GetFuturesEodScopeKey)
+                .Concat(GetProjectionGuardScopeKeys()));
+        if (stamp is null)
+            return await ReadLegacyCurrentFuturesEodDataAsync(valueDate);
 
-        var dataIndex = dataIndexes.OrderByDescending(e => e.ValueDate).FirstOrDefault();
-        return dataIndex is not null
-            ? await GetFuturesEodDataAsync(dataIndex.ContractId, dataIndex.ValueDate)
-            : default;
+        FuturesEodDataV2ReadModel? result = null;
+        foreach (var yearMonth in orderedProjectionMonths)
+        {
+            var monthCutoff = yearMonth == targetYearMonth ? valueDate : GetMonthEnd(yearMonth);
+            result = await db.Use(MarketDataDbCql.GetCurrentFuturesEodDataByMonth)
+                .SetParameters(new GetCurrentFuturesEodDataByMonth(yearMonth, monthCutoff))
+                .ExecuteSingleAsync(MapToFuturesEodData!);
+            if (result is not null)
+                break;
+        }
+
+        var validatedProjectionMonths = await db.Use(MarketDataDbCql.GetMarketDataProjectionMonths)
+            .SetParameters(new GetMarketDataProjectionMonths(FuturesEodProjection, targetYearMonth))
+            .ExecuteQueryAsync(MapToYearMonth);
+        if (orderedProjectionMonths.SequenceEqual(validatedProjectionMonths) &&
+            await IsProjectionScopeReadStampValidAsync(stamp.Value))
+        {
+            return result;
+        }
+
+        return await ReadLegacyCurrentFuturesEodDataAsync(valueDate);
     }
 
     /// <summary>
@@ -1650,9 +2727,33 @@ public class MarketDataDbContext(
     /// <param name="endDate"></param>
     /// <returns></returns>
     public async Task<ICollection<FuturesEodDataV2ReadModel>> GetCurrentFuturesEodDataByDateRangeAsync(DateOnly startDate, DateOnly endDate)
-        => [.. (await _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetCurrentFuturesEodDataByDateRange)
-            .SetParameters(new GetCurrentFuturesEodDataByDateRange(startDate, endDate))
-            .ExecuteQueryAsync(MapToFuturesEodData!)).OrderByDescending(o => o.ValueDate)];
+    {
+        var db = _dbFactory.MarketDataDb;
+        var yearMonths = GetYearMonths(startDate, endDate).ToHashSet();
+        var stamp = await GetProjectionScopeReadStampAsync(
+            FuturesEodProjection,
+            yearMonths.Select(GetFuturesEodScopeKey));
+        if (stamp is null)
+            return await ReadLegacyFuturesEodDataByMonthsAsync(startDate, endDate, yearMonths);
+
+        List<FuturesEodDataV2ReadModel> results = [];
+        foreach (var yearMonth in yearMonths)
+        {
+            var monthStart = GetMonthStart(yearMonth);
+            var monthEnd = GetMonthEnd(yearMonth);
+            var rangeStart = startDate > monthStart ? startDate : monthStart;
+            var rangeEnd = endDate < monthEnd ? endDate : monthEnd;
+            var monthValues = await db.Use(MarketDataDbCql.GetCurrentFuturesEodDataByDateRange)
+                .SetParameters(new GetCurrentFuturesEodDataByDateRange(yearMonth, rangeStart, rangeEnd))
+                .ExecuteQueryAsync(MapToFuturesEodData!);
+            results.AddRange(monthValues);
+        }
+
+        if (!await IsProjectionScopeReadStampValidAsync(stamp.Value))
+            return await ReadLegacyFuturesEodDataByMonthsAsync(startDate, endDate, yearMonths);
+
+        return [.. results.OrderByDescending(e => e.ValueDate).ThenBy(e => e.ContractId)];
+    }
 
     /// <summary>
     /// Gets the FuturesEodMovingAverageReadModel for a given symbol and date range.
@@ -1662,16 +2763,17 @@ public class MarketDataDbContext(
     /// <param name="endDate">The end date.</param>
     /// <returns>A task representing the asynchronous operation, containing the FuturesEodMovingAverageReadModel.</returns>
     public async Task<FuturesEodMovingAverageReadModel?> GetFuturesEodMovingAverageAsync(string symbol, DateTime startDate, DateTime endDate)
-        => (await _dbFactory.MarketDataDb
-                .Use(MarketDataDbCql.GetFuturesEodMovingAverages)
-                .SetParameters(new GetFuturesEodMovingAverages(symbol, startDate, endDate))
-                .ExecuteQueryAsync(MapToFuturesEodMovingAverage!)).GroupBy(e => e.Symbol)
-                .Select(g => new FuturesEodMovingAverageReadModel
-                (
-                    symbol: g.Key,
-                    movingAverage: g.Average(e => e.MovingAverage)
-                ))
-                .FirstOrDefault();
+    {
+        var values = (await GetCurrentFuturesEodDataByDateRangeAsync(
+                DateOnly.FromDateTime(startDate),
+                DateOnly.FromDateTime(endDate)))
+            .Where(e => string.Equals(e.Symbol, symbol, StringComparison.Ordinal))
+            .Select(e => e.ClosePrice)
+            .ToArray();
+        return values.Length == 0
+            ? null
+            : new FuturesEodMovingAverageReadModel(symbol, (double)values.Average());
+    }
 
     /// <summary>
     /// Gets a collection of FuturesEodClosingPriceReadModel for a given symbol and date range, limited by maxDays.
@@ -1683,16 +2785,30 @@ public class MarketDataDbContext(
     /// <param name="maxDays">The maximum number of days to retrieve.</param>
     /// <returns>A task representing the asynchronous operation, containing a collection of FuturesEodClosingPriceReadModel.</returns>
     public async Task<ICollection<FuturesEodClosingPriceReadModel>> GetFuturesEodClosingPricesAsync(string contractId, string symbol, DateOnly startDate, DateOnly endDate, int maxDays)
-        => await _dbFactory.MarketDataDb
+    {
+        if (maxDays <= 0)
+            return [];
+
+        var closingPrices = new List<FuturesEodClosingPriceReadModel>(Math.Min(maxDays, 256));
+        var rows = _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetFuturesEodClosingPrices)
             .SetParameters(new GetFuturesEodClosingPrices(
                 contractId,
-                symbol,
                 startDate,
-                endDate,
-                maxDays
-            ))
-            .ExecuteQueryAsync(MapToFuturesEodClosingPrice);
+                endDate))
+            .ExecuteStreamAsync(MapToFuturesEodClosingPrice);
+        await foreach (var row in rows.ConfigureAwait(false))
+        {
+            if (!string.Equals(row.Symbol, symbol, StringComparison.Ordinal))
+                continue;
+
+            closingPrices.Add(row);
+            if (closingPrices.Count == maxDays)
+                break;
+        }
+
+        return closingPrices;
+    }
 
     /// <summary>
     /// return futures iti trend delta data by date range
@@ -2236,11 +3352,16 @@ public class MarketDataDbContext(
         if (existingData is null)
         {
             // insert new data if it doesn't exist...
-            await InsertFuturesEodDataIndexAsync(new FuturesEodDataIndexReadModel(e.ValueDate, e.ContractId));
             var newFuturesDataId = FuturesDataId.Create(e.ContractId, e.ValueDate);
             var openPrice = await GetFuturesOpenPriceAsync(newFuturesDataId);
             openPrice = openPrice == 0 ? e.OpenPrice : openPrice;
-            await db.Use(MarketDataDbCql.InsertFuturesEodData)
+            await ExecuteMaintainedProjectionMutationAsync(
+                FuturesEodProjection,
+                new[] { GetFuturesEodScopeKey(e.ValueDate) },
+                async () =>
+            {
+                await InsertFuturesEodDataIndexAsync(new FuturesEodDataIndexReadModel(e.ValueDate, e.ContractId));
+                await db.Use(MarketDataDbCql.InsertFuturesEodData)
                 .SetParameters(new InsertFuturesEodData(
                     contractId: e.ContractId,
                     valueDate: e.ValueDate,
@@ -2263,10 +3384,10 @@ public class MarketDataDbContext(
                     marketDirectionIndicator: e.MarketDirectionIndicator,
                     windowSize: e.WindowSize
                 ))
-                .ExecuteCommandAsync();
+                    .ExecuteCommandAsync();
 
-            await db.Use(MarketDataDbCql.InsertFuturesIntraDayData)
-                .SetParameters(new InsertFuturesIntraDayData(
+                await db.Use(MarketDataDbCql.InsertFuturesIntraDayData)
+                    .SetParameters(new InsertFuturesIntraDayData(
                     contractId: e.ContractId,
                     valueDate: e.ValueDate,
                     sequenceId: await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId),
@@ -2289,17 +3410,22 @@ public class MarketDataDbContext(
                     marketDirectionIndicator: e.MarketDirectionIndicator,
                     windowSize: e.WindowSize
                 ))
-                .ExecuteCommandAsync();
-
-
+                    .ExecuteCommandAsync();
+                await UpsertFuturesEodProjectionAsync(e, openPrice);
+            });
         }
         else
         {
             // Update existing data if it exists
             var openPrice = await _blackboardService.MarketDataFeed.FuturesOpenPrice.GetAsync(existingData, GetFuturesOpenPriceAsync);
             openPrice = openPrice == 0 ? e.OpenPrice : openPrice;
-            await db.Use(MarketDataDbCql.UpdateFuturesEodData)
-                .SetParameters(new UpdateFuturesEodData(
+            await ExecuteMaintainedProjectionMutationAsync(
+                FuturesEodProjection,
+                new[] { GetFuturesEodScopeKey(e.ValueDate) },
+                async () =>
+            {
+                await db.Use(MarketDataDbCql.UpdateFuturesEodData)
+                    .SetParameters(new UpdateFuturesEodData(
                     contractId: e.ContractId,
                     valueDate: e.ValueDate,
                     symbol: e.Symbol,
@@ -2321,10 +3447,10 @@ public class MarketDataDbContext(
                     marketDirectionIndicator: e.MarketDirectionIndicator,
                     windowSize: e.WindowSize
                 ))
-                .ExecuteCommandAsync();
+                    .ExecuteCommandAsync();
 
-            await db.Use(MarketDataDbCql.InsertFuturesIntraDayData)
-                .SetParameters(new InsertFuturesIntraDayData(
+                await db.Use(MarketDataDbCql.InsertFuturesIntraDayData)
+                    .SetParameters(new InsertFuturesIntraDayData(
                     contractId: e.ContractId,
                     valueDate: e.ValueDate,
                     sequenceId: await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId),
@@ -2347,8 +3473,9 @@ public class MarketDataDbContext(
                     marketDirectionIndicator: e.MarketDirectionIndicator,
                     windowSize: e.WindowSize
                 ))
-                .ExecuteCommandAsync();
-
+                    .ExecuteCommandAsync();
+                await UpsertFuturesEodProjectionAsync(e, openPrice);
+            });
         }
 
 
@@ -2363,30 +3490,7 @@ public class MarketDataDbContext(
     }
 
     public async Task InsertFuturesEodDataAsync(ICollection<FuturesEodDataV2ReadModel> futuresEodData)
-        => await _dbFactory.MarketDataDb.Use(MarketDataDbCql.InsertFuturesEodData)
-                .SetParameters(futuresEodData.Select(e => new InsertFuturesEodData(
-                    contractId: e.ContractId,
-                    valueDate: e.ValueDate,
-                    symbol: e.Symbol,
-                    openPrice: e.OpenPrice,
-                    highPrice: e.HighPrice,
-                    lowPrice: e.LowPrice,
-                    closePrice: e.ClosePrice,
-                    volume: e.Volume,
-                    dailyPercentChange: e.DailyPercentChange,
-                    dailyStdDev: e.DailyStdDev,
-                    dailyStdDevAmount: e.DailyStdDevAmount,
-                    upperBand: e.UpperBand,
-                    mean: e.Mean,
-                    lowerBand: e.LowerBand,
-                    marketDirection: e.MarketDirection.ToStringFast(),
-                    marketVolatility: e.MarketVolatility.ToStringFast(),
-                    priceDirection: e.PriceDirection.ToStringFast(),
-                    priceVolatility: e.PriceVolatility.ToStringFast(),
-                    marketDirectionIndicator: e.MarketDirectionIndicator,
-                    windowSize: e.WindowSize
-                )))
-                .ExecuteCommandAsync();
+        => await InsertFuturesEodBatchAsync(futuresEodData);
 
     /// <summary>
     /// Inserts a collection of futures end-of-day (EOD) data records into the database asynchronously.
@@ -2401,40 +3505,20 @@ public class MarketDataDbContext(
     public async Task<long> InsertFuturesEodDataAsync(IEnumerable<FuturesEodDataV2ReadModel> futuresEodData)
     {
         var rowCount = 0l;
-        await _dbFactory.MarketDataDb.Use(MarketDataDbCql.InsertFuturesEodData)
-                .SetParameters(GetFuturesEodData().Select(e => new InsertFuturesEodData(
-                    contractId: e.ContractId,
-                    valueDate: e.ValueDate,
-                    symbol: e.Symbol,
-                    openPrice: e.OpenPrice,
-                    highPrice: e.HighPrice,
-                    lowPrice: e.LowPrice,
-                    closePrice: e.ClosePrice,
-                    volume: e.Volume,
-                    dailyPercentChange: e.DailyPercentChange,
-                    dailyStdDev: e.DailyStdDev,
-                    dailyStdDevAmount: e.DailyStdDevAmount,
-                    upperBand: e.UpperBand,
-                    mean: e.Mean,
-                    lowerBand: e.LowerBand,
-                    marketDirection: e.MarketDirection.ToStringFast(),
-                    marketVolatility: e.MarketVolatility.ToStringFast(),
-                    priceDirection: e.PriceDirection.ToStringFast(),
-                    priceVolatility: e.PriceVolatility.ToStringFast(),
-                    marketDirectionIndicator: e.MarketDirectionIndicator,
-                    windowSize: e.WindowSize
-                )))
-                .ExecuteCommandAsync();
-        return rowCount;
-
-        IEnumerable<FuturesEodDataV2ReadModel> GetFuturesEodData()
+        List<FuturesEodDataV2ReadModel> batch = new(ProjectionWriteBatchSize);
+        foreach (var e in futuresEodData)
         {
-            foreach (var e in futuresEodData)
+            batch.Add(e);
+            rowCount++;
+            if (batch.Count == ProjectionWriteBatchSize)
             {
-                rowCount++;
-                yield return e;
+                await InsertFuturesEodBatchAsync(batch);
+                batch.Clear();
             }
         }
+
+        await InsertFuturesEodBatchAsync(batch);
+        return rowCount;
     }
 
     /// <summary>
@@ -2455,20 +3539,32 @@ public class MarketDataDbContext(
 
         if (existingData == null)
         {
-            await db.Use(MarketDataDbCql.InsertVixFuturesEodData)
-               .SetParameters(new InsertVixFuturesEodData(
-                   contractId: e.ContractId,
-                   valueDate: e.ValueDate,
-                   price: e.Price,
-                   size: e.Size
-               ))
-               .ExecuteCommandAsync();
+            await ExecuteMaintainedProjectionMutationAsync(
+                VixFuturesContractIndexProjection,
+                new[] { GetVixContractIndexScopeKey(e.ContractId) },
+                async () =>
+            {
+                await db.Use(MarketDataDbCql.InsertVixFuturesEodData)
+                   .SetParameters(new InsertVixFuturesEodData(
+                       contractId: e.ContractId,
+                       valueDate: e.ValueDate,
+                       openPrice: e.Price,
+                       highPrice: e.Price,
+                       lowPrice: e.Price,
+                       closePrice: e.Price,
+                       volume: e.Size
+                   ))
+                   .ExecuteCommandAsync();
+                await UpsertVixFuturesContractIndexAsync(e.ContractId);
+            });
         }
         else
         {
             var entityId = existingData.EntityId;
             var openPrice = await _blackboardService.MarketDataFeed.VixFuturesOpenPrice.GetAsync(entityId, GetVixFuturesOpenPriceAsync);
             var vixFuturesTickHLVData = await GetVixFuturesTickHLVDataAsync(entityId);
+            // The contract index is unchanged for an update to an existing canonical
+            // partition, so avoid an index and projection-state write on every VIX tick.
             await db.Use(MarketDataDbCql.UpdateVixFuturesEodData)
                .SetParameters(new UpdateVixFuturesEodData(
                    contractId: e.ContractId,
@@ -2996,10 +4092,19 @@ public class MarketDataDbContext(
 	/// <param name="valueDate"></param>
 	/// <returns></returns>
 	public async Task<ICollection<VixFuturesEodDataReadModel>> GetVixFuturesEodDataByValueDateAsync(DateOnly valueDate)
-	    => await _dbFactory.MarketDataDb
-		    .Use(MarketDataDbCql.GetVixFuturesEodDataByValueDate)
-			.SetParameters(new GetVixFuturesEodDataByValueDate(valueDate))
-			.ExecuteQueryAsync(MapToVixFuturesEodData);
+    {
+        var stamp = await GetProjectionScopeReadStampAsync(
+            VixFuturesContractIndexProjection,
+            Enumerable.Range(0, VixContractBucketCount).Select(GetVixContractIndexScopeKey));
+        if (stamp is null)
+            return await ReadLegacyVixFuturesEodDataByValueDateAsync(valueDate);
+
+        var results = await ReadIndexedVixFuturesEodDataByValueDateAsync(valueDate);
+        if (await IsProjectionScopeReadStampValidAsync(stamp.Value))
+            return results;
+
+        return await ReadLegacyVixFuturesEodDataByValueDateAsync(valueDate);
+    }
 
 	/// <summary>
 	/// Gets the last updated yield curve rate from the database.
@@ -3253,6 +4358,657 @@ public class MarketDataDbContext(
             ))
             .ExecuteQueryAsync(MapToFuturesItiSignal!);
         return [.. futuresItiSignals.OrderByDescending(e => e.SequenceId)];
+    }
+
+    /// <summary>
+    /// Idempotently rebuilds the non-signal MarketData V2 query projections from canonical tables.
+    /// </summary>
+    public async Task<MarketDataProjectionBackfillResult> BackfillQueryProjectionsV2Async(
+        int batchSize = ProjectionWriteBatchSize,
+        CancellationToken cancellationToken = default,
+        DateTime? staleOperationCutoffUtc = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        if (staleOperationCutoffUtc is { Kind: not DateTimeKind.Utc })
+        {
+            throw new ArgumentException(
+                "The stale operation cutoff must use DateTimeKind.Utc.",
+                nameof(staleOperationCutoffUtc));
+        }
+        if (staleOperationCutoffUtc > DateTime.UtcNow)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(staleOperationCutoffUtc),
+                staleOperationCutoffUtc,
+                "The stale operation cutoff cannot be in the future.");
+        }
+
+        var db = _dbFactory.MarketDataDb;
+        string[] projectionNames =
+        [
+            FuturesTickByTimeProjection,
+            FuturesEodProjection,
+            VixFuturesContractIndexProjection
+        ];
+        var failedMutationIds = new Dictionary<string, Guid[]>(StringComparer.Ordinal);
+        var backfillMutationIds = new Dictionary<string, Guid>(StringComparer.Ordinal);
+        var backfillScopes = projectionNames.ToDictionary(
+            static projectionName => projectionName,
+            static _ => new HashSet<string>(StringComparer.Ordinal),
+            StringComparer.Ordinal);
+        var backfillStartedScopes = projectionNames.ToDictionary(
+            static projectionName => projectionName,
+            static _ => new HashSet<string>(StringComparer.Ordinal),
+            StringComparer.Ordinal);
+        var backfillAcknowledgedScopes = projectionNames.ToDictionary(
+            static projectionName => projectionName,
+            static _ => new HashSet<string>(StringComparer.Ordinal),
+            StringComparer.Ordinal);
+        var backfillGlobalOperationsAcknowledged = new HashSet<string>(StringComparer.Ordinal);
+        var targetMutationSubmissionStarted = false;
+
+        try
+        {
+        // Failed operations are safe to reclaim automatically because their writer
+        // reached a terminal catch path. Other old operations require an explicit
+        // operator cutoff after every writer has been drained.
+        var scopedMutations = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+            .ExecuteQueryAsync(MapToProjectionScopeMutation);
+        var recoverableScopedMutations = scopedMutations
+            .Where(mutation => projectionNames.Contains(mutation.ProjectionName, StringComparer.Ordinal))
+            .Where(mutation => mutation.IsFailed ||
+                staleOperationCutoffUtc.HasValue && mutation.StartedOn <= staleOperationCutoffUtc.Value)
+            .ToArray();
+        if (recoverableScopedMutations.Length > 0)
+        {
+            await db.Use(MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)
+                .SetParameters(recoverableScopedMutations.Select(mutation =>
+                    new RemoveMarketDataProjectionScopeOperationV3(
+                        mutation.ProjectionName,
+                        mutation.ScopeKey,
+                        mutation.MutationId)))
+                .ExecuteCommandAsync(cancellationToken);
+            await db.Use(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
+                .SetParameters(recoverableScopedMutations.Select(mutation =>
+                    new DeleteMarketDataProjectionScopeMutationV3(
+                        mutation.ProjectionName,
+                        mutation.ScopeKey,
+                        mutation.MutationId)))
+                .ExecuteCommandAsync(cancellationToken);
+        }
+
+        // Supplying a cutoff is an explicit operator assertion that all older writers
+        // have been drained or terminated. Time alone is not treated as a lease.
+        if (staleOperationCutoffUtc.HasValue)
+        {
+            foreach (var projectionName in projectionNames)
+            {
+                var mutations = await db.Use(MarketDataDbCql.GetMarketDataProjectionMutations)
+                    .SetParameters(new GetMarketDataProjectionMutation(projectionName))
+                    .ExecuteQueryAsync(MapToProjectionMutation);
+                var staleMutationIds = mutations
+                    .Where(mutation => mutation.StartedOn <= staleOperationCutoffUtc.Value)
+                    .Select(mutation => mutation.MutationId)
+                    .ToHashSet();
+                if (staleMutationIds.Count == 0)
+                    continue;
+
+                await db.Use(MarketDataDbCql.RemoveMarketDataProjectionOperations)
+                    .SetParameters(new RemoveMarketDataProjectionOperations(
+                        projectionName,
+                        staleMutationIds))
+                    .ExecuteCommandAsync(cancellationToken);
+                await db.Use(MarketDataDbCql.DeleteMarketDataProjectionMutation)
+                    .SetParameters(staleMutationIds.Select(mutationId =>
+                        new DeleteMarketDataProjectionMutation(projectionName, mutationId)))
+                    .ExecuteCommandAsync(cancellationToken);
+            }
+        }
+
+        // Publish the repair markers before touching any projection. Readers keep using
+        // canonical tables until every rebuilt projection has reconciled successfully.
+        foreach (var projectionName in projectionNames)
+        {
+            var mutationId = Guid.NewGuid();
+            backfillMutationIds.Add(projectionName, mutationId);
+            await db.Use(MarketDataDbCql.InsertMarketDataProjectionMutation)
+                .SetParameters(new InsertMarketDataProjectionMutation(
+                    projectionName,
+                    mutationId,
+                    DateTime.UtcNow))
+                .ExecuteCommandAsync(cancellationToken);
+            async Task ActivateGlobalProjectionAsync()
+                => await db.Use(MarketDataDbCql.BeginMarketDataProjectionOperation)
+                    .SetParameters(new BeginMarketDataProjectionOperation(
+                        projectionName,
+                        mutationId,
+                        new HashSet<Guid> { mutationId }))
+                    .ExecuteCommandAsync(cancellationToken);
+
+            if (ProjectionBackfillGlobalActivationForTestingAsync is { } globalActivation)
+                await globalActivation(ActivateGlobalProjectionAsync);
+            else
+                await ActivateGlobalProjectionAsync();
+            backfillGlobalOperationsAcknowledged.Add(projectionName);
+
+            var existingMutations = await db.Use(MarketDataDbCql.GetMarketDataProjectionMutations)
+                .SetParameters(new GetMarketDataProjectionMutation(projectionName))
+                .ExecuteQueryAsync(MapToProjectionMutation);
+            failedMutationIds.Add(
+                projectionName,
+                [.. existingMutations
+                    .Where(existingMutation =>
+                        existingMutation.MutationId != mutationId && existingMutation.IsFailed)
+                    .Select(existingMutation => existingMutation.MutationId)]);
+        }
+
+        // Claim every guard before discovering data scopes. Ordinary writers touch a
+        // deterministic guard as well as their data scope; a post-discovery write then
+        // prevents the guard's conditional release without creating a global hot row.
+        foreach (var projectionName in projectionNames)
+        {
+            var guards = GetProjectionGuardScopeKeys();
+            backfillScopes[projectionName].UnionWith(guards);
+            await BeginBackfillScopesAsync(projectionName, guards);
+        }
+
+        // Discover the union of canonical, target, and prior state scopes while the
+        // projection-wide gate is closed. Existing targets/states are included so a
+        // replay also clears deleted or previously mis-bucketed partitions.
+        await foreach (var scope in db.Use(MarketDataDbCql.GetFuturesTickProjectionScopesSource)
+            .ExecuteStreamAsync(MapToFuturesTickProjectionScope, cancellationToken))
+        {
+            backfillScopes[FuturesTickByTimeProjection].Add(scope);
+        }
+        await foreach (var scope in db.Use(MarketDataDbCql.GetFuturesTickProjectionScopesTarget)
+            .ExecuteStreamAsync(MapToFuturesTickProjectionScope, cancellationToken))
+        {
+            backfillScopes[FuturesTickByTimeProjection].Add(scope);
+        }
+        await foreach (var scope in db.Use(MarketDataDbCql.GetFuturesEodProjectionScopesSource)
+            .ExecuteStreamAsync(MapToFuturesEodProjectionSourceScope, cancellationToken))
+        {
+            backfillScopes[FuturesEodProjection].Add(scope);
+        }
+        await foreach (var scope in db.Use(MarketDataDbCql.GetFuturesEodProjectionScopesTarget)
+            .ExecuteStreamAsync(MapToFuturesEodProjectionTargetScope, cancellationToken))
+        {
+            backfillScopes[FuturesEodProjection].Add(scope);
+        }
+        await foreach (var state in db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3All)
+            .ExecuteStreamAsync(MapToProjectionScopeState, cancellationToken))
+        {
+            if (backfillScopes.TryGetValue(state.ProjectionName, out var scopes))
+                scopes.Add(state.ScopeKey);
+        }
+        foreach (var bucket in Enumerable.Range(0, VixContractBucketCount))
+            backfillScopes[VixFuturesContractIndexProjection].Add(GetVixContractIndexScopeKey(bucket));
+
+        // Journal and claim every discovered scope with the projection backfill's ID.
+        // A concurrent ordinary writer adds a second ID, causing scoped completion to
+        // fail without affecting unrelated partitions.
+        foreach (var projectionName in projectionNames)
+        {
+            var scopesToStart = backfillScopes[projectionName]
+                .Except(backfillStartedScopes[projectionName], StringComparer.Ordinal)
+                .ToArray();
+            await BeginBackfillScopesAsync(projectionName, scopesToStart);
+        }
+
+        // A clean rebuild is what makes reconciliation detect deleted and stale rows,
+        // rather than merely proving that the source and projection have equal counts.
+        targetMutationSubmissionStarted = true;
+        if (ProjectionBackfillTargetMutationSubmittingForTestingAsync is { } targetMutationSubmitting)
+            await targetMutationSubmitting();
+        await db.Use(MarketDataDbCql.TruncateFuturesTickDataByTime)
+            .ExecuteCommandAsync(cancellationToken);
+        await db.Use(MarketDataDbCql.TruncateFuturesEodDataByMonth)
+            .ExecuteCommandAsync(cancellationToken);
+        await db.Use(MarketDataDbCql.TruncateVixFuturesContractIndex)
+            .ExecuteCommandAsync(cancellationToken);
+        await db.Use(MarketDataDbCql.TruncateMarketDataProjectionMonth)
+            .ExecuteCommandAsync(cancellationToken);
+
+        var futuresTickSourceIdentityBuilder = new ProjectionIdentityBuilder();
+        var tickBatch = new List<InsertFuturesTickDataByTime>(batchSize);
+        await foreach (var row in db.Use(MarketDataDbCql.GetFuturesTickDataAll)
+            .ExecuteStreamAsync(MapToFuturesTickData!, cancellationToken))
+        {
+            futuresTickSourceIdentityBuilder.Add(GetFuturesTickIdentity(row));
+            tickBatch.Add(new InsertFuturesTickDataByTime(
+                row.ContractId,
+                row.ValueDate,
+                row.TickTime,
+                row.TickId,
+                row.Price,
+                row.Size));
+            if (tickBatch.Count == batchSize)
+                await FlushTicksAsync();
+        }
+        await FlushTicksAsync();
+
+        var futuresEodSourceIdentityBuilder = new ProjectionIdentityBuilder();
+        var eodBatch = new List<InsertFuturesEodDataByMonth>(batchSize);
+        var eodMonths = new HashSet<int>();
+        await foreach (var row in db.Use(MarketDataDbCql.GetFuturesEodDataAll)
+            .ExecuteStreamAsync(MapToFuturesEodData!, cancellationToken))
+        {
+            futuresEodSourceIdentityBuilder.Add(GetFuturesEodIdentity(row));
+            eodBatch.Add(CreateFuturesEodDataByMonthParameters(row, row.OpenPrice));
+            eodMonths.Add(ToYearMonth(row.ValueDate));
+            if (eodBatch.Count == batchSize)
+                await FlushFuturesEodAsync();
+        }
+        await FlushFuturesEodAsync();
+
+        long vixFuturesEodRowsSource = 0;
+        var vixContracts = new HashSet<string>(StringComparer.Ordinal);
+        var vixContractsSourceIdentityBuilder = new ProjectionIdentityBuilder();
+        await foreach (var row in db.Use(MarketDataDbCql.GetVixFuturesEodDataAll)
+            .ExecuteStreamAsync(MapToVixFuturesEodData, cancellationToken))
+        {
+            vixFuturesEodRowsSource++;
+            if (vixContracts.Add(row.ContractId))
+                vixContractsSourceIdentityBuilder.Add(GetVixContractIdentity(row.ContractId));
+        }
+
+        var vixContractBatch = new List<InsertVixFuturesContractIndex>(batchSize);
+        foreach (var contractId in vixContracts.OrderBy(static contractId => contractId, StringComparer.Ordinal))
+        {
+            vixContractBatch.Add(new InsertVixFuturesContractIndex(
+                GetVixContractBucket(contractId),
+                contractId));
+            if (vixContractBatch.Count == batchSize)
+                await FlushVixContractsAsync();
+        }
+        await FlushVixContractsAsync();
+
+        var futuresTickProjectedIdentityBuilder = new ProjectionIdentityBuilder();
+        await foreach (var row in db.Use(MarketDataDbCql.GetFuturesTickDataByTimeAll)
+            .ExecuteStreamAsync(MapToFuturesTickData!, cancellationToken))
+        {
+            futuresTickProjectedIdentityBuilder.Add(GetFuturesTickIdentity(row));
+        }
+
+        var futuresEodProjectedIdentityBuilder = new ProjectionIdentityBuilder();
+        await foreach (var row in db.Use(MarketDataDbCql.GetFuturesEodDataByMonthAll)
+            .ExecuteStreamAsync(MapToFuturesEodData!, cancellationToken))
+        {
+            futuresEodProjectedIdentityBuilder.Add(GetFuturesEodIdentity(row));
+        }
+
+        var vixContractsIndexedIdentityBuilder = new ProjectionIdentityBuilder();
+        await foreach (var indexRow in db.Use(MarketDataDbCql.GetVixFuturesContractIndexAll)
+            .ExecuteStreamAsync(MapToVixFuturesContractIndex, cancellationToken))
+        {
+            vixContractsIndexedIdentityBuilder.Add(GetVixContractIdentity(
+                indexRow.Bucket,
+                indexRow.ContractId));
+        }
+
+        var futuresTickSourceIdentity = futuresTickSourceIdentityBuilder.Build();
+        var futuresTickProjectedIdentity = futuresTickProjectedIdentityBuilder.Build();
+        var futuresEodSourceIdentity = futuresEodSourceIdentityBuilder.Build();
+        var futuresEodProjectedIdentity = futuresEodProjectedIdentityBuilder.Build();
+        var vixContractsSourceIdentity = vixContractsSourceIdentityBuilder.Build();
+        var vixContractsIndexedIdentity = vixContractsIndexedIdentityBuilder.Build();
+        var reconciled =
+            futuresTickSourceIdentity == futuresTickProjectedIdentity &&
+            futuresEodSourceIdentity == futuresEodProjectedIdentity &&
+            vixContractsSourceIdentity == vixContractsIndexedIdentity;
+
+        if (ProjectionBackfillReconciledForTestingAsync is { } backfillReconciled)
+            await backfillReconciled();
+
+        var cutoverPublished = false;
+        if (reconciled)
+        {
+            foreach (var projectionName in projectionNames)
+            {
+                var failedOperations = failedMutationIds[projectionName];
+                if (failedOperations.Length == 0)
+                    continue;
+
+                await db.Use(MarketDataDbCql.RemoveMarketDataProjectionOperations)
+                    .SetParameters(new RemoveMarketDataProjectionOperations(
+                        projectionName,
+                        failedOperations.ToHashSet()))
+                    .ExecuteCommandAsync(cancellationToken);
+            }
+
+            var futuresTickScopesCompleted = await CompleteProjectionScopesAsync(
+                FuturesTickByTimeProjection,
+                guardScopes: false);
+            var futuresEodScopesCompleted = await CompleteProjectionScopesAsync(
+                FuturesEodProjection,
+                guardScopes: false);
+            var vixContractIndexScopesCompleted = await CompleteProjectionScopesAsync(
+                VixFuturesContractIndexProjection,
+                guardScopes: false);
+            var allDataScopesCompleted = futuresTickScopesCompleted &&
+                futuresEodScopesCompleted &&
+                vixContractIndexScopesCompleted;
+
+            var futuresTickCompleted = false;
+            var futuresEodCompleted = false;
+            var vixContractIndexCompleted = false;
+            if (allDataScopesCompleted)
+            {
+                futuresTickCompleted = await CompleteProjectionAsync(
+                    FuturesTickByTimeProjection,
+                    futuresTickSourceIdentity,
+                    futuresTickProjectedIdentity);
+                futuresEodCompleted = await CompleteProjectionAsync(
+                    FuturesEodProjection,
+                    futuresEodSourceIdentity,
+                    futuresEodProjectedIdentity);
+                vixContractIndexCompleted = await CompleteProjectionAsync(
+                    VixFuturesContractIndexProjection,
+                    vixContractsSourceIdentity,
+                    vixContractsIndexedIdentity);
+            }
+
+            var allGlobalStatesCompleted = allDataScopesCompleted &&
+                futuresTickCompleted &&
+                futuresEodCompleted &&
+                vixContractIndexCompleted;
+            var allGuardScopesCompleted = false;
+            if (allGlobalStatesCompleted)
+            {
+                // Global mutation markers remain present while guards are released, so
+                // readers cannot observe global readiness between these phases.
+                var futuresTickGuardsCompleted = await CompleteProjectionScopesAsync(
+                    FuturesTickByTimeProjection,
+                    guardScopes: true);
+                var futuresEodGuardsCompleted = await CompleteProjectionScopesAsync(
+                    FuturesEodProjection,
+                    guardScopes: true);
+                var vixContractIndexGuardsCompleted = await CompleteProjectionScopesAsync(
+                    VixFuturesContractIndexProjection,
+                    guardScopes: true);
+                allGuardScopesCompleted = futuresTickGuardsCompleted &&
+                    futuresEodGuardsCompleted &&
+                    vixContractIndexGuardsCompleted;
+            }
+
+            cutoverPublished = allGlobalStatesCompleted && allGuardScopesCompleted;
+            if (cutoverPublished)
+            {
+                // Only explicitly failed operations plus this repair's own marker are
+                // removed. Any live/unclassified operation keeps reads on canonical data.
+                foreach (var projectionName in projectionNames)
+                {
+                    var backfillMutationId = backfillMutationIds[projectionName];
+                    var scopes = backfillScopes[projectionName];
+                    if (scopes.Count > 0)
+                    {
+                        await db.Use(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
+                            .SetParameters(scopes.Select(scope =>
+                                new DeleteMarketDataProjectionScopeMutationV3(
+                                    projectionName,
+                                    scope,
+                                    backfillMutationId)))
+                            .ExecuteCommandAsync(cancellationToken);
+                    }
+                    foreach (var failedMutationId in failedMutationIds[projectionName])
+                        await DeleteProjectionMutationAsync(projectionName, failedMutationId);
+                    await DeleteProjectionMutationAsync(projectionName, backfillMutationId);
+                }
+            }
+            else
+            {
+                if (futuresTickCompleted)
+                    await CloseCompletedProjectionAsync(FuturesTickByTimeProjection);
+                if (futuresEodCompleted)
+                    await CloseCompletedProjectionAsync(FuturesEodProjection);
+                if (vixContractIndexCompleted)
+                    await CloseCompletedProjectionAsync(VixFuturesContractIndexProjection);
+                await FailBackfillMutationsAsync();
+            }
+        }
+        else
+            await FailBackfillMutationsAsync();
+
+        var cutoverCompleted = cutoverPublished &&
+            (await GetQueryProjectionReadinessAsync(cancellationToken)).IsReady;
+        return new MarketDataProjectionBackfillResult(
+            futuresTickSourceIdentity.Count,
+            futuresTickProjectedIdentity.Count,
+            futuresTickSourceIdentity.Fingerprint,
+            futuresTickProjectedIdentity.Fingerprint,
+            futuresEodSourceIdentity.Count,
+            futuresEodProjectedIdentity.Count,
+            futuresEodSourceIdentity.Fingerprint,
+            futuresEodProjectedIdentity.Fingerprint,
+            vixFuturesEodRowsSource,
+            vixContractsSourceIdentity.Count,
+            vixContractsIndexedIdentity.Count,
+            vixContractsSourceIdentity.Fingerprint,
+            vixContractsIndexedIdentity.Fingerprint,
+            cutoverCompleted);
+
+        async Task FlushTicksAsync()
+        {
+            if (tickBatch.Count == 0)
+                return;
+            await db.Use(MarketDataDbCql.InsertFuturesTickDataByTime)
+                .SetParameters(tickBatch)
+                .ExecuteCommandAsync(cancellationToken);
+            tickBatch.Clear();
+        }
+
+        async Task FlushFuturesEodAsync()
+        {
+            if (eodBatch.Count == 0)
+                return;
+            await db.Use(MarketDataDbCql.InsertFuturesEodDataByMonth)
+                .SetParameters(eodBatch)
+                .ExecuteCommandAsync(cancellationToken);
+            await db.Use(MarketDataDbCql.InsertMarketDataProjectionMonth)
+                .SetParameters(eodMonths.Select(yearMonth =>
+                    new InsertMarketDataProjectionMonth(FuturesEodProjection, yearMonth)))
+                .ExecuteCommandAsync(cancellationToken);
+            eodBatch.Clear();
+            eodMonths.Clear();
+        }
+
+        async Task FlushVixContractsAsync()
+        {
+            if (vixContractBatch.Count == 0)
+                return;
+            await db.Use(MarketDataDbCql.InsertVixFuturesContractIndex)
+                .SetParameters(vixContractBatch)
+                .ExecuteCommandAsync(cancellationToken);
+            vixContractBatch.Clear();
+        }
+
+        async Task BeginBackfillScopesAsync(
+            string projectionName,
+            IEnumerable<string> scopeKeys)
+        {
+            var scopes = scopeKeys
+                .Distinct(StringComparer.Ordinal)
+                .Except(backfillStartedScopes[projectionName], StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+            if (scopes.Length == 0)
+                return;
+
+            // Record these before issuing commands: either command can fail after a
+            // partial server-side apply, and the catch path must conservatively end and
+            // classify every possibly started scope.
+            backfillStartedScopes[projectionName].UnionWith(scopes);
+            var mutationId = backfillMutationIds[projectionName];
+            var startedOn = DateTime.UtcNow;
+            await db.Use(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
+                .SetParameters(scopes.Select(scope => new InsertMarketDataProjectionScopeMutationV3(
+                    projectionName,
+                    scope,
+                    mutationId,
+                    startedOn)))
+                .ExecuteCommandAsync(cancellationToken);
+            var activeOperations = new HashSet<Guid> { mutationId };
+            async Task ActivateBackfillScopesAsync()
+                => await db.Use(MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)
+                    .SetParameters(scopes.Select(scope => new BeginMarketDataProjectionScopeOperationV3(
+                        projectionName,
+                        scope,
+                        mutationId,
+                        activeOperations)))
+                    .ExecuteCommandAsync(cancellationToken);
+
+            if (ProjectionBackfillScopeActivationForTestingAsync is { } scopeActivation)
+                await scopeActivation(ActivateBackfillScopesAsync);
+            else
+                await ActivateBackfillScopesAsync();
+            backfillAcknowledgedScopes[projectionName].UnionWith(scopes);
+        }
+
+        async Task<bool> CompleteProjectionScopesAsync(
+            string projectionName,
+            bool guardScopes)
+        {
+            var mutationId = backfillMutationIds[projectionName];
+            var activeOperations = new HashSet<Guid> { mutationId };
+            var allCompleted = true;
+            var scopes = backfillScopes[projectionName]
+                .Where(scope => IsProjectionGuardScopeKey(scope) == guardScopes);
+            foreach (var scopeBatch in scopes.Chunk(ProjectionReadConcurrency))
+            {
+                var completions = scopeBatch.Select(async scope =>
+                    await db.Use(MarketDataDbCql.CompleteMarketDataProjectionScopeOperationV3)
+                        .SetParameters(new CompleteMarketDataProjectionScopeOperationV3(
+                            projectionName,
+                            scope,
+                            mutationId,
+                            activeOperations,
+                            DateTime.UtcNow,
+                            activeOperations))
+                        .ExecuteSingleAsync(MapToBoolean) == true).ToArray();
+                if ((await Task.WhenAll(completions)).Any(static completed => !completed))
+                    allCompleted = false;
+            }
+            return allCompleted;
+        }
+
+        async Task<bool> CompleteProjectionAsync(
+            string projectionName,
+            ProjectionIdentity sourceIdentity,
+            ProjectionIdentity projectedIdentity)
+        {
+            var activeOperations = new HashSet<Guid> { backfillMutationIds[projectionName] };
+            return await db.Use(MarketDataDbCql.CompleteMarketDataProjectionState)
+                .SetParameters(new CompleteMarketDataProjectionState(
+                    projectionName,
+                    backfillMutationIds[projectionName],
+                    activeOperations,
+                    sourceIdentity.Count,
+                    projectedIdentity.Count,
+                    sourceIdentity.Fingerprint,
+                    projectedIdentity.Fingerprint,
+                    DateTime.UtcNow,
+                    activeOperations))
+                .ExecuteSingleAsync(MapToBoolean) == true;
+        }
+
+        async Task CloseCompletedProjectionAsync(string projectionName)
+        {
+            var activeOperations = new HashSet<Guid> { backfillMutationIds[projectionName] };
+            await EndProjectionOperationAsync(
+                db,
+                projectionName,
+                activeOperations,
+                cancellationToken);
+        }
+
+        async Task FailBackfillMutationsAsync()
+        {
+            foreach (var projectionName in projectionNames)
+            {
+                var mutationId = backfillMutationIds[projectionName];
+                var scopes = backfillStartedScopes[projectionName];
+                if (scopes.Count > 0)
+                {
+                    await db.Use(MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)
+                        .SetParameters(scopes.Select(scope =>
+                            new FailMarketDataProjectionScopeMutationV3(
+                                projectionName,
+                                scope,
+                                mutationId,
+                                DateTime.UnixEpoch)))
+                        .ExecuteCommandAsync();
+                }
+                await db.Use(MarketDataDbCql.FailMarketDataProjectionMutation)
+                    .SetParameters(new FailMarketDataProjectionMutation(
+                        projectionName,
+                        mutationId,
+                        DateTime.UnixEpoch))
+                    .ExecuteCommandAsync();
+            }
+        }
+
+        async Task DeleteProjectionMutationAsync(string projectionName, Guid mutationId)
+            => await db.Use(MarketDataDbCql.DeleteMarketDataProjectionMutation)
+                .SetParameters(new DeleteMarketDataProjectionMutation(projectionName, mutationId))
+                .ExecuteCommandAsync(cancellationToken);
+        }
+        catch
+        {
+            if (targetMutationSubmissionStarted)
+            {
+                // A TRUNCATE or projection upsert may still be applied after a timeout
+                // or cancellation. Preserve every original nonfailed journal and active
+                // guard so no later repair can cut over until an operator has drained
+                // writers and supplied an explicit stale-operation cutoff.
+                throw;
+            }
+
+            foreach (var (projectionName, mutationId) in backfillMutationIds)
+            {
+                var acknowledgedScopes = backfillAcknowledgedScopes[projectionName];
+                try
+                {
+                    if (acknowledgedScopes.Count > 0)
+                    {
+                        await db.Use(MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)
+                            .SetParameters(acknowledgedScopes.Select(scope =>
+                                new FailMarketDataProjectionScopeMutationV3(
+                                    projectionName,
+                                    scope,
+                                    mutationId,
+                                    DateTime.UnixEpoch)))
+                            .ExecuteCommandAsync();
+                    }
+                }
+                catch
+                {
+                    // Leave original markers for operator-cutoff recovery.
+                }
+
+                if (backfillGlobalOperationsAcknowledged.Contains(projectionName))
+                {
+                    try
+                    {
+                        await db.Use(MarketDataDbCql.FailMarketDataProjectionMutation)
+                            .SetParameters(new FailMarketDataProjectionMutation(
+                                projectionName,
+                                mutationId,
+                                DateTime.UnixEpoch))
+                            .ExecuteCommandAsync();
+                    }
+                    catch
+                    {
+                        // Leave an unclassified marker in place; a repair must not clear it.
+                    }
+                }
+
+                // An unacknowledged Begin may still be applied later. Its original
+                // nonfailed journal and possible active ID are intentionally untouched;
+                // only an explicit cutoff after writers are drained may reclaim them.
+            }
+
+            throw;
+        }
     }
 
 }

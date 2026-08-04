@@ -19,11 +19,43 @@ public abstract class SchemaDbContext<TSchemaDb>(
 
     public IReadOnlyList<string> ManagedObjects => Definitions.Select(definition => definition.Name).ToArray();
 
-    public async Task CreateAllAsync()
+    /// <summary>
+    /// Creates only the named schema objects, preserving their declared dependency order.
+    /// This is intended for additive, narrowly scoped operator migrations.
+    /// </summary>
+    public async Task CreateAsync(
+        IReadOnlyCollection<string> objectNames,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(objectNames);
+
+        var requested = objectNames.ToHashSet(StringComparer.Ordinal);
+        if (requested.Count != objectNames.Count)
+            throw new ArgumentException("Schema object names must be unique.", nameof(objectNames));
+
+        var known = Definitions.Select(static definition => definition.Name).ToHashSet(StringComparer.Ordinal);
+        var unknown = requested.Except(known).Order(StringComparer.Ordinal).ToArray();
+        if (unknown.Length != 0)
+        {
+            throw new ArgumentException(
+                $"Unknown managed schema object(s): {string.Join(", ", unknown)}.",
+                nameof(objectNames));
+        }
+
         foreach (var definition in Definitions)
-            await Use(definition.CreateStatement).ExecuteCommandAsync().ConfigureAwait(false);
+        {
+            if (!requested.Contains(definition.Name))
+                continue;
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await Use(definition.CreateStatement)
+                .ExecuteCommandAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
+
+    public async Task CreateAllAsync()
+        => await CreateAsync(ManagedObjects).ConfigureAwait(false);
 
     public async Task DropAllAsync()
     {

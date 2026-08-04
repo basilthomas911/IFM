@@ -24,8 +24,6 @@ public interface IObjectRepository
     //void QueueCommand(string commandText, CommandType commandType, DbParameter[] dbParameters);
     Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false);
     IObjectRepositoryTransaction? BeginTransaction();
-    Task LockAsync();
-    void Unlock();
 
     object InTransaction();
 }

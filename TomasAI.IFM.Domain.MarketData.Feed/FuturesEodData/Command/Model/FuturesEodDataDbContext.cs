@@ -19,16 +19,7 @@ internal static class FuturesEodDataDbContext
 	/// </summary>
 	internal static async ValueTask<FuturesEodDataV2ReadModel?> GetFuturesEodDataAsync(
 		this IDbContextFactory dbFactory, string contractId, DateOnly valueDate)
-	{
-		var db = dbFactory.MarketDataDb;
-		var futuresEodData = await db.Use(FuturesEodDataDbCql.GetFuturesEodData)
-			.SetParameters(new GetFuturesEodData(contractId, valueDate))
-			.ExecuteSingleAsync(MapToFuturesEodData);
-		futuresEodData ??= await db.Use(FuturesEodDataDbCql.GetYesterdaysFuturesEodData)
-			.SetParameters(new GetYesterdaysFuturesEodData(valueDate))
-			.ExecuteSingleAsync(MapToFuturesEodData);
-		return futuresEodData;
-	}
+		=> await dbFactory.MarketDataDb.GetFuturesEodDataAsync(contractId, valueDate);
 
 	/// <summary>
 	/// Retrieves the most recent end-of-day futures data before the supplied value date.
@@ -55,10 +46,8 @@ internal static class FuturesEodDataDbContext
 	/// </summary>
 	internal static async ValueTask<FuturesEodClosingPriceReadModel[]> GetFuturesEodClosingPricesAsync(
 		this IDbContextFactory dbFactory, string contractId, string symbol, DateOnly startDate, DateOnly endDate, int maxDays)
-		=> [.. await dbFactory.MarketDataDb
-			.Use(FuturesEodDataDbCql.GetFuturesEodClosingPrices)
-			.SetParameters(new GetFuturesEodClosingPrices(contractId, symbol, startDate, endDate, maxDays))
-			.ExecuteQueryAsync(MapToFuturesEodClosingPrice)];
+		=> [.. await dbFactory.MarketDataDb.GetFuturesEodClosingPricesAsync(
+			contractId, symbol, startDate, endDate, maxDays)];
 
 	/// <summary>
 	/// Retrieves the most recent VIX futures EOD record up to the supplied value date.
@@ -85,10 +74,7 @@ internal static class FuturesEodDataDbContext
 	/// </summary>
 	internal static async ValueTask<VixFuturesEodDataReadModel[]> GetVixFuturesEodDataByValueDateAsync(
 		this IDbContextFactory dbFactory, DateOnly valueDate)
-		=> [.. await dbFactory.MarketDataDb
-			.Use(FuturesEodDataDbCql.GetVixFuturesEodDataByValueDate)
-			.SetParameters(new GetVixFuturesEodDataByValueDate(valueDate))
-			.ExecuteQueryAsync(MapToVixFuturesEodData)];
+		=> [.. await dbFactory.MarketDataDb.GetVixFuturesEodDataByValueDateAsync(valueDate)];
 
 	/// <summary>
 	/// Retrieves the normal curve table used by futures EOD calculations.
@@ -120,30 +106,7 @@ internal static class FuturesEodDataDbContext
 	/// <param name="e">The futures EOD data read model to persist.</param>
 	internal static async ValueTask InsertFuturesEodDataAsync(
 		this IDbContextFactory dbFactory, FuturesEodDataV2ReadModel e)
-		=> await dbFactory.MarketDataDb
-			.Use(FuturesEodDataDbCql.InsertFuturesEodData)
-			.SetParameters(new InsertFuturesEodData(
-				contractId: e.ContractId,
-				valueDate: e.ValueDate,
-				symbol: e.Symbol,
-				openPrice: e.OpenPrice,
-				highPrice: e.HighPrice,
-				lowPrice: e.LowPrice,
-				closePrice: e.ClosePrice,
-				volume: e.Volume,
-				dailyPercentChange: e.DailyPercentChange,
-				dailyStdDev: e.DailyStdDev,
-				dailyStdDevAmount: e.DailyStdDevAmount,
-				upperBand: e.UpperBand,
-				mean: e.Mean,
-				lowerBand: e.LowerBand,
-				marketDirection: e.MarketDirection.ToStringFast(),
-				marketVolatility: e.MarketVolatility.ToStringFast(),
-				priceDirection: e.PriceDirection.ToStringFast(),
-				priceVolatility: e.PriceVolatility.ToStringFast(),
-				marketDirectionIndicator: e.MarketDirectionIndicator,
-				windowSize: e.WindowSize))
-			.ExecuteCommandAsync();
+		=> await dbFactory.MarketDataDb.InsertFuturesEodDataAsync(e);
 
 	/// <summary>
 	/// Inserts a VIX futures EOD data record into the database.
@@ -152,14 +115,7 @@ internal static class FuturesEodDataDbContext
 	/// <param name="e">The VIX futures tick data read model to persist.</param>
 	internal static async ValueTask InsertVixFuturesEodDataAsync(
 		this IDbContextFactory dbFactory, FuturesTickDataV2ReadModel e)
-		=> await dbFactory.MarketDataDb
-			.Use(FuturesEodDataDbCql.InsertVixFuturesEodData)
-			.SetParameters(new InsertVixFuturesEodData(
-				contractId: e.ContractId,
-				valueDate: e.ValueDate,
-				price: e.Price,
-				size: e.Size))
-			.ExecuteCommandAsync();
+		=> await dbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(e);
 
 	static FuturesEodDataV2ReadModel MapToFuturesEodData<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
 		=> new(
@@ -181,7 +137,7 @@ internal static class FuturesEodDataDbContext
 			marketVolatility: e.GetEnum<MarketVolatilityType>(15),
 			priceDirection: e.GetEnum<PriceDirectionType>(16),
 			priceVolatility: e.GetEnum<PriceVolatilityType>(17),
-			marketDirectionIndicator: e.GetInt(18),
+			marketDirectionIndicator: e.GetDouble(18),
 			windowSize: e.GetInt(19)
 		);
 
@@ -209,53 +165,6 @@ internal static class FuturesEodDataDbContext
 			percent: e.GetDouble(1)
 		);
 
-	internal readonly record struct InsertFuturesEodData(
-		string contractId,
-		DateOnly valueDate,
-		string symbol,
-		decimal openPrice,
-		decimal highPrice,
-		decimal lowPrice,
-		decimal closePrice,
-		int volume,
-		double dailyPercentChange,
-		double dailyStdDev,
-		double dailyStdDevAmount,
-		double upperBand,
-		double mean,
-		double lowerBand,
-		string marketDirection,
-		string marketVolatility,
-		string priceDirection,
-		string priceVolatility,
-		double marketDirectionIndicator,
-		int windowSize) : IBindValue
-	{
-		public object Bind() => new object?[]
-		{
-			contractId, valueDate, symbol,
-			openPrice, highPrice, lowPrice, closePrice, volume,
-			dailyPercentChange, dailyStdDev, dailyStdDevAmount,
-			upperBand, mean, lowerBand,
-			marketDirection, marketVolatility, priceDirection, priceVolatility,
-			marketDirectionIndicator, windowSize
-		};
-	}
-
-	internal readonly record struct InsertVixFuturesEodData(
-		string contractId,
-		DateOnly valueDate,
-		decimal price,
-		int size) : IBindValue
-	{
-		public object Bind() => new object?[] { contractId, valueDate, price, price, price, price, size };
-	}
-
-	internal readonly record struct GetFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
-	{
-		public object Bind() => new object?[] { contractId, valueDate };
-	}
-
 	internal readonly record struct GetLastFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 	{
 		public object Bind() => new object?[] { contractId, valueDate };
@@ -264,16 +173,6 @@ internal static class FuturesEodDataDbContext
 	internal readonly record struct GetFuturesEodDataByDateRange(string contractId, DateOnly startDate, DateOnly endDate) : IBindValue
 	{
 		public object Bind() => new object?[] { contractId, startDate, endDate };
-	}
-
-	internal readonly record struct GetYesterdaysFuturesEodData(DateOnly valueDate) : IBindValue
-	{
-		public object Bind() => new object?[] { valueDate };
-	}
-
-	internal readonly record struct GetFuturesEodClosingPrices(string contractId, string symbol, DateOnly startDate, DateOnly endDate, int maxDays) : IBindValue
-	{
-		public object Bind() => new object?[] { contractId, startDate, endDate, symbol, maxDays };
 	}
 
 	internal readonly record struct GetLastVixFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
@@ -286,8 +185,4 @@ internal static class FuturesEodDataDbContext
 		public object Bind() => new object?[] { contractId, valueDate };
 	}
 
-	internal readonly record struct GetVixFuturesEodDataByValueDate(DateOnly valueDate) : IBindValue
-	{
-		public object Bind() => new object?[] { valueDate };
-	}
 }

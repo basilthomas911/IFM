@@ -11,6 +11,8 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
 {
     const string ProviderTypeName = "PostgresObjectDataRepositoryProvider";
     readonly IObjectRepositoryContext _ctx;
+    readonly PostgresBulkWriteOptions _bulkWriteOptions;
+    readonly object _connectionIdentity;
 
     /// <summary>
     /// create postgres object data repository provider 
@@ -19,103 +21,238 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
     public PostgresObjectDataRepositoryProvider(IObjectRepositoryContext ctx, ILogger logger)
     {
         _ctx = ctx;
+        _bulkWriteOptions = PostgresBulkWriteOptions.FromEnvironment();
+        _connectionIdentity = RepositoryConnectionIdentity.Get(ctx.Repository);
     }
 
     /// <summary>
     /// execute command 
     /// </summary>
     /// <returns></returns>
-    public async Task<long[]> ExecuteCommandAsync(IObjectRepositoryContext ctx, Action<string> onInfoMessage = null)
+    public Task<long[]> ExecuteCommandAsync(IObjectRepositoryContext ctx, Action<string> onInfoMessage = null)
+        => ExecuteCommandAsync(ctx, CancellationToken.None, onInfoMessage);
+
+    public async Task<long[]> ExecuteCommandAsync(
+        IObjectRepositoryContext ctx,
+        CancellationToken cancellationToken,
+        Action<string> onInfoMessage = null)
     {
-        var cmd = _ctx.Repository.InTransaction();
-        if (cmd is not null)
-            return await ExecuteSqlCommandAsync(cmd as NpgsqlCommand);
-        using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
-        var affectedRows = _ctx.UseTransaction
-            ? await UseTransactionAsync(conn)
-            : await UseNoTransactionAsync(conn);
-        conn.Close();
-        return affectedRows;
+        var (commandText, commandType) = GetCommandDefinition(ctx);
+        IEnumerator<object>? enumerator = null;
+        var hasFirst = false;
+        object? first = null;
+        var hasSecond = false;
+        object? second = null;
+        NpgsqlConnection? ownedConnection = null;
+        NpgsqlTransaction? ownedTransaction = null;
 
-        async Task<long[]> UseTransactionAsync(NpgsqlConnection conn)
+        try
         {
-            using var tx = conn.BeginTransaction();
-            using var cmd = conn.CreateCommand();
-            try
+            cancellationToken.ThrowIfCancellationRequested();
+            var parameterValues = ctx is ObjectDataRepositoryContext repositoryContext
+                ? repositoryContext.ReadParameterValues()
+                : ctx.ParameterValues;
+            enumerator = parameterValues.GetEnumerator();
+            hasFirst = enumerator.MoveNext();
+            first = hasFirst ? enumerator.Current : null;
+            hasSecond = hasFirst && enumerator.MoveNext();
+            second = hasSecond ? enumerator.Current : null;
+
+            await using var ambientCommand = ctx.Repository.InTransaction() as NpgsqlCommand;
+            if (ambientCommand is not null)
             {
-                cmd.Transaction = tx;
-                var result = await ExecuteSqlCommandAsync(cmd);
-                tx.Commit();
-                return result;
+                return await ExecuteCoreAsync(
+                    ambientCommand.Connection!,
+                    ambientCommand.Transaction,
+                    hasFirst,
+                    first,
+                    hasSecond,
+                    second).ConfigureAwait(false);
             }
-            catch (Exception ex)
-            {
-                TryRollback(tx);
-                var errorMessage = $"{ProviderTypeName}.ExecuteCommandAsync: {cmd.CommandText} {ex.Message}";
-                throw new StorageException(errorMessage, ex);
-            }
+
+            ownedConnection = ctx.Repository.CreateConnection()
+                .As<NpgsqlConnection>(ctx.Repository.ConnectionString);
+            await ownedConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+            // A single PostgreSQL statement is already atomic. Use an explicit transaction only when
+            // several parameter payloads must retain the context's all-or-nothing contract.
+            if (hasSecond && ctx.UseTransaction)
+                ownedTransaction = await ownedConnection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+            var result = await ExecuteCoreAsync(
+                ownedConnection,
+                ownedTransaction,
+                hasFirst,
+                first,
+                hasSecond,
+                second).ConfigureAwait(false);
+            if (ownedTransaction is not null)
+                await ownedTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (ownedTransaction is not null)
+                await TryRollbackAsync(ownedTransaction).ConfigureAwait(false);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            if (ownedTransaction is not null)
+                await TryRollbackAsync(ownedTransaction).ConfigureAwait(false);
+            throw new StorageException(
+                $"{ProviderTypeName}.ExecuteCommandAsync: {commandText} {ex.Message}",
+                ex);
+        }
+        finally
+        {
+            enumerator?.Dispose();
+            if (ownedTransaction is not null)
+                await ownedTransaction.DisposeAsync().ConfigureAwait(false);
+            if (ownedConnection is not null)
+                await ownedConnection.DisposeAsync().ConfigureAwait(false);
         }
 
-        async Task<long[]> UseNoTransactionAsync(NpgsqlConnection conn)
+        async Task<long[]> ExecuteCoreAsync(
+            NpgsqlConnection connection,
+            NpgsqlTransaction? transaction,
+            bool hasFirstValue,
+            object? firstValue,
+            bool hasSecondValue,
+            object? secondValue)
         {
-            using var cmd = conn.CreateCommand();
-            try
-            {
-                return await ExecuteSqlCommandAsync(cmd);
-            }
-            catch (Exception ex)
-            {
-                var errorMessage = $"{ProviderTypeName}.ExecuteCommandAsync: {cmd.CommandText} {ex.Message}";
-                throw new StorageException(errorMessage, ex);
-            }
-        }
+            if (!hasFirstValue)
+                return [await ExecuteSingleAsync(connection, transaction, null, false).ConfigureAwait(false)];
+            if (!hasSecondValue)
+                return [await ExecuteSingleAsync(connection, transaction, firstValue, true).ConfigureAwait(false)];
 
-        async Task<long[]> ExecuteSqlCommandAsync(NpgsqlCommand cmd)
-        {
-            List<long> affectedRows = [];
-            if (_ctx.CommandTimeout > 0)
-                cmd.CommandTimeout = _ctx.CommandTimeout;
-            _ctx.SetCommand(cmd);
-            if (cmd.CommandType == CommandType.StoredProcedure)
-            {
-                var schema = !string.IsNullOrEmpty(_ctx.Repository.Schema) ? _ctx.Repository.Schema : "public";
-                cmd.CommandText = $"{schema}.{cmd.CommandText}";
-            }
+            var knownCount = ctx is ObjectDataRepositoryContext objectContext
+                ? objectContext.ParameterValueCount
+                : null;
+            var affectedRows = knownCount is > 0
+                ? new List<long>(knownCount.Value)
+                : new List<long>();
+            using var values = ReadValues().GetEnumerator();
+            var hasValue = values.MoveNext();
             var executed = false;
-            foreach (var parameterValue in _ctx.ParameterValues)
+            while (hasValue)
             {
-                var dbParameters = GetParameterArray(parameterValue);
-                if (dbParameters is null)
-                    continue;
+                await using var batch = new NpgsqlBatch(connection, transaction);
+                if (ctx.CommandTimeout > 0)
+                    batch.Timeout = ctx.CommandTimeout;
 
-                cmd.Parameters.Clear();
-                foreach (var dbParameter in dbParameters)
-                    cmd.Parameters.Add(dbParameter);
-                if (cmd.CommandType == CommandType.StoredProcedure)
+                for (var index = 0; index < _bulkWriteOptions.BatchSize && hasValue; index++)
                 {
-                    var returnParameter = cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, default);
-                    returnParameter.Direction = ParameterDirection.Output;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var parameters = GetParameterArray(values.Current);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    hasValue = values.MoveNext();
+                    if (parameters is null)
+                        continue;
+
+                    var batchCommand = new NpgsqlBatchCommand(commandText)
+                    {
+                        CommandType = commandType
+                    };
+                    foreach (var parameter in parameters)
+                        batchCommand.Parameters.Add(parameter);
+                    AddStoredProcedureReturnParameter(batchCommand.Parameters, batchCommand.CommandType);
+                    batch.BatchCommands.Add(batchCommand);
                 }
 
-                await PrepareParameterizedCommandAsync(cmd);
-                affectedRows.Add(await cmd.ExecuteNonQueryAsync());
+                if (batch.BatchCommands.Count == 0)
+                    continue;
+
+                if (commandType == CommandType.Text)
+                    await batch.PrepareAsync(cancellationToken).ConfigureAwait(false);
+                await batch.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                foreach (var batchCommand in batch.BatchCommands)
+                    affectedRows.Add(batchCommand.RecordsAffected);
                 executed = true;
             }
 
             if (!executed)
-            {
-                if (cmd.CommandType == CommandType.StoredProcedure)
-                {
-                    var returnParameter = cmd.Parameters.AddWithValue(NpgsqlDbType.Integer, default);
-                    returnParameter.Direction = ParameterDirection.Output;
-                }
+                affectedRows.Add(await ExecuteSingleAsync(connection, transaction, null, false).ConfigureAwait(false));
+            return [.. affectedRows];
 
-                affectedRows.Add(await cmd.ExecuteNonQueryAsync());
+            IEnumerable<object?> ReadValues()
+            {
+                yield return firstValue;
+                yield return secondValue;
+                while (enumerator!.MoveNext())
+                    yield return enumerator.Current;
+            }
+        }
+
+        async Task<long> ExecuteSingleAsync(
+            NpgsqlConnection connection,
+            NpgsqlTransaction? transaction,
+            object? parameterValue,
+            bool hasParameterValue)
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            if (ctx.CommandTimeout > 0)
+                command.CommandTimeout = ctx.CommandTimeout;
+            ctx.SetCommand(command);
+            if (command.CommandType == CommandType.StoredProcedure)
+                command.CommandText = commandText;
+
+            if (hasParameterValue)
+            {
+                var parameters = GetParameterArray(parameterValue);
+                if (parameters is not null)
+                {
+                    foreach (var parameter in parameters)
+                        command.Parameters.Add(parameter);
+                }
             }
 
-            return [.. affectedRows];
+            AddStoredProcedureReturnParameter(command.Parameters, command.CommandType);
+            await PrepareParameterizedCommandAsync(command, cancellationToken).ConfigureAwait(false);
+            return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    internal static (string CommandText, CommandType CommandType) GetCommandDefinition(
+        IObjectRepositoryContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+
+        string commandText;
+        CommandType commandType;
+        if (ctx is ObjectDataRepositoryContext objectContext)
+        {
+            commandText = ctx.CommandText;
+            commandType = objectContext.GetCommandType();
+        }
+        else
+        {
+            // IObjectRepositoryContext is a public extension point. Preserve the
+            // former provider behavior by obtaining command metadata through its
+            // SetCommand contract when the framework's concrete context is not used.
+            using var command = new NpgsqlCommand();
+            ctx.SetCommand(command);
+            commandText = command.CommandText;
+            commandType = command.CommandType;
+        }
+
+        if (commandType != CommandType.StoredProcedure)
+            return (commandText, commandType);
+
+        var schema = !string.IsNullOrEmpty(ctx.Repository.Schema) ? ctx.Repository.Schema : "public";
+        return ($"{schema}.{commandText}", commandType);
+    }
+
+    static void AddStoredProcedureReturnParameter(
+        NpgsqlParameterCollection parameters,
+        CommandType commandType)
+    {
+        if (commandType != CommandType.StoredProcedure)
+            return;
+
+        var returnParameter = parameters.AddWithValue(NpgsqlDbType.Integer, default);
+        returnParameter.Direction = ParameterDirection.Output;
     }
 
     /// <summary>
@@ -137,7 +274,12 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
                 break;
         }
 
-        return new ObjectDataQueuedCommand(commandType, commandText, dbParameters);
+        return new ObjectDataQueuedCommand(
+            commandType,
+            commandText,
+            dbParameters,
+            _ctx.Repository.ProviderName,
+            _connectionIdentity);
     }
 
     /// <summary>
@@ -150,8 +292,10 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
             throw new InvalidOperationException($"{ProviderTypeName}.ExecuteQueuedCommandsAsync: no commands have been queued for execution");
         var commandText = string.Empty;
         await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
-        await using var tx = await conn.BeginTransactionAsync();
+        await conn.OpenAsync().ConfigureAwait(false);
+        await using var tx = useTransaction
+            ? await conn.BeginTransactionAsync().ConfigureAwait(false)
+            : null;
         try
         {
             await using var batch = new NpgsqlBatch(conn, tx);
@@ -184,15 +328,17 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
             {
                 commandText = "NpgsqlBatch";
                 if (prepareBatch && hasParameterizedCommand)
-                    await batch.PrepareAsync();
-                await batch.ExecuteNonQueryAsync();
+                    await batch.PrepareAsync().ConfigureAwait(false);
+                await batch.ExecuteNonQueryAsync().ConfigureAwait(false);
             }
 
-            await tx.CommitAsync();
+            if (tx is not null)
+                await tx.CommitAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            TryRollback(tx);
+            if (tx is not null)
+                await TryRollbackAsync(tx).ConfigureAwait(false);
             while (ex.InnerException != null) ex = ex.InnerException;
             if (ex is NpgsqlException { BatchCommand: not null } npgsqlException)
                 commandText = npgsqlException.BatchCommand.CommandText;
@@ -201,12 +347,12 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         }
     }
 
-    static void TryRollback(NpgsqlTransaction transaction)
+    static async Task TryRollbackAsync(NpgsqlTransaction transaction)
     {
         try
         {
             if (transaction.Connection is not null)
-                transaction.Rollback();
+                await transaction.RollbackAsync().ConfigureAwait(false);
         }
         catch
         {
@@ -266,13 +412,13 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"{ProviderTypeName}.ExecuteMapReduceAsync: only single parameter value accepted");
-        using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
-        using var cmd = conn.CreateCommand();
+        await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
+        await conn.OpenAsync().ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
-        await PrepareParameterizedCommandAsync(cmd);
-        using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        await PrepareParameterizedCommandAsync(cmd).ConfigureAwait(false);
+        await using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection).ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
         reducer?.Invoke(MapReduce());
 
@@ -367,16 +513,16 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
             throw new StorageException($"{ProviderTypeName}.GetObjectsAsync: dataMapper parameter is null");
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"{ProviderTypeName}.GetObjectsAsync: only single parameter value accepted");
-        using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
-        using var cmd = conn.CreateCommand();
+        await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
+        await conn.OpenAsync().ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
-        await PrepareParameterizedCommandAsync(cmd);
-        using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        await PrepareParameterizedCommandAsync(cmd).ConfigureAwait(false);
+        await using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection).ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
         List<TResult> resultSet = [];
-        while (dataReader.Read())
+        while (await dataReader.ReadAsync().ConfigureAwait(false))
             resultSet.Add(dataMapper(record));
         return resultSet;
     }
@@ -391,18 +537,29 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
             throw new StorageException($"{ProviderTypeName}.GetImmutableObjectsAsync: dataMapper parameter is null");
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"{ProviderTypeName}.GetImmutableObjectsAsync: only single parameter value accepted");
-        using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
-        using var cmd = conn.CreateCommand();
+        await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
+        await conn.OpenAsync().ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
-        await PrepareParameterizedCommandAsync(cmd);
-        using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        await PrepareParameterizedCommandAsync(cmd).ConfigureAwait(false);
+        await using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection).ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
-        List<TResult> resultSet = [];
-        while (dataReader.Read())
-            resultSet.Add(dataMapper(record));
-        return resultSet;
+        var builder = new PooledBufferBuilder<TResult>(capacity: 16);
+        try
+        {
+            while (await dataReader.ReadAsync().ConfigureAwait(false))
+                builder.Add(dataMapper(record));
+            // IReadOnlyList does not communicate ownership or disposal. Return an
+            // application-owned exact array after using pooled memory only as the
+            // temporary growth buffer.
+            return builder.MoveToArray();
+        }
+        catch
+        {
+            builder.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -415,15 +572,15 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
             throw new StorageException($"{ProviderTypeName}.GetObjectAsync: dataMapper parameter is null");
         if (_ctx.ParameterValues.Count > 1)
             throw new StorageException($"{ProviderTypeName}.GetObjectAsync: only single parameter value accepted");
-        using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
-        using var cmd = conn.CreateCommand();
+        await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
+        await conn.OpenAsync().ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand();
         _ctx.SetCommand(cmd);
         SetParameters(cmd);
-        await PrepareParameterizedCommandAsync(cmd);
-        using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        await PrepareParameterizedCommandAsync(cmd).ConfigureAwait(false);
+        await using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection).ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
-        if (dataReader.Read())
+        if (await dataReader.ReadAsync().ConfigureAwait(false))
             return dataMapper(record);
         return default;
     }
@@ -435,15 +592,15 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"{ProviderTypeName}.GetScalarAsync: only single parameter value accepted");
-        using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
-        using var cmd = conn.CreateCommand();
+        await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(ctx.Repository.ConnectionString);
+        await conn.OpenAsync().ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
-        await PrepareParameterizedCommandAsync(cmd);
-        using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        await PrepareParameterizedCommandAsync(cmd).ConfigureAwait(false);
+        await using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection).ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
-        if (dataReader.Read())
+        if (await dataReader.ReadAsync().ConfigureAwait(false))
             return dataMapper(record);
         return default;
     }

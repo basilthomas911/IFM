@@ -3,12 +3,12 @@ using System.Data;
 using System.Data.Common;
 using TomasAI.IFM.Shared.Storage;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Shared.Exceptions;
 
 namespace TomasAI.IFM.Framework.Storage;
 
 public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> where TRepo : IObjectRepository
 {
-    readonly static SemaphoreSlim _semaphoreSlim = new(1, 1);
     readonly IObjectCreateProvider _provider;
     IObjectRepositoryTransaction<TRepo>? _transaction;
     readonly ILogger _logger;
@@ -164,9 +164,18 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
     /// </summary>
     /// <returns></returns>
     public async Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false)
-        =>  await _provider
-                .CreateQueuedCommandsContext()
-                .ExecuteQueuedCommandsAsync(queuedCommands, useTransaction);
+    {
+        ArgumentNullException.ThrowIfNull(queuedCommands);
+        if (queuedCommands.Count == 0)
+        {
+            throw new StorageException(
+                "ObjectDataRepository.ExecuteQueuedCommandsAsync: no commands have been queued");
+        }
+
+        await _provider
+            .CreateQueuedCommandsContext(queuedCommands)
+            .ExecuteQueuedCommandsAsync(queuedCommands, useTransaction);
+    }
     
     public IObjectRepositoryContext Use(Expression<Func<TRepo, IEnumerable<object>>> commandExpr)
     {
@@ -184,10 +193,4 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
     }
     internal void SetTransactionCompleted() => _transaction = null;
     public object? InTransaction() => _transaction?.CreateCommand();
-
-    public async Task LockAsync()
-        => await _semaphoreSlim.WaitAsync();
-
-    public void Unlock()
-        => _semaphoreSlim.Release();
 }

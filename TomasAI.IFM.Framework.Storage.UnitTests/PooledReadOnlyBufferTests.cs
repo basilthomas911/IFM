@@ -162,4 +162,18 @@ public class PooledReadOnlyBufferTests
         var act = () => { _ = new PooledReadOnlyBuffer<int>(null, 0); };
         act.Should().Throw<ArgumentNullException>();
     }
+
+    [Fact]
+    public void BuilderMoveToArrayReturnsOwnedExactResult()
+    {
+        var builder = new PooledBufferBuilder<int>(1);
+        builder.Add(10);
+        builder.Add(20);
+        builder.Add(30);
+
+        var result = builder.MoveToArray();
+
+        result.Should().Equal(10, 20, 30);
+        result.Length.Should().Be(3);
+    }
 }

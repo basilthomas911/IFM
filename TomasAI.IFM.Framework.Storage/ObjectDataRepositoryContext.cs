@@ -66,6 +66,8 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
         }
     }
     internal bool HasDeferredParameterValues => _parameterValueSource is not null;
+    internal IIndexedParameterValueSource? IndexedParameterValues
+        => _parameterValueSource as IIndexedParameterValueSource;
 
     internal IEnumerable<object> ReadParameterValues()
         => _parameterValues ?? _parameterValueSource?.Read() ?? [];
@@ -94,6 +96,24 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
         _parameterValueSource = null;
         ParameterValues.Clear();
         ParameterValues.Add(parameterValue.Bind());
+        return this;
+    }
+
+    public IObjectRepositoryContext SetParameters<TParam>(TParam[] parameterValues)
+        where TParam : struct, IBindValue
+    {
+        ArgumentNullException.ThrowIfNull(parameterValues);
+        _parameterValues = null;
+        _parameterValueSource = new IndexedParameterValueSource<TParam>(parameterValues);
+        return this;
+    }
+
+    public IObjectRepositoryContext SetParameters<TParam>(IReadOnlyList<TParam> parameterValues)
+        where TParam : struct, IBindValue
+    {
+        ArgumentNullException.ThrowIfNull(parameterValues);
+        _parameterValues = null;
+        _parameterValueSource = new IndexedParameterValueSource<TParam>(parameterValues);
         return this;
     }
 

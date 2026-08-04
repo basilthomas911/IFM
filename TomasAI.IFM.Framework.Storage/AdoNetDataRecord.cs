@@ -30,6 +30,26 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     public bool IsNull(int index) => _reader.IsDBNull(index);
 
     /// <inheritdoc />
+    public bool IsCollectionEmpty(int index)
+    {
+        if (_reader.IsDBNull(index)) return true;
+        try { return IsEmptyCollection(_reader.GetValue(index)); }
+        catch { return false; }
+    }
+
+    static bool IsEmptyCollection(object value)
+    {
+        if (value is System.Collections.ICollection collection)
+            return collection.Count == 0;
+        if (value is not System.Collections.IEnumerable enumerable)
+            return false;
+
+        var enumerator = enumerable.GetEnumerator();
+        try { return !enumerator.MoveNext(); }
+        finally { (enumerator as IDisposable)?.Dispose(); }
+    }
+
+    /// <inheritdoc />
     public short GetShort(int index)
     {
         if (_reader.IsDBNull(index)) return default;

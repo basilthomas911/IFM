@@ -114,6 +114,97 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
     }
 
     [Fact]
+    public Task ExecuteCommandAsync_WithLargeDeferredSequence_StreamsBoundedBatches()
+    {
+        var scope = PostgresEventSourceTestData.Scope(3);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var prefix = $"__framework_storage_postgres_it__:{scope.Slot}:bulk:";
+            var firstId = -1_800_000_000 + scope.Slot * 1_000;
+            var enumerationCount = 0;
+            try
+            {
+                var result = await repository.Use(InsertEventStream)
+                    .SetParameters(CreateParameters())
+                    .ExecuteCommandAsync();
+
+                var count = await repository.Use(
+                        "SELECT count(*) FROM event_stream_id WHERE eventstream LIKE $1;")
+                    .SetParameters(new BulkStreamPattern(prefix + "%"))
+                    .ExecuteScalarAsync(static row => row.GetLong(0));
+
+                Assert.Equal(256, result.Length);
+                Assert.All(result, affected => Assert.Equal(1, affected));
+                Assert.Equal(256, enumerationCount);
+                Assert.Equal(256, count);
+            }
+            finally
+            {
+                await repository.Use("DELETE FROM event_stream_id WHERE eventstream LIKE $1;")
+                    .SetParameters(new BulkStreamPattern(prefix + "%"))
+                    .ExecuteCommandAsync();
+            }
+
+            IEnumerable<EventStreamParameters> CreateParameters()
+            {
+                for (var index = 0; index < 256; index++)
+                {
+                    enumerationCount++;
+                    yield return new EventStreamParameters(firstId + index, $"{prefix}{index:D3}");
+                }
+            }
+        });
+    }
+
+    [Fact]
+    public Task ExecuteCommandAsync_WithCancelledToken_DoesNotEnumerateOrWrite()
+    {
+        var scope = PostgresEventSourceTestData.Scope(3);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var enumerationCount = 0;
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.Use(InsertEventStream)
+                .SetParameters(CreateParameters())
+                .ExecuteCommandAsync(cancellation.Token));
+
+            Assert.Equal(0, enumerationCount);
+            Assert.Null(await GetEventStreamAsync(repository, scope.EventStreamId));
+
+            IEnumerable<EventStreamParameters> CreateParameters()
+            {
+                enumerationCount++;
+                yield return new EventStreamParameters(scope.EventStreamId, scope.EventStream);
+            }
+        });
+    }
+
+    [Fact]
+    public Task ExecuteCommandAsync_InAmbientTransaction_ExecutesMultipleCommandsUntilRollback()
+    {
+        var scope = PostgresEventSourceTestData.Scope(4);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var transaction = repository.BeginTransaction();
+            Assert.NotNull(transaction);
+
+            await repository.Use(InsertEventStream)
+                .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.EventStream))
+                .ExecuteCommandAsync();
+            await repository.Use(InsertEventStream)
+                .SetParameters(new EventStreamParameters(scope.SecondEventStreamId, scope.SecondEventStream))
+                .ExecuteCommandAsync();
+
+            transaction.Rollback();
+
+            Assert.Null(await GetEventStreamAsync(repository, scope.EventStreamId));
+            Assert.Null(await GetEventStreamAsync(repository, scope.SecondEventStreamId));
+        });
+    }
+
+    [Fact]
     public Task ExecuteQueuedCommandsAsync_WithFalseFlag_ExecutesEveryQueuedCommand()
     {
         var scope = PostgresEventSourceTestData.Scope(4);
@@ -181,20 +272,20 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
     }
 
     [Fact]
-    public Task ExecuteQueryImmutableAsync_ReturnsValueTypeOrdinalResults()
+    public Task ExecuteQueryImmutableAsync_ReturnsOwnedValueTypeOrdinalResults()
     {
         var scope = PostgresEventSourceTestData.Scope(7);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
             await InsertEventLogsAsync(repository, scope);
 
-            var rows = await repository.Use(SelectEventLogs)
+            var result = await repository.Use(SelectEventLogs)
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteQueryImmutableAsync(static row => new ImmutableEventRow(
                     row.GetLong(0), row.GetLong(2), row.GetGuid(4)));
+            var rows = Assert.IsType<ImmutableEventRow[]>(result);
 
-            Assert.IsType<List<ImmutableEventRow>>(rows);
-            Assert.Equal(2, rows.Count);
+            Assert.Equal(2, rows.Length);
             Assert.Equal(scope.EventStreamId, rows[0].EventStreamId);
         });
     }
@@ -606,6 +697,10 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
     readonly record struct EventStreamLookup(int EventStreamId) : IBindValue
     {
         public object Bind() => Values(Integer(EventStreamId));
+    }
+    readonly record struct BulkStreamPattern(string Pattern) : IBindValue
+    {
+        public object Bind() => Values(Text(Pattern));
     }
     readonly record struct EventNameLookup(int EventNameId) : IBindValue
     {

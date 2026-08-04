@@ -16,6 +16,13 @@ public interface IObjectDataRecord
     bool IsNull(int index);
 
     /// <summary>
+    /// Determines whether a collection value has no elements. Implementations must
+    /// return <see langword="false"/> when the value cannot be read, so callers that
+    /// use an empty collection as a readiness condition fail closed.
+    /// </summary>
+    bool IsCollectionEmpty(int index) => false;
+
+    /// <summary>
     /// Retrieves the 16-bit integer value at the specified column index.
     /// </summary>
     short GetShort(int index);

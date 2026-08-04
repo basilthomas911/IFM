@@ -6,6 +6,26 @@ internal readonly record struct DeleteEconomicCalendar(DateTime eventDate, strin
 {
     public object Bind() => new object?[] { eventDate, countryCode, eventName };
 }
+internal readonly record struct DeleteEconomicCalendarByCountryMonthV2(string countryCode, int monthBucket, DateTime eventDate, string eventName) : IBindValue
+{
+    public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName };
+}
+internal readonly record struct DeleteEconomicCalendarCountryMonthV2(string countryCode, int monthBucket) : IBindValue
+{
+    public object Bind() => new object?[] { countryCode, monthBucket };
+}
+internal readonly record struct DeleteReferenceProjectionStateV3(string projectionName) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName };
+}
+internal readonly record struct DeleteReferenceProjectionMutationV3(string projectionName, Guid mutationId) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, mutationId };
+}
+internal readonly record struct DeleteReferenceProjectionMutationsV3(string projectionName) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName };
+}
 internal readonly record struct DeleteLookupType(string lookupTypeName, int orderId) : IBindValue
 {
     public object Bind() => new object?[] { lookupTypeName, orderId };
@@ -16,15 +36,69 @@ internal readonly record struct DeleteMDIForwardLossRatio(string trendDirection,
 }
 internal readonly record struct DeleteScheduledJob(int jobId) : IBindValue
 {
-    public object Bind() => new object?[] { jobId, jobId };
+    public object Bind() => new object?[] { jobId };
+}
+internal readonly record struct DeleteScheduledJobDays(int jobId) : IBindValue
+{
+    public object Bind() => new object?[] { jobId };
+}
+internal readonly record struct DeleteScheduledJobByNameV3ForOfflineRepair(string jobName) : IBindValue
+{
+    public object Bind() => new object?[] { jobName };
+}
+internal readonly record struct ReleaseScheduledJobNameV3(
+    string jobName,
+    int jobId,
+    Guid reservationToken) : IBindValue
+{
+    public object Bind() => new object?[] { jobName, jobId, reservationToken };
+}
+internal readonly record struct ReleaseScheduledJobWriteOwnershipV3(
+    string scopeType,
+    string scopeKey,
+    Guid operationId) : IBindValue
+{
+    public object Bind() => new object?[] { scopeType, scopeKey, operationId };
 }
 internal readonly record struct GetEconomicCalendarById(DateTime eventDate, string countryCode, string eventName) : IBindValue
 {
     public object Bind() => new object?[] { eventDate, countryCode, eventName };
 }
-internal readonly record struct GetEconomicCalendars(DateTime startDate, DateTime endDate, string countryCode) : IBindValue
+internal readonly record struct GetEconomicCalendars(string countryCode, int monthBucket, DateTime startDate, DateTime endDate) : IBindValue
 {
-    public object Bind() => new object?[] { startDate, endDate, countryCode };
+    public object Bind() => new object?[] { countryCode, monthBucket, startDate, endDate };
+}
+internal readonly record struct GetReferenceProjectionStateV3(string projectionName) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName };
+}
+internal readonly record struct GetReferenceProjectionMutationsV3(string projectionName) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName };
+}
+internal readonly record struct InvalidateReferenceProjectionStateV3(Guid generation, string projectionName) : IBindValue
+{
+    public object Bind() => new object?[] { generation, projectionName };
+}
+internal readonly record struct CompleteReferenceProjectionStateV3(DateTime completedOn, string projectionName, Guid generation) : IBindValue
+{
+    public object Bind() => new object?[] { completedOn, projectionName, generation };
+}
+internal readonly record struct InsertReferenceProjectionMutationV3(string projectionName, Guid mutationId, DateTime startedOn) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, mutationId, startedOn };
+}
+internal readonly record struct ClaimReferenceProjectionOwnershipV3(string projectionName, Guid mutationId, DateTime claimedOn) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, mutationId, claimedOn };
+}
+internal readonly record struct FlagReferenceProjectionOwnershipConflictV3(string projectionName) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName };
+}
+internal readonly record struct ReleaseReferenceProjectionOwnershipV3(string projectionName, Guid mutationId) : IBindValue
+{
+    public object Bind() => new object?[] { projectionName, mutationId };
 }
 internal readonly record struct GetLookupType(string lookupTypeName) : IBindValue
 {
@@ -42,7 +116,15 @@ internal readonly record struct GetNextSeedId(string seedType) : IBindValue
 {
     public object Bind() => new object?[] { seedType };
 }
+internal readonly record struct GetNextSeedIdV2(string seedType) : IBindValue
+{
+    public object Bind() => new object?[] { seedType };
+}
 internal readonly record struct GetScheduledJobDays(int jobId) : IBindValue
+{
+    public object Bind() => new object?[] { jobId };
+}
+internal readonly record struct GetScheduledJob(int jobId) : IBindValue
 {
     public object Bind() => new object?[] { jobId };
 }
@@ -50,9 +132,23 @@ internal readonly record struct GetScheduledJobId(string jobName) : IBindValue
 {
     public object Bind() => new object?[] { jobName };
 }
+internal readonly record struct GetScheduledJobReservationV3(string jobName) : IBindValue
+{
+    public object Bind() => new object?[] { jobName };
+}
+internal readonly record struct GetScheduledJobWriteOwnershipV3(
+    string scopeType,
+    string scopeKey) : IBindValue
+{
+    public object Bind() => new object?[] { scopeType, scopeKey };
+}
 internal readonly record struct InsertEconomicCalendar(DateTime eventDate, string countryCode, string eventName, string actual, string forecast, string prior, DateTime createdOn, string createdBy) : IBindValue
 {
     public object Bind() => new object?[] { eventDate, countryCode, eventName, actual, forecast, prior, createdOn, createdBy };
+}
+internal readonly record struct InsertEconomicCalendarByCountryMonthV2(string countryCode, int monthBucket, DateTime eventDate, string eventName, string actual, string forecast, string prior, DateTime createdOn, string createdBy) : IBindValue
+{
+    public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, createdOn, createdBy };
 }
 internal readonly record struct InsertLookupType(string lookupTypeName, string shortCode, int orderId, string description, DateTime createdOn, string createdBy) : IBindValue
 {
@@ -66,11 +162,44 @@ internal readonly record struct InsertScheduledJob(int jobId, string jobName, st
 {
     public object Bind() => new object?[] { jobId, jobName, jobSchedule, jobScheduleDate, jobScheduleInterval, taskName, taskEnabled, createdOn, createdBy, null, null };
 }
+internal readonly record struct InsertScheduledJobByNameV3(
+    string jobName,
+    int jobId,
+    Guid reservationToken) : IBindValue
+{
+    public object Bind() => new object?[] { jobName, jobId, reservationToken };
+}
+internal readonly record struct ClaimScheduledJobWriteOwnershipV3(
+    string scopeType,
+    string scopeKey,
+    Guid operationId,
+    DateTime startedOn) : IBindValue
+{
+    public object Bind() => new object?[] { scopeType, scopeKey, operationId, startedOn };
+}
+internal readonly record struct RotateScheduledJobNameV3Reservation(
+    Guid reservationToken,
+    string jobName,
+    int jobId,
+    Guid expectedReservationToken) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        reservationToken,
+        jobName,
+        jobId,
+        expectedReservationToken
+    };
+}
+internal readonly record struct InsertSeedIdV2IfNotExists(string seedType, long nextSeedId) : IBindValue
+{
+    public object Bind() => new object?[] { seedType, nextSeedId };
+}
 internal readonly record struct InsertScheduledJobDays(int jobId, bool monday, bool tuesday, bool wednesday, bool thursday, bool friday, bool saturday, bool sunday) : IBindValue
 {
     public object Bind() => new object?[] { jobId, monday, tuesday, wednesday, thursday, friday, saturday, sunday };
 }
-internal readonly record struct UpdateNextSeedId(string seedType) : IBindValue
+internal readonly record struct UpdateNextSeedIdV2(long nextSeedId, string seedType, long expectedSeedId) : IBindValue
 {
-    public object Bind() => new object?[] { seedType };
+    public object Bind() => new object?[] { nextSeedId, seedType, expectedSeedId };
 }

@@ -111,7 +111,7 @@ TomasAI.IFM.Application.Storage/                    Project root
 | `LogDb/` | Active | Inserts telemetry logs and queries them by date range. |
 | `LogDb/Schema/` | Active source leaf | Defines the telemetry-log table. |
 | `MarketDataDb/` | Active | Broad futures tick/bar/EOD/option, volatility, analytics signal/model, yield curve, holiday, normal-curve, quote, ID, and live-feed persistence. |
-| `MarketDataDb/Schema/` | Active source leaf | Defines 25 tables plus the RSI signal-type index in creation order. |
+| `MarketDataDb/Schema/` | Active source leaf | Defines canonical market-data tables, query-shaped tick/EOD/VIX projections, cutover state, and the RSI signal-type index in creation order. |
 | `OptionPricerDb/` | Active | Option-pricer devices, spread distributions, distribution jobs, status transitions, and domain-specific exception/parameter definitions. |
 | `OptionPricerDb/Schema/` | Active source leaf | Defines device, distribution-job, and spread-distribution tables. |
 | `PredictiveModelDb/` | Active shell | Exposes a provider-backed repository and empty read/write marker contracts; current runtime methods are not implemented here. |
@@ -317,13 +317,13 @@ Each `SchemaObjectDefinition` contains a stable name, create statement, and drop
 | Schema context | Managed objects |
 | --- | --- |
 | Event Source | 3 sequences and 5 tables: stream IDs, event names, event log, command log, and projector state. |
-| Fund | 4 tables for funds, orders, order trades, and transactions. |
+| Fund | 14 canonical/projection tables, including permanent order-ID ownership, exact-key transaction identity reservations, monthly transaction queries, readiness markers, and distributed write ownership. |
 | Log | 1 telemetry-log table. |
-| Market Data | 25 tables plus 1 index covering live feed, futures/option data, analytics, curves, holidays, and quotes. |
+| Market Data | Canonical live-feed, futures/option, analytics, curve, holiday, and quote objects plus tick/EOD/VIX query projections and cutover state. |
 | Option Pricer | 3 tables for devices, jobs, and distributions. |
 | Predictive Model | 5 tables for ITI trend data/models and request IDs. |
-| Reference | 6 tables for calendars, lookups, forward-loss ratios, scheduled jobs/days, and seed IDs. |
-| Securities | 2 contract tables. |
+| Reference | 13 canonical/projection tables, including country/month and exact-name queries, scoped projection readiness, scheduled-job ID/name mutation ownership, and the LWT seed allocator. |
+| Securities | Canonical futures/option contracts plus symbol projections and generation-aware cutover state. |
 | Sequence ID | 2 functions plus a generated sequence definition for every `SequenceName`. |
 | Trade | 17 option/trade/position/order/plan/signal tables. |
 
@@ -348,9 +348,11 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 - PostgreSQL Event Source, Log, and Sequence ID catalogs emit strongly typed, unnamed `NpgsqlParameter<T>` arrays through `IBindValue`, ordered exactly like native `$n` SQL placeholders. The PostgreSQL provider no longer discovers properties, calls `PropertyInfo.GetValue`, uses a reflection/type cache, or clones generated parameters before command execution.
 - Parameterized PostgreSQL text commands are explicitly prepared and persist on pooled physical connections. Queued PostgreSQL commands execute through one `NpgsqlBatch` round trip inside an explicit transaction; failures retain all-or-nothing rollback behavior.
 - Single-record and multi-record Scylla writes execute checked-in CQL with the same positional contract. Enumerable `SetParameters` inputs are consumed lazily through the Framework Storage bounded-write pipeline, which avoids whole-input parameter materialization, per-row tasks, and ordinary logged batches. The public Application Storage APIs are unchanged.
-- Ordinary Scylla collection writes execute cached prepared statements with bounded concurrency and token-aware routing. `SCYLLADB_BULK_MAX_CONCURRENCY` defaults to 32 and `SCYLLADB_BULK_BOUNDED_CAPACITY` defaults to 64. Explicit queued `useTransaction: true` workflows remain logged atomic batches; trade-fill writes are limited to one logical fill batch at a time and option-trade deletion remains a small explicit cross-table batch.
+- Ordinary Scylla collection writes execute cached prepared statements with per-call bounded concurrency and token-aware routing. `SCYLLADB_BULK_MAX_CONCURRENCY` defaults to 32 and `SCYLLADB_BULK_BOUNDED_CAPACITY` defaults to 64. No storage-layer semaphore serializes repository instances or simultaneous provider calls. Explicit queued `useTransaction: true` workflows remain logged atomic batches; trade-fill writes are limited to one logical fill batch at a time and option-trade deletion remains a small explicit cross-table batch.
+- Fund transaction retries publish their distributed mutation marker before using an exact-logical-key `IF NOT EXISTS` identity reservation. This prevents concurrent callers from allocating different canonical IDs without introducing a process lock, semaphore, or fund-wide Paxos partition.
+- Fund order IDs remain permanently assigned to their first fund in `fund_order_by_order_id_v3`, including after canonical deletion; `fund_order_write_ownership_v3` serializes mutations by order ID and is reclaimed only by exact operation UUID under an explicit writers-drained cutoff. Reference scheduled-job names remain reusable, while `scheduled_job_write_ownership_v3` claims the job ID and affected exact-name scopes before state reads and holds them through canonical/name-reservation completion.
 - Option trade-spread sequence generation is awaited before each row is submitted; the previous unawaited `List<T>.ForEach(async ...)` and synchronous `GetAwaiter().GetResult()` paths have been removed. Futures ITI trend class/delta collection writes now use positional `IBindValue` records instead of anonymous objects.
-- Database-independent tests verify all 236 non-Fund catalog bindings against their CQL marker sequence; dedicated Fund tests verify its 28 bindings, nullable values, update-marker order, and `DateOnly` values for CQL `date` columns.
+- Database-independent catalog tests verify positional bindings against each CQL marker sequence, including nullable values, update-marker order, LWT ownership parameters, and `DateOnly` values for CQL `date` columns.
 - Several Fund, Market Data, and Trade APIs accept `IEnumerable<T>` and return inserted row counts for bulk operations.
 - Combined contexts commonly expose `DbReader => this` and `DbWriter => this`, giving consumers capability-oriented interfaces over one repository object.
 - Query methods generally return nullable single records and non-null collections.
@@ -358,6 +360,7 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 
 ## Operational characteristics and current limitations
 
+- **The futures-tick counter still uses an increment/read pair.** Concurrent callers can observe the same post-increment value because Cassandra counters do not atomically return their new value. Reference seed allocation no longer has this limitation: `seed_id_v2` uses compare-and-set LWT. Futures tick IDs still require a database-native sequence or regular-column LWT design if strict concurrent uniqueness is required.
 - **Resolution assumes correct DI registration.** `DbContextResolver` and several factory casts suppress nullability; a missing or incompatible registration becomes a later null-reference failure rather than a descriptive resolution exception.
 - **Factory pool-map access is not synchronized.** Concurrent first access to the same pool type can race around the ordinary `Dictionary<Type, object>`.
 - **The pool is incomplete.** Two result overloads throw `NotImplementedException`, and only the Reference pool is exposed.

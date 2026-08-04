@@ -17,6 +17,12 @@ public interface IObjectRepositoryContext: IDisposable
 
     IObjectRepositoryContext SetParameters(object parameterValue = default);
     IObjectRepositoryContext SetParameters<TParam>(in TParam parameterValue) where TParam : struct, IBindValue;
+    IObjectRepositoryContext SetParameters<TParam>(TParam[] parameterValues)
+        where TParam : struct, IBindValue
+        => SetParameters((IEnumerable<TParam>)parameterValues);
+    IObjectRepositoryContext SetParameters<TParam>(IReadOnlyList<TParam> parameterValues)
+        where TParam : struct, IBindValue
+        => SetParameters((IEnumerable<TParam>)parameterValues);
     IObjectRepositoryContext SetParameters<TParam>(IEnumerable<TParam> parameterValues);
     void SetCommand(IDbCommand cmd);
     string GetParameterName(string parameterName);
