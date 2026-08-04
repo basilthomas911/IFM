@@ -21,7 +21,7 @@ public class DenormalizerActorContext(IActorSupervisor supervisor, ActorMailboxI
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
     IActorProducer? _producer;
-    ConcurrentDictionary<ActorThreadId, ActorMessageInfo> _messageInfo = [];
+    readonly ConcurrentDictionary<ActorThreadId, ActorMessageInfo> _messageInfo = [];
 
     /// <summary>
     /// Gets the mailbox identifier for the actor associated with this context.
@@ -41,10 +41,10 @@ public class DenormalizerActorContext(IActorSupervisor supervisor, ActorMailboxI
     /// </summary>
     /// <param name="@event">The event to send to the actor.</param>
     /// <returns>A <see cref="ValueTask"/> that completes when the send operation has been initiated.</returns>
-    public async ValueTask SendAsync<TEvent, TEntityId>(TEvent @event) 
+    public ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
-        => await (_producer ??= _supervisor.GetProducer(_actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
+        => (_producer ??= _supervisor.GetProducer(_actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
 
     /// <summary>
     /// Sends a query to the associated actor and retrieves the result asynchronously.
@@ -58,8 +58,8 @@ public class DenormalizerActorContext(IActorSupervisor supervisor, ActorMailboxI
     /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation. The task result contains a <see
     /// cref="ServiceResult{TResult}"/> encapsulating the outcome of the query, including the result data or any error
     /// information.</returns>
-    public async ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(TQuery query) where TResult : class where TQuery : class, IQuery<TResult>
-        => await (_producer ??= _supervisor.GetProducer(_actorId)).RequestAsync<TResult, TQuery>(query.Subject, query);
+    public ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(TQuery query) where TResult : class where TQuery : class, IQuery<TResult>
+        => (_producer ??= _supervisor.GetProducer(_actorId)).RequestAsync<TResult, TQuery>(query.Subject, query);
 
     /// <summary>
     /// Associates the specified message information with the given thread identifier.
@@ -70,8 +70,8 @@ public class DenormalizerActorContext(IActorSupervisor supervisor, ActorMailboxI
     /// the thread identifier already exists.</returns>
     public bool SetMessageInfo(ActorThreadId threadId, ActorMessageInfo info)
     {
-        _messageInfo.TryRemove(threadId, out _);
-        return _messageInfo.TryAdd(threadId, info);
+        _messageInfo[threadId] = info;
+        return true;
     }
 
     /// <summary>

@@ -14,8 +14,3 @@ public interface IAsyncEventServiceHandler<TEvent, TService> where TEvent : IEve
 {
     Task ExecuteAsync(TEvent e, TService eventService);
 }
-
-public interface IEventHandler<TEvent> where TEvent : IEvent
-{
-    void Execute(TEvent e);
-}

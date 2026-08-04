@@ -55,8 +55,3 @@ public interface IErrorEvent<TEntityId> : IEvent<TEntityId>, IErrorEvent
 }
 
 public interface IExceptionEvent : IErrorEvent { }
-
-public interface IExceptionEvent<TEntityId> : IEvent<TEntityId>
-    where TEntityId : IActorEntityId
-{
-}

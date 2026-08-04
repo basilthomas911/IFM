@@ -225,8 +225,6 @@ public static class Startup
             services.AddSingleton<IReferenceLookupService, ReferenceLookupActorService>();
 
             services.AddSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
-            //services.AddSingleton<IBoundedContextFactoryResolver, BoundedContextFactoryResolver>(_ => new BoundedContextFactoryResolver(e => GetContainerInstance(e)!));
-            //services.AddSingleton<IBoundedContextFactory, BoundedContextFactory>();
             //services.AddSingleton<IAlgorithmBuilder, AlgorithmBuilder>();
             //services.AddSingleton<IExceptionDecoratorFactory>(_ => new ExceptionDecoratorFactory(e => GetContainerInstance(e)!));
             //services.AddSingleton<IValidationDecoratorFactory>(_ => new ValidationDecoratorFactory(e => GetContainerInstance(e)!));
@@ -485,22 +483,8 @@ public static class Startup
             ]);
             var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies());
             assemblies.AddRange(domainAssemblies);
-            //_siContainer.Register(typeof(IBoundedContext<>), assemblies, Lifestyle.Transient);
-            //_siContainer.Register(typeof(IBoundedContextState<>), assemblies, Lifestyle.Transient);
             _siContainer.Register(typeof(IObjectRepository<>), assemblies, Lifestyle.Transient);
-            //_siContainer.Register(typeof(IBoundedContextCommandHandler<,>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(ICommandContext<>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(IEventRepository<>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(IEventDenormalizer<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IValidationRules<>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(IValidationCommandDecorator<>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(IExceptionCommandDecorator<>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(IAsyncEventHandler<>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(IAsyncEventHandler<,>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(IAsyncEventServiceHandler<,>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(IAsyncQueryHandler<,>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(IQueryHandler<,>), assemblies, Lifestyle.Singleton);
-            //_siContainer.Register(typeof(IQueryState<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IActor<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);

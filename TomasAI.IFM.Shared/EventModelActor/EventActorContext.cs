@@ -65,10 +65,10 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// <typeparam name="TResult">The expected result type returned from the query.</typeparam>
     /// <param name="query">The query to send to the actor.</param>
     /// <returns>A task that produces the query result.</returns>
-    public async ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(TQuery query)
+    public ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(TQuery query)
         where TQuery : class, IQuery<TResult>
         where TResult : class
-        => await (_producer ??= _supervisor.GetProducer(_actorId))
+        => (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestAsync<TResult, TQuery   >(query.Subject, query);
 
     /// <summary>
@@ -78,10 +78,10 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// <param name="command">The command to send.</param>
     /// <param name="entityId">The entity identifier used when routing the command (provided by caller).</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> indicating success or failure and containing the command id on success.</returns>
-    public async ValueTask<ServiceResult<GuidResult>> RequestAsync<TCommand, TEntityId>(TCommand command)
+    public ValueTask<ServiceResult<GuidResult>> RequestAsync<TCommand, TEntityId>(TCommand command)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
-        => await (_producer ??= _supervisor.GetProducer(_actorId))
+        => (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestAsync<TCommand, TEntityId, GuidResult>(command.Subject, command, command.EntityId);
 
     /// <summary>
@@ -111,10 +111,10 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// <param name="command">The command instance to send, containing the subject and any relevant data for processing.</param>
     /// <param name="entityId">The identifier of the entity to which the command is directed. Used to route the command appropriately.</param>
     /// <returns>A ValueTask that represents the asynchronous operation of sending the command.</returns>
-    public async ValueTask SendAsync<TCommand, TEntityId>(TCommand command, TEntityId entityId)
+    public ValueTask SendAsync<TCommand, TEntityId>(TCommand command, TEntityId entityId)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
-        => await (_producer ??= _supervisor.GetProducer(_actorId))
+        => (_producer ??= _supervisor.GetProducer(_actorId))
             .SendAsync(command.Subject, command, entityId);
 
     /// <summary>

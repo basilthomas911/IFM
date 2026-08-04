@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TomasAI.IFM.Shared.UnitTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Framework.Messaging.Nats.Benchmarks" />
   </ItemGroup>
 
   <ItemGroup>

@@ -15,9 +15,4 @@ public interface IBoundedContextState<TboundedContextState> : IBoundedContextSta
     void ReplayEvents(IEnumerable<EventStreamReadModel> domainEvents);
     void ReplayEvents(IEnumerable<IEvent> eventStream);
 }
-
-public interface IQueryState<TQueryState>  where TQueryState : class
-{
-    TQueryState As { get; }
-}
     

@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// Supervises actors and manages actor lifecycle related components such as thread pool,
 /// producers, consumers and thread state registry.
 /// </summary>
-public class ActorSupervisor : IActorSupervisor
+public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
 {
     readonly IActorThreadPool _threadPool;
     readonly ConcurrentDictionary<ActorMailboxId, IActorProducer> _producers;
@@ -22,11 +22,13 @@ public class ActorSupervisor : IActorSupervisor
     readonly ConcurrentDictionary<ActorType, IActorConsumer> _consumers;
     readonly ConcurrentDictionary<ActorType, IJSActorConsumer> _jsConsumers;
     readonly ConcurrentDictionary<ActorThreadId, IActorState> _threadState;
+    readonly ConcurrentDictionary<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>> _threadStateByMailbox;
     readonly ConcurrentDictionary<ActorMailboxId, IActor> _children;
     readonly EventRouteRegistry _eventRouters;
     readonly ILogger<ActorSupervisor> _logger;
     readonly IContainerInstance _container;
     readonly static string _serviceId = "ActorSupervisor";
+    int _disposed;
 
     /// <summary>
     /// Initializes a new instance of <see cref="ActorSupervisor"/>.
@@ -40,6 +42,7 @@ public class ActorSupervisor : IActorSupervisor
         _consumers = new ConcurrentDictionary<ActorType, IActorConsumer>();
         _jsConsumers = new ConcurrentDictionary<ActorType, IJSActorConsumer>();
         _threadState = new ConcurrentDictionary<ActorThreadId, IActorState>();
+        _threadStateByMailbox = new ConcurrentDictionary<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>>();
         _children = new ConcurrentDictionary<ActorMailboxId, IActor>();
         _eventRouters = new EventRouteRegistry();
 
@@ -89,7 +92,11 @@ public class ActorSupervisor : IActorSupervisor
     {
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(state.Id);
-        _threadState.AddOrUpdate(state.Id, state,  (_, __) => state);
+        _threadState[state.Id] = state;
+        var mailboxStates = _threadStateByMailbox.GetOrAdd(
+            state.Id.MailboxId,
+            static _ => new ConcurrentDictionary<ActorThreadId, IActorState>());
+        mailboxStates[state.Id] = state;
     }
 
     /// <summary>
@@ -104,6 +111,18 @@ public class ActorSupervisor : IActorSupervisor
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(state.Id);
         _threadState.TryRemove(state.Id, out _);
+        if (_threadStateByMailbox.TryGetValue(state.Id.MailboxId, out var mailboxStates))
+        {
+            mailboxStates.TryRemove(state.Id, out _);
+            if (mailboxStates.IsEmpty)
+            {
+                ((ICollection<KeyValuePair<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>>>)
+                    _threadStateByMailbox).Remove(
+                    new KeyValuePair<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>>(
+                        state.Id.MailboxId,
+                        mailboxStates));
+            }
+        }
     }
 
     /// <summary>
@@ -127,13 +146,9 @@ public class ActorSupervisor : IActorSupervisor
     public IActorState[] GetThreadStates(ActorMailboxId actorId)
     {
         IsArgumentNull.Check(actorId);
-        List<IActorState> list = [];
-        foreach (var kvp in _threadState)
-        {
-            if (kvp.Key.MailboxId.Equals(actorId))
-                list.Add(kvp.Value);
-        }
-        return [.. list];
+        return _threadStateByMailbox.TryGetValue(actorId, out var states)
+            ? [.. states.Values]
+            : [];
     }
 
     /// <summary>
@@ -229,12 +244,12 @@ public class ActorSupervisor : IActorSupervisor
     /// <param name="mailboxId">The unique identifier of the actor's mailbox.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no actor is found for the specified <paramref name="mailboxId"/>.</exception>
-    public async ValueTask StartAsync(ActorMailboxId mailboxId)
+    public ValueTask StartAsync(ActorMailboxId mailboxId)
     {
         IsArgumentNull.Check(mailboxId);
         if (!_children.TryGetValue(mailboxId, out var actor))
             throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
-        await actor.StartAsync(this).ConfigureAwait(false);
+        return actor.StartAsync(this);
     }
 
     /// <summary>
@@ -243,12 +258,12 @@ public class ActorSupervisor : IActorSupervisor
     /// <param name="mailboxId">The unique identifier of the actor's mailbox to stop. Cannot be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no actor is found with the specified <paramref name="mailboxId"/>.</exception>
-    public async ValueTask StopAsync(ActorMailboxId mailboxId)
+    public ValueTask StopAsync(ActorMailboxId mailboxId)
     {
         IsArgumentNull.Check(mailboxId);
         if (!_children.TryGetValue(mailboxId, out var actor))
             throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
-        await actor.StopAsync().ConfigureAwait(false);
+        return actor.StopAsync();
     }
 
     /// <summary>
@@ -449,4 +464,16 @@ public class ActorSupervisor : IActorSupervisor
     /// Gets the actor thread pool managed by this supervisor.
     /// </summary>
     public IActorThreadPool ThreadPool => _threadPool;
+
+    /// <summary>Stops and awaits the shared actor workers.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+
+        if (_threadPool is IAsyncDisposable asyncDisposable)
+            await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+
+        GC.SuppressFinalize(this);
+    }
 }

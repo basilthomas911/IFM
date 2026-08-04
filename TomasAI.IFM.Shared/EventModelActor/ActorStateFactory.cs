@@ -19,16 +19,11 @@ public class ActorStateFactory(IActorStateFactoryResolver resolver, IDistributed
     readonly IActorStateFactoryResolver _resolver = IsArgumentNull.Set(resolver);
     readonly IDistributedCache _cache = IsArgumentNull.Set(cache);
 
-    public async ValueTask<TState> LoadStateAsync<TState>(ActorThreadId stateId) where TState : IActorState
-    {
-        var result = CreateState<TState>(stateId);
-        return await ValueTask.FromResult(result);
-    }
+    public ValueTask<TState> LoadStateAsync<TState>(ActorThreadId stateId) where TState : IActorState
+        => ValueTask.FromResult(CreateState<TState>(stateId));
 
-    public async ValueTask SaveStateAsync<TState>(TState state) where TState : IActorState
-    {
-        await ValueTask.CompletedTask;
-    }
+    public ValueTask SaveStateAsync<TState>(TState state) where TState : IActorState
+        => ValueTask.CompletedTask;
 
     /// <summary>
     /// Creates and initializes an actor state of the specified type.

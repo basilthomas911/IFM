@@ -16,9 +16,11 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </remarks>
 public static class ActorExtensions
 {
-    const int MaxSubjectCacheSize = 4096;
-    static readonly ConcurrentDictionary<string, ActorSubject> _subjectMap = [];
-    static int _subjectMapCount;
+    const int SubjectCacheGenerationSize = 2048;
+    static ConcurrentDictionary<string, ActorSubject> _currentSubjectMap = [];
+    static ConcurrentDictionary<string, ActorSubject> _previousSubjectMap = [];
+    static int _currentSubjectMapCount;
+    static int _subjectMapRotation;
 
     /// <summary>
     /// Serializer used to convert objects to and from binary payloads for messaging.
@@ -98,11 +100,9 @@ public static class ActorExtensions
     /// <param name="command">Command to execute.</param>
     /// <param name="commandAction">Async action that performs the command execution.</param>
     /// <returns>A task that yields the <see cref="ServiceResult{Guid}"/> from the command action.</returns>
-    public static async Task<ServiceResult<Guid>> ExecuteAsync<TEntityId>(this ICommand<TEntityId> command, Func<ICommand, Task<ServiceResult<Guid>>> commandAction) 
+    public static Task<ServiceResult<Guid>> ExecuteAsync<TEntityId>(this ICommand<TEntityId> command, Func<ICommand, Task<ServiceResult<Guid>>> commandAction)
         where TEntityId : IActorEntityId
-    {   
-        return await commandAction(command);
-    }
+        => commandAction(command);
 
     /// <summary>
     /// Executes the specified asynchronous command action using the provided command parameter.
@@ -112,8 +112,8 @@ public static class ActorExtensions
     /// null.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a ServiceResult with the unique
     /// identifier returned by the command action.</returns>
-    public static async Task<ServiceResult<Guid>> ExecuteAsync(this ICommandParameter command, Func<ICommandParameter, Task<ServiceResult<Guid>>> commandAction)
-        => await commandAction(command);
+    public static Task<ServiceResult<Guid>> ExecuteAsync(this ICommandParameter command, Func<ICommandParameter, Task<ServiceResult<Guid>>> commandAction)
+        => commandAction(command);
     
 
     /// <summary>
@@ -207,15 +207,44 @@ public static class ActorExtensions
         if (string.IsNullOrEmpty(subject))
             throw new ArgumentException("Value cannot be null or empty.", nameof(subject));
 
-        if (_subjectMap.TryGetValue(subject, out var cached))
+        var current = Volatile.Read(ref _currentSubjectMap);
+        if (current.TryGetValue(subject, out var cached)
+            || Volatile.Read(ref _previousSubjectMap).TryGetValue(subject, out cached))
             return cached;
 
         var parsed = ParseSubject(subject);
 
-        if (_subjectMapCount < MaxSubjectCacheSize && _subjectMap.TryAdd(subject, parsed))
-            Interlocked.Increment(ref _subjectMapCount);
+        if (current.TryAdd(subject, parsed)
+            && ReferenceEquals(current, Volatile.Read(ref _currentSubjectMap))
+            && Interlocked.Increment(ref _currentSubjectMapCount) >= SubjectCacheGenerationSize)
+        {
+            RotateSubjectCache(current);
+        }
 
         return parsed;
+    }
+
+    static void RotateSubjectCache(ConcurrentDictionary<string, ActorSubject> generation)
+    {
+        if (Interlocked.CompareExchange(ref _subjectMapRotation, 1, 0) != 0)
+            return;
+
+        try
+        {
+            if (!ReferenceEquals(generation, Volatile.Read(ref _currentSubjectMap))
+                || Volatile.Read(ref _currentSubjectMapCount) < SubjectCacheGenerationSize)
+            {
+                return;
+            }
+
+            Volatile.Write(ref _previousSubjectMap, generation);
+            Volatile.Write(ref _currentSubjectMap, new ConcurrentDictionary<string, ActorSubject>());
+            Volatile.Write(ref _currentSubjectMapCount, 0);
+        }
+        finally
+        {
+            Volatile.Write(ref _subjectMapRotation, 0);
+        }
     }
 
     /// <summary>

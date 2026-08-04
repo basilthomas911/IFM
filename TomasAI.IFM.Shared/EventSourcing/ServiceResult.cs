@@ -142,21 +142,5 @@ public class ServiceFailed<TResult> : ServiceResult<TResult>
     public ServiceFailed(IErrorEvent errorEvent) : base(errorEvent) { }
 }
 
-[MessagePackObject(AllowPrivate = true)]
-public class RestApiErrorContent
-{
-    [Key(0)] public int ErrorCode { get; set; }
-    [Key(1)] public string ErrorMessage { get; set; }
-
-    public RestApiErrorContent() { }
-
-    [SerializationConstructor]
-    public RestApiErrorContent(int errorCode, string errorMessage)
-    {
-        ErrorCode = errorCode;
-        ErrorMessage = errorMessage;
-    }
-}
-
 [MessagePackObject]
 public record GuidResult([property: Key(0)] Guid Guid);

@@ -12,6 +12,7 @@ public interface IActorThreadQueues
     ValueTask<bool> WriteAsync(IActorMessage message, CancellationToken cancellationToken = default);
     ValueTask<bool> WriteAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default);
     IActorThreadQueue GetThreadQueue(ActorThreadId threadId);
+    bool TryGetThreadQueue(ActorThreadId threadId, out IActorThreadQueue? queue);
     void ReleaseThreadQueue(ActorThreadId threadId);    
     int Count { get; }
 }

@@ -1,5 +1,4 @@
 using Newtonsoft.Json;
-using System;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;  
 
 namespace TomasAI.IFM.Shared.EventSourcing;

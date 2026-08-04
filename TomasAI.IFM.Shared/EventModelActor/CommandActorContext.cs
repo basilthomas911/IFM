@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Collections.Immutable;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
@@ -20,7 +19,7 @@ public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId ac
 {
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
-    ConcurrentDictionary<ActorThreadId, Dictionary<string,ActorMessageInfo>> _messageInfo = [];
+    readonly ConcurrentDictionary<(ActorThreadId ThreadId, string Verb), ActorMessageInfo> _messageInfo = [];
 
     IActorProducer? _producer;
     IJSActorProducer? _jsProducer;
@@ -61,10 +60,7 @@ public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId ac
     /// <returns>true if the message information was set successfully; otherwise, false.</returns>
     public bool SetMessageInfo(ActorThreadId threadId, string verb, ActorMessageInfo info)
     {
-        if (!_messageInfo.ContainsKey(threadId))
-            _messageInfo[threadId] = [];
-        _messageInfo[threadId].Remove(verb);
-        _messageInfo[threadId].Add(verb, info);
+        _messageInfo[(threadId, verb)] = info;
         return true;
     }
 
@@ -76,13 +72,6 @@ public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId ac
     /// <returns>An <see cref="ActorMessageInfo"/> instance containing information about the message if found; otherwise, <see
     /// langword="null"/>.</returns>
     public ActorMessageInfo? GetMessageInfo(ActorThreadId threadId, string verb)
-    {
-        if (_messageInfo.TryGetValue(threadId, out Dictionary<string, ActorMessageInfo>? threadMap))
-        {
-            if (threadMap!.TryGetValue(verb, out ActorMessageInfo msgInfo))
-                return msgInfo;
-        }
-        return default;
-    }
+        => _messageInfo.TryGetValue((threadId, verb), out var info) ? info : null;
 
 }

@@ -107,72 +107,6 @@ public record DomainEvent : IEvent
 }
 
 /// <summary>
-/// Lightweight record form of a domain event suitable for storage/transport.
-/// </summary>
-[MessagePackObject(AllowPrivate = true)]
-public record struct DomainEventRecord : IEvent
-{
-    public DomainEventRecord() => Id = Guid.NewGuid();
-
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public string EntityId { get; init; }
-    [Key(2)] public Guid Id { get; init; }
-    [Key(3)] public long EventId { get; init; }
-    [Key(4)] public Guid CommandId { get; init; }
-    [Key(5)] public string AggregateId { get; init; }
-    [Key(6)] public string EventSource { get; init; }
-    [Key(7)] public DateTime ReceivedOn { get; init; }
-
-    [IgnoreMember]
-    public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
-
-    [IgnoreMember]
-    public string EventName => this.GetType().Name;
-
-    [IgnoreMember]
-    public EventType EventType => EventType.DomainEvent;
-
-    [SerializationConstructor]
-    public DomainEventRecord(ActorSubject subject, string entityId, Guid id, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn)
-    {
-        Subject = subject;
-        EntityId = entityId;
-        Id = id;
-        EventId = eventId;
-        CommandId = commandId;
-        AggregateId = aggregateId ?? string.Empty;
-        EventSource = eventSource ?? string.Empty;
-        ReceivedOn = receivedOn;
-    }
-
-    public void CheckForEmptyCommandId()
-    {
-        if (this.CommandId == Guid.Empty)
-            throw new InvalidOperationException($"DomainEvent.CheckForEmptyCommandId: {GetType().Name}.CommandId is empty");
-    }
-
-    public readonly IEvent SetEventSource(string eventSource)
-    {
-        return (IEvent)(this with { EventSource = eventSource });
-    }
-
-    public readonly IEvent SetReceivedOn(DateTime receivedOn)
-    {
-        return (IEvent)(this with { ReceivedOn = receivedOn });
-    }
-
-    public readonly IEvent RoutedFrom(Guid correlationId, string aggregateId, string eventSource)
-    {
-        return (IEvent)(this with { CommandId = correlationId, AggregateId = aggregateId, EventSource = eventSource });
-    }
-
-    public readonly IEvent RoutedFrom(ICommand command) => RoutedFrom(command.CommandId, command.StreamId, command.EventSource);
-
-    public override readonly string ToString() => JsonConvert.SerializeObject(this, Formatting.Indented);
-
-}
-
-/// <summary>
 /// Represents a generic service-level event emitted by internal services.
 /// </summary>
 [MessagePackObject(AllowPrivate = true)]
@@ -519,25 +453,5 @@ public record CommandExceptionEvent : ErrorEvent, IExceptionEvent, IErrorEventCo
             AggregateId = command.StreamId,
             CommandData = JsonConvert.SerializeObject(command, Formatting.Indented)
         };
-}
-
-public record QueryExceptionEvent : ErrorEvent, IExceptionEvent
-{
-
-    public QueryExceptionEvent() { }
-
-    public QueryExceptionEvent(IQuery query, Exception ex)
-    {
-        ErrorType = ErrorType.Query;
-        ErrorMessage = ex.Message;
-        ErrorCode = query.ErrorCode;
-        ErrorData = JsonConvert.SerializeObject(query, Formatting.Indented);
-    }
-
-}
-
-public record EventServiceExceptionEvent : ErrorEvent, IExceptionEvent
-{
-    public string EventData { get; init; }
 }
 

@@ -64,11 +64,11 @@ sealed class ActorThread : IActorThread
         return _threadScheduler?.WriteData(message) ?? false;
     }
 
-    public async ValueTask WriteToActorThreadQueueAsync(IActorMessage message, CancellationToken cancellationToken = default)
-        => await ValueTask.CompletedTask;
+    public ValueTask WriteToActorThreadQueueAsync(IActorMessage message, CancellationToken cancellationToken = default)
+        => ValueTask.CompletedTask;
 
-    public async ValueTask WriteToActorThreadQueueAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default)
-        => await ValueTask.CompletedTask;
+    public ValueTask WriteToActorThreadQueueAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default)
+        => ValueTask.CompletedTask;
 
     /// <summary>
     /// Starts the actor thread with the specified actor and thread identifier.

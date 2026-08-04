@@ -25,12 +25,17 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
     string _serviceId = string.Empty;
     IDenormalizerActorContext _context;
     IActorSupervisor _supervisor;
+    int _lifecycle;
 
     // IActor properties
     public ActorMailboxId Id => _actorId;
     protected ILogger Logger => _logger;
     public IActorMailbox Mailbox { get; private set; }
-    public bool IsRunning { get; protected set; }
+    public bool IsRunning
+    {
+        get => Volatile.Read(ref _lifecycle) == 2;
+        protected set => Volatile.Write(ref _lifecycle, value ? 2 : 0);
+    }
     public bool IsParent { get; protected set; }
 
     /// <summary>
@@ -46,21 +51,25 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
     public async ValueTask StartAsync(IActorSupervisor supervisor)
     {
         IsArgumentNull.Check(supervisor);
-        if (IsRunning)
+        if (Interlocked.CompareExchange(ref _lifecycle, 1, 0) != 0)
             return;
-
-        // start up actor producers/consumers if set...
-        _supervisor = supervisor;
-        Mailbox = supervisor.CreateMailbox(_actorId);
-        var producer = supervisor.GetProducer(_actorId);
-        await producer.StartAsync(_actorId);
-        _serviceId = typeof(TActor).Name;
-        _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
-
-        /// start any actor context processes...
-        _context = supervisor.CreateDenormalizerActorContext(actorId);
-        await OnStartup(_context);
-        IsRunning = true;
+        try
+        {
+            _supervisor = supervisor;
+            Mailbox = supervisor.CreateMailbox(_actorId);
+            var producer = supervisor.GetProducer(_actorId);
+            await producer.StartAsync(_actorId).ConfigureAwait(false);
+            _serviceId = typeof(TActor).Name;
+            _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
+            _context = supervisor.CreateDenormalizerActorContext(actorId);
+            await OnStartup(_context).ConfigureAwait(false);
+            Volatile.Write(ref _lifecycle, 2);
+        }
+        catch
+        {
+            Volatile.Write(ref _lifecycle, 0);
+            throw;
+        }
     }
 
     /// <summary>
@@ -74,19 +83,19 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous stop operation.</returns>
     public async ValueTask StopAsync()
     {
-        if (!IsRunning)
+        if (Interlocked.CompareExchange(ref _lifecycle, 3, 2) != 2)
             return;
-
-        // stop any actor producers/consumers if set...
-        var producer = _supervisor.GetProducer(_actorId);
-        await producer.StopAsync().ConfigureAwait(false);
-        _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
-
-        /// stop any  actor context processes...
-        await _supervisor!.StopAsync(actorId).ConfigureAwait(false);
-        await OnShutdown(_context!);
-
-        IsRunning = false;
+        try
+        {
+            var producer = _supervisor.GetProducer(_actorId);
+            await producer.StopAsync().ConfigureAwait(false);
+            _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
+            await OnShutdown(_context!).ConfigureAwait(false);
+        }
+        finally
+        {
+            Volatile.Write(ref _lifecycle, 0);
+        }
     }
 
     /// <summary>
@@ -98,10 +107,8 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
     /// <param name="message">The message to be processed, containing the subject and entity information.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
-    public async ValueTask HandleMessageAsync(IActorMessage message)
-    {
-        await HandleMessageAsync(message, message.Subject.ThreadId);
-    }
+    public ValueTask HandleMessageAsync(IActorMessage message)
+        => HandleMessageAsync(message, message.Subject.ThreadId);
 
     /// <summary>
     /// Handles an incoming message using a pre-resolved thread identifier, avoiding redundant subject parsing.

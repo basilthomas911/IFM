@@ -1,188 +1,289 @@
-using NATS.Client.Core;
 using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Shared.EventModelActor;
 
 /// <summary>
-/// High-performance, zero-allocation actor thread queue backed by <see cref="BlockingSpscRingBuffer{TMessage}"/>
-/// instead of <see cref="System.Threading.Channels.Channel{T}"/>.
+/// Bounded MPSC actor mailbox with one scheduled consumer at a time.
 /// </summary>
 /// <remarks>
-/// <para>
-/// This implementation is designed for the SPSC (single-producer, single-consumer) pattern
-/// used by <see cref="ActorThreadV2"/>. It eliminates the per-enqueue allocations that
-/// <see cref="System.Threading.Channels.BoundedChannel{T}"/> incurs for async continuations
-/// and uses a spin-then-park wait strategy for lower latency under contention.
-/// </para>
-/// <para>
-/// For multi-producer scenarios, use <see cref="ActorThreadQueue"/> (Channel-based) instead.
-/// </para>
+/// Producers receive real asynchronous backpressure when the mailbox is full. The scheduling bit guarantees that
+/// an actor/entity can occur only once in the ready queue, while <see cref="CompleteDrain"/> closes the enqueue versus
+/// idle race without per-message semaphore signals.
 /// </remarks>
-public sealed class ActorThreadQueueV2 : IActorThreadQueue, IDisposable
+public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThreadQueue, IDisposable
 {
-    const int DefaultCapacity = 8192;      // power of two, matches ActorThreadQueue
-    const int DefaultSpinEnqueue = 32;
-    const int DefaultSpinDequeue = 32;
+    const int DefaultCapacity = 8192;
+    const int Created = 0;
+    const int Active = 1;
+    const int Retiring = 2;
+    const int Retired = 3;
 
-    int _capacity;
-    int _spinEnqueue;
-    int _spinDequeue;
-
-    volatile bool _started;
-    bool _disposed;
-    ActorThreadId _id;
-    BlockingSpscRingBuffer<IActorMessage>? _buffer;
     readonly object _startLock = new();
+    readonly SemaphoreSlim _slots;
+    Channel<IActorMessage>? _channel;
+    ActorThreadId _id;
+    int _lifecycle;
+    int _scheduled;
+    int _writers;
+    int _count;
 
-    public ActorThreadQueueV2(int capacity = DefaultCapacity, int spinEnqueue = DefaultSpinEnqueue, int spinDequeue = DefaultSpinDequeue)
+    public ActorThreadQueueV2(int capacity = DefaultCapacity, int spinEnqueue = 32, int spinDequeue = 32)
     {
-        _capacity = capacity;
-        _spinEnqueue = spinEnqueue;
-        _spinDequeue = spinDequeue;
+        if (capacity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(capacity));
+
+        _slots = new SemaphoreSlim(capacity, capacity);
+        _ = spinEnqueue;
+        _ = spinDequeue;
     }
-    /// <inheritdoc />
+
     public ActorThreadId Id => _id;
+    public int Count => Volatile.Read(ref _count);
+    public bool IsStarted => Volatile.Read(ref _lifecycle) == Active;
+    bool IScheduledActorThreadQueue.IsRetired => Volatile.Read(ref _lifecycle) == Retired;
 
-    /// <inheritdoc />
-    public int Count
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _buffer?.Count ?? 0;
-    }
-
-    /// <summary>
-    /// Indicates whether this thread queue has been started.
-    /// </summary>
-    public bool IsStarted
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _started;
-    }
-
-    /// <inheritdoc />
     public IActorThreadQueue SetId(ActorThreadId id)
     {
         _id = IsArgumentNull.Set(id);
         return this;
     }
 
-    /// <inheritdoc />
     public async IAsyncEnumerable<IActorMessage> ReadAllAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var buf = _buffer;
-        if (buf is null)
+        var reader = _channel?.Reader;
+        if (reader is null)
             yield break;
 
-        // Blocking Dequeue runs on the caller's thread (the consumer thread in SPSC).
-        // Yielding with Task.Yield keeps the async enumerable cooperative.
-        while (!cancellationToken.IsCancellationRequested)
+        while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            IActorMessage item;
-            try
+            while (reader.TryRead(out var message))
             {
-                item = buf.Dequeue(cancellationToken);
+                Interlocked.Decrement(ref _count);
+                _slots.Release();
+                yield return message;
             }
-            catch (OperationCanceledException)
-            {
-                yield break;
-            }
-            catch (ObjectDisposedException)
-            {
-                yield break;
-            }
-
-            yield return item;
-
-            // Allow the async state machine to observe cancellation between items.
-            await Task.Yield();
         }
     }
 
-    /// <inheritdoc />
     public IEnumerable<IActorMessage> ReadAll(CancellationToken cancellationToken = default)
     {
-        var buf = _buffer;
-        if (buf is null)
+        var reader = _channel?.Reader;
+        if (reader is null)
             yield break;
 
-        while (buf.TryDequeue(out var item))
-        {
-            yield return item;
-        }
+        while (!cancellationToken.IsCancellationRequested && TryReadCore(reader, out var message))
+            yield return message;
     }
 
-    /// <inheritdoc />
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Write(IActorMessage message, CancellationToken cancellationToken = default)
-    { 
-        var result = false;
-        if (_buffer is not null)
+        => ((IScheduledActorThreadQueue)this).TryWrite(message, cancellationToken);
+
+    bool IScheduledActorThreadQueue.TryWrite(IActorMessage message, CancellationToken cancellationToken)
+    {
+        IsArgumentNull.Check(message);
+        if (!TryAcquireWriter())
+            return false;
+
+        try
         {
-            _buffer.Enqueue(message, cancellationToken);
-            result = true;
+            _slots.Wait(cancellationToken);
+            if (!_channel!.Writer.TryWrite(message))
+            {
+                _slots.Release();
+                throw new ChannelClosedException();
+            }
+            Interlocked.Increment(ref _count);
+            return true;
         }
-        return result;
+        finally
+        {
+            Interlocked.Decrement(ref _writers);
+        }
     }
 
-    /// <inheritdoc />
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ValueTask EnqueueAsync(IActorMessage message, CancellationToken cancellationToken = default)
     {
-        _buffer!.Enqueue(message, cancellationToken);
-        return default;
+        var pending = ((IScheduledActorThreadQueue)this).TryWriteAsync(message, cancellationToken);
+        if (pending.IsCompletedSuccessfully)
+            return pending.Result
+                ? ValueTask.CompletedTask
+                : ValueTask.FromException(new ObjectDisposedException(nameof(ActorThreadQueueV2)));
+
+        return AwaitAccepted(pending);
     }
 
-    /// <inheritdoc />
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Start()
+    ValueTask<bool> IScheduledActorThreadQueue.TryWriteAsync(
+        IActorMessage message,
+        CancellationToken cancellationToken)
     {
-        if (!_started)
-            StartCore();
-    }
+        IsArgumentNull.Check(message);
+        if (!TryAcquireWriter())
+            return ValueTask.FromResult(false);
 
-    /// <summary>
-    /// Slow-path for <see cref="Start"/>: acquires the lock and creates the SPSC ring buffer.
-    /// Kept out-of-line so the JIT can inline the fast path.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    void StartCore()
-    {
-        lock (_startLock)
+        try
         {
-            if (!_started)
+            var pending = _slots.WaitAsync(cancellationToken);
+            if (pending.IsCompletedSuccessfully)
             {
-                var buf = new BlockingSpscRingBuffer<IActorMessage>(
-                    _capacity,
-                    _spinEnqueue,
-                    _spinDequeue);
-                buf.Start();
-                _buffer = buf;
-                _started = true;
+                if (!_channel!.Writer.TryWrite(message))
+                {
+                    _slots.Release();
+                    Interlocked.Decrement(ref _writers);
+                    return ValueTask.FromException<bool>(new ChannelClosedException());
+                }
+                Interlocked.Increment(ref _count);
+                Interlocked.Decrement(ref _writers);
+                return ValueTask.FromResult(true);
             }
+
+            return AwaitSlotAndWrite(pending, message);
+        }
+        catch
+        {
+            Interlocked.Decrement(ref _writers);
+            throw;
         }
     }
 
-    /// <inheritdoc />
-    public void Stop()
+    async ValueTask<bool> AwaitSlotAndWrite(Task waitForSlot, IActorMessage message)
     {
-        if (_buffer is null || !_started)
-            return;
-        _started = false;
-        while (_buffer.TryDequeue(out var pending))
-            pending.Dispose();
-        _buffer.Stop();
-        _buffer = null;
+        try
+        {
+            await waitForSlot.ConfigureAwait(false);
+            if (!_channel!.Writer.TryWrite(message))
+            {
+                _slots.Release();
+                throw new ChannelClosedException();
+            }
+            Interlocked.Increment(ref _count);
+            return true;
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _writers);
+        }
     }
 
-    /// <inheritdoc />
-    public void Dispose()
+    static async ValueTask AwaitAccepted(ValueTask<bool> pending)
     {
-        if (_disposed) return;
-        _disposed = true;
-        if (_started)
-            Stop();
+        if (!await pending.ConfigureAwait(false))
+            throw new ObjectDisposedException(nameof(ActorThreadQueueV2));
     }
+
+    bool TryAcquireWriter()
+    {
+        while (Volatile.Read(ref _lifecycle) == Active)
+        {
+            Interlocked.Increment(ref _writers);
+            if (Volatile.Read(ref _lifecycle) == Active)
+                return true;
+
+            Interlocked.Decrement(ref _writers);
+        }
+
+        return false;
+    }
+
+    bool IScheduledActorThreadQueue.TryRead(out IActorMessage? message)
+    {
+        var reader = _channel?.Reader;
+        if (reader is not null)
+            return TryReadCore(reader, out message);
+
+        message = null;
+        return false;
+    }
+
+    bool TryReadCore(ChannelReader<IActorMessage> reader, out IActorMessage? message)
+    {
+        if (!reader.TryRead(out message))
+            return false;
+        Interlocked.Decrement(ref _count);
+        _slots.Release();
+        return true;
+    }
+
+    bool IScheduledActorThreadQueue.TrySchedule()
+        => Volatile.Read(ref _lifecycle) == Active
+           && Interlocked.CompareExchange(ref _scheduled, 1, 0) == 0;
+
+    bool IScheduledActorThreadQueue.CompleteDrain() => CompleteDrain();
+
+    bool CompleteDrain()
+    {
+        if (Count != 0)
+            return true;
+
+        Volatile.Write(ref _scheduled, 0);
+
+        // A producer that observed scheduled == 1 does not publish another ready item. Recheck after clearing and
+        // reclaim scheduling responsibility if that producer enqueued during the transition.
+        return Count != 0 && Interlocked.CompareExchange(ref _scheduled, 1, 0) == 0;
+    }
+
+    bool IScheduledActorThreadQueue.TryRetire()
+    {
+        if (Volatile.Read(ref _scheduled) != 0 || Count != 0)
+            return false;
+
+        if (Interlocked.CompareExchange(ref _lifecycle, Retiring, Active) != Active)
+            return false;
+
+        if (Volatile.Read(ref _writers) != 0 || Volatile.Read(ref _scheduled) != 0 || Count != 0)
+        {
+            Volatile.Write(ref _lifecycle, Active);
+            return false;
+        }
+
+        Volatile.Write(ref _lifecycle, Retired);
+        return true;
+    }
+
+    public void Start()
+    {
+        if (Volatile.Read(ref _lifecycle) == Active)
+            return;
+
+        lock (_startLock)
+        {
+            if (_lifecycle == Active)
+                return;
+            if (_lifecycle == Retired)
+                throw new ObjectDisposedException(nameof(ActorThreadQueueV2));
+
+            _channel = Channel.CreateUnbounded<IActorMessage>(new UnboundedChannelOptions
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                AllowSynchronousContinuations = false
+            });
+            Volatile.Write(ref _lifecycle, Active);
+        }
+    }
+
+    public void Stop()
+    {
+        var previous = Interlocked.Exchange(ref _lifecycle, Retired);
+        if (previous == Retired)
+            return;
+
+        var channel = _channel;
+        channel?.Writer.TryComplete();
+        if (channel is not null)
+        {
+            while (channel.Reader.TryRead(out var pending))
+            {
+                Interlocked.Decrement(ref _count);
+                _slots.Release();
+                pending.Dispose();
+            }
+        }
+        _channel = null;
+    }
+
+    public void Dispose() => Stop();
 }

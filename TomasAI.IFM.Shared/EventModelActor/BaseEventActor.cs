@@ -24,11 +24,16 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     IEventActorContext? _context;
     string _serviceId = string.Empty;
+    int _lifecycle;
 
     // IActor properties
     public ActorMailboxId Id => _actorId;
     public IActorMailbox Mailbox { get; } = supervisor.CreateMailbox(actorId)!;
-    public bool IsRunning { get; protected set; }
+    public bool IsRunning
+    {
+        get => Volatile.Read(ref _lifecycle) == 2;
+        protected set => Volatile.Write(ref _lifecycle, value ? 2 : 0);
+    }
     public bool IsParent { get; protected set; }
 
     /// <summary>
@@ -38,22 +43,23 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     {
         IsArgumentNull.Check(supervisorArg);
 
-        if (IsRunning)
+        if (Interlocked.CompareExchange(ref _lifecycle, 1, 0) != 0)
             return;
-
-        if (Mailbox is null)
-            throw new InvalidOperationException("Mailbox must be set before starting the actor.");
-
-        // start producer
-        var producer = _supervisor.GetJSProducer(_actorId);
-        await producer.StartAsync(_actorId).ConfigureAwait(false);
-        _serviceId = typeof(TActor).Name;
-        _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
-
-        // initialize event actor context
-        _context = new EventActorContext(_supervisor, _actorId);
-        await OnStartup(_context).ConfigureAwait(false);
-        IsRunning = true;
+        try
+        {
+            var producer = _supervisor.GetJSProducer(_actorId);
+            await producer.StartAsync(_actorId).ConfigureAwait(false);
+            _serviceId = typeof(TActor).Name;
+            _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
+            _context = new EventActorContext(_supervisor, _actorId);
+            await OnStartup(_context).ConfigureAwait(false);
+            Volatile.Write(ref _lifecycle, 2);
+        }
+        catch
+        {
+            Volatile.Write(ref _lifecycle, 0);
+            throw;
+        }
     }
 
     /// <summary>
@@ -61,26 +67,26 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     /// </summary>
     public async ValueTask StopAsync()
     {
-        if (!IsRunning)
+        if (Interlocked.CompareExchange(ref _lifecycle, 3, 2) != 2)
             return;
-
-        var producer = _supervisor.GetProducer(_actorId);
-        await producer.StopAsync().ConfigureAwait(false);
-        _logger.LogInformation("Stopped {MailboxId} producer.", _actorId);
-
-        await _supervisor.StopAsync(_actorId).ConfigureAwait(false);
-        await OnShutdown(_context!).ConfigureAwait(false);
-
-        IsRunning = false;
+        try
+        {
+            var producer = _supervisor.GetJSProducer(_actorId);
+            await producer.StopAsync().ConfigureAwait(false);
+            _logger.LogInformation("Stopped {MailboxId} producer.", _actorId);
+            await OnShutdown(_context!).ConfigureAwait(false);
+        }
+        finally
+        {
+            Volatile.Write(ref _lifecycle, 0);
+        }
     }
 
     /// <summary>
     /// Handles an incoming message by validating and receiving.
     /// </summary>
-    public async ValueTask HandleMessageAsync(IActorMessage message)
-    {
-        await HandleMessageAsync(message, message.Subject.ThreadId);
-    }
+    public ValueTask HandleMessageAsync(IActorMessage message)
+        => HandleMessageAsync(message, message.Subject.ThreadId);
 
     /// <summary>
     /// Handles an incoming message using a pre-resolved thread identifier, avoiding redundant subject parsing.

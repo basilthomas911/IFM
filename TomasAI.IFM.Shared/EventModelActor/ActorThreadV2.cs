@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using NATS.Client.Core;
 using System.Runtime.CompilerServices;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -7,289 +6,232 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Shared.EventModelActor;
 
 /// <summary>
-/// Represents a thread responsible for processing messages for a single actor within an actor-based system. This class
-/// manages the lifecycle and state of the actor thread, ensuring that messages are handled in a thread-safe manner.
+/// One asynchronous worker in the shared actor scheduler.
 /// </summary>
-/// <remarks>This class is sealed and cannot be inherited. It coordinates message processing, thread state
-/// transitions, and error handling for the actor thread. Thread safety is maintained throughout the message processing
-/// lifecycle. The actor thread is managed by the provided supervisor and logs relevant events using the specified
-/// logger.</remarks>
-/// <param name="supervisor">The supervisor that manages the lifecycle and supervision of the actor associated with this thread. Cannot be null.</param>
-/// <param name="logger">The logger used to record events and errors related to the actor thread. Cannot be null.</param>
-sealed class ActorThreadV2(IActorSupervisor supervisor, ILogger logger) : IActorThread, IDisposable
+/// <remarks>
+/// Workers no longer own a mutable entity assignment. They take scheduled mailboxes from a shared ready queue,
+/// process a bounded batch, and then either republish the mailbox or retire it. Queue scheduling guarantees that no
+/// two workers process the same actor/entity concurrently.
+/// </remarks>
+sealed class ActorThreadV2(
+    IActorSupervisor supervisor,
+    ILogger logger,
+    ActorReadyQueue readyQueue) : IActorThread, IAsyncDisposable, IDisposable
 {
-    static readonly TimeSpan IdleDrainTimeout = TimeSpan.FromMilliseconds(50);
-    readonly ILogger? _logger = IsArgumentNull.Set(logger);
+    const int MaxBatchSize = 64;
+    readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
-    readonly SemaphoreSlim _messageAvailableSignal = new(0);
+    readonly ActorReadyQueue _readyQueue = IsArgumentNull.Set(readyQueue);
     readonly CancellationTokenSource _cts = new();
     volatile ActorThreadState _state = ActorThreadState.Ready;
-    int _startOnce;
-    Exception? _exception;
     Task? _processingTask;
-    bool _disposed;
+    Exception? _exception;
+    int _startOnce;
+    int _stopOnce;
+    int _disposeOnce;
 
     public ActorThreadId Id { get; set; }
 
-    /// <summary>
-    /// Synchronously enqueues the message to the thread queue and signals the processing loop.
-    /// </summary>
-    /// <param name="message">The message to enqueue for the actor.</param>
-    /// <returns><see langword="true"/> if the message was successfully written; otherwise, <see langword="false"/>.</returns>
     public bool Post(IActorMessage message)
     {
-        var msgSubject = message.Subject;
-        Id = msgSubject.ThreadId;
-        var actor = _supervisor.Children[Id.MailboxId];
-        var threadQueue = actor.Mailbox.ThreadQueues.GetThreadQueue(Id);
-        threadQueue.Start();
-        var written = threadQueue.Write(message);
-        if (written)
-            SignalMessageAvailable(Id);
-        return written;
+        var subject = message.Subject;
+        if (!_supervisor.Children.TryGetValue(subject.ActorId, out var actor))
+            throw new KeyNotFoundException($"Actor with mailbox id '{subject.ActorId}' not found.");
+        return actor.Mailbox.ThreadQueues.Write(message, subject);
     }
 
-    /// <summary>
-    /// Asynchronously enqueues the specified message to the thread queue associated with the target actor.
-    /// </summary>
-    /// <remarks>Uses a sync fast-path to avoid async state machine allocation when
-    /// <see cref="IActorThreadQueue.EnqueueAsync"/> completes synchronously (common case with
-    /// a non-full bounded channel).</remarks>
-    /// <param name="message">The message to enqueue, containing the subject and payload data for the actor.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-    /// <returns>A value task that represents the asynchronous enqueue operation.</returns>
-    public ValueTask WriteToActorThreadQueueAsync(IActorMessage message, CancellationToken cancellationToken = default)
+    public ValueTask WriteToActorThreadQueueAsync(
+        IActorMessage message,
+        CancellationToken cancellationToken = default)
+        => WriteAsync(message, message.Subject, cancellationToken);
+
+    public ValueTask WriteToActorThreadQueueAsync(
+        IActorMessage message,
+        ActorSubject subject,
+        CancellationToken cancellationToken = default)
+        => WriteAsync(message, subject, cancellationToken);
+
+    ValueTask WriteAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken)
     {
-        var msgSubject = message.Subject;
-        Id = msgSubject.ThreadId;
-        var actor = _supervisor.Children[Id.MailboxId];
-        var threadQueue = actor.Mailbox.ThreadQueues.GetThreadQueue(Id);
-        var enqueueTask = threadQueue.EnqueueAsync(message, cancellationToken);
-        if (enqueueTask.IsCompletedSuccessfully)
-        {
-            SignalMessageAvailable(Id);
-            return ValueTask.CompletedTask;
-        }
-        return AwaitEnqueueAndSignalAsync(enqueueTask, Id);
+        if (!_supervisor.Children.TryGetValue(subject.ActorId, out var actor))
+            return ValueTask.FromException(
+                new KeyNotFoundException($"Actor with mailbox id '{subject.ActorId}' not found."));
+
+        var pending = actor.Mailbox.ThreadQueues.WriteAsync(message, subject, cancellationToken);
+        if (pending.IsCompletedSuccessfully)
+            return pending.Result
+                ? ValueTask.CompletedTask
+                : ValueTask.FromException(new InvalidOperationException("Actor mailbox rejected the message."));
+        return AwaitWrite(pending);
     }
 
-    /// <summary>
-    /// Asynchronously enqueues the specified message using a pre-parsed subject to avoid redundant parsing.
-    /// </summary>
-    /// <remarks>Uses a sync fast-path to avoid async state machine allocation when
-    /// <see cref="IActorThreadQueue.EnqueueAsync"/> completes synchronously.</remarks>
-    /// <param name="message">The message to enqueue.</param>
-    /// <param name="subject">The pre-parsed actor subject.</param>
-    /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>A value task representing the asynchronous operation.</returns>
-    public ValueTask WriteToActorThreadQueueAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default)
+    static async ValueTask AwaitWrite(ValueTask<bool> pending)
     {
-        Id = subject.ThreadId;
-        var actor = _supervisor.Children[Id.MailboxId];
-        var threadQueue = actor.Mailbox.ThreadQueues.GetThreadQueue(Id);
-        var enqueueTask = threadQueue.EnqueueAsync(message, cancellationToken);
-        if (enqueueTask.IsCompletedSuccessfully)
-        {
-            SignalMessageAvailable(Id);
-            return ValueTask.CompletedTask;
-        }
-        return AwaitEnqueueAndSignalAsync(enqueueTask, Id);
+        if (!await pending.ConfigureAwait(false))
+            throw new InvalidOperationException("Actor mailbox rejected the message.");
     }
 
-    /// <summary>
-    /// Async fallback for <see cref="WriteToActorThreadQueueAsync"/> when the enqueue operation
-    /// does not complete synchronously. Kept out-of-line so the JIT can inline the fast path.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    async ValueTask AwaitEnqueueAndSignalAsync(ValueTask enqueueTask, ActorThreadId threadId)
-    {
-        await enqueueTask.ConfigureAwait(false);
-        SignalMessageAvailable(threadId);
-    }
-
-    /// <summary>
-    /// Starts the actor thread's long-lived processing task.
-    /// </summary>
-    /// <remarks>This method creates a single background task that parks on the assignment signal between
-    /// work assignments. It should be called once during pool initialization. Subsequent calls have no effect.
-    /// Uses <see cref="Interlocked.CompareExchange"/> for thread-safe guard to prevent
-    /// double task creation under concurrent calls.</remarks>
-    /// <returns><see langword="true"/> if the thread was successfully started; otherwise, <see langword="false"/>.</returns>
     public bool Start()
     {
         if (Interlocked.CompareExchange(ref _startOnce, 1, 0) == 0)
         {
             _state = ActorThreadState.Started;
-            _processingTask = Task.Run(ProcessAssignmentsAsync);
+            _processingTask = Task.Run(ProcessReadyMailboxesAsync);
         }
         return true;
     }
 
-    /// <summary>
-    /// Signals that a message is available for processing by the specified actor thread.
-    /// </summary>
-    /// <remarks>Call this method to notify the actor thread represented by the specified thread ID that it
-    /// can process a pending message. This is typically used in actor-based concurrency models to coordinate message
-    /// handling between threads.</remarks>
-    /// <param name="threadId">The identifier of the actor thread to be notified that a message is ready for processing.</param>
+    public bool Start(IActor actor, ActorThreadId threadId) => Start();
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SignalMessageAvailable(ActorThreadId threadId)
     {
-        Id = threadId;
-        _messageAvailableSignal.Release();
-    }
-    
-
-    /// <summary>
-    /// Starts the actor thread and assigns it the specified actor and thread identifier.
-    /// </summary>
-    /// <remarks>Sets the thread identity so that <see cref="ProcessAssignmentsAsync"/> can resolve
-    /// the correct actor and thread queue when signalled. Does not signal; the caller is responsible
-    /// for signalling after enqueuing a message.</remarks>
-    /// <param name="actor">The actor to associate with this thread. Cannot be <see langword="null"/>.</param>
-    /// <param name="threadId">The identifier of the thread to start. Cannot be <see langword="null"/>.</param>
-    /// <returns><see langword="true"/> if the thread was successfully started; otherwise, <see langword="false"/>.</returns>
-    public bool Start(IActor actor, ActorThreadId threadId)
-    {
-        Id = threadId;
-        Start();
-        return true;
+        if (!_readyQueue.Schedule(threadId) && Volatile.Read(ref _stopOnce) == 0)
+            throw new InvalidOperationException("The actor scheduler is not accepting work.");
     }
 
-    /// <summary>
-    /// Stops the actor thread and releases its resources.
-    /// </summary>
-    /// <remarks>This method cancels the long-lived processing task and releases the assignment signal
-    /// to unblock any pending wait. If the thread is already stopped, the method has no effect.</remarks>
-    /// <returns><see langword="true"/> to indicate that the stop operation was completed successfully.</returns>
     public bool Stop()
     {
-        if (!IsStopped)
+        if (Interlocked.Exchange(ref _stopOnce, 1) == 0)
         {
             _state = ActorThreadState.Stopped;
             _cts.Cancel();
-            _messageAvailableSignal.Release();
         }
         return true;
     }
 
-    // Include state checks for runtime status.
-    public bool IsRunning { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _state == ActorThreadState.ProcessingMessage || _state == ActorThreadState.WaitingForMessage; }
-    public bool IsStarted { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _state == ActorThreadState.Started || _state == ActorThreadState.ProcessingMessage || _state == ActorThreadState.WaitingForMessage; }
-    public bool IsStopped { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _state == ActorThreadState.Stopped; }
-    public bool IsFaulted { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _state == ActorThreadState.Faulted; }
-    public bool IsTimedOut { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _state == ActorThreadState.TimedOut; }
-    public ActorThreadState State { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => _state; }
+    public bool IsRunning => _state is ActorThreadState.ProcessingMessage or ActorThreadState.WaitingForMessage;
+    public bool IsStarted => _state is ActorThreadState.Started or ActorThreadState.ProcessingMessage or ActorThreadState.WaitingForMessage;
+    public bool IsStopped => _state == ActorThreadState.Stopped;
+    public bool IsFaulted => _state == ActorThreadState.Faulted;
+    public bool IsTimedOut => _state == ActorThreadState.TimedOut;
+    public ActorThreadState State => _state;
     public Exception? Exception => _exception;
+    internal Task Completion => _processingTask ?? Task.CompletedTask;
 
-    
-    /// <summary>
-    /// Marks the actor thread as faulted and sets the associated exception.
-    /// </summary>
-    /// <param name="ex">The exception that caused the fault. This parameter cannot be <see langword="null"/>.</param>
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    void SetFaulted(Exception ex)
+    async Task ProcessReadyMailboxesAsync()
     {
-        _state = ActorThreadState.Faulted;
-        _exception = ex;
-    }
-
-    /// <summary>
-    /// Releases the resources used by this actor thread, including the cancellation token source
-    /// and assignment signal semaphore.
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        Stop();
-        _cts.Dispose();
-        _messageAvailableSignal.Dispose();
-    }
-
-    /// <summary>
-    /// Long-lived processing loop that parks between work assignments.
-    /// </summary>
-    /// <remarks>The loop waits on the assignment signal, processes all messages from the assigned actor's
-    /// thread queue, then releases the thread back to the pool and parks again. The task runs for the lifetime
-    /// of the thread and is only terminated via cancellation (Stop).</remarks>
-    async Task ProcessAssignmentsAsync()
-    {
-        var ct = _cts.Token;
+        var cancellationToken = _cts.Token;
         try
         {
-            while (!ct.IsCancellationRequested)
+            _state = ActorThreadState.WaitingForMessage;
+            await foreach (var threadId in _readyQueue.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
                 try
                 {
+                    await ProcessMailboxAsync(threadId, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogErrorEvent(threadId.ToString(), exception,
+                        "Actor worker recovered from a mailbox infrastructure failure.");
                     _state = ActorThreadState.WaitingForMessage;
-                    await _messageAvailableSignal.WaitAsync(ct).ConfigureAwait(false);
-                    if (ct.IsCancellationRequested)
-                        break;
-
-                    if (Id == null)
-                    {
-                        if (_logger is not null && _logger.IsEnabled(LogLevel.Debug))
-                            _logger.LogDebug("ActorThread: Received signal for message availability but thread ID is not set. Ignoring signal.");
-                        continue;
-                    }
-                    var threadId = Id;
-                    if (_logger is not null && _logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("ActorThread {ThreadId}: processing actor thread messages", threadId);
-                    var actor = _supervisor.Children[threadId.MailboxId];
-                    var threadQueue = actor.Mailbox.ThreadQueues.GetThreadQueue(threadId);
-
-                    // Drain loop: process all available messages, then wait briefly for more
-                    // before releasing the thread back to the pool. This avoids release/re-acquire
-                    // churn under steady message load.
-                    bool keepDraining = true;
-                    while (keepDraining)
-                    {
-                        await foreach (var message in threadQueue.ReadAllAsync(ct).ConfigureAwait(false))
-                        {
-                            try
-                            {
-                                _state = ActorThreadState.ProcessingMessage;
-                                await actor.HandleMessageAsync(message, threadId).ConfigureAwait(false);
-                                _state = ActorThreadState.WaitingForMessage;
-                            }
-                            finally
-                            {
-                                message.Dispose();
-                            }
-                        }
-
-                        // Wait briefly for more messages before releasing the thread.
-                        // If a new signal arrives within the window, drain again.
-                        keepDraining = await _messageAvailableSignal.WaitAsync(IdleDrainTimeout, ct).ConfigureAwait(false);
-                    }
-
-                    // Release thread back to pool for reuse without stopping the task.
-                    _supervisor.ThreadPool.ReleaseThread(threadId);
-
-                    // Release thread queue to prevent unbounded memory growth.
-                    actor.Mailbox.ThreadQueues.ReleaseThreadQueue(threadId);
-
-                    // Drain accumulated semaphore signals to prevent spurious wake-ups
-                    // that would re-enter the loop with a stale Id and block on an empty queue.
-                    while (_messageAvailableSignal.Wait(0)) { }
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    if (_logger is not null && _logger.IsEnabled(LogLevel.Error))
-                        _logger.LogErrorEvent(Id.ToString(), ex, "error processing message in actor thread queue.");
                 }
             }
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _logger?.LogErrorEvent("ActorThread", ex, "ProcessAssignmentsAsync: error in assignment processing loop.");
-            SetFaulted(ex);
+        }
+        catch (Exception exception)
+        {
+            _exception = exception;
+            _state = ActorThreadState.Faulted;
+            _logger.LogErrorEvent("ActorThread", exception, "Actor worker terminated unexpectedly.");
+        }
+        finally
+        {
+            if (_state != ActorThreadState.Faulted)
+                _state = ActorThreadState.Stopped;
         }
     }
 
+    async ValueTask ProcessMailboxAsync(ActorThreadId threadId, CancellationToken cancellationToken)
+    {
+        if (!_supervisor.Children.TryGetValue(threadId.MailboxId, out var actor)
+            || !actor.Mailbox.ThreadQueues.TryGetThreadQueue(threadId, out var queue)
+            || queue is not IScheduledActorThreadQueue scheduled)
+        {
+            return;
+        }
+
+        Id = threadId;
+        try
+        {
+            while (true)
+            {
+                var processed = 0;
+                while (processed < MaxBatchSize
+                       && !cancellationToken.IsCancellationRequested
+                       && scheduled.TryRead(out var message))
+                {
+                    try
+                    {
+                        _state = ActorThreadState.ProcessingMessage;
+                        await actor.HandleMessageAsync(message!, threadId).ConfigureAwait(false);
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.LogErrorEvent(threadId.ToString(), exception,
+                            "Error processing a message in the actor mailbox.");
+                    }
+                    finally
+                    {
+                        message?.Dispose();
+                    }
+
+                    processed++;
+                }
+
+                _state = ActorThreadState.WaitingForMessage;
+                if (!scheduled.CompleteDrain())
+                {
+                    actor.Mailbox.ThreadQueues.ReleaseThreadQueue(threadId);
+                    return;
+                }
+
+                if (_readyQueue.Schedule(threadId))
+                    return;
+
+                if (!_readyQueue.IsCompleted || cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogError("Unable to reschedule actor mailbox {ThreadId}.", threadId);
+                    return;
+                }
+
+                // Graceful pool shutdown: the ready queue no longer accepts another batch, so this worker retains
+                // ownership and drains the mailbox before its processing task completes.
+            }
+        }
+        catch
+        {
+            _state = ActorThreadState.WaitingForMessage;
+            if (scheduled.CompleteDrain())
+                _readyQueue.Schedule(threadId);
+            else
+                actor.Mailbox.ThreadQueues.ReleaseThreadQueue(threadId);
+            throw;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposeOnce, 1) != 0)
+            return;
+
+        Stop();
+        if (_processingTask is not null)
+        {
+            try
+            {
+                await _processingTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+            {
+            }
+        }
+        _cts.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 }
