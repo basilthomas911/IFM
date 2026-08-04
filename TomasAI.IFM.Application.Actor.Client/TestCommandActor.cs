@@ -24,9 +24,9 @@ public class TestCommandActor(ILogger<TestCommandActor> logger)
     /// <param name="context">The context in which the command actor operates. This provides access to actor-specific resources and state.</param>
     /// <param name="message">The message to be parsed, containing the subject and payload required to resolve the command.</param>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not match the expected command format for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext context, in NatsMsg<byte[]> message)
+    protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
     {
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         ICommand command = default(ICommand) switch
         {
             _ when msgSubject.Is(ActorType.Command, ActorName, "TestCommand") => message.AsCommand<TestCommand>()!,

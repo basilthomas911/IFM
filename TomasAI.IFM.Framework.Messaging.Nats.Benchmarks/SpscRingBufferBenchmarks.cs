@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.Benchmarks;
 public class SpscRingBufferBenchmarks
 {
     NatsActorSpscRingBuffer _ring = null!;
-    NatsMsg<byte[]> _message;
+    NatsActorMessage _message = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -21,7 +21,7 @@ public class SpscRingBufferBenchmarks
             spinCountEnqueue: 64,
             spinCountDequeue: 64);
         _ring.Start();
-        _message = default;
+        _message = new NatsActorMessage(default);
     }
 
     [GlobalCleanup]

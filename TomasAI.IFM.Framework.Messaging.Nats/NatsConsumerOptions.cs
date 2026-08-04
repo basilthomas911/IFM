@@ -26,4 +26,7 @@ public class NatsConsumerOptions : INatsConsumerOptions
 
     /// <inheritdoc />
     public int DispatcherCount { get; set; } = 4;
+
+    /// <inheritdoc />
+    public bool UseOwnedCommandPayloads { get; set; } = true;
 }

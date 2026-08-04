@@ -11,7 +11,7 @@ public interface IActorThreadScheduler
 {
     void Start(IActorThreadQueue threadQueue);
     void Stop();
-    bool WriteData(in NatsMsg<byte[]> message);
+    bool WriteData(IActorMessage message);
 
     bool IsRunning { get; }
 }

@@ -74,10 +74,10 @@ public class FundCommandActor(
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor, or if command resolution
     /// fails.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext context, in NatsMsg<byte[]> message)
+    protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Command, Name: Actor }
             || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {message.Subject}");
@@ -94,7 +94,7 @@ public class FundCommandActor(
     /// their verb. Each entry associates a specific command verb with a function that converts a NATS message payload
     /// into a strongly typed command object implementing the ICommand interface. The mapping is intended for internal
     /// use in command deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, ICommand>> _parseMap = new()
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
     {
         [AddOrderToFundCommand.Verb] = msg => msg.AsCommand<AddOrderToFundCommand>()!,
         [AddTradeToFundOrderCommand.Verb] = msg => msg.AsCommand<AddTradeToFundOrderCommand>()!,

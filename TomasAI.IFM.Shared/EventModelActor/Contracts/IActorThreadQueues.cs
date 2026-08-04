@@ -8,9 +8,9 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// </summary>
 public interface IActorThreadQueues
 {
-    void Write(in NatsMsg<byte[]> message, ActorSubject subject, CancellationToken cancellationToken = default);
-    ValueTask WriteAsync(NatsMsg<byte[]> message, CancellationToken cancellationToken = default);
-    ValueTask WriteAsync(NatsMsg<byte[]> message, ActorSubject subject, CancellationToken cancellationToken = default);
+    bool Write(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default);
+    ValueTask<bool> WriteAsync(IActorMessage message, CancellationToken cancellationToken = default);
+    ValueTask<bool> WriteAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default);
     IActorThreadQueue GetThreadQueue(ActorThreadId threadId);
     void ReleaseThreadQueue(ActorThreadId threadId);    
     int Count { get; }

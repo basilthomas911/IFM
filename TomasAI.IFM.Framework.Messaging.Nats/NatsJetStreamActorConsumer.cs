@@ -325,7 +325,16 @@ public class NatsJetStreamActorConsumer(
             {
                 var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
                     ?? throw new InvalidOperationException($"Actor not found in context children for mailbox {msgSubject.ActorId}");
-                actor.Mailbox.ThreadQueues.Write(msg, msgSubject, CancellationToken.None);
+                var actorMessage = new NatsActorMessage(msg);
+                var accepted = await actor.Mailbox.ThreadQueues.WriteAsync(
+                    actorMessage,
+                    msgSubject,
+                    CancellationToken.None).ConfigureAwait(false);
+                if (!accepted)
+                {
+                    actorMessage.Dispose();
+                    throw new InvalidOperationException($"Mailbox rejected JetStream message for {msgSubject.ActorId}.");
+                }
                 if (!isRoutedMessage)
                 {
                     await _supervisor.RouteEventToAsync(msg).ConfigureAwait(false);

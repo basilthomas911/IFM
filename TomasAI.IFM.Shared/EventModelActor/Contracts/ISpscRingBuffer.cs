@@ -14,8 +14,8 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// support, as well as lifecycle management for starting and stopping the associated operation. The buffer is intended
 /// for scenarios where a single producer and a single consumer interact concurrently. Proper management of the buffer's
 /// lifecycle is required to avoid resource leaks and ensure correct operation.</remarks>
-/// <typeparam name="TMessage">The value type of messages stored in the ring buffer. Must be a struct to ensure efficient storage and access.</typeparam>
-public interface ISpscRingBuffer<TMessage> where TMessage : struct
+/// <typeparam name="TMessage">The message type stored in the ring buffer.</typeparam>
+public interface ISpscRingBuffer<TMessage>
 {
     /// <summary>
     /// Gets the logical capacity of the ring buffer (power of two).

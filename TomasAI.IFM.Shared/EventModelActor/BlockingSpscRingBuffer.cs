@@ -52,7 +52,7 @@ struct PaddedInt
 /// </para>
 /// </remarks>
 public sealed class BlockingSpscRingBuffer<TMessage>
- : ISpscRingBuffer<TMessage>, IDisposable where TMessage : struct
+ : ISpscRingBuffer<TMessage>, IDisposable
 {
     // rented backing storage (may be larger than logical capacity)
     ArrayPool<TMessage> _pool;

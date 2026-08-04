@@ -36,9 +36,9 @@ sealed class ActorThreadV2(IActorSupervisor supervisor, ILogger logger) : IActor
     /// </summary>
     /// <param name="message">The message to enqueue for the actor.</param>
     /// <returns><see langword="true"/> if the message was successfully written; otherwise, <see langword="false"/>.</returns>
-    public bool Post(in NatsMsg<byte[]> message)
+    public bool Post(IActorMessage message)
     {
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         Id = msgSubject.ThreadId;
         var actor = _supervisor.Children[Id.MailboxId];
         var threadQueue = actor.Mailbox.ThreadQueues.GetThreadQueue(Id);
@@ -58,9 +58,9 @@ sealed class ActorThreadV2(IActorSupervisor supervisor, ILogger logger) : IActor
     /// <param name="message">The message to enqueue, containing the subject and payload data for the actor.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A value task that represents the asynchronous enqueue operation.</returns>
-    public ValueTask WriteToActorThreadQueueAsync(NatsMsg<byte[]> message, CancellationToken cancellationToken = default)
+    public ValueTask WriteToActorThreadQueueAsync(IActorMessage message, CancellationToken cancellationToken = default)
     {
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         Id = msgSubject.ThreadId;
         var actor = _supervisor.Children[Id.MailboxId];
         var threadQueue = actor.Mailbox.ThreadQueues.GetThreadQueue(Id);
@@ -82,7 +82,7 @@ sealed class ActorThreadV2(IActorSupervisor supervisor, ILogger logger) : IActor
     /// <param name="subject">The pre-parsed actor subject.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A value task representing the asynchronous operation.</returns>
-    public ValueTask WriteToActorThreadQueueAsync(NatsMsg<byte[]> message, ActorSubject subject, CancellationToken cancellationToken = default)
+    public ValueTask WriteToActorThreadQueueAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default)
     {
         Id = subject.ThreadId;
         var actor = _supervisor.Children[Id.MailboxId];
@@ -247,9 +247,16 @@ sealed class ActorThreadV2(IActorSupervisor supervisor, ILogger logger) : IActor
                     {
                         await foreach (var message in threadQueue.ReadAllAsync(ct).ConfigureAwait(false))
                         {
-                            _state = ActorThreadState.ProcessingMessage;
-                            await actor.HandleMessageAsync(message, threadId).ConfigureAwait(false);
-                            _state = ActorThreadState.WaitingForMessage;
+                            try
+                            {
+                                _state = ActorThreadState.ProcessingMessage;
+                                await actor.HandleMessageAsync(message, threadId).ConfigureAwait(false);
+                                _state = ActorThreadState.WaitingForMessage;
+                            }
+                            finally
+                            {
+                                message.Dispose();
+                            }
                         }
 
                         // Wait briefly for more messages before releasing the thread.

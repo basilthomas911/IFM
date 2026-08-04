@@ -27,7 +27,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// This avoids the classic "lose one slot" problem of masked-index ring buffers.
 /// </para>
 /// </remarks>
-public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[]>>
+public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage>
 {
     // === Cache-line isolation to avoid false sharing ===
     // Each PaddedInt occupies 128 bytes with Value centered at offset 64,
@@ -39,8 +39,8 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
     }
 
     // rented backing storage (may be larger than logical capacity)
-    ArrayPool<NatsMsg<byte[]>> _pool = default!;
-    NatsMsg<byte[]>[] _buffer = default!;
+    ArrayPool<IActorMessage> _pool = default!;
+    IActorMessage[] _buffer = default!;
     readonly int _capacity;      // logical capacity (power of two)
     readonly int _mask;          // = _capacity - 1
 
@@ -131,7 +131,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
         ThrowIfDisposed();
         if (_started)
             return;
-        _pool = ArrayPool<NatsMsg<byte[]>>.Shared;
+        _pool = ArrayPool<IActorMessage>.Shared;
         _buffer = _pool.Rent(_capacity);
         Volatile.Write(ref _started, true);
     }
@@ -145,6 +145,12 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
     {
         if (_disposed || _pool is null || _buffer is null)
             return;
+
+        // A direct ring-buffer user may stop without first draining through
+        // NatsActorThreadQueue. The ring owns every message still in its slots.
+        while (TryDequeue(out var pendingMessage))
+            pendingMessage.Dispose();
+
         _disposed = true;
 
         // Release a parked producer/consumer before closing the wait handles.
@@ -162,7 +168,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
     /// <summary>
     /// Enqueues an item, blocking (cancellable) when the buffer is full. Uses spin-then-park strategy.
     /// </summary>
-    public void Enqueue(in NatsMsg<byte[]> item, CancellationToken cancellationToken = default)
+    public void Enqueue(in IActorMessage item, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
@@ -191,7 +197,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
     /// <summary>
     /// Dequeues and returns the next item, blocking (cancellable) when the buffer is empty. Uses spin-then-park.
     /// </summary>
-    public NatsMsg<byte[]>  Dequeue(CancellationToken cancellationToken = default)
+    public IActorMessage Dequeue(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
@@ -221,7 +227,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
     /// Called only by the producer thread.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    bool TryEnqueue(NatsMsg<byte[]> item)
+    public bool TryEnqueue(IActorMessage item)
     {
         // Producer owns _head — plain read is safe (only this thread writes it).
         int head = _head.Value;
@@ -254,7 +260,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
     /// Called only by the consumer thread.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    bool TryDequeue(out NatsMsg<byte[]> item)
+    public bool TryDequeue(out IActorMessage item)
     {
         // Consumer owns _tail — plain read is safe (only this thread writes it).
         int tail = _tail.Value;

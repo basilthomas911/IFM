@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// blocking operations that can be cancelled via a <see cref="CancellationToken"/>. The buffer's capacity is a power of
 /// two, and the <see cref="Count"/> property provides an approximate count of items, useful for diagnostics.</remarks>
 /// <typeparam name="TMessage">The type of messages stored in the buffer. Must be a value type.</typeparam>
-public interface IActorSpscRingBuffer<TMessage> where TMessage : struct
+public interface IActorSpscRingBuffer<TMessage>
 {
     /// <summary>
     /// Gets the logical capacity of the ring buffer (power of two).
@@ -35,6 +35,10 @@ public interface IActorSpscRingBuffer<TMessage> where TMessage : struct
     /// <param name="cancellationToken">A token to observe while waiting for an item to become available.</param>
     /// <returns>The dequeued message.</returns>
     TMessage Dequeue(CancellationToken cancellationToken = default);
+
+    bool TryEnqueue(TMessage item);
+
+    bool TryDequeue(out TMessage item);
 
     /// <summary>
     /// Starts the operation or process associated with this instance.

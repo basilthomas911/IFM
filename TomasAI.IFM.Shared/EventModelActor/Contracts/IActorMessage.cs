@@ -1,3 +1,4 @@
+using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -9,7 +10,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// <remarks>This interface provides methods to convert the message into specific types  of actor messages, such
 /// as commands, events, or queries, and to send replies  asynchronously. It also exposes the subject of the message,
 /// which identifies  the actor or entity associated with the message.</remarks>
-public interface IActorMessage 
+public interface IActorMessage : IDisposable
 {
     TCommand? AsCommand<TCommand>() where TCommand : class, ICommand;
     TEvent? AsEvent<TEvent>() where TEvent : class, IEvent;
@@ -17,6 +18,18 @@ public interface IActorMessage
         where TQuery : class, IQuery<TResult>
         where TResult : class;
     ValueTask ReplyAsync<TResult>(TResult result) where TResult : class;
+
+    /// <summary>
+    /// Releases owned payload storage after a typed message has been materialized.
+    /// Implementations must make this operation idempotent.
+    /// </summary>
+    void ReleasePayload();
+
+    /// <summary>
+    /// Returns the legacy byte-array NATS message while query and event processing remain on the staged legacy path.
+    /// Owned command messages do not support this operation.
+    /// </summary>
+    NatsMsg<byte[]> GetMessage();
 
     ActorSubject Subject { get; }
 

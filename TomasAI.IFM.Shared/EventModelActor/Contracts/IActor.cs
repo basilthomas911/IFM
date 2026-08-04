@@ -1,4 +1,3 @@
-using NATS.Client.Core;
 namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 /// <summary>
@@ -16,14 +15,14 @@ public interface IActor
     /// Handle an incoming message asynchronously.
     /// </summary>
     /// <param name="message">The message to process.</param>
-    ValueTask HandleMessageAsync(NatsMsg<byte[]> message);
+    ValueTask HandleMessageAsync(IActorMessage message);
 
     /// <summary>
     /// Handle an incoming message with a pre-resolved thread identifier, avoiding redundant subject parsing.
     /// </summary>
     /// <param name="message">The message to process.</param>
     /// <param name="threadId">The pre-resolved thread identifier from the caller.</param>
-    ValueTask HandleMessageAsync(NatsMsg<byte[]> message, ActorThreadId threadId)
+    ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
         => HandleMessageAsync(message);
 
     /// <summary>

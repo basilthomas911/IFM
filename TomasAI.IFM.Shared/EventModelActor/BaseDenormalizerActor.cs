@@ -98,10 +98,9 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
     /// <param name="message">The message to be processed, containing the subject and entity information.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
-    public async ValueTask HandleMessageAsync(NatsMsg<byte[]> message)
+    public async ValueTask HandleMessageAsync(IActorMessage message)
     {
-        var msgSubject = message.Subject.ToSubject();
-        await HandleMessageAsync(message, msgSubject.ThreadId);
+        await HandleMessageAsync(message, message.Subject.ThreadId);
     }
 
     /// <summary>
@@ -110,12 +109,12 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
     /// <param name="message">The message to be processed.</param>
     /// <param name="threadId">The pre-resolved thread identifier from the caller.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
-    public async ValueTask HandleMessageAsync(NatsMsg<byte[]> message, ActorThreadId threadId)
+    public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
     {
         IEvent @event = default!;
         try
         {
-            @event = ParseMessage(_context!, message);
+            @event = ParseMessage(_context!, message.GetMessage());
 
             /// process the message and get the result...
             await ReceiveAsync(_context!, threadId, @event);

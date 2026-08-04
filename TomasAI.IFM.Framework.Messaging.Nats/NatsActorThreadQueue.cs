@@ -20,7 +20,7 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
 {
     readonly IActorSupervisor _actorSupervisor = IsArgumentNull.Set(actorSupervisor);
     ActorThreadId _id = default!;
-    IActorSpscRingBuffer<NatsMsg<byte[]>> _buffer = default!;
+    IActorSpscRingBuffer<IActorMessage> _buffer = default!;
 
     /// <summary>
     /// Gets the unique identifier for the actor thread.
@@ -54,13 +54,13 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation. The default value is <see
     /// cref="CancellationToken.None"/>.</param>
     /// <returns>An <see cref="IAsyncEnumerable{T}"/> that yields <see cref="IActorMessage"/> instances as they are read.</returns>
-    public async IAsyncEnumerable<NatsMsg<byte[]>> ReadAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<IActorMessage> ReadAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         while (Read(out var natsMsg, cancellationToken))
         {
             yield return natsMsg;
         }
-        bool Read(out NatsMsg<byte[]> natsMsg, CancellationToken cancellationToken = default)
+        bool Read(out IActorMessage natsMsg, CancellationToken cancellationToken = default)
         {
             natsMsg = default!;
             if (!cancellationToken.IsCancellationRequested)
@@ -79,14 +79,14 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the read operation.</param>
     /// <returns>An enumerable collection of messages read from the buffer. The sequence ends when no more messages are available
     /// or the operation is canceled.</returns>
-    public IEnumerable<NatsMsg<byte[]>> ReadAll(CancellationToken cancellationToken = default)
+    public IEnumerable<IActorMessage> ReadAll(CancellationToken cancellationToken = default)
     {
         while (Read(out var natsMsg, cancellationToken))
         {
             yield return natsMsg;
         }
 
-        bool Read(out NatsMsg<byte[]> natsMsg, CancellationToken cancellationToken = default)
+        bool Read(out IActorMessage natsMsg, CancellationToken cancellationToken = default)
         {
             natsMsg = default!;
             if (!cancellationToken.IsCancellationRequested)
@@ -105,7 +105,7 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
     /// message processing. Ensure that the necessary dependencies are resolved before calling this method.</remarks>
     public void Start()
     {
-       _buffer = _actorSupervisor.Container.Resolve<IActorSpscRingBuffer<NatsMsg<byte[]>>>();
+       _buffer = _actorSupervisor.Container.Resolve<IActorSpscRingBuffer<IActorMessage>>();
         _buffer.Start();
     }
 
@@ -116,6 +116,8 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
     /// is no longer needed or before disposing of the containing object.</remarks>
     public void Stop()
     {
+        while (_buffer.TryDequeue(out var pending))
+            pending.Dispose();
         _buffer.Stop();
     }
 
@@ -127,19 +129,13 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
     /// is valid.</remarks>
     /// <param name="message">The actor message to be enqueued. Must implement <see cref="IActorMessage"/>.</param>
     /// <returns><see langword="true"/> if the message was successfully enqueued.</returns>
-    public bool Write(in NatsMsg<byte[]> message)
-    {
-        _buffer.Enqueue(message);
-        return true;
-    }
-
-    public bool Write(in NatsMsg<byte[]> message, CancellationToken cancellationToken = default)
+    public bool Write(IActorMessage message, CancellationToken cancellationToken = default)
     {
         _buffer.Enqueue(message, cancellationToken);
         return true;
     }
 
-    public ValueTask EnqueueAsync(NatsMsg<byte[]> message, CancellationToken cancellationToken = default)
+    public ValueTask EnqueueAsync(IActorMessage message, CancellationToken cancellationToken = default)
     {
         _buffer.Enqueue(message, cancellationToken);
         return ValueTask.CompletedTask;

@@ -49,10 +49,10 @@ public class SystemAdminCommandActor(
     /// <param name="message">The NATS message containing the command data to be parsed.</param>
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext context, in NatsMsg<byte[]> message)
+    protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
             || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
@@ -66,7 +66,7 @@ public class SystemAdminCommandActor(
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, ICommand>> _parseMap = new()
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
     {
         [BackupDatabaseCommand.Verb] = msg => msg.AsCommand<BackupDatabaseCommand>()!
     };

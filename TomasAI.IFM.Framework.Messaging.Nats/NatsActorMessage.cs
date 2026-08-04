@@ -14,24 +14,26 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// as the messaging infrastructure. It provides utility methods to deserialize the message payload into strongly-typed
 /// data structures, as well as a mechanism to send replies.</remarks>
 /// <param name="NatsMessage"></param>
-public record struct NatsActorMessage(NatsMsg<byte[]> NatsMessage)
-        : IActorMessage
+public sealed class NatsActorMessage(NatsMsg<byte[]> natsMessage)
+    : IActorMessage
 {
     static readonly NatsMessagePackDataSerializer  _dataSerializer = new();
     static readonly NatsByteArrayMessageSerializer _msgSerializer = new();
 
-    public readonly TCommand? AsCommand<TCommand>() where TCommand : class, ICommand
+    public NatsMsg<byte[]> NatsMessage { get; } = natsMessage;
+
+    public TCommand? AsCommand<TCommand>() where TCommand : class, ICommand
        => _dataSerializer.Deserialize<TCommand>(NatsMessage.Data!);
 
-    public readonly TEvent? AsEvent<TEvent>() where TEvent : class, IEvent
+    public TEvent? AsEvent<TEvent>() where TEvent : class, IEvent
         => _dataSerializer.Deserialize<TEvent>(NatsMessage.Data!);
 
-    public readonly TQuery? AsQuery<TQuery, TResult>() 
+    public TQuery? AsQuery<TQuery, TResult>()
         where TQuery : class,IQuery<TResult>
         where TResult : class
         => _dataSerializer.Deserialize<TQuery>(NatsMessage.Data!);
 
-    public  readonly async ValueTask ReplyAsync<TResult>(TResult result) where TResult : class
+    public async ValueTask ReplyAsync<TResult>(TResult result) where TResult : class
     {
         var data = _dataSerializer.Serialize(result);
         if (!string.IsNullOrEmpty(NatsMessage.ReplyTo))
@@ -40,13 +42,24 @@ public record struct NatsActorMessage(NatsMsg<byte[]> NatsMessage)
         }
     }
 
-    public readonly ActorSubject Subject 
+    public ActorSubject Subject
         => ToSubject(NatsMessage.Subject);
 
     public ActorSubject ReplySubject { get; set; } = default!;
 
-    public readonly NatsMsg<byte[]> GetMessage()
+    public NatsMsg<byte[]> GetMessage()
         => NatsMessage!;
+
+    public void ReleasePayload()
+    {
+        // Legacy byte[] messages are GC-owned. Query and event processing will be
+        // migrated to explicit ownership in later stages.
+    }
+
+    public void Dispose()
+    {
+        // No unmanaged or pooled ownership on the staged legacy path.
+    }
 
     static ActorSubject ToSubject(string subject)
         => subject.ToSubject();

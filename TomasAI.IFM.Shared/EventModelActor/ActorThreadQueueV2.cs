@@ -33,7 +33,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IDisposable
     volatile bool _started;
     bool _disposed;
     ActorThreadId _id;
-    BlockingSpscRingBuffer<NatsMsg<byte[]>>? _buffer;
+    BlockingSpscRingBuffer<IActorMessage>? _buffer;
     readonly object _startLock = new();
 
     public ActorThreadQueueV2(int capacity = DefaultCapacity, int spinEnqueue = DefaultSpinEnqueue, int spinDequeue = DefaultSpinDequeue)
@@ -69,7 +69,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IDisposable
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<NatsMsg<byte[]>> ReadAllAsync(
+    public async IAsyncEnumerable<IActorMessage> ReadAllAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var buf = _buffer;
@@ -80,7 +80,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IDisposable
         // Yielding with Task.Yield keeps the async enumerable cooperative.
         while (!cancellationToken.IsCancellationRequested)
         {
-            NatsMsg<byte[]> item;
+            IActorMessage item;
             try
             {
                 item = buf.Dequeue(cancellationToken);
@@ -102,7 +102,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IDisposable
     }
 
     /// <inheritdoc />
-    public IEnumerable<NatsMsg<byte[]>> ReadAll(CancellationToken cancellationToken = default)
+    public IEnumerable<IActorMessage> ReadAll(CancellationToken cancellationToken = default)
     {
         var buf = _buffer;
         if (buf is null)
@@ -116,7 +116,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IDisposable
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Write(in NatsMsg<byte[]> message, CancellationToken cancellationToken = default)
+    public bool Write(IActorMessage message, CancellationToken cancellationToken = default)
     { 
         var result = false;
         if (_buffer is not null)
@@ -129,7 +129,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IDisposable
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ValueTask EnqueueAsync(NatsMsg<byte[]> message, CancellationToken cancellationToken = default)
+    public ValueTask EnqueueAsync(IActorMessage message, CancellationToken cancellationToken = default)
     {
         _buffer!.Enqueue(message, cancellationToken);
         return default;
@@ -154,7 +154,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IDisposable
         {
             if (!_started)
             {
-                var buf = new BlockingSpscRingBuffer<NatsMsg<byte[]>>(
+                var buf = new BlockingSpscRingBuffer<IActorMessage>(
                     _capacity,
                     _spinEnqueue,
                     _spinDequeue);
@@ -171,6 +171,8 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IDisposable
         if (_buffer is null || !_started)
             return;
         _started = false;
+        while (_buffer.TryDequeue(out var pending))
+            pending.Dispose();
         _buffer.Stop();
         _buffer = null;
     }

@@ -14,10 +14,10 @@ public interface IActorThreadQueue
     IActorThreadQueue SetId(ActorThreadId id);
     ActorThreadId Id { get; }
     int Count { get; }
-    IAsyncEnumerable<NatsMsg<byte[]>> ReadAllAsync(CancellationToken cancellationToken = default);
-    IEnumerable<NatsMsg<byte[]>> ReadAll(CancellationToken cancellationToken = default);
-    bool Write(in NatsMsg<byte[]> message, CancellationToken cancellationToken = default);
-    ValueTask EnqueueAsync(NatsMsg<byte[]> message, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<IActorMessage> ReadAllAsync(CancellationToken cancellationToken = default);
+    IEnumerable<IActorMessage> ReadAll(CancellationToken cancellationToken = default);
+    bool Write(IActorMessage message, CancellationToken cancellationToken = default);
+    ValueTask EnqueueAsync(IActorMessage message, CancellationToken cancellationToken = default);
     void Start();
     void Stop();
 }

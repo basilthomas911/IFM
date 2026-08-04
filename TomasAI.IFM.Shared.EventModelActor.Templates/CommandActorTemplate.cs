@@ -26,7 +26,7 @@ public class CommandActorTemplate(
     readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
     IEventSourceActorStateRepository<CommandActorTemplateState> _repository = default!;
 
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, ICommand>> _parseMap = [];
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = [];
 
     static readonly Dictionary<string, Func<
         ICommand,
@@ -44,7 +44,7 @@ public class CommandActorTemplate(
         return ValueTask.CompletedTask;
     }
 
-    protected override ICommand ParseMessage(ICommandActorContext context, in NatsMsg<byte[]> message)
+    protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var subject = message.Subject.ToSubject();

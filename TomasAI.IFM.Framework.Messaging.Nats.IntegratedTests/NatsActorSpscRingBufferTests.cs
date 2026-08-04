@@ -66,7 +66,7 @@ public class NatsActorSpscRingBufferTests
  var buf = CreateAndStart(8);
  try
  {
- var msg = default(NatsMsg<byte[]>);
+ var msg = new NatsActorMessage(default);
 
  buf.Enqueue(msg);
  buf.Count.Should().Be(1);
@@ -87,7 +87,7 @@ public class NatsActorSpscRingBufferTests
  var buf = CreateAndStart(cap, spinEnq:1, spinDeq:1);
  try
  {
- var msg = default(NatsMsg<byte[]>);
+ var msg = new NatsActorMessage(default);
 
  // Monotonic sequence counters allow all logical slots to be used.
  for (int i =0; i < cap; i++) buf.Enqueue(msg);
@@ -115,7 +115,7 @@ public class NatsActorSpscRingBufferTests
  var buf = CreateAndStart(cap, spinEnq:1, spinDeq:1);
  try
  {
- var msg = default(NatsMsg<byte[]>);
+ var msg = new NatsActorMessage(default);
 
  for (int i =0; i < cap; i++) buf.Enqueue(msg);
 
@@ -162,7 +162,7 @@ public class NatsActorSpscRingBufferTests
  var buf = CreateAndStart(8, spinEnq:1, spinDeq:1);
  try
  {
- var msg = default(NatsMsg<byte[]>);
+ var msg = new NatsActorMessage(default);
 
  // Start a task that will block trying to dequeue
  var deqTask = Task.Run(() => buf.Dequeue(CancellationToken.None));
@@ -191,7 +191,7 @@ public class NatsActorSpscRingBufferTests
  var buf = CreateAndStart(cap, spinEnq:4, spinDeq:4);
  try
  {
- var msg = default(NatsMsg<byte[]>);
+ var msg = new NatsActorMessage(default);
 
  var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
  int produced =0;
@@ -241,7 +241,7 @@ public class NatsActorSpscRingBufferTests
  var buf = CreateAndStart(8);
  buf.Stop();
 
- var msg = default(NatsMsg<byte[]>);
+ var msg = new NatsActorMessage(default);
  Action act1 = () => buf.Enqueue(msg);
  act1.Should().Throw<ObjectDisposedException>();
  Action act2 = () => { var _ = buf.Dequeue(); };

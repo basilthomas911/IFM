@@ -21,6 +21,7 @@ public class SerializationBenchmarks
     FixedBufferWriter _writer = null!;
     BenchmarkEnvelope _envelope = null!;
     byte[] _serializedEnvelope = null!;
+    ReadOnlySequence<byte> _serializedEnvelopeSequence;
 
     [Params(256, 4096)]
     public int PayloadSize { get; set; }
@@ -41,6 +42,7 @@ public class SerializationBenchmarks
             Payload = _payload
         };
         _serializedEnvelope = _messagePack.Serialize(_envelope)!;
+        _serializedEnvelopeSequence = new ReadOnlySequence<byte>(_serializedEnvelope);
     }
 
     [Benchmark(Description = "NATS byte[] deserialize / single segment")]
@@ -74,6 +76,17 @@ public class SerializationBenchmarks
     [Benchmark(Description = "MessagePack envelope deserialize")]
     public BenchmarkEnvelope? DeserializeEnvelope()
         => _messagePack.Deserialize<BenchmarkEnvelope>(_serializedEnvelope);
+
+    [Benchmark(Description = "Inbound legacy byte[] copy + MessagePack")]
+    public BenchmarkEnvelope? DeserializeInboundLegacy()
+    {
+        var copiedPayload = _natsBytes.Deserialize(_serializedEnvelopeSequence)!;
+        return _messagePack.Deserialize<BenchmarkEnvelope>(copiedPayload);
+    }
+
+    [Benchmark(Description = "Inbound direct MessagePack from owned pooled sequence")]
+    public BenchmarkEnvelope? DeserializeInboundDirect()
+        => _directMessagePack.Deserialize(_serializedEnvelopeSequence);
 
     public sealed class BenchmarkEnvelope
     {

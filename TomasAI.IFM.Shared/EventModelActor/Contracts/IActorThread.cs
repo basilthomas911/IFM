@@ -1,5 +1,3 @@
-using NATS.Client.Core;
-
 namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 /// <summary>
@@ -22,7 +20,7 @@ public interface IActorThread
     /// </summary>
     /// <param name="message">The message to post.</param>
     /// <returns>True if the message was accepted for processing; otherwise false.</returns>
-    bool Post(in NatsMsg<byte[]> message);
+    bool Post(IActorMessage message);
 
     /// <summary>
     /// Asynchronously writes the specified message to the actor thread queue for processing.
@@ -34,7 +32,7 @@ public interface IActorThread
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation. The task completes when the message has
     /// been successfully enqueued.</returns>
-    ValueTask WriteToActorThreadQueueAsync(NatsMsg<byte[]> message, CancellationToken cancellationToken = default);
+    ValueTask WriteToActorThreadQueueAsync(IActorMessage message, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asynchronously writes the specified message to the actor thread queue using a pre-parsed subject
@@ -44,7 +42,7 @@ public interface IActorThread
     /// <param name="subject">The pre-parsed actor subject.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    ValueTask WriteToActorThreadQueueAsync(NatsMsg<byte[]> message, ActorSubject subject, CancellationToken cancellationToken = default);
+    ValueTask WriteToActorThreadQueueAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Starts the operation and indicates whether it was initiated successfully.

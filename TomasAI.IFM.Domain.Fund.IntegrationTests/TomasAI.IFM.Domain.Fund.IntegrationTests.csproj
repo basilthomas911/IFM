@@ -4,6 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- WebApplicationFactory runs Actor.IntegrationTests inside testhost, so the
+         test executable must mirror the source host's server-GC setting. -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>

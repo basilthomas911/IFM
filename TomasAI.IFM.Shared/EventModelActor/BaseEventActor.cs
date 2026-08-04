@@ -77,10 +77,9 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     /// <summary>
     /// Handles an incoming message by validating and receiving.
     /// </summary>
-    public async ValueTask HandleMessageAsync(NatsMsg<byte[]> message)
+    public async ValueTask HandleMessageAsync(IActorMessage message)
     {
-        var msgSubject = message.Subject.ToSubject();
-        await HandleMessageAsync(message, msgSubject.ThreadId);
+        await HandleMessageAsync(message, message.Subject.ThreadId);
     }
 
     /// <summary>
@@ -89,7 +88,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     /// <param name="message">The message to be processed.</param>
     /// <param name="threadId">The pre-resolved thread identifier from the caller.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
-    public async ValueTask HandleMessageAsync(NatsMsg<byte[]> message, ActorThreadId threadId)
+    public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
     {
         IEvent @event = default! ;
         try
@@ -99,7 +98,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
                 return;
 
 
-            @event =ParseMessage( _context!, message);
+            @event = ParseMessage(_context!, message.GetMessage());
             if (@event == null)
                 return;
 

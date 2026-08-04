@@ -18,10 +18,10 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </remarks>
 /// <param name="messageReader">A delegate that processes actor messages. Cannot be <see langword="null"/>.</param>
 /// <param name="logger">An optional logger instance for logging diagnostic information. Can be <see langword="null"/>.</param>
-public class ActorThreadScheduler(Func<NatsMsg<byte[]>, ValueTask> messageReader, ILogger logger)
+public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, ILogger logger)
         : IActorThreadScheduler
 {
-    readonly Func<NatsMsg<byte[]>, ValueTask> _messageReader = IsArgumentNull.Set(messageReader);
+    readonly Func<IActorMessage, ValueTask> _messageReader = IsArgumentNull.Set(messageReader);
     readonly CancellationTokenSource _cancellationTokenSource = new();
     readonly ILogger _logger = logger;
     readonly string _serviceId = "ActorThreadScheduler";
@@ -98,7 +98,7 @@ public class ActorThreadScheduler(Func<NatsMsg<byte[]>, ValueTask> messageReader
     /// written. This method does not throw exceptions for queue unavailability.</remarks>
     /// <param name="message">The message to be written. Contains the payload and associated metadata to be enqueued.</param>
     /// <returns>true if the message was successfully written to the thread queue; otherwise, false.</returns>
-    public bool WriteData(in NatsMsg<byte[]> message)
+    public bool WriteData(IActorMessage message)
         => _threadQueue is not null
                 ? _threadQueue.Write(message)
                 : false;

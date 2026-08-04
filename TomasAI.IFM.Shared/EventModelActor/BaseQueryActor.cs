@@ -97,10 +97,9 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     /// <param name="message">The message to be processed, containing the subject and entity information.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
-    public async ValueTask HandleMessageAsync(NatsMsg<byte[]> message)
+    public async ValueTask HandleMessageAsync(IActorMessage message)
     {
-        var msgSubject = message.Subject.ToSubject();
-        await HandleMessageAsync(message, msgSubject.ThreadId);
+        await HandleMessageAsync(message, message.Subject.ThreadId);
     }
 
     /// <summary>
@@ -109,13 +108,13 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     /// <param name="message">The message to be processed.</param>
     /// <param name="threadId">The pre-resolved thread identifier from the caller.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
-    public async ValueTask HandleMessageAsync(NatsMsg<byte[]> message, ActorThreadId threadId)
+    public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
     {
         IQuery query = default!;
         string verb = default!;
         try
         {
-            query = ParseMessage(_context!, message);
+            query = ParseMessage(_context!, message.GetMessage());
 
             /// check if the message is a command and validate it
             await OnValidateAsync(_context!, query);
@@ -125,7 +124,7 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
         }
         catch (Exception ex)
         {
-            verb = message.Subject.ExtractVerb();
+            verb = message.Subject.Verb;
             await OnExceptionAsync(_context!, threadId, query, verb, ex);
         }
     }

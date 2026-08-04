@@ -33,25 +33,29 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor)
     /// unexpected behavior.</remarks>
     /// <param name="message">The message to be sent. The <see cref="IActorMessage.Subject"/> property is used to determine the target thread
     /// queue.</param>
-    public void Write(in NatsMsg<byte[]> message)
+    public bool Write(IActorMessage message)
     {
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         var threadId = msgSubject.ThreadId;
         var thread = _supervisor.GetThread(threadId) ?? throw new InvalidOperationException($"Actor thread for id '{threadId}' not found when writing to mailbox '{msgSubject.ActorId}'.");
         var threadQueue = GetThreadQueue(threadId);
         threadQueue.Start();
-        if (threadQueue.Write(message))
-            thread.SignalMessageAvailable(threadId);
+        var accepted = threadQueue.Write(message);
+        if (accepted)
+            SignalAccepted(thread, threadId);
+        return accepted;
     }
 
-    public void Write(in NatsMsg<byte[]> message, ActorSubject msgSubject, CancellationToken cancellationToken = default)
+    public bool Write(IActorMessage message, ActorSubject msgSubject, CancellationToken cancellationToken = default)
     {
         var threadId = msgSubject.ThreadId;
         var thread = _supervisor.GetThread(threadId) ?? throw new InvalidOperationException($"Actor thread for id '{threadId}' not found when writing to mailbox '{msgSubject.ActorId}'.");
         var threadQueue = GetThreadQueue(threadId);
         threadQueue.Start();
-        if (threadQueue.Write(message, cancellationToken))
-            thread.SignalMessageAvailable(threadId);
+        var accepted = threadQueue.Write(message, cancellationToken);
+        if (accepted)
+            SignalAccepted(thread, threadId);
+        return accepted;
     }
 
     /// <summary>
@@ -68,9 +72,9 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor)
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation of writing the message to the actor thread
     /// queue.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the actor thread corresponding to the message's subject cannot be found.</exception>
-    public ValueTask WriteAsync(NatsMsg<byte[]> message, CancellationToken cancellationToken = default)
+    public ValueTask<bool> WriteAsync(IActorMessage message, CancellationToken cancellationToken = default)
     {
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         var threadId = msgSubject.ThreadId;
         var getThreadTask = _supervisor.GetThreadAsync(threadId, cancellationToken);
         if (getThreadTask.IsCompletedSuccessfully)
@@ -80,8 +84,8 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor)
             var enqueueTask = threadQueue.EnqueueAsync(message, cancellationToken);
             if (enqueueTask.IsCompletedSuccessfully)
             {
-                thread.SignalMessageAvailable(threadId);
-                return ValueTask.CompletedTask;
+                SignalAccepted(thread, threadId);
+                return ValueTask.FromResult(true);
             }
             return AwaitEnqueueAndSignalAsync(enqueueTask, thread, threadId);
         }
@@ -98,7 +102,7 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor)
     /// <param name="subject">The pre-parsed actor subject from the consumer.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="ValueTask"/> representing the async operation.</returns>
-    public ValueTask WriteAsync(NatsMsg<byte[]> message, ActorSubject subject, CancellationToken cancellationToken = default)
+    public ValueTask<bool> WriteAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default)
     {
         var threadId = subject.ThreadId;
         var getThreadTask = _supervisor.GetThreadAsync(threadId, cancellationToken);
@@ -109,8 +113,8 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor)
             var enqueueTask = threadQueue.EnqueueAsync(message, cancellationToken);
             if (enqueueTask.IsCompletedSuccessfully)
             {
-                thread.SignalMessageAvailable(threadId);
-                return ValueTask.CompletedTask;
+                SignalAccepted(thread, threadId);
+                return ValueTask.FromResult(true);
             }
             return AwaitEnqueueAndSignalAsync(enqueueTask, thread, threadId);
         }
@@ -121,10 +125,17 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor)
     /// Async fallback: awaits a pending enqueue, then signals the thread.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    static async ValueTask AwaitEnqueueAndSignalAsync(ValueTask enqueueTask, IActorThread thread, ActorThreadId threadId)
+    static async ValueTask<bool> AwaitEnqueueAndSignalAsync(ValueTask enqueueTask, IActorThread thread, ActorThreadId threadId)
     {
         await enqueueTask.ConfigureAwait(false);
-        thread.SignalMessageAvailable(threadId);
+        SignalAccepted(thread, threadId);
+        return true;
+    }
+
+    static void SignalAccepted(IActorThread thread, ActorThreadId threadId)
+    {
+        try { thread.SignalMessageAvailable(threadId); }
+        catch { /* The mailbox already owns the accepted message. */ }
     }
 
     /// <summary>
@@ -132,13 +143,14 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor)
     /// does not complete synchronously.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    async ValueTask WriteAsyncSlow(ValueTask<IActorThread> getThreadTask, NatsMsg<byte[]> message, ActorSubject msgSubject, CancellationToken cancellationToken)
+    async ValueTask<bool> WriteAsyncSlow(ValueTask<IActorThread> getThreadTask, IActorMessage message, ActorSubject msgSubject, CancellationToken cancellationToken)
     {
         var threadId = msgSubject.ThreadId;
         var thread = await getThreadTask.ConfigureAwait(false) ?? throw new InvalidOperationException($"Actor thread for id '{threadId}' not found when writing to mailbox '{msgSubject.ActorId}'.");
         var threadQueue = GetThreadQueue(threadId);
         await threadQueue.EnqueueAsync(message, cancellationToken).ConfigureAwait(false);
-        thread.SignalMessageAvailable(threadId);
+        SignalAccepted(thread, threadId);
+        return true;
     }
 
     /// <summary>
@@ -146,13 +158,14 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor)
     /// GetThreadAsync does not complete synchronously.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    async ValueTask WriteAsyncSlowWithSubject(ValueTask<IActorThread> getThreadTask, NatsMsg<byte[]> message, ActorSubject subject, CancellationToken cancellationToken)
+    async ValueTask<bool> WriteAsyncSlowWithSubject(ValueTask<IActorThread> getThreadTask, IActorMessage message, ActorSubject subject, CancellationToken cancellationToken)
     {
         var threadId = subject.ThreadId;
         var thread = await getThreadTask.ConfigureAwait(false) ?? throw new InvalidOperationException($"Actor thread for id '{threadId}' not found when writing to mailbox '{subject.ActorId}'.");
         var threadQueue = GetThreadQueue(threadId);
         await threadQueue.EnqueueAsync(message, cancellationToken).ConfigureAwait(false);
-        thread.SignalMessageAvailable(threadId);
+        SignalAccepted(thread, threadId);
+        return true;
     }
 
     /// <summary>

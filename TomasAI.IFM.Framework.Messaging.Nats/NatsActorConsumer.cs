@@ -50,7 +50,7 @@ public class NatsActorConsumer(
     bool _isRunning;
 
     // striped dispatch channels for concurrent mailbox delivery
-    Channel<(NatsMsg<byte[]> Msg, ActorSubject Subject)>[]? _stripeChannels;
+    Channel<(IActorMessage Msg, ActorSubject Subject)>[]? _stripeChannels;
     Task[]? _dispatcherTasks;
 
     public async ValueTask StartAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName = default!)
@@ -123,11 +123,11 @@ public class NatsActorConsumer(
 
             // create striped dispatch channels and start dispatcher tasks
             var dispatcherCount = Math.Max(1, _options.DispatcherCount);
-            _stripeChannels = new Channel<(NatsMsg<byte[]>, ActorSubject)>[dispatcherCount];
+            _stripeChannels = new Channel<(IActorMessage, ActorSubject)>[dispatcherCount];
             _dispatcherTasks = new Task[dispatcherCount];
             for (var i = 0; i < dispatcherCount; i++)
             {
-                _stripeChannels[i] = Channel.CreateBounded<(NatsMsg<byte[]>, ActorSubject)>(
+                _stripeChannels[i] = Channel.CreateBounded<(IActorMessage, ActorSubject)>(
                     new BoundedChannelOptions(DefaultStripeCapacity)
                     {
                         SingleWriter = true,
@@ -242,10 +242,19 @@ public class NatsActorConsumer(
             switch (_actorType)
             {
                 case ActorType.Supervisor:
-                case ActorType.Command:
                 case ActorType.Event:
                 case ActorType.Notify:
                     await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    break;
+                case ActorType.Command:
+                    if (_options.UseOwnedCommandPayloads)
+                        await CommandMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    else
+                    {
+                        _logger.LogWarning(
+                            "NATS command consumer is using the legacy byte[] payload path for diagnostics.");
+                        await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    }
                     break;
                 case ActorType.Query:
                     await ReqReplMessageLoopAsync(cancellationToken).ConfigureAwait(false);
@@ -288,7 +297,7 @@ public class NatsActorConsumer(
                     // Same entity always maps to the same stripe, preserving per-entity FIFO ordering.
                     var msgSubject = msg.Subject.ToSubject();
                     var stripe = (msgSubject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
-                    await stripes[stripe].Writer.WriteAsync((msg, msgSubject), ctsRequestToken);
+                    await stripes[stripe].Writer.WriteAsync((new NatsActorMessage(msg), msgSubject), ctsRequestToken);
                 }
                 catch (OperationCanceledException ex)
                 {
@@ -301,6 +310,52 @@ public class NatsActorConsumer(
             }
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("NATS {ActorType} consumer read {MessagesRead} messages.", _actorType, messagesRead);
+        }
+    }
+
+    async ValueTask CommandMessageLoopAsync(CancellationToken cancellationToken)
+    {
+        var stripes = _stripeChannels!;
+        var stripeCount = stripes.Length;
+        _logger.LogInformationEvent(_serviceId, "NATS command consumer started with owned pooled payloads");
+
+        await foreach (NatsMsg<NatsMemoryOwner<byte>> msg in _nc!.SubscribeAsync<NatsMemoryOwner<byte>>(
+            _subscriptionSubject,
+            serializer: NatsDefaultSerializer<NatsMemoryOwner<byte>>.Default,
+            opts: _requestOptions,
+            cancellationToken: cancellationToken).ConfigureAwait(false))
+        {
+            var owner = msg.Data;
+
+            var transferred = false;
+            try
+            {
+                msg.EnsureSuccess();
+                var subject = msg.Subject.ToSubject();
+                var actorMessage = new NatsOwnedCommandMessage(msg, subject);
+                var stripe = (subject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
+
+                await stripes[stripe].Writer.WriteAsync(
+                    (actorMessage, subject),
+                    cancellationToken).ConfigureAwait(false);
+
+                transferred = true;
+                NatsMessagingMetrics.Received.Add(1);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                NatsMessagingMetrics.DispatchFailures.Add(1);
+                _logger.LogErrorEvent(_serviceId, ex, "NATS command consumer failed before ownership transfer.");
+            }
+            finally
+            {
+                if (!transferred)
+                    owner.Dispose();
+            }
         }
     }
 
@@ -336,7 +391,7 @@ public class NatsActorConsumer(
                     // parse subject and route to a dispatch stripe by entity hash.
                     var msgSubject = msg.Subject.ToSubject();
                     var stripe = (msgSubject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
-                    await stripes[stripe].Writer.WriteAsync((msg, msgSubject), ctsRequestToken);
+                    await stripes[stripe].Writer.WriteAsync((new NatsActorMessage(msg), msgSubject), ctsRequestToken);
                 }
                 catch (Exception ex)
                 {
@@ -355,21 +410,40 @@ public class NatsActorConsumer(
     /// </summary>
     /// <param name="reader">The channel reader for this stripe.</param>
     /// <param name="cancellationToken">The cancellation token used to signal the loop to stop.</param>
-    async Task DispatchLoopAsync(ChannelReader<(NatsMsg<byte[]> Msg, ActorSubject Subject)> reader)
+    async Task DispatchLoopAsync(ChannelReader<(IActorMessage Msg, ActorSubject Subject)> reader)
     {
-        await foreach (var (msg, msgSubject) in reader.ReadAllAsync().ConfigureAwait(false))
+        try
         {
-            try
+            await foreach (var (msg, msgSubject) in reader.ReadAllAsync().ConfigureAwait(false))
             {
-                var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
-                    ?? throw new InvalidOperationException(string.Concat("Actor not found in context children for mailbox ", msgSubject.ActorId.ToString()));
-                actor.Mailbox.ThreadQueues.Write(msg, msgSubject, CancellationToken.None);
+                var transferred = false;
+                try
+                {
+                    var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
+                        ?? throw new InvalidOperationException(string.Concat("Actor not found in context children for mailbox ", msgSubject.ActorId.ToString()));
+                    transferred = await actor.Mailbox.ThreadQueues.WriteAsync(
+                        msg,
+                        msgSubject,
+                        CancellationToken.None).ConfigureAwait(false);
+                    if (!transferred)
+                        throw new InvalidOperationException($"Mailbox rejected message for {msgSubject.ActorId}.");
+                }
+                catch (Exception ex)
+                {
+                    NatsMessagingMetrics.DispatchFailures.Add(1);
+                    _logger.LogErrorEvent(_serviceId, ex, "Dispatch stripe failed to deliver message for {ActorId}.", msgSubject.ActorId);
+                }
+                finally
+                {
+                    if (!transferred)
+                        msg.Dispose();
+                }
             }
-            catch (Exception ex)
-            {
-                NatsMessagingMetrics.DispatchFailures.Add(1);
-                _logger.LogErrorEvent(_serviceId, ex, "Dispatch stripe failed to deliver message for {ActorId}.", msgSubject.ActorId);
-            }
+        }
+        finally
+        {
+            while (reader.TryRead(out var pending))
+                pending.Msg.Dispose();
         }
     }
 }

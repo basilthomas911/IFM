@@ -32,4 +32,15 @@ Captured on the same host, runtime, warmup count, and iteration count.
 
 The old outbound value combines the original `MessagePack envelope serialize` and `NATS byte[] serialize` stages because production previously executed both. The new typed serializer writes MessagePack directly to NATS's pooled `IBufferWriter<byte>`.
 
-Inbound `byte[]` deserialization still allocates one payload-sized array (280 B for the 256-byte case and 4,120 B for the 4 KB case). Removing that final copy requires changing actor mailbox contracts from `NatsMsg<byte[]>` to an owned-memory message type so pooled NATS memory cannot outlive its owner. That broader contract migration is intentionally not hidden behind an unsafe borrowed array.
+## Command inbound owned-memory stage
+
+The command consumer now receives `NatsMemoryOwner<byte>` and transfers that owner through striped dispatch and the actor mailbox. The command actor deserializes directly from the owned pooled sequence and releases the payload immediately after parsing. These measurements isolate the inbound copy that this removes; allocations for the deserialized command object itself remain expected.
+
+| Command inbound hot path | Payload | Mean | Allocated/op |
+|---|---:|---:|---:|
+| Legacy `byte[]` copy + MessagePack | 256 B | 757.65 ns | 816 B |
+| Direct MessagePack from owned pooled sequence | 256 B | 677.75 ns | 416 B |
+| Legacy `byte[]` copy + MessagePack | 4,096 B | 1,875.96 ns | 8,512 B |
+| Direct MessagePack from owned pooled sequence | 4,096 B | 1,453.07 ns | 4,256 B |
+
+This removes 400 B per 256-byte command (10.5% faster in this benchmark) and 4,256 B per 4 KB command (22.5% faster). Queries and events intentionally remain on `byte[]` until their separate ownership stages; events require a fan-out ownership design for routed mailboxes.

@@ -18,4 +18,10 @@ public interface INatsConsumerOptions
     /// </summary>
     /// <remarks>Defaults to 4. Values less than 1 are clamped to 1.</remarks>
     int DispatcherCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether command ingress retains NATS pooled payload ownership
+    /// through actor deserialization. Disable only for controlled A/B diagnostics.
+    /// </summary>
+    bool UseOwnedCommandPayloads { get; set; }
 }

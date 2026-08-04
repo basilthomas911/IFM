@@ -104,10 +104,9 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// <param name="message">The message to be processed, containing the subject and entity information.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
-    public async ValueTask HandleMessageAsync(NatsMsg<byte[]> message)
+    public async ValueTask HandleMessageAsync(IActorMessage message)
     {
-        var msgSubject = message.Subject.ToSubject();
-        await HandleMessageAsync(message, msgSubject.ThreadId);
+        await HandleMessageAsync(message, message.Subject.ThreadId);
     }
 
     /// <summary>
@@ -116,14 +115,22 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// <param name="message">The message to be processed.</param>
     /// <param name="threadId">The pre-resolved thread identifier from the caller.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
-    public async ValueTask HandleMessageAsync(NatsMsg<byte[]> message, ActorThreadId threadId)
+    public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
     {
         ICommand command = default!;
         int errorCode = 9998;
         ServiceResult<GuidResult> result;
         try
         {
-            command = ParseMessage(_context!, message);
+            try
+            {
+                command = ParseMessage(_context!, message);
+            }
+            finally
+            {
+                // A materialized command no longer needs the serialized pooled payload.
+                message.ReleasePayload();
+            }
 
             /// get any existing error code from the message info...
             errorCode = command.ErrorCode;
@@ -148,7 +155,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         }
 
         /// reply with the result...
-        await ActorExtensions.NatsReplyAsync(message, result);
+        await message.ReplyAsync(result);
     }
 
     // Explicit interface implementations forwarding to protected hooks
@@ -161,7 +168,14 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     ValueTask<ServiceResult<GuidResult>> ICommandActor<TActor>.OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex) => OnExceptionAsync(context, threadId, command, ex);
 
     // Protected hooks for derived classes
-    protected abstract ICommand ParseMessage(ICommandActorContext context, in NatsMsg<byte[]> message);
+    protected abstract ICommand ParseMessage(ICommandActorContext context, IActorMessage message);
+
+    /// <summary>
+    /// Compatibility entry point for existing command actor tests during the staged mailbox migration.
+    /// Runtime command ingress uses <see cref="IActorMessage"/> directly.
+    /// </summary>
+    protected ICommand ParseMessage(ICommandActorContext context, in NatsMsg<byte[]> message)
+        => ParseMessage(context, new LegacyNatsActorMessage(message));
     protected virtual ValueTask OnStartup(ICommandActorContext context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnShutdown(ICommandActorContext context) => ValueTask.CompletedTask;
     protected abstract ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand command);

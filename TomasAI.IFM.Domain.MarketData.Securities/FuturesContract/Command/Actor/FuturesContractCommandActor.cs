@@ -67,10 +67,10 @@ public class FuturesContractCommandActor(
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor, or if command resolution
     /// fails.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext context, in NatsMsg<byte[]> message)
+    protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject.ToSubject();
+        var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
             || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
@@ -88,7 +88,7 @@ public class FuturesContractCommandActor(
     /// their verb. Each entry associates a specific command verb with a function that converts a NATS message payload
     /// into a strongly typed command object implementing the ICommand interface. The mapping is intended for internal
     /// use in command deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<NatsMsg<byte[]>, ICommand>> _parseMap = new()
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
     {
         [AddFuturesContractCommand.Verb] = msg => msg.AsCommand<AddFuturesContractCommand>()!,
         [ChangeFuturesContractCommand.Verb] = msg => msg.AsCommand<ChangeFuturesContractCommand>()!,

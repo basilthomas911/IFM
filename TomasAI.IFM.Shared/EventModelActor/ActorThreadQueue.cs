@@ -19,7 +19,7 @@ public sealed class ActorThreadQueue()
     volatile bool _started = false;
     bool _disposed = false;
     ActorThreadId _id;
-    Channel<NatsMsg<byte[]>> _messageChannel;
+    Channel<IActorMessage> _messageChannel;
     readonly object _startedLock = new();
 
     /// <summary>
@@ -57,7 +57,7 @@ public sealed class ActorThreadQueue()
     /// message channel must be initialized before calling this method.</remarks>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous read operation.</param>
     /// <returns>An asynchronous stream of NatsMsg<byte[]> objects representing the messages read from the channel.</returns>
-    public async IAsyncEnumerable<NatsMsg<byte[]>> ReadAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<IActorMessage> ReadAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var channel = _messageChannel;
         if (channel is null) 
@@ -82,9 +82,9 @@ public sealed class ActorThreadQueue()
     /// cancelled.</param>
     /// <returns>An enumerable collection of messages read from the channel. The collection may be empty if no messages are
     /// available.</returns>
-    public IEnumerable<NatsMsg<byte[]>> ReadAll(CancellationToken cancellationToken = default)
+    public IEnumerable<IActorMessage> ReadAll(CancellationToken cancellationToken = default)
     {
-        while (_messageChannel is not null && _messageChannel.Reader.TryRead(out NatsMsg<byte[]> item))
+        while (_messageChannel is not null && _messageChannel.Reader.TryRead(out IActorMessage? item))
         {
             yield return item;
         }
@@ -100,11 +100,11 @@ public sealed class ActorThreadQueue()
     /// <returns><see langword="true"/> if the message was successfully written to the channel; otherwise, <see
     /// langword="false"/>.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Write(in NatsMsg<byte[]> message)
+    public bool Write(IActorMessage message)
         =>_messageChannel.Writer.TryWrite(message);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Write(in NatsMsg<byte[]> message, CancellationToken cancellationToken = default)
+    public bool Write(IActorMessage message, CancellationToken cancellationToken = default)
         => _messageChannel.Writer.TryWrite(message);
 
     /// <summary>
@@ -117,7 +117,7 @@ public sealed class ActorThreadQueue()
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the enqueue operation.</param>
     /// <returns>A task that represents the asynchronous enqueue operation.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ValueTask EnqueueAsync(NatsMsg<byte[]> message, CancellationToken cancellationToken = default)
+    public ValueTask EnqueueAsync(IActorMessage message, CancellationToken cancellationToken = default)
         => _messageChannel.Writer.WriteAsync(message, cancellationToken);
 
     /// <summary>
@@ -145,7 +145,7 @@ public sealed class ActorThreadQueue()
         {
             if (!_started)
             {
-                _messageChannel = Channel.CreateBounded<NatsMsg<byte[]>>(new BoundedChannelOptions(8192)
+                _messageChannel = Channel.CreateBounded<IActorMessage>(new BoundedChannelOptions(8192)
                 {
                     SingleWriter = false,
                     SingleReader = true
@@ -165,7 +165,9 @@ public sealed class ActorThreadQueue()
     {
         if(_messageChannel is null || !_started) 
             return;
-        _messageChannel.Writer.Complete();
+        _messageChannel.Writer.TryComplete();
+        while (_messageChannel.Reader.TryRead(out var pending))
+            pending.Dispose();
         _messageChannel = null!;
         _started = false;
     }

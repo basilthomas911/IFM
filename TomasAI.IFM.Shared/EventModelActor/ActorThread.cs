@@ -56,7 +56,7 @@ sealed class ActorThread : IActorThread
     /// out,  or if an error occurs while posting the message.</remarks>
     /// <param name="message">The message to be posted. Cannot be <see langword="null"/>.</param>
     /// <returns><see langword="true"/> if the message was successfully posted; otherwise, <see langword="false"/>.</returns>
-    public bool Post(in NatsMsg<byte[]> message)
+    public bool Post(IActorMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
         if (IsStopped || IsFaulted || IsTimedOut)
@@ -64,10 +64,10 @@ sealed class ActorThread : IActorThread
         return _threadScheduler?.WriteData(message) ?? false;
     }
 
-    public async ValueTask WriteToActorThreadQueueAsync(NatsMsg<byte[]> message, CancellationToken cancellationToken = default)
+    public async ValueTask WriteToActorThreadQueueAsync(IActorMessage message, CancellationToken cancellationToken = default)
         => await ValueTask.CompletedTask;
 
-    public async ValueTask WriteToActorThreadQueueAsync(NatsMsg<byte[]> message, ActorSubject subject, CancellationToken cancellationToken = default)
+    public async ValueTask WriteToActorThreadQueueAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default)
         => await ValueTask.CompletedTask;
 
     /// <summary>
@@ -150,7 +150,7 @@ sealed class ActorThread : IActorThread
     /// state.</remarks>
     /// <param name="message">The message to be processed by the actor. Cannot be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    async ValueTask OnMessageAsync(NatsMsg<byte[]> message)
+    async ValueTask OnMessageAsync(IActorMessage message)
     {
         _state = ActorThreadState.ProcessingMessage;
         ResetTimer();
@@ -165,6 +165,10 @@ sealed class ActorThread : IActorThread
         {
             _logger?.LogErrorEvent("ActorThread - {ActorMailboxId}", ex, "Actor message processing failed for mailbox {ActorMailboxId}.", _actor!.Id);
             SetFaulted(ex);
+        }
+        finally
+        {
+            message.Dispose();
         }
     }
 
