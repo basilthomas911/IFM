@@ -243,7 +243,7 @@ public static class Startup
                 var actorTypes = (
                     from reg in _siContainer.GetCurrentRegistrations()
                     where reg.ServiceType.IsClosedTypeOf(typeof(IActor<>))
-                    select reg.Registration.ImplementationType)
+                    select reg.ServiceType)
                     .Distinct()
                     .ToArray();
                 return new ActorRegistry(actorTypes);
@@ -345,17 +345,17 @@ public static class Startup
             services.AddSingleton<IDbContextFactory, DbContextFactory>();
             services.AddSingleton<ISequenceIdDbContext, SequenceIdDbContext>();
             services.AddSingleton<ISequenceIdGenerator, PostgresSequenceIdGenerator>();
-            services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(EventSourceDbContext))!)?.Resolve<EventSourceDbContext>() as IEventSourceDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(EventSourceActorDbContext))!)?.Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(LogDbContext))!)?.Resolve<LogDbContext>() as ILogDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(SequenceIdDbContext))!)?.Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceDbContext>() as IEventSourceDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<LogDbContext>() as ILogDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
             //services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(FundDbContext))!)?.Resolve<FundDbContext>() as IFundDbContext)!);
             //services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(MarketDataDbContext))!)?.Resolve<MarketDataDbContext>() as IMarketDataDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(OptionPricerDbContext))!)?.Resolve<OptionPricerDbContext>() as IOptionPricerDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(ReferenceDbContext))!)?.Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(SecuritiesDbContext))!)?.Resolve<SecuritiesDbContext>() as ISecuritiesDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(TradeDbContext))!)?.Resolve<TradeDbContext>() as ITradeDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(YieldCurveRatesDbContext))!)?.Resolve<YieldCurveRatesDbContext>() as IYieldCurveRatesDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<OptionPricerDbContext>() as IOptionPricerDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SecuritiesDbContext>() as ISecuritiesDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<YieldCurveRatesDbContext>() as IYieldCurveRatesDbContext)!);
             services.AddSingleton<IEconomicCalendarsDbContext, EconomicCalendarsDbContext>();
             services.AddSingleton<IFundDbContext, FundDbContext>();
             services.AddSingleton<IMarketDataDbContext, MarketDataDbContext>();
@@ -503,7 +503,10 @@ public static class Startup
             _siContainer.Register(typeof(IActor<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
-            _siContainer.Register(typeof(IEventProjector<>), assemblies, Lifestyle.Singleton);
+            // Event projectors are application components. Restrict discovery to the
+            // explicitly listed domain assemblies so test-only projector subclasses in
+            // the hosting test AppDomain aren't registered for the same closed service.
+            _siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);
             _siContainer.Register(typeof(IEventSourceActorState<>), assemblies, Lifestyle.Transient);
 
             //_siContainer.RegisterDecorator(typeof(ICommandContext<>), typeof(ValidationCommandDecorator<>), Lifestyle.Singleton);

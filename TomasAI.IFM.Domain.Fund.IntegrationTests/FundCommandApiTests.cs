@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
@@ -34,16 +35,98 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     readonly HttpClientTestFactory _httpClientFactory = new(factory);
     readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
+    static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(15);
+
+    static TaskCompletionSource NewEventSignal()
+        => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    sealed class FundProjectionTracker(
+        NatsActorEventListener eventListener) : IAsyncDisposable
+    {
+        readonly NatsActorEventListener _eventListener = eventListener;
+        readonly ConcurrentDictionary<Guid, IEvent> _terminalEvents = new();
+        readonly ConcurrentDictionary<Guid, TaskCompletionSource<IEvent>> _waiters = new();
+
+        public static async Task<FundProjectionTracker> StartAsync(
+            ILogger<NatsActorEventListener> logger)
+        {
+            var tracker = new FundProjectionTracker(
+                new NatsActorEventListener(new NatsEventListenerOptions(), logger));
+            await tracker._eventListener.StartAsync(
+                $"FundProjectionTracker-{Guid.NewGuid():N}",
+                new()
+                {
+                    [new ActorMailboxId(ActorType.Event, FundCreatedEvent.Actor)] =
+                    [
+                        FundCreatedCompleteEvent.Verb,
+                        FundCreatedFailEvent.Verb,
+                        OrderAddedToFundCompleteEvent.Verb,
+                        OrderAddedToFundFailEvent.Verb,
+                        TradeAddedToFundOrderCompleteEvent.Verb,
+                        TradeAddedToFundOrderFailEvent.Verb
+                    ]
+                },
+                tracker.OnEventAsync);
+            return tracker;
+        }
+
+        public async Task WaitAsync(Guid commandId)
+        {
+            if (!_terminalEvents.TryGetValue(commandId, out var terminalEvent))
+            {
+                var waiter = _waiters.GetOrAdd(
+                    commandId,
+                    _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
+                if (_terminalEvents.TryGetValue(commandId, out terminalEvent))
+                    waiter.TrySetResult(terminalEvent);
+                terminalEvent = await waiter.Task.WaitAsync(EventTimeout);
+                _waiters.TryRemove(commandId, out _);
+            }
+
+            if (terminalEvent is IErrorEvent errorEvent)
+            {
+                throw new InvalidOperationException(
+                    $"Projection failed for command {commandId}: {errorEvent.ErrorMessage}");
+            }
+        }
+
+        ValueTask OnEventAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+        {
+            IEvent terminalEvent = eventVerb switch
+            {
+                FundCreatedCompleteEvent.Verb => eventMsg.AsEvent<FundCreatedCompleteEvent>()!,
+                FundCreatedFailEvent.Verb => eventMsg.AsEvent<FundCreatedFailEvent>()!,
+                OrderAddedToFundCompleteEvent.Verb => eventMsg.AsEvent<OrderAddedToFundCompleteEvent>()!,
+                OrderAddedToFundFailEvent.Verb => eventMsg.AsEvent<OrderAddedToFundFailEvent>()!,
+                TradeAddedToFundOrderCompleteEvent.Verb => eventMsg.AsEvent<TradeAddedToFundOrderCompleteEvent>()!,
+                TradeAddedToFundOrderFailEvent.Verb => eventMsg.AsEvent<TradeAddedToFundOrderFailEvent>()!,
+                _ => default!
+            };
+
+            if (terminalEvent is not null)
+            {
+                _terminalEvents[terminalEvent.CommandId] = terminalEvent;
+                if (_waiters.TryRemove(terminalEvent.CommandId, out var waiter))
+                    waiter.TrySetResult(terminalEvent);
+            }
+            return ValueTask.CompletedTask;
+        }
+
+        public async ValueTask DisposeAsync()
+            => await _eventListener.StopAsync();
+    }
 
     [Fact]
     public async Task CreateFund_Ok()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
 
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FundCreatedEvent fundCreatedEvent = default!;
         FundCreatedCompleteEvent fundCreatedCompleteEvent = default!;
         FundCreatedFailEvent fundCreatedFailEvent = default!;
+        var projectionFinished = NewEventSignal();
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -68,7 +151,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
+        await projectionFinished.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
@@ -103,9 +186,15 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
                 if (@event is FundCreatedEvent fundCreated)
                     fundCreatedEvent = fundCreated;
                 if (@event is FundCreatedCompleteEvent fundCreatedComplete)
+                {
                     fundCreatedCompleteEvent = fundCreatedComplete;
+                    projectionFinished.TrySetResult();
+                }
                 if (@event is FundCreatedFailEvent fundCreatedFail)
+                {
                     fundCreatedFailEvent = fundCreatedFail;
+                    projectionFinished.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -114,6 +203,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     [Fact]
     public async Task CreateFund_WithFundAlreadyCreated()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
+
         // arrange...
         var fund = SampleData.NewFund;
         var subject = new ActorSubject(ActorType.Command, CreateFundCommand.Actor, CreateFundCommand.Verb, fund.Id.Format());
@@ -128,19 +219,18 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
 
         // assert first creation succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // act... attempt to create the same fund again
         commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         fundApi = new FundCommandApi(commandServiceApi);
         response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
 
         // assert... second creation should fail
         response.Should().NotBeNull();
@@ -153,11 +243,14 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     [Fact]
     public async Task AddOrderToFund_Ok()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
+
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         OrderAddedToFundEvent orderAddedToFundEvent = default!;
         OrderAddedToFundCompleteEvent orderAddedToFundCompleteEvent = default!;
         OrderAddedToFundFailEvent orderAddedToFundFailEvent = default!;
+        var projectionFinished = NewEventSignal();
 
         // create fund...
         var fund = SampleData.NewFund;
@@ -175,12 +268,12 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         await eventListener.StartAsync(
            "TestEventListener",
@@ -189,7 +282,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
                [new ActorMailboxId(ActorType.Event, OrderAddedToFundEvent.Actor)] 
                     = [
                         OrderAddedToFundEvent.Verb,
-                        OrderAddedToFundCompleteEvent.Verb
+                        OrderAddedToFundCompleteEvent.Verb,
+                        OrderAddedToFundFailEvent.Verb
                     ]
            },
            EventHandlerAsync
@@ -200,7 +294,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
 
         subject = new ActorSubject(ActorType.Command, AddOrderToFundCommand.Actor, AddOrderToFundCommand.Verb, fund.Id.Format());
         response = await fundApi.AddOrderToFundAsync(fundOrder);
-        //await Task.Delay(1000);
+        await projectionFinished.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
@@ -240,6 +334,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
                     orderAddedToFundCompleteEvent = orderAddedComplete;
                 else if (@event is OrderAddedToFundFailEvent orderAddedFail)
                     orderAddedToFundFailEvent = orderAddedFail;
+                if (@event is ICompleteEvent or IErrorEvent)
+                    projectionFinished.TrySetResult();
                 return @event;
             }
         }
@@ -248,6 +344,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     [Fact]
     public async Task AddOrderToFund_WithOrderAlreadyAddedToFund()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
+
         // arrange...
         var fund = SampleData.NewFund;
         var subject = new ActorSubject(ActorType.Command, CreateFundCommand.Actor, CreateFundCommand.Verb, fund.Id.Format());
@@ -262,30 +360,29 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add order to fund first time...
         var fundOrder = SampleData.FundOrder;
         response = await fundApi.AddOrderToFundAsync(fundOrder);
 
-        //await Task.Delay(1000);
 
         // assert first order addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // act... attempt to add the same order again
         commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         fundApi = new FundCommandApi(commandServiceApi);
         response = await fundApi.AddOrderToFundAsync(fundOrder);
 
-        //await Task.Delay(1000);
 
         // assert... second order addition should fail
         response.Should().NotBeNull();
@@ -298,11 +395,14 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     [Fact]
     public async Task AddTradeToFundOrder_Ok()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
+
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         TradeAddedToFundOrderEvent tradeAddedToFundOrderEvent = default!;
         TradeAddedToFundOrderCompleteEvent tradeAddedToFundOrderCompleteEvent = default!;
         TradeAddedToFundOrderFailEvent tradeAddedToFundOrderFailEvent = default!;
+        var projectionFinished = NewEventSignal();
 
         // create fund...
         var fund = SampleData.NewFund;
@@ -317,23 +417,23 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add order to fund...
         var fundOrder = SampleData.FundOrder;
         await dbFixture.FundDb.DeleteFundOrderAsync(fundOrder.FundId, fundOrder.OrderId);
         response = await fundApi.AddOrderToFundAsync(fundOrder);
-        //await Task.Delay(1000);
 
         // assert order addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -351,7 +451,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
 
         subject = new ActorSubject(ActorType.Command, AddTradeToFundOrderCommand.Actor, AddTradeToFundOrderCommand.Verb, fund.Id.Format());
         response = await fundApi.AddTradeToFundOrderAsync(fundOrderTrade);
-        //await Task.Delay(1000);
+        await projectionFinished.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
@@ -397,6 +497,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
                     tradeAddedToFundOrderCompleteEvent = tradeAddedComplete;
                 if (@event is TradeAddedToFundOrderFailEvent tradeAddedFail)
                     tradeAddedToFundOrderFailEvent = tradeAddedFail;
+                if (@event is ICompleteEvent or IErrorEvent)
+                    projectionFinished.TrySetResult();
                 return @event;
             }
         }
@@ -405,6 +507,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     [Fact]
     public async Task AddTradeToFundOrder_WithTradeAlreadyAddedToFundOrder()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
+
         // arrange...
         var fund = SampleData.NewFund;
         var subject = new ActorSubject(ActorType.Command, CreateFundCommand.Actor, CreateFundCommand.Verb, fund.Id.Format());
@@ -419,40 +523,39 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add order to fund...
         var fundOrder = SampleData.FundOrder;
         await dbFixture.FundDb.DeleteFundOrderAsync(fundOrder.FundId, fundOrder.OrderId);
         response = await fundApi.AddOrderToFundAsync(fundOrder);
-        //await Task.Delay(1000);
 
         // assert order addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add trade to fund order first time...
         var fundOrderTrade = SampleData.FundOrderTrade;
         response = await fundApi.AddTradeToFundOrderAsync(fundOrderTrade);
-        //await Task.Delay(1000);
 
         // assert first trade addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // act... attempt to add the same trade again
         commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         fundApi = new FundCommandApi(commandServiceApi);
         response = await fundApi.AddTradeToFundOrderAsync(fundOrderTrade);
 
-        //await Task.Delay(1000);
 
         // assert... second trade addition should fail
         response.Should().NotBeNull();
@@ -465,11 +568,14 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     [Fact]
     public async Task ChangeFundOrderTradeState_Ok()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
+
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FundOrderTradeStateChangedEvent fundOrderTradeStateChangedEvent = default!;
         FundOrderTradeStateChangedCompleteEvent fundOrderTradeStateChangedCompleteEvent = default!;
         FundOrderTradeStateChangedFailEvent fundOrderTradeStateChangedFailEvent = default!;
+        var projectionFinished = NewEventSignal();
 
         // create fund...
         var fund = SampleData.NewFund;
@@ -483,34 +589,34 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
-        //await Task.Delay(1000);
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add order to fund...
         var fundOrder = SampleData.FundOrder;
         await dbFixture.FundDb.DeleteFundOrderAsync(fundOrder.FundId, fundOrder.OrderId);
         response = await fundApi.AddOrderToFundAsync(fundOrder);
-        //await Task.Delay(1000);
 
         // assert order addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add trade to fund order...
         var fundOrderTrade = SampleData.FundOrderTrade;
         await dbFixture.FundDb.DeleteFundOrderTradeAsync(fundOrderTrade.FundId, fundOrderTrade.OrderId, fundOrderTrade.TradeId);
         response = await fundApi.AddTradeToFundOrderAsync(fundOrderTrade);
-        //await Task.Delay(1000);
 
         // assert trade addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -528,7 +634,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
 
         subject = new ActorSubject(ActorType.Command, ChangeFundOrderTradeStateCommand.Actor, ChangeFundOrderTradeStateCommand.Verb, fund.Id.Format());
         response = await fundApi.ChangeFundOrderTradeStateAsync(fundOrderTradeId, newTradeState);
-        //await Task.Delay(1000);
+        await projectionFinished.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
@@ -575,6 +681,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
                     fundOrderTradeStateChangedCompleteEvent = stateChangedComplete;
                 if (@event is FundOrderTradeStateChangedFailEvent stateChangedFail)
                     fundOrderTradeStateChangedFailEvent = stateChangedFail;
+                if (@event is ICompleteEvent or IErrorEvent)
+                    projectionFinished.TrySetResult();
                 return @event;
             }
         }
@@ -583,11 +691,14 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     [Fact]
     public async Task RemoveOrderFromFund_Ok()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
+
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         OrderRemovedFromFundEvent orderRemovedFromFundEvent = default!;
         OrderRemovedFromFundCompleteEvent orderRemovedFromFundCompleteEvent = default!;
         OrderRemovedFromFundFailEvent orderRemovedFromFundFailEvent = default!;
+        var projectionFinished = NewEventSignal();
 
         // create fund...
         var fund = SampleData.NewFund;
@@ -602,23 +713,23 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add order to fund...
         var fundOrder = SampleData.FundOrder;
         await dbFixture.FundDb.DeleteFundOrderAsync(fundOrder.FundId, fundOrder.OrderId);
         response = await fundApi.AddOrderToFundAsync(fundOrder);
-        //await Task.Delay(200);
 
         // assert order addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -635,7 +746,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
 
         subject = new ActorSubject(ActorType.Command, RemoveOrderFromFundCommand.Actor, RemoveOrderFromFundCommand.Verb, fund.Id.Format());
         response = await fundApi.RemoveOrderFromFundAsync(fundOrderId);
-        await Task.Delay(1000);
+        await projectionFinished.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
@@ -673,6 +784,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
                     orderRemovedFromFundCompleteEvent = orderRemovedComplete;
                 if (@event is OrderRemovedFromFundFailEvent orderRemovedFail)
                     orderRemovedFromFundFailEvent = orderRemovedFail;
+                if (@event is ICompleteEvent or IErrorEvent)
+                    projectionFinished.TrySetResult();
                 return @event;
             }
         }
@@ -681,11 +794,14 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     [Fact]
     public async Task RemoveTradeFromFundOrder_Ok()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
+
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         TradeRemovedFromFundOrderEvent tradeRemovedFromFundOrderEvent = default!;
         TradeRemovedFromFundOrderCompleteEvent tradeRemovedFromFundOrderCompleteEvent = default!;
         TradeRemovedFromFundOrderFailEvent tradeRemovedFromFundOrderFailEvent = default!;
+        var projectionFinished = NewEventSignal();
 
         // create fund...
         var fund = SampleData.NewFund;
@@ -700,34 +816,34 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add order to fund...
         var fundOrder = SampleData.FundOrder;
         await dbFixture.FundDb.DeleteFundOrderAsync(fundOrder.FundId, fundOrder.OrderId);
         response = await fundApi.AddOrderToFundAsync(fundOrder);
-        //await Task.Delay(1000);
 
         // assert order addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add trade to fund order...
         var fundOrderTrade = SampleData.FundOrderTrade;
         await dbFixture.FundDb.DeleteFundOrderTradeAsync(fundOrderTrade.FundId, fundOrderTrade.OrderId, fundOrderTrade.TradeId);
         response = await fundApi.AddTradeToFundOrderAsync(fundOrderTrade);
-        //await Task.Delay(1000);
 
         // assert trade addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -744,7 +860,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
 
         subject = new ActorSubject(ActorType.Command, RemoveTradeFromFundOrderCommand.Actor, RemoveTradeFromFundOrderCommand.Verb, fund.Id.Format());
         response = await fundApi.RemoveTradeFromFundOrderAsync(fundOrderTradeId);
-        await Task.Delay(1000);
+        await projectionFinished.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
@@ -787,6 +903,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
                     tradeRemovedFromFundOrderCompleteEvent = tradeRemovedComplete;
                 if (@event is TradeRemovedFromFundOrderFailEvent tradeRemovedFail)
                     tradeRemovedFromFundOrderFailEvent = tradeRemovedFail;
+                if (@event is ICompleteEvent or IErrorEvent)
+                    projectionFinished.TrySetResult();
                 return @event;
             }
         }
@@ -795,11 +913,14 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     [Fact]
     public async Task CloseFundOrder_Ok()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
+
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FundOrderClosedEvent fundOrderClosedEvent = default!;
         FundOrderClosedCompleteEvent fundOrderClosedCompleteEvent = default!;
         FundOrderClosedFailEvent fundOrderClosedFailEvent = default!;
+        var projectionFinished = NewEventSignal();
 
         // create fund...
         var fund = SampleData.NewFund;
@@ -814,23 +935,23 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add order to fund...
         var fundOrder = SampleData.FundOrder;
         await dbFixture.FundDb.DeleteFundOrderAsync(fundOrder.FundId, fundOrder.OrderId);
         response = await fundApi.AddOrderToFundAsync(fundOrder);
-        //await Task.Delay(1000);
 
         // assert order addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -845,7 +966,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         // close fund order...
         var fundOrderId = new FundOrderId(fundOrder.FundId, fundOrder.OrderId);
         response = await fundApi.CloseFundOrderAsync(fundOrderId);
-        //await Task.Delay(1000);
+        await projectionFinished.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
@@ -886,6 +1007,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
                     fundOrderClosedCompleteEvent = orderClosedComplete;
                 if (@event is FundOrderClosedFailEvent orderClosedFail)
                     fundOrderClosedFailEvent = orderClosedFail;
+                if (@event is ICompleteEvent or IErrorEvent)
+                    projectionFinished.TrySetResult();
                 return @event;
             }
         }
@@ -894,10 +1017,14 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
     [Fact]
     public async Task GenerateFundMaxProfit_Ok()
     {
+        await using var projectionTracker = await FundProjectionTracker.StartAsync(_logger);
+
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FundMaxProfitGeneratedEvent fundMaxProfitGeneratedEvent = default!;
         FundMaxProfitGeneratedCompleteEvent fundMaxProfitGeneratedCompleteEvent = default!;
+        FundMaxProfitGeneratedFailEvent fundMaxProfitGeneratedFailEvent = default!;
+        var projectionFinished = NewEventSignal();
         await eventListener.StartAsync(
            "TestEventListener",
            new()
@@ -921,28 +1048,28 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         var fundApi = new FundCommandApi(commandServiceApi);
         var response = await fundApi.CreateFundAsync(fund);
 
-        //await Task.Delay(1000);
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // add order to fund...
         var fundOrder = SampleData.FundOrder;
         await dbFixture.FundDb.DeleteFundOrderAsync(fundOrder.FundId, fundOrder.OrderId);
         response = await fundApi.AddOrderToFundAsync(fundOrder);
-        //await Task.Delay(1000);
 
         // assert order addition succeeded...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
+        await projectionTracker.WaitAsync(response.Value);
 
         // generate fund max profit...
         subject = new ActorSubject(ActorType.Command, GenerateFundMaxProfitCommand.Actor, GenerateFundMaxProfitCommand.Verb, fund.Id.Format());
         response = await fundApi.GenerateFundMaxProfitAsync(fundOrder, IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily);
-        await Task.Delay(1000);
+        await projectionFinished.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
@@ -961,6 +1088,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         fundMaxProfitGeneratedEvent.Should().NotBeNull();
         fundMaxProfitGeneratedEvent.FundMaxProfit.Should().BeNull();
         fundMaxProfitGeneratedCompleteEvent.Should().NotBeNull();
+        fundMaxProfitGeneratedFailEvent.Should().BeNull();
 
         await eventListener.StopAsync();
 
@@ -970,6 +1098,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
             {
                 _ when eventVerb == FundMaxProfitGeneratedEvent.Verb => SetEvent(eventMsg.AsEvent<FundMaxProfitGeneratedEvent>()!),
                 _ when eventVerb == FundMaxProfitGeneratedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FundMaxProfitGeneratedCompleteEvent>()!),
+                _ when eventVerb == FundMaxProfitGeneratedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FundMaxProfitGeneratedFailEvent>()!),
                 _ => default!
             };
             await ValueTask.CompletedTask;
@@ -980,6 +1109,10 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
                     fundMaxProfitGeneratedEvent = maxProfitGenerated;
                 if (@event is FundMaxProfitGeneratedCompleteEvent maxProfitGeneratedComplete)
                     fundMaxProfitGeneratedCompleteEvent = maxProfitGeneratedComplete;
+                if (@event is FundMaxProfitGeneratedFailEvent maxProfitGeneratedFail)
+                    fundMaxProfitGeneratedFailEvent = maxProfitGeneratedFail;
+                if (@event is ICompleteEvent or IErrorEvent)
+                    projectionFinished.TrySetResult();
                 return @event;
             }
         }
