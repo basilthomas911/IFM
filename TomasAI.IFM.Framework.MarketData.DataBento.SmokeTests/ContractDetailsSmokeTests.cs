@@ -2,12 +2,17 @@ using Xunit.Abstractions;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests;
 
+[Collection(DatabentoSmokeCollection.Name)]
 public sealed class ContractDetailsSmokeTests
 {
+    private readonly DatabentoSmokeFixture _fixture;
     private readonly ITestOutputHelper _output;
 
-    public ContractDetailsSmokeTests(ITestOutputHelper output)
+    public ContractDetailsSmokeTests(
+        DatabentoSmokeFixture fixture,
+        ITestOutputHelper output)
     {
+        _fixture = fixture;
         _output = output;
     }
 
@@ -19,9 +24,11 @@ public sealed class ContractDetailsSmokeTests
             return;
         }
         LiveTestGate.AssertCredential();
-        var queries = new DatabentoFeedFactory().CreateMarketDataQueries(
-            LiveTestGate.CreateOptions());
-        var allEsContracts = queries.GetContractDetails("ES", TimeSpan.FromSeconds(90));
+        var queries = _fixture.Queries;
+        var allEsContracts = queries
+            .GetContractDetails("ES.FUT", TimeSpan.FromSeconds(90))
+            .Concat(queries.GetContractDetails("ES.OPT", TimeSpan.FromSeconds(90)))
+            .ToArray();
         var now = LiveTestGate.UtcNowNanoseconds();
         var future = allEsContracts.First(detail =>
             detail.ContractKind == ContractKind.Future

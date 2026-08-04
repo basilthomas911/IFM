@@ -812,13 +812,10 @@ bool resolve_mapping(dbf_feed* feed,
                      const databento::SymbolMappingMsg& message,
                      bool allow_new) {
     const std::string requested{message.STypeInSymbol()};
-    std::uint32_t instrument_id{};
-    const std::string_view output{message.STypeOutSymbol()};
-    const auto parsed = std::from_chars(
-        output.data(), output.data() + output.size(), instrument_id);
-    if (parsed.ec != std::errc{} || parsed.ptr != output.data() + output.size()) {
+    const auto instrument_id = message.hd.instrument_id;
+    if (instrument_id == 0) {
         return fail_live(feed, DBF_SYMBOL_RESOLUTION_FAILED,
-                         "Databento returned a non-numeric instrument-ID mapping");
+                         "Databento returned a symbol mapping without an instrument ID");
     }
 
     auto found = false;
@@ -827,22 +824,47 @@ bool resolve_mapping(dbf_feed* feed,
             continue;
         }
         found = true;
-        if ((mapping.resolved || mapping.instrument_id != 0 || mapping.publisher_id != 0)
-            && (mapping.instrument_id != instrument_id
-                || mapping.publisher_id != message.hd.publisher_id)) {
+        if (mapping.instrument_id != 0 && mapping.instrument_id != instrument_id) {
             return fail_live(feed, DBF_SYMBOL_RESOLUTION_FAILED,
                              "A resolved symbol remapped to a different instrument");
         }
+        if (mapping.publisher_id != 0 && message.hd.publisher_id != 0
+            && mapping.publisher_id != message.hd.publisher_id) {
+            return fail_live(feed, DBF_SYMBOL_RESOLUTION_FAILED,
+                             "A resolved symbol remapped to a different publisher");
+        }
         mapping.instrument_id = instrument_id;
-        mapping.publisher_id = message.hd.publisher_id;
+        if (message.hd.publisher_id != 0) {
+            mapping.publisher_id = message.hd.publisher_id;
+        }
         mapping.raw_symbol = mapping.input_symbology == 1u
                                  ? requested
                                  : mapping.requested_symbol;
-        mapping.resolved = true;
+        mapping.resolved = mapping.publisher_id != 0;
     }
     if (!found && !allow_new) {
         return fail_live(feed, DBF_SYMBOL_RESOLUTION_FAILED,
                          "Databento returned an unexpected ticker mapping");
+    }
+    return true;
+}
+
+bool resolve_mapping_publisher(dbf_feed* feed,
+                               const databento::RecordHeader& header) {
+    if (header.instrument_id == 0 || header.publisher_id == 0) {
+        return true;
+    }
+    for (auto& mapping : feed->mappings) {
+        if (mapping.instrument_id != header.instrument_id) {
+            continue;
+        }
+        if (mapping.publisher_id != 0
+            && mapping.publisher_id != header.publisher_id) {
+            return fail_live(feed, DBF_SYMBOL_RESOLUTION_FAILED,
+                             "A resolved instrument produced data from a different publisher");
+        }
+        mapping.publisher_id = header.publisher_id;
+        mapping.resolved = true;
     }
     return true;
 }
@@ -879,6 +901,9 @@ bool process_live_record(dbf_feed* feed,
     }
     if (const auto* mapping = source.GetIf<databento::SymbolMappingMsg>()) {
         return resolve_mapping(feed, *mapping, initial_mapping);
+    }
+    if (initial_mapping && !resolve_mapping_publisher(feed, source.Header())) {
+        return false;
     }
     dbf_market_record64 normalized{};
     return !dbf_live::normalize(source, normalized)
@@ -1021,7 +1046,8 @@ bool select_latest_trade(const databento::TradeMsg& trade,
     return true;
 }
 
-bool select_latest_quote(const databento::Mbp1Msg& quote,
+template <typename TQuote>
+bool select_latest_quote(const TQuote& quote,
                          std::uint32_t selected_policy,
                          dbf_latest_price_result64& result) noexcept {
     const auto& level = quote.levels[0];
@@ -1082,7 +1108,7 @@ dbf_status get_latest_price_live(
 
     const auto schema = request.selected_policy == DBF_LATEST_PRICE_LAST_TRADE
                             ? databento::Schema::Trades
-                            : databento::Schema::Mbp1;
+                            : databento::Schema::Bbo1S;
     const std::vector<std::string> symbols{symbol};
     if (request.freshness_policy == DBF_LATEST_PRICE_REPLAY_LOOKBACK_THEN_LIVE) {
         const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -1146,7 +1172,7 @@ dbf_status get_latest_price_live(
             if (const auto* trade = record->GetIf<databento::TradeMsg>()) {
                 selected = select_latest_trade(*trade, candidate);
             }
-        } else if (const auto* quote = record->GetIf<databento::Mbp1Msg>()) {
+        } else if (const auto* quote = record->GetIf<databento::BboMsg>()) {
             selected = select_latest_quote(
                 *quote, request.selected_policy, candidate);
         }
@@ -1905,9 +1931,13 @@ dbf_status DBF_CALL dbf_contract_details_query(
             }
         } else if (query->query_kind == DBF_CONTRACT_QUERY_TICKER) {
             const auto& ticker = requested.front();
+            const auto is_parent = ticker.ends_with(".FUT")
+                                   || ticker.ends_with(".OPT");
             result->entries = fetch_definitions(
                 dataset,
-                {ticker + ".FUT", ticker + ".OPT"},
+                is_parent
+                    ? std::vector<std::string>{ticker}
+                    : std::vector<std::string>{ticker + ".FUT", ticker + ".OPT"},
                 databento::SType::Parent,
                 query->timeout_ms);
             std::sort(result->entries.begin(), result->entries.end(),

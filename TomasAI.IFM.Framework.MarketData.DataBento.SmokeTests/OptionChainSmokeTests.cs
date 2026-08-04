@@ -2,12 +2,17 @@ using Xunit.Abstractions;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests;
 
+[Collection(DatabentoSmokeCollection.Name)]
 public sealed class OptionChainSmokeTests
 {
+    private readonly DatabentoSmokeFixture _fixture;
     private readonly ITestOutputHelper _output;
 
-    public OptionChainSmokeTests(ITestOutputHelper output)
+    public OptionChainSmokeTests(
+        DatabentoSmokeFixture fixture,
+        ITestOutputHelper output)
     {
+        _fixture = fixture;
         _output = output;
     }
 
@@ -19,8 +24,7 @@ public sealed class OptionChainSmokeTests
             return;
         }
         LiveTestGate.AssertCredential();
-        var queries = new DatabentoFeedFactory().CreateMarketDataQueries(
-            LiveTestGate.CreateOptions());
+        var queries = _fixture.Queries;
         var maturity = FindCurrentEsOptionMaturity(queries);
 
         var chain = queries.GetChainDefinitions(
@@ -53,15 +57,14 @@ public sealed class OptionChainSmokeTests
     }
 
     [Fact]
-    public void CurrentResolvedEsOptionChainAuthenticatesAndStartsOneLiveSession()
+    public async Task CurrentResolvedEsOptionChainAuthenticatesAndStartsOneLiveSession()
     {
         if (!LiveTestGate.IsEnabled())
         {
             return;
         }
         LiveTestGate.AssertCredential();
-        var queries = new DatabentoFeedFactory().CreateMarketDataQueries(
-            LiveTestGate.CreateOptions());
+        var queries = _fixture.Queries;
         var maturity = FindCurrentEsOptionMaturity(queries);
         var chain = queries.GetChainDefinitions(
             new OptionChainDefinitionRequest
@@ -97,6 +100,7 @@ public sealed class OptionChainSmokeTests
             },
             TimeSpan.FromSeconds(5));
         feed.Start(TimeSpan.FromSeconds(45));
+        var drain = LiveTestGate.DrainUntilCompletedAsync(feed.Reader);
         try
         {
             Assert.NotNull(feed.Reader);
@@ -104,7 +108,8 @@ public sealed class OptionChainSmokeTests
         }
         finally
         {
-            feed.Stop(TimeSpan.FromSeconds(10));
+            feed.Stop(TimeSpan.FromSeconds(30));
+            await drain.WaitAsync(TimeSpan.FromSeconds(30));
         }
     }
 
@@ -112,11 +117,30 @@ public sealed class OptionChainSmokeTests
         IDatabentoMarketDataQueries queries)
     {
         var now = LiveTestGate.UtcNowNanoseconds();
-        return queries.GetContractDetails("ES", TimeSpan.FromSeconds(90))
+        var definitions = queries.GetContractDetails(
+            "ES.OPT",
+            TimeSpan.FromSeconds(180));
+        var currentMaturity = definitions
             .Where(detail => detail.ContractKind is
                 ContractKind.CallOption or ContractKind.PutOption)
             .Where(detail => detail.ExpirationTimestampNanoseconds > now)
             .Select(detail => detail.MaturityDate)
-            .First(maturity => maturity is not null)!.Value;
+            .FirstOrDefault(maturity => maturity is not null);
+        if (currentMaturity is not null)
+        {
+            return currentMaturity.Value;
+        }
+
+        var optionDefinitions = definitions
+            .Where(detail => detail.ContractKind is
+                ContractKind.CallOption or ContractKind.PutOption)
+            .ToArray();
+        var latestExpiration = optionDefinitions.Length == 0
+            ? 0
+            : optionDefinitions.Max(detail => detail.ExpirationTimestampNanoseconds);
+        throw new InvalidOperationException(
+            $"Databento returned {definitions.Count} ES.OPT definitions, including "
+            + $"{optionDefinitions.Length} options, but none expire after {now}. "
+            + $"Latest option expiration was {latestExpiration}.");
     }
 }

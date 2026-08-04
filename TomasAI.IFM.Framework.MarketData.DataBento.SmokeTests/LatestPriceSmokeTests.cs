@@ -2,7 +2,10 @@ using Xunit.Abstractions;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests;
 
-public sealed class LatestPriceSmokeTests(ITestOutputHelper output)
+[Collection(DatabentoSmokeCollection.Name)]
+public sealed class LatestPriceSmokeTests(
+    DatabentoSmokeFixture fixture,
+    ITestOutputHelper output)
 {
     [Theory]
     [InlineData(LatestPricePolicy.LastTrade)]
@@ -18,11 +21,11 @@ public sealed class LatestPriceSmokeTests(ITestOutputHelper output)
         }
         LiveTestGate.AssertCredential();
         var factory = new DatabentoFeedFactory();
-        var options = LiveTestGate.CreateOptions();
-        var queries = factory.CreateMarketDataQueries(options);
+        var options = fixture.Options;
+        var queries = fixture.Queries;
         var now = LiveTestGate.UtcNowNanoseconds();
         var currentFuture = queries
-            .GetContractDetails("ES", TimeSpan.FromSeconds(90))
+            .GetContractDetails("ES.FUT", TimeSpan.FromSeconds(90))
             .Where(detail =>
                 detail.ContractKind == ContractKind.Future
                 && detail.ExpirationTimestampNanoseconds > now

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -10,12 +11,16 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento;
 internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan DefinitionAttemptTimeout = TimeSpan.FromSeconds(30);
+    private const int DefinitionQueryAttempts = 6;
     private static readonly Regex ContractIdPattern = new(
         "^(?<symbol>[A-Z][A-Z0-9]*)(?<date>[0-9]{8})(?:(?<right>[CP])(?<strike>[0-9]+(?:\\.[0-9]+)?))?$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled,
         TimeSpan.FromSeconds(1));
     private const decimal PriceScale = 1_000_000_000m;
     private readonly string _dataset;
+    private readonly ConcurrentDictionary<string, Lazy<IReadOnlyList<ContractDetail>>>
+        _tickerDefinitions = new(StringComparer.Ordinal);
 
     internal DatabentoMarketDataQueries(string dataset)
     {
@@ -60,7 +65,9 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         var details = new List<ContractDetail>();
         foreach (var root in roots)
         {
-            details.AddRange(GetContractDetails(root, GetRemainingQueryTime(deadline)));
+            details.AddRange(GetContractDetails(
+                AsDefinitionParent(root, ContractKind.CallOption),
+                GetRemainingQueryTime(deadline)));
         }
         return OptionChainDefinitionFilter.Create(
             _dataset,
@@ -77,7 +84,9 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         IReadOnlyList<ContractDetail> definitions;
         try
         {
-            definitions = GetContractDetails(parsed.Ticker, timeout);
+            definitions = GetContractDetails(
+                AsDefinitionParent(parsed.Ticker, parsed.Kind),
+                timeout);
         }
         catch (Exception exception) when (IsProviderQueryFailure(exception))
         {
@@ -154,7 +163,9 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         IReadOnlyList<ContractDetail> currentDefinitions;
         try
         {
-            currentDefinitions = GetContractDetails(parsed.Ticker, timeout);
+            currentDefinitions = GetContractDetails(
+                AsDefinitionParent(parsed.Ticker, parsed.Kind),
+                timeout);
         }
         catch (Exception exception) when (IsProviderQueryFailure(exception))
         {
@@ -207,8 +218,54 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         TimeSpan? timeout = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ticker);
-        var details = Query([ticker], NativeContractQueryKind.Ticker, timeout);
-        return details.Select(static detail => detail!).ToArray();
+        var normalizedTicker = ticker.Trim().ToUpperInvariant();
+        var cached = _tickerDefinitions.GetOrAdd(
+            normalizedTicker,
+            _ => new(
+                () => QueryTickerWithRetries(normalizedTicker, timeout),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+        try
+        {
+            return cached.Value;
+        }
+        catch
+        {
+            _tickerDefinitions.TryRemove(normalizedTicker, out _);
+            throw;
+        }
+    }
+
+    private IReadOnlyList<ContractDetail> QueryTickerWithRetries(
+        string ticker,
+        TimeSpan? timeout)
+    {
+        var deadline = new MonotonicDeadline(timeout ?? DefaultTimeout);
+        for (var attempt = 1; ; attempt++)
+        {
+            var remaining = deadline.Remaining;
+            if (remaining <= TimeSpan.Zero)
+            {
+                throw new DatabentoFeedTimeoutException(
+                    $"Definition lookup for '{ticker}' exceeded its timeout.");
+            }
+            var attemptTimeout = remaining < DefinitionAttemptTimeout
+                ? remaining
+                : DefinitionAttemptTimeout;
+            try
+            {
+                return Query([ticker], NativeContractQueryKind.Ticker, attemptTimeout)
+                    .Select(static detail => detail!)
+                    .ToArray();
+            }
+            catch (Exception exception) when (
+                attempt < DefinitionQueryAttempts
+                && IsProviderQueryFailure(exception)
+                && deadline.Remaining > TimeSpan.Zero)
+            {
+                // Retry within the caller's original deadline. Definition range
+                // requests occasionally receive transient provider 504s.
+            }
+        }
     }
 
     public IReadOnlyList<ContractDetail?> GetContractDetails(
@@ -440,19 +497,47 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
 
     private static DateOnly? GetMaturityDate(NativeContractDetail source)
     {
-        if (!Has(source, NativeContractDetailFlags.HasMaturityDate))
+        if (Has(source, NativeContractDetailFlags.HasMaturityDate))
         {
-            return null;
+            try
+            {
+                return new DateOnly(
+                    source.MaturityYear,
+                    source.MaturityMonth,
+                    source.MaturityDay);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                throw new DatabentoFeedException(
+                    DatabentoFeedStatus.AbiMismatch,
+                    "A native contract detail marked an invalid maturity date as present.");
+            }
+        }
+        return Has(source, NativeContractDetailFlags.HasExpiration)
+               && TryGetExpirationDate(source.ExpirationTimestampNanoseconds, out var expiration)
+            ? expiration
+            : null;
+    }
+
+    private static bool TryGetExpirationDate(
+        ulong nanoseconds,
+        out DateOnly expiration)
+    {
+        expiration = default;
+        if (nanoseconds / 1_000_000_000UL > long.MaxValue)
+        {
+            return false;
         }
         try
         {
-            return new DateOnly(source.MaturityYear, source.MaturityMonth, source.MaturityDay);
+            var timestamp = DateTimeOffset.FromUnixTimeSeconds(
+                checked((long)(nanoseconds / 1_000_000_000UL)));
+            expiration = DateOnly.FromDateTime(timestamp.UtcDateTime);
+            return true;
         }
         catch (ArgumentOutOfRangeException)
         {
-            throw new DatabentoFeedException(
-                DatabentoFeedStatus.AbiMismatch,
-                "A native contract detail marked an invalid maturity date as present.");
+            return false;
         }
     }
 
@@ -646,22 +731,8 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         out DateOnly expiration)
     {
         expiration = default;
-        if (definition.ExpirationTimestampNanoseconds is not { } nanoseconds
-            || nanoseconds / 1_000_000_000UL > long.MaxValue)
-        {
-            return false;
-        }
-        try
-        {
-            var timestamp = DateTimeOffset.FromUnixTimeSeconds(
-                checked((long)(nanoseconds / 1_000_000_000UL)));
-            expiration = DateOnly.FromDateTime(timestamp.UtcDateTime);
-            return true;
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            return false;
-        }
+        return definition.ExpirationTimestampNanoseconds is { } nanoseconds
+               && TryGetExpirationDate(nanoseconds, out expiration);
     }
 
     private static string Describe(IEnumerable<ContractDetail> definitions) =>
@@ -669,6 +740,21 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
             ", ",
             definitions.Select(definition =>
                 $"{definition.RawSymbol}/instrument={definition.Instrument.InstrumentId}"));
+
+    private static string AsDefinitionParent(
+        string ticker,
+        ContractKind kind)
+    {
+        var normalized = ticker.Trim().ToUpperInvariant();
+        if (normalized.EndsWith(".FUT", StringComparison.Ordinal)
+            || normalized.EndsWith(".OPT", StringComparison.Ordinal))
+        {
+            return normalized;
+        }
+        return kind == ContractKind.Future
+            ? $"{normalized}.FUT"
+            : $"{normalized}.OPT";
+    }
 
     private static bool IsProviderQueryFailure(Exception exception) =>
         (exception is DatabentoFeedException or DatabentoFeedTimeoutException)

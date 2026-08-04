@@ -1,20 +1,20 @@
 namespace TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests;
 
-public sealed class LiveTickerSmokeTests
+[Collection(DatabentoSmokeCollection.Name)]
+public sealed class LiveTickerSmokeTests(DatabentoSmokeFixture fixture)
 {
     [Fact]
-    public void CurrentEsFutureAuthenticatesResolvesAndStarts()
+    public async Task CurrentEsFutureAuthenticatesResolvesAndStarts()
     {
         if (!LiveTestGate.IsEnabled())
         {
             return;
         }
         LiveTestGate.AssertCredential();
-        var baseOptions = LiveTestGate.CreateOptions();
-        var queries = new DatabentoFeedFactory().CreateMarketDataQueries(baseOptions);
+        var queries = fixture.Queries;
         var now = LiveTestGate.UtcNowNanoseconds();
         var currentFuture = queries
-            .GetContractDetails("ES", TimeSpan.FromSeconds(90))
+            .GetContractDetails("ES.FUT", TimeSpan.FromSeconds(90))
             .First(detail =>
                 detail.ContractKind == ContractKind.Future
                 && detail.ExpirationTimestampNanoseconds > now);
@@ -29,16 +29,19 @@ public sealed class LiveTickerSmokeTests
                 MarketDataKinds.Quote)
         ], TimeSpan.FromSeconds(5));
         feed.Start(TimeSpan.FromSeconds(45));
+        var registration = Assert.Single(feed.GetInstruments());
+        var drain = LiveTestGate.DrainUntilCompletedAsync(
+            feed.GetReader(registration.Instrument));
         try
         {
-            var registration = Assert.Single(feed.GetInstruments());
             Assert.Equal(currentFuture.RawSymbol, registration.RequestedSymbol);
             Assert.Equal(currentFuture.Instrument, registration.Instrument);
             Assert.Equal(FeedState.Running, feed.GetHealth().State);
         }
         finally
         {
-            feed.Stop(TimeSpan.FromSeconds(10));
+            feed.Stop(TimeSpan.FromSeconds(30));
+            await drain.WaitAsync(TimeSpan.FromSeconds(30));
         }
     }
 }

@@ -38,6 +38,22 @@ internal static class LiveTestGate
     internal static ulong UtcNowNanoseconds() => checked(
         (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1_000_000UL);
 
+    internal static Task DrainUntilCompletedAsync(
+        ISynchronousBatchReader<MarketDataBatch64> reader) => Task.Run(() =>
+    {
+        while (true)
+        {
+            try
+            {
+                using var batch = reader.Read(Timeout.InfiniteTimeSpan);
+            }
+            catch (EndOfStreamException)
+            {
+                return;
+            }
+        }
+    });
+
     private static bool IsOne(string name) => string.Equals(
         Environment.GetEnvironmentVariable(name),
         "1",
