@@ -23,7 +23,10 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// </remarks>
 /// <param name="options">The NATS consumer options containing connection configuration such as the server URL.</param>
 /// <param name="logger">The logger instance used to record diagnostic and lifecycle events.</param>
-public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger) 
+public class NatsActorConsumer(
+    INatsConsumerOptions options,
+    ILogger logger,
+    NatsConnectionManager? connectionManager = null)
     : IActorConsumer
 {
     const int DefaultStripeCapacity = 4096;
@@ -32,6 +35,9 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
     readonly INatsSerializer<byte[]> _deserializer = new NatsByteArrayMessageSerializer();
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly string _serviceId = "NatsActorConsumer";
+    readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
+    readonly bool _ownsConnectionManager = connectionManager is null;
+    readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     IActorSupervisor _supervisor = default!;
     ActorType _actorType;
     string _subscriptionSubject = default!;
@@ -46,6 +52,19 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
     // striped dispatch channels for concurrent mailbox delivery
     Channel<(NatsMsg<byte[]> Msg, ActorSubject Subject)>[]? _stripeChannels;
     Task[]? _dispatcherTasks;
+
+    public async ValueTask StartAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName = default!)
+    {
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await StartCoreAsync(supervisor, actorType, consumerName).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
 
     /// <summary>
     /// Starts the NATS consumer for the specified actor type and begins processing all actor messages
@@ -75,7 +94,7 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
     /// <returns>A <see cref="ValueTask"/> that completes once the consumer has been started.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a received message targets an actor identifier that
     /// does not exist in the supervisor's <see cref="IActorSupervisor.Children"/> collection.</exception>
-    public async ValueTask StartAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName = default!)
+    async ValueTask StartCoreAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName)
     {
         try
         {
@@ -90,13 +109,16 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
                 return;
             }
 
-            _nc = new NatsClient(_options.Url);
-            await _nc.ConnectAsync().ConfigureAwait(false);
+            _nc = await _connectionManager.GetClientAsync(_options.Url).ConfigureAwait(false);
             _cts = new CancellationTokenSource();
             var ctsRequestToken = _cts.Token;
             _requestOptions = new()
             {
-               IdleTimeout = TimeSpan.FromSeconds(30)
+                ChannelOpts = new NatsSubChannelOpts
+                {
+                    Capacity = DefaultStripeCapacity * Math.Max(1, _options.DispatcherCount),
+                    FullMode = BoundedChannelFullMode.Wait
+                }
             };
 
             // create striped dispatch channels and start dispatcher tasks
@@ -113,24 +135,11 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
                         FullMode = BoundedChannelFullMode.Wait
                     });
                 var reader = _stripeChannels[i].Reader;
-                _dispatcherTasks[i] = Task.Run(() => DispatchLoopAsync(reader, ctsRequestToken));
+                _dispatcherTasks[i] = DispatchLoopAsync(reader);
             }
 
-            _loopTask = Task.Run(async () =>
-            {
-                switch(_actorType)
-                {
-                    case ActorType.Supervisor:
-                    case ActorType.Command:
-                    case ActorType.Event:
-                    case ActorType.Notify:
-                        await PubSubMessageLoopAsync(ctsRequestToken);
-                        break;
-                    case ActorType.Query:
-                        await ReqReplMessageLoopAsync(ctsRequestToken);
-                        break;
-                }
-            });
+            _isRunning = true;
+            _loopTask = RunMessageLoopAsync(ctsRequestToken);
             _logger.LogInformationEvent(_serviceId, "NATS {ActorType} consumer started with {DispatcherCount} dispatch stripes.", _actorType, dispatcherCount);
         }
         catch (Exception ex)
@@ -150,6 +159,19 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
     /// </remarks>
     /// <returns>A <see cref="ValueTask"/> that completes once the consumer has been stopped and disposed.</returns>
     public async ValueTask StopAsync()
+    {
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await StopCoreAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    async ValueTask StopCoreAsync()
     {
         try
         {
@@ -187,7 +209,8 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
             _dispatcherTasks = null;
 
             _cts.Dispose();
-            await _nc.DisposeAsync().ConfigureAwait(false);
+            if (_ownsConnectionManager)
+                await _connectionManager.DisposeAsync().ConfigureAwait(false);
             _nc = null;
             _isRunning = false;
             _logger.LogInformation("NATS {ActorType} consumer has stopped.", _actorType);
@@ -212,9 +235,35 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
     /// </summary>
     /// <param name="ctsRequestToken">The cancellation token used to signal the loop to stop.</param>
     /// <returns>A <see cref="ValueTask"/> that completes when the loop exits.</returns>
+    async Task RunMessageLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            switch (_actorType)
+            {
+                case ActorType.Supervisor:
+                case ActorType.Command:
+                case ActorType.Event:
+                case ActorType.Notify:
+                    await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    break;
+                case ActorType.Query:
+                    await ReqReplMessageLoopAsync(cancellationToken).ConfigureAwait(false);
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Expected during shutdown.
+        }
+        finally
+        {
+            _isRunning = false;
+        }
+    }
+
     async ValueTask PubSubMessageLoopAsync(CancellationToken ctsRequestToken)
     {
-        _isRunning = true;
         var stripes = _stripeChannels!;
         var stripeCount = stripes.Length;
         _logger.LogInformationEvent(_serviceId, "{ActorType} consumer started", _actorType);
@@ -231,6 +280,7 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
                         continue;
                     msg.EnsureSuccess();
                     messagesRead++;
+                    NatsMessagingMetrics.Received.Add(1);
                     if (_logger.IsEnabled(LogLevel.Debug))
                         _logger.LogDebug("NATS {ActorType} consumer received message for subject={Subject}", _actorType, msg.Subject);
 
@@ -252,7 +302,6 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("NATS {ActorType} consumer read {MessagesRead} messages.", _actorType, messagesRead);
         }
-        _isRunning = false;
     }
 
     /// <summary>
@@ -264,7 +313,6 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
     /// <returns>A <see cref="ValueTask"/> that completes when the loop exits.</returns>
     async ValueTask ReqReplMessageLoopAsync(CancellationToken ctsRequestToken)
     {
-        _isRunning = true;
         var stripes = _stripeChannels!;
         var stripeCount = stripes.Length;
         _logger.LogInformationEvent(_serviceId, "{ActorType} consumer started", _actorType);
@@ -281,6 +329,7 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
                         continue;
                     msg.EnsureSuccess();
                     messagesRead++;
+                    NatsMessagingMetrics.Received.Add(1);
                     if (_logger.IsEnabled(LogLevel.Debug))
                         _logger.LogDebug("NATS {ActorType} consumer received message for subject={Subject}", _actorType, msg.Subject);
 
@@ -297,7 +346,6 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("NATS {ActorType} consumer read {MessagesRead} messages.", _actorType, messagesRead);
         }
-        _isRunning = false;
     }
 
     /// <summary>
@@ -307,32 +355,21 @@ public class NatsActorConsumer(INatsConsumerOptions options, ILogger logger)
     /// </summary>
     /// <param name="reader">The channel reader for this stripe.</param>
     /// <param name="cancellationToken">The cancellation token used to signal the loop to stop.</param>
-    async Task DispatchLoopAsync(ChannelReader<(NatsMsg<byte[]> Msg, ActorSubject Subject)> reader, CancellationToken cancellationToken)
+    async Task DispatchLoopAsync(ChannelReader<(NatsMsg<byte[]> Msg, ActorSubject Subject)> reader)
     {
-        try
+        await foreach (var (msg, msgSubject) in reader.ReadAllAsync().ConfigureAwait(false))
         {
-            await foreach (var (msg, msgSubject) in reader.ReadAllAsync(cancellationToken))
+            try
             {
-                try
-                {
-                    var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
-                        ?? throw new InvalidOperationException(string.Concat("Actor not found in context children for mailbox ", msgSubject.ActorId.ToString()));
-                    //await actor.Mailbox.ThreadQueues.WriteAsync(msg, msgSubject, cancellationToken);
-                    actor.Mailbox.ThreadQueues.Write(msg, msgSubject, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogErrorEvent(_serviceId, ex, "Dispatch stripe failed to deliver message for {ActorId}.", msgSubject.ActorId);
-                }
+                var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
+                    ?? throw new InvalidOperationException(string.Concat("Actor not found in context children for mailbox ", msgSubject.ActorId.ToString()));
+                actor.Mailbox.ThreadQueues.Write(msg, msgSubject, CancellationToken.None);
             }
-        }
-        catch (OperationCanceledException)
-        {
-            // expected during shutdown
+            catch (Exception ex)
+            {
+                NatsMessagingMetrics.DispatchFailures.Add(1);
+                _logger.LogErrorEvent(_serviceId, ex, "Dispatch stripe failed to deliver message for {ActorId}.", msgSubject.ActorId);
+            }
         }
     }
 }

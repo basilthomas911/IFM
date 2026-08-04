@@ -2,7 +2,10 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using MessagePack;
+using MessagePack.Resolvers;
 using Newtonsoft.Json;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -53,8 +56,10 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     /// </summary>
     /// <param name="options">The options that provide the NATS server URL.</param>
     /// <exception cref="ArgumentNullException"><paramref name="options"/> is <see langword="null"/>.</exception>
-    public NatsJSDurableReplayQueue(INatsJetStreamConsumerOptions options)
-        : this(new NatsJSDurableQueueTransport(options), DefaultIdleTimeout)
+    public NatsJSDurableReplayQueue(
+        INatsJetStreamConsumerOptions options,
+        NatsConnectionManager? connectionManager = null)
+        : this(new NatsJSDurableQueueTransport(options, connectionManager), DefaultIdleTimeout)
     {
     }
 
@@ -308,21 +313,17 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             if (state.ProcessWorker is null || state.ProcessWorker.IsCompleted)
             {
                 state.ProcessCancellation?.Dispose();
-                state.ProcessCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                state.ProcessCancellation = new CancellationTokenSource();
                 state.ProcessCancellation.CancelAfter(_idleTimeout);
-                state.ProcessWorker = Task.Run(
-                    () => RunProcessWorkerAsync(eventProjectorName, state, state.ProcessCancellation),
-                    CancellationToken.None);
+                state.ProcessWorker = RunProcessWorkerAsync(eventProjectorName, state, state.ProcessCancellation);
             }
 
             if (state.ReplayWorker is null || state.ReplayWorker.IsCompleted)
             {
                 state.ReplayCancellation?.Dispose();
-                state.ReplayCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                state.ReplayCancellation = new CancellationTokenSource();
                 state.ReplayCancellation.CancelAfter(_idleTimeout);
-                state.ReplayWorker = Task.Run(
-                    () => RunReplayWorkerAsync(eventProjectorName, state, state.ReplayCancellation),
-                    CancellationToken.None);
+                state.ReplayWorker = RunReplayWorkerAsync(eventProjectorName, state, state.ReplayCancellation);
             }
         }
         finally
@@ -529,14 +530,16 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     {
         var eventType = domainEvent.GetType();
         var envelope = new DurableEventEnvelope(
+            2,
             eventProjectorName,
             eventType.AssemblyQualifiedName
                 ?? throw new InvalidOperationException($"Could not resolve the assembly-qualified name for '{eventType}'."),
-            JsonConvert.SerializeObject(domainEvent, eventType, SerializerSettings),
+            MessagePackSerializer.Serialize(eventType, domainEvent, MessagePackOptions),
+            DurablePayloadFormat.MessagePack,
             DateTimeOffset.UtcNow,
             null,
             null);
-        return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(envelope, SerializerSettings));
+        return MessagePackSerializer.Serialize(envelope, MessagePackOptions);
     }
 
     static string CreateProcessMessageId(string eventProjectorName, IEvent domainEvent)
@@ -556,7 +559,19 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         var eventType = Type.GetType(envelope.EventType, throwOnError: true)!;
         if (!typeof(IEvent).IsAssignableFrom(eventType))
             throw new InvalidOperationException($"Envelope type '{eventType}' does not implement {nameof(IEvent)}.");
-        return (IEvent)(JsonConvert.DeserializeObject(envelope.EventJson, eventType, SerializerSettings)
+        object? domainEvent = envelope.PayloadFormat switch
+        {
+            DurablePayloadFormat.MessagePack => MessagePackSerializer.Deserialize(
+                eventType,
+                envelope.EventPayload,
+                MessagePackOptions),
+            DurablePayloadFormat.Json => JsonConvert.DeserializeObject(
+                Encoding.UTF8.GetString(envelope.EventPayload),
+                eventType,
+                JsonSerializerSettings),
+            _ => throw new InvalidOperationException($"Unsupported durable payload format '{envelope.PayloadFormat}'.")
+        };
+        return (IEvent)(domainEvent
             ?? throw new InvalidOperationException($"Could not deserialize event type '{eventType}'."));
     }
 
@@ -567,14 +582,49 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             FailedAtUtc = DateTimeOffset.UtcNow,
             ErrorMessage = exception.Message
         };
-        return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(envelope, SerializerSettings));
+        return MessagePackSerializer.Serialize(envelope, MessagePackOptions);
     }
 
-    static DurableEventEnvelope DeserializeEnvelope(byte[] payload) =>
-        JsonConvert.DeserializeObject<DurableEventEnvelope>(Encoding.UTF8.GetString(payload), SerializerSettings)
-        ?? throw new InvalidOperationException("The durable event envelope is invalid.");
+    static DurableEventEnvelope DeserializeEnvelope(byte[] payload)
+    {
+        if (LooksLikeJson(payload))
+        {
+            var legacy = JsonConvert.DeserializeObject<LegacyDurableEventEnvelope>(
+                Encoding.UTF8.GetString(payload),
+                JsonSerializerSettings)
+                ?? throw new InvalidOperationException("The legacy durable event envelope is invalid.");
+            return new DurableEventEnvelope(
+                1,
+                legacy.EventProjectorName,
+                legacy.EventType,
+                Encoding.UTF8.GetBytes(legacy.EventJson),
+                DurablePayloadFormat.Json,
+                legacy.EnqueuedAtUtc,
+                legacy.FailedAtUtc,
+                legacy.ErrorMessage);
+        }
 
-    static readonly JsonSerializerSettings SerializerSettings = new()
+        return MessagePackSerializer.Deserialize<DurableEventEnvelope>(payload, MessagePackOptions)
+            ?? throw new InvalidOperationException("The durable event envelope is invalid.");
+    }
+
+    static bool LooksLikeJson(ReadOnlySpan<byte> payload)
+    {
+        foreach (var value in payload)
+        {
+            if (value is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+                continue;
+            return value is (byte)'{' or (byte)'[';
+        }
+        return false;
+    }
+
+    static readonly MessagePackSerializerOptions MessagePackOptions =
+        MessagePackSerializerOptions.Standard
+            .WithResolver(ContractlessStandardResolverAllowPrivate.Instance)
+            .WithCompression(MessagePackCompression.Lz4BlockArray);
+
+    static readonly JsonSerializerSettings JsonSerializerSettings = new()
     {
         ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor
     };
@@ -629,7 +679,23 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     /// <remarks>This method blocks until asynchronous disposal completes and is safe to call more than once.</remarks>
     public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
+    enum DurablePayloadFormat : byte
+    {
+        Json = 1,
+        MessagePack = 2
+    }
+
     sealed record DurableEventEnvelope(
+        byte Version,
+        string EventProjectorName,
+        string EventType,
+        byte[] EventPayload,
+        DurablePayloadFormat PayloadFormat,
+        DateTimeOffset EnqueuedAtUtc,
+        DateTimeOffset? FailedAtUtc,
+        string? ErrorMessage);
+
+    sealed record LegacyDurableEventEnvelope(
         string EventProjectorName,
         string EventType,
         string EventJson,

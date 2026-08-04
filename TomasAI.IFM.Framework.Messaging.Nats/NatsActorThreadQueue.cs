@@ -60,8 +60,6 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
         {
             yield return natsMsg;
         }
-        await Task.CompletedTask;
-
         bool Read(out NatsMsg<byte[]> natsMsg, CancellationToken cancellationToken = default)
         {
             natsMsg = default!;
@@ -143,13 +141,11 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
 
     public ValueTask EnqueueAsync(NatsMsg<byte[]> message, CancellationToken cancellationToken = default)
     {
-        _buffer.Enqueue(message);
+        _buffer.Enqueue(message, cancellationToken);
         return ValueTask.CompletedTask;
     }
     public void SetMessageAvailable()
     {
-        // This method can be used to signal that a message is available for processing, if needed.
-        // In this implementation, the channel's built-in mechanisms handle message availability, so this method is currently a no-op.
-        throw new NotImplementedException();
+        // Enqueue signals the SPSC consumer directly; no separate notification is required.
     }
 }

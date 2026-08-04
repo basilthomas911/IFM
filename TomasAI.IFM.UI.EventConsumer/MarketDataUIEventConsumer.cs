@@ -15,8 +15,9 @@ namespace TomasAI.IFM.UI.EventConsumer;
 /// <param name="logger"></param>
 public class MarketDataUIEventConsumer(
     INatsEventListenerOptions options,
-    ILogger logger)
-    : NatsEventConsumer(options, logger), IMarketDataUIEventConsumer
+    ILogger logger,
+    NatsConnectionManager? connectionManager = null)
+    : NatsEventConsumer(options, logger, connectionManager), IMarketDataUIEventConsumer
 {
     readonly Guid _siteId = Guid.NewGuid();
     ICollection<IEvent> _consumeEvents = [];

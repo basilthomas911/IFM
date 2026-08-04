@@ -237,6 +237,7 @@ public static class Startup
             services.AddSingleton<INatsProducerOptions, NatsProducerOptions>();
             services.AddSingleton<INatsConsumerOptions, NatsConsumerOptions>();
             services.AddSingleton<INatsEventListenerOptions, NatsEventListenerOptions>();
+            services.AddSingleton<NatsConnectionManager>();
             services.AddTransient<IActorProducer, NatsActorProducer>();
             services.AddTransient<IActorConsumer, NatsActorConsumer>();
             services.AddSingleton<INatsJetStreamProducerOptions, NatsJetStreamProducerOptions>();

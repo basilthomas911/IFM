@@ -28,8 +28,9 @@ public class TradePositionEventConsumer : NatsEventConsumer, ITradePositionEvent
     public TradePositionEventConsumer(
         ITradePositionService tradePositionService,
         INatsEventListenerOptions options,
-        ILogger<TradePositionEventConsumer> logger)
-        : base(options, logger)
+        ILogger<TradePositionEventConsumer> logger,
+        NatsConnectionManager? connectionManager = null)
+        : base(options, logger, connectionManager)
     {
         _tradePositionService = tradePositionService;
         _siteId = Guid.NewGuid();

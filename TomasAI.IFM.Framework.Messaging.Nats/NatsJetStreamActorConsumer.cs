@@ -27,7 +27,10 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// </remarks>
 /// <param name="options">The NATS JetStream consumer options containing connection and stream configuration.</param>
 /// <param name="logger">The logger instance used to record diagnostic and lifecycle events.</param>
-public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, ILogger logger)
+public class NatsJetStreamActorConsumer(
+    INatsJetStreamConsumerOptions options,
+    ILogger logger,
+    NatsConnectionManager? connectionManager = null)
     : IJSActorConsumer
 {
     const int DefaultStripeCapacity = 4096;
@@ -36,6 +39,9 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
     readonly INatsSerializer<byte[]> _deserializer = new NatsByteArrayMessageSerializer();
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly string _serviceId = "NatsJetStreamActorConsumer";
+    readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
+    readonly bool _ownsConnectionManager = connectionManager is null;
+    readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     IActorSupervisor _supervisor = default!;
     ActorType _actorType;
 
@@ -46,8 +52,21 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
     bool _isRunning;
 
     // striped dispatch channels for concurrent mailbox delivery with deferred ACK
-    Channel<(NatsMsg<byte[]> Msg, ActorSubject Subject, NatsJSMsg<byte[]> JsMsg, bool IsRoutedMessage)>[]? _stripeChannels;
+    Channel<(NatsMsg<byte[]> Msg, ActorSubject Subject, INatsJSMsg<byte[]>? JsMsg, bool IsRoutedMessage)>[]? _stripeChannels;
     Task[]? _dispatcherTasks;
+
+    public async ValueTask StartAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName = default!)
+    {
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await StartCoreAsync(supervisor, actorType, consumerName).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
 
     /// <summary>
     /// Starts the NATS JetStream consumer for the specified actor type and begins processing
@@ -69,7 +88,7 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
     /// <returns>A <see cref="ValueTask"/> that completes once the consumer has been started.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a received message targets an actor identifier that
     /// does not exist in the supervisor's <see cref="IActorSupervisor.Children"/> collection.</exception>
-    public async ValueTask StartAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName = default!)
+    async ValueTask StartCoreAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName)
     {
         try
         {
@@ -83,10 +102,8 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
                 return;
             }
 
-            _nc = new NatsClient(_options.Url);
-            await _nc.ConnectAsync().ConfigureAwait(false);
-
-            var js = _nc.CreateJetStreamContext();
+            _nc = await _connectionManager.GetClientAsync(_options.Url).ConfigureAwait(false);
+            var js = await _connectionManager.GetJetStreamContextAsync(_options.Url).ConfigureAwait(false);
             var streamName = string.IsNullOrWhiteSpace(_options.StreamName)
                 ? $"{_actorType}Stream"
                 : _options.StreamName;
@@ -97,49 +114,37 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
 
             var subjectFilter = $"{_actorType}.>";
 
-            // Create or update the JetStream stream for this actor type.
-            // If an old stream with a different name owns the same subjects (e.g. from a
-            // previous run that used a random suffix), delete it first to avoid overlap.
-            try
-            {
-                await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [subjectFilter]));
-            }
-            catch (NatsJSApiException ex) when (ex.Error.Description is not null
-                && ex.Error.Description.Contains("subjects overlap", StringComparison.OrdinalIgnoreCase))
-            {
-                // Find and delete the conflicting stream, then retry.
-                await foreach (var stream in js.ListStreamsAsync())
-                {
-                    _logger.LogWarning(
-                           "Deleting conflicting JetStream stream '{ConflictingStream}' that owns subject '{Subject}'.",
-                           stream.Info.Config.Name, subjectFilter);
-                    await js.DeleteStreamAsync(stream.Info.Config.Name);
-                }
-                await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [subjectFilter]));
-            }
+            // A subject overlap is a configuration error. Never delete server streams implicitly:
+            // another service may own the overlapping stream and its retained messages.
+            await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [subjectFilter]));
 
             // Create or update the durable consumer...
             var consumer = await js.CreateOrUpdateConsumerAsync(streamName, new ConsumerConfig(durableName)
             {
                 FilterSubject = subjectFilter,
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
-                DeliverPolicy = ConsumerConfigDeliverPolicy.All
+                DeliverPolicy = ConsumerConfigDeliverPolicy.All,
+                MaxAckPending = DefaultStripeCapacity * Math.Max(1, _options.DispatcherCount)
             });
 
             _consumerOpts = new()
             {
-
+                MaxMsgs = DefaultStripeCapacity * Math.Max(1, _options.DispatcherCount),
+                ThresholdMsgs = DefaultStripeCapacity,
+                DrainOnCancel = true
             };
 
+            _cts.Dispose();
+            _cts = new CancellationTokenSource();
             var ctsRequestToken = _cts.Token;
 
             // create striped dispatch channels and start dispatcher tasks
             var dispatcherCount = Math.Max(1, _options.DispatcherCount);
-            _stripeChannels = new Channel<(NatsMsg<byte[]>, ActorSubject, NatsJSMsg<byte[]>, bool)>[dispatcherCount];
+            _stripeChannels = new Channel<(NatsMsg<byte[]>, ActorSubject, INatsJSMsg<byte[]>?, bool)>[dispatcherCount];
             _dispatcherTasks = new Task[dispatcherCount];
             for (var i = 0; i < dispatcherCount; i++)
             {
-                _stripeChannels[i] = Channel.CreateBounded<(NatsMsg<byte[]>, ActorSubject, NatsJSMsg<byte[]>, bool)>(
+                _stripeChannels[i] = Channel.CreateBounded<(NatsMsg<byte[]>, ActorSubject, INatsJSMsg<byte[]>?, bool)>(
                     new BoundedChannelOptions(DefaultStripeCapacity)
                     {
                         SingleWriter = true,
@@ -147,13 +152,11 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
                         FullMode = BoundedChannelFullMode.Wait
                     });
                 var reader = _stripeChannels[i].Reader;
-                _dispatcherTasks[i] = Task.Run(() => DispatchLoopAsync(reader, ctsRequestToken));
+                _dispatcherTasks[i] = DispatchLoopAsync(reader);
             }
 
-            _loopTask = Task.Run(async () =>
-            {
-                await JetStreamMessageLoopAsync(consumer, ctsRequestToken);
-            });
+            _isRunning = true;
+            _loopTask = RunMessageLoopAsync(consumer, ctsRequestToken);
             _logger.LogInformationEvent(_serviceId, "NATS JetStream {ActorType} consumer started with {DispatcherCount} dispatch stripes.", _actorType, dispatcherCount);
         }
         catch (Exception ex)
@@ -173,6 +176,19 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
     /// </remarks>
     /// <returns>A <see cref="ValueTask"/> that completes once the consumer has been stopped and disposed.</returns>
     public async ValueTask StopAsync()
+    {
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await StopCoreAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    async ValueTask StopCoreAsync()
     {
         try
         {
@@ -210,7 +226,8 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
             _dispatcherTasks = null;
 
             _cts.Dispose();
-            await _nc.DisposeAsync().ConfigureAwait(false);
+            if (_ownsConnectionManager)
+                await _connectionManager.DisposeAsync().ConfigureAwait(false);
             _nc = null;
             _isRunning = false;
             _logger.LogInformation("NATS JetStream {ActorType} consumer has stopped.", _actorType);
@@ -236,9 +253,24 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
     /// <param name="consumer">The JetStream consumer to consume messages from.</param>
     /// <param name="ctsRequestToken">The cancellation token used to signal the loop to stop.</param>
     /// <returns>A <see cref="ValueTask"/> that completes when the loop exits.</returns>
+    async Task RunMessageLoopAsync(INatsJSConsumer consumer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await JetStreamMessageLoopAsync(consumer, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // NATS.Net drains buffered JetStream messages before completing cancellation.
+        }
+        finally
+        {
+            _isRunning = false;
+        }
+    }
+
     async ValueTask JetStreamMessageLoopAsync(INatsJSConsumer consumer, CancellationToken ctsRequestToken)
     {
-        _isRunning = true;
         var stripes = _stripeChannels!;
         var stripeCount = stripes.Length;
         _logger.LogInformationEvent(_serviceId, "JetStream {ActorType} consumer started", _actorType);
@@ -247,7 +279,7 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("NATS JetStream {ActorType} consumer waiting for messages...", _actorType);
             var messagesRead = 0;
-            await foreach (var msg in consumer.ConsumeAsync(serializer: _deserializer, cancellationToken: ctsRequestToken))
+            await foreach (var msg in consumer.ConsumeAsync(opts: _consumerOpts, serializer: _deserializer, cancellationToken: ctsRequestToken))
             {
                 try
                 {
@@ -257,6 +289,7 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
                         continue;
                     }
                     messagesRead++;
+                    NatsMessagingMetrics.Received.Add(1);
                     if (_logger.IsEnabled(LogLevel.Debug))
                         _logger.LogDebug("NATS JetStream {ActorType} consumer received message for subject={Subject}", _actorType, msg.Subject);
 
@@ -275,7 +308,6 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("NATS JetStream {ActorType} consumer read {MessagesRead} messages.", _actorType, messagesRead);
         }
-        _isRunning = false;
     }
 
     /// <summary>
@@ -285,36 +317,26 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
     /// <param name="cancellationToken">The cancellation token used to signal the loop to stop.</param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    async Task DispatchLoopAsync(ChannelReader<(NatsMsg<byte[]> Msg, ActorSubject Subject, NatsJSMsg<byte[]> JsMsg, bool IsRoutedMessage)> reader, CancellationToken cancellationToken)
+    async Task DispatchLoopAsync(ChannelReader<(NatsMsg<byte[]> Msg, ActorSubject Subject, INatsJSMsg<byte[]>? JsMsg, bool IsRoutedMessage)> reader)
     {
-        try
+        await foreach (var (msg, msgSubject, jsMsg, isRoutedMessage) in reader.ReadAllAsync().ConfigureAwait(false))
         {
-            await foreach (var (msg, msgSubject, jsMsg, isRoutedMessage) in reader.ReadAllAsync(cancellationToken))
+            try
             {
-                try
+                var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
+                    ?? throw new InvalidOperationException($"Actor not found in context children for mailbox {msgSubject.ActorId}");
+                actor.Mailbox.ThreadQueues.Write(msg, msgSubject, CancellationToken.None);
+                if (!isRoutedMessage)
                 {
-                    var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
-                        ?? throw new InvalidOperationException($"Actor not found in context children for mailbox {msgSubject.ActorId}");
-                    actor.Mailbox.ThreadQueues.Write(msg, msgSubject, cancellationToken);
-                    if (!isRoutedMessage)
-                    {
-                        await jsMsg.AckAsync(cancellationToken: cancellationToken);
-                        await _supervisor.RouteEventToAsync(msg);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogErrorEvent(_serviceId, ex, "Dispatch stripe failed to deliver JetStream message for {ActorId}.", msgSubject.ActorId);
+                    await _supervisor.RouteEventToAsync(msg).ConfigureAwait(false);
+                    await jsMsg!.AckAsync(cancellationToken: CancellationToken.None).ConfigureAwait(false);
                 }
             }
-        }
-        catch (OperationCanceledException)
-        {
-            // expected during shutdown
+            catch (Exception ex)
+            {
+                NatsMessagingMetrics.DispatchFailures.Add(1);
+                _logger.LogErrorEvent(_serviceId, ex, "Dispatch stripe failed to deliver JetStream message for {ActorId}.", msgSubject.ActorId);
+            }
         }
     }
 
@@ -328,9 +350,8 @@ public class NatsJetStreamActorConsumer(INatsJetStreamConsumerOptions options, I
     {
         try
         {
-            var natsMsg = new NatsJSMsg<byte[]>();
             var stripe = (routeToSubject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % _stripeChannels.Length;
-            await _stripeChannels[stripe].Writer.WriteAsync((msg, routeToSubject, natsMsg, true), _cts.Token);
+            await _stripeChannels[stripe].Writer.WriteAsync((msg, routeToSubject, null, true), _cts.Token);
         }
         catch (Exception ex)
         {

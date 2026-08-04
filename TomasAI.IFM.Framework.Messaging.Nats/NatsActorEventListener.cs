@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Threading.Channels;
 using NATS.Client.Core;
 using NATS.Net;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -11,12 +12,16 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 public class NatsActorEventListener(
     INatsEventListenerOptions options,
-    ILogger logger) : IActorEventListener
+    ILogger logger,
+    NatsConnectionManager? connectionManager = null) : IActorEventListener
 {
     readonly INatsEventListenerOptions _options = IsArgumentNull.Set(options);
     readonly INatsSerializer<byte[]> _deserializer = new NatsByteArrayMessageSerializer();
     readonly ILogger  _logger = IsArgumentNull.Set(logger);
     readonly string _serviceId = "NatsActorEventListener";
+    readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
+    readonly bool _ownsConnectionManager = connectionManager is null;
+    readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     NatsSubOpts _requestOptions = default!;
     NatsClient? _nc;
     CancellationTokenSource _cts = default!;
@@ -24,7 +29,24 @@ public class NatsActorEventListener(
     string _eventListenerId = string.Empty;
     Dictionary<ActorMailboxId, List<string>> _eventMap = [];
     Func<string, NatsMsg<byte[]>, ValueTask> _eventHandler = (verb, msg) => { return ValueTask.CompletedTask; };
-    int _messageCount = 0;
+    Task[] _subscriptionTasks = [];
+    int _messageCount;
+
+    public async ValueTask StartAsync(
+        string eventListenerId,
+        Dictionary<ActorMailboxId, List<string>> eventMap,
+        Func<string, NatsMsg<byte[]>, ValueTask> eventHandler)
+    {
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await StartCoreAsync(eventListenerId, eventMap, eventHandler).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
 
     /// <summary>
     /// Gets the current state of the event listener.
@@ -34,7 +56,7 @@ public class NatsActorEventListener(
     /// <summary>
     /// Gets the number of messages currently stored.
     /// </summary>
-    public int MessageCount => _messageCount;
+    public int MessageCount => Volatile.Read(ref _messageCount);
 
     /// <summary>
     /// Starts the event listener asynchronously, subscribing to the specified event map and handling incoming events
@@ -45,7 +67,7 @@ public class NatsActorEventListener(
     /// <param name="eventHandler">A delegate that processes incoming NATS messages. Invoked for each received event. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous start operation.</returns>
     /// <exception cref="ArgumentException">Thrown if <paramref name="eventMap"/> is empty or contains multiple mailbox keys that are not the same.</exception>
-    public async ValueTask StartAsync(
+    async ValueTask StartCoreAsync(
      string eventListenerId,
      Dictionary<ActorMailboxId, List<string>> eventMap,
      Func<string, NatsMsg<byte[]>, ValueTask> eventHandler)
@@ -78,20 +100,23 @@ public class NatsActorEventListener(
             // Create a new CancellationTokenSource for this start cycle
             _cts = new CancellationTokenSource();
 
-            _nc = new NatsClient(_options.Url);
-            await _nc.ConnectAsync().ConfigureAwait(false);
+            _nc = await _connectionManager.GetClientAsync(_options.Url).ConfigureAwait(false);
             _requestOptions = new()
             {
-                IdleTimeout = TimeSpan.FromSeconds(30)
+                ChannelOpts = new NatsSubChannelOpts
+                {
+                    Capacity = 4096,
+                    FullMode = BoundedChannelFullMode.Wait
+                }
             };
             _state = EventListenerState.Started;
+            Interlocked.Exchange(ref _messageCount, 0);
             _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} started.", eventListenerId);
+            _subscriptionTasks = new Task[_eventMap.Count];
+            var taskIndex = 0;
             foreach (var e in _eventMap)
             {
-                _ = Task.Run(async () =>
-                {
-                    await PubSubMessageLoopAsync($"{e.Key}", e.Value, _cts.Token);
-                });
+                _subscriptionTasks[taskIndex++] = PubSubMessageLoopAsync($"{e.Key}", e.Value, _cts.Token);
             }
         }
         catch (Exception ex)
@@ -109,6 +134,19 @@ public class NatsActorEventListener(
     /// <returns>A task that represents the asynchronous stop operation.</returns>
     public async ValueTask StopAsync()
     {
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await StopCoreAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    async ValueTask StopCoreAsync()
+    {
         try
         {
             if (_nc is null)
@@ -118,9 +156,22 @@ public class NatsActorEventListener(
             }
 
             _cts.Cancel();
+            if (_subscriptionTasks.Length > 0)
+            {
+                try
+                {
+                    await Task.WhenAll(_subscriptionTasks).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected while stopping active subscriptions.
+                }
+            }
+            _subscriptionTasks = [];
             _cts.Dispose();
             _cts = default!;
-            await _nc.DisposeAsync();
+            if (_ownsConnectionManager)
+                await _connectionManager.DisposeAsync().ConfigureAwait(false);
             _nc = default!;
             _state = EventListenerState.Stopped;
             _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} stopped.", _eventListenerId);
@@ -139,13 +190,13 @@ public class NatsActorEventListener(
     /// <param name="eventVerbs">The list of event verbs to listen for.</param>
     /// <param name="ctsRequestToken">A cancellation token that can be used to request termination of the message processing loop.</param>
     /// <returns>A task that represents the asynchronous operation of the message processing loop.</returns>
-    async ValueTask PubSubMessageLoopAsync(string actorMailboxId, List<string> eventVerbs, CancellationToken ctsRequestToken)
+    async Task PubSubMessageLoopAsync(string actorMailboxId, List<string> eventVerbs, CancellationToken ctsRequestToken)
     {
         _state = EventListenerState.Running;
         _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId}  - {actorMailboxId} running.", _eventListenerId, actorMailboxId);
-        while (!ctsRequestToken.IsCancellationRequested)
+        var acceptedVerbs = new HashSet<string>(eventVerbs, StringComparer.OrdinalIgnoreCase);
+        try
         {
-            _messageCount = 0;
             await foreach (var msg in _nc!.SubscribeAsync($"{actorMailboxId}.>", serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken))
             {
                 try
@@ -153,21 +204,28 @@ public class NatsActorEventListener(
                     if (msg.Data is null)
                         continue;
                     msg.EnsureSuccess();
-                    _messageCount++;
+                    Interlocked.Increment(ref _messageCount);
+                    NatsMessagingMetrics.Received.Add(1);
                     var msgSubject = msg.Subject.ToSubject();
-                    if (eventVerbs.Any(eventVerb => eventVerb.Equals(msgSubject.Verb, StringComparison.InvariantCultureIgnoreCase)))
+                    if (acceptedVerbs.Contains(msgSubject.Verb))
                     {
-                        _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} received event for subject={Subject}", _eventListenerId, msg.Subject);
-                        await _eventHandler(msgSubject.Verb, msg);
+                        if (_logger.IsEnabled(LogLevel.Debug))
+                            _logger.LogDebug("NATS Event Listener: {EventListenerId} received event for subject={Subject}", _eventListenerId, msg.Subject);
+                        await _eventHandler(msgSubject.Verb, msg).ConfigureAwait(false);
                     }
                    
                 }
                 catch (Exception ex)
                 {
+                    NatsMessagingMetrics.DispatchFailures.Add(1);
                     _logger.LogErrorEvent(_serviceId, ex, "NATS Event Listener: {eventListenerId} failed to process message. ", _eventListenerId);
                 }
             }
-            _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} read {MessagesRead} messages.", _eventListenerId, _messageCount);
         }
+        catch (OperationCanceledException) when (ctsRequestToken.IsCancellationRequested)
+        {
+            // Expected during shutdown.
+        }
+        _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} read {MessagesRead} messages.", _eventListenerId, MessageCount);
     }
 }

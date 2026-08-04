@@ -66,6 +66,9 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
     readonly int _spinCountEnqueue;
     readonly int _spinCountDequeue;
 
+    int _producerWaiting;
+    int _consumerWaiting;
+    bool _started;
     bool _disposed;
 
     /// <summary>
@@ -126,8 +129,11 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
     public void Start()
     {
         ThrowIfDisposed();
+        if (_started)
+            return;
         _pool = ArrayPool<NatsMsg<byte[]>>.Shared;
         _buffer = _pool.Rent(_capacity);
+        Volatile.Write(ref _started, true);
     }
 
     /// <summary>
@@ -140,6 +146,10 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
         if (_disposed || _pool is null || _buffer is null)
             return;
         _disposed = true;
+
+        // Release a parked producer/consumer before closing the wait handles.
+        _producerCancel.Set();
+        _consumerCancel.Set();
 
         _pool.Return(_buffer, clearArray: true);
         _buffer = [];
@@ -233,7 +243,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
         Volatile.Write(ref _head.Value, head + 1);
 
         // Signal consumer only on empty → non-empty transition.
-        if (wasEmpty)
+        if (wasEmpty && Volatile.Read(ref _consumerWaiting) != 0)
             _itemAvailable.Set();
 
         return true;
@@ -270,7 +280,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
         Volatile.Write(ref _tail.Value, tail + 1);
 
         // Signal producer only on full → non-full transition.
-        if (wasFull)
+        if (wasFull && Volatile.Read(ref _producerWaiting) != 0)
             _slotAvailable.Set();
 
         return true;
@@ -285,21 +295,53 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<NatsMsg<byte[
     // === Blocking helpers (no per-wait allocation) ===
     void BlockUntilSlotAvailable(CancellationToken ct)
     {
-        using var reg = ct.CanBeCanceled
-            ? ct.Register(static s => ((AutoResetEvent)s!).Set(), _producerCancel)
-            : default;
+        ct.ThrowIfCancellationRequested();
+        Volatile.Write(ref _producerWaiting, 1);
+        try
+        {
+            // Close the missed-wakeup window between TryEnqueue and publishing the waiter flag.
+            var head = _head.Value;
+            var tail = Volatile.Read(ref _tail.Value);
+            if ((uint)(head - tail) < (uint)_capacity)
+                return;
 
-        int signaled = WaitHandle.WaitAny(_waitSlotOrCancel); // 0 = slot available, 1 = cancel
-        if (signaled == 1) throw new OperationCanceledException(ct);
+            using var reg = ct.CanBeCanceled
+                ? ct.Register(static s => ((AutoResetEvent)s!).Set(), _producerCancel)
+                : default;
+
+            int signaled = WaitHandle.WaitAny(_waitSlotOrCancel); // 0 = slot available, 1 = cancel
+            if (signaled == 1)
+                throw new OperationCanceledException(ct);
+        }
+        finally
+        {
+            Volatile.Write(ref _producerWaiting, 0);
+        }
     }
 
     void BlockUntilItemAvailable(CancellationToken ct)
     {
-        using var reg = ct.CanBeCanceled
-            ? ct.Register(static s => ((AutoResetEvent)s!).Set(), _consumerCancel)
-            : default;
+        ct.ThrowIfCancellationRequested();
+        Volatile.Write(ref _consumerWaiting, 1);
+        try
+        {
+            // Close the missed-wakeup window between TryDequeue and publishing the waiter flag.
+            var tail = _tail.Value;
+            var head = Volatile.Read(ref _head.Value);
+            if (head != tail)
+                return;
 
-        int signaled = WaitHandle.WaitAny(_waitItemOrCancel); // 0 = item available, 1 = cancel
-        if (signaled == 1) throw new OperationCanceledException(ct);
+            using var reg = ct.CanBeCanceled
+                ? ct.Register(static s => ((AutoResetEvent)s!).Set(), _consumerCancel)
+                : default;
+
+            int signaled = WaitHandle.WaitAny(_waitItemOrCancel); // 0 = item available, 1 = cancel
+            if (signaled == 1)
+                throw new OperationCanceledException(ct);
+        }
+        finally
+        {
+            Volatile.Write(ref _consumerWaiting, 0);
+        }
     }
 }

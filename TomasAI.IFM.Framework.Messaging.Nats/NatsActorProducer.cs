@@ -20,18 +20,24 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// messaging methods.</remarks>
 /// <param name="options"></param>
 /// <param name="logger"></param>
-public class NatsActorProducer(INatsProducerOptions options, ILogger logger) 
+public class NatsActorProducer(
+    INatsProducerOptions options,
+    ILogger logger,
+    NatsConnectionManager? connectionManager = null)
     : IActorProducer
 {
     readonly INatsProducerOptions _options = IsArgumentNull.Set(options);
     readonly INatsSerializer<byte[]> _messageSerializer = new NatsByteArrayMessageSerializer();
     readonly NatsMessagePackDataSerializer _dataSerializer = new();
     readonly ILogger _logger = IsArgumentNull.Set(logger);
+    readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
+    readonly bool _ownsConnectionManager = connectionManager is null;
+    readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     INatsClient? _nc;
     ActorMailboxId _actorId;
     bool _isRunning;
 
-    public bool IsRunning => _isRunning;
+    public bool IsRunning => Volatile.Read(ref _isRunning);
 
     /// <summary>
     /// Initializes and starts the NATS producer for the specified mailbox.
@@ -45,21 +51,18 @@ public class NatsActorProducer(INatsProducerOptions options, ILogger logger)
         try
         {
             IsArgumentNull.Check(mailboxId);
-            // If already connected, do nothing...
-            if (!_isRunning)
+            await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                // Create NATS client and connect...
-                NatsOpts opts = new()
-                {
-                    Url = _options.Url,
-                    Name = string.Concat(mailboxId.Name, mailboxId.ActorType, "Producer"),
-                    RequestTimeout = TimeSpan.FromMinutes(2),
-                    CommandTimeout = TimeSpan.FromMinutes(2)
-                };
-                _nc = new NatsClient(opts);
-                await _nc.ConnectAsync();
+                if (_isRunning)
+                    return;
+                _nc = await _connectionManager.GetClientAsync(_options.Url).ConfigureAwait(false);
                 _actorId = mailboxId;
-                _isRunning = true;
+                Volatile.Write(ref _isRunning, true);
+            }
+            finally
+            {
+                _lifecycleGate.Release();
             }
         }
         catch (Exception ex)
@@ -79,12 +82,20 @@ public class NatsActorProducer(INatsProducerOptions options, ILogger logger)
     {
         try
         {
-            if (IsRunning)
+            await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                await _nc!.DisposeAsync();
+                if (!IsRunning)
+                    return;
+                Volatile.Write(ref _isRunning, false);
+                if (_ownsConnectionManager)
+                    await _connectionManager.DisposeAsync().ConfigureAwait(false);
                 _nc = null;
-                _isRunning = false;
                 _logger.LogInformation("NATS producer stopped.");
+            }
+            finally
+            {
+                _lifecycleGate.Release();
             }
         }
         catch (Exception ex)
@@ -119,8 +130,7 @@ public class NatsActorProducer(INatsProducerOptions options, ILogger logger)
             IsArgumentNull.Check(entityId);
             if (!IsRunning)
                 await StartAsync(_actorId).ConfigureAwait(false);
-            var data = _dataSerializer.Serialize(command.ToCommand<TCommand, TEntityId>());
-            await _nc!.PublishAsync(subject.ToString(), data, serializer: _messageSerializer);
+            await PublishAsync(subject.ToString(), command.ToCommand<TCommand, TEntityId>()).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Published command to subject {Subject} CommandId={CommandId}", subject, command.CommandId);
         }
@@ -150,8 +160,7 @@ public class NatsActorProducer(INatsProducerOptions options, ILogger logger)
             IsArgumentNull.Check(@event);
             if (!IsRunning)
                 await StartAsync(_actorId).ConfigureAwait(false);
-            var data = _dataSerializer.Serialize(@event.ToEvent<TEvent>());
-            await _nc!.PublishAsync(subject.ToString(), data, serializer: _messageSerializer);
+            await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>()).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Published event to subject {Subject} CommandId={CommandId}", subject, @event.CommandId);
         }
@@ -181,9 +190,7 @@ public class NatsActorProducer(INatsProducerOptions options, ILogger logger)
             IsArgumentNull.Check(@event);
             if (!IsRunning)
                 await StartAsync(_actorId).ConfigureAwait(false);
-            //var data = _dataSerializer.Serialize(@event.ToDenormalizerEvent<TEvent>());
-            var data = _dataSerializer.Serialize(@event);
-            await _nc!.PublishAsync(subject.ToString(), data, serializer: _messageSerializer);
+            await PublishAsync(subject.ToString(), @event).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Published  denormalize event to subject {Subject}", subject);
         }
@@ -218,13 +225,9 @@ public class NatsActorProducer(INatsProducerOptions options, ILogger logger)
             if (!IsRunning)
                 await StartAsync(_actorId).ConfigureAwait(false);
 
-            /// Serialize the query and send the request...
-            var data = _dataSerializer.Serialize(query);
-
             /// send query request and await the response...
             var subjectString = subject.ToString();
-            var replyMessageData  = (await _nc!.RequestAsync(
-                subjectString, data, requestSerializer: _messageSerializer, replySerializer: _messageSerializer)).Data!;
+            var replyMessageData = await RequestAsync(subjectString, query).ConfigureAwait(false);
 
             /// Deserialize the result from the reply message data...
             result = _dataSerializer.Deserialize<ServiceResult<TResult>>(replyMessageData)!;
@@ -265,9 +268,9 @@ public class NatsActorProducer(INatsProducerOptions options, ILogger logger)
             if (!IsRunning)
                 await StartAsync(_actorId).ConfigureAwait(false);
 
-            var data = _dataSerializer.Serialize(command.ToCommand<TCommand, TEntityId>());
-            var replyMessageData = (await _nc!.RequestAsync(
-                subject.ToString(), data , requestSerializer: _messageSerializer, replySerializer: _messageSerializer)).Data!;
+            var replyMessageData = await RequestAsync(
+                subject.ToString(),
+                command.ToCommand<TCommand, TEntityId>()).ConfigureAwait(false);
             result = _dataSerializer.Deserialize<ServiceResult<TResult>>(replyMessageData)!;
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Requested command to subject {Subject} CommandId={CommandId}", subject, command.CommandId);
@@ -278,6 +281,26 @@ public class NatsActorProducer(INatsProducerOptions options, ILogger logger)
             throw;
         }
         return result!;
+    }
+
+    async ValueTask PublishAsync<T>(string subject, T message)
+    {
+        await _nc!.PublishAsync(
+            subject,
+            message,
+            serializer: NatsMessagePackSerializer<T>.Default).ConfigureAwait(false);
+        NatsMessagingMetrics.Published.Add(1);
+    }
+
+    async ValueTask<byte[]> RequestAsync<T>(string subject, T message)
+    {
+        var data = (await _nc!.RequestAsync(
+            subject,
+            message,
+            requestSerializer: NatsMessagePackSerializer<T>.Default,
+            replySerializer: _messageSerializer).ConfigureAwait(false)).Data!;
+        NatsMessagingMetrics.Published.Add(1);
+        return data;
     }
 }
 

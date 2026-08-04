@@ -19,8 +19,9 @@ namespace TomasAI.IFM.TradePlan.HostedService
         public TradePlanEventConsumer(
             ITradePlanService tradePlanService,
             INatsEventListenerOptions options,
-            ILogger<TradePlanEventConsumer> logger)
-            : base(options, logger)
+            ILogger<TradePlanEventConsumer> logger,
+            NatsConnectionManager? connectionManager = null)
+            : base(options, logger, connectionManager)
         {
             _tradePlanService = tradePlanService;
             _siteId = Guid.NewGuid();

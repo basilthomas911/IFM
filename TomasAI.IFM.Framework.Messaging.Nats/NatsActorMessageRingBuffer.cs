@@ -25,7 +25,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// </para>
 /// </summary>
 
-public sealed class NatsActorMessageRingBuffer : IActorMessageRingBuffer<NatsMsg<byte[]>>
+public sealed class NatsActorMessageRingBuffer : IActorMessageRingBuffer<NatsMsg<byte[]>>, IDisposable
 {
     readonly NatsMsg<byte[]>[] _buffer;
     readonly int _mask; // capacity - 1
@@ -38,6 +38,7 @@ public sealed class NatsActorMessageRingBuffer : IActorMessageRingBuffer<NatsMsg
     // Semaphores: count of available items and available slots.
     readonly SemaphoreSlim _itemsAvailable;
     readonly SemaphoreSlim _slotsAvailable;
+    bool _disposed;
 
     /// <summary>
     /// Gets the fixed capacity of the ring buffer.
@@ -111,20 +112,15 @@ public sealed class NatsActorMessageRingBuffer : IActorMessageRingBuffer<NatsMsg
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void TryEnqueue(in NatsMsg<byte[]> message, CancellationToken? cancellationToken) 
     {
-        // block if buffer is full until there is at least one free slot...
-        if (IsFull)
-        {
-            _slotsAvailable.Wait(cancellationToken!.Value);
-        }
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _slotsAvailable.Wait(cancellationToken.GetValueOrDefault());
 
         // write message first to slot...
         var head = _head;
         _buffer[head & _mask] = message;
 
-        // publish by advancing head and wrap around if needed...
-        if (++head == Capacity)
-            head = 0;
-        Volatile.Write(ref _head, head);
+        // Keep monotonically increasing indices; masking performs the physical wrap.
+        Volatile.Write(ref _head, head + 1);
 
         // signal that a new item is available...
         _itemsAvailable.Release();
@@ -142,8 +138,9 @@ public sealed class NatsActorMessageRingBuffer : IActorMessageRingBuffer<NatsMsg
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void TryDequeue(out NatsMsg<byte[]> message, CancellationToken? cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         // block if buffer empty until there is at least one message available...
-        _itemsAvailable.Wait(cancellationToken!.Value);
+        _itemsAvailable.Wait(cancellationToken.GetValueOrDefault());
 
         // consumer-only variable; normal read is fine...
         var tail = _tail;
@@ -157,10 +154,6 @@ public sealed class NatsActorMessageRingBuffer : IActorMessageRingBuffer<NatsMsg
 
         // publish consumption (release)...
         Volatile.Write(ref _tail, tail + 1);
-
-        // wrap around if needed...
-        if (_tail == Capacity)
-            Volatile.Write(ref _tail, 0);
 
         // signal that a slot is now available...
         _slotsAvailable.Release();
@@ -193,10 +186,7 @@ public sealed class NatsActorMessageRingBuffer : IActorMessageRingBuffer<NatsMsg
     /// </remarks>
     public void EnqueueSpin(in NatsMsg<byte[]> item)
     {
-        //while (!TryEnqueue(item))
-        {
-            Thread.SpinWait(1);
-        }
+        TryEnqueue(item, CancellationToken.None);
     }
 
     /// <summary>
@@ -205,13 +195,17 @@ public sealed class NatsActorMessageRingBuffer : IActorMessageRingBuffer<NatsMsg
     /// <returns>The dequeued item.</returns>
     public NatsMsg<byte[]> DequeueSpin()
     {
-        NatsMsg<byte[]> item;
-        //while (!TryDequeue(out item))
-        {
-            Thread.SpinWait(1);
-        }
-        return default!;
+        TryDequeue(out var item, CancellationToken.None);
+        return item;
     }
 
-   
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        Array.Clear(_buffer);
+        _itemsAvailable.Dispose();
+        _slotsAvailable.Dispose();
+    }
 }

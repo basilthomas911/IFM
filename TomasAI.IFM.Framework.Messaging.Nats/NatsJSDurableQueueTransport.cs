@@ -2,6 +2,7 @@ using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 
@@ -122,13 +123,23 @@ internal interface INatsJSDurableQueueTransport : IAsyncDisposable
 /// server-side backoff. Disposing this type closes the client but leaves server-side resources intact.
 /// </remarks>
 /// <exception cref="ArgumentNullException"><paramref name="options"/> is <see langword="null"/>.</exception>
-internal sealed class NatsJSDurableQueueTransport(INatsJetStreamConsumerOptions options)
+internal sealed class NatsJSDurableQueueTransport(
+    INatsJetStreamConsumerOptions options,
+    NatsConnectionManager? connectionManager = null)
     : INatsJSDurableQueueTransport
 {
     readonly INatsJetStreamConsumerOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     readonly NatsByteArrayMessageSerializer _serializer = new();
+    readonly NatsJSConsumeOpts _consumeOptions = new()
+    {
+        MaxMsgs = 4096,
+        ThresholdMsgs = 1024,
+        DrainOnCancel = true
+    };
     readonly SemaphoreSlim _connectionGate = new(1, 1);
     readonly System.Collections.Concurrent.ConcurrentDictionary<string, QueueConsumers> _consumers = new(StringComparer.Ordinal);
+    readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
+    readonly bool _ownsConnectionManager = connectionManager is null;
     NatsClient? _client;
     INatsJSContext? _jetStream;
 
@@ -156,9 +167,8 @@ internal sealed class NatsJSDurableQueueTransport(INatsJetStreamConsumerOptions 
 
             if (_client is null)
             {
-                _client = new NatsClient(_options.Url);
-                await _client.ConnectAsync().ConfigureAwait(false);
-                _jetStream = _client.CreateJetStreamContext();
+                _client = await _connectionManager.GetClientAsync(_options.Url, cancellationToken).ConfigureAwait(false);
+                _jetStream = await _connectionManager.GetJetStreamContextAsync(_options.Url, cancellationToken).ConfigureAwait(false);
             }
 
             var js = _jetStream!;
@@ -176,7 +186,8 @@ internal sealed class NatsJSDurableQueueTransport(INatsJetStreamConsumerOptions 
                     FilterSubject = settings.Names.ProcessSubject,
                     AckPolicy = ConsumerConfigAckPolicy.Explicit,
                     DeliverPolicy = ConsumerConfigDeliverPolicy.All,
-                    MaxDeliver = -1
+                    MaxDeliver = -1,
+                    MaxAckPending = 4096
                 },
                 cancellationToken).ConfigureAwait(false);
 
@@ -189,6 +200,7 @@ internal sealed class NatsJSDurableQueueTransport(INatsJetStreamConsumerOptions 
                     DeliverPolicy = ConsumerConfigDeliverPolicy.All,
                     AckWait = settings.ReplayInterval,
                     MaxDeliver = settings.MaxReplayAttempts,
+                    MaxAckPending = 4096,
                     Backoff = settings.Backoff.ToList()
                 },
                 cancellationToken).ConfigureAwait(false);
@@ -251,6 +263,7 @@ internal sealed class NatsJSDurableQueueTransport(INatsJetStreamConsumerOptions 
     {
         var queue = GetQueue(eventProjectorName);
         await foreach (var message in queue.ProcessConsumer.ConsumeAsync(
+            opts: _consumeOptions,
             serializer: _serializer,
             cancellationToken: cancellationToken).ConfigureAwait(false))
         {
@@ -268,6 +281,7 @@ internal sealed class NatsJSDurableQueueTransport(INatsJetStreamConsumerOptions 
     {
         var queue = GetQueue(eventProjectorName);
         await foreach (var message in queue.ReplayConsumer.ConsumeAsync(
+            opts: _consumeOptions,
             serializer: _serializer,
             cancellationToken: cancellationToken).ConfigureAwait(false))
         {
@@ -303,8 +317,8 @@ internal sealed class NatsJSDurableQueueTransport(INatsJetStreamConsumerOptions 
     /// <remarks>Server-side streams and consumers are not deleted.</remarks>
     public async ValueTask DisposeAsync()
     {
-        if (_client is not null)
-            await _client.DisposeAsync().ConfigureAwait(false);
+        if (_ownsConnectionManager)
+            await _connectionManager.DisposeAsync().ConfigureAwait(false);
         _connectionGate.Dispose();
     }
 
@@ -313,7 +327,7 @@ internal sealed class NatsJSDurableQueueTransport(INatsJetStreamConsumerOptions 
         INatsJSConsumer ProcessConsumer,
         INatsJSConsumer ReplayConsumer);
 
-    sealed class NatsJSDurableMessage(NatsJSMsg<byte[]> message) : INatsJSDurableMessage
+    sealed class NatsJSDurableMessage(INatsJSMsg<byte[]> message) : INatsJSDurableMessage
     {
         public byte[] Data => message.Data ?? [];
         public ulong DeliveryCount => message.Metadata?.NumDelivered ?? 1;

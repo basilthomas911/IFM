@@ -29,13 +29,15 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// <param name="logger">The logger instance used to record diagnostic and lifecycle events.</param>
 public class NatsJetStreamActorProducer(
     INatsJetStreamProducerOptions options,
-    ILogger<NatsJetStreamActorProducer> logger)
+    ILogger<NatsJetStreamActorProducer> logger,
+    NatsConnectionManager? connectionManager = null)
     : IJSActorProducer
 {
     readonly INatsJetStreamProducerOptions _options = IsArgumentNull.Set(options);
-    readonly INatsSerializer<byte[]> _messageSerializer = new NatsByteArrayMessageSerializer();
-    readonly NatsMessagePackDataSerializer _dataSerializer = new();
     readonly ILogger<NatsJetStreamActorProducer> _logger = IsArgumentNull.Set(logger);
+    readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
+    readonly bool _ownsConnectionManager = connectionManager is null;
+    readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     NatsClient _nc;
     INatsJSContext _js;
     bool _isRunning;
@@ -43,7 +45,7 @@ public class NatsJetStreamActorProducer(
     /// <summary>
     /// Gets a value indicating whether the NATS JetStream actor producer is currently active.
     /// </summary>
-    public bool IsRunning => _isRunning;
+    public bool IsRunning => Volatile.Read(ref _isRunning);
 
     /// <summary>
     /// Starts the NATS JetStream producer for the specified mailbox.
@@ -57,10 +59,19 @@ public class NatsJetStreamActorProducer(
     public async ValueTask StartAsync(ActorMailboxId mailboxId)
     {
         IsArgumentNull.Check(mailboxId);
-        _nc = new NatsClient(_options.Url);
-        await _nc.ConnectAsync().ConfigureAwait(false);
-        _js = _nc.CreateJetStreamContext();
-        _isRunning = true;
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_isRunning)
+                return;
+            _nc = await _connectionManager.GetClientAsync(_options.Url).ConfigureAwait(false);
+            _js = await _connectionManager.GetJetStreamContextAsync(_options.Url).ConfigureAwait(false);
+            Volatile.Write(ref _isRunning, true);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
     }
 
     /// <summary>
@@ -73,11 +84,22 @@ public class NatsJetStreamActorProducer(
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     public async ValueTask StopAsync()
     {
-        await _nc.DisposeAsync().ConfigureAwait(false);
-        _nc = default!;
-        _js = default!;
-        _isRunning = false;
-        _logger.LogInformation("NATS JetStream producer stopped.");
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!_isRunning)
+                return;
+            Volatile.Write(ref _isRunning, false);
+            if (_ownsConnectionManager)
+                await _connectionManager.DisposeAsync().ConfigureAwait(false);
+            _nc = default!;
+            _js = default!;
+            _logger.LogInformation("NATS JetStream producer stopped.");
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
     }
 
     /// <summary>
@@ -98,9 +120,7 @@ public class NatsJetStreamActorProducer(
             IsArgumentNull.Check(subject);
             IsArgumentNull.Check(command);
             IsArgumentNull.Check(entityId);
-            var data = _dataSerializer.Serialize(command.ToCommand<TCommand, TEntityId>());
-            var ack = await _js.PublishAsync(subject.ToString(), data, serializer: _messageSerializer);
-            ack.EnsureSuccess();
+            await PublishAsync(subject.ToString(), command.ToCommand<TCommand, TEntityId>()).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Published command to JetStream subject {Subject} CommandId={CommandId}", subject, command.CommandId);
         }
@@ -127,9 +147,7 @@ public class NatsJetStreamActorProducer(
         {
             IsArgumentNull.Check(subject);
             IsArgumentNull.Check(@event);
-            var data = _dataSerializer.Serialize(@event.ToEvent<TEvent>());
-            var ack = await _js.PublishAsync(subject.ToString(), data, serializer: _messageSerializer);
-            ack.EnsureSuccess();
+            await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>()).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Published event to JetStream subject {Subject} CommandId={CommandId}", subject, @event.CommandId);
         }
@@ -138,6 +156,16 @@ public class NatsJetStreamActorProducer(
             _logger.LogError(ex, "Failed to publish event to JetStream subject {Subject}", subject);
             throw;
         }
+    }
+
+    async ValueTask PublishAsync<T>(string subject, T message)
+    {
+        var acknowledgement = await _js.PublishAsync(
+            subject,
+            message,
+            serializer: NatsMessagePackSerializer<T>.Default).ConfigureAwait(false);
+        acknowledgement.EnsureSuccess();
+        NatsMessagingMetrics.Published.Add(1);
     }
    
 }

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -21,7 +22,9 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
     private const int DuplicateEventMapLimit = 1000;
 
     private static readonly ConcurrentDictionary<Guid, string> _duplicateEventMap = [];
-    private static readonly ConcurrentDictionary<Type, MethodInfo> _asEventMethods = [];
+    private static readonly ConcurrentQueue<Guid> _duplicateEventOrder = new();
+    private static readonly ConcurrentDictionary<Type, Func<NatsMsg<byte[]>, IEvent?>> _eventDeserializers = [];
+    private static int _duplicateEventCount;
     private static readonly MethodInfo _asEventMethod = typeof(ActorExtensions)
         .GetMethods(BindingFlags.Public | BindingFlags.Static)
         .Single(method =>
@@ -40,8 +43,11 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
     /// </summary>
     /// <param name="options">NATS event-listener configuration.</param>
     /// <param name="logger">Logger used for listener and dispatch diagnostics.</param>
-    protected NatsEventConsumer(INatsEventListenerOptions options, ILogger logger)
-        : base(options, logger)
+    protected NatsEventConsumer(
+        INatsEventListenerOptions options,
+        ILogger logger,
+        NatsConnectionManager? connectionManager = null)
+        : base(options, logger, connectionManager)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -196,10 +202,14 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
         if (consumedEvent.Id != Guid.Empty)
         {
             if (!_duplicateEventMap.TryAdd(consumedEvent.Id, consumedEvent.GetType().Name))
+            {
+                NatsMessagingMetrics.DuplicatesSuppressed.Add(1);
                 return;
+            }
 
-            if (_duplicateEventMap.Count >= DuplicateEventMapLimit)
-                _duplicateEventMap.Clear();
+            _duplicateEventOrder.Enqueue(consumedEvent.Id);
+            Interlocked.Increment(ref _duplicateEventCount);
+            TrimDuplicateMap();
         }
 
         foreach (var registration in routeRegistrations)
@@ -208,16 +218,23 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
 
     private static IEvent? DeserializeEvent(Type eventType, NatsMsg<byte[]> eventMessage)
     {
-        try
+        var deserialize = _eventDeserializers.GetOrAdd(eventType, static type =>
         {
-            var deserializeMethod = _asEventMethods.GetOrAdd(
-                eventType,
-                static type => _asEventMethod.MakeGenericMethod(type));
-            return deserializeMethod.Invoke(null, [eventMessage]) as IEvent;
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+            var message = Expression.Parameter(typeof(NatsMsg<byte[]>), "message");
+            var call = Expression.Call(_asEventMethod.MakeGenericMethod(type), message);
+            var convert = Expression.TypeAs(call, typeof(IEvent));
+            return Expression.Lambda<Func<NatsMsg<byte[]>, IEvent?>>(convert, message).Compile();
+        });
+        return deserialize(eventMessage);
+    }
+
+    private static void TrimDuplicateMap()
+    {
+        while (Volatile.Read(ref _duplicateEventCount) > DuplicateEventMapLimit
+            && _duplicateEventOrder.TryDequeue(out var expiredId))
         {
-            throw ex.InnerException;
+            if (_duplicateEventMap.TryRemove(expiredId, out _))
+                Interlocked.Decrement(ref _duplicateEventCount);
         }
     }
 

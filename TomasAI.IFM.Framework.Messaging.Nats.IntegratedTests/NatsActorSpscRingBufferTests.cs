@@ -89,10 +89,10 @@ public class NatsActorSpscRingBufferTests
  {
  var msg = default(NatsMsg<byte[]>);
 
- // Fill up to capacity -1; with SPSC full detection (tail+1==head), usable slots = cap -1
- for (int i =0; i < cap -1; i++) buf.Enqueue(msg);
+ // Monotonic sequence counters allow all logical slots to be used.
+ for (int i =0; i < cap; i++) buf.Enqueue(msg);
 
- buf.Count.Should().Be(cap -1);
+ buf.Count.Should().Be(cap);
 
  using var cts = new CancellationTokenSource();
  cts.Cancel();
@@ -100,7 +100,7 @@ public class NatsActorSpscRingBufferTests
  act.Should().Throw<OperationCanceledException>();
 
  // Count unchanged after canceled enqueue
- buf.Count.Should().Be(cap -1);
+ buf.Count.Should().Be(cap);
  }
  finally { buf.Stop(); }
  }
@@ -117,20 +117,21 @@ public class NatsActorSpscRingBufferTests
  {
  var msg = default(NatsMsg<byte[]>);
 
- for (int i =0; i < cap -1; i++) buf.Enqueue(msg);
+ for (int i =0; i < cap; i++) buf.Enqueue(msg);
 
  // Start a task that will block trying to enqueue
  var enqTask = Task.Run(() => buf.Enqueue(msg, CancellationToken.None));
 
  // Give it a moment to attempt and block
- await Task.Delay(2000);
+ await Task.Delay(100);
+ enqTask.IsCompleted.Should().BeFalse();
 
  // Dequeue one to make space; this should unblock the producer
  var _ = buf.Dequeue();
 
  // Now the enqueue should complete
  await enqTask.WaitAsync(TimeSpan.FromSeconds(2));
- buf.Count.Should().Be(cap -1);
+ buf.Count.Should().Be(cap);
  }
  finally { buf.Stop(); }
  }
