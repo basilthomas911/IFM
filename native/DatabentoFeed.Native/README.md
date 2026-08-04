@@ -72,6 +72,18 @@ raw symbols, instrument IDs, and publisher IDs at runtime, then verifies one liv
 session reaches running health with one shared managed reader.
 `LatestPriceSmokeTests` discovers an activated, unexpired ES future and exercises
 last trade, midpoint, bid, and ask through bounded replay or live observation.
+`DatabentoOneHourLiveSmokeTests` contains manual ES future and ES futures-option
+soak tests. They run for 60 minutes by default and continuously reconcile every
+managed tick with the native produced and consumed counters. Run one for a shorter
+market-hours verification directly from the command line as follows:
+
+```powershell
+dotnet test ./TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests/TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests.csproj -c Release -p:DatabentoEnableLive=true -e IFM_RUN_DATABENTO_ONE_HOUR_TESTS=1 -e IFM_DATABENTO_SOAK_MINUTES=5 -e "SSL_CERT_FILE=C:\path\to\trusted-ca-bundle.pem" --filter "FullyQualifiedName~DatabentoOneHourLiveSmokeTests.CurrentEsFutureReceivesEveryTickForConfiguredDuration"
+```
+
+Omit `IFM_DATABENTO_SOAK_MINUTES` for the default 60-minute duration. Quote and
+trade ticks are subscribed by default. Add `-e IFM_DATABENTO_INCLUDE_MBO=1` only
+when the Databento key is entitled to the MBO schema.
 That operational confirmation may be run later or during the final all-phases
 acceptance pass. The existing smoke asserts authentication, resolution, startup,
 running health, and shutdown; final runtime acceptance should separately retain

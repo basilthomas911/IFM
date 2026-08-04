@@ -1,3 +1,5 @@
+using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
+
 namespace TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests;
 
 internal static class LiveTestGate
@@ -5,6 +7,33 @@ internal static class LiveTestGate
     internal static bool IsEnabled() =>
         IsOne("IFM_RUN_DATABENTO_SMOKE_TESTS")
         || IsOne("IFM_RUN_DATABENTO_LIVE_TESTS");
+
+    internal static bool IsOneHourTestEnabled() =>
+        IsOne("IFM_RUN_DATABENTO_ONE_HOUR_TESTS");
+
+    internal static TimeSpan GetSoakDuration()
+    {
+        const int defaultMinutes = 60;
+        var value = Environment.GetEnvironmentVariable(
+            "IFM_DATABENTO_SOAK_MINUTES");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return TimeSpan.FromMinutes(defaultMinutes);
+        }
+        if (!int.TryParse(value, out var minutes) || minutes <= 0)
+        {
+            throw new InvalidOperationException(
+                "IFM_DATABENTO_SOAK_MINUTES must be a positive whole number.");
+        }
+        return TimeSpan.FromMinutes(minutes);
+    }
+
+    internal static MarketDataKinds GetSoakDataKinds() =>
+        MarketDataKinds.Quote
+        | MarketDataKinds.Trade
+        | (IsOne("IFM_DATABENTO_INCLUDE_MBO")
+            ? MarketDataKinds.MboOrderUpdate
+            : MarketDataKinds.None);
 
     internal static void AssertCredential()
     {
