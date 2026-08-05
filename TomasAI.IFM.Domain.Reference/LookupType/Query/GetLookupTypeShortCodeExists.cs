@@ -18,8 +18,7 @@ public static class GetLookupTypeShortCodeExists
     public static async ValueTask<ScalarReadModel<bool>> GetLookupTypeShortCodeExistsAsync(
         this GetLookupTypeShortCodeExistsQuery q, IDbContextFactory dbFactory)
     {
-        var shortCodes = await dbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(q.LookupTypeName);
-        return new ScalarReadModel<bool>(shortCodes.Any(
-            e => e.ShortCode.Equals(q.ShortCode, StringComparison.OrdinalIgnoreCase)));
+        return new ScalarReadModel<bool>(await dbFactory.ReferenceDb
+            .LookupTypeShortCodeExistsAsync(q.LookupTypeName, q.ShortCode));
     }
 }

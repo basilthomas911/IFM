@@ -1558,6 +1558,18 @@ public class ReferenceDbContext(
                 .ExecuteQueryAsync(MapToLookupTypeShortCode!);
 
     /// <summary>
+    /// Checks a lookup-type partition without allocating a LINQ iterator or closure.
+    /// </summary>
+    public async Task<bool> LookupTypeShortCodeExistsAsync(string lookupTypeName, string shortCode)
+    {
+        var values = await GetLookupTypeShortCodesAsync(lookupTypeName);
+        foreach (var value in values)
+            if (string.Equals(value.ShortCode, shortCode, StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
+    }
+
+    /// <summary>
     /// return scheduled job id
     /// </summary>
     /// <param name="scheduledJobName"></param>

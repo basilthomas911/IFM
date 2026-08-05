@@ -1,4 +1,5 @@
 ﻿using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
@@ -22,108 +23,134 @@ namespace TomasAI.IFM.Domain.Reference.Services;
 public class ReferenceLookupActorService(IActorService actorService,  IBlackboardService blackboardService)
     : IReferenceLookupService
 {
+    const long LocalCacheLifetimeMilliseconds = 30_000;
+    static readonly FrozenDictionary<string, FrozenSet<string>> EmptyLookupIndex =
+        new Dictionary<string, FrozenSet<string>>(StringComparer.Ordinal)
+            .ToFrozenDictionary(StringComparer.Ordinal);
     readonly IActorService _actorService = IsArgumentNull.Set( actorService);
-    readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService); 
+    readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
+    readonly object _refreshGate = new();
+    FrozenDictionary<string, FrozenSet<string>>? _lookupIndex;
+    long _expiresAt;
+    long _observedGeneration = -1;
 
     /// <summary>
     /// Returns <see langword="true"/> if the specified currency short code exists in the lookup type map.
     /// </summary>
     /// <param name="shortCode">The currency short code to search for.</param>
     /// <returns><see langword="true"/> if the currency short code exists; otherwise, <see langword="false"/>.</returns>
-    public bool CurrencyExists(string shortCode)
-    {
-        var lookupTypeMap = GetLookupTypeMapFromCache();
-        return lookupTypeMap != null 
-            && lookupTypeMap.ContainsKey("Currency") 
-            && lookupTypeMap["Currency"].Any(e => e.Equals(shortCode, StringComparison.CurrentCultureIgnoreCase));
-    }
+    public bool CurrencyExists(string shortCode) => Exists("Currency", shortCode);
 
     /// <summary>
     /// Returns <see langword="true"/> if the specified exchange short code exists in the lookup type map.
     /// </summary>
     /// <param name="shortCode">The exchange short code to search for.</param>
     /// <returns><see langword="true"/> if the exchange short code exists; otherwise, <see langword="false"/>.</returns>
-    public bool ExchangeExists(string shortCode)
-    {
-        var lookupTypeMap = GetLookupTypeMapFromCache();
-        return lookupTypeMap != null 
-            && lookupTypeMap.ContainsKey("Exchange") 
-            && lookupTypeMap["Exchange"].Any(e => e.Equals(shortCode, StringComparison.CurrentCultureIgnoreCase));
-    }
+    public bool ExchangeExists(string shortCode) => Exists("Exchange", shortCode);
 
     /// <summary>
     /// Returns <see langword="true"/> if the specified multiplier short code exists in the lookup type map.
     /// </summary>
     /// <param name="shortCode">The multiplier short code to search for.</param>
     /// <returns><see langword="true"/> if the multiplier short code exists; otherwise, <see langword="false"/>.</returns>
-    public bool MultiplierExists(string shortCode)
-    {
-        var lookupTypeMap = GetLookupTypeMapFromCache();
-        return lookupTypeMap != null 
-            && lookupTypeMap.ContainsKey("Multiplier") 
-            && lookupTypeMap["Multiplier"].Any(e => e.Equals(shortCode, StringComparison.CurrentCultureIgnoreCase));
-    }
+    public bool MultiplierExists(string shortCode) => Exists("Multiplier", shortCode);
 
     /// <summary>
     /// Returns <see langword="true"/> if the specified security type short code exists in the lookup type map.
     /// </summary>
     /// <param name="shortCode">The security type short code to search for.</param>
     /// <returns><see langword="true"/> if the security type short code exists; otherwise, <see langword="false"/>.</returns>
-    public bool SecurityTypeExists(string shortCode)
-    {
-        var lookupTypeMap = GetLookupTypeMapFromCache();
-        return lookupTypeMap != null 
-            && lookupTypeMap.ContainsKey("SecurityType") 
-            && lookupTypeMap["SecurityType"].Any(e => e.Equals(shortCode, StringComparison.CurrentCultureIgnoreCase));
-    }
+    public bool SecurityTypeExists(string shortCode) => Exists("SecurityType", shortCode);
 
     /// <summary>
     /// Returns <see langword="true"/> if the specified symbol short code exists in the lookup type map.
     /// </summary>
     /// <param name="shortCode">The symbol short code to search for.</param>
     /// <returns><see langword="true"/> if the symbol short code exists; otherwise, <see langword="false"/>.</returns>
-    public bool SymbolExists(string shortCode)
-    {
-        var lookupTypeMap = GetLookupTypeMapFromCache();
-        return lookupTypeMap != null 
-            && lookupTypeMap.ContainsKey("Symbol") 
-            && lookupTypeMap["Symbol"].Any(e => e.Equals(shortCode, StringComparison.CurrentCultureIgnoreCase));
-    }
+    public bool SymbolExists(string shortCode) => Exists("Symbol", shortCode);
 
     /// <summary>
     /// Retrieves the lookup type map from the blackboard cache, populating it from the actor service if not already cached.
     /// </summary>
     /// <returns>A dictionary mapping lookup type names to their associated short codes.</returns>
-    Dictionary<string, List<string>>  GetLookupTypeMapFromCache()
+    bool Exists(string lookupTypeName, string shortCode)
     {
-        var lookupTypeMap = _blackboardService.Reference.ReferenceLookup.Get();
-        if (lookupTypeMap is null)
-        {
-            AddLookupTypeMapToCache();
-            lookupTypeMap = _blackboardService.Reference.ReferenceLookup.Get();
-        }
-        return lookupTypeMap ?? [];
-        
-        void AddLookupTypeMapToCache()
-        {
-            var serviceResult = _actorService.RequestAsync<LookupTypeCollection, GetLookupTypesQuery>(
-                new GetLookupTypesQuery
-                {
-                    Subject = new ActorSubject(ActorType.Query, GetLookupTypesQuery.Actor, GetLookupTypesQuery.Verb, ActorEntityId.Default.Format()),
-                    EntityId = ActorEntityId.Default
-                }).Result;
-            if (serviceResult is not null && serviceResult.Value is not null)
-            {
-                var lookupTypeMap = new Dictionary<string, List<string>>();
-                foreach (var e in serviceResult.Value)
-                {
-                    if (!lookupTypeMap.ContainsKey(e.LookupTypeName))
-                        lookupTypeMap.Add(e.LookupTypeName, []);
-                    lookupTypeMap[e.LookupTypeName].Add(e.ShortCode);
-                }
-                _blackboardService.Reference.ReferenceLookup.Set(lookupTypeMap);
-            }
-        }
+        if (shortCode is null)
+            return false;
+        var lookupIndex = GetLookupIndex();
+        return lookupIndex.TryGetValue(lookupTypeName, out var shortCodes)
+            && shortCodes.Contains(shortCode);
     }
 
+    FrozenDictionary<string, FrozenSet<string>> GetLookupIndex()
+    {
+        var now = Environment.TickCount64;
+        var generation = ReferenceLookupCacheGeneration.Current;
+        var lookupIndex = Volatile.Read(ref _lookupIndex);
+        if (lookupIndex is not null
+            && generation == Volatile.Read(ref _observedGeneration)
+            && now < Volatile.Read(ref _expiresAt))
+            return lookupIndex;
+
+        lock (_refreshGate)
+        {
+            now = Environment.TickCount64;
+            generation = ReferenceLookupCacheGeneration.Current;
+            lookupIndex = _lookupIndex;
+            if (lookupIndex is not null
+                && generation == _observedGeneration
+                && now < _expiresAt)
+                return lookupIndex;
+
+            var lookupTypeMap = _blackboardService.Reference.ReferenceLookup.Get();
+            if (lookupTypeMap is null)
+            {
+                var serviceResult = _actorService.RequestAsync<LookupTypeCollection, GetLookupTypesQuery>(
+                    new GetLookupTypesQuery
+                    {
+                        Subject = new ActorSubject(ActorType.Query, GetLookupTypesQuery.Actor, GetLookupTypesQuery.Verb, ActorEntityId.Default.Format()),
+                        EntityId = ActorEntityId.Default
+                    }).GetAwaiter().GetResult();
+                lookupTypeMap = serviceResult?.Value is { } values
+                    ? CreateLookupTypeMap(values)
+                    : [];
+                if (lookupTypeMap.Count > 0)
+                    _blackboardService.Reference.ReferenceLookup.Set(lookupTypeMap);
+            }
+
+            lookupIndex = Freeze(lookupTypeMap);
+            Volatile.Write(ref _lookupIndex, lookupIndex);
+            Volatile.Write(ref _observedGeneration, generation);
+            Volatile.Write(ref _expiresAt, now + LocalCacheLifetimeMilliseconds);
+            return lookupIndex;
+        }
+
+        static Dictionary<string, List<string>> CreateLookupTypeMap(LookupTypeCollection values)
+        {
+            var map = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var value in values)
+            {
+                if (!map.TryGetValue(value.LookupTypeName, out var shortCodes))
+                {
+                    shortCodes = [];
+                    map.Add(value.LookupTypeName, shortCodes);
+                }
+                shortCodes.Add(value.ShortCode);
+            }
+            return map;
+        }
+
+        static FrozenDictionary<string, FrozenSet<string>> Freeze(Dictionary<string, List<string>> map)
+        {
+            if (map.Count == 0)
+                return EmptyLookupIndex;
+
+            var index = new Dictionary<string, FrozenSet<string>>(map.Count, StringComparer.Ordinal);
+            foreach (var pair in map)
+            {
+                index[pair.Key] = pair.Value.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+            }
+            return index.ToFrozenDictionary(StringComparer.Ordinal);
+        }
+    }
 }

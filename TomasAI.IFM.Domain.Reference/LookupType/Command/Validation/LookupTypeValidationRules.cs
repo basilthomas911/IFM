@@ -16,12 +16,13 @@ namespace TomasAI.IFM.Domain.Reference.LookupType.Command.Validation;
 /// consistent error reporting across the application.</remarks>
 public class LookupTypeValidationRules : BaseValidationRules, IValidationRules<LookupTypeReadModel>
 {
+    static readonly LookupTypeValidator Validator = new();
     public const string InstanceErrorMessage = "LookupType instance is null";
     public const string LookupTypeNameErrorMessage = "LookupTypeName is empty";
     public const string ShortCodeErrorMessage = "ShortCode is empty";
     public const string OrderIdErrorMessage = "OrderId must be positive number";
 
-    public ValidationError[] Execute(LookupTypeReadModel lookupType) => Validate(lookupType, new LookupTypeValidator());
+    public ValidationError[] Execute(LookupTypeReadModel lookupType) => Validate(lookupType, Validator);
 
     private class LookupTypeValidator : AbstractValidator<LookupTypeReadModel>
     {

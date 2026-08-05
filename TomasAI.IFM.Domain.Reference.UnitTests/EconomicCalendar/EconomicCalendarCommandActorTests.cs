@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Actor;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.Reference.Shared.Commands;
 
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests.EconomicCalendar;
@@ -22,6 +23,38 @@ public class EconomicCalendarCommandActorTests : IClassFixture<ReferenceTestFixt
     public EconomicCalendarCommandActorTests(ReferenceTestFixture fixture)
     {
         _fixture = fixture;
+    }
+
+    [Fact]
+    public void ParseMessage_IncompleteAudit_DoesNotBlockActorThread()
+    {
+        var pendingAudit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+            .Returns(pendingAudit.Task);
+        var actor = _fixture.CreateActor(
+            dbEventSource,
+            Substitute.For<ILogger<EconomicCalendarCommandActor>>());
+        var command = new AddEconomicCalendarCommand(SampleData.EconomicCalendar)
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(
+                ActorType.Command,
+                EconomicCalendarCommandActor.Actor,
+                AddEconomicCalendarCommand.Verb,
+                SampleData.EconomicCalendar.Id.Format())
+        };
+        var message = new NatsMsg<byte[]>
+        {
+            Subject = command.Subject.ToString(),
+            Data = ActorExtensions.DataSerializer!.Serialize(command)
+        };
+
+        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+
+        parsed.CommandId.Should().Be(command.CommandId);
+        pendingAudit.Task.IsCompleted.Should().BeFalse();
+        pendingAudit.SetResult();
     }
 
     // Test helper to expose protected ParseMessage and ReceiveAsync for unit testing.

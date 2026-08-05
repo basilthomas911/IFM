@@ -1,5 +1,6 @@
 ﻿using TomasAI.IFM.Domain.Reference.Shared.Commands;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
+using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -12,8 +13,7 @@ namespace TomasAI.IFM.Domain.Reference.EconomicCalendar.Command;
 public static class ImportEconomicCalendars
 {
     /// <summary>
-    /// Executes the ImportEconomicCalendarsCommand by checking if each economic calendar already exists in the state.
-    /// If it does, an AddEconomicCalendarException is thrown. Otherwise, an EconomicCalendarAddedEvent is created and the state is updated.
+    /// Validates the complete import before mutating state, then records one cumulative batch snapshot event.
     /// </summary>
     /// <param name="e">The import economic calendars command.</param>
     /// <param name="state">The economic calendar command state.</param>
@@ -21,32 +21,37 @@ public static class ImportEconomicCalendars
     /// <exception cref="AddEconomicCalendarException">Thrown if an economic calendar with the same entity identifier already exists in the state.</exception>
     public static bool Execute(this ImportEconomicCalendarsCommand e, EconomicCalendarCommandState state)
     {
+        var importedIds = new HashSet<EconomicCalendarId>();
         foreach (var economicCalendar in e.EconomicCalendars)
         {
-            _ = economicCalendar switch
-            {
-                _ when state.EconomicCalendarExists(e.EntityId) => throw new AddEconomicCalendarException(e.EconomicCalendarAlreadyExistsErrorMsg()),
-                _ => state.Update(e.CreateEconomicCalendarAddedEvent(economicCalendar), e)
-            };
+            var id = economicCalendar.Id;
+            if (!importedIds.Add(id) || state.EconomicCalendarExists(id))
+                throw new AddEconomicCalendarException(e.EconomicCalendarAlreadyExistsErrorMsg());
         }
-        return true;
+
+        var snapshot = new EconomicCalendarReadModel[state.Count + e.EconomicCalendars.Length];
+        state.CopyEconomicCalendarsTo(snapshot);
+        e.EconomicCalendars.CopyTo(snapshot, state.Count);
+        return state.Update(e.CreateEconomicCalendarsImportedEvent(snapshot), e);
     }
 
     /// <summary>
-    /// Creates an EconomicCalendarAddedEvent from the ImportEconomicCalendarsCommand and the EconomicCalendarReadModel.
+    /// Creates the cumulative batch snapshot used by import streams.
     /// </summary>
     /// <param name="e">The import economic calendars command.</param>
-    /// <param name="economicCalendar">The economic calendar read model.</param>
-    /// <returns>The created economic calendar added event.</returns>
-    internal static EconomicCalendarAddedEvent CreateEconomicCalendarAddedEvent(this ImportEconomicCalendarsCommand e, EconomicCalendarReadModel economicCalendar)
+    /// <param name="economicCalendars">The complete imported state represented by the snapshot.</param>
+    /// <returns>The created batch import event.</returns>
+    internal static EconomicCalendarsImportedEvent CreateEconomicCalendarsImportedEvent(
+        this ImportEconomicCalendarsCommand e,
+        EconomicCalendarReadModel[] economicCalendars)
        => new()
        {
            CommandId = e.CommandId,
-           Subject = new ActorSubject(ActorType.Event, EconomicCalendarAddedEvent.Actor, EconomicCalendarAddedEvent.Verb, e.EntityId.Format()),
+           Subject = new ActorSubject(ActorType.Event, EconomicCalendarsImportedEvent.Actor, EconomicCalendarsImportedEvent.Verb, e.EntityId.Format()),
            EntityId = e.EntityId,
-           EconomicCalendar = economicCalendar,
-           CreatedOn = e.OriginatedOn,
-           CreatedBy = e.OriginatedBy
+           EconomicCalendars = economicCalendars,
+           ImportedOn = e.OriginatedOn,
+           ImportedBy = e.OriginatedBy
        };
 
     public static string EconomicCalendarAlreadyExistsErrorMsg(this ICommand e) => e switch

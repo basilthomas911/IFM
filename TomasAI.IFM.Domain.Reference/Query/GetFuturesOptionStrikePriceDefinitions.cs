@@ -17,17 +17,22 @@ public static class GetFuturesOptionStrikePriceDefinitions
     /// <param name="context">The query actor context.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<FuturesOptionStrikePriceReadModel> GetFuturesOptionStrikePriceDefinitionsAsync(
+    public static ValueTask<FuturesOptionStrikePriceReadModel> GetFuturesOptionStrikePriceDefinitionsAsync(
         this GetFuturesOptionStrikePriceDefinitionsQuery q, IDbContextFactory dbFactory)
-    {
-        return await GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory.ReferenceDb);
+        => GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory.ReferenceDb);
 
-        static async ValueTask<FuturesOptionStrikePriceReadModel> GetFuturesOptionStrikePriceDefinitionsAsync( IReferenceDbContext db)
-           => new()
-           {
-               Minimum = Convert.ToInt32((await db.GetLookupTypeAsync("FuturesOptionStrikePriceMin")).FirstOrDefault()?.ShortCode),
-               Maximum = Convert.ToInt32((await db.GetLookupTypeAsync("FuturesOptionStrikePriceMax")).FirstOrDefault()?.ShortCode),
-               Increment = Convert.ToInt32((await db.GetLookupTypeAsync("FuturesOptionStrikePriceIncrement")).FirstOrDefault()?.ShortCode)
-           };
+    internal static async ValueTask<FuturesOptionStrikePriceReadModel> GetFuturesOptionStrikePriceDefinitionsAsync(IReferenceDbContext db)
+    {
+        var minimum = db.GetLookupTypeAsync("FuturesOptionStrikePriceMin");
+        var maximum = db.GetLookupTypeAsync("FuturesOptionStrikePriceMax");
+        var increment = db.GetLookupTypeAsync("FuturesOptionStrikePriceIncrement");
+        var values = await Task.WhenAll(minimum, maximum, increment).ConfigureAwait(false);
+
+        return new FuturesOptionStrikePriceReadModel
+        {
+            Minimum = Convert.ToInt32(values[0].FirstOrDefault()?.ShortCode),
+            Maximum = Convert.ToInt32(values[1].FirstOrDefault()?.ShortCode),
+            Increment = Convert.ToInt32(values[2].FirstOrDefault()?.ShortCode)
+        };
     }
 }

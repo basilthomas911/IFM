@@ -143,7 +143,7 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value.Value.Should().BeTrue();
     }
@@ -164,7 +164,7 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value.Value.Should().BeFalse();
     }

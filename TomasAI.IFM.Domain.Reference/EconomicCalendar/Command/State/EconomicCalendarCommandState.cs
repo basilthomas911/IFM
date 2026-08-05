@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.State;
 public class EconomicCalendarCommandState
     : BaseEventSourceActorState<EconomicCalendarCommandState>, IEventSourceActorState<EconomicCalendarCommandState>
 {
-    Dictionary<EconomicCalendarId, EconomicCalendarReadModel> _economicCalendars = [];
+    readonly Dictionary<EconomicCalendarId, EconomicCalendarReadModel> _economicCalendars = [];
 
     public override ActorThreadId Id { get; set; } = default!;
 
@@ -33,18 +33,14 @@ public class EconomicCalendarCommandState
     /// <returns>true if the event was successfully applied; otherwise, false.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        try
+        return domainEvent switch
         {
-            return domainEvent switch
-            {
-                EconomicCalendarAddedEvent e => On(e),
-                EconomicCalendarChangedEvent e => On(e),
-                EconomicCalendarRemovedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
+            EconomicCalendarAddedEvent e => On(e),
+            EconomicCalendarsImportedEvent e => On(e),
+            EconomicCalendarChangedEvent e => On(e),
+            EconomicCalendarRemovedEvent e => On(e),
+            _ => false
+        };
     }
 
     /// <summary>
@@ -54,6 +50,19 @@ public class EconomicCalendarCommandState
     /// <returns>true if the economic calendar exists in the state; otherwise, false.</returns>
     public bool EconomicCalendarExists(EconomicCalendarId economicCalendarId)
         => _economicCalendars.ContainsKey(economicCalendarId);
+
+    internal int Count => _economicCalendars.Count;
+
+    internal void CopyEconomicCalendarsTo(EconomicCalendarReadModel[] destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        if (destination.Length < _economicCalendars.Count)
+            throw new ArgumentException("The destination is too small.", nameof(destination));
+
+        var index = 0;
+        foreach (var economicCalendar in _economicCalendars.Values)
+            destination[index++] = economicCalendar;
+    }
 
     /// <summary>
     /// Applies an economic calendar added event to the state.
@@ -66,9 +75,21 @@ public class EconomicCalendarCommandState
     {
         if (e is not null && e.EconomicCalendar is not null)
         {
-            return _economicCalendars.TryAdd(e.EconomicCalendar.Id, e.EconomicCalendar);
+            return _economicCalendars.TryAdd(e.EntityId, e.EconomicCalendar);
         }
         return false;
+    }
+
+    bool On(EconomicCalendarsImportedEvent e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(e.EconomicCalendars);
+
+        _economicCalendars.Clear();
+        foreach (var economicCalendar in e.EconomicCalendars)
+            if (!_economicCalendars.TryAdd(economicCalendar.Id, economicCalendar))
+                throw new InvalidOperationException($"Duplicate economic calendar {economicCalendar.Id} in imported snapshot.");
+        return e.EconomicCalendars.Length > 0;
     }
 
     /// <summary>

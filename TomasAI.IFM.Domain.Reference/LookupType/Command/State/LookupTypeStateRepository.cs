@@ -1,5 +1,7 @@
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Domain.Reference.Services;
 using TomasAI.IFM.Domain.Reference.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -15,6 +17,7 @@ public class LookupTypeStateRepository(
     IEventSourceActorStateFactory stateFactory,
     IEventSourceActorDbContext dbEventSource,
     IDbContextFactory dbFactory,
+    IBlackboardService blackboardService,
     IActorService actorService,
     ILogger<LookupTypeStateRepository> logger)
     : BaseEventSourceActorRepository(stateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<LookupTypeCommandState>
@@ -27,8 +30,8 @@ public class LookupTypeStateRepository(
     /// state representation.</remarks>
     /// <param name="command">The command for which the state is being loaded. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded lookup type command state.</returns>
-    public async ValueTask<LookupTypeCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<LookupTypeCommandState, LookupTypeAddedEvent>(command);
+    public ValueTask<LookupTypeCommandState> LoadStateAsync(ICommand command)
+        => new(LoadStateFromSnapshotAsync<LookupTypeCommandState, LookupTypeAddedEvent>(command));
 
     /// <summary>
     /// Asynchronously saves the current state of the lookup type actor by persisting the pending events from the state
@@ -40,8 +43,8 @@ public class LookupTypeStateRepository(
     /// <param name="state">The current state of the lookup type actor containing pending events to save. Cannot be null.</param>
     /// <param name="command">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous save operation.</returns>
-    public async ValueTask SaveStateAsync(ICommandActorContext context, LookupTypeCommandState state, ICommand command)
-        => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+    public ValueTask SaveStateAsync(ICommandActorContext context, LookupTypeCommandState state, ICommand command)
+        => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
 
     /// <summary>
     /// Asynchronously denormalizes the specified domain events into the read model database.
@@ -54,7 +57,7 @@ public class LookupTypeStateRepository(
         var db = dbFactory.ReferenceDb;
         foreach (var domainEvent in domainEvents)
         {
-            _ = domainEvent switch
+            var updated = domainEvent switch
             {
                 LookupTypeAddedEvent e => await UpdateReadModelAsync<LookupTypeAddedEvent, LookupTypeAddedCompleteEvent, LookupTypeAddedFailEvent, LookupTypeId>(
                     context, e, () => InsertLookupTypeAsync(db, e.LookupType)),
@@ -64,15 +67,20 @@ public class LookupTypeStateRepository(
                     context, e, () => DeleteLookupTypeAsync(db, e.EntityId)),
                 _ => false
             };
+            if (updated)
+            {
+                blackboardService.Reference.ReferenceLookup.Remove();
+                ReferenceLookupCacheGeneration.Invalidate();
+            }
         }
 
-        static async ValueTask InsertLookupTypeAsync( IReferenceDbContext db, LookupTypeReadModel e)
-            => await db.InsertLookupTypeAsync(e);
+        static ValueTask InsertLookupTypeAsync(IReferenceDbContext db, LookupTypeReadModel e)
+            => new(db.InsertLookupTypeAsync(e));
 
-        static async ValueTask UpdateLookupTypeAsync(IReferenceDbContext db, LookupTypeId id, LookupTypeReadModel e)
-            => await db.UpdateLookupTypeAsync(id, e);
+        static ValueTask UpdateLookupTypeAsync(IReferenceDbContext db, LookupTypeId id, LookupTypeReadModel e)
+            => new(db.UpdateLookupTypeAsync(id, e));
 
-        static async ValueTask DeleteLookupTypeAsync(IReferenceDbContext db, LookupTypeId lookupTypeId)
-            => await db.DeleteLookupTypeAsync(lookupTypeId);
+        static ValueTask DeleteLookupTypeAsync(IReferenceDbContext db, LookupTypeId lookupTypeId)
+            => new(db.DeleteLookupTypeAsync(lookupTypeId));
     }
 }

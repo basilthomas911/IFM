@@ -57,3 +57,9 @@ Commands validate and update event-sourced state, repositories persist changes, 
 ## Extension points
 
 Add a new reference entity as a separate command/event/query vertical. Keep common cross-entity reads in the root `Query` branch and orchestration in `Services`. Preserve class/file naming alignment when touching the Lookup Type event actor.
+
+## Optimization notes and deferred cancellation
+
+The 2026-08-05 root-to-leaf pass is documented in `Domain-Actor-Optimization-Details.md`. Empty Economic Calendar and Lookup Type event actors remain intentional default publication targets. Calendar import streams use the cumulative `EconomicCalendarsImportedEvent` batch snapshot, while singular calendar streams continue to use `EconomicCalendarAddedEvent`.
+
+TODO: implement cancellation propagation only as a coordinated solution-wide change after the remaining root-domain optimization passes. Supervisor cancellation must flow through actor contexts, APIs, repositories, storage, brokers, timers, and external I/O with explicit graceful-stop and partial-persistence semantics. Do not add partial Reference-only cancellation.

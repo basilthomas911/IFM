@@ -194,16 +194,8 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
     {
         try
         {
-            var db = _dbFactory.ReferenceDb;
-            var result = new DefaultFuturesContractDefinitionsReadModel
-            {
-                Currency = (await db.GetLookupTypeAsync("DefaultFuturesContractCurrency")).FirstOrDefault()?.ShortCode ?? string.Empty,
-                Exchange = (await db.GetLookupTypeAsync("DefaultFuturesContractExchange")).FirstOrDefault()?.ShortCode ?? string.Empty,
-                Multiplier = (await db.GetLookupTypeAsync("DefaultFuturesContractMultiplier")).FirstOrDefault()?.ShortCode ?? string.Empty,
-                SecurityType = (await db.GetLookupTypeAsync("DefaultFuturesContractSecurityType")).FirstOrDefault()?.ShortCode ?? string.Empty,
-                OptionSecurityType = (await db.GetLookupTypeAsync("DefaultFuturesOptionContractSecurityType")).FirstOrDefault()?.ShortCode ?? string.Empty,
-                Symbol = (await db.GetLookupTypeAsync("DefaultFuturesContractSymbol")).FirstOrDefault()?.ShortCode ?? string.Empty
-            };
+            var result = await GetDefaultFuturesContractDefinitions
+                .GetDefaultFuturesContractDefinitionsAsync(_dbFactory.ReferenceDb);
             return new ServiceOk<DefaultFuturesContractDefinitionsReadModel>(result);
         }
         catch (Exception ex)
@@ -223,13 +215,8 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
     {
         try
         {
-            var db = _dbFactory.ReferenceDb;
-            var result = new FuturesOptionStrikePriceReadModel
-            {
-                Minimum = Convert.ToInt32((await db.GetLookupTypeAsync("FuturesOptionStrikePriceMin")).FirstOrDefault()?.ShortCode),
-                Maximum = Convert.ToInt32((await db.GetLookupTypeAsync("FuturesOptionStrikePriceMax")).FirstOrDefault()?.ShortCode),
-                Increment = Convert.ToInt32((await db.GetLookupTypeAsync("FuturesOptionStrikePriceIncrement")).FirstOrDefault()?.ShortCode)
-            };
+            var result = await GetFuturesOptionStrikePriceDefinitions
+                .GetFuturesOptionStrikePriceDefinitionsAsync(_dbFactory.ReferenceDb);
             return new ServiceOk<FuturesOptionStrikePriceReadModel>(result);
         }
         catch (Exception ex)
@@ -251,9 +238,8 @@ public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActor
     {
         try
         {
-            var values = await _dbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(lookupTypeName);
-            var result = new ScalarReadModel<bool>(values.Any(
-                value => value.ShortCode.Equals(shortCode, StringComparison.OrdinalIgnoreCase)));
+            var result = new ScalarReadModel<bool>(await _dbFactory.ReferenceDb
+                .LookupTypeShortCodeExistsAsync(lookupTypeName, shortCode));
             return new ServiceOk<ScalarReadModel<bool>>(result);
         }
         catch (Exception ex)

@@ -21,6 +21,7 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb
         Task<ICollection<LookupTypeReadModel>> GetLookupTypesAsync();
         Task<ICollection<string>> GetLookupTypeNamesAsync();
         Task<ICollection<LookupTypeShortCodeReadModel>> GetLookupTypeShortCodesAsync(string lookupTypeName);
+        Task<bool> LookupTypeShortCodeExistsAsync(string lookupTypeName, string shortCode);
         Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync();
         Task<int> GetScheduledJobIdAsync(string jobName);
         Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId economicCalendarId);

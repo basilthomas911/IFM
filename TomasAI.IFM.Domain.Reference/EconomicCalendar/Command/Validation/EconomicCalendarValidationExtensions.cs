@@ -13,6 +13,8 @@ namespace TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Validation;
 /// identifiers.</remarks>
 public static class EconomicCalendarValidationExtensions
 {
+    static readonly EconomicCalendarValidationRules EconomicCalendarRules = new();
+    static readonly EconomicCalendarIdValidationRules EconomicCalendarIdRules = new();
     /// <summary>
     /// Validates an economic calendar view model.
     /// </summary>
@@ -21,7 +23,7 @@ public static class EconomicCalendarValidationExtensions
     /// <returns>The updated list of validation errors.</returns>
     public static List<ValidationError> ValidateEconomicCalendar(this List<ValidationError> validationErrors, EconomicCalendarReadModel economicCalendar)
     {
-        var ruleErrors = new EconomicCalendarValidationRules().Execute(economicCalendar);
+        var ruleErrors = EconomicCalendarRules.Execute(economicCalendar);
         if (ruleErrors is not null)
             validationErrors.AddRange(ruleErrors);
         return validationErrors;
@@ -32,10 +34,9 @@ public static class EconomicCalendarValidationExtensions
         if (economicCalendars is null || economicCalendars.Length == 0)
             validationErrors.Add(new ValidationError($"{commandName}.EconomicCalendars is empty"));
 
-        var validationRules = new EconomicCalendarValidationRules();
         foreach (var e in economicCalendars!)
         {
-            var ruleErrors = validationRules.Execute(e);
+            var ruleErrors = EconomicCalendarRules.Execute(e);
             if (ruleErrors is not null)
                 validationErrors.AddRange(ruleErrors);
         }
@@ -50,7 +51,7 @@ public static class EconomicCalendarValidationExtensions
     /// <returns>The updated list of validation errors.</returns>
     public static List<ValidationError> ValidateEconomicCalendarId(this List<ValidationError> validationErrors, EconomicCalendarId economicCalendarId)
     {
-        var ruleErrors = new EconomicCalendarIdValidationRules().Execute(economicCalendarId);
+        var ruleErrors = EconomicCalendarIdRules.Execute(economicCalendarId);
         if (ruleErrors is not null)
             validationErrors.AddRange(ruleErrors);
         return validationErrors;

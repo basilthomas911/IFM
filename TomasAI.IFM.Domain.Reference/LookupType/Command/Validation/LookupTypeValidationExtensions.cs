@@ -13,6 +13,8 @@ namespace TomasAI.IFM.Domain.Reference.LookupType.Command.Validation;
 /// identifiers.</remarks>
 public static class LookupTypeValidationExtensions
 {
+    static readonly LookupTypeValidationRules LookupTypeRules = new();
+    static readonly LookupTypeIdValidationRules LookupTypeIdRules = new();
     /// <summary>
     /// validate lookup type view model
     /// </summary>
@@ -21,7 +23,7 @@ public static class LookupTypeValidationExtensions
     /// <returns></returns>
     public static List<ValidationError> ValidateLookupType(this List<ValidationError> validationErrors, LookupTypeReadModel lookupType)
     {
-        var ruleErrors = new LookupTypeValidationRules().Execute(lookupType);
+        var ruleErrors = LookupTypeRules.Execute(lookupType);
         if (ruleErrors is not null)
             validationErrors.AddRange(ruleErrors);
         return validationErrors;
@@ -35,7 +37,7 @@ public static class LookupTypeValidationExtensions
     /// <returns></returns>
     public static List<ValidationError> ValidateLookupTypeId(this List<ValidationError> validationErrors, LookupTypeId lookupTypeId)
     {
-        var ruleErrors = new LookupTypeIdValidationRules().Execute(lookupTypeId);
+        var ruleErrors = LookupTypeIdRules.Execute(lookupTypeId);
         if (ruleErrors is not null)
             validationErrors.AddRange(ruleErrors);
         return validationErrors;

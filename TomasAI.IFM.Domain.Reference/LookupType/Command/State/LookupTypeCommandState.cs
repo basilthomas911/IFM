@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Domain.Reference.LookupType.Command.State;
 public class LookupTypeCommandState
     : BaseEventSourceActorState<LookupTypeCommandState>, IEventSourceActorState<LookupTypeCommandState>
 {
-    Dictionary<LookupTypeId, LookupTypeReadModel> _lookupTypes = [];
+    readonly Dictionary<LookupTypeId, LookupTypeReadModel> _lookupTypes = [];
 
     public override ActorThreadId Id { get; set; } = default!;
 
@@ -33,18 +33,13 @@ public class LookupTypeCommandState
     /// <returns>true if the event was successfully applied; otherwise, false.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        try
+        return domainEvent switch
         {
-            return domainEvent switch
-            {
-                LookupTypeAddedEvent e => On(e),
-                LookupTypeChangedEvent e => On(e),
-                LookupTypeRemovedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
+            LookupTypeAddedEvent e => On(e),
+            LookupTypeChangedEvent e => On(e),
+            LookupTypeRemovedEvent e => On(e),
+            _ => false
+        };
     }
 
     /// <summary>
@@ -66,7 +61,7 @@ public class LookupTypeCommandState
     {
         if (e is not null && e.LookupType is not null)
         {
-            return _lookupTypes.TryAdd(e.LookupType.Id, e.LookupType);
+            return _lookupTypes.TryAdd(e.EntityId, e.LookupType);
         }
         return false;
     }
@@ -82,9 +77,9 @@ public class LookupTypeCommandState
     {
         if (e is not null && e.LookupType is not null)
         {
-            if (_lookupTypes.ContainsKey(e.LookupType.Id))
+            if (_lookupTypes.ContainsKey(e.EntityId))
             {
-                _lookupTypes[e.LookupType.Id] = e.LookupType;
+                _lookupTypes[e.EntityId] = e.LookupType;
                 return true;
             }
         }

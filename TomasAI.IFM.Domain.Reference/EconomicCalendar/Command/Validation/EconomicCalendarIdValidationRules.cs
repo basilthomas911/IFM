@@ -7,12 +7,13 @@ namespace TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Validation;
 
 public class EconomicCalendarIdValidationRules : BaseValidationRules, IValidationRules<EconomicCalendarId>
 {
+    static readonly EconomicCalendarIdValidator Validator = new();
     public const string InstanceErrorMessage = "EconomicCalendarId instance is null";
     public const string EventDateErrorMessage = "EconomicCalendarId.EventDate is required";
     public const string CountryCodeErrorMessage = "EconomicCalendarId.CountryCode is empty";
     public const string EventNameErrorMessage = "EconomicCalendarId.EventName is empty";
 
-    public ValidationError[] Execute(EconomicCalendarId economicCalendarId) => Validate(economicCalendarId, new EconomicCalendarIdValidator());
+    public ValidationError[] Execute(EconomicCalendarId economicCalendarId) => Validate(economicCalendarId, Validator);
 
     class EconomicCalendarIdValidator : AbstractValidator<EconomicCalendarId>
     {

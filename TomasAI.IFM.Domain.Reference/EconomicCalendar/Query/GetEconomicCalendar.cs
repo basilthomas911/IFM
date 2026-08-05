@@ -34,35 +34,35 @@ public static class GetEconomicCalendar
     /// <returns></returns>
     /// <exception cref="NotImplementedException"></exception>
     internal static async ValueTask<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAsync(IReferenceDbContext db, DateTime todaysDate, EconomicCalendarViewType calendarViewType, string countryCode)
-        => calendarViewType switch
+    {
+        if (calendarViewType is EconomicCalendarViewType.ThisWeek or EconomicCalendarViewType.NextWeek)
+        {
+            var startDate = calendarViewType == EconomicCalendarViewType.ThisWeek
+                ? GetThisWeekStartingDate(todaysDate)
+                : GetNextWeekStartingDate(todaysDate);
+            return await db.GetEconomicCalendarsAsync(
+                startDate,
+                startDate.AddDays(7).AddMilliseconds(-1),
+                countryCode: countryCode);
+        }
+
+        return calendarViewType switch
         {
             EconomicCalendarViewType.Today => await db.GetEconomicCalendarsAsync(todaysDate, countryCode),
             EconomicCalendarViewType.Tomorrow => await db.GetEconomicCalendarsAsync(todaysDate.AddDays(1).Date, countryCode),
             EconomicCalendarViewType.Yesterday => await db.GetEconomicCalendarsAsync(todaysDate.AddDays(-1).Date, countryCode),
-            EconomicCalendarViewType.ThisWeek => await db.GetEconomicCalendarsAsync(
-                startDate: GetThisWeekStartingDate(todaysDate),
-                endDate: GetThisWeekStartingDate(todaysDate).AddDays(7).AddMilliseconds(-1),
-                countryCode: countryCode),
-            EconomicCalendarViewType.NextWeek => await db.GetEconomicCalendarsAsync(
-                startDate: GetNextWeekStartingDate(todaysDate),
-                endDate: GetNextWeekStartingDate(todaysDate).AddDays(7).AddMilliseconds(-1),
-                countryCode: countryCode),
             _ => throw new NotImplementedException($"Invalid CalendarViewType: {calendarViewType}")
         };
+    }
 
     internal static DateTime GetThisWeekStartingDate(this DateTime todaysDate)
     {
-        var thisWeekStartingDate = todaysDate;
-        while (thisWeekStartingDate.DayOfWeek != DayOfWeek.Monday)
-            thisWeekStartingDate = thisWeekStartingDate.AddDays(-1);
-        return thisWeekStartingDate.Date;
+        var daysSinceMonday = ((int)todaysDate.DayOfWeek + 6) % 7;
+        return todaysDate.Date.AddDays(-daysSinceMonday);
     }
 
     internal static DateTime GetNextWeekStartingDate(this DateTime todaysDate)
     {
-        var nextWeekStartingDate = todaysDate;
-        while (nextWeekStartingDate.DayOfWeek != DayOfWeek.Monday)
-            nextWeekStartingDate = nextWeekStartingDate.AddDays(1);
-        return nextWeekStartingDate.Date;
+        return GetThisWeekStartingDate(todaysDate).AddDays(7);
     }
 }

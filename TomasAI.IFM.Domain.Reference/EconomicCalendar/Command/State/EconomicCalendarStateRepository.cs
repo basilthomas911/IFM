@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.Commands;
 using TomasAI.IFM.Domain.Reference.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -27,8 +28,12 @@ public class EconomicCalendarStateRepository(
     /// state representation.</remarks>
     /// <param name="command">The command for which the state is being loaded. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded economic calendar command state.</returns>
-    public async ValueTask<EconomicCalendarCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<EconomicCalendarCommandState, EconomicCalendarAddedEvent>(command);
+    public ValueTask<EconomicCalendarCommandState> LoadStateAsync(ICommand command)
+        => command is ImportEconomicCalendarsCommand
+            ? new ValueTask<EconomicCalendarCommandState>(
+                LoadStateFromSnapshotAsync<EconomicCalendarCommandState, EconomicCalendarsImportedEvent>(command))
+            : new ValueTask<EconomicCalendarCommandState>(
+                LoadStateFromSnapshotAsync<EconomicCalendarCommandState, EconomicCalendarAddedEvent>(command));
 
     /// <summary>
     /// Asynchronously saves the current state of the economic calendar actor by persisting the pending events from the state
@@ -41,8 +46,8 @@ public class EconomicCalendarStateRepository(
     /// <param name="state">The current state of the economic calendar actor containing pending events to save. Cannot be null.</param>
     /// <param name="command">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous save operation.</returns>
-    public async ValueTask SaveStateAsync(ICommandActorContext context, EconomicCalendarCommandState state, ICommand command)
-        => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+    public ValueTask SaveStateAsync(ICommandActorContext context, EconomicCalendarCommandState state, ICommand command)
+        => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the economic calendar query state
@@ -63,6 +68,8 @@ public class EconomicCalendarStateRepository(
             {
                 EconomicCalendarAddedEvent e => await UpdateReadModelAsync<EconomicCalendarAddedEvent, EconomicCalendarAddedCompleteEvent, EconomicCalendarAddedFailEvent, EconomicCalendarId>(
                     context, e, () =>InsertEconomicCalendarAsync(db, e.EconomicCalendar!)),
+                EconomicCalendarsImportedEvent e => await UpdateReadModelAsync<EconomicCalendarsImportedEvent, EconomicCalendarsImportedCompleteEvent, EconomicCalendarsImportedFailEvent, EconomicCalendarId>(
+                    context, e, () => InsertEconomicCalendarsAsync(db, e.EconomicCalendars)),
                 EconomicCalendarChangedEvent e => await UpdateReadModelAsync<EconomicCalendarChangedEvent, EconomicCalendarChangedCompleteEvent, EconomicCalendarChangedFailEvent, EconomicCalendarId>(
                     context, e, () =>UpdateEconomicCalendarAsync(db, e.EntityId!, e.EconomicCalendar!)),
                 EconomicCalendarRemovedEvent e => await UpdateReadModelAsync<EconomicCalendarRemovedEvent, EconomicCalendarRemovedCompleteEvent, EconomicCalendarRemovedFailEvent, EconomicCalendarId>(
@@ -71,13 +78,16 @@ public class EconomicCalendarStateRepository(
             };
         }
 
-        static async ValueTask InsertEconomicCalendarAsync(IReferenceDbContext db, EconomicCalendarReadModel e)
-            => await db.InsertEconomicCalendarAsync(e);
+        static ValueTask InsertEconomicCalendarAsync(IReferenceDbContext db, EconomicCalendarReadModel e)
+            => new(db.InsertEconomicCalendarAsync(e));
 
-        static async ValueTask UpdateEconomicCalendarAsync(IReferenceDbContext db, EconomicCalendarId id, EconomicCalendarReadModel e)
-            => await db.UpdateEconomicCalendarAsync(id, e);
+        static ValueTask InsertEconomicCalendarsAsync(IReferenceDbContext db, EconomicCalendarReadModel[] economicCalendars)
+            => new(db.InsertEconomicCalendarsAsync(economicCalendars));
 
-        static async ValueTask DeleteEconomicCalendarAsync(IReferenceDbContext db, EconomicCalendarId id)
-            => await db.DeleteEconomicCalendarAsync(id);
+        static ValueTask UpdateEconomicCalendarAsync(IReferenceDbContext db, EconomicCalendarId id, EconomicCalendarReadModel e)
+            => new(db.UpdateEconomicCalendarAsync(id, e));
+
+        static ValueTask DeleteEconomicCalendarAsync(IReferenceDbContext db, EconomicCalendarId id)
+            => new(db.DeleteEconomicCalendarAsync(id));
     }
 }

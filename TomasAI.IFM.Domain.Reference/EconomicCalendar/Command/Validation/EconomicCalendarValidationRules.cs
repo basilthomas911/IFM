@@ -8,12 +8,13 @@ namespace TomasAI.IFM.Domain.Reference.EconomicCalendar.Command.Validation;
 
 public class EconomicCalendarValidationRules : BaseValidationRules, IValidationRules<EconomicCalendarReadModel>
 {
+    static readonly EconomicCalendarValidator Validator = new();
     public const string InstanceErrorMessage = "EconomicCalendar instance is null";
     public const string EventDateErrorMessage = "EconomicCalendar.EventDate is required";
     public const string CountryCodeErrorMessage = "EconomicCalendar.CountryCode is empty";
     public const string EventNameErrorMessage = "EconomicCalendar.EventName is empty";
 
-    public ValidationError[] Execute(EconomicCalendarReadModel economicCalendar) => Validate(economicCalendar, new EconomicCalendarValidator());
+    public ValidationError[] Execute(EconomicCalendarReadModel economicCalendar) => Validate(economicCalendar, Validator);
 
     class EconomicCalendarValidator : AbstractValidator<EconomicCalendarReadModel>
     {

@@ -13,20 +13,29 @@ public static class GetDefaultFuturesContractDefinitions
     /// <summary>
     /// Handles a request to retrieve default futures contract definitions.
     /// </summary>
-    public static async ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(
+    public static ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(
         this GetDefaultFuturesContractDefinitionsQuery q, IDbContextFactory dbFactory)
-    {
-        return await GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb);
+        => GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb);
 
-        static async ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(IReferenceDbContext db)
-            => new()
-            {
-                Currency = (await db.GetLookupTypeAsync("DefaultFuturesContractCurrency")).FirstOrDefault()?.ShortCode ?? string.Empty,
-                Exchange = (await db.GetLookupTypeAsync("DefaultFuturesContractExchange")).FirstOrDefault()?.ShortCode ?? string.Empty,
-                Multiplier = (await db.GetLookupTypeAsync("DefaultFuturesContractMultiplier")).FirstOrDefault()?.ShortCode ?? string.Empty,
-                SecurityType = (await db.GetLookupTypeAsync("DefaultFuturesContractSecurityType")).FirstOrDefault()?.ShortCode ?? string.Empty,
-                OptionSecurityType = (await db.GetLookupTypeAsync("DefaultFuturesOptionContractSecurityType")).FirstOrDefault()?.ShortCode ?? string.Empty,
-                Symbol = (await db.GetLookupTypeAsync("DefaultFuturesContractSymbol")).FirstOrDefault()?.ShortCode ?? string.Empty
-            };
+    internal static async ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(IReferenceDbContext db)
+    {
+        var currency = db.GetLookupTypeAsync("DefaultFuturesContractCurrency");
+        var exchange = db.GetLookupTypeAsync("DefaultFuturesContractExchange");
+        var multiplier = db.GetLookupTypeAsync("DefaultFuturesContractMultiplier");
+        var securityType = db.GetLookupTypeAsync("DefaultFuturesContractSecurityType");
+        var optionSecurityType = db.GetLookupTypeAsync("DefaultFuturesOptionContractSecurityType");
+        var symbol = db.GetLookupTypeAsync("DefaultFuturesContractSymbol");
+        var values = await Task.WhenAll(currency, exchange, multiplier, securityType, optionSecurityType, symbol)
+            .ConfigureAwait(false);
+
+        return new DefaultFuturesContractDefinitionsReadModel
+        {
+            Currency = values[0].FirstOrDefault()?.ShortCode ?? string.Empty,
+            Exchange = values[1].FirstOrDefault()?.ShortCode ?? string.Empty,
+            Multiplier = values[2].FirstOrDefault()?.ShortCode ?? string.Empty,
+            SecurityType = values[3].FirstOrDefault()?.ShortCode ?? string.Empty,
+            OptionSecurityType = values[4].FirstOrDefault()?.ShortCode ?? string.Empty,
+            Symbol = values[5].FirstOrDefault()?.ShortCode ?? string.Empty
+        };
     }
 }

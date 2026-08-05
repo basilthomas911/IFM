@@ -39,4 +39,7 @@ public class ReferenceLookupCacheModel(IRedisCache redisCache, IJsonSerializer j
         var value = _jsonSerializer.Serialize(referenceLookup);
         _redisCache.Set(key, value);
     }
+
+    /// <summary>Removes the shared lookup snapshot after a successful lookup-type mutation.</summary>
+    public void Remove() => _redisCache.Remove(CacheName);
 }
