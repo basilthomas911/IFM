@@ -32,16 +32,29 @@ internal static class FuturesEodDataModel
         int windowSize,
         ICollection<VixFuturesEodDataReadModel> vixEodData)
     {
-        var eodDataList = new List<FuturesEodDataV2ReadModel>
+        var dataCount = Math.Min(Math.Max(1, eodDataRange.Count), windowSize * 2);
+        var eodData = new FuturesEodDataV2ReadModel[dataCount];
+        eodData[0] = eodDataToday with
         {
-            eodDataToday with
-            {
-                ValueDate = valueDate,
-                ClosePrice = futuresTickData.Price
-            }
+            ValueDate = valueDate,
+            ClosePrice = futuresTickData.Price
         };
-        eodDataList.AddRange(eodDataRange.Skip(1));
-        var bb = new BollingerBands(windowSize, [.. eodDataList], normCurveData, vixEodData);
+
+        var sourceIndex = 0;
+        var targetIndex = 1;
+        foreach (var historicalData in eodDataRange)
+        {
+            if (sourceIndex++ == 0)
+                continue;
+            if (targetIndex == eodData.Length)
+                break;
+            eodData[targetIndex++] = historicalData;
+        }
+
+        if (targetIndex != eodData.Length)
+            Array.Resize(ref eodData, targetIndex);
+
+        var bb = new BollingerBands(windowSize, eodData, normCurveData, vixEodData);
         return new FuturesEodDataV2ReadModel(
             contractId: contract.ContractId,
             valueDate: valueDate,

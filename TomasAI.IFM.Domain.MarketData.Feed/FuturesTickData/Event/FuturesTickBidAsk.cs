@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -38,8 +39,11 @@ public static class FuturesTickBidAsk
                     size: e.TickBidAskData.Size);
                 p.BlackboardService.MarketDataFeed.FuturesTickData.Set(sp.FuturesContract.ContractId, sp.ValueDate, futuresTickData);
                 await commandApi.InsertFuturesTickDataAsync(sp.FuturesContract, futuresTickData);
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"futures tick price data {sp.FuturesContract.ContractId} price={futuresTickData.Price}");
-                p.Logger.LogInformationEvent(ServiceId, "{Source}: futures tick price data {ContractId} price={Price}", source, sp.FuturesContract.ContractId, futuresTickData.Price);
+                p.Logger.LogDebug(
+                    "{Source}: futures tick price data {ContractId} price={Price}",
+                    source,
+                    sp.FuturesContract.ContractId,
+                    futuresTickData.Price);
                 return true;
             }
         }

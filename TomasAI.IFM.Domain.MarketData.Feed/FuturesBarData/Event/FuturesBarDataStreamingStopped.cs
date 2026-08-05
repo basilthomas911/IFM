@@ -32,7 +32,7 @@ public static async ValueTask<bool> ExecuteAsync(
         var stopped = false;
         try
         {
-            p.FuturesBarDataTimer.Stop();
+            await p.FuturesBarDataTimer.StopAsync(e.EntityId);
             await eventApi.FuturesBarDataStreamingStoppedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, source);
             p.Logger.LogInformationEvent(ServiceId, "{Source}", source);

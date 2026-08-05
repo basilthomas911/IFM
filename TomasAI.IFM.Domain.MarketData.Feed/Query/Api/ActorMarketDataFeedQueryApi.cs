@@ -332,12 +332,19 @@ public sealed class ActorMarketDataFeedQueryApi(
         try
         {
             var db = _dbFactory.MarketDataDb;
+            var underlyingTask = db.GetLastFuturesTickDataAsync(underlyingContractId, valueDate);
+            var shortPutTask = db.GetLastFuturesOptionTickDataAsync(shortPutOptionContractId, valueDate);
+            var longPutTask = db.GetLastFuturesOptionTickDataAsync(longPutOptionContractId, valueDate);
+            var shortCallTask = db.GetLastFuturesOptionTickDataAsync(shortCallOptionContractId, valueDate);
+            var longCallTask = db.GetLastFuturesOptionTickDataAsync(longCallOptionContractId, valueDate);
+            await Task.WhenAll(underlyingTask, shortPutTask, longPutTask, shortCallTask, longCallTask);
+
             var result = new IronCondorMarketDataFeedReadModel(
-                Convert.ToDecimal((await db.GetLastFuturesTickDataAsync(underlyingContractId, valueDate))?.Price ?? 0),
-                (await db.GetLastFuturesOptionTickDataAsync(shortPutOptionContractId, valueDate))!,
-                (await db.GetLastFuturesOptionTickDataAsync(longPutOptionContractId, valueDate))!,
-                (await db.GetLastFuturesOptionTickDataAsync(shortCallOptionContractId, valueDate))!,
-                (await db.GetLastFuturesOptionTickDataAsync(longCallOptionContractId, valueDate))!);
+                Convert.ToDecimal(underlyingTask.Result?.Price ?? 0),
+                shortPutTask.Result!,
+                longPutTask.Result!,
+                shortCallTask.Result!,
+                longCallTask.Result!);
             return new ServiceOk<IronCondorMarketDataFeedReadModel>(result);
         }
         catch (Exception ex)
@@ -360,11 +367,16 @@ public sealed class ActorMarketDataFeedQueryApi(
         try
         {
             var db = _dbFactory.MarketDataDb;
+            var currentTask = db.GetFuturesEodDataAsync(contractId, valueDate);
+            var rangeTask = db.GetFuturesEodDataByDateRangeAsync(
+                contractId, valueDate.AddMonths(-2), valueDate.AddDays(-1));
+            var normalCurveTask = db.GetNormalCurveTableAsync();
+            await Task.WhenAll(currentTask, rangeTask, normalCurveTask);
+
             var result = new FuturesEodDataParametersReadModel(
-                await db.GetFuturesEodDataAsync(contractId, valueDate),
-                [.. await db.GetFuturesEodDataByDateRangeAsync(
-                    contractId, valueDate.AddMonths(-2), valueDate.AddDays(-1))],
-                await db.GetNormalCurveTableAsync());
+                currentTask.Result,
+                [.. rangeTask.Result],
+                normalCurveTask.Result);
             return new ServiceOk<FuturesEodDataParametersReadModel>(result);
         }
         catch (Exception ex)

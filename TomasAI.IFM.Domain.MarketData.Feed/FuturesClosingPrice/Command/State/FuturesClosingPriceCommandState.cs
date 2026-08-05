@@ -45,19 +45,11 @@ public class FuturesClosingPriceCommandState(IMarketDataDbContext? db = null)
     /// </summary>
     /// <param name="domainEvent"></param>
     /// <returns></returns>
-    protected override bool Apply(IEvent domainEvent)
+    protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        try
-        {
-            return domainEvent switch
-            {
-                FuturesClosingPriceInsertedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
+        FuturesClosingPriceInsertedEvent e => On(e),
+        _ => false
+    };
 
     /// <summary>
     /// futures closing price inserted

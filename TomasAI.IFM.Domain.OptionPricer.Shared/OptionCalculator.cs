@@ -19,6 +19,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared;
 /// <param name="maturityDate"></param>
 public class OptionCalculator(DateOnly valueDate, DateOnly maturityDate)
 {
+    static readonly object QlNetSettingsLock = new();
     readonly DateTime _valueDate = valueDate.ToDateTime(TimeOnly.MinValue);
     readonly DateTime _maturityDate = maturityDate.ToDateTime(TimeOnly.MinValue);
 
@@ -38,35 +39,40 @@ public class OptionCalculator(DateOnly valueDate, DateOnly maturityDate)
     /// langword="false"/>.</returns>
     public OptionGreeks GetOptionGreeks(string optionTypeName, double assetPrice, double strikePrice, double optionValue, double riskFreeRate)
     {
-        try
+        lock (QlNetSettingsLock)
         {
-            var optionType = GetOptionType(optionTypeName);
-            var impliedVolatility = CalculateImpliedVolatility(optionType, assetPrice, strikePrice, optionValue, riskFreeRate);
-            var calendar = new TARGET();
-            Settings.setEvaluationDate(new DateTime(_valueDate.Year, _valueDate.Month, _valueDate.Day));
-            Settings.includeReferenceDateEvents = true;
-            var dayCounter = new Actual365Fixed();
-            var underlyingH = new Handle<Quote>(new SimpleQuote(assetPrice));
-            var flatTermStructure = new Handle<YieldTermStructure>(new FlatForward(_valueDate, riskFreeRate, dayCounter));
-            var flatDividendTS = new Handle<YieldTermStructure>(new FlatForward(_valueDate, 0, dayCounter));
-            var flatVolTS = new Handle<BlackVolTermStructure>(new BlackConstantVol(_valueDate, calendar, impliedVolatility, dayCounter));
-            var payoff = new PlainVanillaPayoff(optionType, strikePrice);
-            var bsmProcess = new BlackScholesMertonProcess(underlyingH, flatDividendTS, flatTermStructure, flatVolTS);
-            var exerciseEngine = new AmericanExercise(_valueDate, _maturityDate);
-            var optionEngine = new VanillaOption(payoff, exerciseEngine);
-            optionEngine.setPricingEngine(new BinomialVanillaEngine<CoxRossRubinstein>(bsmProcess, 801));
-            var optionNPV = optionEngine.NPV();
-            return new OptionGreeks(
-                success: true,
-                impliedVol: optionEngine.impliedVolatility(optionNPV, bsmProcess, 0.0001, 1000, 1e-07, 4.00),
-                delta: optionEngine.delta(),
-                gamma: optionEngine.gamma(),
-                theta: optionEngine.theta(),
-                vega: optionEngine.vega(),
-                rho: optionEngine.rho());
+            try
+            {
+                var optionType = GetOptionType(optionTypeName);
+                var impliedVolatility = CalculateImpliedVolatility(optionType, assetPrice, strikePrice, optionValue, riskFreeRate);
+                var calendar = new TARGET();
+                Settings.setEvaluationDate(new DateTime(_valueDate.Year, _valueDate.Month, _valueDate.Day));
+                Settings.includeReferenceDateEvents = true;
+                var dayCounter = new Actual365Fixed();
+                var underlyingH = new Handle<Quote>(new SimpleQuote(assetPrice));
+                var flatTermStructure = new Handle<YieldTermStructure>(new FlatForward(_valueDate, riskFreeRate, dayCounter));
+                var flatDividendTS = new Handle<YieldTermStructure>(new FlatForward(_valueDate, 0, dayCounter));
+                var flatVolTS = new Handle<BlackVolTermStructure>(new BlackConstantVol(_valueDate, calendar, impliedVolatility, dayCounter));
+                var payoff = new PlainVanillaPayoff(optionType, strikePrice);
+                var bsmProcess = new BlackScholesMertonProcess(underlyingH, flatDividendTS, flatTermStructure, flatVolTS);
+                var exerciseEngine = new AmericanExercise(_valueDate, _maturityDate);
+                var optionEngine = new VanillaOption(payoff, exerciseEngine);
+                optionEngine.setPricingEngine(new BinomialVanillaEngine<CoxRossRubinstein>(bsmProcess, 801));
+                var optionNPV = optionEngine.NPV();
+                return new OptionGreeks(
+                    success: true,
+                    impliedVol: optionEngine.impliedVolatility(optionNPV, bsmProcess, 0.0001, 1000, 1e-07, 4.00),
+                    delta: optionEngine.delta(),
+                    gamma: optionEngine.gamma(),
+                    theta: optionEngine.theta(),
+                    vega: optionEngine.vega(),
+                    rho: optionEngine.rho());
+            }
+            catch
+            {
+                return new OptionGreeks(false, 0, 0, 0, 0, 0, 0);
+            }
         }
-        catch { }
-        return new OptionGreeks(false, 0, 0, 0, 0, 0, 0);
     }
 
     /// <summary>

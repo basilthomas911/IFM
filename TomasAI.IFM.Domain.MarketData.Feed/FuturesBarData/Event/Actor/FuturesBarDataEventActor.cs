@@ -47,14 +47,8 @@ public class FuturesBarDataEventActor(
             var e = (evt as FuturesBarDataStreamingStoppedEvent)!;
             return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesBarDataInsertedEvent).Name] = async (evt, context, _, _, eventParams) =>
-        {
-            return await ValueTask.FromResult(true);
-        },
-        [typeof(FuturesBarDataDeletedEvent).Name] = async (evt, context, _, _, eventParams) =>
-        {
-            return await ValueTask.FromResult(true);
-        }
+        [typeof(FuturesBarDataInsertedEvent).Name] = static (_, _, _, _, _) => ValueTask.FromResult(true),
+        [typeof(FuturesBarDataDeletedEvent).Name] = static (_, _, _, _, _) => ValueTask.FromResult(true)
     };
 
     protected override ValueTask OnStartup(IEventActorContext context)
@@ -63,6 +57,9 @@ public class FuturesBarDataEventActor(
         _ = GetEventApi(context);
         return ValueTask.CompletedTask;
     }
+
+    protected override ValueTask OnShutdown(IEventActorContext context)
+        => _eventParameters.FuturesBarDataTimer.StopAllAsync();
 
     IActorMarketDataFeedCommandApi GetCommandApi(IEventActorContext context)
         => _commandApi ??= commandApiFactory.Create(context);

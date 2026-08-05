@@ -24,26 +24,18 @@ public class MarketDataFeedCommandState
     /// </summary>
     /// <param name="domainEvent"></param>
     /// <returns></returns>
-    protected override bool Apply(IEvent domainEvent)
+    protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        try
-        {
-            return domainEvent switch
-            {
-                MarketDataFeedStartedEvent e => On(e),
-                MarketDataFeedStoppedEvent e => On(e),
-                MarketDataFeedResetEvent e => On(e),
-                TradeLiveFeedAddedEvent e => On(e),
-                TradeLiveFeedRemovedEvent e => On(e),
-                TradeLiveFeedHaltedEvent e => On(e),
-                TradeLiveFeedTurnedOnEvent e => On(e),
-                TradeLiveFeedTurnedOffEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
+        MarketDataFeedStartedEvent e => On(e),
+        MarketDataFeedStoppedEvent e => On(e),
+        MarketDataFeedResetEvent e => On(e),
+        TradeLiveFeedAddedEvent e => On(e),
+        TradeLiveFeedRemovedEvent e => On(e),
+        TradeLiveFeedHaltedEvent e => On(e),
+        TradeLiveFeedTurnedOnEvent e => On(e),
+        TradeLiveFeedTurnedOffEvent e => On(e),
+        _ => false
+    };
 
     internal  bool IsTradeLiveFeedOn 
         => tradeLiveFeedState == TradeLiveFeedStateType.On;

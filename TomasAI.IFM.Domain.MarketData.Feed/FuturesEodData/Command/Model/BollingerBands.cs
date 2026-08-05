@@ -21,7 +21,7 @@ public class BollingerBands
     readonly double _stdDev;
     readonly double _stdDevAmount;
     readonly double _sma;
-    readonly ICollection<FuturesEodDataV2ReadModel> _futuresEodData;
+    readonly FuturesEodDataV2ReadModel[] _futuresEodData;
     readonly ICollection<VixFuturesEodDataReadModel> _vixFuturesEodData;
 
     /// <summary>
@@ -30,27 +30,28 @@ public class BollingerBands
     /// <param name="windowSize"></param>
     /// <param name="futuresEodData"></param>
     /// <param name="normalCurveTable"></param>
-    public BollingerBands(int windowSize, ICollection<FuturesEodDataV2ReadModel> futuresEodData, NormalCurveTableReadModel normalCurveTable, ICollection<VixFuturesEodDataReadModel> vixFuturesEodData)
+    public BollingerBands(int windowSize, FuturesEodDataV2ReadModel[] futuresEodData, NormalCurveTableReadModel normalCurveTable, ICollection<VixFuturesEodDataReadModel> vixFuturesEodData)
     {
-        FuturesEodDataV2ReadModel[] eodData = [.. futuresEodData.Take(windowSize * 2)];
-        var hiloStdDevCalc = new StdDevCalculator(windowSize, eodData, e => Convert.ToDouble(e.HighPrice - e.LowPrice));
-        var hiloStdDevAmount = 1.0 / Math.Sqrt(windowSize) * (hiloStdDevCalc.StdDev * (4 * Math.Sqrt(hiloStdDevCalc.StdDev/ hiloStdDevCalc.Mean)));
-        var eodStdDevCalc = new StdDevCalculator(windowSize, eodData, e => Convert.ToDouble(e.ClosePrice));
+        ArgumentNullException.ThrowIfNull(futuresEodData);
+        if (futuresEodData.Length == 0)
+            throw new ArgumentException("At least one EOD value is required.", nameof(futuresEodData));
+
+        var eodStdDevCalc = new StdDevCalculator(windowSize, futuresEodData, static e => Convert.ToDouble(e.ClosePrice));
         _windowSize = windowSize;
         _stdDev = eodStdDevCalc.StdDev;
         _stdDevAmount = 1.0 / Math.Sqrt(windowSize) * _stdDev;
         _sma = eodStdDevCalc.Mean;
-        _futuresEodData = eodData.ToList();
+        _futuresEodData = futuresEodData;
         _vixFuturesEodData = vixFuturesEodData;
     }
 
-    public string ContractId => _futuresEodData.ElementAt(0).ContractId;
-    public DateOnly ValueDate => _futuresEodData.ElementAt(0).ValueDate;
-    public decimal Open => _futuresEodData.ElementAt(0).OpenPrice;
-    public decimal High => _futuresEodData.ElementAt(0).HighPrice;
-    public decimal Low => _futuresEodData.ElementAt(0).LowPrice;
-    public decimal Close => _futuresEodData.ElementAt(0).ClosePrice;
-    public int Volume => _futuresEodData.ElementAt(0).Volume;
+    public string ContractId => _futuresEodData[0].ContractId;
+    public DateOnly ValueDate => _futuresEodData[0].ValueDate;
+    public decimal Open => _futuresEodData[0].OpenPrice;
+    public decimal High => _futuresEodData[0].HighPrice;
+    public decimal Low => _futuresEodData[0].LowPrice;
+    public decimal Close => _futuresEodData[0].ClosePrice;
+    public int Volume => _futuresEodData[0].Volume;
 
     public int WindowSize => _windowSize;
     public double StdDev => _stdDev;
@@ -71,7 +72,7 @@ public class BollingerBands
 
     double GetDailyPercentageChange()
     {
-        if (_futuresEodData == null || _futuresEodData.Count == 0)
+        if (_futuresEodData.Length == 0)
             return 0.0;
         var dailyPC = Convert.ToDouble(Math.Round((Close - Open) / Open, 4));
         return dailyPC;
@@ -79,7 +80,7 @@ public class BollingerBands
 
     MarketDirectionType GetMarketDirection()
     {
-        var assetPrice = _futuresEodData.ElementAt(0).ClosePrice;
+        var assetPrice = _futuresEodData[0].ClosePrice;
         return Mean switch
         {
             _ when Convert.ToDouble(assetPrice) >= UpperBand => MarketDirectionType.Up,
@@ -92,7 +93,9 @@ public class BollingerBands
 
     MarketVolatilityType GetMarketVolatility()
     {
-        var e1 = _futuresEodData.ElementAt(1);
+        if (_futuresEodData.Length < 2)
+            return MarketVolatilityType.Falling;
+        var e1 = _futuresEodData[1];
         return _stdDev switch {
             _ when _stdDev > e1.DailyStdDev => MarketVolatilityType.Rising,
             _ when _stdDev < e1.DailyStdDev => MarketVolatilityType.Falling,

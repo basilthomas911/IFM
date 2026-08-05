@@ -42,7 +42,10 @@ public class FuturesOptionQuoteDataStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded state as a <see
     /// cref="FuturesOptionQuoteDataCommandState"/> instance.</returns>
     public async ValueTask<FuturesOptionQuoteDataCommandState> LoadStateAsync(ICommand command)
-        => await LoadEmptyStateAsync<FuturesOptionQuoteDataCommandState>();
+        => await LoadStateFromSnapshotLastNRangeAsync<
+            FuturesOptionQuoteDataCommandState,
+            FuturesOptionQuoteDataStreamingStartedEvent,
+            FuturesOptionQuoteDataInsertedEvent>(command, 0);
 
     /// <summary>
     /// save futures option quote data state changes

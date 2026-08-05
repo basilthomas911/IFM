@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Newtonsoft.Json;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Validation;
@@ -32,7 +33,7 @@ public class FuturesEodDataCommandActor(
     : BaseEventSourceCommandActor<FuturesEodDataCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "FuturesEodDataCommand";
-    IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
     IEventSourceActorStateRepository<FuturesEodDataCommandState> _repo = default!;
 
     /// <summary>
@@ -40,10 +41,11 @@ public class FuturesEodDataCommandActor(
     /// </summary>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask OnStartup(ICommandActorContext context)
+    protected override ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FuturesEodDataCommandState>>());
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -62,7 +64,7 @@ public class FuturesEodDataCommandActor(
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
         var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
-        _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
+        _commandAudit.Start(command);
         return command;
     }
 
@@ -85,7 +87,7 @@ public class FuturesEodDataCommandActor(
     /// <param name="cmd">The command to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
@@ -95,7 +97,7 @@ public class FuturesEodDataCommandActor(
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
         _ = receiveFunc.Invoke(cmd, context, eodDataState);
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
     }
 
     /// <summary>
@@ -120,6 +122,7 @@ public class FuturesEodDataCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
+        await _commandAudit.CompleteAsync(cmd);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");

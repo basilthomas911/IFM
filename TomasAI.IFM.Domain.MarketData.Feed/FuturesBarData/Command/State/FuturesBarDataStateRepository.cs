@@ -24,7 +24,10 @@ public class FuturesBarDataStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<FuturesBarDataCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<FuturesBarDataCommandState, FuturesBarDataStreamingStartedEvent>(command);
+        => await LoadStateFromSnapshotLastNRangeAsync<
+            FuturesBarDataCommandState,
+            FuturesBarDataStreamingStartedEvent,
+            FuturesBarDataInsertedEvent>(command, 0);
 
     /// <summary>
     /// save futures bar data state changes

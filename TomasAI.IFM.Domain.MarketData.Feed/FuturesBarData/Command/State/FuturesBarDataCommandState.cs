@@ -21,22 +21,14 @@ public class FuturesBarDataCommandState
     /// </summary>
     /// <param name="domainEvent"></param>
     /// <returns></returns>
-    protected override bool Apply(IEvent domainEvent)
+    protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        try
-        {
-            return domainEvent switch
-            {
-                FuturesBarDataInsertedEvent e => On(e),
-                FuturesBarDataDeletedEvent e => On(e),
-                FuturesBarDataStreamingStartedEvent e => On(e),
-                FuturesBarDataStreamingStoppedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
+        FuturesBarDataInsertedEvent e => On(e),
+        FuturesBarDataDeletedEvent e => On(e),
+        FuturesBarDataStreamingStartedEvent e => On(e),
+        FuturesBarDataStreamingStoppedEvent e => On(e),
+        _ => false
+    };
 
     /// <summary>
     /// futures bar data inserted

@@ -1,52 +1,38 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
+namespace TomasAI.IFM.Domain.MarketData.Feed.Shared;
+
+/// <summary>
+/// Calculates high/low volatility and its exponential moving average without transient collections.
+/// </summary>
+public sealed class HiLowVolatilityCalculator
 {
-    public class HiLowVolatilityCalculator
+    readonly double _expMovAvg;
+    readonly double _hiLowVolatility;
+
+    public HiLowVolatilityCalculator(int windowSize, IEodBarData[] eodBarData)
     {
-        private int _windowSize;
-        private double[] _hiLowData;
-        private List<StdDevData> _stdDevList;
+        ArgumentNullException.ThrowIfNull(eodBarData);
+        if (windowSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(windowSize));
+        if (eodBarData.Length < windowSize * 2)
+            throw new ArgumentException("Two complete windows are required.", nameof(eodBarData));
 
-        public double ExpMovAvg => GetExpMovAvg();
-        public double HiLowVolatility => _hiLowData[0];
+        _hiLowVolatility = GetHiLow(eodBarData[0]);
 
-        /// <summary>
-        /// create std dev calculator
-        /// </summary>
-        /// <param name="windowSize"></param>
-        /// <param name="eodBarData"></param>
-        public HiLowVolatilityCalculator(int windowSize, IEodBarData[] eodBarData)
-        {
-            _windowSize = windowSize;
-            _hiLowData = eodBarData
-                .Select(e => (e.HighPrice - e.LowPrice) / (0.01 * e.ClosePrice))
-                .ToArray();
-        }
+        var seed = 0.0;
+        for (var index = windowSize; index < windowSize * 2; index++)
+            seed += GetHiLow(eodBarData[index]);
 
-        private double GetExpMovAvg()
-        {
-            var ema = _hiLowData.Skip(_windowSize).Take(_windowSize).Average(e => e);
-            _stdDevList = new List<StdDevData>();
-            for (var i = 0; i < _windowSize; i++)
-            {
-                var hiLowVol = _hiLowData[_windowSize - 1 - i];
-                var stdDevData = new StdDevData { Ema = hiLowVol * 2.0 / (_windowSize + 1.0) + ema * (1.0 - 2.0 / (_windowSize + 1.0)) };
-                _stdDevList.Add(stdDevData);
-                ema = stdDevData.Ema;
-            }
-            _stdDevList.Reverse();
-            return _stdDevList[0].Ema;
-        }
+        var ema = seed / windowSize;
+        var multiplier = 2.0 / (windowSize + 1.0);
+        for (var index = windowSize - 1; index >= 0; index--)
+            ema = GetHiLow(eodBarData[index]) * multiplier + ema * (1.0 - multiplier);
 
-        private class StdDevData
-        {
-            public double Ema { get; set; }
-            public double CloseMean { get; set; }
-            public double CloseMeanSquared { get; set; }
-        }
+        _expMovAvg = ema;
     }
+
+    public double ExpMovAvg => _expMovAvg;
+    public double HiLowVolatility => _hiLowVolatility;
+
+    static double GetHiLow(IEodBarData data)
+        => (data.HighPrice - data.LowPrice) / (0.01 * data.ClosePrice);
 }

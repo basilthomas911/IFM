@@ -1,28 +1,46 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using MathNet.Numerics.Distributions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared;
 
-public class StdDevCalculator
+/// <summary>
+/// Calculates sample statistics for a bounded EOD window without iterator or distribution allocations.
+/// </summary>
+public sealed class StdDevCalculator
 {
-    int _windowSize;
-    Normal _normDist;
+    readonly int _windowSize;
+    readonly double _stdDev;
+    readonly double _mean;
 
-    /// <summary>
-    /// create standard deviation calculator
-    /// </summary>
-    /// <param name="windowSize"></param>
-    /// <param name="futuresEodData"></param>
-    /// <param name="estimatorFunc"></param>
-    public StdDevCalculator(int windowSize, FuturesEodDataV2ReadModel[] futuresEodData, Func<FuturesEodDataV2ReadModel, double> estimatorFunc)
+    public StdDevCalculator(
+        int windowSize,
+        FuturesEodDataV2ReadModel[] futuresEodData,
+        Func<FuturesEodDataV2ReadModel, double> estimatorFunc)
     {
+        ArgumentNullException.ThrowIfNull(futuresEodData);
+        ArgumentNullException.ThrowIfNull(estimatorFunc);
+        if (windowSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(windowSize));
+
         _windowSize = windowSize;
-        _normDist = Normal.Estimate(futuresEodData.Select(estimatorFunc).Take(windowSize));
+        var count = Math.Min(windowSize, futuresEodData.Length);
+        var mean = 0.0;
+        var sumOfSquaredDifferences = 0.0;
+
+        for (var index = 0; index < count; index++)
+        {
+            var value = estimatorFunc(futuresEodData[index]);
+            var delta = value - mean;
+            mean += delta / (index + 1);
+            sumOfSquaredDifferences += delta * (value - mean);
+        }
+
+        _mean = mean;
+        _stdDev = count > 1
+            ? Math.Sqrt(sumOfSquaredDifferences / (count - 1))
+            : 0.0;
     }
 
-    public double StdDev => _normDist.StdDev;
-    public double StdDevPercent => _normDist.StdDev * Math.Sqrt(_windowSize) / 100;
-    public double Mean => _normDist.Mean;
-
+    public double StdDev => _stdDev;
+    public double StdDevPercent => _stdDev * Math.Sqrt(_windowSize) / 100;
+    public double Mean => _mean;
 }

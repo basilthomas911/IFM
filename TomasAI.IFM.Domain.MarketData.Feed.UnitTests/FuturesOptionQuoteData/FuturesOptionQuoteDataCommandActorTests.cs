@@ -19,6 +19,8 @@ using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.Actor;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Framework.Caching;
+using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionQuoteData;
 
@@ -56,7 +58,11 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
     FuturesOptionQuoteDataCommandState CreateState()
     {
         var blackboardService = Substitute.For<IBlackboardService>();
-        blackboardService.MarketDataFeed.FuturesOptionQuoteData.Returns(new FuturesOptionQuoteDataCacheModel());
+        var redisCache = Substitute.For<IRedisCache>();
+        var jsonSerializer = Substitute.For<IJsonSerializer>();
+        redisCache.Get(Arg.Any<string>()).Returns(string.Empty);
+        blackboardService.MarketDataFeed.FuturesOptionQuoteData.Returns(
+            new FuturesOptionQuoteDataCacheModel(redisCache, jsonSerializer));
         return new FuturesOptionQuoteDataCommandState(blackboardService);
     }
 
@@ -512,7 +518,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
     }
 
     [Fact]
-    public async Task ReceiveAsync_StopFuturesOptionQuoteDataStreamingCommand_ThrowsException_WhenQuoteDoesNotExistAfterStart()
+    public async Task ReceiveAsync_StopFuturesOptionQuoteDataStreamingCommand_SucceedsAfterStart()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -529,7 +535,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
 
         cmd.Should().NotBeNull();
 
-        // Prepare state: start streaming first (note: current implementation does not populate quote map)
+        // Prepare state by starting the same quote stream first.
         var state = CreateState();
         state.Id = cmd.Subject.ThreadId;
         var startEntityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -543,15 +549,14 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
 
         var context = Substitute.For<ICommandActorContext>();
 
-        // Act - Stop still throws because QuoteExists returns false (quote map is not populated by current implementation)
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
-        // Assert
-        await act.Should().ThrowAsync<StopFuturesOptionQuoteDataStreamingException>();
+        result.Success.Should().BeTrue();
+        state.Events.Should().ContainSingle(e => e is FuturesOptionQuoteDataStreamingStoppedEvent);
     }
 
     [Fact]
-    public async Task ReceiveAsync_InsertFuturesOptionQuoteDataCommand_ThrowsException_WhenQuoteDoesNotExistAfterStart()
+    public async Task ReceiveAsync_InsertFuturesOptionQuoteDataCommand_SucceedsWithoutStateChange_WhenQuoteDataIsIncomplete()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -569,7 +574,7 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
 
         cmd.Should().NotBeNull();
 
-        // Prepare state: start streaming first (note: current implementation does not populate quote map)
+        // Prepare state by starting the same quote stream first.
         var state = CreateState();
         state.Id = cmd.Subject.ThreadId;
         var startEntityId = new QuoteId(SampleData.OptionQuoteStreamId);
@@ -583,11 +588,11 @@ public class FuturesOptionQuoteDataCommandActorTests : IClassFixture<MarketDataF
 
         var context = Substitute.For<ICommandActorContext>();
 
-        // Act - Insert still throws because QuoteExists returns false (quote map is not populated by current implementation)
-        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
+        var eventCountBeforeInsert = state.Events.Count;
+        var result = await actor.InvokeReceiveAsync(context, state, cmd);
 
-        // Assert
-        await act.Should().ThrowAsync<InsertFuturesOptionQuoteDataException>();
+        result.Success.Should().BeTrue();
+        state.Events.Should().HaveCount(eventCountBeforeInsert);
     }
 
     [Fact]

@@ -41,6 +41,20 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         public ValueTask InvokeOnExceptionAsync(
             IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception exception)
             => OnExceptionAsync(context, threadId, @event, exception);
+
+        public ValueTask InvokeOnShutdown(IEventActorContext context)
+            => OnShutdown(context);
+    }
+
+    [Fact]
+    public async Task OnShutdown_StopsAndDrainsAllBarTimers()
+    {
+        var timer = Substitute.For<IFuturesBarDataTimer>();
+        var actor = CreateActor(timer: timer);
+
+        await actor.InvokeOnShutdown(Substitute.For<IEventActorContext>());
+
+        await timer.Received(1).StopAllAsync();
     }
 
     [Theory]
@@ -139,8 +153,10 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             Substitute.For<IEventActorContext>(), @event).AsTask();
 
         await act.Should().NotThrowAsync();
-        timer.DidNotReceive().Start(Arg.Any<Action>());
-        timer.DidNotReceive().Stop();
+        timer.DidNotReceive().Start(
+            Arg.Any<FuturesBarDataStreamingId>(),
+            Arg.Any<Func<ValueTask>>());
+        _ = timer.DidNotReceive().StopAsync(Arg.Any<FuturesBarDataStreamingId>());
     }
 
     [Fact]
@@ -156,7 +172,9 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
 
         await actor.InvokeReceiveAsync(context, @event);
 
-        timer.Received(1).Start(Arg.Any<Action>());
+        timer.Received(1).Start(
+            @event.EntityId,
+            Arg.Any<Func<ValueTask>>());
         await context.Received(1)
             .SendAsync<FuturesBarDataStreamingStartedCompleteEvent, FuturesBarDataStreamingId>(
                 Arg.Is<FuturesBarDataStreamingStartedCompleteEvent>(value =>
@@ -176,7 +194,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
 
         await actor.InvokeReceiveAsync(context, @event);
 
-        timer.Received(1).Stop();
+        _ = timer.Received(1).StopAsync(@event.EntityId);
         await context.Received(1)
             .SendAsync<FuturesBarDataStreamingStoppedCompleteEvent, FuturesBarDataStreamingId>(
                 Arg.Is<FuturesBarDataStreamingStoppedCompleteEvent>(value =>
@@ -187,7 +205,9 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_TimerStartFails_SendsStreamingStartedFailEvent()
     {
         var timer = Substitute.For<IFuturesBarDataTimer>();
-        timer.When(value => value.Start(Arg.Any<Action>()))
+        timer.When(value => value.Start(
+                Arg.Any<FuturesBarDataStreamingId>(),
+                Arg.Any<Func<ValueTask>>()))
             .Do(_ => throw new InvalidOperationException("timer start failed"));
         var actor = CreateActor(timer: timer);
         var context = Substitute.For<IEventActorContext>();
@@ -208,8 +228,8 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_TimerStopFails_SendsStreamingStoppedFailEvent()
     {
         var timer = Substitute.For<IFuturesBarDataTimer>();
-        timer.When(value => value.Stop())
-            .Do(_ => throw new InvalidOperationException("timer stop failed"));
+        timer.StopAsync(Arg.Any<FuturesBarDataStreamingId>())
+            .Returns<ValueTask<bool>>(_ => throw new InvalidOperationException("timer stop failed"));
         var actor = CreateActor(timer: timer);
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateStreamingStoppedEvent();

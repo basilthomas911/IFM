@@ -29,28 +29,19 @@ public class FuturesOptionQuoteDataCommandState(IBlackboardService blackboardSer
     /// </summary>
     /// <param name="domainEvent"></param>
     /// <returns></returns>
-    protected override bool Apply(IEvent domainEvent)
+    protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        try
-        {
-            return domainEvent switch
-            {
-                FuturesOptionQuoteDataStreamingStartedEvent e => On(e),
-                FuturesOptionQuoteDataStreamingStoppedEvent e => On(e),
-                FuturesOptionQuoteDataInsertedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
+        FuturesOptionQuoteDataStreamingStartedEvent e => On(e),
+        FuturesOptionQuoteDataStreamingStoppedEvent e => On(e),
+        FuturesOptionQuoteDataInsertedEvent e => On(e),
+        _ => false
+    };
 
     bool On(FuturesOptionQuoteDataStreamingStartedEvent e)
     {
         _quoteId = e.QuoteId;
-        foreach (var o in e.FuturesOptionQuotes)
-            if (!_quoteMap!.ContainsKey(o.ContractId) && false)
-                _quoteMap.Add(o.ContractId, o);
+        foreach (var quote in e.FuturesOptionQuotes)
+            _quoteMap.TryAdd(quote.ContractId, quote);
         return true;
     }
 

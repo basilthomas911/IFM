@@ -1,105 +1,82 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+namespace TomasAI.IFM.Domain.MarketData.Feed.Shared;
 
-namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
+/// <summary>
+/// Maintains the one-to-one mapping between broker request identifiers and contract identifiers.
+/// </summary>
+public sealed class StreamIdCollection : IStreamIdCollection
 {
-    /// <summary>
-    /// streamid collection
-    /// </summary>
-    public class StreamIdCollection : IStreamIdCollection
+    readonly object _sync = new();
+    readonly Dictionary<int, string> _contractsByStreamId = [];
+    readonly Dictionary<string, int> _streamIdsByContract = new(StringComparer.Ordinal);
+    int _nextStreamId;
+
+    public int this[string contractId]
     {
-        private static Dictionary<int, string> _streamIds;
-
-        /// <summary>
-        /// streamId collection constructor
-        /// </summary>
-        public StreamIdCollection() => _streamIds = new Dictionary<int, string>();
-
-        /// <summary>
-        /// return stream id from contract id
-        /// </summary>
-        /// <param name="contractId"></param>
-        /// <returns></returns>
-        public int this[string contractId] => GetStreamIdFromContractId(contractId);
-
-        /// <summary>
-        /// streamId collection item count
-        /// </summary>
-        public int Count => _streamIds.Count;
-
-        /// <summary>
-        /// add contract id to stream id collection and return unique stream id
-        /// </summary>
-        /// <param name="contractId"></param>
-        /// <returns></returns>
-        public int Add(string contractId)
+        get
         {
-            lock (_streamIds)
-            {
-                var streamId = this[contractId];
-                if (streamId == -1)
-                {
-                    streamId = Math.Abs(contractId.GetHashCode());
-                    _streamIds.Add(streamId, contractId);
-                }
-                return streamId;
-            }
-        }
+            if (string.IsNullOrWhiteSpace(contractId))
+                return -1;
 
-        /// <summary>
-        /// remove all stream id's from collection
-        /// </summary>
-        public void Clear()
+            lock (_sync)
+                return _streamIdsByContract.TryGetValue(contractId, out var streamId) ? streamId : -1;
+        }
+    }
+
+    public int Count
+    {
+        get
         {
-            lock (_streamIds)
-            {
-                _streamIds.Clear();
-            }
+            lock (_sync)
+                return _contractsByStreamId.Count;
         }
+    }
 
-        /// <summary>
-        /// return true if stream id exists in colllection
-        /// </summary>
-        /// <param name="contractId"></param>
-        /// <returns></returns>
-        public bool Exists(int  streamId)
+    public int Add(string contractId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+
+        lock (_sync)
         {
-            lock (_streamIds)
-            {
-                return _streamIds.ContainsKey(streamId);
-            }
-        }
+            if (_streamIdsByContract.TryGetValue(contractId, out var existingStreamId))
+                return existingStreamId;
 
-        /// <summary>
-        /// remove stream id from collection
-        /// </summary>
-        /// <param name="contractId"></param>
-        /// <returns></returns>
-        public void Remove(int  streamId)
+            int streamId;
+            do
+            {
+                streamId = checked(++_nextStreamId);
+            }
+            while (_contractsByStreamId.ContainsKey(streamId));
+
+            _contractsByStreamId.Add(streamId, contractId);
+            _streamIdsByContract.Add(contractId, streamId);
+            return streamId;
+        }
+    }
+
+    public void Clear()
+    {
+        lock (_sync)
         {
-            lock (_streamIds)
-            {
-                if (_streamIds.ContainsKey(streamId))
-                    _streamIds.Remove(streamId);
-            }
+            _contractsByStreamId.Clear();
+            _streamIdsByContract.Clear();
+            _nextStreamId = 0;
         }
+    }
 
-        /// <summary>
-        /// return stream id if contract id exist in collection else return -1
-        /// </summary>
-        /// <param name="contractId"></param>
-        /// <returns></returns>
-        private int GetStreamIdFromContractId(string contractId)
+    public bool Exists(int streamId)
+    {
+        lock (_sync)
+            return _contractsByStreamId.ContainsKey(streamId);
+    }
+
+    public void Remove(int streamId)
+    {
+        lock (_sync)
         {
-            if (string.IsNullOrWhiteSpace(contractId)) return -1;
-            lock (_streamIds)
-            {
-                return _streamIds.Any(e => e.Value == contractId)
-                    ? _streamIds.Single(e => e.Value == contractId).Key
-                    : -1;
-            }
-        }
+            if (!_contractsByStreamId.Remove(streamId, out var contractId))
+                return;
 
+            _streamIdsByContract.Remove(contractId);
+        }
     }
 }

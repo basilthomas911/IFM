@@ -94,3 +94,14 @@ Feed commands arrive on typed NATS subjects, are validated, applied to reconstru
 ## Extension points
 
 Add a new data stream as a vertical branch. Define shared messages first, then add the minimum command/event/query actors needed, state persistence, validation, and any context extensions. Keep feed-wide coordination in the root branches.
+
+## Performance implementation notes
+
+The August 2026 root-to-leaf optimization pass is recorded in
+[`Domain-Actor-Optimization-Details.md`](Domain-Actor-Optimization-Details.md). It covers the actor lifecycle, command audit path, replay boundaries, per-stream timers, feed identifiers, query fan-out, hot-path logging, option pricing concurrency, and EOD calculations. Empty event actor implementations remain intentional default publication targets.
+
+Command success and state change remain separate concepts. A successful command is not required to emit an event or mutate state. State reconstruction continues to return the best state available; missing snapshots or selected event types are normal empty results, while genuine storage exceptions continue through the actor processing pipeline.
+
+## Deferred solution-wide cancellation TODO
+
+Cancellation is deliberately not introduced by this project-local pass. A later, dedicated solution-wide change must propagate one coherent cancellation contract from supervisors through actor dispatch, command/event/query APIs, repositories, storage queries, broker calls, timers, and external I/O. The supervisor must be able to request graceful actor shutdown without leaving partial work or silently converting cancellation into command failure. This is a cross-cutting compatibility change and should be designed, implemented, and tested only after the root domain optimization passes are complete.

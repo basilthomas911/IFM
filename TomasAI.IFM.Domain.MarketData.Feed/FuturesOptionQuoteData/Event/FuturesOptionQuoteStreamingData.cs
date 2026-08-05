@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -24,8 +25,7 @@ public static class FuturesOptionQuoteStreamingData
             var futuresOptionQuoteMap = p.BlackboardService.MarketDataFeed.FuturesOptionQuote.Get(e.QuoteId);
             var optionContractId = futuresOptionQuoteMap[e.RequestId].ContractId;
             await commandApi.InsertFuturesOptionQuoteDataAsync(e.QuoteId, optionContractId, e.QuoteData);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionQuoteDataEvent, $"Quote Data: {optionContractId}");
-            p.Logger.LogInformationEvent(ServiceId, "{source}", source);
+            p.Logger.LogDebug("{Source}: quote data {ContractId}", source, optionContractId);
         }
         catch (Exception ex)
         {

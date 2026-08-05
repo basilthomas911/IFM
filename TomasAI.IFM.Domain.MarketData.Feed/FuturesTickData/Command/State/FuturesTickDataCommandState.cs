@@ -21,21 +21,13 @@ public class FuturesTickDataCommandState
     /// </summary>
     /// <param name="domainEvent"></param>
     /// <returns></returns>
-    protected override bool Apply(IEvent domainEvent)
+    protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        try
-        {
-            return domainEvent switch
-            {
-                FuturesTickDataInsertedEvent e => On(e),
-                FuturesTickDataStreamingStartedEvent e => On(e),
-                FuturesTickDataStreamingStoppedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
+        FuturesTickDataInsertedEvent e => On(e),
+        FuturesTickDataStreamingStartedEvent e => On(e),
+        FuturesTickDataStreamingStoppedEvent e => On(e),
+        _ => false
+    };
 
     /// <summary>
     /// futures tick data inserted

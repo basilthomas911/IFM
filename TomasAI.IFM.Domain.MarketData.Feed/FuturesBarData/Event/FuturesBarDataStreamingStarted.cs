@@ -35,7 +35,7 @@ public static async ValueTask<bool> ExecuteAsync(
         var started = false;
         try
         {
-            p.FuturesBarDataTimer.Start(async () => await InsertFuturesBarDataFromTickDataAsync());
+            p.FuturesBarDataTimer.Start(e.EntityId, InsertFuturesBarDataFromTickDataAsync);
             await eventApi.FuturesBarDataStreamingStartedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, source);
             p.Logger.LogInformationEvent(ServiceId, "{Source}", source);

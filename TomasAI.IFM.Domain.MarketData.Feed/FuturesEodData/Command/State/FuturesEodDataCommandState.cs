@@ -20,20 +20,12 @@ public class FuturesEodDataCommandState
     /// </summary>
     /// <param name="domainEvent"></param>
     /// <returns></returns>
-    protected override bool Apply(IEvent domainEvent)
+    protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        try
-        {
-            return domainEvent switch
-            {
-                FuturesEodDataInsertedEvent e => On(e),
-                VixFuturesEodDataInsertedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
+        FuturesEodDataInsertedEvent e => On(e),
+        VixFuturesEodDataInsertedEvent e => On(e),
+        _ => false
+    };
 
     /// <summary>
     /// futures eod data inserted

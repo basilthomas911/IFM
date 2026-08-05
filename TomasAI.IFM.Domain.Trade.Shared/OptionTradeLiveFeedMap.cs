@@ -32,8 +32,26 @@ public class OptionTradeLiveFeedMap
 
     OptionTradeReadModel[] GetOptionTradeByOptionLegContractId(string optionLegContractId)
     {
-        List<OptionTradeReadModel> optionTrades = [];
+        if (string.IsNullOrWhiteSpace(optionLegContractId) || IsEmpty)
+            return [];
 
-        return [.. optionTrades];
+        List<OptionTradeReadModel>? matches = null;
+        foreach (var optionTrade in Values)
+        {
+            var optionLegs = optionTrade.OptionLegs;
+            if (optionLegs is null)
+                continue;
+
+            for (var index = 0; index < optionLegs.Length; index++)
+            {
+                if (!string.Equals(optionLegs[index].ContractId, optionLegContractId, StringComparison.Ordinal))
+                    continue;
+
+                (matches ??= []).Add(optionTrade);
+                break;
+            }
+        }
+
+        return matches is null ? [] : [.. matches];
     }
 }

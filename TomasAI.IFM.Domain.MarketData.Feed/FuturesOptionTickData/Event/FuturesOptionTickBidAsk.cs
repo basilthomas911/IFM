@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -69,7 +70,11 @@ public static class FuturesOptionTickBidAsk
                         // state so subsequent comparisons use the latest values.
                         await feedCommandApi.InsertFuturesOptionTickPriceDataAsync(streamingRequestId.UnderlyingContract, futuresOptionTickData);
                         p.BlackboardService.MarketDataFeed.FuturesOptionTickPriceData.Set(futuresOptionTickData.ContractId, streamingRequestId.ValueDate, futuresOptionTickData);
-                        p.Logger.LogInformationEvent(ServiceId, "{Source}: futures option tick {ContractId} price: {OptionPrice:F2}", source, streamingRequestId.OptionContract.ContractId, futuresOptionTickData.OptionPrice);
+                        p.Logger.LogDebug(
+                            "{Source}: futures option tick {ContractId} price: {OptionPrice:F2}",
+                            source,
+                            streamingRequestId.OptionContract.ContractId,
+                            futuresOptionTickData.OptionPrice);
                     }
                 }
             }

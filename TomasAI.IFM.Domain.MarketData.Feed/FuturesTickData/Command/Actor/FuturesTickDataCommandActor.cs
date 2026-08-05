@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Validation;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
 
@@ -29,7 +30,7 @@ public class FuturesTickDataCommandActor(
     : BaseEventSourceCommandActor<FuturesTickDataCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "FuturesTickDataCommand";
-    IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
     IEventSourceActorStateRepository<FuturesTickDataCommandState> _repo = default!;
 
     /// <summary>
@@ -37,10 +38,11 @@ public class FuturesTickDataCommandActor(
     /// </summary>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask OnStartup(ICommandActorContext context)
+    protected override ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FuturesTickDataCommandState>>());
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -59,7 +61,7 @@ public class FuturesTickDataCommandActor(
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
         var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
-        _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
+        _commandAudit.Start(command);
         return command;
     }
 
@@ -83,7 +85,7 @@ public class FuturesTickDataCommandActor(
     /// <param name="cmd">The command to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
@@ -93,7 +95,7 @@ public class FuturesTickDataCommandActor(
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
         _ = receiveFunc.Invoke(cmd, context, futuresTickDataState);
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
     }
 
     /// <summary>
@@ -119,6 +121,7 @@ public class FuturesTickDataCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
+        await _commandAudit.CompleteAsync(cmd);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
