@@ -18,12 +18,12 @@ public static class CreateFundTransactions
     /// <param name="e">The batch create command containing fund transactions to create.</param>
     /// <param name="state">The command state used to persist and validate the event.</param>
     /// <returns>True when the state was updated successfully; otherwise false.</returns>
-    public static ServiceResult<GuidResult> Execute(this CreateFundTransactionsCommand e, FundTransactionCommandState state)
+    public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this CreateFundTransactionsCommand e, FundTransactionCommandState state)
     {
         if (e.FundTransactions is null || e.FundTransactions.Length == 0)
             return e.UpdateFailed($"{e.CommandName}: fund transactions is empty");
 
-        var currentBalance = state.GetCurrentBalance(e.FundTransactions[0].FundId);
+        var currentBalance = await state.GetCurrentBalanceAsync(e.FundTransactions[0].FundId).ConfigureAwait(false);
         try
         {
             FundTransactionReadModel[] fundTransactions = [.. CreateFundTransactions(e, currentBalance)];

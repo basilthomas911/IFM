@@ -17,7 +17,7 @@ public static class CreateFundTransaction
     /// <param name="e">The command that requests creation of a fund transaction.</param>
     /// <param name="state">The command state used to persist and validate the event.</param>
     /// <returns>True when the state was updated successfully; otherwise false.</returns>
-    public static ServiceResult<GuidResult> Execute(this CreateFundTransactionCommand e, FundTransactionCommandState state)
+    public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this CreateFundTransactionCommand e, FundTransactionCommandState state)
     {
         if (e.FundTransaction is null)
             return e.UpdateFailed($"{e.CommandName}: fund transaction is null");
@@ -27,18 +27,20 @@ public static class CreateFundTransaction
         {
             var fundTransaction = fundTransactionEvent.FundTransaction.TransactionType switch
             {
-                FundTransactionType.OpeningTrade => fundTransactionEvent.UpdateFundTransactionBalance(state),
-                FundTransactionType.OpeningTradeAdjustment => fundTransactionEvent.UpdateFundTransactionBalance(state),
-                FundTransactionType.TradeCommission => fundTransactionEvent.UpdateFundTransactionBalance(state),
-                FundTransactionType.TradeCommissionAdjustment => fundTransactionEvent.UpdateFundTransactionBalance(state),
-                FundTransactionType.UnrealizedTradePnl => fundTransactionEvent.UpdateFundTransactionBalance(state),
-                FundTransactionType.UnrealizedTradePnlAdjustment => fundTransactionEvent.UpdateFundTransactionBalance(state),
-                FundTransactionType.RealizedTradePnl => fundTransactionEvent.UpdateFundTransactionBalance(state),
-                FundTransactionType.RealizedTradePnlAdjustment => fundTransactionEvent.UpdateFundTransactionBalance(state),
-                FundTransactionType.CashDeposit => fundTransactionEvent.UpdateFundTransactionBalance(state),
-                FundTransactionType.CashDepositAdjustment => fundTransactionEvent.UpdateFundTransactionBalance(state),
-                FundTransactionType.CashWithdrawal => fundTransactionEvent.UpdateCashWithdrawalBalance(state),
-                FundTransactionType.CashWithdrawalAdjustment => fundTransactionEvent.UpdateFundTransactionBalance(state),
+                FundTransactionType.OpeningTrade or
+                FundTransactionType.OpeningTradeAdjustment or
+                FundTransactionType.TradeCommission or
+                FundTransactionType.TradeCommissionAdjustment or
+                FundTransactionType.UnrealizedTradePnl or
+                FundTransactionType.UnrealizedTradePnlAdjustment or
+                FundTransactionType.RealizedTradePnl or
+                FundTransactionType.RealizedTradePnlAdjustment or
+                FundTransactionType.CashDeposit or
+                FundTransactionType.CashDepositAdjustment or
+                FundTransactionType.CashWithdrawalAdjustment
+                    => await fundTransactionEvent.UpdateFundTransactionBalanceAsync(state).ConfigureAwait(false),
+                FundTransactionType.CashWithdrawal
+                    => await fundTransactionEvent.UpdateCashWithdrawalBalanceAsync(state).ConfigureAwait(false),
                 _ => default
             };
             if (fundTransaction is null)
@@ -104,9 +106,9 @@ public static class CreateFundTransaction
     /// <param name="e"></param>
     /// <param name="state"></param>
     /// <returns></returns>
-    static FundTransactionReadModel UpdateFundTransactionBalance(this FundTransactionEvent e, FundTransactionCommandState state)
+    static async ValueTask<FundTransactionReadModel> UpdateFundTransactionBalanceAsync(this FundTransactionEvent e, FundTransactionCommandState state)
     {
-        var currentBalance = state.GetCurrentBalance(e.FundTransaction.FundId);
+        var currentBalance = await state.GetCurrentBalanceAsync(e.FundTransaction.FundId).ConfigureAwait(false);
         return e.FundTransaction with { Balance = currentBalance + e.FundTransaction.Amount };
     }
 
@@ -116,9 +118,9 @@ public static class CreateFundTransaction
     /// <param name="e"></param>
     /// <param name="state"></param>
     /// <returns></returns>
-    static FundTransactionReadModel UpdateCashWithdrawalBalance(this FundTransactionEvent e, FundTransactionCommandState state)
+    static async ValueTask<FundTransactionReadModel> UpdateCashWithdrawalBalanceAsync(this FundTransactionEvent e, FundTransactionCommandState state)
     {
-        var currentBalance = state.GetCurrentBalance(e.FundTransaction.FundId);
+        var currentBalance = await state.GetCurrentBalanceAsync(e.FundTransaction.FundId).ConfigureAwait(false);
         return e.FundTransaction with { Balance = currentBalance - e.FundTransaction.Amount };
     }
 }

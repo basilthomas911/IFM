@@ -22,7 +22,7 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Command.State;
 /// <param name="dbEventSource">The database context for accessing event source data related to fund transactions.</param>
 /// <param name="actorService">The actor service responsible for managing actor lifecycles and communication.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the repository.</param>
-public class FundTransactionStateRepository(
+public sealed class FundTransactionStateRepository(
     IEventSourceActorStateFactory stateFactory,
     IEventSourceActorDbContext dbEventSource,
     IDbContextFactory dbFactory,
@@ -36,8 +36,8 @@ public class FundTransactionStateRepository(
     /// <param name="command">The command for which to load the associated state. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded state for the specified
     /// fund transaction command.</returns>
-    public async ValueTask<FundTransactionCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateAsync<FundTransactionCommandState>(command);
+    public ValueTask<FundTransactionCommandState> LoadStateAsync(ICommand command)
+        => new(LoadStateAsync<FundTransactionCommandState>(command));
 
     /// <summary>
     /// Asynchronously saves the specified fund transaction command state using the provided command.
@@ -46,8 +46,8 @@ public class FundTransactionStateRepository(
     /// <param name="state">The fund transaction command state to be persisted. Cannot be null.</param>
     /// <param name="command">The command associated with the state to be saved. Cannot be null.</param>
     /// <returns>A value task that represents the asynchronous save operation.</returns>
-    public async ValueTask SaveStateAsync(ICommandActorContext context, FundTransactionCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+    public ValueTask SaveStateAsync(ICommandActorContext context, FundTransactionCommandState state, ICommand command)
+       => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the fund transaction query state
@@ -59,9 +59,9 @@ public class FundTransactionStateRepository(
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
     {
         var db = dbFactory.FundDb;
-        foreach (var domainEvent in domainEvents)
+        for (var index = 0; index < domainEvents.Count; index++)
         {
-            _ = domainEvent switch
+            _ = domainEvents[index] switch
             {
                 FundTransactionEvent e => await UpdateReadModelAsync<FundTransactionEvent, FundTransactionCreatedCompleteEvent, FundTransactionCreatedFailEvent, FundTransactionEntityId>(
                     context, e, () => InsertFundTransactionAsync(e.FundTransaction)),
@@ -73,11 +73,11 @@ public class FundTransactionStateRepository(
             };
         }
 
-        async ValueTask InsertFundTransactionAsync(FundTransactionReadModel fundTransaction)
-            => await db.InsertFundTransactionAsync(fundTransaction);
+        ValueTask InsertFundTransactionAsync(FundTransactionReadModel fundTransaction)
+            => new(db.InsertFundTransactionAsync(fundTransaction));
 
-        async ValueTask InsertFundTransactionsAsync(ICollection<FundTransactionReadModel> fundTransactions)
-            => await db.InsertFundTransactionsAsync(fundTransactions);
+        ValueTask InsertFundTransactionsAsync(ICollection<FundTransactionReadModel> fundTransactions)
+            => new(db.InsertFundTransactionsAsync(fundTransactions));
     }
 
 }

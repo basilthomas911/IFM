@@ -39,7 +39,7 @@ public class FundTransactionCommandTests
     [InlineData(FundTransactionType.CashDeposit)]
     [InlineData(FundTransactionType.CashDepositAdjustment)]
     [InlineData(FundTransactionType.CashWithdrawalAdjustment)]
-    public void CreateFundTransactionCommand_GivenSupportedTransactionType_WhenExecuted_ThenReturnsFundTransactionEvent(FundTransactionType transactionType)
+    public async Task CreateFundTransactionCommand_GivenSupportedTransactionType_WhenExecuted_ThenReturnsFundTransactionEvent(FundTransactionType transactionType)
     {
         // Arrange - Given a state with a known balance and a create command of the given transaction type
         var state = CreateState(balance: 1000m);
@@ -47,7 +47,7 @@ public class FundTransactionCommandTests
         var command = new CreateFundTransactionCommand(fundTransaction);
 
         // Act - When executing CreateFundTransactionCommand
-        var result = command.Execute(state);
+        var result = await command.ExecuteAsync(state);
 
         // Assert - Then a FundTransactionEvent is recorded with the expected balance update
         result.Success.Should().BeTrue();
@@ -59,7 +59,7 @@ public class FundTransactionCommandTests
     }
 
     [Fact]
-    public void CreateFundTransactionCommand_GivenCashWithdrawal_WhenExecuted_ThenBalanceIsReducedByAmount()
+    public async Task CreateFundTransactionCommand_GivenCashWithdrawal_WhenExecuted_ThenBalanceIsReducedByAmount()
     {
         // Arrange - Given a state with a known balance and a cash withdrawal command
         var state = CreateState(balance: 1000m);
@@ -67,7 +67,7 @@ public class FundTransactionCommandTests
         var command = new CreateFundTransactionCommand(fundTransaction);
 
         // Act - When executing CreateFundTransactionCommand
-        var result = command.Execute(state);
+        var result = await command.ExecuteAsync(state);
 
         // Assert - Then the balance is reduced by the withdrawal amount
         result.Success.Should().BeTrue();
@@ -80,7 +80,7 @@ public class FundTransactionCommandTests
     #region CreateFundTransactionCommand - edge cases
 
     [Fact]
-    public void CreateFundTransactionCommand_GivenUnsupportedTransactionType_WhenExecuted_ThenReturnsFailedResultWithDoesNotExistMessage()
+    public async Task CreateFundTransactionCommand_GivenUnsupportedTransactionType_WhenExecuted_ThenReturnsFailedResultWithDoesNotExistMessage()
     {
         // Arrange - Given an unsupported (Unknown) transaction type
         var state = CreateState();
@@ -88,7 +88,7 @@ public class FundTransactionCommandTests
         var command = new CreateFundTransactionCommand(fundTransaction);
 
         // Act - When executing CreateFundTransactionCommand
-        var result = command.Execute(state);
+        var result = await command.ExecuteAsync(state);
 
         // Assert - Then return a failed result because no event can be built for the transaction type, and no exception thrown
         result.Success.Should().BeFalse();
@@ -96,7 +96,7 @@ public class FundTransactionCommandTests
     }
 
     [Fact]
-    public void CreateFundTransactionCommand_GivenNullFundTransaction_WhenExecuted_ThenDoesNotAddEvent()
+    public async Task CreateFundTransactionCommand_GivenNullFundTransaction_WhenExecuted_ThenDoesNotAddEvent()
     {
         // Arrange - Given a command whose FundTransaction payload is null
         var state = CreateState();
@@ -107,7 +107,7 @@ public class FundTransactionCommandTests
         };
 
         // Act - When executing CreateFundTransactionCommand
-        var result = command.Execute(state);
+        var result = await command.ExecuteAsync(state);
 
         // Assert - Then no fund transaction event is recorded and the state update reflects the null event
         result.Success.Should().BeFalse();
@@ -119,7 +119,7 @@ public class FundTransactionCommandTests
     #region CreateFundTransactionsCommand - happy paths
 
     [Fact]
-    public void CreateFundTransactionsCommand_GivenBatchOfTransactions_WhenExecuted_ThenReturnsFundTransactionsEventWithAccumulatedBalances()
+    public async Task CreateFundTransactionsCommand_GivenBatchOfTransactions_WhenExecuted_ThenReturnsFundTransactionsEventWithAccumulatedBalances()
     {
         // Arrange - Given a state with a starting balance and a batch of transactions
         var state = CreateState(balance: 1000m);
@@ -132,7 +132,7 @@ public class FundTransactionCommandTests
             new FundTransactionEntityId(fundTransactions[0].FundId, fundTransactions[0].OrderId), fundTransactions);
 
         // Act - When executing CreateFundTransactionsCommand
-        var result = command.Execute(state);
+        var result = await command.ExecuteAsync(state);
 
         // Assert - Then a FundTransactionsEvent is recorded with accumulated balances
         result.Success.Should().BeTrue();
@@ -144,7 +144,7 @@ public class FundTransactionCommandTests
     }
 
     [Fact]
-    public void CreateFundTransactionsCommand_GivenBatchWithCashWithdrawal_WhenExecuted_ThenBalanceIsReducedForWithdrawal()
+    public async Task CreateFundTransactionsCommand_GivenBatchWithCashWithdrawal_WhenExecuted_ThenBalanceIsReducedForWithdrawal()
     {
         // Arrange - Given a batch containing a cash withdrawal transaction
         var state = CreateState(balance: 500m);
@@ -156,7 +156,7 @@ public class FundTransactionCommandTests
             new FundTransactionEntityId(fundTransactions[0].FundId, fundTransactions[0].OrderId), fundTransactions);
 
         // Act - When executing CreateFundTransactionsCommand
-        var result = command.Execute(state);
+        var result = await command.ExecuteAsync(state);
 
         // Assert - Then the balance is reduced by the withdrawal amount
         result.Success.Should().BeTrue();
@@ -169,7 +169,7 @@ public class FundTransactionCommandTests
     #region CreateFundTransactionsCommand - edge cases
 
     [Fact]
-    public void CreateFundTransactionsCommand_GivenUnsupportedTransactionType_WhenExecuted_ThenReturnsFailedResultWithUnsupportedTypeMessage()
+    public async Task CreateFundTransactionsCommand_GivenUnsupportedTransactionType_WhenExecuted_ThenReturnsFailedResultWithUnsupportedTypeMessage()
     {
         // Arrange - Given a batch containing an unsupported transaction type
         var state = CreateState();
@@ -181,7 +181,7 @@ public class FundTransactionCommandTests
             new FundTransactionEntityId(fundTransactions[0].FundId, fundTransactions[0].OrderId), fundTransactions);
 
         // Act - When executing CreateFundTransactionsCommand
-        var result = command.Execute(state);
+        var result = await command.ExecuteAsync(state);
 
         // Assert - Then return a failed result with an unsupported-transaction-type error message, and no exception thrown
         // (the CreateFundTransactionException raised internally while building the batch is caught and converted to a failed result)
@@ -190,14 +190,14 @@ public class FundTransactionCommandTests
     }
 
     [Fact]
-    public void CreateFundTransactionsCommand_GivenEmptyTransactionArray_WhenExecuted_ThenReturnsFailedResultWithEmptyMessage()
+    public async Task CreateFundTransactionsCommand_GivenEmptyTransactionArray_WhenExecuted_ThenReturnsFailedResultWithEmptyMessage()
     {
         // Arrange - Given an empty array of fund transactions
         var fundTransactions = Array.Empty<FundTransactionReadModel>();
         var command = new CreateFundTransactionsCommand(new FundTransactionEntityId(0, 0), fundTransactions);
 
         // Act - When executing CreateFundTransactionsCommand with an empty batch
-        var result = command.Execute(CreateState());
+        var result = await command.ExecuteAsync(CreateState());
 
         // Assert - Then return a failed result because there is no first transaction to derive current balance from, and no exception thrown
         result.Success.Should().BeFalse();
@@ -209,18 +209,18 @@ public class FundTransactionCommandTests
     #region ProcessEndOfDayFundTransactionCommand - happy paths
 
     [Fact]
-    public void ProcessEndOfDayFundTransactionCommand_GivenExistingUnrealizedTradePnlTransaction_WhenExecuted_ThenReturnsEndOfDayFundTransactionProcessedEvent()
+    public async Task ProcessEndOfDayFundTransactionCommand_GivenExistingUnrealizedTradePnlTransaction_WhenExecuted_ThenReturnsEndOfDayFundTransactionProcessedEvent()
     {
         // Arrange - Given a state with an existing fund transaction and an unrealized trade pnl EOD command
         var state = CreateState(balance: 1000m);
         var existingTransaction = SampleData.FundTransaction with { TransactionType = FundTransactionType.OpeningTrade };
-        new CreateFundTransactionCommand(existingTransaction).Execute(state);
+        await new CreateFundTransactionCommand(existingTransaction).ExecuteAsync(state);
 
         var eodTransaction = existingTransaction with { TransactionType = FundTransactionType.UnrealizedTradePnl, Amount = 25m };
         var command = new ProcessEndOfDayFundTransactionCommand(eodTransaction);
 
         // Act - When executing ProcessEndOfDayFundTransactionCommand
-        var result = command.Execute(state);
+        var result = await command.ExecuteAsync(state);
 
         // Assert - Then an EndOfDayFundTransactionProcessedEvent is recorded
         result.Success.Should().BeTrue();
@@ -234,7 +234,7 @@ public class FundTransactionCommandTests
     #region ProcessEndOfDayFundTransactionCommand - edge cases
 
     [Fact]
-    public void ProcessEndOfDayFundTransactionCommand_GivenNonExistingFundTransaction_WhenExecuted_ThenReturnsFailedResultWithDoesNotExistMessage()
+    public async Task ProcessEndOfDayFundTransactionCommand_GivenNonExistingFundTransaction_WhenExecuted_ThenReturnsFailedResultWithDoesNotExistMessage()
     {
         // Arrange - Given a state without any existing fund transaction
         var state = CreateState();
@@ -242,7 +242,7 @@ public class FundTransactionCommandTests
         var command = new ProcessEndOfDayFundTransactionCommand(fundTransaction);
 
         // Act - When executing ProcessEndOfDayFundTransactionCommand
-        var result = command.Execute(state);
+        var result = await command.ExecuteAsync(state);
 
         // Assert - Then return a failed result with a does-not-exist error message, and no exception thrown
         result.Success.Should().BeFalse();
@@ -250,18 +250,18 @@ public class FundTransactionCommandTests
     }
 
     [Fact]
-    public void ProcessEndOfDayFundTransactionCommand_GivenTransactionTypeNotUnrealizedTradePnl_WhenExecuted_ThenReturnsFailedResultWithInvalidTransactionTypeMessage()
+    public async Task ProcessEndOfDayFundTransactionCommand_GivenTransactionTypeNotUnrealizedTradePnl_WhenExecuted_ThenReturnsFailedResultWithInvalidTransactionTypeMessage()
     {
         // Arrange - Given an existing fund transaction but the EOD command uses a non-UnrealizedTradePnl type
         var state = CreateState(balance: 1000m);
         var existingTransaction = SampleData.FundTransaction with { TransactionType = FundTransactionType.OpeningTrade };
-        new CreateFundTransactionCommand(existingTransaction).Execute(state);
+        await new CreateFundTransactionCommand(existingTransaction).ExecuteAsync(state);
 
         var invalidEodTransaction = existingTransaction with { TransactionType = FundTransactionType.RealizedTradePnl };
         var command = new ProcessEndOfDayFundTransactionCommand(invalidEodTransaction);
 
         // Act - When executing ProcessEndOfDayFundTransactionCommand
-        var result = command.Execute(state);
+        var result = await command.ExecuteAsync(state);
 
         // Assert - Then return a failed result with an invalid-transaction-type error message, and no exception thrown
         result.Success.Should().BeFalse();

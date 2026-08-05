@@ -86,29 +86,29 @@ public class FundQueryActor(
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc(query, dbFactory, context);
+        var queryType = query.GetType();
+        if (!_receiveMap.TryGetValue(queryType, out var receiveFunc))
+            throw new InvalidOperationException($"Unable to process {ActorName} query: {queryType.Name}");
+        await receiveFunc(query, dbFactory, context).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<string, Func<IQuery, IDbContextFactory, IQueryActorContext, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQuery, IDbContextFactory, IQueryActorContext, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetClosingFundBalanceQuery).Name] =  async (q, dbFactory, ctx) =>
+        [typeof(GetClosingFundBalanceQuery)] =  async (q, dbFactory, ctx) =>
         {
             var query = (q as GetClosingFundBalanceQuery)!;
             var result = await query.GetClosingFundBalanceAsync(dbFactory);
             var serviceResult = new ServiceResult<FundBalanceReadModel>(new FundBalanceReadModel(result));
             await ctx.ReplyAsync(q.Subject.ThreadId, GetClosingFundBalanceQuery.Verb, serviceResult);
         },
-        [typeof(GetFundBalanceQuery).Name] =  async (q, dbFactory, ctx) =>
+        [typeof(GetFundBalanceQuery)] =  async (q, dbFactory, ctx) =>
         {
             var query = (q as GetFundBalanceQuery)!;
             var result = await query.GetFundBalanceAsync(dbFactory);
             var serviceResult = new ServiceResult<FundBalanceReadModel>(new FundBalanceReadModel(result));
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundBalanceQuery.Verb, serviceResult);
         },
-        [typeof(GetFundDrawdownBalancesQuery).Name] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundDrawdownBalancesQuery)] = async (q, dbFactory, ctx) =>
         {
             var query = (q as GetFundDrawdownBalancesQuery)!;
             var result = await query.GetFundDrawdownBalancesAsync(dbFactory);
@@ -116,56 +116,56 @@ public class FundQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundDrawdownBalancesQuery.Verb, serviceResult);
 
         },
-        [typeof(GetFundIdFromOrderIdQuery).Name] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundIdFromOrderIdQuery)] = async (q, dbFactory, ctx) =>
         {
             var query = (q as GetFundIdFromOrderIdQuery)!;
             var result = await query.GetFundIdFromOrderIdAsync(dbFactory);
             var serviceResut = new ServiceResult<ScalarReadModel<int>>(new ScalarReadModel<int>(result));
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundIdFromOrderIdQuery.Verb, serviceResut);
         },
-        [typeof(GetFundOrdersQuery).Name] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundOrdersQuery)] = async (q, dbFactory, ctx) =>
         {
             var query = (q as GetFundOrdersQuery)!;
             var result = await query.GetFundOrdersAsync(dbFactory);
             var serviceResult = new ServiceResult<FundOrderReadModel[]>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundOrdersQuery.Verb, serviceResult);
         },
-        [typeof(GetFundOrderTradesQuery).Name] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundOrderTradesQuery)] = async (q, dbFactory, ctx) =>
         {
             var query = (q as GetFundOrderTradesQuery)!;
             var result = await query.GetFundOrderTradesAsync(dbFactory);
             var serviceResult = new ServiceResult<FundOrderTradeReadModel[]>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundOrderTradesQuery.Verb, serviceResult);
         },
-        [typeof(GetFundPnlReportQuery).Name] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundPnlReportQuery)] = async (q, dbFactory, ctx) =>
         {
             var query = (q as GetFundPnlReportQuery)!;
             var fundPnlReport = await  query.GetFundPnlReportAsync(dbFactory);
             var serviceResult = new ServiceResult<FundPnlReportReadModel>(fundPnlReport);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundPnlReportQuery.Verb, serviceResult);
         },
-        [typeof(GetFundsQuery).Name] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundsQuery)] = async (q, dbFactory, ctx) =>
         {
             var query = (q as GetFundsQuery)!;
             var result = await query.GetFundsAsync(dbFactory);
             var serviceResult = new ServiceResult<FundReadModel[]>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundsQuery.Verb, serviceResult);
         },
-        [typeof(GetFundWinLossRatioQuery).Name] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundWinLossRatioQuery)] = async (q, dbFactory, ctx) =>
         {
             var query = (q as GetFundWinLossRatioQuery)!;
             var result = await query.GetFundWinLossRatioAsync(dbFactory);
             var serviceResult = new ServiceResult<FundWinLossRatioReadModel>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundWinLossRatioQuery.Verb, serviceResult);
         },
-        [typeof(GetOpeningFundBalanceQuery).Name] = async (q, dbFactory, ctx) =>
+        [typeof(GetOpeningFundBalanceQuery)] = async (q, dbFactory, ctx) =>
         {
             var query = (q as GetOpeningFundBalanceQuery)!;
             var result = await query.GetOpeningFundBalanceAsync(dbFactory);
             var serviceResult = new ServiceResult<FundBalanceReadModel>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetOpeningFundBalanceQuery.Verb, serviceResult);
         },
-        [typeof(GetFundMaxProfitGeneratedQuery).Name] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundMaxProfitGeneratedQuery)] = async (q, dbFactory, ctx) =>
         {
             var query = (q as GetFundMaxProfitGeneratedQuery)!;
             var fundMaxProfitGenerated = await query.GetFundMaxProfitGeneratedAsync(dbFactory);

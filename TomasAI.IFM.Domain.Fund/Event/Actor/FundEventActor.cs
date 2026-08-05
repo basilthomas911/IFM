@@ -25,9 +25,9 @@ public class FundEventActor(
 {
     public const string Actor = "FundEvent";
     IActorFundEventApi? _eventApi;
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorFundEventApi, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly Dictionary<Type, Func<IEvent, IEventActorContext, IActorFundEventApi, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FundMaxProfitGeneratedEvent).Name] = async (evt, context, eventApi, logger) =>
+        [typeof(FundMaxProfitGeneratedEvent)] = async (evt, context, eventApi, logger) =>
         {
             var e = (evt as FundMaxProfitGeneratedEvent)!;
             return await e.ExecuteAsync(context, eventApi, logger);
@@ -87,10 +87,9 @@ public class FundEventActor(
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
+        if (!_receiveMap.TryGetValue(@event.GetType(), out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, GetEventApi(context), logger);
+        _ = await receiveFunc.Invoke(@event, context, GetEventApi(context), logger).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -112,13 +111,10 @@ public class FundEventActor(
         try
         {
             IsArgumentNull.Check(context);
-            IsArgumentNull.Check(threadId);
-            IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await ex.SendErrorEventAsync<IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
         }
         catch (Exception innerEx)
         {
-            await innerEx.SendErrorEventAsync<IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
             logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }

@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Domain.Fund.Command.State;
 /// funds, their orders, and associated trades. It provides methods to check for the existence of fund-related entities
 /// and to apply state changes in response to domain events. This type is intended for use within the actor framework
 /// and is not typically used directly by application code.</remarks>
-public class FundCommandState
+public sealed class FundCommandState
     :  BaseEventSourceActorState<FundCommandState>, IEventSourceActorState<FundCommandState>
 {
     Model.Fund? _fund;
@@ -28,24 +28,17 @@ public class FundCommandState
     /// <param name="domainEvent"></param>
     /// <returns></returns>
     protected override bool Apply(IEvent domainEvent)
-    {
-        try
+        => domainEvent switch
         {
-            return domainEvent switch
-            {
-                FundCreatedEvent e => On(e),
-                OrderAddedToFundEvent e => On(e),
-                TradeAddedToFundOrderEvent e => On(e),
-                FundOrderTradeStateChangedEvent e => On(e),
-                FundOrderClosedEvent e => On(e),
-                OrderRemovedFromFundEvent e => On(e),
-                TradeRemovedFromFundOrderEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
+            FundCreatedEvent e => On(e),
+            OrderAddedToFundEvent e => On(e),
+            TradeAddedToFundOrderEvent e => On(e),
+            FundOrderTradeStateChangedEvent e => On(e),
+            FundOrderClosedEvent e => On(e),
+            OrderRemovedFromFundEvent e => On(e),
+            TradeRemovedFromFundOrderEvent e => On(e),
+            _ => false
+        };
 
     public int FundId
         => _fund?.FundId ?? 0;

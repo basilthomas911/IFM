@@ -36,14 +36,16 @@ public static class FundMaxProfitGeneratedEventHandler
         try
         {
             // get fund max profit genrated data...
-            var fundMaxProfitGeneratedData = await context.GetFundMaxProfitGeneratedAsync(e.FundOrder.FundId, e.FundOrder.TradeDate);
+            var fundDataTask = context.GetFundMaxProfitGeneratedAsync(e.FundOrder.FundId, e.FundOrder.TradeDate);
+            var tradeSignalTask = context.GetFuturesTradeSignalAsync(e.FundOrder.BaseContractId, e.FundOrder.TradeDate);
+            var fundMaxProfitGeneratedData = await fundDataTask.ConfigureAwait(false);
             var fundBalance = fundMaxProfitGeneratedData.FundBalance;
             var profitOrders = fundMaxProfitGeneratedData.FundProfitOrders;
             var lossOrders = fundMaxProfitGeneratedData.FundLossOrders;
             var fundDrawdownBalances = fundMaxProfitGeneratedData.FundDrawdownBalances;
 
             // get futures trade signal...
-            var tradeSignal = await context.GetFuturesTradeSignalAsync(e.FundOrder.BaseContractId, e.FundOrder.TradeDate);
+            var tradeSignal = await tradeSignalTask.ConfigureAwait(false);
 
             // set default fund risk from futures trade signal...
             var fundRiskPercent = 0.1;
@@ -69,7 +71,7 @@ public static class FundMaxProfitGeneratedEventHandler
 
             // calculate fund drawdown percent...
             var fundDrawdownPercent = 0.0;
-            if (fundDrawdownBalances is not null)
+            if (fundDrawdownBalances is not null && fundDrawdownBalances.StartBalance != 0)
                 fundDrawdownPercent = (Convert.ToDouble(fundDrawdownBalances.EndBalance) - Convert.ToDouble(fundDrawdownBalances.StartBalance)) / Convert.ToDouble(fundDrawdownBalances.StartBalance);
 
             // if fund drawdown percent is < -5%, reduce fund risk percent by 50%...
@@ -90,13 +92,13 @@ public static class FundMaxProfitGeneratedEventHandler
                 fundMaxProfit: fundMaxProfit,
                 fundRiskPercent: fundRiskPercent);
 
-            await eventApi.SendFundMaxProfitGeneratedCompleteAsync(e);
+            await eventApi.SendFundMaxProfitGeneratedCompleteAsync(e).ConfigureAwait(false);
             logger.LogInformationEvent(ServiceId, "Processed FundMaxProfitGeneratedEvent for FundOrderId: {FundOrderId}, FundMaxProfit: {FundMaxProfit}, FundRiskPercent: {FundRiskPercent}", e.FundOrder.Id, fundMaxProfit, fundRiskPercent);
             return true;
         }
         catch (Exception ex)
         {
-            await eventApi.SendFundMaxProfitGeneratedFailAsync(e, ex);
+            await eventApi.SendFundMaxProfitGeneratedFailAsync(e, ex).ConfigureAwait(false);
             logger.LogErrorEvent(ServiceId, ex, "Error processing FundMaxProfitGeneratedEvent for FundOrderId: {FundOrderId}", e.FundOrder.Id);
             return false;
         }
@@ -120,7 +122,7 @@ public static class FundMaxProfitGeneratedEventHandler
         {
             Subject = new ActorSubject(ActorType.Query, GetFundMaxProfitGeneratedQuery.Actor, GetFundMaxProfitGeneratedQuery.Verb, entityId.Format()),
         };
-        var serviceResult = await context.RequestAsync<FundMaxProfitGeneratedReadModel, GetFundMaxProfitGeneratedQuery>(query);
+        var serviceResult = await context.RequestAsync<FundMaxProfitGeneratedReadModel, GetFundMaxProfitGeneratedQuery>(query).ConfigureAwait(false);
         if (serviceResult?.Success != true)
             throw new InvalidOperationException(serviceResult?.ErrorMessage);
         return serviceResult.Value;
@@ -144,7 +146,7 @@ public static class FundMaxProfitGeneratedEventHandler
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesTradeSignalQuery.Actor, GetFuturesTradeSignalQuery.Verb, entityId.Format()),
         };
-        var serviceResult = await context.RequestAsync<FuturesTradeSignalV2ReadModel, GetFuturesTradeSignalQuery>(query);
+        var serviceResult = await context.RequestAsync<FuturesTradeSignalV2ReadModel, GetFuturesTradeSignalQuery>(query).ConfigureAwait(false);
         if (serviceResult?.Success != true)
             throw new InvalidOperationException(serviceResult?.ErrorMessage);
         return serviceResult.Value;

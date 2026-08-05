@@ -7,5 +7,5 @@ namespace TomasAI.IFM.Domain.Fund;
 /// </summary>
 public static class FundActorAssembly
 {
-    public static Assembly Current => Assembly.GetExecutingAssembly();
+    public static Assembly Current => typeof(FundActorAssembly).Assembly;
 }

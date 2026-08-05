@@ -49,7 +49,7 @@ public class FundCommandActor(
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FundCommandState>>());
-        await _eventProjector.StartAsync(context);
+        await _eventProjector.StartAsync(context).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -60,7 +60,7 @@ public class FundCommandActor(
     protected override async ValueTask OnShutdown(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
-        await _eventProjector.StopAsync();
+        await _eventProjector.StopAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -121,12 +121,20 @@ public class FundCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
-        await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd));
+        await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
         var fundState = IsArgumentNull.Set((state as FundCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {cmd.Subject}");
-        return receiveFunc.Invoke(cmd, context, fundState);
+        return cmd switch
+        {
+            AddOrderToFundCommand value => value.Execute(fundState),
+            AddTradeToFundOrderCommand value => value.Execute(fundState),
+            ChangeFundOrderTradeStateCommand value => value.Execute(fundState),
+            CloseFundOrderCommand value => value.Execute(fundState),
+            CreateFundCommand value => value.Execute(fundState),
+            GenerateFundMaxProfitCommand value => value.Execute(fundState),
+            RemoveOrderFromFundCommand value => value.Execute(fundState),
+            RemoveTradeFromFundOrderCommand value => value.Execute(fundState),
+            _ => throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {cmd.Subject}")
+        };
     }
 
     /// <summary>
@@ -136,17 +144,6 @@ public class FundCommandActor(
     /// <remarks>This dictionary enables dynamic dispatch of fund-related commands by associating each command
     /// type name with a function that executes the command against a FundCommandState. The mapping is intended for
     /// internal use to streamline command handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FundCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
-    {
-        [typeof(AddOrderToFundCommand).Name] = (cmd, context, state) => (cmd as AddOrderToFundCommand)!.Execute(state),
-        [typeof(AddTradeToFundOrderCommand).Name] = (cmd, context, state) => (cmd as AddTradeToFundOrderCommand)!.Execute(state),
-        [typeof(ChangeFundOrderTradeStateCommand).Name] = (cmd, context, state) => (cmd as ChangeFundOrderTradeStateCommand)!.Execute(state),
-        [typeof(CloseFundOrderCommand).Name] = (cmd, context, state) => (cmd as CloseFundOrderCommand)!.Execute(state),
-        [typeof(CreateFundCommand).Name] = (cmd, context, state) => (cmd as CreateFundCommand)!.Execute(state),
-        [typeof(GenerateFundMaxProfitCommand).Name] = (cmd, context, state) => (cmd as GenerateFundMaxProfitCommand)!.Execute(state),
-        [typeof(RemoveOrderFromFundCommand).Name] = (cmd, context, state) => (cmd as RemoveOrderFromFundCommand)!.Execute(state),
-        [typeof(RemoveTradeFromFundOrderCommand).Name] = (cmd, context, state) => (cmd as RemoveTradeFromFundOrderCommand)!.Execute(state)
-    };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -158,17 +155,17 @@ public class FundCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override async ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+    protected override ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
+        if (!_validationMap.TryGetValue(cmd.GetType(), out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {Actor} commands from message: {cmd.Subject}");
         getValidationErrors
             .Invoke(cmd)
             .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -177,44 +174,44 @@ public class FundCommandActor(
     /// <remarks>Each entry associates the name of a command type with a function that performs validation on
     /// instances of that command, returning a list of validation errors. This map enables dynamic selection of
     /// validation logic based on the command type at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly Dictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new()
     {
-        [typeof(CreateFundCommand).Name] = cmd => {
+        [typeof(CreateFundCommand)] = cmd => {
             var e = (CreateFundCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFund(e.NewFund);
         },
-        [typeof(AddOrderToFundCommand).Name] = cmd => {
+        [typeof(AddOrderToFundCommand)] = cmd => {
             var e = (AddOrderToFundCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFundOrder(e.FundOrder);
         },
-        [typeof(RemoveOrderFromFundCommand).Name] = cmd => {
+        [typeof(RemoveOrderFromFundCommand)] = cmd => {
             var e = (RemoveOrderFromFundCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFundOrderId(e.FundOrderId, e.CommandName);
         },
-        [typeof(AddTradeToFundOrderCommand).Name] = cmd => {
+        [typeof(AddTradeToFundOrderCommand)] = cmd => {
             var e = (AddTradeToFundOrderCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFundOrderTrade(e.FundOrderTrade);
         },
-        [typeof(ChangeFundOrderTradeStateCommand).Name] = cmd => {
+        [typeof(ChangeFundOrderTradeStateCommand)] = cmd => {
             var e = (ChangeFundOrderTradeStateCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFundOrderTradeId(e.FundOrderTradeId, e.CommandName);
         },
-        [typeof(RemoveTradeFromFundOrderCommand).Name] = cmd => {
+        [typeof(RemoveTradeFromFundOrderCommand)] = cmd => {
             var e = (RemoveTradeFromFundOrderCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFundOrderTradeId(e.FundOrderTradeId, e.CommandName);
         },
-        [typeof(CloseFundOrderCommand).Name] = cmd => {
+        [typeof(CloseFundOrderCommand)] = cmd => {
             var e = (CloseFundOrderCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFundOrderId(e.FundOrderId, e.CommandName);
         },
-        [typeof(GenerateFundMaxProfitCommand).Name] = cmd => {
+        [typeof(GenerateFundMaxProfitCommand)] = cmd => {
             var e = (GenerateFundMaxProfitCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFundOrderId(e.FundOrder.Id, e.CommandName)
@@ -238,7 +235,7 @@ public class FundCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd);
+        return await _repo.LoadStateAsync(cmd).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -261,7 +258,7 @@ public class FundCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var fundState = IsArgumentNull.Set((state as FundCommandState)!);
-        await _repo.SaveStateAsync(context,fundState, cmd);
+        await _repo.SaveStateAsync(context,fundState, cmd).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -287,20 +284,13 @@ public class FundCommandActor(
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(command);
-            var cmdErrorEvent = await ex.SendErrorEventAsync<IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+            var cmdErrorEvent = await ex.SendErrorEventAsync<IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context).ConfigureAwait(false);
             return new ServiceFailed<GuidResult>(cmdErrorEvent);
         }
         catch (Exception innerEx)
         {
             logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", Actor,threadId, ex.Message);
-            try { 
-                 var cmdErrorEvent = await ex.SendErrorEventAsync<IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
-                return new ServiceFailed<GuidResult>(cmdErrorEvent);
-            }
-            catch (Exception fatalEx)
-            {
-                return CommandFailed(fatalEx);
-            }
+            return CommandFailed(innerEx, command);
         }
     }
 

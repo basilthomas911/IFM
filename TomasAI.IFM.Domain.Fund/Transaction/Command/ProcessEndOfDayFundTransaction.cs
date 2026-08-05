@@ -18,26 +18,16 @@ public static class ProcessEndOfDayFundTransaction
     /// <param name="state">The command state used to validate existence and to persist the resulting event.</param>
     /// <returns>True when the state was updated successfully; otherwise false.</returns>
     /// <exception cref="ProcessEndOfDayFundTransactionException">Thrown when the fund transaction does not exist or the transaction type is invalid.</exception>
-    public static ServiceResult<GuidResult> Execute(this ProcessEndOfDayFundTransactionCommand e, FundTransactionCommandState state)
-        => e switch
-        {
-            _ when state.FundTransactionDoesNotExist(e.FundTransaction.FundId, e.FundTransaction.OrderId) 
-                => e.UpdateFailed(FundTransactionDoesNotExist(e)),
-            _ when e.FundTransaction.TransactionType != FundTransactionType.UnrealizedTradePnl 
-                => e.UpdateFailed(FundTransactionTypeMustBeUnrealizedTradePnl(e)),
-            _ => e.UpdatedOk(() => state.Update(e.CreateEndOfDayFundTransactionProcessedEvent(CreateProcessEndOfDayTransaction(e, state)), e))
-        };
-
-    /// <summary>
-    /// Creates a fund transaction for end-of-day processing.
-    /// </summary>
-    /// <param name="e">The process end-of-day fund transaction command.</param>
-    /// <param name="state">The fund transaction command state.</param>
-    /// <returns>The updated fund transaction read model.</returns>
-    static FundTransactionReadModel CreateProcessEndOfDayTransaction(ProcessEndOfDayFundTransactionCommand e, FundTransactionCommandState state)
+    public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this ProcessEndOfDayFundTransactionCommand e, FundTransactionCommandState state)
     {
-        var currentBalance = state.GetCurrentBalance(e.FundTransaction.FundId);
-        return e.FundTransaction with { Balance = currentBalance + e.FundTransaction.Amount };
+        if (state.FundTransactionDoesNotExist(e.FundTransaction.FundId, e.FundTransaction.OrderId))
+            return e.UpdateFailed(FundTransactionDoesNotExist(e));
+        if (e.FundTransaction.TransactionType != FundTransactionType.UnrealizedTradePnl)
+            return e.UpdateFailed(FundTransactionTypeMustBeUnrealizedTradePnl(e));
+
+        var currentBalance = await state.GetCurrentBalanceAsync(e.FundTransaction.FundId).ConfigureAwait(false);
+        var transaction = e.FundTransaction with { Balance = currentBalance + e.FundTransaction.Amount };
+        return e.UpdatedOk(() => state.Update(e.CreateEndOfDayFundTransactionProcessedEvent(transaction), e));
     }
     
     /// <summary>

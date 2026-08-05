@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
+using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -18,8 +19,6 @@ public class FundTransactionEventActor(IActorSupervisor supervisor, ILogger<Fund
     : BaseEventActor<FundTransactionEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FundTransactionEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = [];
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -33,11 +32,17 @@ public class FundTransactionEventActor(IActorSupervisor supervisor, ILogger<Fund
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
+        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor })
             return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
+        IEvent? @event = msgSubject.Verb switch
+        {
+            FundTransactionEvent.Verb => message.AsEvent<FundTransactionEvent>(),
+            FundTransactionsEvent.Verb => message.AsEvent<FundTransactionsEvent>(),
+            EndOfDayFundTransactionProcessedEvent.Verb => message.AsEvent<EndOfDayFundTransactionProcessedEvent>(),
+            _ => null
+        };
+        if (@event is null)
+            return default!;
         @event.CheckForEmptyCommandId();
         return @event;
     }
@@ -50,14 +55,13 @@ public class FundTransactionEventActor(IActorSupervisor supervisor, ILogger<Fund
     /// <param name="event">The event to be processed.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
+        if (@event is not FundTransactionEvent and not FundTransactionsEvent and not EndOfDayFundTransactionProcessedEvent)
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, logger);
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -73,13 +77,10 @@ public class FundTransactionEventActor(IActorSupervisor supervisor, ILogger<Fund
         try
         {
             IsArgumentNull.Check(context);
-            IsArgumentNull.Check(threadId);
-            IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
         }
         catch (Exception innerEx)
         {
-            await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
             logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }

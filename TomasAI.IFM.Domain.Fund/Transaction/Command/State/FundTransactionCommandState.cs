@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Command.State;
 /// modify the persisted state. It is intended to be used within the event-sourced actor
 /// infrastructure and not directly by application code.
 /// </remarks>
-public class FundTransactionCommandState(IFundDbContext db)
+public sealed class FundTransactionCommandState(IFundDbContext db)
     :  BaseEventSourceActorState<FundTransactionCommandState>, IEventSourceActorState<FundTransactionCommandState>
 {
     /// <summary>
@@ -36,20 +36,13 @@ public class FundTransactionCommandState(IFundDbContext db)
     /// <param name="domainEvent">The domain event to apply.</param>
     /// <returns>True when the event was successfully applied; otherwise false.</returns>
     protected override bool Apply(IEvent domainEvent)
-    {
-        try
+        => domainEvent switch
         {
-            return domainEvent switch
-            {
-                FundTransactionEvent e => On(e),
-                FundTransactionsEvent e => On(e),
-                EndOfDayFundTransactionProcessedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
+            FundTransactionEvent e => On(e),
+            FundTransactionsEvent e => On(e),
+            EndOfDayFundTransactionProcessedEvent e => On(e),
+            _ => false
+        };
 
     /// <summary>
     /// Determines whether any fund transactions exist for the given fund and order identifiers.
@@ -69,8 +62,8 @@ public class FundTransactionCommandState(IFundDbContext db)
     internal bool FundTransactionDoesNotExist(int fundId, int orderId)
         => !FundTransactionExists(fundId, orderId);
 
-    public decimal GetCurrentBalance(int fundId)
-        => db.GetFundBalanceAsync(fundId).Result;
+    public ValueTask<decimal> GetCurrentBalanceAsync(int fundId)
+        => new(db.GetFundBalanceAsync(fundId));
 
     public IFundTransaction? GetTransaction(FundTransactionEntityId key, TradeStatus tradeStatus)
         => _fundTransactions.Get(key, tradeStatus);

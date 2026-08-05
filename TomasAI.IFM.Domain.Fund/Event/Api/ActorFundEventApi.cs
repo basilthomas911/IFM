@@ -28,7 +28,7 @@ public sealed class ActorFundEventApi(IEventActorContext context) : IActorFundEv
     {
         var completeEvent = e.ToCompleteEvent<FundMaxProfitGeneratedCompleteEvent, FundId>()
             as FundMaxProfitGeneratedCompleteEvent;
-        await _context.SendAsync<FundMaxProfitGeneratedCompleteEvent, FundId>(completeEvent!);
+        await _context.SendAsync<FundMaxProfitGeneratedCompleteEvent, FundId>(completeEvent!).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -41,7 +41,7 @@ public sealed class ActorFundEventApi(IEventActorContext context) : IActorFundEv
     {
         var failEvent = e.ToFailEvent<FundMaxProfitGeneratedFailEvent, FundId>(ex)
             as FundMaxProfitGeneratedFailEvent;
-        await _context.SendAsync<FundMaxProfitGeneratedFailEvent, FundId>(failEvent!);
+        await _context.SendAsync<FundMaxProfitGeneratedFailEvent, FundId>(failEvent!).ConfigureAwait(false);
     }
 }
 

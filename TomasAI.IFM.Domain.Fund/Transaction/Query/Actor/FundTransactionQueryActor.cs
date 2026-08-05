@@ -79,10 +79,10 @@ public class FundTransactionQueryActor(
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        var queryType = query.GetType();
+        if (!_receiveMap.TryGetValue(queryType, out var receiveFunc))
+            throw new InvalidOperationException($"Unable to process {ActorName} query: {queryType.Name}");
+        await receiveFunc.Invoke(context, dbFactory, query).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -92,9 +92,9 @@ public class FundTransactionQueryActor(
     /// <remarks>This dictionary enables dynamic dispatch of fund transaction-related queries by associating each query
     /// type name with a function that processes the query against a FundTransactionQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFundTransactionsQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetFundTransactionsQuery)] = async (ctx, dbFactory, q) =>
         {
             var query = (q as GetFundTransactionsQuery)!;
             var result = await query.GetFundTransactionsAsync(dbFactory);

@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.Fund.Command.Model;
 /// </summary>
 public class FundOrderTradeCollection : IFundOrderTradeCollection
 {
-    List<IFundOrderTrade> _fundOrderTrades;
+    readonly Dictionary<int, IFundOrderTrade> _fundOrderTrades;
 
     /// <summary>
     /// fund order trade collection constructor
@@ -21,8 +21,8 @@ public class FundOrderTradeCollection : IFundOrderTradeCollection
     /// </summary>
     /// <param name="tradeId"></param>
     /// <returns></returns>
-    public IFundOrderTrade? this[int tradeId] 
-        => _fundOrderTrades?.Where(e => e.TradeId == tradeId)?.SingleOrDefault();
+    public IFundOrderTrade? this[int tradeId]
+        => _fundOrderTrades.TryGetValue(tradeId, out var trade) ? trade : null;
     
     /// <summary>
     /// return count of fund order trades
@@ -36,39 +36,42 @@ public class FundOrderTradeCollection : IFundOrderTradeCollection
     /// <param name="tradeId"></param>
     /// <returns></returns>
     public bool Exists(int tradeId) 
-        => _fundOrderTrades.Exists(e => e.TradeId == tradeId);
+        => _fundOrderTrades.ContainsKey(tradeId);
 
     /// <summary>
     /// add fund order trade to collection
     /// </summary>
     /// <param name="item"></param>
     public void Add(IFundOrderTrade item)
-        => _fundOrderTrades.Add(item);
+        => _fundOrderTrades[item.TradeId] = item;
 
     /// <summary>
     /// add fund order trades to collection
     /// </summary>
     /// <param name="items"></param>
-    public void AddRange(IEnumerable<IFundOrderTrade> items) 
-        => _fundOrderTrades.AddRange(items);
+    public void AddRange(IEnumerable<IFundOrderTrade> items)
+    {
+        foreach (var item in items)
+            Add(item);
+    }
 
     /// <summary>
     /// remove fund order trade from collection
     /// </summary>
     /// <param name="item"></param>
     public void Remove(IFundOrderTrade item) 
-        => _fundOrderTrades.Remove(item);
+        => _fundOrderTrades.Remove(item.TradeId);
 
     /// <summary>
     /// return collection iterator
     /// </summary>
     /// <returns></returns>
     public IEnumerator<IFundOrderTrade> GetEnumerator() 
-        => _fundOrderTrades.GetEnumerator();
+        => _fundOrderTrades.Values.GetEnumerator();
 
     /// <summary>
     /// return collection iterator
     /// </summary>
     IEnumerator IEnumerable.GetEnumerator() 
-        => ((IEnumerable)_fundOrderTrades).GetEnumerator();
+        => GetEnumerator();
 }

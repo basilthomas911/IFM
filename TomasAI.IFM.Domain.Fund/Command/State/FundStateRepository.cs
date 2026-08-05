@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Domain.Fund.Command.State;
 /// <param name="dbEventSource">The database context for accessing event source data.</param>
 /// <param name="actorService">The actor service responsible for managing actor lifecycles and communication.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information.</param>
-public class FundStateRepository(
+public sealed class FundStateRepository(
     IEventSourceActorStateFactory stateFactory,
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
@@ -33,8 +33,8 @@ public class FundStateRepository(
     /// </summary>
     /// <param name="command"></param>
     /// <returns></returns>
-    public async ValueTask<FundCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<FundCommandState, FundCreatedEvent>(command);
+    public ValueTask<FundCommandState> LoadStateAsync(ICommand command)
+        => new(LoadStateFromSnapshotAsync<FundCommandState, FundCreatedEvent>(command));
 
     /// <summary>
     /// save fund state changes
@@ -43,8 +43,8 @@ public class FundStateRepository(
     /// <param name="state"></param>
     /// <param name="command"></param>
     /// <returns></returns>
-    public async ValueTask SaveStateAsync(ICommandActorContext context, FundCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+    public ValueTask SaveStateAsync(ICommandActorContext context, FundCommandState state, ICommand command)
+       => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
 
     /// <summary>
     /// Denormalize events to update read models or projections based on the domain events.
@@ -52,7 +52,7 @@ public class FundStateRepository(
     /// <param name="context"></param>
     /// <param name="domainEvents"></param>
     /// <returns></returns>
-    protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-        => await fundEventProjector.DomainEventsProjectionAsync(domainEvents);
+    protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
+        => fundEventProjector.DomainEventsProjectionAsync(domainEvents);
 }
 

@@ -6,29 +6,32 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Command.Model;
 
 public class FundTransactionCollection : IFundTransactionCollection
 {
-    readonly List<IFundTransaction> _fundTransactions;
+    readonly HashSet<(int FundId, int OrderId)> _fundOrders = [];
+    readonly Dictionary<(int FundId, int OrderId, TradeStatus Status), IFundTransaction> _latestByOrderAndStatus = [];
+    readonly Dictionary<int, IFundTransaction> _latestByFund = [];
+    readonly Dictionary<(int FundId, DateOnly ValueDate), IFundTransaction> _latestByFundAndDate = [];
 
-    public FundTransactionCollection() 
-        => _fundTransactions = [];
+    public FundTransactionCollection() { }
 
-    public void Add(IFundTransaction fundTransaction) 
-        => _fundTransactions.Add(fundTransaction);
+    public void Add(IFundTransaction fundTransaction)
+    {
+        _fundOrders.Add((fundTransaction.FundId, fundTransaction.OrderId));
+        _latestByOrderAndStatus[(fundTransaction.FundId, fundTransaction.OrderId, fundTransaction.TradeStatus)] = fundTransaction;
+        _latestByFund[fundTransaction.FundId] = fundTransaction;
+        _latestByFundAndDate[(fundTransaction.FundId, fundTransaction.ValueDate)] = fundTransaction;
+    }
 
     public bool Exists(int fundId, int orderId) 
-        => _fundTransactions.Any(e => e.FundId == fundId && e.OrderId == orderId);
+        => _fundOrders.Contains((fundId, orderId));
 
     public IFundTransaction? Get(FundTransactionEntityId key, TradeStatus tradeStatus)
-        => _fundTransactions
-            .Where(e => e.FundId == key.FundId && e.OrderId == key.OrderId && e.TradeStatus == tradeStatus)
-            .LastOrDefault();
+        => _latestByOrderAndStatus.TryGetValue((key.FundId, key.OrderId, tradeStatus), out var transaction)
+            ? transaction
+            : null;
 
     public IFundTransaction? Get(int fundId)
-        => _fundTransactions
-            .Where(e => e.FundId == fundId)
-            .LastOrDefault();
+        => _latestByFund.TryGetValue(fundId, out var transaction) ? transaction : null;
 
     public IFundTransaction? Get(int fundId, DateOnly valueDate)
-       => _fundTransactions
-           .Where(e => e.FundId == fundId && e.ValueDate == valueDate)
-           .LastOrDefault();
+       => _latestByFundAndDate.TryGetValue((fundId, valueDate), out var transaction) ? transaction : null;
 }

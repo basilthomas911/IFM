@@ -32,7 +32,7 @@ public class FundTransactionCommandActor(
     : BaseEventSourceCommandActor<FundTransactionCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "FundTransactionCommand";
-    IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
     IEventSourceActorStateRepository<FundTransactionCommandState> _repo = default!;
 
     /// <summary>
@@ -43,10 +43,11 @@ public class FundTransactionCommandActor(
     /// to the actor.</remarks>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask OnStartup(ICommandActorContext context)
+    protected override ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FundTransactionCommandState>>());
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -102,27 +103,16 @@ public class FundTransactionCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
-        await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd));
+        await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
         var fundTxState = IsArgumentNull.Set((state as FundTransactionCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (! _receiveMap.TryGetValue(cmdName, out var recieveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        return recieveFunc.Invoke(cmd, context, fundTxState);
+        return cmd switch
+        {
+            CreateFundTransactionCommand create => await create.ExecuteAsync(fundTxState).ConfigureAwait(false),
+            CreateFundTransactionsCommand createMany => await createMany.ExecuteAsync(fundTxState).ConfigureAwait(false),
+            ProcessEndOfDayFundTransactionCommand endOfDay => await endOfDay.ExecuteAsync(fundTxState).ConfigureAwait(false),
+            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}")
+        };
     }
-
-    /// <summary>
-    /// Provides a mapping from command type names to delegate functions that execute the corresponding fund transaction command
-    /// logic on a given state.
-    /// </summary>
-    /// <remarks>This dictionary enables dynamic dispatch of fund transaction-related commands by associating each command
-    /// type name with a function that executes the command against a FundTransactionCommandState. The mapping is intended for
-    /// internal use to streamline command handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FundTransactionCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
-    {
-        [typeof(CreateFundTransactionCommand).Name] = (cmd, context, state) => (cmd as CreateFundTransactionCommand)!.Execute(state),
-        [typeof(CreateFundTransactionsCommand).Name] = (cmd, context, state) => (cmd as CreateFundTransactionsCommand)!.Execute(state),
-        [typeof(ProcessEndOfDayFundTransactionCommand).Name] = (cmd, context, state) => (cmd as ProcessEndOfDayFundTransactionCommand)!.Execute(state)
-    };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -134,17 +124,17 @@ public class FundTransactionCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override async ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+    protected override ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
+        if (!_validationMap.TryGetValue(cmd.GetType(), out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
         getValidationErrors
             .Invoke(cmd)
             .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -153,19 +143,19 @@ public class FundTransactionCommandActor(
     /// <remarks>Each entry associates the name of a command type with a function that performs validation on
     /// instances of that command, returning a list of validation errors. This map enables dynamic selection of
     /// validation logic based on the command type at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly Dictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new()
     {
-        [typeof(CreateFundTransactionCommand).Name] = cmd => {
+        [typeof(CreateFundTransactionCommand)] = cmd => {
             var e = cmd as CreateFundTransactionCommand; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFundTransaction(e.FundTransaction);
         },
-        [typeof(CreateFundTransactionsCommand).Name] = cmd => {
+        [typeof(CreateFundTransactionsCommand)] = cmd => {
             var e = cmd as CreateFundTransactionsCommand; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFundTransactions(e.FundTransactions);
         },
-        [typeof(ProcessEndOfDayFundTransactionCommand).Name] = cmd => {
+        [typeof(ProcessEndOfDayFundTransactionCommand)] = cmd => {
             var e = cmd as ProcessEndOfDayFundTransactionCommand; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFundTransaction(e.FundTransaction);
@@ -187,7 +177,7 @@ public class FundTransactionCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd);
+        return await _repo.LoadStateAsync(cmd).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -210,7 +200,7 @@ public class FundTransactionCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var fundTxState = IsArgumentNull.Set((state as FundTransactionCommandState)!);
-        await _repo.SaveStateAsync(context, fundTxState, cmd);
+        await _repo.SaveStateAsync(context, fundTxState, cmd).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -239,16 +229,16 @@ public class FundTransactionCommandActor(
             IErrorEvent<FundTransactionEntityId> errorEvent = ex switch
             {
                 CreateFundTransactionException
-                    => await ex.SendErrorEventAsync<FundTransactionCreatedFailEvent, FundTransactionEntityId>(context, (command as CreateFundTransactionCommand)!, FundTransactionEvent.Actor, FundTransactionEvent.Verb),
+                    => await ex.SendErrorEventAsync<FundTransactionCreatedFailEvent, FundTransactionEntityId>(context, (command as CreateFundTransactionCommand)!, FundTransactionEvent.Actor, FundTransactionEvent.Verb).ConfigureAwait(false),
                 CreateFundTransactionsException
-                    => await ex.SendErrorEventAsync<FundTransactionsFailEvent, FundTransactionEntityId>(context, (command as CreateFundTransactionsCommand)!, FundTransactionsEvent.Actor, FundTransactionsEvent.Verb),
+                    => await ex.SendErrorEventAsync<FundTransactionsFailEvent, FundTransactionEntityId>(context, (command as CreateFundTransactionsCommand)!, FundTransactionsEvent.Actor, FundTransactionsEvent.Verb).ConfigureAwait(false),
                 ProcessEndOfDayFundTransactionException
-                    => await ex.SendErrorEventAsync<EndOfDayFundTransactionProcessedFailEvent, FundTransactionEntityId>(context, (command as ProcessEndOfDayFundTransactionCommand)!, EndOfDayFundTransactionProcessedEvent.Actor, EndOfDayFundTransactionProcessedEvent.Verb),
+                    => await ex.SendErrorEventAsync<EndOfDayFundTransactionProcessedFailEvent, FundTransactionEntityId>(context, (command as ProcessEndOfDayFundTransactionCommand)!, EndOfDayFundTransactionProcessedEvent.Actor, EndOfDayFundTransactionProcessedEvent.Verb).ConfigureAwait(false),
                 _ => default!
             };
             if (errorEvent is null)
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+                var cmdErrorEvent = await ex.SendErrorEventAsync<IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             return CommandFailed(ex, command);
@@ -256,15 +246,7 @@ public class FundTransactionCommandActor(
         catch (Exception innerEx)
         {
             logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
-            try
-            {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
-                return new ServiceFailed<GuidResult>(cmdErrorEvent);
-            }
-            catch (Exception fatalEx)
-            {
-                return CommandFailed(fatalEx);
-            }
+            return CommandFailed(innerEx, command);
         }
     }
 }
