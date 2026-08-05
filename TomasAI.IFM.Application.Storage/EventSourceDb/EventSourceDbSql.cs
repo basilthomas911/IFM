@@ -187,6 +187,73 @@ SELECT
         el.eventVersion DESC;
 """;
 
+/// <summary>
+/// Gets the latest snapshot and the last N matching events that follow it.
+/// The inner range is selected newest-first so PostgreSQL can stop after N rows;
+/// the outer query restores chronological replay order.
+/// </summary>
+public const string GetEventLogFromSnapshotLastNRange = """
+WITH latest_snapshot AS (
+    SELECT MAX(el.eventVersion) AS snapshotVersion
+    FROM event_log el
+    WHERE el.eventStreamId = $1
+      AND el.eventNameId = $2
+),
+last_event_range AS (
+    SELECT
+        el.eventStreamId,
+        el.eventNameId,
+        el.eventVersion,
+        el.eventData,
+        el.commandId,
+        el.eventTimestamp
+    FROM event_log el
+    CROSS JOIN latest_snapshot snapshot
+    WHERE snapshot.snapshotVersion IS NOT NULL
+      AND el.eventStreamId = $1
+      AND el.eventNameId = $3
+      AND el.eventVersion > snapshot.snapshotVersion
+    ORDER BY el.eventVersion DESC
+    LIMIT GREATEST($4, 0)
+),
+replay_range AS (
+    SELECT
+        el.eventStreamId,
+        el.eventNameId,
+        el.eventVersion,
+        el.eventData,
+        el.commandId,
+        el.eventTimestamp
+    FROM event_log el
+    CROSS JOIN latest_snapshot snapshot
+    WHERE snapshot.snapshotVersion IS NOT NULL
+      AND el.eventStreamId = $1
+      AND el.eventVersion = snapshot.snapshotVersion
+
+    UNION ALL
+
+    SELECT
+        eventStreamId,
+        eventNameId,
+        eventVersion,
+        eventData,
+        commandId,
+        eventTimestamp
+    FROM last_event_range
+)
+SELECT
+    el.eventStreamId AS "EventStreamId",
+    en.eventName AS "EventName",
+    en.eventTypeName AS "EventTypeName",
+    el.eventVersion AS "EventVersion",
+    el.eventData AS "EventData",
+    el.commandId AS "CommandId",
+    el.eventTimestamp AS "EventTimeStamp"
+FROM replay_range el
+JOIN event_name_id en ON el.eventNameId = en.eventNameId
+ORDER BY el.eventVersion ASC;
+""";
+
     /// <summary>
     /// Gets the durable state for one event/projector pair.
     /// </summary>

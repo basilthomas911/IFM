@@ -42,6 +42,14 @@ public interface IEventSourceActorDbContext
     ValueTask MapReduceActorEventStreamAsync<TState, TSnapshot>(long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction)
         where TState : IActorState<TState> where TSnapshot : IEvent;
 
+    ValueTask MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshot, TRangeEvent>(
+        long eventStreamId,
+        int lastNRange,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction)
+        where TState : IActorState<TState>
+        where TSnapshot : IEvent
+        where TRangeEvent : IEvent;
+
     ValueTask<ICollection<EventStreamReadModel>> LoadActorEventStreamAsync<TState>(long eventStreamId) 
         where TState : IActorState<TState>;
 

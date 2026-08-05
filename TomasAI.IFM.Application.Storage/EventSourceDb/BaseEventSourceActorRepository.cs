@@ -182,6 +182,56 @@ public abstract class BaseEventSourceActorRepository
     }
 
     /// <summary>
+    /// Loads state from the latest snapshot and the last N matching events that follow it.
+    /// Missing snapshots and matching events are treated as normal empty replay results.
+    /// </summary>
+    protected async Task<TState> LoadStateFromSnapshotLastNRangeAsync<TState, TSnapshotEvent, TRangeEvent>(
+        ICommand command,
+        int lastNRange)
+        where TState : IEventSourceActorState<TState>
+        where TSnapshotEvent : IEvent
+        where TRangeEvent : IEvent
+    {
+        var stateName = typeof(TState).Name;
+        var snapshotEventName = typeof(TSnapshotEvent).Name;
+        var rangeEventName = typeof(TRangeEvent).Name;
+        try
+        {
+            var streamId = await GetStreamId(command.StreamId);
+            var state = (TState)_stateFactory.CreateState<TState>();
+            state.Id = command.Subject.ThreadId;
+            await _dbEventSource.MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshotEvent, TRangeEvent>(
+                streamId,
+                lastNRange,
+                state.ReplayEvents);
+
+            _logger.LogInformationEvent(
+                _serviceId,
+                "loading state: {StateName} for command: {CommandName} from snapshot: {SnapshotEventName} and last {LastNRange} {RangeEventName} events in stream: {StreamId}",
+                stateName,
+                command.CommandName,
+                snapshotEventName,
+                Math.Max(0, lastNRange),
+                rangeEventName,
+                streamId);
+            return state;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogErrorEvent(
+                _serviceId,
+                ex,
+                "LoadStateFromSnapshotLastNRange failed for {StateName} from snapshot {SnapshotEventName} and range event {RangeEventName}",
+                stateName,
+                snapshotEventName,
+                rangeEventName);
+            throw new StorageException(
+                $"{_serviceId}.LoadStateFromSnapshotLastNRange failed for {stateName} from snapshot {snapshotEventName} and range event {rangeEventName}",
+                ex);
+        }
+    }
+
+    /// <summary>
     /// Persists the specified state and denormalizes any associated domain events asynchronously within a transactional
     /// scope.
     /// </summary>

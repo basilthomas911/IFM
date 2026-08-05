@@ -712,6 +712,30 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     }
 
     /// <summary>
+    /// Replays the latest snapshot followed by the last N matching post-snapshot events.
+    /// A missing snapshot produces an empty sequence. Results are streamed in ascending event-version order.
+    /// </summary>
+    public async ValueTask MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshot, TRangeEvent>(
+        long eventStreamId,
+        int lastNRange,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction)
+        where TState : IActorState<TState>
+        where TSnapshot : IEvent
+        where TRangeEvent : IEvent
+    {
+        var snapshotEventNameId = await GetEventNameIdFromTypeAsync<TSnapshot>();
+        var rangeEventNameId = await GetEventNameIdFromTypeAsync<TRangeEvent>();
+        await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.GetEventLogFromSnapshotLastNRange)
+            .SetParameters(new GetEventLogFromSnapshotLastNRange(
+                eventStreamId,
+                snapshotEventNameId,
+                rangeEventNameId,
+                Math.Max(0, lastNRange)))
+            .ExecuteMapReduceAsync(MapToEventStream, reducerAction);
+    }
+
+    /// <summary>
     /// Loads the full event stream into memory for the specified actor state type.
     /// </summary>
     /// <typeparam name="TState">The actor state type that implements <see cref="IActorState{TState}"/>.</typeparam>

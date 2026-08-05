@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -25,7 +26,23 @@ public class FuturesRsiSignalStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the state of type
     /// FuturesRsiSignalCommandState.</returns>
     public async ValueTask<FuturesRsiSignalCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<FuturesRsiSignalCommandState, FuturesRsiSignalStartedEvent>(command);
+        => command switch
+        {
+            ICommand<FuturesRsiDailySignalEntityId> dailyCommand
+                => await LoadStateFromSnapshotLastNRangeAsync<
+                    FuturesRsiSignalCommandState,
+                    FuturesRsiSignalStartedEvent,
+                    FuturesRsiDailySignalGeneratedEvent>(command, dailyCommand.EntityId.PeriodLength),
+            ICommand<FuturesRsiSignalEntityId> rsiCommand
+                => await LoadStateFromSnapshotLastNRangeAsync<
+                    FuturesRsiSignalCommandState,
+                    FuturesRsiSignalStartedEvent,
+                    FuturesRsiSignalGeneratedEvent>(command, rsiCommand.EntityId.PeriodLength),
+            _ => await LoadStateFromSnapshotLastNRangeAsync<
+                FuturesRsiSignalCommandState,
+                FuturesRsiSignalStartedEvent,
+                FuturesRsiSignalGeneratedEvent>(command, 0)
+        };
 
     /// <summary>
     /// Saves futures RSI signal state changes and denormalizes the associated domain events.

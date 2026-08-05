@@ -4,7 +4,7 @@
 
 This pass reviewed the 21 command, event, and query actors under the ADX, ATR, ITI, MACD, RSI, TDI, and Trade Signal roots, including their state, calculation, validation, repository, event-orchestration, and query API leaves. The baseline was repository commit `c5419d7`; 743 unit tests passed before production changes.
 
-Persisted event history remains intentionally unbounded. Snapshot-plus-last-N-range recovery is documented as a separate shared-storage follow-up and was not implemented here.
+Persisted event history remains intentionally unbounded. The shared storage follow-up now adds typed snapshot-plus-last-N-range recovery and applies it to RSI state loading.
 
 ## Top ten issues and outcomes
 
@@ -51,6 +51,18 @@ The benchmark project retains the original calculation and validator constructio
 
 At 2,048 signals, the optimized indicator methods eliminated the Gen1 collections observed in each baseline. The threading diagnoser reported no work-item scheduling or lock contention for these CPU-only methods, as expected.
 
+## Snapshot range recovery results
+
+The new storage benchmark compares the former snapshot-to-stream-end managed replay with the new snapshot-plus-last-60-typed-events replay. PostgreSQL execution and network latency are excluded from this microbenchmark and covered by integration tests.
+
+| Matching events after snapshot | Before mean | After mean | Speedup | Before allocated | After allocated |
+|---:|---:|---:|---:|---:|---:|
+| 256 | 7.468 ms | 990.3 us | 7.54x | 3,707.57 KB | 462.87 KB |
+| 4,096 | 119.246 ms | 973.7 us | 122.47x | 59,213.60 KB | 462.87 KB |
+| 32,768 | 958.839 ms | 998.2 us | 960.57x | 473,657.38 KB | 462.87 KB |
+
+The optimized replay remains effectively constant once at least 60 matching events are available. Full environment and allocation/GC results are retained in `TomasAI.IFM.Application.Storage.Benchmarks/RESULTS.md`.
+
 ## Concurrency and regression coverage
 
 - RSI timer duplicate-start idempotency.
@@ -59,7 +71,8 @@ At 2,048 signals, the optimized indicator methods eliminated the Gen1 collection
 - ITI query reads all start before any delayed fake is released.
 - Cached validation rules execute safely under concurrent callers.
 - Command audit writes remain observable and failures propagate asynchronously.
-- Existing command/event/query behavior remains covered by 749 passing unit tests and 449 passing BDD tests in Release mode.
+- Existing command/event/query behavior remains covered by 751 passing unit tests and 449 passing BDD tests in Release mode.
+- PostgreSQL integration coverage proves latest-snapshot selection, typed filtering, ascending replay order, snapshot boundaries, missing snapshot/range behavior, nonpositive ranges, and exact/fewer/more-than-N ranges.
 
 ## Repeatable review process
 
@@ -67,4 +80,4 @@ At 2,048 signals, the optimized indicator methods eliminated the Gen1 collection
 2. Run `dotnet run --project TomasAI.IFM.Domain.MarketData.Analytics.Benchmarks -c Release -- --filter "*IndicatorBenchmarks*" "*ValidationBenchmarks*"`.
 3. Compare paper-trading actor mailbox latency, request rate, allocation rate, Gen0/Gen1 frequency, timer backlog, and storage latency against this report.
 4. Add a benchmark only for a measured hot path; retain before implementations or a clean baseline artifact so comparisons remain reproducible.
-5. Revisit snapshot-last-N recovery separately because its shared storage contract and end-to-end replay metrics require a solution-wide change.
+5. Run `dotnet run --project TomasAI.IFM.Application.Storage.Benchmarks -c Release -- --filter "*SnapshotRangeReplayBenchmarks*"` and compare database latency separately under paper-trading load.

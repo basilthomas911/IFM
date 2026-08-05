@@ -98,20 +98,18 @@ New indicators should receive an isolated feature root with command, event, and 
 
 Analytics event streams and their domain history are intentionally unbounded. Indicator actors must not discard historical events as a memory optimization. Normal recovery starts from the latest snapshot and replays the events required after that snapshot.
 
-### TODO: snapshot plus last-N-range recovery
+### Snapshot plus last typed range recovery
 
-Implement a lower-level map/reduce recovery operation, provisionally named `LoadStateFromSnapshotLastNRangeAsync` (the requested `LoadStateFromSnapSnapShotLastNRange` behavior), in a separate solution-wide storage/event-sourcing change after the domain optimization passes are complete.
+`LoadStateFromSnapshotLastNRangeAsync<TState, TSnapshotEvent, TRangeEvent>` now provides bounded recovery without changing unbounded event retention. A single PostgreSQL statement:
 
-Required semantics:
+1. locates the latest event of `TSnapshotEvent` in the stream;
+2. scans backward through the existing `(EventStreamId, EventNameId, EventVersion)` key for only `TRangeEvent` rows after that snapshot;
+3. limits the descending scan to `NRange`; and
+4. returns the snapshot and selected range events in ascending event-version order for replay.
 
-1. Locate and load the most recent snapshot and its stream event position.
-2. Locate the end position of the same stream.
-3. Move the event cursor backward by the actor's required `NRange`, without moving before the first event after the snapshot.
-4. Read and return only that final post-snapshot range in ascending event order.
-5. Rehydrate from the snapshot plus those events while leaving the persisted stream and historical retention unbounded.
-6. Cover no-snapshot, fewer-than-N events, exact-N events, more-than-N events, concurrent append, and snapshot-boundary cases.
+`NRange <= 0` returns the snapshot only. No snapshot returns an empty state, including when other event types exist. A snapshot with no matching range events returns snapshot state. Missing historical data therefore remains a valid empty or partial reconstruction; only an actual database, mapping, or replay failure propagates through the existing storage/actor exception path.
 
-This optimization is deliberately excluded from the current Analytics actor pass because it changes shared event-source repository and storage semantics. Until it is implemented, calculation code continues to accept the complete collection supplied by the current recovery path.
+The query is one statement, so a concurrent append is either visible to that statement's PostgreSQL snapshot or is recovered on the next load; it cannot be partially observed between separate end-position and range queries. RSI intraday commands select `FuturesRsiSignalGeneratedEvent`; daily commands select `FuturesRsiDailySignalGeneratedEvent`. Persisted history remains immutable and unbounded.
 
 ### TODO: solution-wide graceful cancellation
 

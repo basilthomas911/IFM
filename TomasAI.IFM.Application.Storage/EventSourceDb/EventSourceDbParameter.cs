@@ -11,6 +11,18 @@ internal readonly record struct GetEventLogLastNRange(long eventStreamId) : IBin
 {
     public object Bind() => Values(Bigint(eventStreamId));
 }
+internal readonly record struct GetEventLogFromSnapshotLastNRange(
+    long eventStreamId,
+    int snapshotEventNameId,
+    int rangeEventNameId,
+    int lastNRange) : IBindValue
+{
+    public object Bind() => Values(
+        Bigint(eventStreamId),
+        Integer(snapshotEventNameId),
+        Integer(rangeEventNameId),
+        Integer(lastNRange));
+}
 internal readonly record struct GetMaxEventVersion(long eventStreamId, int snapshotEventNameId) : IBindValue
 {
     public object Bind() => Values(Bigint(eventStreamId), Integer(snapshotEventNameId));
