@@ -67,7 +67,10 @@ public class FuturesMacdSignalCommandActor(
     /// </summary>
     static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
     {
-        [GenerateFuturesMacdSignalCommand.Verb] = msg => msg.AsCommand<GenerateFuturesMacdSignalCommand>()!
+        [StartFuturesMacdSignalCommand.Verb] = msg => msg.AsCommand<StartFuturesMacdSignalCommand>()!,
+        [StopFuturesMacdSignalCommand.Verb] = msg => msg.AsCommand<StopFuturesMacdSignalCommand>()!,
+        [GenerateFuturesMacdSignalCommand.Verb] = msg => msg.AsCommand<GenerateFuturesMacdSignalCommand>()!,
+        [GenerateFuturesMacdDailySignalCommand.Verb] = msg => msg.AsCommand<GenerateFuturesMacdDailySignalCommand>()!
     };
 
     /// <summary>
@@ -98,7 +101,10 @@ public class FuturesMacdSignalCommandActor(
     /// </summary>
     static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesMacdSignalCommandState, bool>> _receiveMap = new()
     {
-        [typeof(GenerateFuturesMacdSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesMacdSignalCommand)!.Execute(state)
+        [typeof(StartFuturesMacdSignalCommand).Name] = (cmd, context, state) => ((StartFuturesMacdSignalCommand)cmd).Execute(state),
+        [typeof(StopFuturesMacdSignalCommand).Name] = (cmd, context, state) => ((StopFuturesMacdSignalCommand)cmd).Execute(state),
+        [typeof(GenerateFuturesMacdSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesMacdSignalCommand)!.Execute(state),
+        [typeof(GenerateFuturesMacdDailySignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesMacdDailySignalCommand)!.Execute(state)
     };
 
     /// <summary>
@@ -127,6 +133,14 @@ public class FuturesMacdSignalCommandActor(
     /// </summary>
     static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
     {
+        [typeof(StartFuturesMacdSignalCommand).Name] = cmd => {
+            var e = (StartFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
+                .ValidateCommandId(e.CommandId, e.CommandName);
+        },
+        [typeof(StopFuturesMacdSignalCommand).Name] = cmd => {
+            var e = (StopFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
+                .ValidateCommandId(e.CommandId, e.CommandName);
+        },
         [typeof(GenerateFuturesMacdSignalCommand).Name] = cmd => {
             var e = (GenerateFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)

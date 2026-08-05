@@ -65,6 +65,7 @@ public record GenerateFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityI
 
         EntityId = futuresAdxSignalId.ToEntityId();
         ErrorCode = ErrorId;
+        RouteTo = BoundedContextName.FuturesAdxSignalBoundedContext;
     }
 
     /// <summary>

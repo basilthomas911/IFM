@@ -192,7 +192,16 @@ public class EventSourceDbContext(IDbConnectionSettings connectionSettings, IDbC
     public async ValueTask<ICollection<EventStreamReadModel>> LoadEventStreamAsync<TBoundedContext, TEvent>(long eventStreamId, int lastNRange)
         where TBoundedContext : IBoundedContext
         where TEvent : IEvent
-        =>await GetEventsLastNRangeAsync(eventStreamId, lastNRange);
+    {
+        var eventNameId = await GetEventNameIdFromTypeAsync<TEvent>();
+        return await _dbFactory.EventSourceDb
+            .Use(EventSourceDbSql.GetEventLogLastNRangeByEventName)
+            .SetParameters(new GetEventLogLastNRangeByEventName(
+                eventStreamId,
+                eventNameId,
+                Math.Max(0, lastNRange)))
+            .ExecuteQueryAsync<EventStreamReadModel>(MapToEventStream);
+    }
 
     /// <summary>
     /// Asynchronously processes a stream of events by applying a map-reduce operation.
@@ -210,21 +219,14 @@ public class EventSourceDbContext(IDbConnectionSettings connectionSettings, IDbC
         where TBoundedContext : IBoundedContext
         where TEvent : IEvent
     {
-        var eventStream = new EventStreamReadModel();
+        var eventNameId = await GetEventNameIdFromTypeAsync<TEvent>();
         await _dbFactory.EventSourceDb
-            .Use(EventSourceDbSql.GetEventLogLastNRange)
-            .SetParameters(new GetEventLogLastNRange(eventStreamId))
-            .ExecuteMapReduceAsync<EventStreamReadModel>(EventStreamMapper,
-                reducer => reducerAction.Invoke(reducer.Take(lastNRange).OrderBy(e => e.EventVersion)));
-
-        EventStreamReadModel EventStreamMapper(IObjectDataRecord o)
-        {
-            eventStream.EventVersion = o.GetLong(3);
-            eventStream.EventTypeName = o.GetString(2);
-            eventStream.EventData = o.GetString(4);
-            return eventStream;
-        }
-
+            .Use(EventSourceDbSql.GetEventLogLastNRangeByEventName)
+            .SetParameters(new GetEventLogLastNRangeByEventName(
+                eventStreamId,
+                eventNameId,
+                Math.Max(0, lastNRange)))
+            .ExecuteMapReduceAsync(MapToEventStream, reducerAction);
     }
 
     /// <summary>

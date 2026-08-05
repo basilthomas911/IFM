@@ -32,6 +32,8 @@ public class FuturesAtrSignalCommandState
     {
         return domainEvent switch
         {
+            FuturesAtrSignalStartedEvent => true,
+            FuturesAtrSignalStoppedEvent => true,
             FuturesAtrSignalGeneratedEvent e => On(e.FuturesAtrSignal),
             FuturesAtrDailySignalGeneratedEvent e => On(e.FuturesAtrSignal),
             _ => false

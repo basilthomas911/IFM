@@ -4,7 +4,7 @@
 
 This pass reviewed the 21 command, event, and query actors under the ADX, ATR, ITI, MACD, RSI, TDI, and Trade Signal roots, including their state, calculation, validation, repository, event-orchestration, and query API leaves. The baseline was repository commit `c5419d7`; 743 unit tests passed before production changes.
 
-Persisted event history remains intentionally unbounded. The shared storage follow-up now adds typed snapshot-plus-last-N-range recovery and applies it to RSI state loading.
+Persisted event history remains intentionally unbounded. The shared storage follow-up now applies database-bounded typed recovery to RSI, MACD, ADX, and ATR, including their daily variants.
 
 ## Top ten issues and outcomes
 
@@ -63,16 +63,34 @@ The new storage benchmark compares the former snapshot-to-stream-end managed rep
 
 The optimized replay remains effectively constant once at least 60 matching events are available. Full environment and allocation/GC results are retained in `TomasAI.IFM.Application.Storage.Benchmarks/RESULTS.md`.
 
+### Period signal and daily variant matrix
+
+The follow-up benchmark applies the same controlled workload to RSI, MACD, ADX, and ATR, including all daily variants: 4,096 matching events interleaved with 4,096 unrelated events before, versus the typed last 60 selected by PostgreSQL after.
+
+| Variant | Before mean | After mean | Speedup | Before allocated | After allocated |
+|---|---:|---:|---:|---:|---:|
+| RSI | 122.332 ms | 965.7 us | 126.68x | 59,213.60 KB | 462.87 KB |
+| RSI daily | 123.115 ms | 953.9 us | 129.06x | 58,950.74 KB | 452.26 KB |
+| MACD | 119.015 ms | 940.6 us | 126.53x | 58,541.08 KB | 446.22 KB |
+| MACD daily | 111.749 ms | 912.6 us | 122.45x | 58,317.08 KB | 442.94 KB |
+| ADX | 117.626 ms | 923.5 us | 127.37x | 58,540.79 KB | 445.93 KB |
+| ADX daily | 113.549 ms | 891.3 us | 127.40x | 58,284.79 KB | 442.18 KB |
+| ATR | 117.352 ms | 907.1 us | 129.37x | 58,511.95 KB | 445.48 KB |
+| ATR daily | 115.578 ms | 880.3 us | 131.29x | 58,027.95 KB | 438.43 KB |
+
+Every variant reduced managed allocation by approximately 99.2%. The prior repositories used different recovery behavior, so this is a normalized scaling comparison rather than a claim that every old path replayed the full mixed history on every request. It excludes PostgreSQL/network time; integration tests verify that filtering and limiting happen in SQL.
+
 ## Concurrency and regression coverage
 
 - RSI timer duplicate-start idempotency.
+- MACD, ADX, and ATR intraday timers now have the same duplicate-start, non-overlap, stop-drain, and actor-shutdown behavior; their daily variants remain outside recurring lifecycle scheduling.
 - Per-entity timer callbacks never overlap.
 - Stop waits for an in-flight callback and prevents later ticks.
 - ITI query reads all start before any delayed fake is released.
 - Cached validation rules execute safely under concurrent callers.
 - Command audit writes remain observable and failures propagate asynchronously.
-- Existing command/event/query behavior remains covered by 751 passing unit tests and 449 passing BDD tests in Release mode.
-- PostgreSQL integration coverage proves latest-snapshot selection, typed filtering, ascending replay order, snapshot boundaries, missing snapshot/range behavior, nonpositive ranges, and exact/fewer/more-than-N ranges.
+- Existing command/event/query behavior remains covered by 758 passing unit tests and 449 passing BDD tests.
+- PostgreSQL integration coverage proves latest-snapshot selection, typed filtering before limiting, ascending replay order, snapshot boundaries, missing snapshot/range behavior, nonpositive ranges, and exact/fewer/more-than-N ranges.
 
 ## Repeatable review process
 
@@ -80,4 +98,4 @@ The optimized replay remains effectively constant once at least 60 matching even
 2. Run `dotnet run --project TomasAI.IFM.Domain.MarketData.Analytics.Benchmarks -c Release -- --filter "*IndicatorBenchmarks*" "*ValidationBenchmarks*"`.
 3. Compare paper-trading actor mailbox latency, request rate, allocation rate, Gen0/Gen1 frequency, timer backlog, and storage latency against this report.
 4. Add a benchmark only for a measured hot path; retain before implementations or a clean baseline artifact so comparisons remain reproducible.
-5. Run `dotnet run --project TomasAI.IFM.Application.Storage.Benchmarks -c Release -- --filter "*SnapshotRangeReplayBenchmarks*"` and compare database latency separately under paper-trading load.
+5. Run `dotnet run --project TomasAI.IFM.Application.Storage.Benchmarks -c Release -- --filter "*SnapshotRangeReplayBenchmarks*" "*PeriodSignalReplayBenchmarks*"` and compare database latency separately under paper-trading load.

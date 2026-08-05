@@ -188,6 +188,37 @@ SELECT
 """;
 
 /// <summary>
+/// Gets the last N events of one event type and restores chronological replay order.
+/// </summary>
+public const string GetEventLogLastNRangeByEventName = """
+WITH last_event_range AS (
+    SELECT
+        el.eventStreamId,
+        el.eventNameId,
+        el.eventVersion,
+        el.eventData,
+        el.commandId,
+        el.eventTimestamp
+    FROM event_log el
+    WHERE el.eventStreamId = $1
+      AND el.eventNameId = $2
+    ORDER BY el.eventVersion DESC
+    LIMIT GREATEST($3, 0)
+)
+SELECT
+    el.eventStreamId AS "EventStreamId",
+    en.eventName AS "EventName",
+    en.eventTypeName AS "EventTypeName",
+    el.eventVersion AS "EventVersion",
+    el.eventData AS "EventData",
+    el.commandId AS "CommandId",
+    el.eventTimestamp AS "EventTimeStamp"
+FROM last_event_range el
+JOIN event_name_id en ON el.eventNameId = en.eventNameId
+ORDER BY el.eventVersion ASC;
+""";
+
+/// <summary>
 /// Gets the latest snapshot and the last N matching events that follow it.
 /// The inner range is selected newest-first so PostgreSQL can stop after N rows;
 /// the outer query restores chronological replay order.

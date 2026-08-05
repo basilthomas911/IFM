@@ -41,4 +41,5 @@ public enum BoundedContextName
     TradeAlgorithmBoundedContext,
     FuturesMacdSignalBoundedContext,
     FuturesAtrSignalBoundedContext,
+    FuturesAdxSignalBoundedContext,
 }

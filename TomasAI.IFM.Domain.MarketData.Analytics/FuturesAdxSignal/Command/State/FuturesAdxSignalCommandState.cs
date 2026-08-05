@@ -31,6 +31,8 @@ public class FuturesAdxSignalCommandState
     {
         return domainEvent switch
         {
+            FuturesAdxSignalStartedEvent => true,
+            FuturesAdxSignalStoppedEvent => true,
             FuturesAdxSignalGeneratedEvent e => On(e.FuturesAdxSignal),
             FuturesAdxDailySignalGeneratedEvent e => On(e.FuturesAdxSignal),
             _ => false

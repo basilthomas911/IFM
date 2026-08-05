@@ -109,7 +109,28 @@ Analytics event streams and their domain history are intentionally unbounded. In
 
 `NRange <= 0` returns the snapshot only. No snapshot returns an empty state, including when other event types exist. A snapshot with no matching range events returns snapshot state. Missing historical data therefore remains a valid empty or partial reconstruction; only an actual database, mapping, or replay failure propagates through the existing storage/actor exception path.
 
-The query is one statement, so a concurrent append is either visible to that statement's PostgreSQL snapshot or is recovered on the next load; it cannot be partially observed between separate end-position and range queries. RSI intraday commands select `FuturesRsiSignalGeneratedEvent`; daily commands select `FuturesRsiDailySignalGeneratedEvent`. Persisted history remains immutable and unbounded.
+The query is one statement, so a concurrent append is either visible to that statement's PostgreSQL snapshot or is recovered on the next load; it cannot be partially observed between separate end-position and range queries. RSI intraday commands select `FuturesRsiSignalGeneratedEvent` after `FuturesRsiSignalStartedEvent`. Persisted history remains immutable and unbounded.
+
+### Typed last-N recovery without a separate snapshot event
+
+The daily RSI/MACD/ADX/ATR streams have period-length windows but no lifecycle snapshot event. They use the optimized `LoadStateAsync<TState, TEvent>(command, periodLength)` path. Its PostgreSQL query filters by stream and exact event type, scans descending through the existing key, applies `LIMIT` in the database, and restores ascending event-version order before replay. Nonpositive ranges and missing event types return empty state without a code-generated exception.
+
+The repository mapping is:
+
+| Feed | Intraday range event | Daily range event |
+|---|---|---|
+| RSI | `FuturesRsiSignalGeneratedEvent` after `FuturesRsiSignalStartedEvent` | `FuturesRsiDailySignalGeneratedEvent` |
+| MACD | `FuturesMacdSignalGeneratedEvent` after `FuturesMacdSignalStartedEvent` | `FuturesMacdDailySignalGeneratedEvent` |
+| ADX | `FuturesAdxSignalGeneratedEvent` after `FuturesAdxSignalStartedEvent` | `FuturesAdxDailySignalGeneratedEvent` |
+| ATR | `FuturesAtrSignalGeneratedEvent` after `FuturesAtrSignalStartedEvent` | `FuturesAtrDailySignalGeneratedEvent` |
+
+Daily MACD is now accepted by its command parse/receive maps and replay state. Daily MACD, ADX, and ATR generated events are denormalized through their typed read-model paths, and all four daily completion variants are accepted by their same-domain event actors. The ATR and RSI daily completion handlers intentionally do no work after parsing.
+
+### Intraday start/stop lifecycle
+
+MACD, ADX, and ATR now implement the same event-driven lifecycle as RSI for intraday entity IDs only. Public HTTP and NATS command APIs publish typed Start/Stop commands; command actors persist Started/Stopped domain events; repositories publish those events to the same-domain event actor; and event actors register or remove the entity's recurring generation loop.
+
+The shared timer registry guarantees one loop per entity, makes duplicate Start events idempotent, serializes callbacks within a loop, waits for an in-flight callback during Stop, and drains all loops during actor shutdown. The registry cancellation source is local lifecycle control and does not change the solution-wide cancellation TODO. Daily signal entity types have no Start/Stop contracts or timer registrations: they remain one-shot commands intended to be scheduled once after market close.
 
 ### TODO: solution-wide graceful cancellation
 

@@ -80,7 +80,7 @@ public class FuturesRsiSignalStateRepositoryTests
     }
 
     [Fact]
-    public async Task LoadDailyStateUsesDailyPeriodLengthAndDailyRangeEventType()
+    public async Task LoadDailyStateUsesTypedLastNRangeWithoutIntradaySnapshot()
     {
         const long streamId = 84;
         var entityId = new FuturesRsiDailySignalEntityId(
@@ -113,9 +113,8 @@ public class FuturesRsiSignalStateRepositoryTests
 
         Assert.Same(state, loadedState);
         Assert.Equal(command.Subject.ThreadId, loadedState.Id);
-        await eventDb.Received(1).MapReduceActorEventStreamFromSnapshotLastNRangeAsync<
+        await eventDb.Received(1).MapReduceActorEventStreamAsync<
             FuturesRsiSignalCommandState,
-            FuturesRsiSignalStartedEvent,
             FuturesRsiDailySignalGeneratedEvent>(
             streamId,
             entityId.PeriodLength,

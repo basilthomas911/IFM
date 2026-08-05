@@ -70,6 +70,64 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         return serviceResult;
     }
 
+    public Task<ServiceResult<Guid>> StartFuturesMacdSignalAsync(FuturesMacdSignalEntityId entityId)
+        => SendLifecycleAsync(entityId, StartFuturesMacdSignalCommand.ErrorId, commandId => new StartFuturesMacdSignalCommand(entityId)
+        {
+            CommandId = commandId,
+            Subject = new ActorSubject(ActorType.Command, StartFuturesMacdSignalCommand.Actor, StartFuturesMacdSignalCommand.Verb, entityId.Format())
+        });
+
+    public Task<ServiceResult<Guid>> StopFuturesMacdSignalAsync(FuturesMacdSignalEntityId entityId)
+        => SendLifecycleAsync(entityId, StopFuturesMacdSignalCommand.ErrorId, commandId => new StopFuturesMacdSignalCommand(entityId)
+        {
+            CommandId = commandId,
+            Subject = new ActorSubject(ActorType.Command, StopFuturesMacdSignalCommand.Actor, StopFuturesMacdSignalCommand.Verb, entityId.Format())
+        });
+
+    public Task<ServiceResult<Guid>> StartFuturesAdxSignalAsync(FuturesAdxSignalEntityId entityId)
+        => SendLifecycleAsync(entityId, StartFuturesAdxSignalCommand.ErrorId, commandId => new StartFuturesAdxSignalCommand(entityId)
+        {
+            CommandId = commandId,
+            Subject = new ActorSubject(ActorType.Command, StartFuturesAdxSignalCommand.Actor, StartFuturesAdxSignalCommand.Verb, entityId.Format())
+        });
+
+    public Task<ServiceResult<Guid>> StopFuturesAdxSignalAsync(FuturesAdxSignalEntityId entityId)
+        => SendLifecycleAsync(entityId, StopFuturesAdxSignalCommand.ErrorId, commandId => new StopFuturesAdxSignalCommand(entityId)
+        {
+            CommandId = commandId,
+            Subject = new ActorSubject(ActorType.Command, StopFuturesAdxSignalCommand.Actor, StopFuturesAdxSignalCommand.Verb, entityId.Format())
+        });
+
+    public Task<ServiceResult<Guid>> StartFuturesAtrSignalAsync(FuturesAtrSignalEntityId entityId)
+        => SendLifecycleAsync(entityId, StartFuturesAtrSignalCommand.ErrorId, commandId => new StartFuturesAtrSignalCommand(entityId)
+        {
+            CommandId = commandId,
+            Subject = new ActorSubject(ActorType.Command, StartFuturesAtrSignalCommand.Actor, StartFuturesAtrSignalCommand.Verb, entityId.Format())
+        });
+
+    public Task<ServiceResult<Guid>> StopFuturesAtrSignalAsync(FuturesAtrSignalEntityId entityId)
+        => SendLifecycleAsync(entityId, StopFuturesAtrSignalCommand.ErrorId, commandId => new StopFuturesAtrSignalCommand(entityId)
+        {
+            CommandId = commandId,
+            Subject = new ActorSubject(ActorType.Command, StopFuturesAtrSignalCommand.Actor, StopFuturesAtrSignalCommand.Verb, entityId.Format())
+        });
+
+    async Task<ServiceResult<Guid>> SendLifecycleAsync<TEntityId, TCommand>(
+        TEntityId entityId, int errorCode, Func<Guid, TCommand> createCommand)
+        where TEntityId : IActorEntityId
+        where TCommand : class, ICommand<TEntityId>
+    {
+        var commandId = Guid.NewGuid();
+        try
+        {
+            return await SendAsync(createCommand(commandId), entityId);
+        }
+        catch (Exception ex)
+        {
+            return OnError(ex, commandId, errorCode);
+        }
+    }
+
     /// <summary>
     /// generate futures rsi signal
     /// </summary>

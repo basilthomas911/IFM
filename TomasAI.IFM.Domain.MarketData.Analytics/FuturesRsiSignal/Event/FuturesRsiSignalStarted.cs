@@ -71,7 +71,7 @@ public static class FuturesRsiSignalStarted
             {
                 if (e.EntityId.ContractId.StartsWith("ES"))
                 {
-                    var futuresEodData = await context.GetLastFuturesEodDataAsync(e.EntityId.ContractId, e.ValueDate);
+                    var futuresEodData = await context.GetLastFuturesEodDataAsync(e.EntityId.ContractId, e.EntityId.ValueDate);
                     if (futuresEodData is not null)
                            await commandApi.GenerateFuturesRsiSignalAsync(futuresRsiSignalId, futuresEodData.ClosePrice);
                 }

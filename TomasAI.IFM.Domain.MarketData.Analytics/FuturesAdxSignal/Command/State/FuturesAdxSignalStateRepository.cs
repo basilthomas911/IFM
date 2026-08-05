@@ -25,7 +25,19 @@ public class FuturesAdxSignalStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the state of type
     /// FuturesAdxSignalCommandState.</returns>
     public async ValueTask<FuturesAdxSignalCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<FuturesAdxSignalCommandState, FuturesAdxSignalGeneratedEvent>(command);
+        => command switch
+        {
+            ICommand<FuturesAdxDailySignalEntityId> dailyCommand
+                => await LoadStateAsync<FuturesAdxSignalCommandState, FuturesAdxDailySignalGeneratedEvent>(
+                    command,
+                    dailyCommand.EntityId.PeriodLength),
+            ICommand<FuturesAdxSignalEntityId> adxCommand
+                => await LoadStateFromSnapshotLastNRangeAsync<
+                    FuturesAdxSignalCommandState,
+                    FuturesAdxSignalStartedEvent,
+                    FuturesAdxSignalGeneratedEvent>(command, adxCommand.EntityId.PeriodLength),
+            _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
+        };
 
     /// <summary>
     /// Saves futures ADX signal state changes and denormalizes the associated domain events.
@@ -53,6 +65,10 @@ public class FuturesAdxSignalStateRepository(
             {
                 FuturesAdxSignalGeneratedEvent e => await UpdateReadModelAsync<FuturesAdxSignalGeneratedEvent, FuturesAdxSignalGeneratedCompleteEvent, FuturesAdxSignalGeneratedFailEvent, FuturesAdxSignalEntityId>(
                     context, e, () => InsertFuturesAdxSignalAsync(db, e.FuturesAdxSignal)),
+                FuturesAdxDailySignalGeneratedEvent e => await UpdateReadModelAsync<FuturesAdxDailySignalGeneratedEvent, FuturesAdxDailySignalGeneratedCompleteEvent, FuturesAdxDailySignalGeneratedFailEvent, FuturesAdxDailySignalEntityId>(
+                    context, e, () => InsertFuturesAdxSignalAsync(db, e.FuturesAdxSignal)),
+                FuturesAdxSignalStartedEvent e => await PostEventAsync<FuturesAdxSignalStartedEvent, FuturesAdxSignalEntityId>(context, e),
+                FuturesAdxSignalStoppedEvent e => await PostEventAsync<FuturesAdxSignalStoppedEvent, FuturesAdxSignalEntityId>(context, e),
                 _ => false
             };
         }

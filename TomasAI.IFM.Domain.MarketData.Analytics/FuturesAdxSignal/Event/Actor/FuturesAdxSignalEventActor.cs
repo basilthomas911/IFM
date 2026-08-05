@@ -5,6 +5,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Model;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Actor;
@@ -23,16 +25,23 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Actor;
 public class FuturesAdxSignalEventActor(
     IActorSupervisor supervisor, 
     IStatusConsoleWriter statusConsoleWriter,
-    ILogger<FuturesAdxSignalEventActor> logger)
+    ILogger<FuturesAdxSignalEventActor> logger,
+    IActorMarketDataAnalyticsCommandApiFactory? commandApiFactory = null)
     : BaseEventActor<FuturesAdxSignalEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FuturesAdxSignalEvent";
+    IActorMarketDataAnalyticsCommandApi? _commandApi;
     readonly Dictionary<string, Func<IEvent, IEventActorContext, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesAdxSignalGeneratedCompleteEvent).Name] = async (evt, context) =>
         {
             var e = (evt as FuturesAdxSignalGeneratedCompleteEvent)!;
             return await e.ExecuteAsync(context,statusConsoleWriter, logger);
+        },
+        [typeof(FuturesAdxDailySignalGeneratedCompleteEvent).Name] = async (evt, context) =>
+        {
+            var e = (evt as FuturesAdxDailySignalGeneratedCompleteEvent)!;
+            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         }
     };
 
@@ -61,7 +70,10 @@ public class FuturesAdxSignalEventActor(
     /// </summary>
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
-        [FuturesAdxSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesAdxSignalGeneratedCompleteEvent>()!
+        [FuturesAdxSignalStartedEvent.Verb] = msg => msg.AsEvent<FuturesAdxSignalStartedEvent>()!,
+        [FuturesAdxSignalStoppedEvent.Verb] = msg => msg.AsEvent<FuturesAdxSignalStoppedEvent>()!,
+        [FuturesAdxSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesAdxSignalGeneratedCompleteEvent>()!,
+        [FuturesAdxDailySignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesAdxDailySignalGeneratedCompleteEvent>()!
     };
 
     /// <summary>
@@ -75,11 +87,26 @@ public class FuturesAdxSignalEventActor(
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
+        if (@event is FuturesAdxSignalStartedEvent started)
+        {
+            _ = await started.ExecuteAsync(context, GetCommandApi(context), statusConsoleWriter, logger);
+            return;
+        }
+        if (@event is FuturesAdxSignalStoppedEvent stopped)
+        {
+            _ = await stopped.ExecuteAsync(context, statusConsoleWriter, logger);
+            return;
+        }
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
         _ = await receiveFunc.Invoke(@event, context);
     }
+
+    protected override ValueTask OnShutdown(IEventActorContext context) => FuturesAdxSignalTimer.StopAllAsync();
+
+    IActorMarketDataAnalyticsCommandApi GetCommandApi(IEventActorContext context)
+        => _commandApi ??= (commandApiFactory ?? context.Container.Resolve<IActorMarketDataAnalyticsCommandApiFactory>()).Create(context);
 
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing

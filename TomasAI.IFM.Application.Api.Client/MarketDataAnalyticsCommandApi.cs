@@ -40,6 +40,25 @@ public class MarketDataAnalyticsCommandApi(ICommandServiceApi commandSvc)
         => await new StopFuturesRsiSignalParameter(IsArgumentNull.Set(entityId), StopFuturesRsiSignalCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.StopFuturesRsiSignal, e));
 
+    public async Task<ServiceResult<Guid>> StartFuturesMacdSignalAsync(FuturesMacdSignalEntityId entityId)
+        => await new StartFuturesMacdSignalParameter(IsArgumentNull.Set(entityId), StartFuturesMacdSignalCommand.ErrorId)
+            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.StartFuturesMacdSignal, e));
+    public async Task<ServiceResult<Guid>> StopFuturesMacdSignalAsync(FuturesMacdSignalEntityId entityId)
+        => await new StopFuturesMacdSignalParameter(IsArgumentNull.Set(entityId), StopFuturesMacdSignalCommand.ErrorId)
+            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.StopFuturesMacdSignal, e));
+    public async Task<ServiceResult<Guid>> StartFuturesAdxSignalAsync(FuturesAdxSignalEntityId entityId)
+        => await new StartFuturesAdxSignalParameter(IsArgumentNull.Set(entityId), StartFuturesAdxSignalCommand.ErrorId)
+            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.StartFuturesAdxSignal, e));
+    public async Task<ServiceResult<Guid>> StopFuturesAdxSignalAsync(FuturesAdxSignalEntityId entityId)
+        => await new StopFuturesAdxSignalParameter(IsArgumentNull.Set(entityId), StopFuturesAdxSignalCommand.ErrorId)
+            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.StopFuturesAdxSignal, e));
+    public async Task<ServiceResult<Guid>> StartFuturesAtrSignalAsync(FuturesAtrSignalEntityId entityId)
+        => await new StartFuturesAtrSignalParameter(IsArgumentNull.Set(entityId), StartFuturesAtrSignalCommand.ErrorId)
+            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.StartFuturesAtrSignal, e));
+    public async Task<ServiceResult<Guid>> StopFuturesAtrSignalAsync(FuturesAtrSignalEntityId entityId)
+        => await new StopFuturesAtrSignalParameter(IsArgumentNull.Set(entityId), StopFuturesAtrSignalCommand.ErrorId)
+            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.StopFuturesAtrSignal, e));
+
     /// <summary>
     /// generate futures rsi signal
     /// </summary>

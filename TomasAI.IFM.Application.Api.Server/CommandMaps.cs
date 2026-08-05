@@ -961,6 +961,67 @@ public static class MarketDataAnalyticsCommands
                 return await e.RequestAsync<ClearFuturesItiSignalHoldTradeCommand, FuturesItiSignalEntityId>(cmd!);
             });
 
+        endpoints.MapPost(MarketDataAnalyticsUriPath.StartFuturesMacdSignal, async (IActorService e, StartFuturesMacdSignalParameter cp) =>
+        {
+            var cmd = new StartFuturesMacdSignalCommand(cp.EntityId)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(ActorType.Command, StartFuturesMacdSignalCommand.Actor, StartFuturesMacdSignalCommand.Verb, cp.EntityId.Format()),
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<StartFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(cmd);
+        });
+        endpoints.MapPost(MarketDataAnalyticsUriPath.StopFuturesMacdSignal, async (IActorService e, StopFuturesMacdSignalParameter cp) =>
+        {
+            var cmd = new StopFuturesMacdSignalCommand(cp.EntityId)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(ActorType.Command, StopFuturesMacdSignalCommand.Actor, StopFuturesMacdSignalCommand.Verb, cp.EntityId.Format()),
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<StopFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(cmd);
+        });
+        endpoints.MapPost(MarketDataAnalyticsUriPath.StartFuturesAdxSignal, async (IActorService e, StartFuturesAdxSignalParameter cp) =>
+        {
+            var cmd = new StartFuturesAdxSignalCommand(cp.EntityId)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(ActorType.Command, StartFuturesAdxSignalCommand.Actor, StartFuturesAdxSignalCommand.Verb, cp.EntityId.Format()),
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<StartFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(cmd);
+        });
+        endpoints.MapPost(MarketDataAnalyticsUriPath.StopFuturesAdxSignal, async (IActorService e, StopFuturesAdxSignalParameter cp) =>
+        {
+            var cmd = new StopFuturesAdxSignalCommand(cp.EntityId)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(ActorType.Command, StopFuturesAdxSignalCommand.Actor, StopFuturesAdxSignalCommand.Verb, cp.EntityId.Format()),
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<StopFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(cmd);
+        });
+        endpoints.MapPost(MarketDataAnalyticsUriPath.StartFuturesAtrSignal, async (IActorService e, StartFuturesAtrSignalParameter cp) =>
+        {
+            var cmd = new StartFuturesAtrSignalCommand(cp.EntityId)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(ActorType.Command, StartFuturesAtrSignalCommand.Actor, StartFuturesAtrSignalCommand.Verb, cp.EntityId.Format()),
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<StartFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(cmd);
+        });
+        endpoints.MapPost(MarketDataAnalyticsUriPath.StopFuturesAtrSignal, async (IActorService e, StopFuturesAtrSignalParameter cp) =>
+        {
+            var cmd = new StopFuturesAtrSignalCommand(cp.EntityId)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(ActorType.Command, StopFuturesAtrSignalCommand.Actor, StopFuturesAtrSignalCommand.Verb, cp.EntityId.Format()),
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<StopFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(cmd);
+        });
+
         endpoints.MapPost(MarketDataAnalyticsUriPath.GenerateFuturesAtrSignal, async (IActorService e, GenerateFuturesAtrSignalParameter cp)
             => {
                 var entityId = cp.FuturesAtrSignalId.ToEntityId();

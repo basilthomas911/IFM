@@ -35,14 +35,19 @@ public class FuturesMacdSignalStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the state of type
     /// FuturesMacdSignalCommandState.</returns>
     public async ValueTask<FuturesMacdSignalCommandState> LoadStateAsync(ICommand command)
-    {
-        var valueTask =  command switch
+        => command switch
         {
-            GenerateFuturesMacdSignalCommand cmd => LoadStateAsync<FuturesMacdSignalCommandState, FuturesMacdSignalGeneratedEvent>(cmd, cmd.EntityId.PeriodLength),
+            ICommand<FuturesMacdDailySignalEntityId> dailyCommand
+                => await LoadStateAsync<FuturesMacdSignalCommandState, FuturesMacdDailySignalGeneratedEvent>(
+                    command,
+                    dailyCommand.EntityId.PeriodLength),
+            ICommand<FuturesMacdSignalEntityId> macdCommand
+                => await LoadStateFromSnapshotLastNRangeAsync<
+                    FuturesMacdSignalCommandState,
+                    FuturesMacdSignalStartedEvent,
+                    FuturesMacdSignalGeneratedEvent>(command, macdCommand.EntityId.PeriodLength),
             _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
         };
-        return await valueTask; 
-    }
 
     /// <summary>
     /// Saves futures MACD signal state changes and denormalizes the associated domain events.
@@ -70,6 +75,10 @@ public class FuturesMacdSignalStateRepository(
             {
                 FuturesMacdSignalGeneratedEvent e => await UpdateReadModelAsync<FuturesMacdSignalGeneratedEvent, FuturesMacdSignalGeneratedCompleteEvent, FuturesMacdSignalGeneratedFailEvent, FuturesMacdSignalEntityId>(
                     context, e, () => InsertFuturesMacdSignalAsync(db, e.FuturesMacdSignal)),
+                FuturesMacdDailySignalGeneratedEvent e => await UpdateReadModelAsync<FuturesMacdDailySignalGeneratedEvent, FuturesMacdDailySignalGeneratedCompleteEvent, FuturesMacdDailySignalGeneratedFailEvent, FuturesMacdDailySignalEntityId>(
+                    context, e, () => InsertFuturesMacdSignalAsync(db, e.FuturesMacdSignal)),
+                FuturesMacdSignalStartedEvent e => await PostEventAsync<FuturesMacdSignalStartedEvent, FuturesMacdSignalEntityId>(context, e),
+                FuturesMacdSignalStoppedEvent e => await PostEventAsync<FuturesMacdSignalStoppedEvent, FuturesMacdSignalEntityId>(context, e),
                 _ => false
             };
         }

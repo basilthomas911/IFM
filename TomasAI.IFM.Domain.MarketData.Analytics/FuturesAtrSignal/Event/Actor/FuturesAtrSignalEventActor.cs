@@ -5,6 +5,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Model;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Actor;
@@ -15,17 +17,20 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Actor;
 /// <param name="supervisor"></param>
 /// <param name="statusConsoleWriter"> </param>
 /// <param name="logger"> </param>
-public class FuturesAtrSignalEventActor(IActorSupervisor supervisor, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesAtrSignalEventActor> logger)
+public class FuturesAtrSignalEventActor(IActorSupervisor supervisor, IStatusConsoleWriter statusConsoleWriter,
+    ILogger<FuturesAtrSignalEventActor> logger, IActorMarketDataAnalyticsCommandApiFactory? commandApiFactory = null)
     : BaseEventActor<FuturesAtrSignalEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FuturesAtrSignalEvent";
+    IActorMarketDataAnalyticsCommandApi? _commandApi;
     readonly Dictionary<string, Func<IEvent, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesAtrSignalGeneratedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesAtrSignalGeneratedCompleteEvent)!;
             return await e.ExecuteAsync(context, statusConsoleWriter, logger );
-        }
+        },
+        [typeof(FuturesAtrDailySignalGeneratedCompleteEvent).Name] = (_, _, _, _) => ValueTask.FromResult(true)
     };
 
     /// <summary>
@@ -53,7 +58,10 @@ public class FuturesAtrSignalEventActor(IActorSupervisor supervisor, IStatusCons
     /// </summary>
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
-        [FuturesAtrSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesAtrSignalGeneratedCompleteEvent>()!
+        [FuturesAtrSignalStartedEvent.Verb] = msg => msg.AsEvent<FuturesAtrSignalStartedEvent>()!,
+        [FuturesAtrSignalStoppedEvent.Verb] = msg => msg.AsEvent<FuturesAtrSignalStoppedEvent>()!,
+        [FuturesAtrSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesAtrSignalGeneratedCompleteEvent>()!,
+        [FuturesAtrDailySignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesAtrDailySignalGeneratedCompleteEvent>()!
     };
 
     /// <summary>
@@ -67,11 +75,26 @@ public class FuturesAtrSignalEventActor(IActorSupervisor supervisor, IStatusCons
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
+        if (@event is FuturesAtrSignalStartedEvent started)
+        {
+            _ = await started.ExecuteAsync(context, GetCommandApi(context), statusConsoleWriter, logger);
+            return;
+        }
+        if (@event is FuturesAtrSignalStoppedEvent stopped)
+        {
+            _ = await stopped.ExecuteAsync(context, statusConsoleWriter, logger);
+            return;
+        }
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
         _ = await receiveFunc.Invoke(@event, context, statusConsoleWriter, logger);
     }
+
+    protected override ValueTask OnShutdown(IEventActorContext context) => FuturesAtrSignalTimer.StopAllAsync();
+
+    IActorMarketDataAnalyticsCommandApi GetCommandApi(IEventActorContext context)
+        => _commandApi ??= (commandApiFactory ?? context.Container.Resolve<IActorMarketDataAnalyticsCommandApiFactory>()).Create(context);
 
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing

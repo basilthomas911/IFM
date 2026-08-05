@@ -146,6 +146,40 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         result.Select(row => row.EventVersion).Should().BeInAscendingOrder();
     }
 
+    [Fact]
+    public async Task TypedLastNRangeFiltersBeforeLimitingAndReturnsAscendingOrder()
+    {
+        var stream = NewStream();
+        await SaveAsync(stream,
+            RangeEvent(),
+            NoiseEvent(),
+            RangeEvent(),
+            NoiseEvent(),
+            RangeEvent());
+
+        var result = await LoadTypedRangeAsync<FuturesRsiSignalGeneratedEvent>(stream, 2);
+
+        result.Should().HaveCount(2);
+        result.Should().OnlyContain(row =>
+            row.EventTypeName.Contains(nameof(FuturesRsiSignalGeneratedEvent), StringComparison.Ordinal));
+        result.Select(row => row.EventVersion).Should().BeInAscendingOrder();
+    }
+
+    [Fact]
+    public async Task TypedLastNRangeReturnsEmptyWhenTypeIsMissingOrRangeIsNonPositive()
+    {
+        var missingTypeStream = NewStream();
+        await SaveAsync(missingTypeStream, NoiseEvent(), NoiseEvent());
+        var nonPositiveStream = NewStream();
+        await SaveAsync(nonPositiveStream, RangeEvent(), RangeEvent());
+
+        var missingType = await LoadTypedRangeAsync<FuturesRsiSignalGeneratedEvent>(missingTypeStream, 2);
+        var nonPositive = await LoadTypedRangeAsync<FuturesRsiSignalGeneratedEvent>(nonPositiveStream, 0);
+
+        missingType.Should().BeEmpty();
+        nonPositive.Should().BeEmpty();
+    }
+
     async Task<List<EventStreamReadModel>> LoadAsync(string stream, int lastNRange)
     {
         var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
@@ -154,6 +188,18 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             TestActorState,
             FuturesRsiSignalStartedEvent,
             FuturesRsiSignalGeneratedEvent>(streamId, lastNRange, rows => result.AddRange(rows));
+        return result;
+    }
+
+    async Task<List<EventStreamReadModel>> LoadTypedRangeAsync<TEvent>(string stream, int lastNRange)
+        where TEvent : IEvent
+    {
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var result = new List<EventStreamReadModel>();
+        await fixture.ActorEventDb.MapReduceActorEventStreamAsync<TestActorState, TEvent>(
+            streamId,
+            lastNRange,
+            rows => result.AddRange(rows));
         return result;
     }
 

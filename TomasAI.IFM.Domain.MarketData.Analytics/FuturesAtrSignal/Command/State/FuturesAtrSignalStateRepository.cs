@@ -34,7 +34,19 @@ public class FuturesAtrSignalStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the state of type
     /// FuturesAtrSignalCommandState.</returns>
     public async ValueTask<FuturesAtrSignalCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<FuturesAtrSignalCommandState, FuturesAtrSignalGeneratedEvent>(command);
+        => command switch
+        {
+            ICommand<FuturesAtrDailySignalEntityId> dailyCommand
+                => await LoadStateAsync<FuturesAtrSignalCommandState, FuturesAtrDailySignalGeneratedEvent>(
+                    command,
+                    dailyCommand.EntityId.PeriodLength),
+            ICommand<FuturesAtrSignalEntityId> atrCommand
+                => await LoadStateFromSnapshotLastNRangeAsync<
+                    FuturesAtrSignalCommandState,
+                    FuturesAtrSignalStartedEvent,
+                    FuturesAtrSignalGeneratedEvent>(command, atrCommand.EntityId.PeriodLength),
+            _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
+        };
 
     /// <summary>
     /// Saves futures ATR signal state changes and denormalizes the associated domain events.
@@ -62,6 +74,10 @@ public class FuturesAtrSignalStateRepository(
             {
                 FuturesAtrSignalGeneratedEvent e => await UpdateReadModelAsync<FuturesAtrSignalGeneratedEvent, FuturesAtrSignalGeneratedCompleteEvent, FuturesAtrSignalGeneratedFailEvent, FuturesAtrSignalEntityId>(
                     context, e, () => InsertFuturesAtrSignalAsync(db, e.FuturesAtrSignal)),
+                FuturesAtrDailySignalGeneratedEvent e => await UpdateReadModelAsync<FuturesAtrDailySignalGeneratedEvent, FuturesAtrDailySignalGeneratedCompleteEvent, FuturesAtrDailySignalGeneratedFailEvent, FuturesAtrDailySignalEntityId>(
+                    context, e, () => InsertFuturesAtrSignalAsync(db, e.FuturesAtrSignal)),
+                FuturesAtrSignalStartedEvent e => await PostEventAsync<FuturesAtrSignalStartedEvent, FuturesAtrSignalEntityId>(context, e),
+                FuturesAtrSignalStoppedEvent e => await PostEventAsync<FuturesAtrSignalStoppedEvent, FuturesAtrSignalEntityId>(context, e),
                 _ => false
             };
         }

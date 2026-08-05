@@ -31,14 +31,17 @@ public class FuturesMacdSignalCommandState
     {
         return domainEvent switch
         {
-            FuturesMacdSignalGeneratedEvent e => On(e),
+            FuturesMacdSignalStartedEvent => true,
+            FuturesMacdSignalStoppedEvent => true,
+            FuturesMacdSignalGeneratedEvent e => On(e.FuturesMacdSignal),
+            FuturesMacdDailySignalGeneratedEvent e => On(e.FuturesMacdSignal),
             _ => false
         };
 
-        bool On(FuturesMacdSignalGeneratedEvent e)
+        bool On(FuturesMacdSignalReadModel signal)
         {
-            _macdSignal = e.FuturesMacdSignal;
-            _macdSignals.Add(e.FuturesMacdSignal);
+            _macdSignal = signal;
+            _macdSignals.Add(signal);
             return true;
         }
     }

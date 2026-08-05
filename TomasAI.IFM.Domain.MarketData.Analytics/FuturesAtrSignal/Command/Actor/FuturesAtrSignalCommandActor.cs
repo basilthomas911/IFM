@@ -68,6 +68,8 @@ public class FuturesAtrSignalCommandActor(
     /// </summary>
     static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
     {
+        [StartFuturesAtrSignalCommand.Verb] = msg => msg.AsCommand<StartFuturesAtrSignalCommand>()!,
+        [StopFuturesAtrSignalCommand.Verb] = msg => msg.AsCommand<StopFuturesAtrSignalCommand>()!,
         [GenerateFuturesAtrSignalCommand.Verb] = msg => msg.AsCommand<GenerateFuturesAtrSignalCommand>(),
         [GenerateFuturesAtrDailySignalCommand.Verb] = msg => msg.AsCommand<GenerateFuturesAtrDailySignalCommand>()
     };
@@ -99,6 +101,8 @@ public class FuturesAtrSignalCommandActor(
     /// </summary>
     static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesAtrSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
+        [typeof(StartFuturesAtrSignalCommand).Name] = (cmd, context, state) => ((StartFuturesAtrSignalCommand)cmd).Execute(state),
+        [typeof(StopFuturesAtrSignalCommand).Name] = (cmd, context, state) => ((StopFuturesAtrSignalCommand)cmd).Execute(state),
         [typeof(GenerateFuturesAtrSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesAtrSignalCommand)!.Execute(state),
         [typeof(GenerateFuturesAtrDailySignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesAtrDailySignalCommand)!.Execute(state),
     };
@@ -129,6 +133,14 @@ public class FuturesAtrSignalCommandActor(
     /// </summary>
     static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
     {
+        [typeof(StartFuturesAtrSignalCommand).Name] = cmd => {
+            var e = (StartFuturesAtrSignalCommand)cmd; return new List<ValidationError>()
+                .ValidateCommandId(e.CommandId, e.CommandName);
+        },
+        [typeof(StopFuturesAtrSignalCommand).Name] = cmd => {
+            var e = (StopFuturesAtrSignalCommand)cmd; return new List<ValidationError>()
+                .ValidateCommandId(e.CommandId, e.CommandName);
+        },
         [typeof(GenerateFuturesAtrSignalCommand).Name] = cmd => {
             var e = (GenerateFuturesAtrSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName);

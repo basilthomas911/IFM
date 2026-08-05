@@ -38,7 +38,8 @@ public class FuturesRsiSignalEventActor(
         {
             var e = (evt as FuturesRsiSignalGeneratedEvent)!;
             return await e.ExecuteAsync(context, statusConsoleWriter, logger, blackboardService);
-        }
+        },
+        [typeof(FuturesRsiDailySignalGeneratedCompleteEvent).Name] = (_, _, _) => ValueTask.FromResult(true)
     };
 
     protected override ValueTask OnStartup(IEventActorContext context)
@@ -82,7 +83,8 @@ public class FuturesRsiSignalEventActor(
     {
         [FuturesRsiSignalStartedEvent.Verb] = msg => msg.AsEvent<FuturesRsiSignalStartedEvent>()!,
         [FuturesRsiSignalStoppedEvent.Verb] = msg => msg.AsEvent<FuturesRsiSignalStoppedEvent>()!,
-        [FuturesRsiSignalGeneratedEvent.Verb] = msg => msg.AsEvent<FuturesRsiSignalGeneratedEvent>()!
+        [FuturesRsiSignalGeneratedEvent.Verb] = msg => msg.AsEvent<FuturesRsiSignalGeneratedEvent>()!,
+        [FuturesRsiDailySignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesRsiDailySignalGeneratedCompleteEvent>()!
     };
 
     /// <summary>

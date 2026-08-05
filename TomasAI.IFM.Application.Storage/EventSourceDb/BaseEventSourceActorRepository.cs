@@ -110,6 +110,7 @@ public abstract class BaseEventSourceActorRepository
             // load event stream from event storage from last N range of events...
             var streamId = await GetStreamId(command.StreamId);
             var state = (TState)_stateFactory.CreateState<TState>();
+            state.Id = command.Subject.ThreadId;
 
             await _dbEventSource.MapReduceActorEventStreamAsync<TState, TEvent>(streamId, lastNRange, state.ReplayEvents);
             _logger.LogInformationEvent($"{GetType().Name}", "loading state: {StateName} for command: {CommandName} from event stream: {StreamId} with domain events in last: {LastNRange}",

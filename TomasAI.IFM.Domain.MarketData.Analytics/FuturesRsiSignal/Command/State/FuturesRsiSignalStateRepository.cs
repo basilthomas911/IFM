@@ -29,9 +29,8 @@ public class FuturesRsiSignalStateRepository(
         => command switch
         {
             ICommand<FuturesRsiDailySignalEntityId> dailyCommand
-                => await LoadStateFromSnapshotLastNRangeAsync<
+                => await LoadStateAsync<
                     FuturesRsiSignalCommandState,
-                    FuturesRsiSignalStartedEvent,
                     FuturesRsiDailySignalGeneratedEvent>(command, dailyCommand.EntityId.PeriodLength),
             ICommand<FuturesRsiSignalEntityId> rsiCommand
                 => await LoadStateFromSnapshotLastNRangeAsync<

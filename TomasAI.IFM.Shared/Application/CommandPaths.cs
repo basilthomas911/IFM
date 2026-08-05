@@ -90,6 +90,12 @@ public class MarketDataAnalyticsUriPath
 {
     public const string StartFuturesRsiSignal = "/api/marketdata/Analytics/Futures/RsiSignal/start";
     public const string StopFuturesRsiSignal = "/api/marketdata/Analytics/Futures/RsiSignal/stop";
+    public const string StartFuturesMacdSignal = "/api/marketdata/Analytics/Futures/MacdSignal/start";
+    public const string StopFuturesMacdSignal = "/api/marketdata/Analytics/Futures/MacdSignal/stop";
+    public const string StartFuturesAdxSignal = "/api/marketdata/Analytics/Futures/AdxSignal/start";
+    public const string StopFuturesAdxSignal = "/api/marketdata/Analytics/Futures/AdxSignal/stop";
+    public const string StartFuturesAtrSignal = "/api/marketdata/Analytics/Futures/AtrSignal/start";
+    public const string StopFuturesAtrSignal = "/api/marketdata/Analytics/Futures/AtrSignal/stop";
     public const string GenerateFuturesRsiSignal = "/api/marketdata/Analytics/Futures/RsiSignal/Generate";
     public const string GenerateFuturesRsiDailySignal = "/api/marketdata/Analytics/Futures/RsiSignal/Daily/Generate";
     public const string UpdateFuturesTradeSignal = "/api/marketdata/Analytics/Futures/TradeSignal/update";

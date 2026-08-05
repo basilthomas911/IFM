@@ -77,6 +77,21 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
         };
     }
 
+    private static GenerateFuturesMacdDailySignalCommand CreateMacdDailyCommand(Guid? commandId = null)
+    {
+        var entityId = SampleData.MacdSignalId.ToDailyEntityId();
+        return new GenerateFuturesMacdDailySignalCommand(SampleData.MacdSignalId, (decimal)SampleData.FuturesPrice) with
+        {
+            CommandId = commandId ?? Guid.NewGuid(),
+            Subject = new ActorSubject(
+                ActorType.Command,
+                GenerateFuturesMacdDailySignalCommand.Actor,
+                GenerateFuturesMacdDailySignalCommand.Verb,
+                entityId.Format()),
+            EntityId = entityId
+        };
+    }
+
     public static IEnumerable<object[]> TimePeriods()
     {
         yield return new object[] { TimeFrameType.Daily };
@@ -124,6 +139,29 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
             Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
+    }
+
+    [Fact]
+    public void ParseMessage_DeserializesGenerateFuturesMacdDailySignalCommand()
+    {
+        var actor = _fixture.CreateMacdCommandActor(
+            Substitute.For<IEventSourceActorDbContext>(),
+            Substitute.For<ILogger<FuturesMacdSignalCommandActor>>());
+        var command = CreateMacdDailyCommand();
+        var payload = ActorExtensions.DataSerializer.Serialize(command);
+        var message = new NatsMsg<byte[]>(
+            command.Subject.ToString(),
+            string.Empty,
+            0,
+            default!,
+            payload,
+            default!,
+            NatsMsgFlags.None);
+
+        var result = actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+
+        result.Should().BeOfType<GenerateFuturesMacdDailySignalCommand>();
+        result.CommandId.Should().Be(command.CommandId);
     }
 
     [Fact]
@@ -322,6 +360,25 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
         var okResult = result as ServiceOk<GuidResult>;
         okResult.Should().NotBeNull();
         okResult!.Value.Guid.Should().Be(cmd.CommandId);
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_ExecutesGenerateFuturesMacdDailySignalCommand()
+    {
+        var actor = _fixture.CreateMacdCommandActor(
+            Substitute.For<IEventSourceActorDbContext>(),
+            Substitute.For<ILogger<FuturesMacdSignalCommandActor>>());
+        var command = CreateMacdDailyCommand();
+        var state = new FuturesMacdSignalCommandState { Id = command.Subject.ThreadId };
+
+        var result = await actor.InvokeReceiveAsync(
+            Substitute.For<ICommandActorContext>(),
+            state,
+            command);
+
+        result.Should().BeOfType<ServiceOk<GuidResult>>();
+        state.Events.Should().ContainSingle()
+            .Which.Should().BeOfType<FuturesMacdDailySignalGeneratedEvent>();
     }
 
     [Theory]
