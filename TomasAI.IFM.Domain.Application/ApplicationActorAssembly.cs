@@ -4,5 +4,5 @@ namespace TomasAI.IFM.Domain.Application.Actor;
 
 public static class ApplicationActorAssembly
 {
-    public static Assembly Current => Assembly.GetExecutingAssembly();
+    public static Assembly Current => typeof(ApplicationActorAssembly).Assembly;
 }

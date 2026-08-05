@@ -5,12 +5,11 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Application.Actor.Command.Handlers;
 using TomasAI.IFM.Domain.Application.Actor.Command.State;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Application.Actor.Command.Actor;
 
@@ -23,13 +22,13 @@ namespace TomasAI.IFM.Domain.Application.Actor.Command.Actor;
 /// persistence and uses dependency injection to resolve required services.</remarks>
 /// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
-public class ApplicationCommandActor(
+public sealed class ApplicationCommandActor(
     IEventSourceActorDbContext dbEventSource,
     ILogger<ApplicationCommandActor> logger)
     : BaseEventSourceCommandActor<ApplicationCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "ApplicationCommand";
-    IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
     IEventSourceActorStateRepository<ApplicationCommandState> _repo = default!;
 
     /// <summary>
@@ -37,10 +36,11 @@ public class ApplicationCommandActor(
     /// </summary>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask OnStartup(ICommandActorContext context)
+    protected override ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<ApplicationCommandState>>());
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -54,24 +54,18 @@ public class ApplicationCommandActor(
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
+        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName })
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
+
+        ICommand? command = msgSubject.Verb switch
+        {
+            StartApplicationCommand.Verb => message.AsCommand<StartApplicationCommand>(),
+            ShutdownApplicationCommand.Verb => message.AsCommand<ShutdownApplicationCommand>(),
+            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}")
+        };
         IsArgumentNull.Check(command);
-        _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
         return command;
     }
-
-    /// <summary>
-    /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
-    /// corresponding command instance.
-    /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
-    {
-        [StartApplicationCommand.Verb] = msg => msg.AsCommand<StartApplicationCommand>()!,
-        [ShutdownApplicationCommand.Verb] = msg => msg.AsCommand<ShutdownApplicationCommand>()!
-    };
 
     /// <summary>
     /// Processes the specified command asynchronously within the given actor context and state, and returns a result
@@ -89,22 +83,23 @@ public class ApplicationCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var applicationState = IsArgumentNull.Set((state as ApplicationCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, context, applicationState);
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
-    }
 
-    /// <summary>
-    /// Provides a mapping from command type names to delegate functions that execute the corresponding application
-    /// command logic on a given state.
-    /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, ApplicationCommandState, bool>> _receiveMap = new()
-    {
-        [typeof(StartApplicationCommand).Name] = (cmd, context, state) => (cmd as StartApplicationCommand)!.Execute(state),
-        [typeof(ShutdownApplicationCommand).Name] = (cmd, context, state) => (cmd as ShutdownApplicationCommand)!.Execute(state)
-    };
+        // ParseMessage is synchronous because the actor contract must release its pooled
+        // payload immediately after materialization. Persist the log here so storage I/O
+        // remains asynchronous and never blocks the mailbox worker thread.
+        await _dbEventSource
+            .InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd))
+            .ConfigureAwait(false);
+
+        _ = cmd switch
+        {
+            StartApplicationCommand start => start.Execute(applicationState),
+            ShutdownApplicationCommand shutdown => shutdown.Execute(applicationState),
+            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}")
+        };
+
+        return new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId));
+    }
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -113,33 +108,22 @@ public class ApplicationCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override async ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+    protected override ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
-    }
 
-    /// <summary>
-    /// Provides a mapping from command type names to their corresponding validation functions.
-    /// </summary>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
-    {
-        [typeof(StartApplicationCommand).Name] = cmd => {
-            var e = cmd as StartApplicationCommand; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName);
-        },
-        [typeof(ShutdownApplicationCommand).Name] = cmd => {
-            var e = cmd as ShutdownApplicationCommand; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName);
-        }
-    };
+        if (cmd is not StartApplicationCommand and not ShutdownApplicationCommand)
+            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
+
+        // These lifecycle commands have one invariant. Avoid allocating a List,
+        // ValidationError and StringBuilder for every valid message.
+        if (cmd.CommandId == Guid.Empty)
+            throw new CommandValidationException(cmd.ErrorCode, $"{cmd.CommandName}.CommandId is empty{Environment.NewLine}");
+
+        return ValueTask.CompletedTask;
+    }
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.
@@ -154,7 +138,7 @@ public class ApplicationCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd);
+        return await _repo.LoadStateAsync(cmd).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -172,7 +156,7 @@ public class ApplicationCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var applicationState = IsArgumentNull.Set((state as ApplicationCommandState)!);
-        await _repo.SaveStateAsync(context, applicationState, cmd);
+        await _repo.SaveStateAsync(context, applicationState, cmd).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -189,23 +173,15 @@ public class ApplicationCommandActor(
         try
         {
             IsArgumentNull.Check(context);
-            IsArgumentNull.Check(threadId);
-            IsArgumentNull.Check(command);
-            var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+            var cmdErrorEvent = await ex
+                .SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)
+                .ConfigureAwait(false);
             return new ServiceFailed<GuidResult>(cmdErrorEvent);
         }
         catch (Exception innerEx)
         {
             logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
-            try
-            {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
-                return new ServiceFailed<GuidResult>(cmdErrorEvent);
-            }
-            catch (Exception fatalEx)
-            {
-                return CommandFailed(fatalEx);
-            }
+            return CommandFailed(innerEx, command);
         }
     }
 }

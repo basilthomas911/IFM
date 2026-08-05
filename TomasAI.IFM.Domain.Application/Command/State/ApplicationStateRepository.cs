@@ -21,7 +21,7 @@ namespace TomasAI.IFM.Domain.Application.Actor.Command.State;
 /// <param name="dbEventSource"></param>
 /// <param name="actorService"></param>
 /// <param name="logger"></param>
-public class ApplicationStateRepository(
+public sealed class ApplicationStateRepository(
     IEventSourceActorStateFactory aggregateFactory,
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
@@ -33,8 +33,8 @@ public class ApplicationStateRepository(
     /// </summary>
     /// <param name="command">The command for which state is required.</param>
     /// <returns>The reconstructed <see cref="ApplicationCommandState"/>.</returns>
-    public async ValueTask<ApplicationCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<ApplicationCommandState, ApplicationStartupEvent>(command);
+    public ValueTask<ApplicationCommandState> LoadStateAsync(ICommand command)
+        => new(LoadStateFromSnapshotAsync<ApplicationCommandState, ApplicationStartupEvent>(command));
 
     /// <summary>
     /// Save application state changes.
@@ -42,8 +42,8 @@ public class ApplicationStateRepository(
     /// <param name="context">The command actor context.</param>
     /// <param name="state">The current actor command state.</param>
     /// <param name="command">The command that produced the state changes.</param>
-    public async ValueTask SaveStateAsync(ICommandActorContext context, ApplicationCommandState state, ICommand command)
-        => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+    public ValueTask SaveStateAsync(ICommandActorContext context, ApplicationCommandState state, ICommand command)
+        => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the application query state
@@ -53,14 +53,20 @@ public class ApplicationStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
     {
-        foreach (var domainEvent in domainEvents)
+        // Preserve event ordering while avoiding an enumerator/interface dispatch in
+        // this persistence hot path. Actor mailbox serialization already provides the
+        // required per-stream concurrency boundary, so no additional lock is needed.
+        for (var index = 0; index < domainEvents.Count; index++)
         {
-            _ = domainEvent switch
+            switch (domainEvents[index])
             {
-                ApplicationStartupEvent e => await PostEventAsync<ApplicationStartupEvent, ApplicationEntityId>(context, e),
-                ApplicationShutdownEvent e => await PostEventAsync<ApplicationShutdownEvent, ApplicationEntityId>(context, e),
-                _ => false
-            };
+                case ApplicationStartupEvent startup:
+                    _ = await PostEventAsync<ApplicationStartupEvent, ApplicationEntityId>(context, startup).ConfigureAwait(false);
+                    break;
+                case ApplicationShutdownEvent shutdown:
+                    _ = await PostEventAsync<ApplicationShutdownEvent, ApplicationEntityId>(context, shutdown).ConfigureAwait(false);
+                    break;
+            }
         }
     }
 }

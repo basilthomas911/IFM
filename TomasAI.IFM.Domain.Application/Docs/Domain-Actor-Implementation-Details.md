@@ -36,9 +36,9 @@ obj/Debug/net10.0/refint/
 
 The state accepts `ApplicationStartupEvent` and `ApplicationShutdownEvent`. The repository restores from an application-startup snapshot and posts both lifecycle event types through the actor service after persistence.
 
-## Current implementation note
+## Event actor behavior
 
-`ApplicationEventActor` currently declares its mailbox name as `FundTransactionEvent`, while both its parse and receive maps are empty. Consequently it has no successfully dispatchable application events in the current source. Treat this as an incomplete implementation when registering the actor.
+`ApplicationEventActor` owns the `ApplicationEvent` mailbox and accepts startup and shutdown lifecycle events. These events are broadcast notifications whose side effects belong to registered external event listeners, so the domain event actor validates and acknowledges them without introducing another state store or synchronization boundary.
 
 ## Extension points
 

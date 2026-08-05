@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.Application.Actor.Command.State;
 /// </summary>
 /// <remarks>This class manages the state transitions for Application operations by applying domain events.
 /// It mirrors the logic of <see cref="Application.ApplicationBoundedContextState"/>.</remarks>
-public class ApplicationCommandState
+public sealed class ApplicationCommandState
     : BaseEventSourceActorState<ApplicationCommandState>, IEventSourceActorState<ApplicationCommandState>
 {
     /// <summary>
@@ -24,29 +24,10 @@ public class ApplicationCommandState
     /// <param name="domainEvent">The domain event to apply. Must be of a supported type.</param>
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
-    {
-        try
+        => domainEvent switch
         {
-            return domainEvent switch
-            {
-                ApplicationStartupEvent e => On(e),
-                ApplicationShutdownEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
-
-    /// <summary>
-    /// application startup event
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(ApplicationStartupEvent e) => true;
-
-    /// <summary>
-    /// application shutdown event
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(ApplicationShutdownEvent e) => true;
+            ApplicationStartupEvent => true,
+            ApplicationShutdownEvent => true,
+            _ => false
+        };
 }

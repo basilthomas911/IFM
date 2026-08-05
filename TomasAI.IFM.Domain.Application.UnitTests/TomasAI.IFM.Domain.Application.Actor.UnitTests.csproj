@@ -18,4 +18,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Application\TomasAI.IFM.Domain.Application.Actor.csproj" />
+  </ItemGroup>
+
 </Project>
