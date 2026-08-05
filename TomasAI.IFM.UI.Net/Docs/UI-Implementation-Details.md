@@ -30,9 +30,9 @@ The client is split into four assemblies. `TomasAI.IFM.UI.Net` is the Windows ex
 | View and model marker contracts | [`IForm.cs`](../../TomasAI.IFM.UI.Net.Views/Contracts/IForm.cs), [`IModel.cs`](../../TomasAI.IFM.UI.Net.Models/Contracts/IModel.cs) |
 | UI-thread and redraw helpers | [`Contracts/IFormControl.cs`](../../TomasAI.IFM.UI.Net.Views/Contracts/IFormControl.cs) |
 | Model execution and error handling | [`BaseModel.cs`](../../TomasAI.IFM.UI.Net.Models/BaseModel.cs) |
-| Shared editor view-model behavior | [`ViewModels/BaseEditorViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/ViewModels/BaseEditorViewModel.cs) |
+| Shared editor view-model behavior | [`BaseEditorViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/BaseEditorViewModel.cs) |
 | Main application window | [`Views/App/IFMAppView.cs`](../../TomasAI.IFM.UI.Net.Views/Views/App/IFMAppView.cs) |
-| Main application orchestration | [`ViewModels/App/IFMAppViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/ViewModels/App/IFMAppViewModel.cs) |
+| Main application orchestration | [`App/IFMAppViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/App/IFMAppViewModel.cs) |
 | Command and query HTTP adapters | [`TomasAI.IFM.Application.Api.Client`](../../TomasAI.IFM.Application.Api.Client) |
 | Concrete UI event consumers | [`TomasAI.IFM.UI.EventConsumer`](../../TomasAI.IFM.UI.EventConsumer) |
 | NATS event-listener implementation | [`TomasAI.IFM.Framework.Messaging.Nats`](../../TomasAI.IFM.Framework.Messaging.Nats) |
