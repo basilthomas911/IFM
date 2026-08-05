@@ -10,36 +10,34 @@ Paths are relative to `TomasAI.IFM.Domain.SystemAdmin/`.
 
 ```text
 Command/Actor/
-Command/Model/
 Command/State/
 Docs/
 Event/Actor/
 Query/Actor/
 Query/Api/
-bin/Debug/net10.0/runtimes/win-x64/native/
-bin/Release/net10.0/runtimes/win-x64/native/
-obj/Debug/net10.0/ref/
-obj/Debug/net10.0/refint/
-obj/Release/net10.0/ref/
-obj/Release/net10.0/refint/
 ```
 
-Every leaf path includes all parent folders. `bin/` and `obj/` are generated build trees.
+Generated `bin/` and `obj/` trees are intentionally omitted.
 
 ## Folder responsibilities
 
 - `Command/Actor/` contains `SystemAdminCommandActor` and its command routing.
-- `Command/Model/` contains administrative write-side data.
 - `Command/State/` contains `SystemAdminCommandState` and its event-source repository.
-- `Event/Actor/` contains `SystemAdminEventActor` for administrative events.
+- `Event/Actor/` contains the intentionally empty `SystemAdminEventActor`, retained as the domain-default publication target.
 - `Query/Actor/` contains `SystemAdminQueryActor`; its current mailbox name is `DatabaseNamesQuery`.
 - `Query/Api/` contains the query API used to obtain administration data.
-- `Docs/` contains this document.
+- `Docs/` contains this document and the recurring optimization report.
 - The root `SystemAdminActorAssembly` marker supports actor discovery.
 
 ## Processing model
 
-The command actor follows the shared event-sourced lifecycle: parse, validate, restore state, dispatch, persist changes, publish events, and report failures. The event actor handles published administration events. The query actor delegates read operations to `ActorSystemAdminQueryApi`, keeping reads separate from command state.
+The command actor follows the shared event-sourced lifecycle: parse, validate, create state, dispatch, persist changes, publish events, and report failures. Backup execution does not depend on prior backup state, so it creates fresh state rather than reading and replaying the stream; persistence still appends every immutable event. The event actor is an intentional no-op default publication target. The query actor serves one cached immutable database-name snapshot, keeping reads separate from command state.
+
+Command-audit persistence begins during parsing without synchronously blocking the actor. Validation awaits that same operation before command execution continues, preserving audit failure semantics.
+
+## TODO: solution-wide cancellation
+
+Do not add domain-local cancellation parameters in isolation. After all root-domain optimization passes, implement one coordinated change that propagates supervisor cancellation through the actor pipeline, APIs, repositories, storage providers, messaging, timers, and external I/O. Define graceful-stop semantics around event persistence and denormalization before changing these contracts.
 
 ## Extension points
 

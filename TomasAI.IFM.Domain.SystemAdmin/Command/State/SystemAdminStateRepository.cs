@@ -5,17 +5,18 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.Events;
+using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.Command.State;
 
 /// <summary>
-/// Provides functionality to manage the state of system admin operations, including loading state from snapshots
-/// and saving state changes. This repository is designed to work with event-sourced actors.
+/// Provides fresh command state for stateless administrative operations and persists their emitted events.
 /// </summary>
 /// <remarks>This class extends <see cref="BaseEventSourceActorRepository"/> and implements <see
 /// cref="IEventSourceActorStateRepository{SystemAdminCommandState}"/> to provide specialized behavior for managing <see
 /// cref="SystemAdminCommandState"/> entities. It relies on an event-sourcing pattern to persist and retrieve
-/// state.</remarks>
+/// event history. Backup commands do not depend on prior state, so loading avoids an unnecessary storage read while
+/// saving continues to append the immutable event history.</remarks>
 /// <param name="aggregateFactory">The factory used to create instances of event source actor state.</param>
 /// <param name="dbEventSource">The database context used to access event source actor data.</param>
 /// <param name="actorService">The service responsible for managing actor instances.</param>
@@ -27,13 +28,19 @@ public class SystemAdminStateRepository(
     ILogger<SystemAdminStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<SystemAdminCommandState>
 {
+    readonly IEventSourceActorStateFactory _stateFactory = aggregateFactory;
+
     /// <summary>
-    /// Loads the system admin command state from the snapshot event.
+    /// Creates fresh state because the backup decision does not depend on previously emitted events.
     /// </summary>
     /// <param name="command">The command for which the state is to be loaded.</param>
     /// <returns>A task that represents the asynchronous operation containing the loaded state.</returns>
-    public async ValueTask<SystemAdminCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<SystemAdminCommandState, DatabaseBackupEvent>(command);
+    public ValueTask<SystemAdminCommandState> LoadStateAsync(ICommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return ValueTask.FromResult(
+            (SystemAdminCommandState)_stateFactory.CreateState<SystemAdminCommandState>());
+    }
 
     /// <summary>
     /// Saves system admin state changes and denormalizes the associated domain events.
@@ -42,8 +49,8 @@ public class SystemAdminStateRepository(
     /// <param name="state">The current command state containing new events to persist.</param>
     /// <param name="command">The command that triggered the state changes.</param>
     /// <returns>A task that represents the asynchronous save and denormalization operation.</returns>
-    public async ValueTask SaveStateAsync(ICommandActorContext context, SystemAdminCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+    public ValueTask SaveStateAsync(ICommandActorContext context, SystemAdminCommandState state, ICommand command)
+       => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the system admin state
@@ -59,11 +66,11 @@ public class SystemAdminStateRepository(
     {
         foreach (var domainEvent in domainEvents)
         {
-            _ = domainEvent switch
+            if (domainEvent is DatabaseBackupEvent e)
             {
-                DatabaseBackupEvent e => await PostEventAsync<DatabaseBackupEvent, DatabaseBackupId>(context, e),
-                _ => false
-            };
+                e.CheckForEmptyCommandId();
+                await context.SendAsync<DatabaseBackupEvent, DatabaseBackupId>(e);
+            }
         }
     }
 }

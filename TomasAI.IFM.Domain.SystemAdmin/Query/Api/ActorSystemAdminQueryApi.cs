@@ -16,21 +16,13 @@ namespace TomasAI.IFM.Domain.SystemAdmin.Query.Api;
 /// </remarks>
 public sealed class ActorSystemAdminQueryApi : IActorSystemAdminQueryApi
 {
+    static readonly Task<ServiceResult<DatabaseNamesReadModel>> DatabaseNamesResult =
+        Task.FromResult<ServiceResult<DatabaseNamesReadModel>>(
+            new ServiceOk<DatabaseNamesReadModel>(SystemAdminQueryState.GetDatabaseNames()));
+
     /// <summary>
     /// Gets database names.
     /// </summary>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public Task<ServiceResult<DatabaseNamesReadModel>> GetDatabaseNamesAsync()
-    {
-        try
-        {
-            return Task.FromResult<ServiceResult<DatabaseNamesReadModel>>(
-                new ServiceOk<DatabaseNamesReadModel>(SystemAdminQueryState.GetDatabaseNames()));
-        }
-        catch (Exception ex)
-        {
-            return Task.FromResult<ServiceResult<DatabaseNamesReadModel>>(
-                new ServiceFailed<DatabaseNamesReadModel>(GetDatabaseNamesQuery.ErrorId, ex.Message));
-        }
-    }
+    public Task<ServiceResult<DatabaseNamesReadModel>> GetDatabaseNamesAsync() => DatabaseNamesResult;
 }

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -10,6 +9,7 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.Commands;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.SystemAdmin.Command.State;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.SystemAdmin;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.Command.Actor;
 
@@ -28,7 +28,7 @@ public class SystemAdminCommandActor(
     : BaseEventSourceCommandActor<SystemAdminCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "SystemAdminCommand";
-    IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
     IEventSourceActorStateRepository<SystemAdminCommandState> _repo = default!;
 
     /// <summary>
@@ -36,10 +36,11 @@ public class SystemAdminCommandActor(
     /// </summary>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask OnStartup(ICommandActorContext context)
+    protected override ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<SystemAdminCommandState>>());
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -58,7 +59,7 @@ public class SystemAdminCommandActor(
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
         var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
-        _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
+        _commandAudit.Start(command);
         return command;
     }
 
@@ -80,7 +81,7 @@ public class SystemAdminCommandActor(
     /// <param name="cmd">The command to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved.</exception>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
@@ -90,7 +91,8 @@ public class SystemAdminCommandActor(
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
         _ = receiveFunc.Invoke(cmd, context, systemAdminState);
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(
+            new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
     }
 
     /// <summary>
@@ -114,22 +116,26 @@ public class SystemAdminCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
+        await _commandAudit.CompleteAsync(cmd).ConfigureAwait(false);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        getValidationErrors.Invoke(cmd);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly Dictionary<string, Action<ICommand>> _validationMap = new()
     {
-        [typeof(BackupDatabaseCommand).Name] = cmd => {
-            var e = cmd as BackupDatabaseCommand; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName);
+        [typeof(BackupDatabaseCommand).Name] = cmd =>
+        {
+            var e = (BackupDatabaseCommand)cmd;
+            if (e.CommandId == Guid.Empty)
+            {
+                new List<ValidationError>(1) { new($"{e.CommandName}.CommandId is empty") }
+                    .ThrowCommandValidationExceptionOnAnyError(e.ErrorCode);
+            }
         }
     };
 
@@ -156,14 +162,14 @@ public class SystemAdminCommandActor(
     /// <param name="state">The current state of the actor to be persisted. Cannot be null.</param>
     /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
+    protected override ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var systemAdminState = IsArgumentNull.Set((state as SystemAdminCommandState)!);
-        await _repo.SaveStateAsync(context, systemAdminState, cmd);
+        return _repo.SaveStateAsync(context, systemAdminState, cmd);
     }
 
     /// <summary>

@@ -16,6 +16,7 @@ public record GetDatabaseNamesQuery : IQuery<DatabaseNamesReadModel>
     [IgnoreMember] public const string Actor = "DatabaseNamesQuery";
     [IgnoreMember] public const string Verb = "GetDatabaseNames";
     [IgnoreMember] public const int ErrorId = 1006;
+    static readonly GetDatabaseNamesParameter DefaultEntityId = new();
 
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public IActorEntityId EntityId { get; init; }
@@ -25,7 +26,7 @@ public record GetDatabaseNamesQuery : IQuery<DatabaseNamesReadModel>
     /// <summary>Parameterless constructor for serializers.</summary>
     public GetDatabaseNamesQuery()
     {
-        EntityId = new GetDatabaseNamesParameter();
+        EntityId = DefaultEntityId;
         ErrorCode = ErrorId;
     }
 
@@ -36,7 +37,7 @@ public record GetDatabaseNamesQuery : IQuery<DatabaseNamesReadModel>
     public GetDatabaseNamesQuery(ActorSubject subject, IActorEntityId entityId)
     {
         Subject = subject;
-        EntityId = new GetDatabaseNamesParameter();
+        EntityId = entityId ?? DefaultEntityId;
         ErrorCode = ErrorId;
     }
 }

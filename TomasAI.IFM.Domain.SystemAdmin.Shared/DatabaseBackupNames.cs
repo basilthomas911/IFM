@@ -4,7 +4,7 @@ using System.Text;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.Shared
 {
-    public class DatabaseBackupNames
+    public static class DatabaseBackupNames
     {
         public const string EventDb = "eventdb";
         public const string EvenQueuetDb = "eventqueuedb";

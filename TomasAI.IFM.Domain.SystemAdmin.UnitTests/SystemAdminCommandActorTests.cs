@@ -72,6 +72,34 @@ public class SystemAdminCommandActorTests : IClassFixture<SystemAdminFixture>
     #region ParseMessage Happy Path Tests
 
     [Fact]
+    public async Task ParseMessage_IncompleteAudit_DoesNotBlockAndValidationObservesIt()
+    {
+        var pendingAudit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+            .Returns(pendingAudit.Task);
+        var actor = _fixture.CreateActor(
+            dbEventSource,
+            Substitute.For<ILogger<SystemAdminCommandActor>>());
+        var command = CreateBackupCommand();
+        var payload = ActorExtensions.DataSerializer.Serialize(command);
+        var message = new NatsMsg<byte[]>(
+            command.Subject.ToString(), string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
+
+        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        var validation = actor.InvokeOnValidateAsync(
+            Substitute.For<ICommandActorContext>(),
+            command.Subject.ThreadId,
+            parsed).AsTask();
+
+        parsed.CommandId.Should().Be(command.CommandId);
+        validation.IsCompleted.Should().BeFalse();
+
+        pendingAudit.SetResult();
+        await validation;
+    }
+
+    [Fact]
     public async Task ParseMessage_DeserializesBackupDatabaseCommand_AndLogsToDatabase()
     {
         // Arrange

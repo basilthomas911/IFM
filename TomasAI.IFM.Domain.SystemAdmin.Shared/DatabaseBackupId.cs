@@ -23,5 +23,5 @@ public record DatabaseBackupId(
     /// Formats the identifier as a dot-separated key.
     /// </summary>
     /// <returns>Formatted string (e.g., "MyDatabase").</returns>
-    public string Format() => DatabaseName.ToString();
+    public string Format() => DatabaseName;
 }

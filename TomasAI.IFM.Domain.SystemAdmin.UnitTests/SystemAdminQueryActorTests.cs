@@ -334,7 +334,7 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetDatabaseNamesQuery.Verb,
-            Arg.Is<ServiceResult<DatabaseNamesReadModel>>(r => r.Success && r.Value!.Names.Length == 7));
+            Arg.Is<ServiceResult<DatabaseNamesReadModel>>(r => r.Success && r.Value!.Names.Count == 7));
     }
 
     [Fact]

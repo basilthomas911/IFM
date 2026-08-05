@@ -11,7 +11,7 @@ public class SystemAdminEventActor(IActorSupervisor supervisor, ILogger<SystemAd
     : BaseEventActor<SystemAdminEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "SystemAdminEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = [];
+    static readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = [];
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
 
     /// <summary>

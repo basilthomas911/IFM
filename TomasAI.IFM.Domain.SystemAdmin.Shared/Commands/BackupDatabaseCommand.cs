@@ -19,6 +19,8 @@ public record BackupDatabaseCommand
     public const string Actor = "SystemAdminCommand";
     public const string Verb = "BackupDatabase";
     public const int ErrorId = 9001;
+    static readonly string OriginatedByValue =
+        string.Concat(Environment.UserDomainName, "\\", Environment.UserName);
 
     // Base command members (keys 0..5)
     [Key(0)] public Guid CommandId { get; init; }
@@ -29,11 +31,11 @@ public record BackupDatabaseCommand
     [Key(5)] public BoundedContextName RouteTo { get; init; }
 
     // Ignored / derived members
-    [IgnoreMember] public string CommandName => GetType().Name;
-    [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
-    [IgnoreMember] public string EventSource => $"{Actor}Actor";
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
-    [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
+    [IgnoreMember] public string CommandName => nameof(BackupDatabaseCommand);
+    [IgnoreMember] public string StreamId => Subject.StreamId;
+    [IgnoreMember] public string EventSource => "SystemAdminCommandActor";
+    [IgnoreMember] public DateTime OriginatedOn { get; } = DateTime.UtcNow;
+    [IgnoreMember] public string OriginatedBy => OriginatedByValue;
 
     /// <summary>Name of the database to back up.</summary>
     [Key(6)]

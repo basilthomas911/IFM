@@ -62,14 +62,14 @@ public class SystemAdminQueryActor(
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, query);
+        return receiveFunc.Invoke(context, query);
     }
 
     /// <summary>
@@ -78,11 +78,11 @@ public class SystemAdminQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<IQueryActorContext, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetDatabaseNamesQuery).Name] = async (ctx, q) =>
+        [typeof(GetDatabaseNamesQuery).Name] = (ctx, q) =>
         {
             var query = (q as GetDatabaseNamesQuery)!;
-            var result = await query.GetDatabaseNamesAsync();
-            await ctx.ReplyAsync(query.Subject.ThreadId, GetDatabaseNamesQuery.Verb,
+            var result = query.ResolveDatabaseNames();
+            return ctx.ReplyAsync(query.Subject.ThreadId, GetDatabaseNamesQuery.Verb,
                 new ServiceResult<DatabaseNamesReadModel>(result));
         }
     };

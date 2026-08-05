@@ -2,7 +2,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.SystemAdmin.Shared;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.Events;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.Command.State;
@@ -32,16 +31,11 @@ public class SystemAdminCommandState
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        try
+        return domainEvent switch
         {
-            return domainEvent switch
-            {
-                DatabaseBackupEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
+            DatabaseBackupEvent e => On(e),
+            _ => false
+        };
 
         bool On(DatabaseBackupEvent e)
         {
@@ -51,22 +45,6 @@ public class SystemAdminCommandState
             return true;
         }
     }
-
-    /// <summary>
-    /// Applies a database backup command by producing and applying a <see cref="DatabaseBackupEvent"/>.
-    /// </summary>
-    /// <param name="e">The backup database command.</param>
-    /// <returns><see langword="true"/> if the event was successfully applied; otherwise, <see langword="false"/>.</returns>
-    internal bool ApplyDatabaseBackupEvent(BackupDatabaseCommand e)
-        => Apply(new DatabaseBackupEvent
-        {
-            CommandId = e.CommandId,
-            DatabaseName = e.DatabaseName,
-            BackupType = e.BackupType,
-            CommandTimeout = e.CommandTimeout,
-            CreatedOn = e.OriginatedOn,
-            CreatedBy = e.OriginatedBy
-        }.RoutedFrom(e), true);
 
     /// <summary>
     /// Gets the name of the database targeted by the last backup command.

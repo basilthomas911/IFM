@@ -4,5 +4,5 @@ namespace TomasAI.IFM.Domain.SystemAdmin;
 
 public static class SystemAdminActorAssembly
 {
-    public static Assembly Current => Assembly.GetExecutingAssembly();
+    public static Assembly Current { get; } = typeof(SystemAdminActorAssembly).Assembly;
 }

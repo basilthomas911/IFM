@@ -40,7 +40,7 @@ namespace TomasAI.IFM.UI.Net.Models
         /// load backup database names
         /// </summary>
         /// <param name="onCompleted"></param>
-        public async Task LoadDatabaseNamesAsync(Action<string[]> onCompleted)
+        public async Task LoadDatabaseNamesAsync(Action<IReadOnlyList<string>> onCompleted)
             => await ExecuteAsync(() => _sysAdminQueryApi.GetDatabaseNamesAsync(), vm => onCompleted(vm.Names));
 
         /// <summary>
