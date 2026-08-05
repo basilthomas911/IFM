@@ -207,9 +207,11 @@ public class FuturesOptionContractReadModelValidationRules(IReferenceLookupServi
     public const string StrikePriceErrorMessage = "FuturesOptionContract.StrikePrice must be valid number";
     public const string OptionTypeErrorMessage = "FuturesOptionContract.OptionType is required";
 
-    readonly IReferenceLookupService _refLookupService = refLookupService ?? throw new ArgumentNullException(nameof(refLookupService));
+    readonly FuturesOptionContractValidator _validator = new(
+        refLookupService ?? throw new ArgumentNullException(nameof(refLookupService)));
 
-    public ValidationError[] Execute(FuturesOptionContractReadModel futuresOptionContract) => Validate(futuresOptionContract, new FuturesOptionContractValidator(_refLookupService));
+    public ValidationError[] Execute(FuturesOptionContractReadModel futuresOptionContract)
+        => Validate(futuresOptionContract, _validator);
 
     class FuturesOptionContractValidator : AbstractValidator<FuturesOptionContractReadModel>
     {

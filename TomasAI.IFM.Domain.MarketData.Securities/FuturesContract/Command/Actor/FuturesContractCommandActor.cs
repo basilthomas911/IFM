@@ -4,11 +4,9 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
-using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Validation;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -39,7 +37,7 @@ public class FuturesContractCommandActor(
     : BaseEventSourceCommandActor<FuturesContractCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "FuturesContractCommand";
-    IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
     IEventSourceActorStateRepository<FuturesContractCommandState> _repo = default!;
 
     /// <summary>
@@ -50,10 +48,11 @@ public class FuturesContractCommandActor(
     /// to the actor.</remarks>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask OnStartup(ICommandActorContext context)
+    protected override ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FuturesContractCommandState>>());
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -76,7 +75,7 @@ public class FuturesContractCommandActor(
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
         var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
-        _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
+        _commandAudit.Start(command);
         return command;
     }
 
@@ -105,7 +104,7 @@ public class FuturesContractCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
@@ -115,7 +114,7 @@ public class FuturesContractCommandActor(
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
         _ = receiveFunc.Invoke(cmd, context, futuresContractState);
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
     }
 
     /// <summary>
@@ -147,6 +146,7 @@ public class FuturesContractCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
+        await _commandAudit.CompleteAsync(cmd);
         var refLookupService = IsArgumentNull.Set(context.Container.Resolve<IReferenceLookupService>());
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
@@ -167,21 +167,18 @@ public class FuturesContractCommandActor(
         [typeof(AddFuturesContractCommand).Name] = (cmd, refService) => {
             var e = (AddFuturesContractCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFuturesContract(e.Contract, refService)
-                .ValidateOverwrite(e.Overwrite, e.CommandName);
+                .ValidateFuturesContract(e.Contract, refService);
         },
         [typeof(ChangeFuturesContractCommand).Name] = (cmd, refService) => {
             var e = (ChangeFuturesContractCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateFuturesContractEntityId(e.ContractId)
-                .ValidateFuturesContract(e.Contract, refService)
-                .ValidateOverwrite(e.Overwrite, e.CommandName);
+                .ValidateFuturesContract(e.Contract, refService);
         },
         [typeof(RemoveFuturesContractCommand).Name] = (cmd, refService) => {
             var e = (RemoveFuturesContractCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFuturesContractEntityId(e.ContractId)
-                .ValidateOverwrite(e.Overwrite, e.CommandName);
+                .ValidateFuturesContractEntityId(e.ContractId);
         }
     };
 
@@ -216,14 +213,14 @@ public class FuturesContractCommandActor(
     /// cref="FuturesContractCommandState"/>.</param>
     /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
+    protected override ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var futuresContractState =  IsArgumentNull.Set((state as FuturesContractCommandState)!);
-        await _repo.SaveStateAsync(context, futuresContractState, cmd);
+        return _repo.SaveStateAsync(context, futuresContractState, cmd);
     }
 
     /// <summary>

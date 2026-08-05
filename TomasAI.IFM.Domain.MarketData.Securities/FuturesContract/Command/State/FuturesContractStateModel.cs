@@ -1,7 +1,4 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Model;
-using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
 
@@ -13,7 +10,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State
 /// new contracts, removing existing ones, and checking if a contract exists in the collection.</remarks>
 internal class FuturesContractStateModel
 {
-    readonly Dictionary<FuturesContractId, FuturesSecuritiesContract>? _futuresContractMap = [];
+    readonly HashSet<FuturesContractId> _contractIds = [];
     
     /// <summary>
     /// Determines whether the specified futures contract ID exists in the collection.
@@ -22,7 +19,7 @@ internal class FuturesContractStateModel
     /// <returns><see langword="true"/> if the collection contains an entry with the specified ID; otherwise, <see
     /// langword="false"/>.</returns>
     public bool ContainsKey(FuturesContractId id)
-        => _futuresContractMap?.ContainsKey(id) ?? false;
+        => _contractIds.Contains(id);
 
     /// <summary>
     /// Removes the specified futures contract from the collection.
@@ -31,7 +28,7 @@ internal class FuturesContractStateModel
     /// <returns><see langword="true"/> if the futures contract was successfully removed; otherwise, <see langword="false"/>.
     /// Returns <see langword="false"/> if the collection is <see langword="null"/> or the contract does not exist.</returns>
     public bool Remove(FuturesContractId id)
-        => _futuresContractMap?.Remove(id) ?? false;
+        => _contractIds.Remove(id);
 
     /// <summary>
     /// Adds a futures contract to the collection, associating it with the specified identifier.
@@ -40,6 +37,6 @@ internal class FuturesContractStateModel
     /// thrown. Ensure that the identifier is unique before calling this method.</remarks>
     /// <param name="id">The unique identifier of the futures contract to add. Cannot be <see langword="null"/>.</param>
     /// <param name="contract">The futures contract to associate with the specified identifier. Cannot be <see langword="null"/>.</param>
-    public void Add(FuturesContractId id, FuturesSecuritiesContract contract)
-        => _futuresContractMap?.Add(id, contract);
+    public bool Add(FuturesContractId id)
+        => _contractIds.Add(id);
 }

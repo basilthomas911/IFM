@@ -14,7 +14,6 @@ FuturesContract/Command/Actor/
 FuturesContract/Command/Exceptions/
 FuturesContract/Command/Model/
 FuturesContract/Command/State/
-FuturesContract/Command/Validation/
 FuturesContract/Event/Actor/
 FuturesContract/Query/Actor/
 FuturesOptionContract/Command/Actor/
@@ -62,3 +61,14 @@ Command actors validate typed NATS messages, rebuild event-sourced state, apply 
 ## Extension points
 
 Extend the matching security branch rather than sharing mutable state between contract types. New security types should reproduce the command/state/event/query split and add their contracts to a Shared project.
+
+## Performance implementation notes
+
+The August 2026 root-to-leaf optimization pass is recorded in
+[`Domain-Actor-Optimization-Details.md`](Domain-Actor-Optimization-Details.md). It covers non-blocking command auditing, typed bulk snapshot recovery, actor-state memory, option-contract bulk reads and writes, bounded enrichment concurrency, validator reuse, contract-ID allocation, and async-path simplification.
+
+Event histories remain immutable and unbounded. A command may succeed without changing state, and the empty event actors remain intentional default publication targets. State reconstruction continues to return the best available, possibly empty, state when a requested snapshot or event type is absent; genuine storage exceptions continue through the actor processing pipeline.
+
+## Deferred solution-wide cancellation TODO
+
+Cancellation is deliberately not introduced by this project-local pass. A later dedicated solution-wide change must propagate one coherent cancellation contract from supervisors through actor dispatch, command/event/query APIs, state repositories, storage operations, broker calls, timers, and external I/O. The supervisor must be able to request graceful actor shutdown without leaving partial persistence or silently converting cancellation into a successful command. This compatibility change should be designed and tested after the root domain optimization passes are complete.

@@ -32,8 +32,8 @@ public class FuturesContractStateRepository(
     /// </summary>
     /// <param name="command"></param>
     /// <returns></returns>
-    public async ValueTask<FuturesContractCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<FuturesContractCommandState, FuturesContractAddedEvent>(command);
+    public ValueTask<FuturesContractCommandState> LoadStateAsync(ICommand command)
+        => new(LoadStateFromSnapshotAsync<FuturesContractCommandState, FuturesContractAddedEvent>(command));
 
     /// <summary>
     /// save futures contract state changes
@@ -42,8 +42,8 @@ public class FuturesContractStateRepository(
     /// <param name="state"></param>
     /// <param name="command"
     /// <returns></returns>
-    public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesContractCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+    public ValueTask SaveStateAsync(ICommandActorContext context, FuturesContractCommandState state, ICommand command)
+       => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures contract query state
@@ -72,13 +72,13 @@ public class FuturesContractStateRepository(
             };
         }
 
-        static async ValueTask InsertFuturesContractAsync(ISecuritiesDbContext db, FuturesContractV2ReadModel futuresContract)
-            => await db.InsertFuturesContractAsync(futuresContract);
+        static ValueTask InsertFuturesContractAsync(ISecuritiesDbContext db, FuturesContractV2ReadModel futuresContract)
+            => new(db.InsertFuturesContractAsync(futuresContract));
 
-        static async ValueTask UpdateFuturesContractAsync(ISecuritiesDbContext db, FuturesContractId contractId, FuturesContractV2ReadModel futuresContract)
-            => await db.UpdateFuturesContractAsync(contractId, futuresContract);
+        static ValueTask UpdateFuturesContractAsync(ISecuritiesDbContext db, FuturesContractId contractId, FuturesContractV2ReadModel futuresContract)
+            => new(db.UpdateFuturesContractAsync(contractId, futuresContract));
 
-        static async ValueTask DeleteFuturesContractAsync(ISecuritiesDbContext db, FuturesContractId contractId)
-            => await db.DeleteFuturesContractAsync(contractId);
+        static ValueTask DeleteFuturesContractAsync(ISecuritiesDbContext db, FuturesContractId contractId)
+            => new(db.DeleteFuturesContractAsync(contractId));
     }
 }

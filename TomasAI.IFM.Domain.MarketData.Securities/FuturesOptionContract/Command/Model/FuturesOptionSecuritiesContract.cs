@@ -13,18 +13,19 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command
 /// model representation.</remarks>
 public class FuturesOptionSecuritiesContract 
 {
-    string _description;
-    string _symbol;
-    string _secType;
-    string _multiplier;
-    string _exchange;
-    string _currency;
-    string _localSymbol;
-    DateOnly _contractMonth;
-    double _strikePrice;
-    string _optionType;
+    readonly string _contractId;
+    readonly string _description;
+    readonly string _symbol;
+    readonly string _secType;
+    readonly string _multiplier;
+    readonly string _exchange;
+    readonly string _currency;
+    readonly string _localSymbol;
+    readonly DateOnly _contractMonth;
+    readonly double _strikePrice;
+    readonly string _optionType;
 
-    public string ContractId => $"{_symbol}{_contractMonth:yyyyMMdd}{_optionType.Substring(0, 1)}{_strikePrice:####}";
+    public string ContractId => _contractId;
     public string Description => _description;
     public string Symbol => _symbol;
     public string LocalSymbol => _localSymbol;
@@ -58,6 +59,7 @@ public class FuturesOptionSecuritiesContract
         _currency = currency;
         _localSymbol = localSymbol;
         _description = description;
+        _contractId = $"{_symbol}{_contractMonth:yyyyMMdd}{_optionType[0]}{_strikePrice:####}";
     }
 
     public FuturesOptionSecuritiesContract(FuturesOptionContractReadModel model)

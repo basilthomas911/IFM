@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command
 /// default values.</remarks>
 internal class FuturesOptionContractModel
 {
-    readonly Dictionary<string, FuturesOptionSecuritiesContract>? _futuresOptionContractMap = [];
+    readonly HashSet<string> _contractIds = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Determines whether the specified <see cref="FuturesOptionContractId"/> exists in the collection.
@@ -21,7 +21,7 @@ internal class FuturesOptionContractModel
     /// <returns><see langword="true"/> if the specified <see cref="FuturesOptionContractId"/> exists in the collection;
     /// otherwise, <see langword="false"/>.</returns>
     public bool ContainsKey(string id)
-        => _futuresOptionContractMap?.ContainsKey(id) ?? false;
+        => _contractIds.Contains(id);
 
     /// <summary>
     /// Removes the specified futures option contract from the collection.
@@ -30,7 +30,7 @@ internal class FuturesOptionContractModel
     /// <returns><see langword="true"/> if the contract was successfully removed; otherwise, <see langword="false"/>. Returns
     /// <see langword="false"/> if the collection is <see langword="null"/> or the contract does not exist.</returns>
     public bool Remove(string id)
-        => _futuresOptionContractMap?.Remove(id) ?? false;
+        => _contractIds.Remove(id);
 
     /// <summary>
     /// Adds a futures option contract to the collection, associating it with the specified contract identifier.
@@ -39,6 +39,6 @@ internal class FuturesOptionContractModel
     /// replaced with the new one.</remarks>
     /// <param name="id">The unique identifier of the futures option contract to add. Cannot be <see langword="null"/>.</param>
     /// <param name="contract">The futures option contract to associate with the specified identifier. Cannot be <see langword="null"/>.</param>
-    public void Add(string id, FuturesOptionSecuritiesContract contract)
-        => _futuresOptionContractMap?.Add(id, contract);
+    public bool Add(string id)
+        => _contractIds.Add(id);
 }

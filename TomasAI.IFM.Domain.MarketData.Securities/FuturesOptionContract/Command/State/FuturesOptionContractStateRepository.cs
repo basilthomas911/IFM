@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.State;
 
@@ -35,8 +36,10 @@ public class FuturesOptionContractStateRepository(
     /// <param name="command">The command used to identify and load the state. Cannot be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> representing the asynchronous operation. The result contains the <see
     /// cref="FuturesOptionContractCommandState"/> associated with the specified command.</returns>
-    public async ValueTask<FuturesOptionContractCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<FuturesOptionContractCommandState, FuturesOptionContractAddedEvent>(command);
+    public ValueTask<FuturesOptionContractCommandState> LoadStateAsync(ICommand command)
+        => command is AddFuturesOptionContractsCommand
+            ? new(LoadStateFromSnapshotAsync<FuturesOptionContractCommandState, FuturesOptionContractsAddedEvent>(command))
+            : new(LoadStateFromSnapshotAsync<FuturesOptionContractCommandState, FuturesOptionContractAddedEvent>(command));
 
     /// <summary>
     /// Saves the specified state asynchronously, associating it with the provided command.
@@ -45,8 +48,8 @@ public class FuturesOptionContractStateRepository(
     /// <param name="state">The state object to be saved. Must not be <see langword="null"/>.</param>
     /// <param name="command">The command associated with the state. Must not be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous save operation.</returns>
-    public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesOptionContractCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+    public ValueTask SaveStateAsync(ICommandActorContext context, FuturesOptionContractCommandState state, ICommand command)
+       => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures option contract query state

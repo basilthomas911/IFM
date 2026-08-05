@@ -44,4 +44,41 @@ public class FuturesOptionContractCommandActorTests : IClassFixture<SecuritiesFi
             => await OnExceptionAsync(context, threadId, cmd, ex);
     }
 
+    [Fact]
+    public void ParseMessage_IncompleteAudit_DoesNotBlockActorThread()
+    {
+        var pendingAudit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        dbEventSource.InsertCommandLogAsync(
+                Arg.Any<ICommand>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<string>())
+            .Returns(pendingAudit.Task);
+        var actor = _fixture.CreateActor(
+            dbEventSource,
+            Substitute.For<ILogger<FuturesOptionContractCommandActor>>());
+        var command = new AddFuturesOptionContractCommand(SampleData.FuturesOptionContract1)
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(
+                ActorType.Command,
+                FuturesOptionContractCommandActor.ActorName,
+                AddFuturesOptionContractCommand.Verb,
+                SampleData.FuturesOptionContract1.ContractId)
+        };
+        var message = new NatsMsg<byte[]>
+        {
+            Subject = command.Subject.ToString(),
+            Data = ActorExtensions.DataSerializer!.Serialize(command)
+        };
+
+        var parsed = actor.InvokeParseMessage(
+            Substitute.For<ICommandActorContext>(),
+            message);
+
+        parsed.CommandId.Should().Be(command.CommandId);
+        pendingAudit.Task.IsCompleted.Should().BeFalse();
+        pendingAudit.SetResult();
+    }
+
 }

@@ -25,22 +25,14 @@ public class FuturesOptionContractCommandState
     /// </summary>
     /// <param name="domainEvent"></param>
     /// <returns></returns>
-    protected override bool Apply(IEvent domainEvent)
+    protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        try
-        {
-            return domainEvent switch
-            {
-                FuturesOptionContractAddedEvent e => On(e),
-                FuturesOptionContractsAddedEvent e => On(e),
-                FuturesOptionContractChangedEvent e => On(e),
-                FuturesOptionContractRemovedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
+        FuturesOptionContractAddedEvent e => On(e),
+        FuturesOptionContractsAddedEvent e => On(e),
+        FuturesOptionContractChangedEvent e => On(e),
+        FuturesOptionContractRemovedEvent e => On(e),
+        _ => false
+    };
 
     /// <summary>
     /// create futures contract
@@ -48,9 +40,7 @@ public class FuturesOptionContractCommandState
     /// <param name="e"></param>
     bool On(FuturesOptionContractAddedEvent e)
     {
-        if (_model.ContainsKey(e.Contract.Id.ContractId))
-            _model.Remove(e.Contract.Id.ContractId);
-        _model.Add(e.Contract.Id.ContractId, new FuturesOptionSecuritiesContract(e.Contract));
+        _model.Add(e.Contract.Id.ContractId);
         return true;
     }
 
@@ -66,9 +56,7 @@ public class FuturesOptionContractCommandState
     {
         foreach (var contract in e.Contracts)
         {
-            if (_model.ContainsKey(contract.ContractId))
-                _model.Remove(contract.ContractId);
-            _model.Add(contract.ContractId, new FuturesOptionSecuritiesContract(contract));
+            _model.Add(contract.ContractId);
         }
         return true;
     }
@@ -81,9 +69,8 @@ public class FuturesOptionContractCommandState
     /// <returns><see langword="true"/> to indicate the event was successfully processed.</returns>
     bool On(FuturesOptionContractChangedEvent e)
     {
-        if (_model.ContainsKey(e.OriginalContractId))
-            _model.Remove(e.OriginalContractId);
-        _model.Add(e.Contract.Id.ContractId, new FuturesOptionSecuritiesContract(e.Contract));
+        _model.Remove(e.OriginalContractId);
+        _model.Add(e.Contract.Id.ContractId);
         return true;
     }
 
@@ -94,8 +81,7 @@ public class FuturesOptionContractCommandState
     /// <returns><see langword="true"/> to indicate the operation was successfully processed.</returns>
     bool On(FuturesOptionContractRemovedEvent e)
     {
-        if (_model.ContainsKey(e.ContractId))
-            _model.Remove(e.ContractId);
+        _model.Remove(e.ContractId);
         return true;
     }
 
@@ -103,22 +89,20 @@ public class FuturesOptionContractCommandState
     /// Determines whether a futures option contract with the specified identifier exists in the model.
     /// </summary>
     /// <param name="futuresOptionContractId">The unique identifier of the futures option contract to check.</param>
-    /// <param name="overwrite">A value indicating whether the existence check should consider overwriting is allowed. If
-    /// <see langword="true"/>, the method will return <see langword="true"/> regardless of the contract's existence.</param>
-    /// <returns><see langword="true"/> if the futures option contract exists or overwriting is allowed; otherwise, <see
-    /// langword="false"/>.</returns>
+    /// <param name="overwrite">A value indicating whether an existing contract may be overwritten.</param>
+    /// <returns><see langword="true"/> when the contract already exists and overwrite was not requested; otherwise,
+    /// <see langword="false"/>.</returns>
     internal bool FuturesOptionContractExists(string futuresOptionContractId, bool overwrite)
-        => _model.ContainsKey(futuresOptionContractId) || overwrite;
+        => _model.ContainsKey(futuresOptionContractId) && !overwrite;
 
     /// <summary>
     /// Determines whether a futures option contract does not exist in the current model.
     /// </summary>
     /// <param name="futuresOptionContractId">The unique identifier of the futures option contract to check.</param>
-    /// <param name="overwrite">A value indicating whether to bypass the existence check. If <see langword="true"/>, the method always returns
-    /// <see langword="false"/>.</param>
-    /// <returns><see langword="true"/> if the futures option contract does not exist in the model and <paramref
-    /// name="overwrite"/> is <see langword="false"/>; otherwise, <see langword="false"/>.</returns>
+    /// <param name="overwrite">A value indicating whether a missing contract may still be changed or removed.</param>
+    /// <returns><see langword="true"/> when the contract does not exist and overwrite was not requested; otherwise,
+    /// <see langword="false"/>.</returns>
     internal bool FuturesOptionContractDoesNotExist(string futuresOptionContractId, bool overwrite)
-        => !FuturesOptionContractExists(futuresOptionContractId, overwrite);
+        => !_model.ContainsKey(futuresOptionContractId) && !overwrite;
 
 }

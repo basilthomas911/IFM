@@ -17,7 +17,7 @@ public static class GetFuturesContract
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static async ValueTask<FuturesContractV2ReadModel?> GetFuturesContractAsync(
+    public static ValueTask<FuturesContractV2ReadModel?> GetFuturesContractAsync(
         this GetFuturesContractQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.SecuritiesDb.GetFuturesContractAsync(q.ContractId);
+        => new(dbFactory.SecuritiesDb.GetFuturesContractAsync(q.ContractId));
 }

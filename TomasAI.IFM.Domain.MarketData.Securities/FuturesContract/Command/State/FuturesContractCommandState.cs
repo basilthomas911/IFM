@@ -31,21 +31,13 @@ public class FuturesContractCommandState
     /// </summary>
     /// <param name="domainEvent"></param>
     /// <returns></returns>
-    protected override bool Apply(IEvent domainEvent)
+    protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        try
-        {
-            return domainEvent switch
-            {
-                FuturesContractAddedEvent e => On(e),
-                FuturesContractChangedEvent e => On(e),
-                FuturesContractRemovedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
-    }
+        FuturesContractAddedEvent e => On(e),
+        FuturesContractChangedEvent e => On(e),
+        FuturesContractRemovedEvent e => On(e),
+        _ => false
+    };
 
     /// <summary>
     /// create futures contract
@@ -53,9 +45,7 @@ public class FuturesContractCommandState
     /// <param name="e"></param>
     bool On(FuturesContractAddedEvent e)
     {
-        if (_model.ContainsKey(e.Contract.Id))
-            _model.Remove(e.Contract.Id);
-        _model.Add(e.Contract.Id, new FuturesSecuritiesContract(e.Contract));
+        _model.Add(e.Contract.Id);
         return true;
     }
 
@@ -65,9 +55,8 @@ public class FuturesContractCommandState
     /// <param name="e"></param>
     bool On(FuturesContractChangedEvent e)
     {
-        if (_model.ContainsKey(e.OriginalContractId))
-            _model.Remove(e.OriginalContractId);
-        _model.Add(e.Contract.Id, new FuturesSecuritiesContract(e.Contract));
+        _model.Remove(e.OriginalContractId);
+        _model.Add(e.Contract.Id);
         return true;
     }
 
@@ -77,8 +66,7 @@ public class FuturesContractCommandState
     /// <param name="e"></param>
     bool On(FuturesContractRemovedEvent e)
     {
-        if (_model.ContainsKey(e.ContractId))
-            _model.Remove(e.ContractId);
+        _model.Remove(e.ContractId);
         return true;
     }
 
