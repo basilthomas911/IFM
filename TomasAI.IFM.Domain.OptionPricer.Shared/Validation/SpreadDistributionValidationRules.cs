@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared.Validation;
 
 public class SpreadDistributionValidationRules : BaseValidationRules, IValidationRules<SpreadDistributionReadModel>
 {
+    static readonly SpreadDistributionValidator Validator = new();
     public const string InstanceErrorMessage = "SpreadDistribution instance is null";
     public const string ValueDateErrorMessage = "SpreadDistribution.ValueDate is required";
     public const string TradeIdErrorMessage = "SpreadDistribution.TradeId is required";
@@ -17,7 +18,7 @@ public class SpreadDistributionValidationRules : BaseValidationRules, IValidatio
     public const string LongVolatilityErrorMessage = "SpreadDistribution.LongVolatility is invalid";
     public const string ForwardLossRatioErrorMessage = "SpreadDistribution.ForwardLossRatio is invalid";
 
-    public ValidationError[] Execute(SpreadDistributionReadModel spreadDistribution) => Validate(spreadDistribution, new SpreadDistributionValidator());
+    public ValidationError[] Execute(SpreadDistributionReadModel spreadDistribution) => Validate(spreadDistribution, Validator);
 
     class SpreadDistributionValidator : AbstractValidator<SpreadDistributionReadModel>
     {

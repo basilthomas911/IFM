@@ -41,9 +41,9 @@ internal static class SpreadDistributionJobEventExtensions
         var entityId = new GetOptionTradeParameter(orderId, tradeId);
         GetOptionTradeQuery query = new(orderId, tradeId)
         {
-            Subject = new ActorSubject(ActorType.Query, GetLastFuturesEodDataQuery.Actor, GetLastFuturesEodDataQuery.Verb, entityId.Format()),
+            Subject = new ActorSubject(ActorType.Query, GetOptionTradeQuery.Actor, GetOptionTradeQuery.Verb, entityId.Format()),
             EntityId = entityId,
-            ErrorCode = GetLastFuturesEodDataQuery.ErrorId
+            ErrorCode = GetOptionTradeQuery.ErrorId
         };
         var serviceResult = await context.RequestAsync<OptionTradeReadModel, GetOptionTradeQuery>(query);
         if (serviceResult.Success && serviceResult.Value is not null)

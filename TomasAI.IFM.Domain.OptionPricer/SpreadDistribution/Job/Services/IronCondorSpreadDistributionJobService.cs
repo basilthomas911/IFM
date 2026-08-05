@@ -79,19 +79,37 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
         if (pcs is null || ccs is null)
             return new ServiceFailed<SpreadDistributionJobReadModel>(2000, "SpreadDistributionJobFailed: Trade Positions not generated");
 
-        // get iron condor market data...
-        var md = await _context.GetIronCondorMarketDataAsync(
+        var shortPutContractId = optionTrade.OptionLegs?.GetContractId(OptionLegAction.Short, OptionType.Put) ?? string.Empty;
+        var longPutContractId = optionTrade.OptionLegs?.GetContractId(OptionLegAction.Long, OptionType.Put) ?? string.Empty;
+        var shortCallContractId = optionTrade.OptionLegs?.GetContractId(OptionLegAction.Short, OptionType.Call) ?? string.Empty;
+        var longCallContractId = optionTrade.OptionLegs?.GetContractId(OptionLegAction.Long, OptionType.Call) ?? string.Empty;
+
+        // Historical market data and the live feed are independent once the trade is loaded.
+        // Start both actor requests before awaiting either one.
+        var marketDataPending = _context.GetIronCondorMarketDataAsync(
             underlyingContractId: optionTrade.UnderlyingContractId,
-            shortPutOptionContractId: optionTrade.OptionLegs?.GetContractId(OptionLegAction.Short, OptionType.Put) ?? string.Empty,
-            longPutOptionContractId: optionTrade.OptionLegs?.GetContractId(OptionLegAction.Long, OptionType.Put) ?? string.Empty,
-            shortCallOptionContractId: optionTrade.OptionLegs?.GetContractId(OptionLegAction.Short, OptionType.Call) ?? string.Empty,
-            longCallOptionContractId: optionTrade.OptionLegs?.GetContractId(OptionLegAction.Long, OptionType.Call) ?? string.Empty,
+            shortPutOptionContractId: shortPutContractId,
+            longPutOptionContractId: longPutContractId,
+            shortCallOptionContractId: shortCallContractId,
+            longCallOptionContractId: longCallContractId,
             startDate: e.ValueDate,
             endDate: optionTrade.MaturityDate,
             marketType: MarketType.Futures,
             currencyType: CurrencyType.USD);
+        var marketDataFeedPending = _context.GetIronCondorMarketDataFeedAsync(
+            underlyingContractId: optionTrade.UnderlyingContractId,
+            shortPutOptionContractId: shortPutContractId,
+            longPutOptionContractId: longPutContractId,
+            shortCallOptionContractId: shortCallContractId,
+            longCallOptionContractId: longCallContractId,
+            valueDate: e.ValueDate);
+
+        var md = await marketDataPending.ConfigureAwait(false);
+        var mdf = await marketDataFeedPending.ConfigureAwait(false);
         if (md is null)
             return new ServiceFailed<SpreadDistributionJobReadModel>(2001, "SpreadDistributionJobFailed: Unable to load Iron Condor Market data");
+        if (mdf is null)
+            return new ServiceFailed<SpreadDistributionJobReadModel>(2009, "SpreadDistributionJobFailed: Unable to load Iron Condor Market data feed");
 
         // validate returned iron condor market data...
         if (md.UnderlyingContract is null) return new ServiceFailed<SpreadDistributionJobReadModel>(2002, string.Concat("SpreadDistributionJobFailed: Underlying Futures contract ", optionTrade.UnderlyingContractId, " not found"));
@@ -111,16 +129,6 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
         var daysToMaturity = Math.Min(48, md.TradingDays);
 
         // get iron condor market data feed prices...
-        var mdf = await _context.GetIronCondorMarketDataFeedAsync(
-            underlyingContractId: optionTrade.UnderlyingContractId,
-            shortPutOptionContractId: optionTrade.OptionLegs?.GetContractId(OptionLegAction.Short, OptionType.Put) ?? string.Empty,
-            longPutOptionContractId: optionTrade.OptionLegs?.GetContractId(OptionLegAction.Long, OptionType.Put) ?? string.Empty,
-            shortCallOptionContractId: optionTrade.OptionLegs?.GetContractId(OptionLegAction.Short, OptionType.Call) ?? string.Empty,
-            longCallOptionContractId: optionTrade.OptionLegs?.GetContractId(OptionLegAction.Long, OptionType.Call) ?? string.Empty,
-            valueDate: e.ValueDate);
-        if (mdf is null)
-            return new ServiceFailed<SpreadDistributionJobReadModel>(2009, "SpreadDistributionJobFailed: Unable to load Iron Condor Market data feed");
-
         var assetPrice = Convert.ToDouble(mdf.AssetPrice);
         var optCalc = new OptionCalculator(e.ValueDate, optionTrade.MaturityDate);
 
@@ -134,8 +142,6 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
         }
         else
             shortPutOptionData = (Convert.ToDouble(mdf.ShortPutOptionData.BidPrice), Convert.ToDouble(mdf.ShortPutOptionData.AskPrice));
-        var shortPutGreeks = optCalc.GetOptionGreeks(OptionTypeName.Put, assetPrice, md.ShortPutOptionContract.StrikePrice, (shortPutOptionData.BidPrice + shortPutOptionData.AskPrice) / 2, riskFreeRate);
-        var shortPutImpliedVol = shortPutGreeks.ImpliedVolatility;
         var shortPutBid = Convert.ToDecimal(shortPutOptionData.BidPrice);
         var shortPutAsk = Convert.ToDecimal(shortPutOptionData.AskPrice);
         var shortPutStrike = md.ShortPutOptionContract.StrikePrice;
@@ -150,33 +156,9 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
         }
         else
             longPutOptionData = (Convert.ToDouble(mdf.LongPutOptionData.BidPrice), Convert.ToDouble(mdf.LongPutOptionData.AskPrice));
-        var longPutGreeks = optCalc.GetOptionGreeks(OptionTypeName.Put, assetPrice, md.LongPutOptionContract.StrikePrice, (longPutOptionData.BidPrice + longPutOptionData.AskPrice) / 2, riskFreeRate);
-        var longPutImpliedVol = longPutGreeks.ImpliedVolatility;
         var longPutBid = Convert.ToDecimal(longPutOptionData.BidPrice);
         var longPutAsk = Convert.ToDecimal(longPutOptionData.AskPrice);
         var longPutStrike = md.LongPutOptionContract.StrikePrice;
-        var pcsArgs = new CreditSpreadPricerArgs
-        (
-            TradeId: e.TradeId,
-            TradeType: e.TradeType,
-            TradeStatus: e.TradeStatus,
-            ValueDate: e.ValueDate,
-            OptionStyle: OptionStyle.American,
-            OptionType: OptionType.Put,
-            DaysToMaturity: daysToMaturity,
-            AssetPrice: Convert.ToDecimal(assetPrice),
-            RiskFreeRate: riskFreeRate,
-            ShortBid: Convert.ToDecimal(shortPutBid),
-            ShortAsk: Convert.ToDecimal(shortPutAsk),
-            ShortStrike: shortPutStrike,
-            ShortImpliedVolatility: shortPutImpliedVol,
-            LongBid: Convert.ToDecimal(longPutBid),
-            LongAsk: Convert.ToDecimal(longPutAsk),
-            LongStrike: longPutStrike,
-            LongImpliedVolatility: longPutImpliedVol,
-            RateOfReturn: rateOfReturn
-        );
-
         (double BidPrice, double AskPrice) shortCallOptionData;
         if (mdf.ShortCallOptionData is null)
         {
@@ -187,8 +169,6 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
         }
         else
             shortCallOptionData = (Convert.ToDouble(mdf.ShortCallOptionData.BidPrice), Convert.ToDouble(mdf.ShortCallOptionData.AskPrice));
-        var shortCallGreeks = optCalc.GetOptionGreeks(OptionTypeName.Call, assetPrice, md.ShortCallOptionContract.StrikePrice, (shortCallOptionData.BidPrice + shortCallOptionData.AskPrice) / 2, riskFreeRate);
-        var shortCallImpliedVol = shortCallGreeks.ImpliedVolatility;
         var shortCallBid = Convert.ToDecimal(shortCallOptionData.BidPrice);
         var shortCallAsk = Convert.ToDecimal(shortCallOptionData.AskPrice);
         var shortCallStrike = md.ShortCallOptionContract.StrikePrice;
@@ -203,11 +183,43 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
         }
         else
             longCallOptionData = (Convert.ToDouble(mdf.LongCallOptionData.BidPrice), Convert.ToDouble(mdf.LongCallOptionData.AskPrice));
-        var longCallGreeks = optCalc.GetOptionGreeks(OptionTypeName.Call, assetPrice, md.LongCallOptionContract.StrikePrice, (longCallOptionData.BidPrice + longCallOptionData.AskPrice) / 2, riskFreeRate);
-        var longCallImpliedVol = longCallGreeks.ImpliedVolatility;
         var longCallBid = Convert.ToDecimal(longCallOptionData.BidPrice);
         var longCallAsk = Convert.ToDecimal(longCallOptionData.AskPrice);
         var longCallStrike = md.LongCallOptionContract.StrikePrice;
+
+        var shortPutGreeks = optCalc.GetOptionGreeks(OptionTypeName.Put, assetPrice, shortPutStrike, (shortPutOptionData.BidPrice + shortPutOptionData.AskPrice) / 2, riskFreeRate);
+        var longPutGreeks = optCalc.GetOptionGreeks(OptionTypeName.Put, assetPrice, longPutStrike, (longPutOptionData.BidPrice + longPutOptionData.AskPrice) / 2, riskFreeRate);
+        var shortCallGreeks = optCalc.GetOptionGreeks(OptionTypeName.Call, assetPrice, shortCallStrike, (shortCallOptionData.BidPrice + shortCallOptionData.AskPrice) / 2, riskFreeRate);
+        var longCallGreeks = optCalc.GetOptionGreeks(OptionTypeName.Call, assetPrice, longCallStrike, (longCallOptionData.BidPrice + longCallOptionData.AskPrice) / 2, riskFreeRate);
+        if (!shortPutGreeks.Success || !longPutGreeks.Success || !shortCallGreeks.Success || !longCallGreeks.Success)
+            return new ServiceFailed<SpreadDistributionJobReadModel>(2008, "SpreadDistributionJobFailed: Unable to calculate option Greeks");
+
+        var shortPutImpliedVol = shortPutGreeks.ImpliedVolatility;
+        var longPutImpliedVol = longPutGreeks.ImpliedVolatility;
+        var shortCallImpliedVol = shortCallGreeks.ImpliedVolatility;
+        var longCallImpliedVol = longCallGreeks.ImpliedVolatility;
+
+        var pcsArgs = new CreditSpreadPricerArgs
+        (
+            TradeId: e.TradeId,
+            TradeType: e.TradeType,
+            TradeStatus: e.TradeStatus,
+            ValueDate: e.ValueDate,
+            OptionStyle: OptionStyle.American,
+            OptionType: OptionType.Put,
+            DaysToMaturity: daysToMaturity,
+            AssetPrice: Convert.ToDecimal(assetPrice),
+            RiskFreeRate: riskFreeRate,
+            ShortBid: shortPutBid,
+            ShortAsk: shortPutAsk,
+            ShortStrike: shortPutStrike,
+            ShortImpliedVolatility: shortPutImpliedVol,
+            LongBid: longPutBid,
+            LongAsk: longPutAsk,
+            LongStrike: longPutStrike,
+            LongImpliedVolatility: longPutImpliedVol,
+            RateOfReturn: rateOfReturn
+        );
 
         var ccsArgs = new CreditSpreadPricerArgs
         (
@@ -260,20 +272,21 @@ internal class IronCondorSpreadDistributionJobService : ISpreadDistributionJobSe
             // calculate loss probability and set to spread distribution side that is at risk...
             var putLossProbability = default(LossProbabilityDataModel);
             var callLossProbability = default(LossProbabilityDataModel);
-            var lossProbability = new LossProbability(pcsSpreadDistValues.SpreadValues, ccsSpreadDistValues.SpreadValues, Convert.ToDouble(optionTrade.TradeLimit?.MaxLoss));
+            var lossProbability = new LossProbability(pcsSpreadDistValues.Values, ccsSpreadDistValues.Values, Convert.ToDouble(optionTrade.TradeLimit?.MaxLoss));
             var pcsNetSpread = Math.Abs(pcs.NetSpread - (pcsOpen?.NetSpread ?? 0));
             var ccsNetSpread = Math.Abs(ccs.NetSpread - (ccsOpen?.NetSpread ?? 0));
-            var putSpreadPnl = lossProbability.GetExpectedPnlValues(OptionType.Put, quantity, multiplier, Convert.ToDouble(pcsNetSpread)).ToList();
-            var callSpreadPnl = lossProbability.GetExpectedPnlValues(OptionType.Call, quantity, multiplier, Convert.ToDouble(ccsNetSpread)).ToList();
+            var calculatedLossProbability = tradePnl < 0.0m
+                ? lossProbability.Calculate(quantity, multiplier, Convert.ToDouble(pcsNetSpread), Convert.ToDouble(ccsNetSpread))
+                : LossProbability.Empty;
             if (pcsArgs.LossFactor == 1)
             {
-                putLossProbability = tradePnl < 0.0m ? lossProbability.ToViewModel(putSpreadPnl, callSpreadPnl) : LossProbability.Empty;
+                putLossProbability = calculatedLossProbability;
                 callLossProbability = LossProbability.Empty;
             }
             else
             {
                 putLossProbability = LossProbability.Empty;
-                callLossProbability = tradePnl < 0.0m ? lossProbability.ToViewModel(putSpreadPnl, callSpreadPnl) : LossProbability.Empty;
+                callLossProbability = calculatedLossProbability;
             }
             var putSpreadType = optionTrade.TradeType == TradeType.ShortIronCondor ? TradeType.PutCreditSpread : TradeType.PutDebitSpread;
             var pcsViewModel = pcsSpreadDist.ToViewModel(e.TradeId, putSpreadType, e.TradeStatus, e.ValueDate, putLossProbability);

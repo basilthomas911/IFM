@@ -1,4 +1,3 @@
-using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -13,7 +12,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.State;
 /// </summary>
 /// <remarks>This class manages the state transitions for Spread Distribution Job operations by applying domain events.
 /// It mirrors the logic of <see cref="OptionPricer.SpreadDistribution.Job.SpreadDistributionJobBoundedContextState"/>.</remarks>
-public class SpreadDistributionJobCommandState(IOptionPricerDbContext db)
+public class SpreadDistributionJobCommandState
     : BaseEventSourceActorState<SpreadDistributionJobCommandState>, IEventSourceActorState<SpreadDistributionJobCommandState>
 {
     SpreadDistributionJobReadModel? _spreadDistributionJob = default!;
@@ -32,18 +31,13 @@ public class SpreadDistributionJobCommandState(IOptionPricerDbContext db)
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        try
+        return domainEvent switch
         {
-            return domainEvent switch
-            {
-                SpreadDistributionJobSubmittedEvent e => On(e),
-                SpreadDistributionJobStatusUpdatedEvent e => On(e),
-                SpreadDistributionJobsInProgressDeletedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
+            SpreadDistributionJobSubmittedEvent e => On(e),
+            SpreadDistributionJobStatusUpdatedEvent e => On(e),
+            SpreadDistributionJobsInProgressDeletedEvent e => On(e),
+            _ => false
+        };
     }
 
     /// <summary>

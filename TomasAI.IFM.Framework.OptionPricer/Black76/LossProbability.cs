@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using System.Buffers;
 
 namespace TomasAI.IFM.Framework.OptionPricer.Black76;
 
@@ -20,10 +21,10 @@ namespace TomasAI.IFM.Framework.OptionPricer.Black76;
 /// <param name="putSpreadValues">Simulated spread values from the put credit spread Monte Carlo pricing.</param>
 /// <param name="callSpreadValues">Simulated spread values from the call credit spread Monte Carlo pricing.</param>
 /// <param name="maxLoss">The maximum allowable loss threshold (negative value) for the trade position.</param>
-public class LossProbability(List<double> putSpreadValues, List<double> callSpreadValues, double maxLoss)
+public class LossProbability(IReadOnlyList<double> putSpreadValues, IReadOnlyList<double> callSpreadValues, double maxLoss)
 {
-    readonly List<double> _putSpreadValues = putSpreadValues;
-    readonly List<double> _callSpreadValues = callSpreadValues;
+    readonly IReadOnlyList<double> _putSpreadValues = putSpreadValues;
+    readonly IReadOnlyList<double> _callSpreadValues = callSpreadValues;
     readonly double _maxLoss = maxLoss;
 
     /// <summary>
@@ -46,6 +47,57 @@ public class LossProbability(List<double> putSpreadValues, List<double> callSpre
             expectedPnl.Add(putPnl + callPnl);
         }
         return new LossProbabilityDataModel(GetLossProbability(expectedPnl), 0, 0);
+    }
+
+    /// <summary>
+    /// Calculates combined put/call P&amp;L and its MAD-based loss probability in one pass,
+    /// avoiding the two projected lists and a third combined list used by the compatibility API.
+    /// </summary>
+    public LossProbabilityDataModel Calculate(
+        int quantity,
+        double multiplier,
+        double putNetSpread,
+        double callNetSpread)
+    {
+        if (_putSpreadValues.Count != _callSpreadValues.Count)
+            throw new InvalidOperationException("Put and call spread simulation counts must match.");
+        if (_putSpreadValues.Count == 0)
+            return Empty;
+
+        var count = _putSpreadValues.Count;
+        var values = ArrayPool<double>.Shared.Rent(count);
+        try
+        {
+            var scale = quantity * multiplier;
+            var minimum = double.PositiveInfinity;
+            for (var index = 0; index < count; index++)
+            {
+                var putPnl = (_putSpreadValues[index] - putNetSpread) * scale;
+                var callPnl = (callNetSpread - _callSpreadValues[index]) * scale;
+                var combined = putPnl + callPnl;
+                values[index] = combined;
+                minimum = Math.Min(minimum, combined);
+            }
+
+            if (minimum <= _maxLoss)
+                return new LossProbabilityDataModel(1.0, 0, 0);
+
+            Array.Sort(values, 0, count);
+            var median = values[count / 2];
+            for (var index = 0; index < count; index++)
+                values[index] = Math.Abs(values[index] - median);
+
+            Array.Sort(values, 0, count);
+            var medianAbsoluteDeviation = values[count / 2];
+            return new LossProbabilityDataModel(
+                Math.Abs((median - (3.5 * medianAbsoluteDeviation)) / _maxLoss),
+                0,
+                0);
+        }
+        finally
+        {
+            ArrayPool<double>.Shared.Return(values);
+        }
     }
 
     /// <summary>

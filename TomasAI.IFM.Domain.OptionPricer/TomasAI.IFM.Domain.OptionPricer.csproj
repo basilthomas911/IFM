@@ -7,8 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.Actor.BDDTests" />
-    <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.Actor.UnitTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.BDDTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.UnitTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.Benchmarks" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 

@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Validat
 /// </summary>
 public static class SpreadDistributionJobValidationExtensions
 {
+    static readonly SpreadDistributionJobValidationRules ValidationRules = new();
     /// <summary>
     /// Validates the spread distribution job read model and adds any validation errors to the provided list.
     /// </summary>
@@ -16,8 +17,7 @@ public static class SpreadDistributionJobValidationExtensions
     /// <returns>The updated list of <see cref="ValidationError"/> objects.</returns>
     public static List<ValidationError> ValidateSpreadDistributionJob(this List<ValidationError> validationErrors, SpreadDistributionJobReadModel spreadDistributionJob)
     {
-        var validationRules = new SpreadDistributionJobValidationRules();
-        var ruleErrors = validationRules.Execute(spreadDistributionJob);
+        var ruleErrors = ValidationRules.Execute(spreadDistributionJob);
         if (ruleErrors is not null)
             validationErrors.AddRange(ruleErrors);
         return validationErrors;

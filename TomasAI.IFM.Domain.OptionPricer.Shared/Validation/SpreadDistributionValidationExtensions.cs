@@ -5,6 +5,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared.Validation;
 
 public static class SpreadDistributionValidationExtensions
 {
+    static readonly SpreadDistributionValidationRules ValidationRules = new();
     /// <summary>
     /// validate spread distribution
     /// </summary>
@@ -18,16 +19,15 @@ public static class SpreadDistributionValidationExtensions
         SpreadDistributionReadModel callSpreadDistribution,
         string commandName)
     {
-        var validationRules = new SpreadDistributionValidationRules();
         if (putSpreadDistribution is not null)
         {
-            var ruleErrors = validationRules.Execute(putSpreadDistribution);
+            var ruleErrors = ValidationRules.Execute(putSpreadDistribution);
             if (ruleErrors is not null)
                 validationErrors.AddRange(ruleErrors);
         }
         if (callSpreadDistribution is not null)
         {
-            var ruleErrors = validationRules.Execute(callSpreadDistribution);
+            var ruleErrors = ValidationRules.Execute(callSpreadDistribution);
             if (ruleErrors is not null)
                 validationErrors.AddRange(ruleErrors);
         }

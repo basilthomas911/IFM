@@ -10,11 +10,9 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Query;
 
 public static class GetSpreadDistribution
 {
-    internal static async ValueTask<SpreadDistributionReadModel?> GetSpreadDistributionAsync(
+    internal static ValueTask<SpreadDistributionReadModel?> GetSpreadDistributionAsync(
         this GetSpreadDistributionQuery q, IDbContextFactory dbFactory,
         int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry)
-    {
-        return await dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
-            tradeId, tradeType, tradeStatus, valueDate, daysToExpiry);
-    }
+        => new(dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
+            tradeId, tradeType, tradeStatus, valueDate, daysToExpiry));
 }

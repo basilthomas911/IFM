@@ -43,7 +43,7 @@ Every leaf includes its parent folders. `bin/` and `obj/` are generated build tr
 - `SpreadDistribution/Job/Command/` contains job command routing, state, validation, and job-specific exceptions.
 - `SpreadDistribution/Job/Event/` contains job event handling and actor-context helpers.
 - `SpreadDistribution/Job/Services/Contracts/` defines internal job service boundaries; `Services/` contains their implementations.
-- `Docs/` contains this document; the root assembly marker supports discovery.
+- `Docs/` contains this document and the recurring [domain actor optimization report](Domain-Actor-Optimization-Details.md); the root assembly marker supports discovery.
 
 ## Implemented actors
 
@@ -56,3 +56,9 @@ Distribution commands are parsed, validated, applied to event-sourced state, and
 ## Extension points
 
 Keep pricing-domain state beneath `SpreadDistribution`; keep scheduling, progress, and retry behavior beneath `Job`. Add cross-domain request/response types to Shared projects and register new mailbox verbs in all corresponding maps.
+
+## Deferred solution-wide cancellation TODO
+
+After all root domain optimization passes are complete, implement cancellation propagation as a dedicated solution-wide change. Cancellation must flow consistently from supervisor stop requests through actor processing, domain APIs, repositories, storage contracts, and concrete storage operations so actors stop gracefully. Do not add isolated optional tokens to this domain before the solution-wide semantics and failure behavior are designed together.
+
+The current OptionPricer optimization decisions, top-ten findings, and BenchmarkDotNet baseline are recorded in [Domain-Actor-Optimization-Details.md](Domain-Actor-Optimization-Details.md).

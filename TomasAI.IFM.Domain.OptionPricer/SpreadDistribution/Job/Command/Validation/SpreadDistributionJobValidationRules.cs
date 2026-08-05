@@ -7,12 +7,13 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Validat
 
 public class SpreadDistributionJobValidationRules : BaseValidationRules, IValidationRules<SpreadDistributionJobReadModel>
 {
+    static readonly SpreadDistributionJobValidator Validator = new();
     public const string InstanceErrorMessage = "SpreadDistributionJob cannot be null";
     public const string OrderIdErrorMessage = "SpreadDistributionJob.OrderId must be > 0";
     public const string TradeIdErrorMessage = "SpreadDistributionJob.TradeId must be > 0";
     public const string JobIdErrorMessage = "SpreadDistributionJob.JobId must be > 0";
 
-    public ValidationError[] Execute(SpreadDistributionJobReadModel spreadDistributionJob) => Validate(spreadDistributionJob, new SpreadDistributionJobValidator());
+    public ValidationError[] Execute(SpreadDistributionJobReadModel spreadDistributionJob) => Validate(spreadDistributionJob, Validator);
 
     class SpreadDistributionJobValidator : AbstractValidator<SpreadDistributionJobReadModel>
     {

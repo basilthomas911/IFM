@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
@@ -40,30 +39,20 @@ public static class SpreadDistributionJobSubmitted
         IStatusConsoleWriter statusConsoleWriter,
         ILogger logger)
     {
-        var source = $"SpreadDistributionJobSubmittedEvent for Job: {e.EntityId.Format()}";
-        try
+        var jobService = e.GetSpreadDistributionJobService(context, tradeCommandApi);
+        var serviceResult = await jobService.ExecuteAsync().ConfigureAwait(false);
+        if (serviceResult.Success && serviceResult.Value is not null)
         {
-            var jobService = e.GetSpreadDistributionJobService(context, tradeCommandApi);
-            var serviceResult = await jobService.ExecuteAsync();
-            if (serviceResult.Success && serviceResult.Value is not null)
-            {
-                var spreadJob = serviceResult.Value;
-                await optionPricerCommandApi.CompleteSpreadDistributionJobAsync(spreadJob.EntityId, DateTime.Now, SpreadDistributionJobStatus.Completed);
-                await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesItiSignalEvent, $"SpreadDistributionJobCompleted: {spreadJob.JobSubmitted:hh:mm:ss} Duration {spreadJob.Duration:F4} seconds");
-            }
-            else
-            {
-                await optionPricerCommandApi.FailSpreadDistributionJobAsync(e.SpreadDistributionJob.EntityId, DateTime.Now, SpreadDistributionJobStatus.Failed, serviceResult.ErrorMessage);
-                await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesItiSignalEvent, serviceResult.ErrorCode, serviceResult.ErrorMessage);
-            }
-            return true;
+            var spreadJob = serviceResult.Value;
+            await optionPricerCommandApi.CompleteSpreadDistributionJobAsync(spreadJob.EntityId, DateTime.UtcNow, SpreadDistributionJobStatus.Completed).ConfigureAwait(false);
+            await statusConsoleWriter.WriteConsoleAsync(LogSourceType.SpreadDistributionJobEvent, $"SpreadDistributionJobCompleted: {spreadJob.JobSubmitted:HH:mm:ss} Duration {spreadJob.Duration:F4} ms").ConfigureAwait(false);
         }
-        catch (Exception ex)
+        else
         {
-            await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesItiSignalEvent, FuturesEodDataInsertedCompleteEvent.ErrorCode, ex.GetErrorMessage());
-            logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}:  ExecuteAsync handler failed", source);
+            await optionPricerCommandApi.FailSpreadDistributionJobAsync(e.SpreadDistributionJob.EntityId, DateTime.UtcNow, SpreadDistributionJobStatus.Failed, serviceResult.ErrorMessage).ConfigureAwait(false);
+            await statusConsoleWriter.WriteConsoleAsync(LogSourceType.SpreadDistributionJobEvent, serviceResult.ErrorCode, serviceResult.ErrorMessage).ConfigureAwait(false);
         }
-        return false;
+        return true;
     }
 
     /// <summary>

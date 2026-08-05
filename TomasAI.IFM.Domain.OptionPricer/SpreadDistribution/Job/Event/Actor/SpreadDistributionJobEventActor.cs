@@ -30,7 +30,7 @@ public class SpreadDistributionJobEventActor(
     public const string Actor = "SpreadDistributionJobEvent";
     IActorOptionPricerCommandApi? _optionPricerCommandApi;
     IActorTradeCommandApi? _tradeCommandApi;
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorOptionPricerCommandApi, IActorTradeCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorOptionPricerCommandApi, IActorTradeCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(SpreadDistributionJobSubmittedEvent).Name] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
         {
@@ -41,7 +41,9 @@ public class SpreadDistributionJobEventActor(
                 tradeCommandApi,
                 statusConsoleWriter,
                 logger);
-        }
+        },
+        [typeof(SpreadDistributionJobStatusUpdatedEvent).Name] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
+            await ((SpreadDistributionJobStatusUpdatedEvent)evt).ExecuteAsync(ctx, statusConsoleWriter, logger).ConfigureAwait(false)
     };
 
     protected override ValueTask OnStartup(IEventActorContext context)
@@ -84,7 +86,8 @@ public class SpreadDistributionJobEventActor(
     /// </summary>
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
-        [SpreadDistributionJobSubmittedEvent.Verb] = msg => msg.AsEvent<SpreadDistributionJobSubmittedEvent>()!
+        [SpreadDistributionJobSubmittedEvent.Verb] = msg => msg.AsEvent<SpreadDistributionJobSubmittedEvent>()!,
+        [SpreadDistributionJobStatusUpdatedEvent.Verb] = msg => msg.AsEvent<SpreadDistributionJobStatusUpdatedEvent>()!
     };
 
     /// <summary>

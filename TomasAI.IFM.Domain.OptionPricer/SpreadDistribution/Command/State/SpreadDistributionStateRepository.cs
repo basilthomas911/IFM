@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
@@ -22,14 +21,12 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.State;
 /// <param name="aggregateFactory"></param>
 /// <param name="dbEventSource"></param>
 /// <param name="dbFactory"></param>
-/// <param name="blackboardService"></param>
 /// <param name="actorService"></param>
 /// <param name="logger"></param>
 public class SpreadDistributionStateRepository(
     IEventSourceActorStateFactory aggregateFactory,
     IEventSourceActorDbContext dbEventSource,
     IDbContextFactory dbFactory,
-    IBlackboardService blackboardService,
     IActorService actorService,
     ILogger<SpreadDistributionStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<SpreadDistributionCommandState>
@@ -40,7 +37,7 @@ public class SpreadDistributionStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<SpreadDistributionCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<SpreadDistributionCommandState, SpreadDistributionInsertedEvent>(command);
+        => await LoadStateFromSnapshotLastNRangeAsync<SpreadDistributionCommandState, SpreadDistributionInsertedEvent, SpreadDistributionDeletedEvent>(command, 0);
 
     /// <summary>
     /// save spread distribution state changes

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -10,6 +9,7 @@ using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.State;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.OptionPricer.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.Actor;
 
@@ -28,7 +28,7 @@ public class SpreadDistributionCommandActor(
     : BaseEventSourceCommandActor<SpreadDistributionCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "SpreadDistributionCommand";
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
     IEventSourceActorStateRepository<SpreadDistributionCommandState> _repo = default!;
 
     /// <summary>
@@ -65,7 +65,7 @@ public class SpreadDistributionCommandActor(
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
         var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
-        _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
+        _commandAudit.Start(command);
         return command;
     }
 
@@ -127,6 +127,7 @@ public class SpreadDistributionCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
+        await _commandAudit.CompleteAsync(cmd).ConfigureAwait(false);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
@@ -142,7 +143,8 @@ public class SpreadDistributionCommandActor(
     {
         [typeof(InsertSpreadDistributionCommand).Name] = cmd => {
             var e = cmd as InsertSpreadDistributionCommand; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName);
+                .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateSpreadDistribution(e.PutSpreadDistribution, e.CallSpreadDistribution, e.CommandName);
         },
         [typeof(DeleteSpreadDistributionCommand).Name] = cmd => {
             var e = cmd as DeleteSpreadDistributionCommand; return new List<ValidationError>()
