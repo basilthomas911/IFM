@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor
 {

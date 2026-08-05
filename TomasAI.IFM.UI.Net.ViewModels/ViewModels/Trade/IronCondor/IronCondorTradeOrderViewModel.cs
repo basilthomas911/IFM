@@ -62,7 +62,6 @@ public class IronCondorTradeOrderReadModel
     /// Initializes a new instance of the <see cref="IronCondorTradeOrderReadModel"/> class with the specified
     /// parameters.
     /// </summary>
-    /// <param name="parent">The parent control associated with this view model.</param>
     /// <param name="appRoot">The application root interface providing access to application-wide services and resources.</param>
     /// <param name="valueDate">The date representing the value date for the trade order.</param>
     /// <param name="fundId">The identifier of the fund associated with the trade order.</param>
@@ -73,7 +72,7 @@ public class IronCondorTradeOrderReadModel
     /// <param name="updateDaysToExpiryAction">An action to update the days to expiry based on the provided date.</param>
     /// <param name="updateTradeDateAction">An action to update the trade date based on the provided date.</param>
     /// <exception cref="InvalidOperationException">Thrown if the <paramref name="fundOrderTrade"/> has a trade type that is not supported by this view model.</exception>
-    public IronCondorTradeOrderReadModel(Control parent, IAppRoot appRoot, DateOnly valueDate, int fundId, FuturesContractV2ReadModel baseContract, FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade,
+    public IronCondorTradeOrderReadModel(IAppRoot appRoot, DateOnly valueDate, int fundId, FuturesContractV2ReadModel baseContract, FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade,
         OrderActionType orderActionType, Action<DateOnly> updateDaysToExpiryAction, Action<DateOnly> updateTradeDateAction)
     {
         switch(fundOrderTrade.TradeType)

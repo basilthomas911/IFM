@@ -241,7 +241,7 @@ public partial class TradeOrderEditorForm
                         : fundOrderTrade!.TradeDate;
                     var baseContract = _viewModel.BaseContracts.Where(e => e.Symbol == fundOrderTrade.BaseContractSymbol).FirstOrDefault();
                    baseContract = baseContract ?? _viewModel.BaseContracts.ElementAt(0);
-                   var viewModel = new IronCondorTradeOrderReadModel(this, _appRoot, valueDate, fundId, baseContract, fundOrder!, fundOrderTrade, orderActionType, 
+                   var viewModel = new IronCondorTradeOrderReadModel(_appRoot, valueDate, fundId, baseContract, fundOrder!, fundOrderTrade, orderActionType,
                        maturityDate => this.Post(() => txtDaysToExpiry.Text = $"{(maturityDate.DayNumber - DateOnly.FromDateTime(dtpTradeDate.Value).DayNumber)}"),
                        tradeDate => this.Post(() => dtpTradeDate.Value = tradeDate.ToDateTime(TimeOnly.MinValue)));
                    tradeControl = new IronCondorTradeOrderView(this, viewModel);

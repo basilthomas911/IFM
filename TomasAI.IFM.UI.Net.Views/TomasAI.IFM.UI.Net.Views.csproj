@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.17763.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WinForms.DataVisualization" Version="1.10.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.UI.Net.Models\TomasAI.IFM.UI.Net.Models.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.UI.Net.ViewModels\TomasAI.IFM.UI.Net.ViewModels.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Views\App\IFMAppView.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\App\MarketDataView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\App\MarketEconomicCalendarView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\App\MarketOutlookView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\App\StatusConsoleView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\Fund\AdjustFundTransactionEditor.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\Fund\FundTransactionEditor.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\MarketData\FuturesContractEditorControl.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\MarketData\FuturesOptionContractEditorControl.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\MarketData\MarketDataForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\MarketData\YieldCurveRateEditForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\MarketData\YieldCurveRateEditorControl.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\Reference\EconomicCalendarEditorView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\Reference\LookupTypeEditorView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\Reference\ReferenceForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\SystemAdmin\BackupDatabasesView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\SystemAdmin\SystemAdminForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\SystemInfo\SystemErrorView.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\SystemInfo\SystemWaitView.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\Trade\CreateFundForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\Trade\CreateFundOrderForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\Trade\CreateFundOrderTradeForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\Trade\DeleteFundOrderForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\Trade\IronCondor\IronCondorTradeOrderView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\Trade\IronCondor\IronCondorView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Views\Trade\SetLocalSymbolForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\Trade\TradeEndOfDayForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\Trade\TradeOrderConfirmationForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Views\Trade\TradeOrderEditorForm.cs"><SubType>Form</SubType></Compile>
+  </ItemGroup>
+
+</Project>

@@ -1,12 +1,7 @@
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
-using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 
 namespace TomasAI.IFM.UI.EventConsumer;
 
@@ -16,19 +11,31 @@ namespace TomasAI.IFM.UI.EventConsumer;
 /// <remarks>This class subscribes to NATS events for spread distribution job submissions and executes the
 /// corresponding jobs using the provided <see cref="ISpreadDistributionServiceApi"/>. It is designed to handle events
 /// asynchronously and logs operations using the specified <see cref="ILogger"/>.</remarks>
-/// <param name="spreadDistributionService"></param>
-/// <param name="options"></param>
-/// <param name="logger"></param>
-public class SpreadDistributionJobUIEventConsumer(ISpreadDistributionServiceApi spreadDistributionService, INatsEventListenerOptions options, ILogger logger)
-    : NatsActorEventListener(options, logger), ISpreadDistributionJobUIEventConsumer
+public class SpreadDistributionJobUIEventConsumer
+    : NatsActorEventListener, ISpreadDistributionJobUIEventConsumer
 {
-    readonly ISpreadDistributionServiceApi _spreadDistributionService = spreadDistributionService;
+    readonly ISpreadDistributionServiceApi _spreadDistributionService;
+    readonly ILogger _logger;
     readonly Guid _siteId = Guid.NewGuid();
 
-    public async ValueTask StartAsync()
+    /// <summary>
+    /// Creates a spread-distribution job UI event consumer.
+    /// </summary>
+    public SpreadDistributionJobUIEventConsumer(
+        ISpreadDistributionServiceApi spreadDistributionService,
+        INatsEventListenerOptions options,
+        ILogger logger)
+        : base(options, logger)
+    {
+        _spreadDistributionService = spreadDistributionService;
+        _logger = logger;
+    }
+
+    public ValueTask StartAsync()
     {
         //await base.StartAsync();
-        logger.LogInformation("SpreadDistributionJobUIEventConsumer started.");
+        _logger.LogInformation("SpreadDistributionJobUIEventConsumer started.");
+        return ValueTask.CompletedTask;
     }
    
 

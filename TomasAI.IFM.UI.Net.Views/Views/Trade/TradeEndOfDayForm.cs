@@ -16,6 +16,8 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             _appRoot = appRoot;
             _viewModel = new EndOfDayProcessViewModel(appRoot, eodParam);
             InitializeComponent();
+            _viewModel.ShowErrorMessage = (errorMsg, caption) => this.Post(() =>
+                MessageBox.Show(errorMsg, caption, MessageBoxButtons.OK, MessageBoxIcon.Error));
         }
 
         void TradeEndOfDayForm_Load(object sender, EventArgs e)

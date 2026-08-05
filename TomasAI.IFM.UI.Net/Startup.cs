@@ -192,8 +192,8 @@ namespace TomasAI.IFM.UI.Net
         /// </summary>
         /// <typeparam name="TWindowsForm"></typeparam>
         /// <returns>instance of specified windows form</returns>
-        public TWindowsForm GetForm<TWindowsForm>() where TWindowsForm : Form 
-            => (_container!.GetInstance<IForm<TWindowsForm>>() as TWindowsForm)!;
+        public TView GetForm<TView>() where TView : class
+            => (_container!.GetInstance<IForm<TView>>() as TView)!;
 
         /// <summary>
         /// return container instance object that implements controller class type

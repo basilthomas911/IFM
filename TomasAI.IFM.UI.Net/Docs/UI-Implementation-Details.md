@@ -2,7 +2,7 @@
 
 ## Purpose and scope
 
-`TomasAI.IFM.UI.Net` is the Windows Forms desktop client for the IFM application. It presents the operational fund, trade, market-data, reference-data, system-administration, and status-console workflows. The project does not host domain actors or access storage directly.
+The UI.Net project family is the Windows Forms desktop client for the IFM application. It presents the operational fund, trade, market-data, reference-data, system-administration, and status-console workflows. It does not host domain actors or access storage directly.
 
 The UI uses three backend paths:
 
@@ -12,7 +12,7 @@ The UI uses three backend paths:
 
 This document describes the implementation currently in the repository. The notes under [Current implementation notes](#current-implementation-notes) describe existing behavior and known constraints, not a proposed architecture.
 
-The project is a Windows executable targeting .NET 10 and `net10.0-windows10.0.17763.0` with Windows Forms enabled.
+The client is split into four assemblies. `TomasAI.IFM.UI.Net` is the Windows executable and composition root; `TomasAI.IFM.UI.Net.Views` is the Windows Forms library. `TomasAI.IFM.UI.Net.ViewModels` and `TomasAI.IFM.UI.Net.Models` are framework-neutral `net10.0` class libraries.
 
 ## Source map
 
@@ -21,15 +21,18 @@ The project is a Windows executable targeting .NET 10 and `net10.0-windows10.0.1
 | Process entry point, WinForms configuration, and top-level exception handling | [`Program.cs`](../Program.cs) |
 | Simple Injector composition root and transport registrations | [`Startup.cs`](../Startup.cs) |
 | Project dependencies and target framework | [`TomasAI.IFM.UI.Net.csproj`](../TomasAI.IFM.UI.Net.csproj) |
+| Models project | [`TomasAI.IFM.UI.Net.Models.csproj`](../../TomasAI.IFM.UI.Net.Models/TomasAI.IFM.UI.Net.Models.csproj) |
+| ViewModels project | [`TomasAI.IFM.UI.Net.ViewModels.csproj`](../../TomasAI.IFM.UI.Net.ViewModels/TomasAI.IFM.UI.Net.ViewModels.csproj) |
+| Views project | [`TomasAI.IFM.UI.Net.Views.csproj`](../../TomasAI.IFM.UI.Net.Views/TomasAI.IFM.UI.Net.Views.csproj) |
 | Runtime endpoint configuration | [`appsettings.json`](../appsettings.json) |
 | Environment-specific configuration files copied during build/publish | [`appsettings.Development.json`](../appsettings.Development.json), [`appsettings.Production.json`](../appsettings.Production.json) |
-| Application-root abstraction | [`Contracts/IAppRoot.cs`](../Contracts/IAppRoot.cs) |
-| View and model marker contracts | [`Contracts/IForm.cs`](../Contracts/IForm.cs), [`Contracts/IModel.cs`](../Contracts/IModel.cs) |
-| UI-thread and redraw helpers | [`Contracts/IFormControl.cs`](../Contracts/IFormControl.cs) |
-| Model execution and error handling | [`Models/BaseModel.cs`](../Models/BaseModel.cs) |
-| Shared editor view-model behavior | [`ViewModels/BaseEditorViewModel.cs`](../ViewModels/BaseEditorViewModel.cs) |
-| Main application window | [`Views/App/IFMAppView.cs`](../Views/App/IFMAppView.cs) |
-| Main application orchestration | [`ViewModels/App/IFMAppViewModel.cs`](../ViewModels/App/IFMAppViewModel.cs) |
+| Application-root abstraction | [`Contracts/IAppRoot.cs`](../../TomasAI.IFM.UI.Net.ViewModels/Contracts/IAppRoot.cs) |
+| View and model marker contracts | [`IForm.cs`](../../TomasAI.IFM.UI.Net.Views/Contracts/IForm.cs), [`IModel.cs`](../../TomasAI.IFM.UI.Net.Models/Contracts/IModel.cs) |
+| UI-thread and redraw helpers | [`Contracts/IFormControl.cs`](../../TomasAI.IFM.UI.Net.Views/Contracts/IFormControl.cs) |
+| Model execution and error handling | [`Models/BaseModel.cs`](../../TomasAI.IFM.UI.Net.Models/Models/BaseModel.cs) |
+| Shared editor view-model behavior | [`ViewModels/BaseEditorViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/ViewModels/BaseEditorViewModel.cs) |
+| Main application window | [`Views/App/IFMAppView.cs`](../../TomasAI.IFM.UI.Net.Views/Views/App/IFMAppView.cs) |
+| Main application orchestration | [`ViewModels/App/IFMAppViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/ViewModels/App/IFMAppViewModel.cs) |
 | Command and query HTTP adapters | [`TomasAI.IFM.Application.Api.Client`](../../TomasAI.IFM.Application.Api.Client) |
 | Concrete UI event consumers | [`TomasAI.IFM.UI.EventConsumer`](../../TomasAI.IFM.UI.EventConsumer) |
 | NATS event-listener implementation | [`TomasAI.IFM.Framework.Messaging.Nats`](../../TomasAI.IFM.Framework.Messaging.Nats) |
@@ -68,16 +71,14 @@ The views do not send NATS actor commands or queries directly. `IActorProducer` 
 
 ## Project structure
 
-The hand-written UI code is divided into these areas:
+The hand-written UI code is divided across four projects with one-way dependencies: Models ← ViewModels ← Views ← UI.Net.
 
-| Folder | Responsibility |
+| Project | Responsibility |
 | --- | --- |
-| `Contracts` | Application-root, view, model, form-control, and control-command contracts. |
-| `Models` | Backend adapters and event-consumer lifecycle wrappers. Models convert `ServiceResult<T>` responses into callbacks and UI error notifications. |
-| `ViewModels` | Screen state, workflow orchestration, and callbacks that views bind to controls. |
-| `Views` | Windows Forms, user controls, designer files, dialog behavior, and UI-thread marshaling. |
-| `Extensions` | WinForms-specific control, binding, list, grid, combo-box, and progress-bar helpers. |
-| `Properties` | Visual Studio project metadata and data-source artifacts. |
+| `TomasAI.IFM.UI.Net` | Windows executable, process startup, dependency composition, runtime configuration, application assets, and documentation. |
+| `TomasAI.IFM.UI.Net.Models` | Backend adapters and event-consumer lifecycle wrappers. Models convert `ServiceResult<T>` responses into callbacks and UI error notifications. |
+| `TomasAI.IFM.UI.Net.ViewModels` | Screen state, workflow orchestration, application-root abstraction, and callbacks that views bind to controls. |
+| `TomasAI.IFM.UI.Net.Views` | Windows Forms, user controls, designer resources, dialogs, view contracts, and UI-thread marshaling helpers. |
 
 At the time of writing, the project contains 33 model files, 30 view-model files, and 33 non-designer view/helper files. The view layer includes 17 forms and 12 user controls.
 
@@ -100,7 +101,7 @@ Both top-level exception handlers display a message box containing exception inf
 
 ### Main-window initialization
 
-[`IFMAppView`](../Views/App/IFMAppView.cs) creates `IFMAppViewModel` during its load event and supplies callbacks for:
+[`IFMAppView`](../../TomasAI.IFM.UI.Net.Views/Views/App/IFMAppView.cs) creates `IFMAppViewModel` during its load event and supplies callbacks for:
 
 - showing error messages;
 - enabling the main menu buttons;
@@ -347,4 +348,4 @@ From the repository root:
 dotnet build TomasAI.IFM.UI.Net\TomasAI.IFM.UI.Net.csproj
 ```
 
-The build compiles the UI project and its referenced API client, messaging, event-consumer, shared, and domain-contract projects.
+The build compiles the executable and its Models, ViewModels, and Views libraries together with their referenced API client, messaging, event-consumer, shared, and domain-contract projects.

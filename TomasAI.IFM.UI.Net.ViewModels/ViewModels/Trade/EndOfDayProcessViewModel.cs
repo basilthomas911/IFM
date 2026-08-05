@@ -1,7 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using System;
 using System.Linq;
-using System.Windows.Forms;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -81,6 +80,7 @@ public class EndOfDayProcessViewModel : BaseEditorViewModel
 
     public Action OnEndOfDayProcessCompleted = null!;
     public Action<string> OnEndOfDayProcessFailed = null!;
+    public Action<string, string> ShowErrorMessage = null!;
 
     public void StartListener()
        => _eventModel.Execute(async e => {
@@ -138,7 +138,7 @@ public class EndOfDayProcessViewModel : BaseEditorViewModel
 
         void LoadFund(Action onFundLoaded)
             => _fundQueryModel.Execute(async model => {
-                model.OnError((_, errorMsg) => MessageBox.Show(errorMsg, "Loading Fund Data Error", MessageBoxButtons.OK, MessageBoxIcon.Error));
+                model.OnError((_, errorMsg) => ShowErrorMessage?.Invoke(errorMsg, "Loading Fund Data Error"));
                 await model.GetFundsAsync(funds =>
                 {
                     if ((funds?.Length ?? 0) > 0)
@@ -152,13 +152,13 @@ public class EndOfDayProcessViewModel : BaseEditorViewModel
 
         void LoadOptionTrade(Action<OptionTradeReadModel> onTradeLoaded)
             => _tradeQueryModel.Execute(async model => {
-                model.OnError((_, errorMsg) => MessageBox.Show(errorMsg, "Loading Option Trade Error", MessageBoxButtons.OK, MessageBoxIcon.Error));
+                model.OnError((_, errorMsg) => ShowErrorMessage?.Invoke(errorMsg, "Loading Option Trade Error"));
                 await model.GetOptionTradeAsync(OrderId, TradeId, e => onTradeLoaded?.Invoke(e));
             });
 
         void LoadFuturesEodData(OptionTradeReadModel optionTrade)
             => _mktDataFeedQueryModel.Execute(async model => {
-                model.OnError((_, errorMsg) => MessageBox.Show(errorMsg, "Loading End Of Day Data Error", MessageBoxButtons.OK, MessageBoxIcon.Error));
+                model.OnError((_, errorMsg) => ShowErrorMessage?.Invoke(errorMsg, "Loading End Of Day Data Error"));
                 await model.GetFuturesEodDataAsync(_eodParam.BaseContractId, ValueDate, futuresEodData => {
                     _openPrice = futuresEodData.OpenPrice;
                     _highPrice = futuresEodData.HighPrice;
