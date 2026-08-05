@@ -7,8 +7,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Validation;
 
 public class FuturesTradeSignalValidationRules : BaseValidationRules, IValidationRules<FuturesTradeSignalV2ReadModel>
 {
+    static readonly FuturesTradeSignalValidator Validator = new();
 
-    public ValidationError[] Execute(FuturesTradeSignalV2ReadModel futuresTradeSignal) => Validate(futuresTradeSignal, new FuturesTradeSignalValidator());
+    public ValidationError[] Execute(FuturesTradeSignalV2ReadModel futuresTradeSignal) => Validate(futuresTradeSignal, Validator);
 
     private class FuturesTradeSignalValidator : AbstractValidator<FuturesTradeSignalV2ReadModel>
     {

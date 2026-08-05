@@ -30,17 +30,12 @@ public class FuturesAtrSignalCommandState
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        try
+        return domainEvent switch
         {
-            return domainEvent switch
-            {
-                FuturesAtrSignalGeneratedEvent e => On(e.FuturesAtrSignal),
-                FuturesAtrDailySignalGeneratedEvent e => On(e.FuturesAtrSignal),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
+            FuturesAtrSignalGeneratedEvent e => On(e.FuturesAtrSignal),
+            FuturesAtrDailySignalGeneratedEvent e => On(e.FuturesAtrSignal),
+            _ => false
+        };
 
         bool On(FuturesAtrSignalReadModel signal)
         {

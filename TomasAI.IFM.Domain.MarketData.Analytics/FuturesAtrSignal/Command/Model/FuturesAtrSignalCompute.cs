@@ -29,59 +29,47 @@ public class FuturesAtrSignalCompute
         _atrSignal = atrSignal;
         _atrPeriod = atrPeriod;
 
-        // make sure signals are in ascending order...
-        double[] priceValues = [.. atrSignals.Select(e => (double)e.FuturesPrice)];
-
-        // compute ATR components from price values...
-        ComputeAtrComponents(priceValues);
+        ComputeAtrComponents(atrSignals);
     }
 
-    void ComputeAtrComponents(double[] priceValues)
+    void ComputeAtrComponents(IReadOnlyCollection<FuturesAtrSignalReadModel> signals)
     {
-        var trueRanges = ComputeTrueRanges(priceValues);
-        TrueRange = trueRanges.Length > 0 ? trueRanges[^1] : 0;
-        AtrValue = ComputeAtr(trueRanges, _atrPeriod);
+        if (signals.Count < 2)
+            return;
 
-        /// <summary>   
-        /// Computes the True Range values from an array of price values.
-        /// </summary>
-        /// <param name="prices">An array of price values.</param>
-        /// <returns>An array of True Range values.</returns>
-        static double[] ComputeTrueRanges(double[] prices)
+        var hasPrevious = false;
+        var previousPrice = 0d;
+        var rangeCount = 0;
+        var initialSum = 0d;
+        var atr = 0d;
+
+        foreach (var signal in signals)
         {
-            if (prices.Length < 2) return [];
-            var result = new double[prices.Length - 1];
-            for (int i = 1; i < prices.Length; i++)
+            var price = (double)signal.FuturesPrice;
+            if (!hasPrevious)
             {
-                var highLow = Math.Abs(prices[i] - prices[i - 1]);
-                result[i - 1] = highLow;
+                previousPrice = price;
+                hasPrevious = true;
+                continue;
             }
-            return result;
+
+            var trueRange = Math.Abs(price - previousPrice);
+            previousPrice = price;
+            TrueRange = trueRange;
+            rangeCount++;
+
+            if (rangeCount <= _atrPeriod)
+            {
+                initialSum += trueRange;
+                atr = initialSum / rangeCount;
+            }
+            else
+            {
+                atr = ((atr * (_atrPeriod - 1)) + trueRange) / _atrPeriod;
+            }
         }
 
-        /// <summary>
-        /// Computes the Average True Range (ATR) from an array of True Range values.
-        /// </summary>
-        /// <param name="trueRanges">An array of True Range values.</param>
-        /// <param name="period">The period over which to compute the ATR.</param>
-        /// <returns>The computed ATR value.</returns>
-        static double ComputeAtr(double[] trueRanges, int period)
-        {
-            if (trueRanges.Length == 0) return 0;
-            if (trueRanges.Length <= period)
-            {
-                return trueRanges.Average();
-            }
-
-            // initial ATR is SMA of first 'period' true ranges
-            var atr = trueRanges.Take(period).Average();
-            // smoothed ATR using Wilder's method
-            for (int i = period; i < trueRanges.Length; i++)
-            {
-                atr = ((atr * (period - 1)) + trueRanges[i]) / period;
-            }
-            return atr;
-        }
+        AtrValue = atr;
     }
 
     /// <summary>Average True Range value.</summary>

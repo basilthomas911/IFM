@@ -1,6 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -25,6 +24,7 @@ public class FuturesTradeSignalModel(
     readonly FuturesRsiSignalReadModel _rsiSignal = rsiSignal;
     readonly FuturesTdiSignalReadModel _tdiSignal = tdiSignal;
     readonly FuturesItiSignalDataReadModel _itiSignalData = itiSignalData;
+    readonly FuturesItiSignalV2ReadModel? _lastItiSignal = GetLastFuturesItiSignal(itiSignalData);
 
     public double RSIAverage => _rsiSignal?.RSI ?? 0.0;
     public double RSISlope => _rsiSignal?.RSISlope ?? 0.0;
@@ -58,7 +58,7 @@ public class FuturesTradeSignalModel(
 
     bool FuturesItiSignaIMDIsRangeBound()
     {
-        var e = GetLastFuturesItiSignal();
+        var e = _lastItiSignal;
         return e switch
         {
             _ => true
@@ -67,7 +67,7 @@ public class FuturesTradeSignalModel(
 
     FuturesMDITrendType FuturesItiSignaIMDITrend()
     {
-        var e = GetLastFuturesItiSignal();
+        var e = _lastItiSignal;
         return e switch
         {
             null => FuturesMDITrendType.RangeBound,
@@ -75,29 +75,25 @@ public class FuturesTradeSignalModel(
         };
     }
 
-    FuturesItiSignalV2ReadModel? GetLastFuturesItiSignal()
+    static FuturesItiSignalV2ReadModel? GetLastFuturesItiSignal(FuturesItiSignalDataReadModel? signalData)
     {
-        return GetFuturesItiSignals()
-            .OrderByDescending(e => e.IntrinsicTime)
-            .FirstOrDefault();
+        if (signalData is null)
+            return null;
 
-        IEnumerable<FuturesItiSignalV2ReadModel> GetFuturesItiSignals()
-        {
-            if (_itiSignalData is null)
-                yield break;
-            if (_itiSignalData.TrendDirectionChange is not null)
-                yield return _itiSignalData.TrendDirectionChange;
-            if (_itiSignalData.TrendExtremeChange is not null)
-                yield return _itiSignalData.TrendExtremeChange;
-            if (_itiSignalData.TrendReversalChange is not null)
-                yield return _itiSignalData.TrendReversalChange;
-        }
+        var latest = signalData.TrendDirectionChange;
+        if (signalData.TrendExtremeChange is { } extreme
+            && (latest is null || extreme.IntrinsicTime > latest.IntrinsicTime))
+            latest = extreme;
+        if (signalData.TrendReversalChange is { } reversal
+            && (latest is null || reversal.IntrinsicTime > latest.IntrinsicTime))
+            latest = reversal;
+        return latest;
     }
 
     public FuturesMDITrendType MDITrend => FuturesItiSignaIMDITrend();
 
     FuturesMDITrendType GetMDITrend()
-        => GetLastFuturesItiSignal() switch
+        => _lastItiSignal switch
         {
             null => FuturesMDITrendType.RangeBound,
             FuturesItiSignalV2ReadModel => FuturesItiSignaIMDITrend()
@@ -105,7 +101,7 @@ public class FuturesTradeSignalModel(
 
     public double MDIUpTrendLimit => GetMDIUpTrendLimit();
     double GetMDIUpTrendLimit()
-        => GetLastFuturesItiSignal() switch
+        => _lastItiSignal switch
         {
             null => 0,
             _ => 0
@@ -113,7 +109,7 @@ public class FuturesTradeSignalModel(
 
     public double MDIDownTrendLimit => GetMDIDownTrendLimit();
     double GetMDIDownTrendLimit()
-        => GetLastFuturesItiSignal() switch
+        => _lastItiSignal switch
         {
             null => 0,
             _ => 0
@@ -153,7 +149,7 @@ public class FuturesTradeSignalModel(
     public double TrendDelta => GetTrendDelta();
     double GetTrendDelta()
     {
-        var futuresitiSignal = GetLastFuturesItiSignal();
+        var futuresitiSignal = _lastItiSignal;
         return futuresitiSignal is null
             ? 0
             : futuresitiSignal.TrendExtreme - futuresitiSignal.TrendPrice;

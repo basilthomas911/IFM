@@ -63,7 +63,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     #region ParseMessage Happy Path Tests
 
     [Fact]
-    public void ParseMessage_DeserializesGenerateFuturesAdxSignalCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesGenerateFuturesAdxSignalCommand_AndLogsToDatabase()
     {
         // Arrange
         _fixture.DataSerializer.Should().NotBeNull();
@@ -92,6 +92,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
+        await actor.InvokeOnValidateAsync(context, result.Subject.ThreadId, result);
 
         // Assert
         result.Should().NotBeNull();
@@ -177,7 +178,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
 
     [Fact]
-    public void ParseMessage_DeserializesGenerateFuturesAdxDailySignalCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesGenerateFuturesAdxDailySignalCommand_AndLogsToDatabase()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -202,6 +203,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
+        await actor.InvokeOnValidateAsync(context, result.Subject.ThreadId, result);
 
         // Assert
         result.Should().NotBeNull();
@@ -340,7 +342,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
 
     [Fact]
-    public void ParseMessage_ThrowsException_WhenDatabaseInsertFails()
+    public async Task ParseMessage_ThrowsException_WhenDatabaseInsertFails()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -358,10 +360,11 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
             .Returns(Task.FromException(new Exception("Database connection failed")));
 
         // Act
-        Action act = () => actor.InvokeParseMessage(context, natsMsg);
+        var parsed = actor.InvokeParseMessage(context, natsMsg);
+        Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, parsed.Subject.ThreadId, parsed);
 
         // Assert
-        act.Should().Throw<Exception>().WithMessage("Database connection failed");
+        await act.Should().ThrowAsync<Exception>().WithMessage("Database connection failed");
     }
 
     #endregion

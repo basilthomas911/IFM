@@ -40,8 +40,11 @@ public static class FuturesEodDataInsertedComplete
         {
             var contractId = e.FuturesEodData.ContractId;
             var valueDate = e.FuturesEodData.ValueDate;
-            var futuresEodData = await context.GetFuturesEodDataAsync(contractId, valueDate);
-            var vixFuturesEodData = await context.GetVixFuturesEodDataAsync(valueDate);
+            var futuresEodDataTask = context.GetFuturesEodDataAsync(contractId, valueDate).AsTask();
+            var vixFuturesEodDataTask = context.GetVixFuturesEodDataAsync(valueDate).AsTask();
+            await Task.WhenAll(futuresEodDataTask, vixFuturesEodDataTask);
+            var futuresEodData = await futuresEodDataTask;
+            var vixFuturesEodData = await vixFuturesEodDataTask;
             if (futuresEodData is null || vixFuturesEodData is null)
                 return false;
 

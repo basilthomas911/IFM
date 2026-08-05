@@ -40,11 +40,22 @@ public static class FuturesItiSignalGeneratedComplete
         {
             var contractId = e.EntityId.ContractId;
             var valueDate = e.EntityId.ValueDate;
-            var futuresEodData = await context.GetFuturesEodDataAsync(contractId, valueDate);
-            var futuresRsiSignal = await context.GetFuturesRsiSignalAsync(contractId, valueDate, TimeFrameType.Daily, 14);
-            var futuresTdiSignal = await context.GetFuturesTdiSignalAsync(contractId, valueDate);
-            var futuresItiSignalData = await context.GetFuturesItiSignalDataAsync(contractId, valueDate, e.EntityId.TimePeriod);
-            var vixFuturesPrice = await context.GetVixFuturesEodDataClosePriceAsync(valueDate);
+            var futuresEodDataTask = context.GetFuturesEodDataAsync(contractId, valueDate).AsTask();
+            var futuresRsiSignalTask = context.GetFuturesRsiSignalAsync(contractId, valueDate, TimeFrameType.Daily, 14).AsTask();
+            var futuresTdiSignalTask = context.GetFuturesTdiSignalAsync(contractId, valueDate).AsTask();
+            var futuresItiSignalDataTask = context.GetFuturesItiSignalDataAsync(contractId, valueDate, e.EntityId.TimePeriod).AsTask();
+            var vixFuturesPriceTask = context.GetVixFuturesEodDataClosePriceAsync(valueDate).AsTask();
+            await Task.WhenAll(
+                futuresEodDataTask,
+                futuresRsiSignalTask,
+                futuresTdiSignalTask,
+                futuresItiSignalDataTask,
+                vixFuturesPriceTask);
+            var futuresEodData = await futuresEodDataTask;
+            var futuresRsiSignal = await futuresRsiSignalTask;
+            var futuresTdiSignal = await futuresTdiSignalTask;
+            var futuresItiSignalData = await futuresItiSignalDataTask;
+            var vixFuturesPrice = await vixFuturesPriceTask;
             if (futuresEodData is null || futuresRsiSignal is null || futuresTdiSignal is null || futuresItiSignalData is null || vixFuturesPrice == 0)
                 return false;
             await commandApi.UpdateFuturesTradeSignalAsync(futuresEodData!, futuresRsiSignal!, futuresTdiSignal!, futuresItiSignalData!, vixFuturesPrice, TimeFrameType.FifteenSeconds);

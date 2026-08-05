@@ -133,6 +133,75 @@ public class ActorMarketDataAnalyticsQueryApiTests
         }
     }
 
+    [Fact]
+    public async Task ItiSignalDataStartsAllIndependentReadsBeforeAwaitingCompletion()
+    {
+        var (api, db) = CreateApi();
+        var valueDate = new DateOnly(2026, 1, 5);
+        var direction = new TaskCompletionSource<FuturesItiSignalV2ReadModel?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var extreme = new TaskCompletionSource<FuturesItiSignalV2ReadModel?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reversal = new TaskCompletionSource<FuturesItiSignalV2ReadModel?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = 0;
+
+        db.GetLastFuturesItiSignalTrendDirectionChangeAsync(ContractId, valueDate)
+            .Returns(_ => Started(direction.Task));
+        db.GetLastFuturesItiSignalTrendExtremeChangeAsync(ContractId, valueDate)
+            .Returns(_ => Started(extreme.Task));
+        db.GetLastFuturesItiSignalTrendReversalChangeAsync(ContractId, valueDate)
+            .Returns(_ => Started(reversal.Task));
+
+        var pending = api.GetFuturesItiSignalDataAsync(ContractId, valueDate, TimePeriod);
+        await allStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        pending.IsCompleted.Should().BeFalse();
+
+        direction.SetResult(null);
+        extreme.SetResult(null);
+        reversal.SetResult(null);
+        (await pending).Success.Should().BeTrue();
+
+        Task<FuturesItiSignalV2ReadModel?> Started(Task<FuturesItiSignalV2ReadModel?> task)
+        {
+            if (Interlocked.Increment(ref started) == 3)
+                allStarted.TrySetResult();
+            return task;
+        }
+    }
+
+    [Fact]
+    public async Task ItiMdiByTrendStartsBothTrendReadsBeforeAwaitingCompletion()
+    {
+        var (api, db) = CreateApi();
+        var valueDate = new DateOnly(2026, 1, 5);
+        var up = new TaskCompletionSource<ICollection<FuturesItiSignalMDIV2ReadModel>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var down = new TaskCompletionSource<ICollection<FuturesItiSignalMDIV2ReadModel>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var bothStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = 0;
+
+        db.GetFuturesItiSignalMDIByTrendAsync(ContractId, valueDate, IntrinsicTimeTrendType.UpTrend, 7)
+            .Returns(_ => Started(up.Task));
+        db.GetFuturesItiSignalMDIByTrendAsync(ContractId, valueDate, IntrinsicTimeTrendType.DownTrend, 7)
+            .Returns(_ => Started(down.Task));
+
+        var pending = api.GetFuturesItiSignalMDIByTrendAsync(ContractId, valueDate, 7);
+        await bothStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        pending.IsCompleted.Should().BeFalse();
+
+        up.SetResult(Array.Empty<FuturesItiSignalMDIV2ReadModel>());
+        down.SetResult(Array.Empty<FuturesItiSignalMDIV2ReadModel>());
+        var result = await pending;
+        result.Success.Should().BeTrue();
+        result.Value.Should().BeEmpty();
+
+        Task<ICollection<FuturesItiSignalMDIV2ReadModel>> Started(
+            Task<ICollection<FuturesItiSignalMDIV2ReadModel>> task)
+        {
+            if (Interlocked.Increment(ref started) == 2)
+                bothStarted.TrySetResult();
+            return task;
+        }
+    }
+
     static (ActorMarketDataAnalyticsQueryApi Api, IMarketDataDbContext Db) CreateApi()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();

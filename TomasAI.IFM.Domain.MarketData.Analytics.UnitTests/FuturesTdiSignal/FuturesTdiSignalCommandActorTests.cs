@@ -131,6 +131,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var expected = SampleData.TdiGenerateCommandFor(timePeriod);
 
         var parsed = scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(expected));
+        await scenario.Actor.InvokeOnValidateAsync(scenario.Context, parsed.Subject.ThreadId, parsed);
 
         parsed.Should().BeOfType<GenerateFuturesTdiSignalCommand>();
         parsed.CommandId.Should().Be(expected.CommandId);
@@ -204,16 +205,18 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
 
     [Fact]
-    public void ParseMessage_CommandLogFailure_PropagatesException()
+    public async Task ParseMessage_CommandLogFailure_PropagatesException()
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Weekly);
         scenario.EventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new InvalidOperationException("command log unavailable")));
 
-        var act = () => scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(command));
+        var parsed = scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(command));
+        Func<Task> act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            scenario.Context, parsed.Subject.ThreadId, parsed);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("command log unavailable");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("command log unavailable");
     }
 
     // ReceiveAsync

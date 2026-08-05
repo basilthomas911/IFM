@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands.Validation;
 
 public class FuturesItiMDIDistributionValidationRules : BaseValidationRules, IValidationRules<FuturesItiMDIDistributionReadModel>
 {
+    static readonly FuturesItiMDIDistributionValidator Validator = new();
     public static string UpTrendMeanErrorMsg => "UpTrendMean must be a finite number";
     public static string UpTrendStdDevErrorMsg => "UpTrendStdDev must be non-negative and finite";
     public static string DownTrendMeanErrorMsg => "DownTrendMean must be a finite number";
@@ -15,7 +16,7 @@ public class FuturesItiMDIDistributionValidationRules : BaseValidationRules, IVa
     public static string DownTrendingLimitErrorMsg => "DownTrendingLimit must be between 1 and 99 and finite";
 
     public ValidationError[] Execute(FuturesItiMDIDistributionReadModel model)
-        => Validate(model, new FuturesItiMDIDistributionValidator());
+        => Validate(model, Validator);
 
     class FuturesItiMDIDistributionValidator : AbstractValidator<FuturesItiMDIDistributionReadModel>
     {

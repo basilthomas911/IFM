@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Model;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 
@@ -45,6 +46,9 @@ public class FuturesRsiSignalEventActor(
         _ = GetCommandApi(context);
         return ValueTask.CompletedTask;
     }
+
+    protected override ValueTask OnShutdown(IEventActorContext context)
+        => FuturesRsiSignalTimer.StopAllAsync();
 
     IActorMarketDataAnalyticsCommandApi GetCommandApi(IEventActorContext context)
         => _commandApi ??= commandApiFactory.Create(context);

@@ -27,16 +27,12 @@ public class FuturesAdxSignalCompute
         _adxPeriod = adxPeriod;
         _adxSignal = adxSignal;
 
-        // make sure signals are in ascending order...
-        double[] priceValues = [.. adxSignals.Select(e => (double)e.FuturesPrice)];
-
-        // compute ADX components from price values...
-        ComputeAdxComponents(priceValues);
+        ComputeAdxComponents(adxSignals);
     }
 
-    void ComputeAdxComponents(double[] priceValues)
+    void ComputeAdxComponents(IReadOnlyCollection<FuturesAdxSignalReadModel> signals)
     {
-        var (plusDI, minusDI, adx) = ComputeAdx(priceValues, _adxPeriod);
+        var (plusDI, minusDI, adx) = ComputeAdx(signals, _adxPeriod);
         PlusDI = plusDI;
         MinusDI = minusDI;
         AdxValue = adx;
@@ -48,30 +44,57 @@ public class FuturesAdxSignalCompute
     /// <param name="prices">An array of price values in ascending time order.</param>
     /// <param name="period">The smoothing period for ADX calculation.</param>
     /// <returns>A tuple of (+DI, -DI, ADX) values.</returns>
-    static (double PlusDI, double MinusDI, double Adx) ComputeAdx(double[] prices, int period)
+    static (double PlusDI, double MinusDI, double Adx) ComputeAdx(
+        IReadOnlyCollection<FuturesAdxSignalReadModel> signals,
+        int period)
     {
-        if (prices.Length < 2) return (0, 0, 0);
+        if (signals.Count < 2)
+            return (0, 0, 0);
 
-        int n = prices.Length;
-        var plusDm = new double[n - 1];
-        var minusDm = new double[n - 1];
-        var tr = new double[n - 1];
+        var hasPrevious = false;
+        var previousPrice = 0d;
+        var movementCount = 0;
+        var trSum = 0d;
+        var plusDmSum = 0d;
+        var minusDmSum = 0d;
+        var smoothedTr = 0d;
+        var smoothedPlusDm = 0d;
+        var smoothedMinusDm = 0d;
 
-        for (int i = 1; i < n; i++)
+        foreach (var signal in signals)
         {
-            var upMove = prices[i] - prices[i - 1];
-            var downMove = prices[i - 1] - prices[i];
-            plusDm[i - 1] = upMove > 0 && upMove > downMove ? upMove : 0;
-            minusDm[i - 1] = downMove > 0 && downMove > upMove ? downMove : 0;
-            tr[i - 1] = Math.Abs(prices[i] - prices[i - 1]);
+            var price = (double)signal.FuturesPrice;
+            if (!hasPrevious)
+            {
+                previousPrice = price;
+                hasPrevious = true;
+                continue;
+            }
+
+            var upMove = price - previousPrice;
+            var downMove = previousPrice - price;
+            previousPrice = price;
+            var plusDm = upMove > 0 && upMove > downMove ? upMove : 0;
+            var minusDm = downMove > 0 && downMove > upMove ? downMove : 0;
+            var trueRange = Math.Abs(upMove);
+            movementCount++;
+
+            if (movementCount <= period)
+            {
+                trSum += trueRange;
+                plusDmSum += plusDm;
+                minusDmSum += minusDm;
+                smoothedTr = trSum / movementCount;
+                smoothedPlusDm = plusDmSum / movementCount;
+                smoothedMinusDm = minusDmSum / movementCount;
+            }
+            else
+            {
+                smoothedTr = ((smoothedTr * (period - 1)) + trueRange) / period;
+                smoothedPlusDm = ((smoothedPlusDm * (period - 1)) + plusDm) / period;
+                smoothedMinusDm = ((smoothedMinusDm * (period - 1)) + minusDm) / period;
+            }
         }
-
-        if (tr.Length == 0) return (0, 0, 0);
-
-        // Wilder's smoothing
-        var smoothedTr = WilderSmooth(tr, period);
-        var smoothedPlusDm = WilderSmooth(plusDm, period);
-        var smoothedMinusDm = WilderSmooth(minusDm, period);
 
         if (smoothedTr == 0) return (0, 0, 0);
 
@@ -83,25 +106,6 @@ public class FuturesAdxSignalCompute
 
         // ADX is the smoothed DX; for a single pass we use the DX value directly
         return (currentPlusDI, currentMinusDI, dx);
-    }
-
-    /// <summary>
-    /// Applies Wilder's smoothing method to a data series and returns the final smoothed value.
-    /// </summary>
-    static double WilderSmooth(double[] data, int period)
-    {
-        if (data.Length == 0) return 0;
-        if (data.Length <= period)
-            return data.Average();
-
-        // initial value is SMA of first 'period' values
-        var smoothed = data.Take(period).Average();
-        // apply Wilder's smoothing for remaining values
-        for (int i = period; i < data.Length; i++)
-        {
-            smoothed = ((smoothed * (period - 1)) + data[i]) / period;
-        }
-        return smoothed;
     }
 
     /// <summary>Plus Directional Indicator (+DI) value.</summary>

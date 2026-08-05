@@ -22,6 +22,9 @@ internal class FuturesTdiSignalCompute
     readonly FuturesRsiSignalReadModel[] _futuresRsiSignals;
     readonly FuturesRsiSignalReadModel _currentRsiSignal;
     readonly FuturesTdiSignalReadModel? _tdiSignal;
+    readonly FuturesTrendType _trendDirection;
+    readonly int _upTrendCount;
+    readonly int _downTrendCount;
 
     internal static bool Create(FuturesRsiSignalReadModel[] futuresRsiSignals, FuturesTdiSignalReadModel? tdiSignal, out FuturesTdiSignalCompute model)
     {
@@ -32,26 +35,52 @@ internal class FuturesTdiSignalCompute
     FuturesTdiSignalCompute(FuturesRsiSignalReadModel[] futuresRsiSignals, FuturesTdiSignalReadModel? tdiSignal = default)
     {
         _tdiSignal = tdiSignal;
-        // make sure signals are in ascending order...
-        _futuresRsiSignals = [.. futuresRsiSignals.OrderBy(e => e.Timestamp)];
+        _futuresRsiSignals = IsAscending(futuresRsiSignals)
+            ? futuresRsiSignals
+            : [.. futuresRsiSignals.OrderBy(static e => e.Timestamp)];
 
-        // get current signal..
-        _currentRsiSignal = _futuresRsiSignals.Last();
+        _currentRsiSignal = _futuresRsiSignals[^1];
+        _trendDirection = GetTrendDirection(_currentRsiSignal);
+
+        var windowStart = _currentRsiSignal.Timestamp.AddMinutes(-5);
+        foreach (var signal in _futuresRsiSignals)
+        {
+            if (signal.Timestamp < windowStart || signal.Timestamp > _currentRsiSignal.Timestamp)
+                continue;
+            if (signal.RSI >= 50)
+                _upTrendCount++;
+            else
+                _downTrendCount++;
+        }
+
+        static bool IsAscending(FuturesRsiSignalReadModel[] signals)
+        {
+            for (var index = 1; index < signals.Length; index++)
+            {
+                if (signals[index - 1].Timestamp > signals[index].Timestamp)
+                    return false;
+            }
+            return true;
+        }
+
+        static FuturesTrendType GetTrendDirection(FuturesRsiSignalReadModel signal)
+            => signal switch
+            {
+                { RSI: >= 50, RSISlope: >= 0 } => FuturesTrendType.UpTrending,
+                { RSI: < 50, RSISlope: < 0 } => FuturesTrendType.DownTrending,
+                _ => FuturesTrendType.RangeBound
+            };
     }
 
     /// <summary>
     /// get uptrend count for last 5 minutes...
     /// </summary>
-    internal int UpTrendCount => _futuresRsiSignals
-            .Where(e => e.Timestamp >= _currentRsiSignal.Timestamp.AddMinutes(-5) && e.Timestamp <= _currentRsiSignal.Timestamp)
-            .Count(e => e.RSI >= 50);
+    internal int UpTrendCount => _upTrendCount;
 
     /// <summary>
     /// get downtrend count for last 10 minutes...
     /// </summary>
-    internal int DownTrendCount => _futuresRsiSignals
-            .Where(e => e.Timestamp >= _currentRsiSignal.Timestamp.AddMinutes(-5) && e.Timestamp <= _currentRsiSignal.Timestamp)
-            .Count(e => e.RSI < 50);
+    internal int DownTrendCount => _downTrendCount;
 
     /// <summary>
     /// Gets the current trend direction of the futures market as determined by the Relative Strength Index (RSI) and
@@ -60,12 +89,7 @@ internal class FuturesTdiSignalCompute
     /// <remarks>The trend direction is classified as uptrending if the RSI is 50 or higher and the RSI slope
     /// is non-negative, downtrending if the RSI is below 50 and the slope is negative, and range-bound otherwise. This
     /// property provides a high-level indication of market momentum based on recent RSI signals.</remarks>
-    internal FuturesTrendType TrendDirection
-        => default(FuturesTrendType) switch {
-            _ when (_currentRsiSignal?.RSI ?? 0) >= 50 && (_currentRsiSignal?.RSISlope ?? -1) >= 0 => FuturesTrendType.UpTrending,
-            _ when (_currentRsiSignal?.RSI ?? 51) < 50 && (_currentRsiSignal?.RSISlope ?? 0) < 0 => FuturesTrendType.DownTrending,
-            _ => FuturesTrendType.RangeBound
-        };
+    internal FuturesTrendType TrendDirection => _trendDirection;
 
     /// <summary>
     /// Determines the strength of the current trend direction based on the number of consecutive upward or downward

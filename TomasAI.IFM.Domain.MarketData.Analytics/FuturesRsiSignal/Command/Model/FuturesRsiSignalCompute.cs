@@ -1,4 +1,3 @@
-using TomasAI.IFM.Shared.AlgoMath.Indicators;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -9,30 +8,49 @@ internal static class FuturesRsiSignalCompute
 {
     public static FuturesRsiSignalReadModel SetRsiSignalAtWindowSize(this FuturesRsiSignalReadModel newRSISignal, IReadOnlyCollection<FuturesRsiSignalReadModel> rsiSignals, int rsiWindowSize)
     {
-        var prevIndex = rsiSignals.Count - 1;
-        var priceChange = newRSISignal.Price - rsiSignals.ElementAt(prevIndex).Price;
+        using var enumerator = rsiSignals.GetEnumerator();
+        if (!enumerator.MoveNext())
+            throw new InvalidOperationException("At least one prior RSI signal is required.");
+
+        var firstSignal = enumerator.Current;
+        var lastSignal = firstSignal;
+        var gainSum = 0m;
+        var lossSum = 0m;
+        var averageCount = 0;
+        const double emaMultiplier = 2d / 7d;
+        var rsiAverage = firstSignal.RSI;
+
+        while (enumerator.MoveNext())
+        {
+            lastSignal = enumerator.Current;
+            gainSum += lastSignal.PriceGain;
+            lossSum += lastSignal.PriceLoss;
+            averageCount++;
+            rsiAverage = ((lastSignal.RSI - rsiAverage) * emaMultiplier) + rsiAverage;
+        }
+
+        if (averageCount == 0)
+            throw new InvalidOperationException("At least two prior RSI signals are required.");
+
+        var priceChange = newRSISignal.Price - lastSignal.Price;
         newRSISignal = newRSISignal with
         {
             PriceChange = priceChange,
             PriceGain = priceChange > 0 ? priceChange : 0m,
             PriceLoss = priceChange < 0 ? Math.Abs(priceChange) : 0m
         };
-        var avgPriceGain = (rsiSignals.Skip(1).Average(e => e.PriceGain) * (rsiWindowSize - 1) + newRSISignal.PriceGain) / rsiWindowSize;
-        var avgPriceLoss = (rsiSignals.Skip(1).Average(e => e.PriceLoss) * (rsiWindowSize - 1) + newRSISignal.PriceLoss) / rsiWindowSize;
+        var avgPriceGain = ((gainSum / averageCount) * (rsiWindowSize - 1) + newRSISignal.PriceGain) / rsiWindowSize;
+        var avgPriceLoss = ((lossSum / averageCount) * (rsiWindowSize - 1) + newRSISignal.PriceLoss) / rsiWindowSize;
         var rs = Convert.ToDouble(avgPriceGain / (avgPriceLoss == 0.0m ? 1.0m : avgPriceLoss));
         var rsi = 100 - (100 / (1 + rs));
-        var xmaInd = new ExponentialMovingAverageIndicator(6);
-        foreach (var e in rsiSignals)
-            xmaInd.Estimate(e.RSI);
-        var rsiAvg = xmaInd.Value;
-        var rsiSlope = Convert.ToDouble(rsiSignals.Last().Price - rsiSignals.First().Price) / Convert.ToDouble(rsiWindowSize);
+        var rsiSlope = Convert.ToDouble(lastSignal.Price - firstSignal.Price) / Convert.ToDouble(rsiWindowSize);
         newRSISignal = newRSISignal with
         {
             AveragePriceGain = avgPriceGain,
             AveragePriceLoss = avgPriceLoss,
             RS = rs,
             RSI = rsi,
-            RSIAverage = rsiAvg,
+            RSIAverage = rsiAverage,
             RSISlope = rsiSlope
         };
         return newRSISignal;
@@ -45,7 +63,16 @@ internal static class FuturesRsiSignalCompute
     /// <param name="periodLength">The number of valid signals required to generate futures RSI signals. Must be a non-negative integer.</param>
     /// <returns><see langword="true"/> if there are valid RSI signals within the window; otherwise, <see langword="false"/>.</returns>
     internal static bool CanGenerateFuturesRsiSignals(this IReadOnlyCollection<FuturesRsiSignalReadModel> futuresRsiSignals, int periodLength)
-        => futuresRsiSignals.Where(o => o.RSI != -1).Take(periodLength).Any();
+    {
+        if (periodLength <= 0)
+            return false;
+        foreach (var signal in futuresRsiSignals)
+        {
+            if (signal.RSI != -1)
+                return true;
+        }
+        return false;
+    }
 
     /// <summary>
     /// Generates a collection of futures RSI signal view models that have valid RSI values, limited to the specified
@@ -60,7 +87,20 @@ internal static class FuturesRsiSignalCompute
     /// <returns>A read-only collection containing up to the specified number of futures RSI signal view models with valid RSI
     /// values. Signals with an RSI value of -1 are excluded.</returns>
     internal static IReadOnlyCollection<FuturesRsiSignalReadModel> GenerateFuturesRsiSignals(this IReadOnlyCollection<FuturesRsiSignalReadModel> futuresRsiSignals, int windowSize)
-        => [.. futuresRsiSignals.Where(o => o.RSI != -1).Take(windowSize)];
+    {
+        if (windowSize <= 0)
+            return Array.Empty<FuturesRsiSignalReadModel>();
+        var result = new List<FuturesRsiSignalReadModel>(Math.Min(windowSize, futuresRsiSignals.Count));
+        foreach (var signal in futuresRsiSignals)
+        {
+            if (signal.RSI == -1)
+                continue;
+            result.Add(signal);
+            if (result.Count == windowSize)
+                break;
+        }
+        return result;
+    }
 
     /// <summary>
     /// Generates a new RSI signal based on the provided end-of-day data and the existing collection of RSI signals.
@@ -113,8 +153,7 @@ internal static class FuturesRsiSignalCompute
     /// <returns>The updated RSI signal.</returns>
     public static FuturesRsiSignalReadModel SetRsiSignalPreWindowSize(this FuturesRsiSignalReadModel newRsiSignal, IReadOnlyCollection<FuturesRsiSignalReadModel> rsiSignals)
     {
-        var prevIndex = rsiSignals.Count - 1;
-        var priceChange = newRsiSignal.Price - rsiSignals.ElementAt(prevIndex).Price;
+        var priceChange = newRsiSignal.Price - rsiSignals.Last().Price;
         return newRsiSignal with
         {
             PriceChange = priceChange,

@@ -105,7 +105,9 @@ public class FuturesTdiSignalIdValidationRules : BaseValidationRules, IValidatio
     /// An array of <see cref="ValidationError"/> instances describing any validation failures.
     /// Returns an empty array if validation succeeds.
     /// </returns>
-    public ValidationError[] Execute(FuturesTdiSignalId tdiSignalId) => Validate(tdiSignalId, new FuturesTdiSignalIdValidator());
+    static readonly FuturesTdiSignalIdValidator Validator = new();
+
+    public ValidationError[] Execute(FuturesTdiSignalId tdiSignalId) => Validate(tdiSignalId, Validator);
 
     class FuturesTdiSignalIdValidator : AbstractValidator<FuturesTdiSignalId>
     {

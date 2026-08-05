@@ -160,7 +160,9 @@ public record FuturesRsiSignalReadModel
 /// </summary>
 public class FuturesRsiSignalReadModelValidationRules : BaseValidationRules, IValidationRules<FuturesRsiSignalReadModel>
 {
-    public ValidationError[] Execute(FuturesRsiSignalReadModel futuresRsiSignal) => Validate(futuresRsiSignal, new FuturesRsiSignalValidator());
+    static readonly FuturesRsiSignalValidator Validator = new();
+
+    public ValidationError[] Execute(FuturesRsiSignalReadModel futuresRsiSignal) => Validate(futuresRsiSignal, Validator);
 
     private class FuturesRsiSignalValidator : AbstractValidator<FuturesRsiSignalReadModel>
     {

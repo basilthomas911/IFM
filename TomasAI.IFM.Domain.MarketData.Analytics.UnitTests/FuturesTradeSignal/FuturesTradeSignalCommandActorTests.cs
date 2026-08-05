@@ -68,7 +68,9 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var command = SampleData.CreateTradeSignalUpdateCommandFor(timePeriod);
+        var command = SampleData.CreateTradeSignalUpdateCommandFor(
+            timePeriod,
+            vixFuturesPrice: (decimal)SampleData.VixFuturesPrice);
 
         var payload = ActorExtensions.DataSerializer.Serialize(command);
         var subject = command.Subject.ToString();
@@ -81,6 +83,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
+        await actor.InvokeOnValidateAsync(context, result.Subject.ThreadId, result);
 
         // Assert
         result.Should().NotBeNull();
@@ -332,12 +335,11 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
             .Returns(Task.FromException(new Exception("Database connection failed")));
 
         // Act
-        Action act = () => actor.InvokeParseMessage(context, natsMsg);
+        var parsed = actor.InvokeParseMessage(context, natsMsg);
+        Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, parsed.Subject.ThreadId, parsed);
 
         // Assert
-        act.Should().Throw<Exception>().WithMessage("Database connection failed");
-
-        await Task.CompletedTask;
+        await act.Should().ThrowAsync<Exception>().WithMessage("Database connection failed");
     }
 
     #endregion

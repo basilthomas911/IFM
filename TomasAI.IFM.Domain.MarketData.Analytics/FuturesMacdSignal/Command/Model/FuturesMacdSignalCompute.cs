@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Mode
 public class FuturesMacdSignalCompute
 {
     readonly FuturesMacdSignalReadModel? _macdSignal;
-    int _signalPeriod;
+    readonly int _signalPeriod;
 
     const int FastPeriod = 9;
     const int SlowPeriod = 26;
@@ -27,19 +27,7 @@ public class FuturesMacdSignalCompute
     {
         _signalPeriod = periodLength;
         _macdSignal = previousMacdSignals.LastOrDefault();
-        // make sure signals are in ascending order...
-        //var orderedSignals = futuresRsiSignals.OrderBy(e => e.Timestamp).ToArray();
-
-        // compute MACD components from price values...
-        var priceValues = previousMacdSignals.Select(e => (double)e.FuturesPrice).ToArray();
-        var fastEma = ComputeEma(priceValues, FastPeriod);
-        var slowEma = ComputeEma(priceValues, SlowPeriod);
-        MacdLine = fastEma - slowEma;
-
-        // compute signal line as EMA of MACD line series...
-        var macdSeries = ComputeMacdSeries(priceValues, FastPeriod, SlowPeriod);
-        SignalLine = ComputeEma(macdSeries, _signalPeriod);
-        Histogram = MacdLine - SignalLine;
+        ComputeMacdComponents(previousMacdSignals);
     }
 
     /// <summary>MACD line value (fast EMA minus slow EMA of RSI).</summary>
@@ -70,34 +58,39 @@ public class FuturesMacdSignalCompute
         };
     }
 
-    static double ComputeEma(double[] values, int period)
+    void ComputeMacdComponents(IReadOnlyCollection<FuturesMacdSignalReadModel> signals)
     {
-        if (values.Length == 0) return 0;
-        var multiplier = 2.0 / (period + 1);
-        var ema = values[0];
-        for (int i = 1; i < values.Length; i++)
-        {
-            ema = (values[i] - ema) * multiplier + ema;
-        }
-        return ema;
-    }
+        if (signals.Count == 0)
+            return;
 
-    static double[] ComputeMacdSeries(double[] rsiValues, int fastPeriod, int slowPeriod)
-    {
-        if (rsiValues.Length == 0) return [];
-        var fastMultiplier = 2.0 / (fastPeriod + 1);
-        var slowMultiplier = 2.0 / (slowPeriod + 1);
-        var fastEma = rsiValues[0];
-        var slowEma = rsiValues[0];
-        var result = new double[rsiValues.Length];
-        result[0] = 0;
-        for (int i = 1; i < rsiValues.Length; i++)
+        const double fastMultiplier = 2.0 / (FastPeriod + 1);
+        const double slowMultiplier = 2.0 / (SlowPeriod + 1);
+        var signalMultiplier = 2.0 / (_signalPeriod + 1);
+        var initialized = false;
+        var fastEma = 0d;
+        var slowEma = 0d;
+        var signalLine = 0d;
+
+        foreach (var signal in signals)
         {
-            fastEma = (rsiValues[i] - fastEma) * fastMultiplier + fastEma;
-            slowEma = (rsiValues[i] - slowEma) * slowMultiplier + slowEma;
-            result[i] = fastEma - slowEma;
+            var price = (double)signal.FuturesPrice;
+            if (!initialized)
+            {
+                fastEma = price;
+                slowEma = price;
+                initialized = true;
+                continue;
+            }
+
+            fastEma = (price - fastEma) * fastMultiplier + fastEma;
+            slowEma = (price - slowEma) * slowMultiplier + slowEma;
+            var macd = fastEma - slowEma;
+            signalLine = (macd - signalLine) * signalMultiplier + signalLine;
         }
-        return result;
+
+        MacdLine = fastEma - slowEma;
+        SignalLine = signalLine;
+        Histogram = MacdLine - SignalLine;
     }
 
     /// <summary>

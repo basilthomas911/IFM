@@ -29,16 +29,11 @@ public class FuturesMacdSignalCommandState
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        try
+        return domainEvent switch
         {
-            return domainEvent switch
-            {
-                FuturesMacdSignalGeneratedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
+            FuturesMacdSignalGeneratedEvent e => On(e),
+            _ => false
+        };
 
         bool On(FuturesMacdSignalGeneratedEvent e)
         {

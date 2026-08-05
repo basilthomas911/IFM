@@ -87,7 +87,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
     #region ParseMessage Happy Path Tests
 
     [Fact]
-    public void ParseMessage_DeserializesGenerateFuturesMacdSignalCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesGenerateFuturesMacdSignalCommand_AndLogsToDatabase()
     {
         // Arrange
         _fixture.DataSerializer.Should().NotBeNull();
@@ -109,6 +109,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
+        await actor.InvokeOnValidateAsync(context, result.Subject.ThreadId, result);
 
         // Assert
         result.Should().NotBeNull();

@@ -31,7 +31,7 @@ public static class FuturesRsiSignalStopped
         var source = $"FuturesRsiSignalStoppedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
         try
         {
-            e.StopTimer();
+            await e.StopTimerAsync();
             return true;
         }
         catch (Exception ex)

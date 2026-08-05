@@ -230,6 +230,7 @@ public class FuturesTradeSignalCommandTests
         var expected = SampleData.TradeSignalUpdateCommandFor(timePeriod);
 
         var parsed = scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(expected));
+        await scenario.Actor.InvokeOnValidateAsync(scenario.Context, parsed.Subject.ThreadId, parsed);
 
         var restored = parsed.Should().BeOfType<UpdateFuturesTradeSignalCommand>().Subject;
         restored.CommandId.Should().Be(expected.CommandId);
@@ -294,16 +295,20 @@ public class FuturesTradeSignalCommandTests
     }
 
     [Fact]
-    public void GivenCommandLoggingFails_WhenACommandMessageIsParsed_ThenTheFailureIsPropagated()
+    public async Task GivenCommandLoggingFails_WhenTheCommandIsValidated_ThenTheFailureIsPropagated()
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Monthly);
         scenario.EventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new InvalidOperationException("command log unavailable")));
 
-        var act = () => scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(command));
+        var parsed = scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(command));
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            scenario.Context,
+            parsed.Subject.ThreadId,
+            parsed);
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("command log unavailable");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("command log unavailable");
     }
 
     // Receive and validation edge cases

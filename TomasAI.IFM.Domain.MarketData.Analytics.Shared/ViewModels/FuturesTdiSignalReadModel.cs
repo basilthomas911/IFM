@@ -114,13 +114,14 @@ public record FuturesTdiSignalReadModel
 /// </remarks>
 public class FuturesTdiSignalReadModelValidationRules : BaseValidationRules, IValidationRules<FuturesTdiSignalReadModel>
 {
+    static readonly FuturesTdiSignalReadModelValidator Validator = new();
     /// <summary>
     /// Executes validation rules against the specified FuturesTdiSignalReadModel instance.
     /// </summary>
     /// <param name="futuresTdiSignal">The TDI signal read model to validate.</param>
     /// <returns>An array of validation errors, or an empty array if validation passes.</returns>
     public ValidationError[] Execute(FuturesTdiSignalReadModel futuresTdiSignal) 
-        => Validate(futuresTdiSignal, new FuturesTdiSignalReadModelValidator());
+        => Validate(futuresTdiSignal, Validator);
 
     /// <summary>
     /// Internal FluentValidation validator for FuturesTdiSignalReadModel.

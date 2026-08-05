@@ -75,7 +75,9 @@ public class FuturesRsiDailySignalEntityIdValidationRules : BaseValidationRules,
     public const string ContractIdErrorMessage = "FuturesRsiSignalEntityId: ContractId is required";
     public const string TimePeriodErrorMessage = "FuturesRsiSignalEntityId: TimePeriod must be a valid value other than None";
 
-    public ValidationError[] Execute(FuturesRsiDailySignalEntityId rsiSignalEntityId) => Validate(rsiSignalEntityId, new FuturesRsiDailySignalEntityIdValidator());
+    static readonly FuturesRsiDailySignalEntityIdValidator Validator = new();
+
+    public ValidationError[] Execute(FuturesRsiDailySignalEntityId rsiSignalEntityId) => Validate(rsiSignalEntityId, Validator);
 
     class FuturesRsiDailySignalEntityIdValidator : AbstractValidator<FuturesRsiDailySignalEntityId>
     {

@@ -9,6 +9,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.MarketData.Analytics.Actor.BDDTests" />
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.MarketData.Analytics.Actor.UnitTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.MarketData.Analytics.UnitTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.MarketData.Analytics.Benchmarks" />
   </ItemGroup>
 
   <ItemGroup>

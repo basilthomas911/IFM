@@ -29,20 +29,15 @@ public class FuturesRsiSignalCommandState
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        try
+        return domainEvent switch
         {
-            return domainEvent switch
-            {
-                FuturesRsiSignalStartedEvent => true,
-                FuturesRsiSignalStoppedEvent => true,
-                FuturesRsiSignalGeneratedEvent e => On(e),
-                FuturesRsiDailySignalGeneratedEvent e => OnDaily(e),
-                FuturesRsiSignalsGeneratedEvent => true,
-                _ => false
-            };
-        }
-        catch { }
-        return false;
+            FuturesRsiSignalStartedEvent => true,
+            FuturesRsiSignalStoppedEvent => true,
+            FuturesRsiSignalGeneratedEvent e => On(e),
+            FuturesRsiDailySignalGeneratedEvent e => OnDaily(e),
+            FuturesRsiSignalsGeneratedEvent => true,
+            _ => false
+        };
 
         bool On(FuturesRsiSignalGeneratedEvent e)
         {
@@ -69,7 +64,7 @@ public class FuturesRsiSignalCommandState
     /// Gets the collection of generated futures RSI signals.
     /// </summary>
     internal IReadOnlyCollection<FuturesRsiSignalReadModel> FuturesRsiSignals
-        => [.. _futuresRsiSignals];
+        => _futuresRsiSignals;
 
     /// <summary>
     /// Determines whether futures RSI signals can be generated based on the specified window size.
@@ -77,5 +72,14 @@ public class FuturesRsiSignalCommandState
     /// <param name="windowSize">The number of valid RSI signals required.</param>
     /// <returns><see langword="true"/> if there are valid RSI signals within the window; otherwise, <see langword="false"/>.</returns>
     internal bool CanGenerateFuturesRsiSignals(int windowSize)
-        => _futuresRsiSignals.Where(o => o.RSI != -1).Take(windowSize).Count() > 0;
+    {
+        if (windowSize <= 0)
+            return false;
+        foreach (var signal in _futuresRsiSignals)
+        {
+            if (signal.RSI != -1)
+                return true;
+        }
+        return false;
+    }
 }

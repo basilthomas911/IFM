@@ -277,11 +277,17 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
     {
         try
         {
-            var db = _dbFactory.MarketDataDb;
+            var trendDirectionTask = _dbFactory.MarketDataDb
+                .GetLastFuturesItiSignalTrendDirectionChangeAsync(contractId, valueDate);
+            var trendExtremeTask = _dbFactory.MarketDataDb
+                .GetLastFuturesItiSignalTrendExtremeChangeAsync(contractId, valueDate);
+            var trendReversalTask = _dbFactory.MarketDataDb
+                .GetLastFuturesItiSignalTrendReversalChangeAsync(contractId, valueDate);
+            await Task.WhenAll(trendDirectionTask, trendExtremeTask, trendReversalTask);
             var result = new FuturesItiSignalDataReadModel(
-                await db.GetLastFuturesItiSignalTrendDirectionChangeAsync(contractId, valueDate),
-                await db.GetLastFuturesItiSignalTrendExtremeChangeAsync(contractId, valueDate),
-                await db.GetLastFuturesItiSignalTrendReversalChangeAsync(contractId, valueDate));
+                await trendDirectionTask,
+                await trendExtremeTask,
+                await trendReversalTask);
             return new ServiceOk<FuturesItiSignalDataReadModel>(result);
         }
         catch (Exception ex)
@@ -552,11 +558,13 @@ public sealed class ActorMarketDataAnalyticsQueryApi(IDbContextFactory dbFactory
     async Task<FuturesItiSignalMDIV2ReadModel[]> GetFuturesItiSignalMDIByTrendCoreAsync(
         string contractId, DateOnly valueDate, int groupId)
     {
-        var db = _dbFactory.MarketDataDb;
-        var upTrend = await db.GetFuturesItiSignalMDIByTrendAsync(
+        var upTrendTask = _dbFactory.MarketDataDb.GetFuturesItiSignalMDIByTrendAsync(
             contractId, valueDate, IntrinsicTimeTrendType.UpTrend, groupId);
-        var downTrend = await db.GetFuturesItiSignalMDIByTrendAsync(
+        var downTrendTask = _dbFactory.MarketDataDb.GetFuturesItiSignalMDIByTrendAsync(
             contractId, valueDate, IntrinsicTimeTrendType.DownTrend, groupId);
+        await Task.WhenAll(upTrendTask, downTrendTask);
+        var upTrend = await upTrendTask;
+        var downTrend = await downTrendTask;
         return [.. upTrend, .. downTrend];
     }
 }

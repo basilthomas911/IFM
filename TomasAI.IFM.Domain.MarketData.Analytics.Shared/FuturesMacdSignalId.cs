@@ -83,7 +83,9 @@ public class FuturesMacdSignalIdValidationRules : BaseValidationRules, IValidati
     public const string TimestampMinErrorMessage = "FuturesMacdSignalId: Timestamp must be greater than TimeOnly.MinValue";
     public const string TimestampMaxErrorMessage = "FuturesMacdSignalId: Timestamp must be less than TimeOnly.MaxValue";
 
-    public ValidationError[] Execute(FuturesMacdSignalId macdSignalId) => Validate(macdSignalId, new FuturesMacdSignalIdValidator());
+    static readonly FuturesMacdSignalIdValidator Validator = new();
+
+    public ValidationError[] Execute(FuturesMacdSignalId macdSignalId) => Validate(macdSignalId, Validator);
 
     class FuturesMacdSignalIdValidator : AbstractValidator<FuturesMacdSignalId>
     {

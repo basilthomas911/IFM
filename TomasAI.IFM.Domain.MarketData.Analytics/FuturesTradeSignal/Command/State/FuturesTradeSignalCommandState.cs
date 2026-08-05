@@ -30,16 +30,11 @@ public class FuturesTradeSignalCommandState
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        try
+        return domainEvent switch
         {
-            return domainEvent switch
-            {
-                FuturesTradeSignalUpdatedEvent e => On(e),
-                _ => false
-            };
-        }
-        catch { }
-        return false;
+            FuturesTradeSignalUpdatedEvent e => On(e),
+            _ => false
+        };
 
         bool On(FuturesTradeSignalUpdatedEvent e)
         {

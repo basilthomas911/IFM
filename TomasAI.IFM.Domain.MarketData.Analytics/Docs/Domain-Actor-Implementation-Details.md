@@ -93,3 +93,32 @@ Incoming NATS subjects select an actor mailbox and verb. Command actors deserial
 ## Extension points
 
 New indicators should receive an isolated feature root with command, event, and query branches. Keep indicator calculations/models local, expose cross-domain contracts from a Shared project, and register every new verb in parse, validation, and receive maps.
+
+## State-history and recovery contract
+
+Analytics event streams and their domain history are intentionally unbounded. Indicator actors must not discard historical events as a memory optimization. Normal recovery starts from the latest snapshot and replays the events required after that snapshot.
+
+### TODO: snapshot plus last-N-range recovery
+
+Implement a lower-level map/reduce recovery operation, provisionally named `LoadStateFromSnapshotLastNRangeAsync` (the requested `LoadStateFromSnapSnapShotLastNRange` behavior), in a separate solution-wide storage/event-sourcing change after the domain optimization passes are complete.
+
+Required semantics:
+
+1. Locate and load the most recent snapshot and its stream event position.
+2. Locate the end position of the same stream.
+3. Move the event cursor backward by the actor's required `NRange`, without moving before the first event after the snapshot.
+4. Read and return only that final post-snapshot range in ascending event order.
+5. Rehydrate from the snapshot plus those events while leaving the persisted stream and historical retention unbounded.
+6. Cover no-snapshot, fewer-than-N events, exact-N events, more-than-N events, concurrent append, and snapshot-boundary cases.
+
+This optimization is deliberately excluded from the current Analytics actor pass because it changes shared event-source repository and storage semantics. Until it is implemented, calculation code continues to accept the complete collection supplied by the current recovery path.
+
+### TODO: solution-wide graceful cancellation
+
+Cancellation must eventually flow from the supervisor through actor requests, repositories, and the lowest storage operations so shutdown can stop actors gracefully. Do not introduce partial cancellation contracts in one domain; implement and test the propagation as a dedicated solution-wide change after root-domain optimization is complete. The local RSI timer uses an internal cancellation source only to drain its own lifecycle during stop/shutdown and does not change that cross-solution contract.
+
+## Preserved actor semantics
+
+- Command success and state mutation remain separate concepts. An operation may succeed when `Update` returns `false`; that value reports whether state changed.
+- Empty event actors remain valid same-domain sinks for command-produced events.
+- Actor parse dispatch remains dictionary/delegate based in this domain. No switch or generated jump table was introduced without production evidence that the extra maintenance cost is justified.

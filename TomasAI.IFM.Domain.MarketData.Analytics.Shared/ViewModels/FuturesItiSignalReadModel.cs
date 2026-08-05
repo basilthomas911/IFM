@@ -161,13 +161,14 @@ public record FuturesItiSignalV2ReadModel
 /// </remarks>
 public class FuturesItiSignalV2ReadModelValidationRules : BaseValidationRules, IValidationRules<FuturesItiSignalV2ReadModel>
 {
+    static readonly FuturesItiSignalV2Validator Validator = new();
     /// <summary>
     /// Execute validation for the supplied <see cref="FuturesItiSignalV2ReadModel"/>.
     /// </summary>
     /// <param name="futuresItiSignal">The futures ITI signal view model to validate.</param>
     /// <returns>An array of <see cref="ValidationError"/> describing validation failures. Empty if valid.</returns>
     public ValidationError[] Execute(FuturesItiSignalV2ReadModel futuresItiSignal)
-        => Validate(futuresItiSignal, new FuturesItiSignalV2Validator());
+        => Validate(futuresItiSignal, Validator);
 
     /// <summary>
     /// FluentValidation validator describing the rules for <see cref="FuturesItiSignalV2ReadModel"/>.

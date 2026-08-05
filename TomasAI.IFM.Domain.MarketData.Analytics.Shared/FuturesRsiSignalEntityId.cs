@@ -82,7 +82,9 @@ public class FuturesRsiSignalEntityIdValidationRules : BaseValidationRules, IVal
     public const string ValueDateMaxErrorMessage = "FuturesRsiSignalEntityId: ValueDate must be less than DateOnly.MaxValue";
     public const string TimePeriodErrorMessage = "FuturesRsiSignalEntityId: TimePeriod must be a valid value other than None";
 
-    public ValidationError[] Execute(FuturesRsiSignalEntityId rsiSignalEntityId) => Validate(rsiSignalEntityId, new FuturesRsiSignalEntityIdValidator());
+    static readonly FuturesRsiSignalEntityIdValidator Validator = new();
+
+    public ValidationError[] Execute(FuturesRsiSignalEntityId rsiSignalEntityId) => Validate(rsiSignalEntityId, Validator);
 
     class FuturesRsiSignalEntityIdValidator : AbstractValidator<FuturesRsiSignalEntityId>
     {
