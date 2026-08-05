@@ -13,7 +13,6 @@ using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
-using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
 using TomasAI.IFM.Application.Storage;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Actor;
@@ -44,16 +43,17 @@ public class YieldCurveRateCommandActor(
     /// to the actor.</remarks>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask OnStartup(ICommandActorContext context)
+    protected override ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<YieldCurveRateCommandState>>());
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
     /// </summary>
-    /// <remarks>The parsed command is synchronously logged to the database before being returned. This method
+    /// <remarks>The command is logged asynchronously during validation, before validation is performed. This method
     /// expects the message subject to match a registered command verb for the actor.</remarks>
     /// <param name="context">The actor context used to resolve and process the command. Cannot be null.</param>
     /// <param name="message">The NATS message containing the command data to be parsed. Must have a subject and payload appropriate for
@@ -65,30 +65,19 @@ public class YieldCurveRateCommandActor(
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
+        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName })
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
+        ICommand? command = msgSubject.Verb switch
+        {
+            AddYieldCurveRateCommand.Verb => message.AsCommand<AddYieldCurveRateCommand>(),
+            ChangeYieldCurveRateCommand.Verb => message.AsCommand<ChangeYieldCurveRateCommand>(),
+            RemoveYieldCurveRateCommand.Verb => message.AsCommand<RemoveYieldCurveRateCommand>(),
+            ImportYieldCurveRatesCommand.Verb => message.AsCommand<ImportYieldCurveRatesCommand>(),
+            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}")
+        };
         IsArgumentNull.Check(command);
-        _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
         return command;
     }
-
-    /// <summary>
-    /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
-    /// corresponding command instance.
-    /// </summary>
-    /// <remarks>This dictionary enables efficient dispatching and parsing of incoming NATS messages based on
-    /// their verb. Each entry associates a specific command verb with a function that converts a NATS message payload
-    /// into a strongly typed command object implementing the ICommand interface. The mapping is intended for internal
-    /// use in command deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
-    {
-        [AddYieldCurveRateCommand.Verb] = msg => msg.AsCommand<AddYieldCurveRateCommand>()!,
-        [ChangeYieldCurveRateCommand.Verb] = msg => msg.AsCommand<ChangeYieldCurveRateCommand>()!,
-        [RemoveYieldCurveRateCommand.Verb] = msg => msg.AsCommand<RemoveYieldCurveRateCommand>()!,
-        [ImportYieldCurveRatesCommand.Verb] = msg => msg.AsCommand<ImportYieldCurveRatesCommand>()!
-    };
 
     /// <summary>
     /// Processes the specified command asynchronously within the given actor context and state, and returns a result
@@ -100,33 +89,23 @@ public class YieldCurveRateCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var yieldCurveRateState = IsArgumentNull.Set((state as YieldCurveRateCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, context, yieldCurveRateState);
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        _ = cmd switch
+        {
+            AddYieldCurveRateCommand command => command.Execute(yieldCurveRateState),
+            ChangeYieldCurveRateCommand command => command.Execute(yieldCurveRateState),
+            RemoveYieldCurveRateCommand command => command.Execute(yieldCurveRateState),
+            ImportYieldCurveRatesCommand command => command.Execute(yieldCurveRateState),
+            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}")
+        };
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(
+            new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
     }
-
-    /// <summary>
-    /// Provides a mapping from command type names to delegate functions that execute the corresponding yield curve rate command
-    /// logic on a given state.
-    /// </summary>
-    /// <remarks>This dictionary enables dynamic dispatch of yield curve rate-related commands by associating each command
-    /// type name with a function that executes the command against a YieldCurveRateCommandState. The mapping is intended for
-    /// internal use to streamline command handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, YieldCurveRateCommandState, bool>> _receiveMap = new()
-    {
-        [typeof(AddYieldCurveRateCommand).Name] = (cmd, context, state) => (cmd as AddYieldCurveRateCommand)!.Execute(state),
-        [typeof(ChangeYieldCurveRateCommand).Name] = (cmd, context, state) => (cmd as ChangeYieldCurveRateCommand)!.Execute(state),
-        [typeof(RemoveYieldCurveRateCommand).Name] = (cmd, context, state) => (cmd as RemoveYieldCurveRateCommand)!.Execute(state),
-        [typeof(ImportYieldCurveRatesCommand).Name] = (cmd, context, state) => (cmd as ImportYieldCurveRatesCommand)!.Execute(state)
-    };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -143,66 +122,59 @@ public class YieldCurveRateCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        var cmdName = cmd.GetType().Name;
+        await _dbEventSource.InsertCommandLogAsync(
+            cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd));
         var yieldCurveRateValidationRules = IsArgumentNull.Set(context.Container.Resolve<IValidationRules<YieldCurveRateReadModel>>());
-
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd, yieldCurveRateValidationRules)
+        GetValidationErrors(cmd, yieldCurveRateValidationRules)
             .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
-    /// <summary>
-    /// Provides a mapping from command type names to their corresponding validation functions.
-    /// </summary>
-    /// <remarks>Each entry associates the name of a command type with a function that performs validation on
-    /// instances of that command, returning a list of validation errors. This map enables dynamic selection of
-    /// validation logic based on the command type at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, IValidationRules<YieldCurveRateReadModel>, List<ValidationError>>> _validationMap = new()
+    static List<ValidationError> GetValidationErrors(
+        ICommand command,
+        IValidationRules<YieldCurveRateReadModel> validationRules)
+        => command switch
+        {
+            AddYieldCurveRateCommand typedCommand => Validate(typedCommand, validationRules),
+            ChangeYieldCurveRateCommand typedCommand => Validate(typedCommand, validationRules),
+            RemoveYieldCurveRateCommand typedCommand => new List<ValidationError>(2)
+                .ValidateCommandId(typedCommand.CommandId, typedCommand.CommandName)
+                .ValidateValueDate(typedCommand.ValueDate, typedCommand.CommandName),
+            ImportYieldCurveRatesCommand typedCommand => Validate(typedCommand, validationRules),
+            _ => throw new InvalidOperationException(
+                $"Unable to validate {ActorName} commands from message: {command.Subject}")
+        };
+
+    static List<ValidationError> Validate(
+        AddYieldCurveRateCommand command,
+        IValidationRules<YieldCurveRateReadModel> validationRules)
     {
-        [typeof(AddYieldCurveRateCommand).Name] = (cmd, validationRules) =>
-        {
-            var e = cmd as AddYieldCurveRateCommand;
-            var errors = new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName);
-            var ruleErrors = validationRules.Execute(e.YieldCurveRate);
-            if (ruleErrors is not null)
-                errors.AddRange(ruleErrors);
-            return errors;
-        },
-        [typeof(ChangeYieldCurveRateCommand).Name] = (cmd, validationRules) =>
-        {
-            var e = cmd as ChangeYieldCurveRateCommand;
-            var errors = new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName);
-            var ruleErrors = validationRules.Execute(e.YieldCurveRate);
-            if (ruleErrors is not null)
-                errors.AddRange(ruleErrors);
-            return errors;
-        },
-        [typeof(RemoveYieldCurveRateCommand).Name] = (cmd, validationRules) =>
-        {
-            var e = cmd as RemoveYieldCurveRateCommand;
-            return new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName)
-                .ValidateValueDate(e.ValueDate, e.CommandName);
-        },
-        [typeof(ImportYieldCurveRatesCommand).Name] = (cmd, validationRules) =>
-        {
-            var e = cmd as ImportYieldCurveRatesCommand;
-            var errors = new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName)
-                .ValidateImportDate(e.ImportDate, e.CommandName);
-            foreach (var yieldCurveRate in e.YieldCurveRates)
-            {
-                var ruleErrors = validationRules.Execute(yieldCurveRate);
-                if (ruleErrors is not null)
-                    errors.AddRange(ruleErrors);
-            }
-            return errors;
-        }
-    };
+        var errors = new List<ValidationError>(2)
+            .ValidateCommandId(command.CommandId, command.CommandName);
+        errors.AddRange(validationRules.Execute(command.YieldCurveRate));
+        return errors;
+    }
+
+    static List<ValidationError> Validate(
+        ChangeYieldCurveRateCommand command,
+        IValidationRules<YieldCurveRateReadModel> validationRules)
+    {
+        var errors = new List<ValidationError>(2)
+            .ValidateCommandId(command.CommandId, command.CommandName);
+        errors.AddRange(validationRules.Execute(command.YieldCurveRate));
+        return errors;
+    }
+
+    static List<ValidationError> Validate(
+        ImportYieldCurveRatesCommand command,
+        IValidationRules<YieldCurveRateReadModel> validationRules)
+    {
+        var errors = new List<ValidationError>()
+            .ValidateCommandId(command.CommandId, command.CommandName)
+            .ValidateImportDate(command.ImportDate, command.CommandName);
+        foreach (var yieldCurveRate in command.YieldCurveRates)
+            errors.AddRange(validationRules.Execute(yieldCurveRate));
+        return errors;
+    }
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.
@@ -235,14 +207,14 @@ public class YieldCurveRateCommandActor(
     /// cref="YieldCurveRateCommandState"/>.</param>
     /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
+    protected override ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var yieldCurveRateState = IsArgumentNull.Set((state as YieldCurveRateCommandState)!);
-        await _repo.SaveStateAsync(context, yieldCurveRateState, cmd);
+        return _repo.SaveStateAsync(context, yieldCurveRateState, cmd);
     }
 
     /// <summary>

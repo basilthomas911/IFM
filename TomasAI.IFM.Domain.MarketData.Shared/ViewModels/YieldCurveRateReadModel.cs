@@ -248,14 +248,11 @@ public record YieldCurveRateJsonModel
 /// IValidationRules for yield curve rate models.</remarks>
 public class YieldCurveRateValidationRules : BaseValidationRules, IValidationRules<YieldCurveRateReadModel>
 {
+    static readonly YieldCurveRateValidator Validator = new();
 
-    public YieldCurveRateValidationRules()
-    {
-    }
+    public ValidationError[] Execute(YieldCurveRateReadModel e) => Validate(e, Validator);
 
-    public ValidationError[] Execute(YieldCurveRateReadModel e) => Validate(e, new YieldCurveRateValidator());
-
-    private class YieldCurveRateValidator : AbstractValidator<YieldCurveRateReadModel>
+    sealed class YieldCurveRateValidator : AbstractValidator<YieldCurveRateReadModel>
     {
         public YieldCurveRateValidator()
         {

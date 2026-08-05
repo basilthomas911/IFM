@@ -146,6 +146,10 @@ internal readonly record struct GetFuturesOptionContract(string contractId) : IB
 {
     public object Bind() => new object?[] { contractId };
 }
+internal readonly record struct GetFuturesOptionContractsByIds(ICollection<string> contractIds) : IBindValue
+{
+    public object Bind() => new object?[] { contractIds };
+}
 internal readonly record struct GetFuturesOptionContractsBySymbol(string symbol) : IBindValue
 {
     public object Bind() => new object?[] { symbol };

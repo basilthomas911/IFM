@@ -23,8 +23,8 @@ public class YieldCurveRateStateRepository(
     /// </summary>
     /// <param name="command">The command used to identify and load the state. Must not be <see langword="null"/>.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the <see cref="YieldCurveRateCommandState"/>.</returns>
-    public async ValueTask<YieldCurveRateCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<YieldCurveRateCommandState, YieldCurveRatesImportedEvent>(command);
+    public ValueTask<YieldCurveRateCommandState> LoadStateAsync(ICommand command)
+        => new(LoadStateFromSnapshotAsync<YieldCurveRateCommandState, YieldCurveRatesImportedEvent>(command));
 
     /// <summary>
     /// Saves the yield curve rate state changes.
@@ -33,8 +33,8 @@ public class YieldCurveRateStateRepository(
     /// <param name="state">The state to be saved. Cannot be <see langword="null"/>.</param>
     /// <param name="command">The command associated with the state change. Cannot be <see langword="null"/>.</param>
     /// <returns>A task that represents the asynchronous save operation.</returns>
-    public async ValueTask SaveStateAsync(ICommandActorContext context, YieldCurveRateCommandState state, ICommand command)
-        => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+    public ValueTask SaveStateAsync(ICommandActorContext context, YieldCurveRateCommandState state, ICommand command)
+        => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the yield curve rate query state
@@ -56,11 +56,7 @@ public class YieldCurveRateStateRepository(
                 YieldCurveRateAddedEvent e => await UpdateReadModelAsync<YieldCurveRateAddedEvent, YieldCurveRateAddedCompleteEvent, YieldCurveRateAddedFailEvent, YieldCurveRateEntityId>(
                     context, e, () =>InsertYieldCurveRateAsync(db, e.YieldCurveRate)),
                 YieldCurveRateChangedEvent e => await UpdateReadModelAsync<YieldCurveRateChangedEvent, YieldCurveRateChangedCompleteEvent, YieldCurveRateChangedFailEvent, YieldCurveRateEntityId>(
-                    context, e, async () =>
-                    {
-                        await DeleteYieldCurveRateAsync(db, e.YieldCurveRate.ValueDate);
-                        await InsertYieldCurveRateAsync(db, e.YieldCurveRate);
-                    }),
+                    context, e, () => InsertYieldCurveRateAsync(db, e.YieldCurveRate)),
                 YieldCurveRateRemovedEvent e => await UpdateReadModelAsync<YieldCurveRateRemovedEvent, YieldCurveRateRemovedCompleteEvent, YieldCurveRateRemovedFailEvent, YieldCurveRateEntityId>(
                     context, e, () => DeleteYieldCurveRateAsync(db, e.ValueDate)),
                 YieldCurveRatesImportedEvent e => await UpdateReadModelAsync<YieldCurveRatesImportedEvent, YieldCurveRatesImportedCompleteEvent, YieldCurveRatesImportedFailEvent, YieldCurveRateEntityId>(

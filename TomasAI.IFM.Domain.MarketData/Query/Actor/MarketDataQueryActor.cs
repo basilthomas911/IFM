@@ -38,10 +38,16 @@ public class MarketDataQueryActor(
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
+        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName })
             throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
+        IQuery? query = msgSubject.Verb switch
+        {
+            GetLastRateOfReturnQuery.Verb => message.AsQuery<GetLastRateOfReturnQuery, RateOfReturnReadModel>(),
+            GetTradingDaysQuery.Verb => message.AsQuery<GetTradingDaysQuery, ScalarReadModel<int>>(),
+            GetTradingDatesQuery.Verb => message.AsQuery<GetTradingDatesQuery, DateOnly[]>(),
+            GetValueDateQuery.Verb => message.AsQuery<GetValueDateQuery, ScalarReadModel<DateOnly>>(),
+            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}")
+        };
         IsArgumentNull.Check(query);
         context.SetMessageInfo(
             msgSubject.ThreadId,
@@ -51,69 +57,54 @@ public class MarketDataQueryActor(
     }
 
     /// <summary>
-    /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
-    /// corresponding query instance.
-    /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
-    {
-        [GetLastRateOfReturnQuery.Verb] = msg => msg.AsQuery<GetLastRateOfReturnQuery, RateOfReturnReadModel>()!,
-        [GetTradingDaysQuery.Verb] = msg => msg.AsQuery<GetTradingDaysQuery, ScalarReadModel<int>>()!,
-        [GetTradingDatesQuery.Verb] = msg => msg.AsQuery<GetTradingDatesQuery, DateOnly[]>()!,
-        [GetValueDateQuery.Verb] = msg => msg.AsQuery<GetValueDateQuery, ScalarReadModel<DateOnly>>()!
-    };
-
-    /// <summary>
     /// Handles incoming queries asynchronously and processes them based on their type.
     /// </summary>
     /// <param name="context">The context in which the query is being processed.</param>
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        return query switch
+        {
+            GetLastRateOfReturnQuery typedQuery => ReceiveAsync(context, typedQuery),
+            GetTradingDaysQuery typedQuery => ReceiveAsync(context, typedQuery),
+            GetTradingDatesQuery typedQuery => ReceiveAsync(context, typedQuery),
+            GetValueDateQuery typedQuery => ReceiveAsync(context, typedQuery),
+            _ => throw new InvalidOperationException(
+                $"Unable to process {ActorName} query: {query.GetType().Name}")
+        };
     }
 
-    /// <summary>
-    /// Provides a mapping from query type names to delegate functions that execute the corresponding market data query
-    /// logic against the query state.
-    /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    async ValueTask ReceiveAsync(IQueryActorContext context, GetLastRateOfReturnQuery query)
     {
-        [typeof(GetLastRateOfReturnQuery).Name] = async (ctx, dbFactory, q) =>
-        {
-            var query = (q as GetLastRateOfReturnQuery)!;
-            var result = await query.GetLastRateOfReturnAsync(dbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastRateOfReturnQuery.Verb,
-                new ServiceResult<RateOfReturnReadModel>(result));
-        },
-        [typeof(GetTradingDaysQuery).Name] = async (ctx, dbFactory, q) =>
-        {
-            var query = (q as GetTradingDaysQuery)!;
-            var result = await query.GetTradingDaysAsync(dbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradingDaysQuery.Verb,
-                new ServiceResult<ScalarReadModel<int>>(result));
-        },
-        [typeof(GetTradingDatesQuery).Name] = async (ctx, dbFactory, q) =>
-        {
-            var query = (q as GetTradingDatesQuery)!;
-            var result = await query.GetTradingDatesAsync(dbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradingDatesQuery.Verb,
-                new ServiceResult<DateOnly[]>(result));
-        },
-        [typeof(GetValueDateQuery).Name] = async (ctx, dbFactory, q) =>
-        {
-            var query = (q as GetValueDateQuery)!;
-            var result = await query.GetValueDateAsync();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetValueDateQuery.Verb,
-                new ServiceResult<ScalarReadModel<DateOnly>>(result));
-        }
-    };
+        var result = await query.GetLastRateOfReturnAsync(dbFactory);
+        await context.ReplyAsync(query.Subject.ThreadId, GetLastRateOfReturnQuery.Verb,
+            new ServiceResult<RateOfReturnReadModel>(result));
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext context, GetTradingDaysQuery query)
+    {
+        var result = await query.GetTradingDaysAsync(dbFactory);
+        await context.ReplyAsync(query.Subject.ThreadId, GetTradingDaysQuery.Verb,
+            new ServiceResult<ScalarReadModel<int>>(result));
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext context, GetTradingDatesQuery query)
+    {
+        var result = await query.GetTradingDatesAsync(dbFactory);
+        await context.ReplyAsync(query.Subject.ThreadId, GetTradingDatesQuery.Verb,
+            new ServiceResult<DateOnly[]>(result));
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext context, GetValueDateQuery query)
+    {
+        var result = await query.GetValueDateAsync();
+        await context.ReplyAsync(query.Subject.ThreadId, GetValueDateQuery.Verb,
+            new ServiceResult<ScalarReadModel<DateOnly>>(result));
+    }
 
     /// <summary>
     /// Handles exceptions that occur during the processing of a query in the actor context.

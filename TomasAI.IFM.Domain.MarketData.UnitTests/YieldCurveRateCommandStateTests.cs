@@ -1,0 +1,59 @@
+using FluentAssertions;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
+
+namespace TomasAI.IFM.Domain.MarketData.UnitTests;
+
+public class YieldCurveRateCommandStateTests
+{
+    [Fact]
+    public void ImportReplayTracksExistenceWithoutRetainingRateModels()
+    {
+        var valueDate = new DateOnly(2026, 8, 5);
+        var rate = new YieldCurveRateReadModel(
+            valueDate, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+        var state = new YieldCurveRateCommandState();
+        state.ReplayEvents(new IEvent[]
+        {
+            new YieldCurveRatesImportedEvent { YieldCurveRates = [rate] }
+        });
+        var duplicate = Route(new AddYieldCurveRateCommand(rate));
+
+        var act = () => duplicate.Execute(state);
+
+        act.Should().Throw<AddYieldCurveRateException>();
+    }
+
+    [Fact]
+    public void RemoveReplayClearsExistenceForSubsequentAdd()
+    {
+        var valueDate = new DateOnly(2026, 8, 5);
+        var rate = new YieldCurveRateReadModel(
+            valueDate, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+        var state = new YieldCurveRateCommandState();
+        state.ReplayEvents(new IEvent[]
+        {
+            new YieldCurveRatesImportedEvent { YieldCurveRates = [rate] },
+            new YieldCurveRateRemovedEvent { ValueDate = valueDate }
+        });
+
+        Route(new AddYieldCurveRateCommand(rate)).Execute(state).Should().BeTrue();
+    }
+
+    static AddYieldCurveRateCommand Route(AddYieldCurveRateCommand command)
+        => command with
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(
+                ActorType.Command,
+                AddYieldCurveRateCommand.Actor,
+                AddYieldCurveRateCommand.Verb,
+                command.EntityId.Format())
+        };
+}

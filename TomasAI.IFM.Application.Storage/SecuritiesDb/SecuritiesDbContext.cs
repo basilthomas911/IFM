@@ -1692,6 +1692,17 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
         };
     }
 
+    public async Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsByIdsAsync(
+        ICollection<string> contractIds)
+    {
+        if (contractIds.Count == 0)
+            return [];
+        return await _dbFactory.SecuritiesDb
+            .Use(SecuritiesDbCql.GetFuturesOptionContractsByIds)
+            .SetParameters(new GetFuturesOptionContractsByIds(contractIds))
+            .ExecuteQueryAsync(MapToFuturesOptionContract!);
+    }
+
     /// <summary>
     /// Get all futures option contracts from the database
     /// </summary>

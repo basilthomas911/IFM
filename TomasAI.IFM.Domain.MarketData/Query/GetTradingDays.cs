@@ -18,7 +18,8 @@ public static class GetTradingDays
 	public static async ValueTask<ScalarReadModel<int>> GetTradingDaysAsync(
         this GetTradingDaysQuery q, IDbContextFactory dbFactory)
     {
-        var tradingDates = await dbFactory.MarketDataDb.GetTradingDatesAsync(q.StartDate, q.EndDate, q.MarketType, q.CurrencyType);
-        return new ScalarReadModel<int>(tradingDates.Length);
+        var tradingDayCount = await dbFactory.MarketDataDb.GetTradingDayCountAsync(
+            q.StartDate, q.EndDate, q.MarketType, q.CurrencyType);
+        return new ScalarReadModel<int>(tradingDayCount);
     }
 }

@@ -15,8 +15,8 @@ public static class GetLastRateOfReturn
     /// <param name="dbFactory">The database context factory.</param>
     /// <param name="context">The query actor context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-	internal static async ValueTask<RateOfReturnReadModel> GetLastRateOfReturnAsync(
+	internal static ValueTask<RateOfReturnReadModel> GetLastRateOfReturnAsync(
         this GetLastRateOfReturnQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.MarketDataDb.GetLastRateOfReturnAsync(q.Symbol);
+        => new(dbFactory.MarketDataDb.GetLastRateOfReturnAsync(q.Symbol));
 }
     

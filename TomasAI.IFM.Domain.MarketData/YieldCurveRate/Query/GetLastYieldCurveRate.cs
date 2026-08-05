@@ -15,7 +15,7 @@ internal static class GetLastYieldCurveRate
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static async ValueTask<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync(
+    public static ValueTask<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync(
         this GetLastYieldCurveRateQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.MarketDataDb.GetLastYieldCurveRateAsync();
+        => new(dbFactory.MarketDataDb.GetLastYieldCurveRateAsync());
 }

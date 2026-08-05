@@ -29,6 +29,7 @@ public interface ISecuritiesDbReadContext
     Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsBySymbolAsync(string symbol);
     Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsByIdsAsync(ICollection<string> contractIds, string symbol);
     Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(string contractId);
+    Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsByIdsAsync(ICollection<string> contractIds);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(string symbol);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync();
 }

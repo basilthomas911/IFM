@@ -379,6 +379,23 @@ internal class SecuritiesDbCql
         WHERE contractId = :contractId;
         """;
 
+    public const string GetFuturesOptionContractsByIds = """
+        SELECT
+            contractId AS "ContractId",
+            description AS "Description",
+            symbol AS "Symbol",
+            localSymbol AS "LocalSymbol",
+            securityType AS "SecurityType",
+            currency AS "Currency",
+            exchange AS "Exchange",
+            multiplier AS "Multiplier",
+            contractMonth AS "ContractMonth",
+            strikePrice AS "StrikePrice",
+            optionType AS "OptionType"
+        FROM futures_option_contract
+        WHERE contractId IN :contractIds;
+        """;
+
     public const string GetFuturesOptionContracts = """
         SELECT 
             contractId AS "ContractId", 

@@ -4304,6 +4304,28 @@ public class MarketDataDbContext(
         return [.. tradingDates];
     }
 
+    public async Task<int> GetTradingDayCountAsync(
+       DateOnly startDate,
+       DateOnly endDate,
+       MarketType marketType = MarketType.Futures,
+       CurrencyType currencyType = CurrencyType.USD)
+    {
+        var dbReader = (_dbFactory.MarketDataDb as IMarketDataDbReadContext)!;
+        var marketHolidays = await dbReader.GetMarketHolidaysAsync(currencyType)!;
+        var holidayDates = marketHolidays
+            .Select(static holiday => holiday.HolidayDate)
+            .ToHashSet();
+        var tradingDayCount = 0;
+        for (var tradeDate = startDate; tradeDate <= endDate; tradeDate = tradeDate.AddDays(1))
+        {
+            if (tradeDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday
+                || holidayDates.Contains(tradeDate))
+                continue;
+            tradingDayCount++;
+        }
+        return tradingDayCount;
+    }
+
     /// <summary>
     /// Checks if yield curve rate data exists for a given value date.
     /// </summary>

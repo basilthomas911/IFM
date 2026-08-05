@@ -39,10 +39,17 @@ public class YieldCurveRateQueryActor(
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
+        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName })
             throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
+        IQuery? query = msgSubject.Verb switch
+        {
+            GetLastYieldCurveRateQuery.Verb => message.AsQuery<GetLastYieldCurveRateQuery, YieldCurveRateReadModel>(),
+            GetYieldCurveRatesQuery.Verb => message.AsQuery<GetYieldCurveRatesQuery, YieldCurveRateReadModel[]>(),
+            GetYieldCurveRateExistsQuery.Verb => message.AsQuery<GetYieldCurveRateExistsQuery, ScalarReadModel<bool>>(),
+            GetYieldCurveRateYearsQuery.Verb => message.AsQuery<GetYieldCurveRateYearsQuery, YieldCurveRateYearsReadModel>(),
+            GetExternalYieldCurveRatesQuery.Verb => message.AsQuery<GetExternalYieldCurveRatesQuery, YieldCurveRateReadModel[]>(),
+            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}")
+        };
         IsArgumentNull.Check(query);
         context.SetMessageInfo(
             msgSubject.ThreadId,
@@ -52,87 +59,63 @@ public class YieldCurveRateQueryActor(
     }
 
     /// <summary>
-    /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
-    /// corresponding query instance.
-    /// </summary>
-    /// <remarks>This dictionary enables efficient dispatching and parsing of incoming NATS messages based on
-    /// their verb. Each entry associates a specific query verb with a function that converts a NATS message payload
-    /// into a strongly typed query object implementing the IQuery interface. The mapping is intended for internal
-    /// use in query deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
-    {
-        [GetLastYieldCurveRateQuery.Verb] = msg => msg.AsQuery<GetLastYieldCurveRateQuery, YieldCurveRateReadModel>()!,
-        [GetYieldCurveRatesQuery.Verb] = msg => msg.AsQuery<GetYieldCurveRatesQuery, YieldCurveRateReadModel[]>()!,
-        [GetYieldCurveRateExistsQuery.Verb] = msg => msg.AsQuery<GetYieldCurveRateExistsQuery, ScalarReadModel<bool>>()!,
-        [GetYieldCurveRateYearsQuery.Verb] = msg => msg.AsQuery<GetYieldCurveRateYearsQuery, YieldCurveRateYearsReadModel>()!,
-        [GetExternalYieldCurveRatesQuery.Verb] = msg => msg.AsQuery<GetExternalYieldCurveRatesQuery, YieldCurveRateReadModel[]>()!
-    };
-
-    /// <summary>
     /// Handles incoming queries asynchronously and processes them based on their type.
     /// </summary>
-    /// <remarks>This method processes queries using a dictionary-based dispatch pattern that maps query type names
-    /// to their corresponding handler functions. Each handler executes the query against the yield curve rate query state and
-    /// returns the appropriate result.</remarks>
+    /// <remarks>This method uses typed dispatch so unsupported query types fail immediately.</remarks>
     /// <param name="context">The context in which the query is being processed, providing access to actor-specific information.</param>
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        return query switch
+        {
+            GetLastYieldCurveRateQuery typedQuery => ReceiveAsync(context, typedQuery),
+            GetYieldCurveRatesQuery typedQuery => ReceiveAsync(context, typedQuery),
+            GetYieldCurveRateExistsQuery typedQuery => ReceiveAsync(context, typedQuery),
+            GetYieldCurveRateYearsQuery typedQuery => ReceiveAsync(context, typedQuery),
+            GetExternalYieldCurveRatesQuery typedQuery => ReceiveAsync(context, typedQuery),
+            _ => throw new InvalidOperationException(
+                $"Unable to process {ActorName} query: {query.GetType().Name}")
+        };
     }
 
-    /// <summary>
-    /// Provides a mapping from query type names to delegate functions that execute the corresponding yield curve rate query
-    /// logic against the query state.
-    /// </summary>
-    /// <remarks>This dictionary enables dynamic dispatch of yield curve rate-related queries by associating each query
-    /// type name with a function that processes the query against a YieldCurveRateQueryState. The mapping is intended for
-    /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    async ValueTask ReceiveAsync(IQueryActorContext context, GetLastYieldCurveRateQuery query)
     {
-        [typeof(GetLastYieldCurveRateQuery).Name] = async (ctx, dbFactory, q) =>
-        {
-            var query = q as GetLastYieldCurveRateQuery;
-            var result = await query.GetLastYieldCurveRateAsync(dbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastYieldCurveRateQuery.Verb,
-                new ServiceResult<YieldCurveRateReadModel?>(result));
-        },
-        [typeof(GetYieldCurveRatesQuery).Name] = async (ctx, dbFactory, q) =>
-        {
-            var query = q as GetYieldCurveRatesQuery;
-            var result = await query.GetYieldCurveRatesAsync(dbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetYieldCurveRatesQuery.Verb,
-                new ServiceResult<YieldCurveRateReadModel[]>(result));
-        },
-        [typeof(GetYieldCurveRateExistsQuery).Name] = async (ctx, dbFactory, q) =>
-        {
-            var query = q as GetYieldCurveRateExistsQuery;
-            var result = await query.GetYieldCurveRateExistsAsync(dbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetYieldCurveRateExistsQuery.Verb,
-                new ServiceResult<ScalarReadModel<bool>>(result));
-        },
-        [typeof(GetYieldCurveRateYearsQuery).Name] = async (ctx, dbFactory, q) =>
-        {
-            var query = q as GetYieldCurveRateYearsQuery;
-            var result = await query.GetYieldCurveRateYearsAsync(dbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetYieldCurveRateYearsQuery.Verb,
-                new ServiceResult<YieldCurveRateYearsReadModel>(result));
-        },
-        [typeof(GetExternalYieldCurveRatesQuery).Name] = async (ctx, dbFactory, q) =>
-        {
-            var query = q as GetExternalYieldCurveRatesQuery;
-            var result = await query.GetExternalYieldCurveRatesAsync(dbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetExternalYieldCurveRatesQuery.Verb,
-                new ServiceResult<YieldCurveRateReadModel[]>(result));
-        }
-    };
+        var result = await query.GetLastYieldCurveRateAsync(dbFactory);
+        await context.ReplyAsync(query.Subject.ThreadId, GetLastYieldCurveRateQuery.Verb,
+            new ServiceResult<YieldCurveRateReadModel?>(result));
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext context, GetYieldCurveRatesQuery query)
+    {
+        var result = await query.GetYieldCurveRatesAsync(dbFactory);
+        await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRatesQuery.Verb,
+            new ServiceResult<YieldCurveRateReadModel[]>(result));
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext context, GetYieldCurveRateExistsQuery query)
+    {
+        var result = await query.GetYieldCurveRateExistsAsync(dbFactory);
+        await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRateExistsQuery.Verb,
+            new ServiceResult<ScalarReadModel<bool>>(result));
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext context, GetYieldCurveRateYearsQuery query)
+    {
+        var result = await query.GetYieldCurveRateYearsAsync(dbFactory);
+        await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRateYearsQuery.Verb,
+            new ServiceResult<YieldCurveRateYearsReadModel>(result));
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext context, GetExternalYieldCurveRatesQuery query)
+    {
+        var result = await query.GetExternalYieldCurveRatesAsync(dbFactory);
+        await context.ReplyAsync(query.Subject.ThreadId, GetExternalYieldCurveRatesQuery.Verb,
+            new ServiceResult<YieldCurveRateReadModel[]>(result));
+    }
 
     /// <summary>
     /// Handles exceptions that occur during the processing of a query in the actor context.

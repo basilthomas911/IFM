@@ -175,13 +175,15 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
     {
         try
         {
-            List<string> existingContractIds = [];
-            foreach (var contractId in contractIds)
-            {
-                if (await _dbFactory.SecuritiesDb.GetFuturesOptionContractAsync(contractId) is not null)
-                    existingContractIds.Add(contractId);
-            }
-            string[] result = [.. existingContractIds];
+            var uniqueContractIds = contractIds.Distinct(StringComparer.Ordinal).ToArray();
+            var contracts = await _dbFactory.SecuritiesDb
+                .GetFuturesOptionContractsByIdsAsync(uniqueContractIds);
+            var existingContractIds = contracts
+                .Select(static contract => contract.ContractId)
+                .ToHashSet(StringComparer.Ordinal);
+            string[] result = contractIds
+                .Where(existingContractIds.Contains)
+                .ToArray();
             return new ServiceOk<string[]>(result);
         }
         catch (Exception ex)
@@ -241,11 +243,11 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
     {
         try
         {
-            var result = new ScalarReadModel<int>((await _dbFactory.MarketDataDb.GetTradingDatesAsync(
+            var result = new ScalarReadModel<int>(await _dbFactory.MarketDataDb.GetTradingDayCountAsync(
                 startDate,
                 endDate,
                 marketType,
-                currencyType)).Length);
+                currencyType));
             return new ServiceOk<ScalarReadModel<int>>(result);
         }
         catch (Exception ex)
@@ -406,20 +408,40 @@ public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActo
     {
         try
         {
-            var securitiesDb = _dbFactory.SecuritiesDb;
-            var underlying = await securitiesDb.GetFuturesContractAsync(underlyingContractId);
-            var shortPut = await securitiesDb.GetFuturesOptionContractAsync(shortPutOptionContractId);
-            var longPut = await securitiesDb.GetFuturesOptionContractAsync(longPutOptionContractId);
-            var shortCall = await securitiesDb.GetFuturesOptionContractAsync(shortCallOptionContractId);
-            var longCall = await securitiesDb.GetFuturesOptionContractAsync(longCallOptionContractId);
-            var yieldCurve = await _dbFactory.MarketDataDb.GetLastYieldCurveRateAsync();
-            var tradingDates = await _dbFactory.MarketDataDb.GetTradingDatesAsync(
+            string[] optionContractIds =
+            [
+                shortPutOptionContractId,
+                longPutOptionContractId,
+                shortCallOptionContractId,
+                longCallOptionContractId
+            ];
+            var underlyingTask = _dbFactory.SecuritiesDb
+                .GetFuturesContractAsync(underlyingContractId);
+            var optionsTask = _dbFactory.SecuritiesDb
+                .GetFuturesOptionContractsByIdsAsync(optionContractIds);
+            var yieldCurveTask = _dbFactory.MarketDataDb.GetLastYieldCurveRateAsync();
+            var tradingDayCountTask = _dbFactory.MarketDataDb.GetTradingDayCountAsync(
                 startDate, endDate, marketType, currencyType);
 
+            await Task.WhenAll(
+                underlyingTask, optionsTask, yieldCurveTask, tradingDayCountTask);
+
+            var underlying = await underlyingTask;
+            var options = await optionsTask;
+            var yieldCurve = await yieldCurveTask;
+            var tradingDayCount = await tradingDayCountTask;
+            var optionMap = options.ToDictionary(
+                static option => option.ContractId,
+                StringComparer.Ordinal);
+
             var result = new IronCondorMarketDataReadModel(
-                underlying!, shortPut!, longPut!, shortCall!, longCall!,
+                underlying!,
+                optionMap.GetValueOrDefault(shortPutOptionContractId)!,
+                optionMap.GetValueOrDefault(longPutOptionContractId)!,
+                optionMap.GetValueOrDefault(shortCallOptionContractId)!,
+                optionMap.GetValueOrDefault(longCallOptionContractId)!,
                 (yieldCurve?.OneMonth ?? 0) / 100,
-                tradingDates.Length);
+                tradingDayCount);
             return new ServiceOk<IronCondorMarketDataReadModel>(result);
         }
         catch (Exception ex)

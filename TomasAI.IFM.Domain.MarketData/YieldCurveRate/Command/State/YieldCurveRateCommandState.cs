@@ -2,7 +2,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Model;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
 
@@ -17,7 +16,9 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
 public class YieldCurveRateCommandState
     : BaseEventSourceActorState<YieldCurveRateCommandState>, IEventSourceActorState<YieldCurveRateCommandState>
 {
-    readonly Dictionary<DateOnly, YieldCurveRateModel> _yieldCurveRates = [];
+    // Command decisions only need existence by value date. Retaining every
+    // maturity value duplicates the event payload throughout state replay.
+    readonly HashSet<DateOnly> _yieldCurveRateDates = [];
 
     public override ActorThreadId Id { get; set; }
 
@@ -49,9 +50,7 @@ public class YieldCurveRateCommandState
     /// <param name="e"></param>
     bool On(YieldCurveRateAddedEvent e)
     {
-        if (_yieldCurveRates.ContainsKey(e.YieldCurveRate.ValueDate))
-            _yieldCurveRates.Remove(e.YieldCurveRate.ValueDate);
-        _yieldCurveRates.Add(e.YieldCurveRate.ValueDate, new YieldCurveRateModel(e.YieldCurveRate));
+        _yieldCurveRateDates.Add(e.YieldCurveRate.ValueDate);
         return true;
     }
 
@@ -61,9 +60,7 @@ public class YieldCurveRateCommandState
     /// <param name="e"></param>
     bool On(YieldCurveRateChangedEvent e)
     {
-        if (_yieldCurveRates.ContainsKey(e.YieldCurveRate.ValueDate))
-            _yieldCurveRates.Remove(e.YieldCurveRate.ValueDate);
-        _yieldCurveRates.Add(e.YieldCurveRate.ValueDate, new YieldCurveRateModel(e.YieldCurveRate));
+        _yieldCurveRateDates.Add(e.YieldCurveRate.ValueDate);
         return true;
     }
 
@@ -73,8 +70,7 @@ public class YieldCurveRateCommandState
     /// <param name="e"></param>
     bool On(YieldCurveRateRemovedEvent e)
     {
-        if (_yieldCurveRates.ContainsKey(e.ValueDate))
-            _yieldCurveRates.Remove(e.ValueDate);
+        _yieldCurveRateDates.Remove(e.ValueDate);
         return true;
     }
 
@@ -84,12 +80,9 @@ public class YieldCurveRateCommandState
     /// <param name="e"></param>
     bool On(YieldCurveRatesImportedEvent e)
     {
+        _yieldCurveRateDates.EnsureCapacity(_yieldCurveRateDates.Count + e.YieldCurveRates.Length);
         foreach (var yieldCurveRate in e.YieldCurveRates)
-        {
-            if (_yieldCurveRates.ContainsKey(yieldCurveRate.ValueDate))
-                _yieldCurveRates.Remove(yieldCurveRate.ValueDate);
-            _yieldCurveRates.Add(yieldCurveRate.ValueDate, new YieldCurveRateModel (yieldCurveRate));
-        }
+            _yieldCurveRateDates.Add(yieldCurveRate.ValueDate);
         return true;
     }
 
@@ -103,7 +96,7 @@ public class YieldCurveRateCommandState
     /// <returns><see langword="true"/> if a yield curve rate exists for the specified date and <paramref name="overwrite"/> is
     /// <see langword="false"/>;  otherwise, <see langword="false"/>.</returns>
     internal bool YieldCurveRateExists(DateOnly valueDate, bool overwrite)
-        => _yieldCurveRates.ContainsKey(valueDate) && !overwrite;
+        => _yieldCurveRateDates.Contains(valueDate) && !overwrite;
 
     /// <summary>
     /// Determines whether a yield curve rate does not exist for the specified value date.
@@ -114,5 +107,5 @@ public class YieldCurveRateCommandState
     /// <returns><see langword="true"/> if a yield curve rate does not exist for the specified value date and <paramref name="overwrite"/> is
     /// <see langword="false"/>; otherwise, <see langword="false"/>.</returns>
     internal bool YieldCurveRateDoesNotExist(DateOnly valueDate, bool overwrite)
-        => !_yieldCurveRates.ContainsKey(valueDate) && !overwrite;
+        => !_yieldCurveRateDates.Contains(valueDate) && !overwrite;
 }
