@@ -29,7 +29,7 @@ The client is split into four assemblies. `TomasAI.IFM.UI.Net` is the Windows ex
 | Application-root abstraction | [`Contracts/IAppRoot.cs`](../../TomasAI.IFM.UI.Net.ViewModels/Contracts/IAppRoot.cs) |
 | View and model marker contracts | [`IForm.cs`](../../TomasAI.IFM.UI.Net.Views/Contracts/IForm.cs), [`IModel.cs`](../../TomasAI.IFM.UI.Net.Models/Contracts/IModel.cs) |
 | UI-thread and redraw helpers | [`Contracts/IFormControl.cs`](../../TomasAI.IFM.UI.Net.Views/Contracts/IFormControl.cs) |
-| Model execution and error handling | [`Models/BaseModel.cs`](../../TomasAI.IFM.UI.Net.Models/Models/BaseModel.cs) |
+| Model execution and error handling | [`BaseModel.cs`](../../TomasAI.IFM.UI.Net.Models/BaseModel.cs) |
 | Shared editor view-model behavior | [`ViewModels/BaseEditorViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/ViewModels/BaseEditorViewModel.cs) |
 | Main application window | [`Views/App/IFMAppView.cs`](../../TomasAI.IFM.UI.Net.Views/Views/App/IFMAppView.cs) |
 | Main application orchestration | [`ViewModels/App/IFMAppViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/ViewModels/App/IFMAppViewModel.cs) |
