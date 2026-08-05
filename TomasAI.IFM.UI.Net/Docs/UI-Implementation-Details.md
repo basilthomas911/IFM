@@ -31,7 +31,7 @@ The client is split into four assemblies. `TomasAI.IFM.UI.Net` is the Windows ex
 | UI-thread and redraw helpers | [`Contracts/IFormControl.cs`](../../TomasAI.IFM.UI.Net.Views/Contracts/IFormControl.cs) |
 | Model execution and error handling | [`BaseModel.cs`](../../TomasAI.IFM.UI.Net.Models/BaseModel.cs) |
 | Shared editor view-model behavior | [`BaseEditorViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/BaseEditorViewModel.cs) |
-| Main application window | [`Views/App/IFMAppView.cs`](../../TomasAI.IFM.UI.Net.Views/Views/App/IFMAppView.cs) |
+| Main application window | [`App/IFMAppView.cs`](../../TomasAI.IFM.UI.Net.Views/App/IFMAppView.cs) |
 | Main application orchestration | [`App/IFMAppViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/App/IFMAppViewModel.cs) |
 | Command and query HTTP adapters | [`TomasAI.IFM.Application.Api.Client`](../../TomasAI.IFM.Application.Api.Client) |
 | Concrete UI event consumers | [`TomasAI.IFM.UI.EventConsumer`](../../TomasAI.IFM.UI.EventConsumer) |
@@ -101,7 +101,7 @@ Both top-level exception handlers display a message box containing exception inf
 
 ### Main-window initialization
 
-[`IFMAppView`](../../TomasAI.IFM.UI.Net.Views/Views/App/IFMAppView.cs) creates `IFMAppViewModel` during its load event and supplies callbacks for:
+[`IFMAppView`](../../TomasAI.IFM.UI.Net.Views/App/IFMAppView.cs) creates `IFMAppViewModel` during its load event and supplies callbacks for:
 
 - showing error messages;
 - enabling the main menu buttons;

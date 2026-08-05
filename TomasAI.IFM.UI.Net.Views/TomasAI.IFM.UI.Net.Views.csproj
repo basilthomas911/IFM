@@ -17,35 +17,35 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="Views\App\IFMAppView.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\App\MarketDataView.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\App\MarketEconomicCalendarView.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\App\MarketOutlookView.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\App\StatusConsoleView.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\Fund\AdjustFundTransactionEditor.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\Fund\FundTransactionEditor.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\MarketData\FuturesContractEditorControl.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\MarketData\FuturesOptionContractEditorControl.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\MarketData\MarketDataForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\MarketData\YieldCurveRateEditForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\MarketData\YieldCurveRateEditorControl.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\Reference\EconomicCalendarEditorView.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\Reference\LookupTypeEditorView.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\Reference\ReferenceForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\SystemAdmin\BackupDatabasesView.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\SystemAdmin\SystemAdminForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\SystemInfo\SystemErrorView.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\SystemInfo\SystemWaitView.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\Trade\CreateFundForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\Trade\CreateFundOrderForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\Trade\CreateFundOrderTradeForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\Trade\DeleteFundOrderForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\Trade\IronCondor\IronCondorTradeOrderView.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\Trade\IronCondor\IronCondorView.cs"><SubType>UserControl</SubType></Compile>
-    <Compile Update="Views\Trade\SetLocalSymbolForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\Trade\TradeEndOfDayForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\Trade\TradeOrderConfirmationForm.cs"><SubType>Form</SubType></Compile>
-    <Compile Update="Views\Trade\TradeOrderEditorForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="App\IFMAppView.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="App\MarketDataView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="App\MarketEconomicCalendarView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="App\MarketOutlookView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="App\StatusConsoleView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Fund\AdjustFundTransactionEditor.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Fund\FundTransactionEditor.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="MarketData\FuturesContractEditorControl.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="MarketData\FuturesOptionContractEditorControl.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="MarketData\MarketDataForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="MarketData\YieldCurveRateEditForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="MarketData\YieldCurveRateEditorControl.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Reference\EconomicCalendarEditorView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Reference\LookupTypeEditorView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Reference\ReferenceForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="SystemAdmin\BackupDatabasesView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="SystemAdmin\SystemAdminForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="SystemInfo\SystemErrorView.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="SystemInfo\SystemWaitView.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Trade\CreateFundForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Trade\CreateFundOrderForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Trade\CreateFundOrderTradeForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Trade\DeleteFundOrderForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Trade\IronCondor\IronCondorTradeOrderView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Trade\IronCondor\IronCondorView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="Trade\SetLocalSymbolForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Trade\TradeEndOfDayForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Trade\TradeOrderConfirmationForm.cs"><SubType>Form</SubType></Compile>
+    <Compile Update="Trade\TradeOrderEditorForm.cs"><SubType>Form</SubType></Compile>
   </ItemGroup>
 
 </Project>
