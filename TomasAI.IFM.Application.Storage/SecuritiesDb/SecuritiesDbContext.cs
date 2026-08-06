@@ -211,25 +211,27 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
 
     static async Task<ProjectionState?> ReadProjectionStateAsync(
         IObjectRepository db,
-        string projectionName)
+        string projectionName,
+        CancellationToken cancellationToken = default)
     {
         var states = await db.Use(SecuritiesDbCql.GetSecuritiesProjectionStateV3)
             .SetParameters(new GetSecuritiesProjectionStateV3(projectionName))
-            .ExecuteQueryAsync(MapToProjectionState!);
+            .ExecuteQueryAsync(MapToProjectionState!, cancellationToken);
         return states.Count == 1 ? states.First() : null;
     }
 
     static async Task<ProjectionState?> ReadSymbolProjectionStateAsync(
         IObjectRepository db,
         string projectionName,
-        string symbol)
+        string symbol,
+        CancellationToken cancellationToken = default)
     {
         var states = await db.Use(SecuritiesDbCql.GetSecuritiesSymbolProjectionStateV3)
             .SetParameters(new GetSecuritiesSymbolProjectionStateV3(projectionName, symbol))
             .ExecuteQueryAsync(static row => new ProjectionState(
                 row.GetGuid(0),
                 row.GetBool(1),
-                row.IsCollectionEmpty(2)));
+                row.IsCollectionEmpty(2)), cancellationToken);
         return states.Count == 1 ? states.First() : null;
     }
 
@@ -244,9 +246,10 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
     static async Task<ProjectionReadStamp?> GetProjectionReadStampAsync(
         IObjectRepository db,
         string projectionName,
-        string symbol)
+        string symbol,
+        CancellationToken cancellationToken = default)
     {
-        var global = await ReadProjectionStateAsync(db, projectionName).ConfigureAwait(false);
+        var global = await ReadProjectionStateAsync(db, projectionName, cancellationToken).ConfigureAwait(false);
         if (global is { HasNoActiveOperations: false })
             return null;
         if (global is { IsComplete: true, HasNoActiveOperations: true })
@@ -259,7 +262,7 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
                 GlobalGeneration: global.Value.Generation);
         }
 
-        var symbolState = await ReadSymbolProjectionStateAsync(db, projectionName, symbol).ConfigureAwait(false);
+        var symbolState = await ReadSymbolProjectionStateAsync(db, projectionName, symbol, cancellationToken).ConfigureAwait(false);
         return symbolState is { IsComplete: true, HasNoActiveOperations: true }
             ? new ProjectionReadStamp(
                 projectionName,
@@ -272,9 +275,10 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
 
     static async Task<bool> IsProjectionReadStampCurrentAsync(
         IObjectRepository db,
-        ProjectionReadStamp stamp)
+        ProjectionReadStamp stamp,
+        CancellationToken cancellationToken = default)
     {
-        var global = await ReadProjectionStateAsync(db, stamp.ProjectionName).ConfigureAwait(false);
+        var global = await ReadProjectionStateAsync(db, stamp.ProjectionName, cancellationToken).ConfigureAwait(false);
         if (stamp.IsGlobal)
         {
             return global is { IsComplete: true, HasNoActiveOperations: true } &&
@@ -284,7 +288,8 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
         var symbol = await ReadSymbolProjectionStateAsync(
             db,
             stamp.ProjectionName,
-            stamp.Symbol).ConfigureAwait(false);
+            stamp.Symbol,
+            cancellationToken).ConfigureAwait(false);
         return IsSymbolProjectionReadFenceCurrent(
             stamp.GlobalGeneration,
             global?.Generation,
@@ -329,6 +334,31 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             : await readFallback().ConfigureAwait(false);
     }
 
+    static async Task<TResult> ReadProjectionOrFallbackAsync<TResult>(
+        IObjectRepository db,
+        string projectionName,
+        string symbol,
+        CancellationToken cancellationToken,
+        Func<CancellationToken, Task<TResult>> readProjection,
+        Func<CancellationToken, Task<TResult>> readFallback)
+    {
+        var stamp = await GetProjectionReadStampAsync(
+            db,
+            projectionName,
+            symbol,
+            cancellationToken).ConfigureAwait(false);
+        if (stamp is null)
+            return await readFallback(cancellationToken).ConfigureAwait(false);
+
+        var projected = await readProjection(cancellationToken).ConfigureAwait(false);
+        return await IsProjectionReadStampCurrentAsync(
+            db,
+            stamp.Value,
+            cancellationToken).ConfigureAwait(false)
+            ? projected
+            : await readFallback(cancellationToken).ConfigureAwait(false);
+    }
+
     static async Task<ProjectionOperation> BeginProjectionOperationAsync(
         IObjectRepository db,
         string projectionName,
@@ -339,14 +369,14 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        var globalWasComplete = (await ReadProjectionStateAsync(db, projectionName).ConfigureAwait(false))
+        var globalWasComplete = (await ReadProjectionStateAsync(db, projectionName, cancellationToken).ConfigureAwait(false))
             is { IsComplete: true, HasNoActiveOperations: true };
         var completedSymbols = new HashSet<string>(StringComparer.Ordinal);
         foreach (var symbolBatch in symbols.Chunk(CompletionStateLookupBatchSize))
         {
             var states = await db.Use(SecuritiesDbCql.GetSecuritiesSymbolProjectionStatesV3)
                 .SetParameters(new GetSecuritiesSymbolProjectionStatesV3(projectionName, symbolBatch))
-                .ExecuteQueryAsync(MapToSymbolProjectionState!);
+                .ExecuteQueryAsync(MapToSymbolProjectionState!, cancellationToken);
             foreach (var state in states)
             {
                 if (state.IsComplete && state.HasNoActiveOperations)
@@ -405,7 +435,7 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
                     projectionName,
                     operationId,
                     false))
-                .ExecuteSingleAsync(MapToBoolean!);
+                .ExecuteSingleAsync(MapToBoolean!, cancellationToken);
             activationResponseUnknown = false;
             if (journalActivationApplied != true)
             {
@@ -630,36 +660,44 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             .ExecuteCommandAsync(cancellationToken);
     }
 
-    async Task<FuturesContractV2ReadModel[]> LoadFuturesContractProjectionAsync(string symbol)
+    async Task<FuturesContractV2ReadModel[]> LoadFuturesContractProjectionAsync(
+        string symbol,
+        CancellationToken cancellationToken = default)
         => [.. (await _dbFactory.SecuritiesDb
             .Use(SecuritiesDbCql.GetFuturesContractsBySymbol)
             .SetParameters(new GetFuturesContractsBySymbol(symbol))
-            .ExecuteQueryAsync(MapToFuturesContract!))];
+            .ExecuteQueryAsync(MapToFuturesContract!, cancellationToken))];
 
-    async Task<FuturesOptionContractReadModel[]> LoadFuturesOptionContractProjectionAsync(string symbol)
+    async Task<FuturesOptionContractReadModel[]> LoadFuturesOptionContractProjectionAsync(
+        string symbol,
+        CancellationToken cancellationToken = default)
         => [.. (await _dbFactory.SecuritiesDb
             .Use(SecuritiesDbCql.GetFuturesOptionContractsBySymbol)
             .SetParameters(new GetFuturesOptionContractsBySymbol(symbol))
-            .ExecuteQueryAsync(MapToFuturesOptionContract!))];
+            .ExecuteQueryAsync(MapToFuturesOptionContract!, cancellationToken))];
 
-    async Task<FuturesContractV2ReadModel[]> LoadAndPopulateFuturesContractsBySymbolAsync(string symbol)
+    async Task<FuturesContractV2ReadModel[]> LoadAndPopulateFuturesContractsBySymbolAsync(
+        string symbol,
+        CancellationToken cancellationToken = default)
     {
         var db = _dbFactory.SecuritiesDb;
         var operation = await BeginProjectionOperationAsync(
             db,
             FuturesContractSymbolProjection,
-            [symbol]);
+            [symbol],
+            cancellationToken);
         var targetMutationSubmissionStarted = false;
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             targetMutationSubmissionStarted = true;
             await db.Use(SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)
                 .SetParameters(new DeleteFuturesContractBySymbolV2Partition(symbol))
-                .ExecuteCommandAsync();
+                .ExecuteCommandAsync(CancellationToken.None);
 
             var matchingContracts = new List<FuturesContractV2ReadModel>();
             await foreach (var contract in db.Use(SecuritiesDbCql.GetFuturesContracts)
-                .ExecuteStreamAsync(MapToFuturesContract!))
+                .ExecuteStreamAsync(MapToFuturesContract!, CancellationToken.None))
             {
                 if (string.Equals(contract.Symbol, symbol, StringComparison.Ordinal))
                     matchingContracts.Add(contract);
@@ -669,9 +707,9 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
                 .ThenByDescending(contract => contract.LastTradeDate)
                 .ThenBy(contract => contract.ContractId, StringComparer.Ordinal)
                 .ToArray();
-            await PopulateFuturesContractSymbolProjectionAsync(contracts);
+            await PopulateFuturesContractSymbolProjectionAsync(contracts, CancellationToken.None);
 
-            var projectedContracts = await LoadFuturesContractProjectionAsync(symbol);
+            var projectedContracts = await LoadFuturesContractProjectionAsync(symbol, CancellationToken.None);
             if (!HasExactFuturesContractKeys(contracts, projectedContracts))
             {
                 throw new StorageException(
@@ -682,7 +720,8 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
                 db,
                 operation,
                 completeGlobal: false,
-                completeAllSymbols: true);
+                completeAllSymbols: true,
+                cancellationToken: CancellationToken.None);
             return contracts;
         }
         catch
@@ -696,24 +735,28 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
         }
     }
 
-    async Task<FuturesOptionContractReadModel[]> LoadAndPopulateFuturesOptionContractsBySymbolAsync(string symbol)
+    async Task<FuturesOptionContractReadModel[]> LoadAndPopulateFuturesOptionContractsBySymbolAsync(
+        string symbol,
+        CancellationToken cancellationToken = default)
     {
         var db = _dbFactory.SecuritiesDb;
         var operation = await BeginProjectionOperationAsync(
             db,
             FuturesOptionContractSymbolProjection,
-            [symbol]);
+            [symbol],
+            cancellationToken);
         var targetMutationSubmissionStarted = false;
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             targetMutationSubmissionStarted = true;
             await db.Use(SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)
                 .SetParameters(new DeleteFuturesOptionContractBySymbolV2Partition(symbol))
-                .ExecuteCommandAsync();
+                .ExecuteCommandAsync(CancellationToken.None);
 
             var matchingContracts = new List<FuturesOptionContractReadModel>();
             await foreach (var contract in db.Use(SecuritiesDbCql.GetFuturesOptionContracts)
-                .ExecuteStreamAsync(MapToFuturesOptionContract!))
+                .ExecuteStreamAsync(MapToFuturesOptionContract!, CancellationToken.None))
             {
                 if (string.Equals(contract.Symbol, symbol, StringComparison.Ordinal))
                     matchingContracts.Add(contract);
@@ -724,9 +767,9 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
                 .ThenBy(contract => contract.StrikePrice)
                 .ThenBy(contract => contract.ContractId, StringComparer.Ordinal)
                 .ToArray();
-            await PopulateFuturesOptionContractSymbolProjectionAsync(contracts);
+            await PopulateFuturesOptionContractSymbolProjectionAsync(contracts, CancellationToken.None);
 
-            var projectedContracts = await LoadFuturesOptionContractProjectionAsync(symbol);
+            var projectedContracts = await LoadFuturesOptionContractProjectionAsync(symbol, CancellationToken.None);
             if (!HasExactFuturesOptionContractKeys(contracts, projectedContracts))
             {
                 throw new StorageException(
@@ -737,7 +780,8 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
                 db,
                 operation,
                 completeGlobal: false,
-                completeAllSymbols: true);
+                completeAllSymbols: true,
+                cancellationToken: CancellationToken.None);
             return contracts;
         }
         catch
@@ -1445,6 +1489,23 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
                 .FirstOrDefault(static candidate => candidate.CurrentlyTraded));
     }
 
+    public async Task<FuturesContractV2ReadModel?> GetCurrentlyTradedFuturesContractAsync(
+        string symbol,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.SecuritiesDb;
+        return await ReadProjectionOrFallbackAsync(
+            db,
+            FuturesContractSymbolProjection,
+            symbol,
+            cancellationToken,
+            token => db.Use(SecuritiesDbCql.GetCurrentlyTradeFuturesContract)
+                .SetParameters(new GetCurrentlyTradeFuturesContract(symbol))
+                .ExecuteSingleAsync(MapToFuturesContract!, token),
+            async token => (await LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token))
+                .FirstOrDefault(static candidate => candidate.CurrentlyTraded));
+    }
+
     /// <summary>
     /// Get currently traded futures contracts from the database 
     /// </summary>
@@ -1460,6 +1521,24 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
                 .SetParameters(new GetCurrentlyTradeFuturesContracts(symbol))
                 .ExecuteQueryAsync(MapToFuturesContract!),
             async () => (await LoadAndPopulateFuturesContractsBySymbolAsync(symbol))
+                .Where(static contract => contract.CurrentlyTraded)
+                .ToArray());
+    }
+
+    public async Task<ICollection<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractsAsync(
+        string symbol,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.SecuritiesDb;
+        return await ReadProjectionOrFallbackAsync<ICollection<FuturesContractV2ReadModel>>(
+            db,
+            FuturesContractSymbolProjection,
+            symbol,
+            cancellationToken,
+            token => db.Use(SecuritiesDbCql.GetCurrentlyTradeFuturesContracts)
+                .SetParameters(new GetCurrentlyTradeFuturesContracts(symbol))
+                .ExecuteQueryAsync(MapToFuturesContract!, token),
+            async token => (await LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token))
                 .Where(static contract => contract.CurrentlyTraded)
                 .ToArray());
     }
@@ -1484,6 +1563,23 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
         };
     }
 
+    public async Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(
+        string contractId,
+        CancellationToken cancellationToken)
+    {
+        var contracts = await _dbFactory.SecuritiesDb
+            .Use(SecuritiesDbCql.GetFuturesContract)
+            .SetParameters(new GetFuturesContract(contractId))
+            .ExecuteQueryAsync(MapToFuturesContract!, cancellationToken);
+        return contracts.Count switch
+        {
+            0 => null,
+            1 => contracts.First(),
+            _ => throw new StorageException(
+                $"SecuritiesDb canonical futures contractId '{contractId}' is ambiguous across {contracts.Count} rows.")
+        };
+    }
+
     /// <summary>
     /// Retrieves a futures contract based on the specified contract identifier.
     /// </summary>
@@ -1499,6 +1595,14 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
                 .SetParameters(new GetFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate))
                 .ExecuteSingleAsync(MapToFuturesContract!);
 
+    public async Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(
+        FuturesContractId e,
+        CancellationToken cancellationToken)
+        => await _dbFactory.SecuritiesDb
+            .Use(SecuritiesDbCql.GetFuturesContractById)
+            .SetParameters(new GetFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate))
+            .ExecuteSingleAsync(MapToFuturesContract!, cancellationToken);
+
     /// <summary>
     /// Get all futures contracts from the database
     /// </summary>
@@ -1507,6 +1611,12 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
         => await _dbFactory.SecuritiesDb
             .Use(SecuritiesDbCql.GetFuturesContracts)
             .ExecuteQueryAsync(MapToFuturesContract!);
+
+    public async Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsAsync(
+        CancellationToken cancellationToken)
+        => await _dbFactory.SecuritiesDb
+            .Use(SecuritiesDbCql.GetFuturesContracts)
+            .ExecuteQueryAsync(MapToFuturesContract!, cancellationToken);
 
     /// <summary>
     /// Insert a new futures option contract into SecuritiesDb
@@ -1692,6 +1802,23 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
         };
     }
 
+    public async Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(
+        string contractId,
+        CancellationToken cancellationToken)
+    {
+        var contracts = await _dbFactory.SecuritiesDb
+            .Use(SecuritiesDbCql.GetFuturesOptionContract)
+            .SetParameters(new GetFuturesOptionContract(contractId))
+            .ExecuteQueryAsync(MapToFuturesOptionContract!, cancellationToken);
+        return contracts.Count switch
+        {
+            0 => null,
+            1 => contracts.First(),
+            _ => throw new StorageException(
+                $"SecuritiesDb canonical futures-option contractId '{contractId}' is ambiguous across {contracts.Count} rows.")
+        };
+    }
+
     public async Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsByIdsAsync(
         ICollection<string> contractIds)
     {
@@ -1701,6 +1828,18 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             .Use(SecuritiesDbCql.GetFuturesOptionContractsByIds)
             .SetParameters(new GetFuturesOptionContractsByIds(contractIds))
             .ExecuteQueryAsync(MapToFuturesOptionContract!);
+    }
+
+    public async Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsByIdsAsync(
+        ICollection<string> contractIds,
+        CancellationToken cancellationToken)
+    {
+        if (contractIds.Count == 0)
+            return [];
+        return await _dbFactory.SecuritiesDb
+            .Use(SecuritiesDbCql.GetFuturesOptionContractsByIds)
+            .SetParameters(new GetFuturesOptionContractsByIds(contractIds))
+            .ExecuteQueryAsync(MapToFuturesOptionContract!, cancellationToken);
     }
 
     /// <summary>
@@ -1719,6 +1858,20 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             () => LoadAndPopulateFuturesOptionContractsBySymbolAsync(symbol));
     }
 
+    public async Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(
+        string symbol,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.SecuritiesDb;
+        return await ReadProjectionOrFallbackAsync<FuturesOptionContractReadModel[]>(
+            db,
+            FuturesOptionContractSymbolProjection,
+            symbol,
+            cancellationToken,
+            token => LoadFuturesOptionContractProjectionAsync(symbol, token),
+            token => LoadAndPopulateFuturesOptionContractsBySymbolAsync(symbol, token));
+    }
+
     /// <summary>
     /// Asynchronously retrieves a collection of futures option contracts.
     /// </summary>
@@ -1732,6 +1885,12 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             .Use(SecuritiesDbCql.GetFuturesOptionContracts)
             .ExecuteQueryAsync(MapToFuturesOptionContract!);
 
+    public async Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(
+        CancellationToken cancellationToken)
+        => await _dbFactory.SecuritiesDb
+            .Use(SecuritiesDbCql.GetFuturesOptionContracts)
+            .ExecuteQueryAsync(MapToFuturesOptionContract!, cancellationToken);
+
     /// <summary>
     /// Get futures contracts from the database by a list of contract IDs by symbol
     /// </summary>
@@ -1743,6 +1902,15 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             .Use(SecuritiesDbCql.GetFuturesContractsByIds)
             .SetParameters(new GetFuturesContractsByIds(contractIds, symbol))
             .ExecuteQueryAsync(MapToFuturesContract!);
+
+    public async Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsByIdsAsync(
+        ICollection<string> contractIds,
+        string symbol,
+        CancellationToken cancellationToken)
+        => await _dbFactory.SecuritiesDb
+            .Use(SecuritiesDbCql.GetFuturesContractsByIds)
+            .SetParameters(new GetFuturesContractsByIds(contractIds, symbol))
+            .ExecuteQueryAsync(MapToFuturesContract!, cancellationToken);
 
     /// <summary>
     /// Get futures contracts from the database by symbol
@@ -1758,6 +1926,20 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             symbol,
             () => LoadFuturesContractProjectionAsync(symbol),
             () => LoadAndPopulateFuturesContractsBySymbolAsync(symbol));
+    }
+
+    public async Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsBySymbolAsync(
+        string symbol,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.SecuritiesDb;
+        return await ReadProjectionOrFallbackAsync<FuturesContractV2ReadModel[]>(
+            db,
+            FuturesContractSymbolProjection,
+            symbol,
+            cancellationToken,
+            token => LoadFuturesContractProjectionAsync(symbol, token),
+            token => LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token));
     }
 
 }

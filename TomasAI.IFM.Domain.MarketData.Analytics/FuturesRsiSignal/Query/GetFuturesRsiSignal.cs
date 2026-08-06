@@ -15,6 +15,13 @@ public static class GetFuturesRsiSignal
     /// <param name="q">The query containing contract identifier, value date, and signal type filters.</param>
     /// <param name="dbFactory">The database context factory used to access futures RSI signal data.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
-    public static async ValueTask<FuturesRsiSignalReadModel?>  GetLastFuturesRsiSignalAsync(this GetFuturesRsiSignalQuery q, IDbContextFactory dbFactory)
-        =>  await dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(q.ContractId, q.ValueDate,  q.TimePeriod, q.PeriodLength);
+    public static async ValueTask<FuturesRsiSignalReadModel?> GetLastFuturesRsiSignalAsync(
+        this GetFuturesRsiSignalQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
+                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
+                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
 }

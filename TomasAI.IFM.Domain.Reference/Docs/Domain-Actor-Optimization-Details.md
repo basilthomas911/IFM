@@ -12,7 +12,7 @@ The following domain rules were preserved:
 - Command success remains distinct from state mutation. A successful command is not forced to produce an event.
 - `EconomicCalendarEventActor` and `LookupTypeEventActor` remain intentionally empty default event targets.
 - Dictionary dispatch remains in place. A generated jump table is deferred until paper-trading telemetry shows dispatch to be material.
-- End-to-end cancellation remains a separate solution-wide change after the root-domain optimization passes.
+- The solution-wide cancellation pass now covers all Reference storage reads and external calendar parsing; actor/API propagation is the next Reference slice.
 
 ## Top ten issues found and resolved
 
@@ -122,7 +122,7 @@ dotnet run -c Release --project TomasAI.IFM.Domain.Reference.Benchmarks -- --fil
 
 ### Solution-wide cancellation
 
-Cancellation remains a dedicated solution-wide follow-up. A supervisor cancellation token must flow consistently through actor dispatch, command/query/event APIs, repositories, storage interfaces and providers, broker operations, timers, and external I/O. Graceful shutdown must define what happens when cancellation arrives before persistence, after event persistence, or during read-model denormalization. Adding cancellation to Reference alone would create an incomplete contract.
+Reference storage now accepts cancellation throughout read-model and external-calendar operations. Actor/query-handler and direct-API propagation remains pending, so the bounded context is not yet recorded as end-to-end complete. Seed compare-and-set submission retains a non-cancelable resolution boundary to avoid losing an allocated identifier.
 
 ### Synchronous lookup interface
 

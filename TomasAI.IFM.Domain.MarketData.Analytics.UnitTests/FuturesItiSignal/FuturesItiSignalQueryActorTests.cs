@@ -40,6 +40,12 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => await ReceiveAsync(context, query);
 
+        public async ValueTask InvokeReceiveAsync(
+            IQueryActorContext context,
+            IQuery query,
+            CancellationToken cancellationToken)
+            => await ReceiveAsync(context, query, cancellationToken);
+
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
@@ -345,6 +351,44 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     #endregion
 
     #region ReceiveAsync Happy Path Tests
+
+    [Fact]
+    public async Task ReceiveAsync_CompositeQueryWithCancellation_StartsAllReadsAndDoesNotReply()
+    {
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        dbFactory.MarketDataDb.Returns(marketDataDb);
+        var actor = _fixture.CreateItiQueryActor(dbFactory);
+        var query = CreateGetSignalDataQuery();
+        var context = Substitute.For<IQueryActorContext>();
+        using var cancellation = new CancellationTokenSource();
+        marketDataDb.GetLastFuturesItiSignalTrendDirectionChangeAsync(
+                query.ContractId, query.ValueDate, cancellation.Token)
+            .Returns(_ => Task.FromCanceled<FuturesItiSignalV2ReadModel?>(cancellation.Token));
+        marketDataDb.GetLastFuturesItiSignalTrendExtremeChangeAsync(
+                query.ContractId, query.ValueDate, cancellation.Token)
+            .Returns(Task.FromResult<FuturesItiSignalV2ReadModel?>(null));
+        marketDataDb.GetLastFuturesItiSignalTrendReversalChangeAsync(
+                query.ContractId, query.ValueDate, cancellation.Token)
+            .Returns(Task.FromResult<FuturesItiSignalV2ReadModel?>(null));
+        cancellation.Cancel();
+
+        Func<Task> act = () => actor
+            .InvokeReceiveAsync(context, query, cancellation.Token)
+            .AsTask();
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        await marketDataDb.Received(1).GetLastFuturesItiSignalTrendDirectionChangeAsync(
+            query.ContractId, query.ValueDate, cancellation.Token);
+        await marketDataDb.Received(1).GetLastFuturesItiSignalTrendExtremeChangeAsync(
+            query.ContractId, query.ValueDate, cancellation.Token);
+        await marketDataDb.Received(1).GetLastFuturesItiSignalTrendReversalChangeAsync(
+            query.ContractId, query.ValueDate, cancellation.Token);
+        context.DidNotReceiveWithAnyArgs().ReplyAsync(
+            default,
+            default!,
+            default(ServiceResult<FuturesItiSignalDataReadModel>)!);
+    }
 
     [Fact]
     public async Task ReceiveAsync_GetFuturesItiSignalQuery_ExecutesHandler_AndReplies()

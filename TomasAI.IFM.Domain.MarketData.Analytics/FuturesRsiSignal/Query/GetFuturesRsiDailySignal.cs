@@ -14,6 +14,12 @@ public static class GetFuturesRsiDailySignal
     /// <param name="context"></param>
     /// <returns></returns>
     internal static async ValueTask<FuturesRsiSignalReadModel?> GetLastFuturesRsiDailySignalAsync(
-        this GetFuturesRsiDailySignalQuery q, IDbContextFactory dbFactory)
-        =>  await dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(q.ContractId, q.TimePeriod, q.PeriodLength);
+        this GetFuturesRsiDailySignalQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
 }

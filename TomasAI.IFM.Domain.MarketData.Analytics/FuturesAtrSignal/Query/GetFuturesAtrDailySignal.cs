@@ -10,7 +10,14 @@ public static class GetFuturesAtrDailySignal
     /// Handles a <see cref="GetFuturesAtrSignalQuery"/> by retrieving the most recent ATR signal
     /// for the specified futures contract and value date. The result is published back to the caller via a NATS reply.
     /// </summary>
-    public static async ValueTask<FuturesAtrSignalReadModel?> GetLastFuturesAtrDailySignalAsync(this GetFuturesAtrDailySignalQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(q.ContractId,  q.TimePeriod, q.PeriodLength);
+    public static async ValueTask<FuturesAtrSignalReadModel?> GetLastFuturesAtrDailySignalAsync(
+        this GetFuturesAtrDailySignalQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
 
 }

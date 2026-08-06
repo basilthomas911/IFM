@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Domain.MarketData.Query.Api;
 /// query owns its typed success/failure mapping. The implementation does not capture actor context and may
 /// be registered as a singleton.
 /// </remarks>
-public sealed class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActorMarketDataQueryApi
+public sealed partial class ActorMarketDataQueryApi(IDbContextFactory dbFactory) : IActorMarketDataQueryApi
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 

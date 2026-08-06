@@ -65,36 +65,44 @@ public class FuturesRsiSignalQueryActor(
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
     protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => await ReceiveAsync(context, query, CancellationToken.None).ConfigureAwait(false);
+
+    protected override async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         var resultTask = _receiveMap.TryGetValue(qryName, out var handler )
-            ? handler.Invoke(context, dbFactory, query)
+            ? handler.Invoke(context, dbFactory, query, cancellationToken)
             : throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await resultTask;
+        await resultTask.ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures RSI signal query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesRsiSignalQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetFuturesRsiSignalQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetFuturesRsiSignalQuery)!;
-            var result = await query.GetLastFuturesRsiSignalAsync(dbFactory);
+            var result = await query.GetLastFuturesRsiSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiSignalQuery.Verb, serviceResult);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiSignalQuery.Verb, serviceResult).ConfigureAwait(false);
 
         },
-        [typeof(GetFuturesRsiDailySignalQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetFuturesRsiDailySignalQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetFuturesRsiDailySignalQuery)!;
-            var result = await query.GetLastFuturesRsiDailySignalAsync(dbFactory);
+            var result = await query.GetLastFuturesRsiDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiDailySignalQuery.Verb, serviceResult);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
         }
     };
 

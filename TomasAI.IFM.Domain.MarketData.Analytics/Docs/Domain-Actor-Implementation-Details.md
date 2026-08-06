@@ -130,11 +130,15 @@ Daily MACD is now accepted by its command parse/receive maps and replay state. D
 
 MACD, ADX, and ATR now implement the same event-driven lifecycle as RSI for intraday entity IDs only. Public HTTP and NATS command APIs publish typed Start/Stop commands; command actors persist Started/Stopped domain events; repositories publish those events to the same-domain event actor; and event actors register or remove the entity's recurring generation loop.
 
-The shared timer registry guarantees one loop per entity, makes duplicate Start events idempotent, serializes callbacks within a loop, waits for an in-flight callback during Stop, and drains all loops during actor shutdown. The registry cancellation source is local lifecycle control and does not change the solution-wide cancellation TODO. Daily signal entity types have no Start/Stop contracts or timer registrations: they remain one-shot commands intended to be scheduled once after market close.
+The shared timer registry guarantees one loop per entity, makes duplicate Start events idempotent, serializes callbacks within a loop, waits for an in-flight callback during Stop, and drains all loops during actor shutdown. The registry cancellation source is local lifecycle control. Daily signal entity types have no Start/Stop contracts or timer registrations: they remain one-shot commands intended to be scheduled once after market close.
 
-### TODO: solution-wide graceful cancellation
+### Graceful cancellation status
 
-Cancellation must eventually flow from the supervisor through actor requests, repositories, and the lowest storage operations so shutdown can stop actors gracefully. Do not introduce partial cancellation contracts in one domain; implement and test the propagation as a dedicated solution-wide change after root-domain optimization is complete. The local RSI timer uses an internal cancellation source only to drain its own lifecycle during stop/shutdown and does not change that cross-solution contract.
+All seven Analytics query actors now receive the supervisor worker token and propagate it through their query handlers to 17 MarketData read-model operations. The storage overloads pass the token through PostgreSQL command execution, scalar reads, and result-set materialization. Cancellation is checked before an actor reply, so a canceled request cannot publish a stale response after its read completes.
+
+The composite ITI signal-data query starts its independent trend-direction, trend-extreme, and trend-reversal reads together and awaits them as one cancellable group. This removes avoidable serial database latency without changing result construction or event ordering.
+
+No-token overloads remain compatibility entry points for existing callers and tests. The direct in-process `IActorMarketDataAnalyticsQueryApi` is a separate service-API surface and remains a solution-wide cancellation follow-up; the actor query paths described here are cancellation-aware end to end. The local indicator timer cancellation source continues to own only recurring-loop lifecycle and drain behavior.
 
 ## Preserved actor semantics
 

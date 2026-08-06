@@ -18,6 +18,10 @@ public static class GetFuturesContract
     /// <param name="dbFactory"></param>
     /// <returns></returns>
     public static ValueTask<FuturesContractV2ReadModel?> GetFuturesContractAsync(
-        this GetFuturesContractQuery q, IDbContextFactory dbFactory)
-        => new(dbFactory.SecuritiesDb.GetFuturesContractAsync(q.ContractId));
+        this GetFuturesContractQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => new(cancellationToken.CanBeCanceled
+            ? dbFactory.SecuritiesDb.GetFuturesContractAsync(q.ContractId, cancellationToken)
+            : dbFactory.SecuritiesDb.GetFuturesContractAsync(q.ContractId));
 }

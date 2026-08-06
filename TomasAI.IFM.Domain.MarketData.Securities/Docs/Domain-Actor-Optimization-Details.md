@@ -12,7 +12,7 @@ The following domain rules were preserved:
 - A successful command is distinct from a state change and need not emit an event.
 - Empty event actors remain intentional default publication targets.
 - Dispatch dictionaries remain in place; jump-table micro-optimization is deferred until paper-trading telemetry identifies a material hot spot.
-- End-to-end cancellation propagation remains a separate solution-wide change after all root-domain optimization passes.
+- Query cancellation now flows through the Securities actors, handlers, projection-consistency reads, and direct aggregate MarketData API; durable projection repair remains non-cancelable after its mutation boundary.
 
 ## Top ten issues found and resolved
 
@@ -103,7 +103,7 @@ The optimized managed replay remains effectively constant as immutable history g
 ## Verification
 
 - Before edits, both the Securities unit and BDD projects built but reported zero discoverable tests.
-- Added eight deterministic unit tests and two BDD tests; all ten pass in Release mode.
+- Ten deterministic unit tests and two BDD tests pass in Release mode. The two cancellation tests verify token propagation and suppression of stale actor replies.
 - The production and benchmark projects build successfully with zero warnings and zero errors.
 - BenchmarkDotNet completed all 24 configured cases successfully.
 - The infrastructure-dependent integration suite compiled and executed all 14 tests: 7 passed and 7 command/event completion tests failed because expected actor completion events or successful external responses were absent. The intentionally empty event actors were not changed to satisfy those expectations, so this suite is recorded separately rather than used as the deterministic regression signal for this pass.
@@ -115,6 +115,6 @@ dotnet run -c Release --project TomasAI.IFM.Domain.MarketData.Securities.Benchma
 
 ## Deferred work
 
-End-to-end cancellation remains a dedicated solution-wide follow-up. One supervisor cancellation token must flow consistently through actor dispatch, APIs, repositories, storage, broker operations, timers, and external I/O, with graceful actor shutdown and explicit partial-persistence semantics. Applying cancellation to Securities alone would create an incomplete and potentially misleading contract.
+The wider solution migration continues for the remaining domain query/read-model surfaces and event handlers that perform cancellable pre-commit I/O. Securities command persistence and durable projection repair retain the solution-wide non-cancelable post-mutation rule.
 
 Future regular passes should retain these benchmarks, add paper-trading mailbox latency, allocation rate, batch-size, and storage round-trip telemetry, and optimize dispatch or similar micro-paths only when production measurements show material impact.

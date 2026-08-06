@@ -16,6 +16,12 @@ public static class GetFuturesMacdSignal
     /// <param name="context">The query actor context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(
-        this GetFuturesMacdSignalQuery q, IDbContextFactory dbFactory)
-        =>  await dbFactory.MarketDataDb.GetLastFuturesMacdSignalAsync(q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength);
+        this GetFuturesMacdSignalQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.MarketDataDb.GetLastFuturesMacdSignalAsync(
+                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.MarketDataDb.GetLastFuturesMacdSignalAsync(
+                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
 }

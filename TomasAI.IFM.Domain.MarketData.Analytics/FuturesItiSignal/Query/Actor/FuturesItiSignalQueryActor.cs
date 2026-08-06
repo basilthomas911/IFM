@@ -67,41 +67,50 @@ public class FuturesItiSignalQueryActor(
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
     protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => await ReceiveAsync(context, query, CancellationToken.None).ConfigureAwait(false);
+
+    protected override async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures ITI signal query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesItiSignalDataQuery).Name] = async (ctx, db, q) =>
+        [typeof(GetFuturesItiSignalDataQuery).Name] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetFuturesItiSignalDataQuery)!;
-            var result = await query.GetFuturesItiSignalDataAsync(db);
+            var result = await query.GetFuturesItiSignalDataAsync(db, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalDataQuery.Verb,
-                new ServiceResult<FuturesItiSignalDataReadModel>(result));
+                new ServiceResult<FuturesItiSignalDataReadModel>(result)).ConfigureAwait(false);
         },
-        [typeof(GetFuturesItiSignalQuery).Name] = async (ctx, db, q) =>
+        [typeof(GetFuturesItiSignalQuery).Name] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetFuturesItiSignalQuery)!;
-            var result = await query.GetLastFuturesItiSignalAsync(db);
+            var result = await query.GetLastFuturesItiSignalAsync(db, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalQuery.Verb,
-                new ServiceResult<FuturesItiSignalV2ReadModel?>(result));
+                new ServiceResult<FuturesItiSignalV2ReadModel?>(result)).ConfigureAwait(false);
         },
-        [typeof(GetFuturesItiTrendDirectionChangedSignalsQuery).Name] = async (ctx, db, q) =>
+        [typeof(GetFuturesItiTrendDirectionChangedSignalsQuery).Name] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetFuturesItiTrendDirectionChangedSignalsQuery)!;
-            var result = await query.GetFuturesItiTrendDirectionChangedSignalsAsync(db);
+            var result = await query.GetFuturesItiTrendDirectionChangedSignalsAsync(db, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiTrendDirectionChangedSignalsQuery.Verb,
-                new ServiceResult<FuturesItiSignalV2ReadModel[]>(result));
+                new ServiceResult<FuturesItiSignalV2ReadModel[]>(result)).ConfigureAwait(false);
         }
     };
 

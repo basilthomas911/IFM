@@ -69,6 +69,10 @@ The August 2026 root-to-leaf optimization pass is recorded in
 
 Event histories remain immutable and unbounded. A command may succeed without changing state, and the empty event actors remain intentional default publication targets. State reconstruction continues to return the best available, possibly empty, state when a requested snapshot or event type is absent; genuine storage exceptions continue through the actor processing pipeline.
 
-## Deferred solution-wide cancellation TODO
+## Graceful cancellation status
 
-Cancellation is deliberately not introduced by this project-local pass. A later dedicated solution-wide change must propagate one coherent cancellation contract from supervisors through actor dispatch, command/event/query APIs, state repositories, storage operations, broker calls, timers, and external I/O. The supervisor must be able to request graceful actor shutdown without leaving partial persistence or silently converting cancellation into a successful command. This compatibility change should be designed and tested after the root domain optimization passes are complete.
+The futures-contract and futures-option query actors propagate their supervisor worker token through all seven handlers and the complete Securities read interface. Token-aware storage paths cover direct reads, projection-state fences, bulk ID reads, and streamed projection selection. Canceled actor work publishes no reply.
+
+Projection fallback has an explicit durability boundary. Cancellation is honored while deciding whether a projection is current and while beginning its repair journal. Once the fallback starts mutating the durable projection, the delete, canonical scan, repopulation, verification, and journal completion run with `CancellationToken.None`. This prevents graceful shutdown from reporting cancellation while leaving a partly rebuilt projection or an ambiguous repair outcome.
+
+The direct in-process `IActorMarketDataQueryApi` also has cancellation-aware overloads for all 18 operations. Its aggregate Iron Condor query starts the Securities and MarketData reads concurrently with the same token. `OperationCanceledException` is rethrown rather than converted to a normal `ServiceFailed` result. Existing no-token entry points remain compatible.

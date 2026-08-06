@@ -42,10 +42,52 @@ public class FuturesOptionContractQueryActorTests : IClassFixture<SecuritiesFixt
         public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => await ReceiveAsync(context, query);
 
+        public async ValueTask InvokeReceiveAsync(
+            IQueryActorContext context,
+            IQuery query,
+            CancellationToken cancellationToken)
+            => await ReceiveAsync(context, query, cancellationToken);
+
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
 
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_WithCancellation_PropagatesTokenAndDoesNotReply()
+    {
+        var securitiesDb = Substitute.For<ISecuritiesDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.SecuritiesDb.Returns(securitiesDb);
+        var actor = _fixture.CreateActor(
+            dbFactory,
+            Substitute.For<ILogger<FuturesOptionContractQueryActor>>());
+        var query = new GetFuturesOptionContractQuery(SampleData.FuturesOptionContract1.ContractId) with
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetFuturesOptionContractQuery.Actor,
+                GetFuturesOptionContractQuery.Verb,
+                SampleData.FuturesOptionContract1.ContractId)
+        };
+        var context = Substitute.For<IQueryActorContext>();
+        using var cancellation = new CancellationTokenSource();
+        securitiesDb.GetFuturesOptionContractAsync(query.ContractId, cancellation.Token)
+            .Returns(_ => Task.FromCanceled<FuturesOptionContractReadModel?>(cancellation.Token));
+        cancellation.Cancel();
+
+        Func<Task> act = () => actor
+            .InvokeReceiveAsync(context, query, cancellation.Token)
+            .AsTask();
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        await securitiesDb.Received(1)
+            .GetFuturesOptionContractAsync(query.ContractId, cancellation.Token);
+        context.DidNotReceiveWithAnyArgs().ReplyAsync(
+            default,
+            default!,
+            default(ServiceResult<FuturesOptionContractReadModel?>)!);
     }
 
 

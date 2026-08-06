@@ -64,27 +64,34 @@ public class FuturesTdiSignalQueryActor(
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
     protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => await ReceiveAsync(context, query, CancellationToken.None).ConfigureAwait(false);
+
+    protected override async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures TDI signal query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesTdiSignalQuery).Name] = async (ctx, db, q) =>
+        [typeof(GetFuturesTdiSignalQuery).Name] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetFuturesTdiSignalQuery)!;
-            var result = await query.GetFuturesTdiSignalAsync(db);
+            var result = await query.GetFuturesTdiSignalAsync(db, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTdiSignalQuery.Verb,
-                new ServiceResult<FuturesTdiSignalReadModel?>(result));
+                new ServiceResult<FuturesTdiSignalReadModel?>(result)).ConfigureAwait(false);
         }
     };
 

@@ -15,20 +15,36 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb
     public interface IReferenceDbReadContext 
     {
         Task<int> GetNextSeedIdAsync(string seedType);
+        Task<int> GetNextSeedIdAsync(string seedType, CancellationToken cancellationToken);
         Task<int> GetCurrentSeedIdAsync(string seedType);
+        Task<int> GetCurrentSeedIdAsync(string seedType, CancellationToken cancellationToken);
         Task<LookupTypeReadModel?> GetLookupTypeAsync(LookupTypeId lookupTypeId);
+        Task<LookupTypeReadModel?> GetLookupTypeAsync(LookupTypeId lookupTypeId, CancellationToken cancellationToken);
         Task<ICollection<LookupTypeReadModel>> GetLookupTypeAsync(string lookupTypeName);
+        Task<ICollection<LookupTypeReadModel>> GetLookupTypeAsync(string lookupTypeName, CancellationToken cancellationToken);
         Task<ICollection<LookupTypeReadModel>> GetLookupTypesAsync();
+        Task<ICollection<LookupTypeReadModel>> GetLookupTypesAsync(CancellationToken cancellationToken);
         Task<ICollection<string>> GetLookupTypeNamesAsync();
+        Task<ICollection<string>> GetLookupTypeNamesAsync(CancellationToken cancellationToken);
         Task<ICollection<LookupTypeShortCodeReadModel>> GetLookupTypeShortCodesAsync(string lookupTypeName);
+        Task<ICollection<LookupTypeShortCodeReadModel>> GetLookupTypeShortCodesAsync(string lookupTypeName, CancellationToken cancellationToken);
         Task<bool> LookupTypeShortCodeExistsAsync(string lookupTypeName, string shortCode);
+        Task<bool> LookupTypeShortCodeExistsAsync(string lookupTypeName, string shortCode, CancellationToken cancellationToken);
         Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync();
+        Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync(CancellationToken cancellationToken);
         Task<int> GetScheduledJobIdAsync(string jobName);
+        Task<int> GetScheduledJobIdAsync(string jobName, CancellationToken cancellationToken);
         Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId economicCalendarId);
+        Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId economicCalendarId, CancellationToken cancellationToken);
         Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode);
+        Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode, CancellationToken cancellationToken);
         Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode);
+        Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode, CancellationToken cancellationToken);
         Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync();
+        Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync(CancellationToken cancellationToken);
         Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync();
+        Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync(CancellationToken cancellationToken);
         Task<ICollection<MDIForwardLossRatioReadModel>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType);
+        Task<ICollection<MDIForwardLossRatioReadModel>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType, CancellationToken cancellationToken);
     }
 }

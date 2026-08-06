@@ -14,6 +14,12 @@ public static class GetFuturesTradeSignal
     /// <param name="context"></param>
     /// <returns></returns>
     internal static async ValueTask<FuturesTradeSignalV2ReadModel?> GetFuturesTradeSignalAsync(
-        this GetFuturesTradeSignalQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync(q.ContractId, q.ValueDate);
+        this GetFuturesTradeSignalQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync(
+                q.ContractId, q.ValueDate, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync(
+                q.ContractId, q.ValueDate).ConfigureAwait(false);
 }

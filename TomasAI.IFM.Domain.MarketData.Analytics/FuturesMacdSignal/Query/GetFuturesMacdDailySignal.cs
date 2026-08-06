@@ -13,7 +13,13 @@ public static class GetFuturesMacdDailySignal
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(
-        this GetFuturesMacdDailySignalQuery q, IDbContextFactory dbFactory)
-        =>  await dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(q.ContractId, q.TimePeriod, q.PeriodLength);
+        this GetFuturesMacdDailySignalQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
     
 }

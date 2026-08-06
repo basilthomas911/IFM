@@ -77,13 +77,19 @@ public class FuturesOptionContractQueryActor(
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
     protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+
+    protected override ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        return receiveFunc.Invoke(context, dbFactory, query);
+        return receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
     }
 
     /// <summary>
@@ -93,26 +99,29 @@ public class FuturesOptionContractQueryActor(
     /// <remarks>This dictionary enables dynamic dispatch of futures option contract-related queries by associating each query
     /// type name with a function that processes the query against a FuturesOptionContractQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesOptionContractQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetFuturesOptionContractQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractQuery)!;
-            var result = await query.GetFuturesOptionContractAsync(dbFactory);
+            var result = await query.GetFuturesOptionContractAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
                 new ServiceResult<FuturesOptionContractReadModel?>(result));
         },
-        [typeof(GetFuturesOptionContractsQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetFuturesOptionContractsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractsQuery)!;
-            var result = await query.GetFuturesOptionContractsAsync(dbFactory);
+            var result = await query.GetFuturesOptionContractsAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractsQuery.Verb,
                 new ServiceResult<FuturesOptionContractReadModel[]>(result));
         },
-        [typeof(GetFuturesOptionContractIdsQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetFuturesOptionContractIdsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractIdsQuery)!;
-            var result = await query.GetFuturesOptionContractIdsAsync(dbFactory);
+            var result = await query.GetFuturesOptionContractIdsAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractIdsQuery.Verb,
                 new ServiceResult<string[]>(result));
         }

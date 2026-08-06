@@ -10,6 +10,13 @@ public static class GetLastFuturesAdxDailySignal
     /// Handles a <see cref="GetFuturesAdxDailySignalQuery"/> by retrieving the most recent ADX signal
     /// for the specified futures contract and value date. The result is published back to the caller via a NATS reply.
     /// </summary>
-    public static async ValueTask<FuturesAdxSignalReadModel?> GetLastFuturesAdxDailySignalAsync(this GetFuturesAdxDailySignalQuery q, IDbContextFactory dbFactory)
-        =>  await dbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(q.ContractId,  q.TimePeriod, q.PeriodLength);
+    public static async ValueTask<FuturesAdxSignalReadModel?> GetLastFuturesAdxDailySignalAsync(
+        this GetFuturesAdxDailySignalQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
 }

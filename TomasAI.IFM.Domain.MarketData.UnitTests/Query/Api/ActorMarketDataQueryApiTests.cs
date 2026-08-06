@@ -128,6 +128,65 @@ public class ActorMarketDataQueryApiTests
         result.Value!.TradingDays.Should().Be(20);
     }
 
+    [Fact]
+    public async Task IronCondorCancellationReachesBothStoresAndIsNotConvertedToFailure()
+    {
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var securitiesDb = Substitute.For<ISecuritiesDbContext>();
+        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        dbFactory.SecuritiesDb.Returns(securitiesDb);
+        dbFactory.MarketDataDb.Returns(marketDataDb);
+        var underlyingSource = new TaskCompletionSource<FuturesContractV2ReadModel?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var optionsSource = new TaskCompletionSource<ICollection<FuturesOptionContractReadModel>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var yieldCurveSource = new TaskCompletionSource<YieldCurveRateReadModel?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var tradingDaysSource = new TaskCompletionSource<int>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource();
+        securitiesDb.GetFuturesContractAsync("U", cancellation.Token)
+            .Returns(underlyingSource.Task);
+        securitiesDb.GetFuturesOptionContractsByIdsAsync(
+                Arg.Any<ICollection<string>>(), cancellation.Token)
+            .Returns(optionsSource.Task);
+        marketDataDb.GetLastYieldCurveRateAsync(cancellation.Token)
+            .Returns(yieldCurveSource.Task);
+        marketDataDb.GetTradingDayCountAsync(
+                Arg.Any<DateOnly>(), Arg.Any<DateOnly>(),
+                Arg.Any<MarketType>(), Arg.Any<CurrencyType>(), cancellation.Token)
+            .Returns(tradingDaysSource.Task);
+        var api = new ActorMarketDataQueryApi(dbFactory);
+
+        var pendingResult = api.GetIronCondorMarketDataAsync(
+            "U", "SP", "LP", "SC", "LC",
+            new DateOnly(2026, 8, 5), new DateOnly(2026, 9, 5),
+            MarketType.Futures, CurrencyType.USD, cancellation.Token);
+
+        await securitiesDb.Received(1).GetFuturesContractAsync("U", cancellation.Token);
+        await securitiesDb.Received(1).GetFuturesOptionContractsByIdsAsync(
+            Arg.Any<ICollection<string>>(), cancellation.Token);
+        await marketDataDb.Received(1).GetLastYieldCurveRateAsync(cancellation.Token);
+        await marketDataDb.Received(1).GetTradingDayCountAsync(
+            Arg.Any<DateOnly>(), Arg.Any<DateOnly>(),
+            MarketType.Futures, CurrencyType.USD, cancellation.Token);
+
+        cancellation.Cancel();
+        underlyingSource.SetResult(new FuturesContractV2ReadModel { ContractId = "U" });
+        optionsSource.SetResult(
+        [
+            new FuturesOptionContractReadModel { ContractId = "SP" },
+            new FuturesOptionContractReadModel { ContractId = "LP" },
+            new FuturesOptionContractReadModel { ContractId = "SC" },
+            new FuturesOptionContractReadModel { ContractId = "LC" }
+        ]);
+        yieldCurveSource.SetResult(new YieldCurveRateReadModel { OneMonth = 5 });
+        tradingDaysSource.SetResult(20);
+
+        Func<Task> act = async () => await pendingResult;
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
     static (ActorMarketDataQueryApi Api, IMarketDataDbContext Db) CreateApi()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();

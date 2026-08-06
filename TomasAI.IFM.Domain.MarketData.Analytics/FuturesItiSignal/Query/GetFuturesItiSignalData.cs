@@ -20,12 +20,29 @@ public static class GetFuturesItiSignalData
     /// <param name="context">The query actor context for replying to the query.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FuturesItiSignalDataReadModel> GetFuturesItiSignalDataAsync(
-        this GetFuturesItiSignalDataQuery q, IDbContextFactory dbFactory)
+        this GetFuturesItiSignalDataQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
     {
         var db = dbFactory.MarketDataDb;
+        var trendDirectionTask = cancellationToken.CanBeCanceled
+            ? db.GetLastFuturesItiSignalTrendDirectionChangeAsync(
+                q.ContractId, q.ValueDate, cancellationToken)
+            : db.GetLastFuturesItiSignalTrendDirectionChangeAsync(q.ContractId, q.ValueDate);
+        var trendExtremeTask = cancellationToken.CanBeCanceled
+            ? db.GetLastFuturesItiSignalTrendExtremeChangeAsync(
+                q.ContractId, q.ValueDate, cancellationToken)
+            : db.GetLastFuturesItiSignalTrendExtremeChangeAsync(q.ContractId, q.ValueDate);
+        var trendReversalTask = cancellationToken.CanBeCanceled
+            ? db.GetLastFuturesItiSignalTrendReversalChangeAsync(
+                q.ContractId, q.ValueDate, cancellationToken)
+            : db.GetLastFuturesItiSignalTrendReversalChangeAsync(q.ContractId, q.ValueDate);
+        await Task.WhenAll(trendDirectionTask, trendExtremeTask, trendReversalTask)
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         return new FuturesItiSignalDataReadModel(
-            trendDirectionChange: await db.GetLastFuturesItiSignalTrendDirectionChangeAsync(q.ContractId, q.ValueDate),
-            trendExtremeChange: await db.GetLastFuturesItiSignalTrendExtremeChangeAsync(q.ContractId, q.ValueDate),
-            trendReversalChange: await db.GetLastFuturesItiSignalTrendReversalChangeAsync(q.ContractId, q.ValueDate));
+            trendDirectionChange: await trendDirectionTask.ConfigureAwait(false),
+            trendExtremeChange: await trendExtremeTask.ConfigureAwait(false),
+            trendReversalChange: await trendReversalTask.ConfigureAwait(false));
     }
 }

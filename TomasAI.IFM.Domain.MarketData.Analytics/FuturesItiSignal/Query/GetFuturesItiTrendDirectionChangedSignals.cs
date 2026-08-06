@@ -14,6 +14,14 @@ public static class GetFuturesItiTrendDirectionChangedSignals
     /// <param name="context">The query actor context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FuturesItiSignalV2ReadModel[]> GetFuturesItiTrendDirectionChangedSignalsAsync(
-        this GetFuturesItiTrendDirectionChangedSignalsQuery q, IDbContextFactory dbFactory)
-        => [.. await dbFactory.MarketDataDb.GetFuturesItiTrendDirectionChangedSignalsAsync(q.ContractId, q.ValueDate)];
+        this GetFuturesItiTrendDirectionChangedSignalsQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => [.. cancellationToken.CanBeCanceled
+            ? await dbFactory.MarketDataDb
+                .GetFuturesItiTrendDirectionChangedSignalsAsync(q.ContractId, q.ValueDate, cancellationToken)
+                .ConfigureAwait(false)
+            : await dbFactory.MarketDataDb
+                .GetFuturesItiTrendDirectionChangedSignalsAsync(q.ContractId, q.ValueDate)
+                .ConfigureAwait(false)];
 }

@@ -68,4 +68,33 @@ public class EconomicCalendarsDbContext(IDbConnectionSettings connectionSettings
         }
     }
 
+    public async Task<ICollection<EconomicCalendarReadModel>> ReadAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var db = _dbFactory.EconomicCalendarsDb;
+            var economicCalendarJson = await db.Use(connectionString => new DataReaderOptions(connectionString))
+                .ReadAsync(MapEconomicCalendar, cancellationToken);
+            var economicCalendars = new List<EconomicCalendarReadModel>();
+            foreach (var e in economicCalendarJson)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    economicCalendars.Add(e.ToViewModel());
+                }
+                catch { }
+            }
+            return economicCalendars;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
 }

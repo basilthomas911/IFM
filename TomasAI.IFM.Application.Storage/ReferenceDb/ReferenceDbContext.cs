@@ -291,10 +291,35 @@ public class ReferenceDbContext(
             ?? throw new StorageException($"ReferenceDb could not initialize the '{seedType}' seed.");
     }
 
-    static async Task<int?> GetScheduledJobProjectionIdAsync(IObjectRepository db, string scheduledJobName)
+    async Task<long> EnsureSeedIdV2Async(string seedType, CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.ReferenceDb;
+        var current = await db.Use(ReferenceDbCql.GetNextSeedIdV2)
+            .SetParameters(new GetNextSeedIdV2(seedType))
+            .ExecuteSingleAsync(MapToNextSeedId!, cancellationToken);
+        if (current is not null)
+            return current.Value;
+
+        var legacy = await db.Use(ReferenceDbCql.GetNextSeedId)
+            .SetParameters(new GetNextSeedId(seedType))
+            .ExecuteSingleAsync(MapToNextSeedId!, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        await db.Use(ReferenceDbCql.InsertSeedIdV2IfNotExists)
+            .SetParameters(new InsertSeedIdV2IfNotExists(seedType, legacy?.Value ?? 0))
+            .ExecuteCommandAsync(CancellationToken.None);
+        return (await db.Use(ReferenceDbCql.GetNextSeedIdV2)
+            .SetParameters(new GetNextSeedIdV2(seedType))
+            .ExecuteSingleAsync(MapToNextSeedId!, CancellationToken.None))?.Value
+            ?? throw new StorageException($"ReferenceDb could not initialize the '{seedType}' seed.");
+    }
+
+    static async Task<int?> GetScheduledJobProjectionIdAsync(
+        IObjectRepository db,
+        string scheduledJobName,
+        CancellationToken cancellationToken = default)
         => (await db.Use(ReferenceDbCql.GetScheduledJobId)
             .SetParameters(new GetScheduledJobId(scheduledJobName))
-            .ExecuteSingleAsync(MapToJobId!))?.Value;
+            .ExecuteSingleAsync(MapToJobId!, cancellationToken))?.Value;
 
     static async Task<ScheduledJobReservation?> ReadScheduledJobReservationAsync(
         IObjectRepository db,
@@ -441,25 +466,27 @@ public class ReferenceDbContext(
 
     static async Task<ReferenceProjectionState?> GetProjectionStateAsync(
         IObjectRepository db,
-        string projectionName)
+        string projectionName,
+        CancellationToken cancellationToken = default)
     {
         var states = await db.Use(ReferenceDbCql.GetReferenceProjectionStateV3)
             .SetParameters(new GetReferenceProjectionStateV3(projectionName))
-            .ExecuteQueryAsync(MapToReferenceProjectionState!);
+            .ExecuteQueryAsync(MapToReferenceProjectionState!, cancellationToken);
         return states.Count == 0 ? null : states.First();
     }
 
     static async Task<ReferenceProjectionReadToken?> GetScopedProjectionReadTokenAsync(
         IObjectRepository db,
         string projectionName,
-        string scopeName)
+        string scopeName,
+        CancellationToken cancellationToken = default)
     {
-        var projectionState = await GetProjectionStateAsync(db, projectionName);
+        var projectionState = await GetProjectionStateAsync(db, projectionName, cancellationToken);
         if (projectionState is not { Completed: true })
             return null;
 
-        var scopeState = await GetProjectionStateAsync(db, scopeName);
-        var activeScopeMutations = await GetProjectionMutationsAsync(db, scopeName);
+        var scopeState = await GetProjectionStateAsync(db, scopeName, cancellationToken);
+        var activeScopeMutations = await GetProjectionMutationsAsync(db, scopeName, cancellationToken);
         if (activeScopeMutations.Count != 0)
             return null;
 
@@ -477,17 +504,18 @@ public class ReferenceDbContext(
         IObjectRepository db,
         string projectionName,
         string scopeName,
-        ReferenceProjectionReadToken token)
+        ReferenceProjectionReadToken token,
+        CancellationToken cancellationToken = default)
     {
-        var projectionState = await GetProjectionStateAsync(db, projectionName);
+        var projectionState = await GetProjectionStateAsync(db, projectionName, cancellationToken);
         if (projectionState is not { Completed: true } ||
             projectionState.Value.Generation != token.ProjectionGeneration ||
-            (await GetProjectionMutationsAsync(db, scopeName)).Count != 0)
+            (await GetProjectionMutationsAsync(db, scopeName, cancellationToken)).Count != 0)
         {
             return false;
         }
 
-        var scopeState = await GetProjectionStateAsync(db, scopeName);
+        var scopeState = await GetProjectionStateAsync(db, scopeName, cancellationToken);
         return token.ScopeGeneration.HasValue
             ? scopeState is { Completed: true } &&
                 scopeState.Value.Generation == token.ScopeGeneration.Value
@@ -496,10 +524,11 @@ public class ReferenceDbContext(
 
     static Task<ICollection<Guid>> GetProjectionMutationsAsync(
         IObjectRepository db,
-        string projectionName)
+        string projectionName,
+        CancellationToken cancellationToken = default)
         => db.Use(ReferenceDbCql.GetReferenceProjectionMutationsV3)
             .SetParameters(new GetReferenceProjectionMutationsV3(projectionName))
-            .ExecuteQueryAsync(MapToGuid);
+            .ExecuteQueryAsync(MapToGuid, cancellationToken);
 
     static async Task ClearScopedProjectionStatesAsync(
         IObjectRepository db,
@@ -1372,6 +1401,26 @@ public class ReferenceDbContext(
         throw new StorageException($"ReferenceDb could not reserve the next '{seedType}' seed after 64 compare-and-set attempts.");
     }
 
+    public async Task<int> GetNextSeedIdAsync(string seedType, CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.ReferenceDb;
+        for (var attempt = 0; attempt < 64; attempt++)
+        {
+            var current = await EnsureSeedIdV2Async(seedType, cancellationToken);
+            var next = checked(current + 1);
+            cancellationToken.ThrowIfCancellationRequested();
+            var applied = await db.Use(ReferenceDbCql.UpdateNextSeedIdV2)
+                .SetParameters(new UpdateNextSeedIdV2(next, seedType, current))
+                .ExecuteScalarAsync(MapToBoolean!, CancellationToken.None);
+            if (applied)
+                return checked((int)next);
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Yield();
+        }
+
+        throw new StorageException($"ReferenceDb could not reserve the next '{seedType}' seed after 64 compare-and-set attempts.");
+    }
+
     /// <summary>
     /// return current seed id for selected seed type
     /// </summary>
@@ -1379,6 +1428,9 @@ public class ReferenceDbContext(
     /// <returns></returns>
     public async Task<int> GetCurrentSeedIdAsync(string seedType)
         => checked((int)await EnsureSeedIdV2Async(seedType));
+
+    public async Task<int> GetCurrentSeedIdAsync(string seedType, CancellationToken cancellationToken)
+        => checked((int)await EnsureSeedIdV2Async(seedType, cancellationToken));
 
     /// <summary>
     /// return list of economic calendar events for selected event date
@@ -1390,6 +1442,14 @@ public class ReferenceDbContext(
             await db.Use(ReferenceDbCql.GetEconomicCalendarById)
                 .SetParameters(new GetEconomicCalendarById(NormalizeScyllaTimestamp(id.EventDate), id.CountryCode, id.EventName))
                 .ExecuteSingleAsync(MapToEconomicCalendar!));
+
+    public async Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(
+        EconomicCalendarId id,
+        CancellationToken cancellationToken)
+        => await _dbFactory.ReferencePool.GetAsync(async db =>
+            await db.Use(ReferenceDbCql.GetEconomicCalendarById)
+                .SetParameters(new GetEconomicCalendarById(NormalizeScyllaTimestamp(id.EventDate), id.CountryCode, id.EventName))
+                .ExecuteSingleAsync(MapToEconomicCalendar!, cancellationToken));
 
     /// <summary>
     /// return list of economic calendar events for selected event date
@@ -1403,6 +1463,18 @@ public class ReferenceDbContext(
                 ? DateTime.MaxValue
                 : eventDate.Date.AddDays(1).AddTicks(-1),
             countryCode);
+
+    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
+        DateTime eventDate,
+        string countryCode,
+        CancellationToken cancellationToken)
+        => GetEconomicCalendarsAsync(
+            eventDate.Date,
+            eventDate.Date == DateTime.MaxValue.Date
+                ? DateTime.MaxValue
+                : eventDate.Date.AddDays(1).AddTicks(-1),
+            countryCode,
+            cancellationToken);
             
     /// <summary>
     /// return list of all economic calendar events 
@@ -1412,6 +1484,13 @@ public class ReferenceDbContext(
         => [.. (await _dbFactory.ReferenceDb
                .Use(ReferenceDbCql.GetEconomicCalendarsAll)
                .ExecuteQueryAsync(MapToEconomicCalendar!)).OrderByDescending(e => e.EventDate)];
+
+    public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync(
+        CancellationToken cancellationToken)
+        => [.. (await _dbFactory.ReferenceDb
+            .Use(ReferenceDbCql.GetEconomicCalendarsAll)
+            .ExecuteQueryAsync(MapToEconomicCalendar!, cancellationToken))
+            .OrderByDescending(e => e.EventDate)];
 
     /// <summary>
     /// return list of economic calendar events for selected date range
@@ -1493,6 +1572,89 @@ public class ReferenceDbContext(
         return canonical;
     }
 
+    public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
+        DateTime startDate,
+        DateTime endDate,
+        string countryCode,
+        CancellationToken cancellationToken)
+    {
+        startDate = NormalizeScyllaTimestamp(startDate);
+        endDate = NormalizeScyllaTimestamp(endDate);
+        if (endDate < startDate)
+            return [];
+
+        var db = _dbFactory.ReferenceDb;
+        var monthBuckets = GetMonthBuckets(startDate, endDate).ToArray();
+        var readTokens = new Dictionary<int, ReferenceProjectionReadToken>(monthBuckets.Length);
+        var allScopesReady = true;
+        foreach (var batch in monthBuckets.Chunk(8))
+        {
+            var tokens = await Task.WhenAll(batch.Select(async monthBucket => (
+                MonthBucket: monthBucket,
+                Token: await GetScopedProjectionReadTokenAsync(
+                    db,
+                    EconomicCalendarProjectionName,
+                    GetEconomicCalendarProjectionScope(countryCode, monthBucket),
+                    cancellationToken))));
+            foreach (var token in tokens)
+            {
+                if (token.Token is null)
+                    allScopesReady = false;
+                else
+                    readTokens.Add(token.MonthBucket, token.Token.Value);
+            }
+        }
+
+        if (allScopesReady)
+        {
+            var projected = new List<EconomicCalendarReadModel>();
+            foreach (var batch in monthBuckets.Chunk(8))
+            {
+                var pages = await Task.WhenAll(batch.Select(monthBucket => db.Use(ReferenceDbCql.GetEconomicCalendars)
+                    .SetParameters(new GetEconomicCalendars(countryCode, monthBucket, startDate, endDate))
+                    .ExecuteQueryAsync(MapToEconomicCalendar!, cancellationToken)));
+                foreach (var rows in pages)
+                    projected.AddRange(rows);
+            }
+
+            var allTokensValid = true;
+            foreach (var batch in monthBuckets.Chunk(8))
+            {
+                var validity = await Task.WhenAll(batch.Select(monthBucket =>
+                    IsScopedProjectionReadTokenValidAsync(
+                        db,
+                        EconomicCalendarProjectionName,
+                        GetEconomicCalendarProjectionScope(countryCode, monthBucket),
+                        readTokens[monthBucket],
+                        cancellationToken)));
+                if (validity.Any(static isValid => !isValid))
+                    allTokensValid = false;
+            }
+
+            if (allTokensValid)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                projected.Sort(static (left, right) => right.EventDate.CompareTo(left.EventDate));
+                return projected;
+            }
+        }
+
+        var canonical = new List<EconomicCalendarReadModel>();
+        await foreach (var row in db.Use(ReferenceDbCql.GetEconomicCalendarsAll)
+            .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
+        {
+            if (string.Equals(row.CountryCode, countryCode, StringComparison.Ordinal)
+                && row.EventDate >= startDate
+                && row.EventDate <= endDate)
+            {
+                canonical.Add(row);
+            }
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        canonical.Sort(static (left, right) => right.EventDate.CompareTo(left.EventDate));
+        return canonical;
+    }
+
     /// <summary>
     /// return list of economic calendar country codes
     /// </summary>
@@ -1507,6 +1669,18 @@ public class ReferenceDbContext(
         return countryCodes.DistinctBy(e => e.CountryCode).ToImmutableList();
     }
 
+    public async Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync(
+        CancellationToken cancellationToken)
+    {
+        var countryCodes = await _dbFactory.ReferenceDb
+            .Use(ReferenceDbCql.GetEconomicCalendarCountryCodes)
+            .ExecuteQueryAsync(MapToEconomicCalendarCountryCode, cancellationToken);
+        if (countryCodes is null || countryCodes.Count == 0)
+            return [];
+        cancellationToken.ThrowIfCancellationRequested();
+        return countryCodes.DistinctBy(e => e.CountryCode).ToImmutableList();
+    }
+
     /// <summary>
     /// return lookup type from lookup type id
     /// </summary>
@@ -1517,6 +1691,12 @@ public class ReferenceDbContext(
                 .Use(ReferenceDbCql.GetLookupTypeById)
                 .SetParameters(new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId))
                 .ExecuteSingleAsync(MapToLookupType!);
+
+    public async Task<LookupTypeReadModel?> GetLookupTypeAsync(LookupTypeId lookupTypeId, CancellationToken cancellationToken)
+       => await _dbFactory.ReferenceDb
+                .Use(ReferenceDbCql.GetLookupTypeById)
+                .SetParameters(new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId))
+                .ExecuteSingleAsync(MapToLookupType!, cancellationToken);
 
     /// <summary>
     /// return lookup types from lookup type name
@@ -1529,6 +1709,12 @@ public class ReferenceDbContext(
                 .SetParameters(new GetLookupType(lookupTypeName))
                 .ExecuteQueryAsync(MapToLookupType!);
 
+    public async Task<ICollection<LookupTypeReadModel>> GetLookupTypeAsync(string lookupTypeName, CancellationToken cancellationToken)
+       => await _dbFactory.ReferenceDb
+                .Use(ReferenceDbCql.GetLookupType)
+                .SetParameters(new GetLookupType(lookupTypeName))
+                .ExecuteQueryAsync(MapToLookupType!, cancellationToken);
+
     /// <summary>
     /// return all lookup types 
     /// </summary>
@@ -1538,6 +1724,11 @@ public class ReferenceDbContext(
                .Use(ReferenceDbCql.GetLookupTypes)
                .ExecuteQueryAsync(MapToLookupType!);
 
+    public async Task<ICollection<LookupTypeReadModel>> GetLookupTypesAsync(CancellationToken cancellationToken)
+       => await _dbFactory.ReferenceDb
+               .Use(ReferenceDbCql.GetLookupTypes)
+               .ExecuteQueryAsync(MapToLookupType!, cancellationToken);
+
     /// <summary>
     /// return all lookup type names
     /// </summary>
@@ -1546,6 +1737,11 @@ public class ReferenceDbContext(
        => [.. (await _dbFactory.ReferenceDb
                .Use(ReferenceDbCql.GetLookupTypeNames)
                .ExecuteQueryAsync(MapToLookupTypeName!)).Select(e => e.LookupTypeName)];
+
+    public async Task<ICollection<string>> GetLookupTypeNamesAsync(CancellationToken cancellationToken)
+       => [.. (await _dbFactory.ReferenceDb
+               .Use(ReferenceDbCql.GetLookupTypeNames)
+               .ExecuteQueryAsync(MapToLookupTypeName!, cancellationToken)).Select(e => e.LookupTypeName)];
 
     /// <summary>
     /// return all lookup type short codes by lookup type
@@ -1557,6 +1753,12 @@ public class ReferenceDbContext(
                 .SetParameters(new GetLookupType(lookupTypeName))
                 .ExecuteQueryAsync(MapToLookupTypeShortCode!);
 
+    public async Task<ICollection<LookupTypeShortCodeReadModel>> GetLookupTypeShortCodesAsync(string lookupTypeName, CancellationToken cancellationToken)
+       => await _dbFactory.ReferenceDb
+                .Use(ReferenceDbCql.GetLookupTypeShortCodes)
+                .SetParameters(new GetLookupType(lookupTypeName))
+                .ExecuteQueryAsync(MapToLookupTypeShortCode!, cancellationToken);
+
     /// <summary>
     /// Checks a lookup-type partition without allocating a LINQ iterator or closure.
     /// </summary>
@@ -1566,6 +1768,18 @@ public class ReferenceDbContext(
         foreach (var value in values)
             if (string.Equals(value.ShortCode, shortCode, StringComparison.OrdinalIgnoreCase))
                 return true;
+        return false;
+    }
+
+    public async Task<bool> LookupTypeShortCodeExistsAsync(string lookupTypeName, string shortCode, CancellationToken cancellationToken)
+    {
+        var values = await GetLookupTypeShortCodesAsync(lookupTypeName, cancellationToken);
+        foreach (var value in values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.Equals(value.ShortCode, shortCode, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
         return false;
     }
 
@@ -1611,6 +1825,34 @@ public class ReferenceDbContext(
         return legacyMatch.JobId;
     }
 
+    public async Task<int> GetScheduledJobIdAsync(string scheduledJobName, CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.ReferenceDb;
+        var scopeName = GetScheduledJobProjectionScope(scheduledJobName);
+        var readToken = await GetScopedProjectionReadTokenAsync(
+            db, ScheduledJobProjectionName, scopeName, cancellationToken);
+        if (readToken is not null)
+        {
+            var jobId = await GetScheduledJobProjectionIdAsync(db, scheduledJobName, cancellationToken);
+            if (await IsScopedProjectionReadTokenValidAsync(
+                db, ScheduledJobProjectionName, scopeName, readToken.Value, cancellationToken))
+                return jobId ?? 0;
+        }
+
+        var jobs = await db.Use(ReferenceDbCql.GetScheduledJobs)
+            .ExecuteQueryAsync(MapToScheduledJob!, cancellationToken);
+        var legacyMatches = jobs
+            .Where(job => string.Equals(job.JobName, scheduledJobName, StringComparison.Ordinal))
+            .Take(2)
+            .ToArray();
+        if (legacyMatches.Length == 0)
+            return 0;
+        if (legacyMatches.Length > 1)
+            throw new StorageException(
+                $"Scheduled job name '{scheduledJobName}' is assigned to more than one canonical job.");
+        return legacyMatches[0].JobId;
+    }
+
     /// <summary>
     /// return list of scheduled jobs
     /// </summary>
@@ -1645,6 +1887,15 @@ public class ReferenceDbContext(
                .Use(ReferenceDbCql.GetMDIForwardLossRatios)
                .SetParameters(new GetMDIForwardLossRatios(trendDirection.ToStringFast(), tradeType.ToStringFast()))
                .ExecuteQueryAsync(MapToMDIForwardLossRatio!);
+
+    public async Task<ICollection<MDIForwardLossRatioReadModel>> GetMDIForwardLossRatiosAsync(
+        IntrinsicTimeTrendType trendDirection,
+        TradeType tradeType,
+        CancellationToken cancellationToken)
+        => await _dbFactory.ReferenceDb
+               .Use(ReferenceDbCql.GetMDIForwardLossRatios)
+               .SetParameters(new GetMDIForwardLossRatios(trendDirection.ToStringFast(), tradeType.ToStringFast()))
+               .ExecuteQueryAsync(MapToMDIForwardLossRatio!, cancellationToken);
 
     /// <summary>
     /// insert lookup types
@@ -1686,6 +1937,22 @@ public class ReferenceDbContext(
                     targetMutationSubmissionStarted);
             }
         });
+    }
+
+    public async Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync(CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.ReferenceDb;
+        var scheduledJobs = await db.Use(ReferenceDbCql.GetScheduledJobs)
+            .ExecuteQueryAsync(MapToScheduledJob!, cancellationToken);
+        foreach (var e in scheduledJobs)
+        {
+            var jobDaysOfWeek = await db.Use(ReferenceDbCql.GetScheduledJobDays)
+                .SetParameters(new GetScheduledJobDays(e.JobId))
+                .ExecuteSingleAsync(MapToScheduledJobDaysOfWeek!, cancellationToken);
+            if (jobDaysOfWeek is not null)
+                e.DaysOfWeek = jobDaysOfWeek;
+        }
+        return scheduledJobs;
     }
 
     /// <summary>

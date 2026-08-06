@@ -27,12 +27,15 @@ internal static class FuturesOptionContractDbContext
 
 	internal static async ValueTask<string[]> GetFuturesOptionContractIdsAsync(
 		this IDbContextFactory dbFactory,
-		string[] contractIds)
+		string[] contractIds,
+		CancellationToken cancellationToken = default)
 	{
 		if (contractIds.Length == 0)
 			return [];
 
-		var contracts = await dbFactory.SecuritiesDb.GetFuturesOptionContractsByIdsAsync(contractIds);
+		var contracts = await (cancellationToken.CanBeCanceled
+			? dbFactory.SecuritiesDb.GetFuturesOptionContractsByIdsAsync(contractIds, cancellationToken)
+			: dbFactory.SecuritiesDb.GetFuturesOptionContractsByIdsAsync(contractIds));
 		var existingIds = new HashSet<string>(
 			contracts.Select(static contract => contract.ContractId),
 			StringComparer.Ordinal);

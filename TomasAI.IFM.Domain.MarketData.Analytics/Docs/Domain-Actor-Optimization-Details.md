@@ -87,9 +87,11 @@ Every variant reduced managed allocation by approximately 99.2%. The prior repos
 - Per-entity timer callbacks never overlap.
 - Stop waits for an in-flight callback and prevents later ticks.
 - ITI query reads all start before any delayed fake is released.
+- All seven query actors propagate their worker cancellation token through handlers and 17 PostgreSQL read-model leaves.
+- Canceled query work publishes no reply; focused RSI and composite ITI tests cover the single-read and concurrent-read paths.
 - Cached validation rules execute safely under concurrent callers.
 - Command audit writes remain observable and failures propagate asynchronously.
-- Existing command/event/query behavior remains covered by 758 passing unit tests and 449 passing BDD tests.
+- Existing command/event/query behavior remains covered by 760 passing unit tests and 449 passing BDD tests.
 - PostgreSQL integration coverage proves latest-snapshot selection, typed filtering before limiting, ascending replay order, snapshot boundaries, missing snapshot/range behavior, nonpositive ranges, and exact/fewer/more-than-N ranges.
 
 ## Repeatable review process

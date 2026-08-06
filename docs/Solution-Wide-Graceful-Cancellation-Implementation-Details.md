@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation started in August 2026 as the first item in the revised application-wide optimization order. The command/event-source path is complete. Query/read-model migration is proceeding bounded context by bounded context; Fund and FundTransaction now have explicit end-to-end token propagation.
+Implementation started in August 2026 as the first item in the revised application-wide optimization order. The command/event-source path is complete. Query/read-model migration is proceeding bounded context by bounded context; Fund, FundTransaction, MarketData, YieldCurveRate, Analytics actor queries, and Securities now have explicit end-to-end token propagation.
 
 The legacy Interactive Brokers market-data implementation is excluded. Databento is the replacement and will be the reference design for any later IBKR implementation.
 
@@ -47,6 +47,9 @@ Cancellation-aware overloads now cover:
 - ScyllaDB session creation, prepared statements, owned driver operations, paging, and canceled-driver-task draining.
 - Fund and FundTransaction query actors, query handlers, parallel financial calculations, projection-consistency reads, streaming fallback, and Fund read-model APIs.
 - MarketData and YieldCurveRate query actors, query handlers, trading-calendar reads/loops, MarketData read-model APIs, and external yield-curve HTTP/file parsing.
+- MarketData Analytics query actors, query handlers, concurrent ITI composite reads, and 17 PostgreSQL read-model operations across RSI, MACD, ATR, ADX, TDI, Trade Signal, and ITI.
+- Securities query actors, all contract/option read-model operations, projection-fence reads, and the direct in-process `IActorMarketDataQueryApi`, including concurrent aggregate reads spanning the Securities and MarketData stores.
+- Reference storage reads, projection-fence validation, economic-calendar parallel bucket reads and streaming fallback, scheduled-job reads, seed-reservation pre-submit cancellation, and external calendar parsing. Reference actor/API propagation remains in progress.
 
 Existing no-token methods remain as compatibility entry points and retain the original no-token dependency calls. Runtime dispatch selects the cancellation-aware overload when it has a cancellable worker token. This avoids a flag-day change for tests and callers while keeping the production actor path explicitly cancellation-aware.
 
@@ -55,6 +58,8 @@ Existing no-token methods remain as compatibility entry points and retain the or
 `BaseEventSourceCommandActor` passes its worker token through validation and state reconstruction. It deliberately invokes state saving with `CancellationToken.None` after command execution begins. `BaseEventSourceActorRepository` checks cancellation immediately before `SaveEventsAsync`; after persistence returns, denormalization and publication complete without caller cancellation.
 
 This policy favors an unambiguous durable outcome over a misleading fast cancellation response. A storage exception still fails reconstruction or persistence through the existing actor exception pipeline. No new domain exception is introduced for missing snapshots or missing events.
+
+Securities projection fallback uses the same rule. Cancellation is honored through projection-fence reads and repair-journal acquisition. After the fallback begins deleting/repopulating a durable projection, the canonical scan, verification, and journal completion finish without caller cancellation.
 
 ## Verification
 
@@ -70,7 +75,8 @@ The Release solution build and relevant unit-test suites are the verification ga
 
 ## Remaining work in this priority
 
-- Continue the explicit query/read-model migration for Analytics, Securities, Reference, OptionPricer, SystemAdmin, and Trade.
+- Continue the explicit query/read-model migration for Reference, OptionPricer, SystemAdmin, and Trade.
+- Add cancellation to the direct in-process `IActorMarketDataAnalyticsQueryApi`; this service surface is separate from the completed Analytics actor query paths.
 - Complete the direct in-process `IActorMarketDataQueryApi` during the Securities tranche so its aggregate token reaches both MarketData and Securities storage leaves.
 - Add token-aware event and denormalizer handlers where they perform cancellable pre-commit I/O. Required post-commit projection/publication work must retain the non-cancelable rule.
 - Decide whether a separately named force-stop operation is needed. It must not overload graceful `ShutdownAsync` semantics or discard accepted messages silently.

@@ -22,14 +22,25 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 public interface ISecuritiesDbReadContext
 {
     Task<FuturesContractV2ReadModel?> GetCurrentlyTradedFuturesContractAsync(string symbol);
+    Task<FuturesContractV2ReadModel?> GetCurrentlyTradedFuturesContractAsync(string symbol, CancellationToken cancellationToken);
     Task<ICollection<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractsAsync(string symbol);
+    Task<ICollection<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractsAsync(string symbol, CancellationToken cancellationToken);
     Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(string contractId);
+    Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(string contractId, CancellationToken cancellationToken);
     Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(FuturesContractId contractId);
+    Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(FuturesContractId contractId, CancellationToken cancellationToken);
     Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsAsync();
+    Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsAsync(CancellationToken cancellationToken);
     Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsBySymbolAsync(string symbol);
+    Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsBySymbolAsync(string symbol, CancellationToken cancellationToken);
     Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsByIdsAsync(ICollection<string> contractIds, string symbol);
+    Task<ICollection<FuturesContractV2ReadModel>> GetFuturesContractsByIdsAsync(ICollection<string> contractIds, string symbol, CancellationToken cancellationToken);
     Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(string contractId);
+    Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(string contractId, CancellationToken cancellationToken);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsByIdsAsync(ICollection<string> contractIds);
+    Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsByIdsAsync(ICollection<string> contractIds, CancellationToken cancellationToken);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(string symbol);
+    Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(string symbol, CancellationToken cancellationToken);
     Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync();
+    Task<ICollection<FuturesOptionContractReadModel>> GetFuturesOptionContractsAsync(CancellationToken cancellationToken);
 }

@@ -11,5 +11,6 @@ namespace TomasAI.IFM.Application.Storage.EconomicCalendarsDb
     public interface IEconomicCalendarsDbContext
     {
         Task<ICollection<EconomicCalendarReadModel>> ReadAsync();
+        Task<ICollection<EconomicCalendarReadModel>> ReadAsync(CancellationToken cancellationToken);
     }
 }

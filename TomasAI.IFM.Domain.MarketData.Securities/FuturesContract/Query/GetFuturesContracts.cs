@@ -9,6 +9,10 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query;
 public static class GetFuturesContracts
 {
     public static async ValueTask<FuturesContractV2ReadModel[]> GetFuturesContractsAsync(
-        this GetFuturesContractsQuery q, IDbContextFactory dbFactory)
-        => [.. await dbFactory.SecuritiesDb.GetFuturesContractsAsync()];
+        this GetFuturesContractsQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => [.. await (cancellationToken.CanBeCanceled
+            ? dbFactory.SecuritiesDb.GetFuturesContractsAsync(cancellationToken)
+            : dbFactory.SecuritiesDb.GetFuturesContractsAsync())];
 }
