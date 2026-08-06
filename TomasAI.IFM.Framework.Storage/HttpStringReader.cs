@@ -8,19 +8,16 @@
 /// cref="ReadLinesAsync"/> method is not supported for this implementation.</remarks>
 public class HttpStringReader : IStringReader
 {
-    Func<Task<string>> _readString;
+    static readonly HttpClient Client = new();
+    readonly Uri _dataSourceUri;
 
     public HttpStringReader(Uri dataSourceUri)
     {
         if (dataSourceUri == null)
             throw new ArgumentNullException("dataSourceUri", "StringReader constructor parameter is null");
-        _readString = async () =>
-        {
-            if (dataSourceUri.Scheme != Uri.UriSchemeHttp && dataSourceUri.Scheme != Uri.UriSchemeHttps)
-                throw new ArgumentException("The URI scheme must be 'http' or 'https'.", nameof(dataSourceUri));
-            using var httpClient = new HttpClient();
-            return await httpClient.GetStringAsync(dataSourceUri);
-        };
+        if (dataSourceUri.Scheme != Uri.UriSchemeHttp && dataSourceUri.Scheme != Uri.UriSchemeHttps)
+            throw new ArgumentException("The URI scheme must be 'http' or 'https'.", nameof(dataSourceUri));
+        _dataSourceUri = dataSourceUri;
     }
 
     /// <summary>
@@ -31,12 +28,15 @@ public class HttpStringReader : IStringReader
     /// <exception cref="NotSupportedException">Always thrown. This method is not supported for HttpStringReader. Use ReadToEndAsync instead.</exception>
     public async Task<IEnumerable<string>> ReadLinesAsync()
     {
-        var content = await _readString();
+        var content = await ReadToEndAsync().ConfigureAwait(false);
         return content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
     }
 
     public async Task<string> ReadToEndAsync()
-        => await _readString();
+        => await ReadToEndAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<string> ReadToEndAsync(CancellationToken cancellationToken)
+        => await Client.GetStringAsync(_dataSourceUri, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously reads lines of text from the underlying source.
@@ -49,6 +49,17 @@ public class HttpStringReader : IStringReader
     {
         foreach(var line in await ReadLinesAsync())
         {
+            yield return line;
+        }
+    }
+
+    async IAsyncEnumerable<string> IStringReader.ReadLinesAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var content = await ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var line in content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             yield return line;
         }
     }

@@ -62,6 +62,8 @@ Add general reads beneath `Query`. Add a full command/event/query feature beneat
 
 The solution-wide cancellation phase is now in progress. Yield-curve command validation, state replay, repository calls, event-source storage, PostgreSQL/ScyllaDB operations, and NATS operations accept the actor token. Accepted mailbox work drains before actors and their producers stop. Event persistence and required publication become non-cancelable at the commit boundary to avoid ambiguous durable outcomes.
 
-General market-data query/read-model APIs still require their coordinated token signature update. That remaining work is tracked in `Docs/Solution-Wide-Graceful-Cancellation-Implementation-Details.md`.
+The active `MarketDataQueryActor` and `YieldCurveRateQueryActor` paths now propagate the worker token through query handlers, market-data reads, trading-calendar database access and date loops, and external yield-curve HTTP/file parsing. A canceled read does not publish a stale query reply. Existing no-token methods remain compatibility entry points and keep using the original no-token dependency overloads.
+
+The direct in-process `IActorMarketDataQueryApi` composes both MarketData and Securities stores. Its public cancellation overloads are intentionally scheduled with the Securities query/read-model tranche so the token reaches every composed leaf in one change rather than merely canceling the caller's wait.
 
 The existing Interactive Brokers feed is excluded because Databento will replace it. Future IBKR work should mirror the completed Databento lifecycle and backpressure design rather than extend the legacy implementation.

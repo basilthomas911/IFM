@@ -176,12 +176,12 @@ Callers should consume streams with `await foreach` or explicitly dispose an acq
 
 `IStringReader` abstracts whole-content and asynchronous line reads:
 
-- `FileStringReader` requires a file URI and uses `File.ReadAllTextAsync` or `File.ReadLinesAsync`.
-- `HttpStringReader` requires HTTP/HTTPS when it fetches content, creates an `HttpClient` per operation, and can expose split lines as an async stream.
+- `FileStringReader` requires a file URI and uses cancellation-aware `File.ReadAllTextAsync` or `File.ReadLinesAsync` overloads.
+- `HttpStringReader` requires HTTP/HTTPS, reuses one process-level `HttpClient`, passes cancellation into the HTTP request, and can expose split lines as an async stream.
 
 `CsvDataReader<TData>` reflects public properties to define its schema, treats the first input line as a header by default, builds a case-insensitive header index, and converts cells to common primitive/nullable types. `CsvWriter` reflects public properties into a header and rows.
 
-`JsonDataReader<TData>` uses Newtonsoft.Json to deserialize a JSON array, then exposes reflected property values through `IDataReader`. `ObjectDataReaderContext` and `ObjectFileUriContext` adapt either reader to `IObjectDataRecord` and invoke the caller's ordinal mapper.
+`JsonDataReader<TData>` uses Newtonsoft.Json to deserialize a JSON array, then exposes reflected property values through `IDataReader`. `ObjectDataReaderContext` fetches remote content asynchronously before constructing a buffered CSV/JSON reader, checks cancellation while mapping rows, and avoids sync-over-async network waits. `ObjectFileUriContext` adapts file readers to `IObjectDataRecord` and invokes the caller's ordinal mapper.
 
 Current parser constraints are important:
 

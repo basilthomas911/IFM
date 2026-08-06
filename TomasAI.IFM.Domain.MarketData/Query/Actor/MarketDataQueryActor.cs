@@ -64,46 +64,68 @@ public class MarketDataQueryActor(
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
     protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+
+    protected override ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         return query switch
         {
-            GetLastRateOfReturnQuery typedQuery => ReceiveAsync(context, typedQuery),
-            GetTradingDaysQuery typedQuery => ReceiveAsync(context, typedQuery),
-            GetTradingDatesQuery typedQuery => ReceiveAsync(context, typedQuery),
-            GetValueDateQuery typedQuery => ReceiveAsync(context, typedQuery),
+            GetLastRateOfReturnQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
+            GetTradingDaysQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
+            GetTradingDatesQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
+            GetValueDateQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
             _ => throw new InvalidOperationException(
                 $"Unable to process {ActorName} query: {query.GetType().Name}")
         };
     }
 
-    async ValueTask ReceiveAsync(IQueryActorContext context, GetLastRateOfReturnQuery query)
+    async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        GetLastRateOfReturnQuery query,
+        CancellationToken cancellationToken)
     {
-        var result = await query.GetLastRateOfReturnAsync(dbFactory);
+        var result = await query.GetLastRateOfReturnAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetLastRateOfReturnQuery.Verb,
-            new ServiceResult<RateOfReturnReadModel>(result));
+            new ServiceResult<RateOfReturnReadModel>(result)).ConfigureAwait(false);
     }
 
-    async ValueTask ReceiveAsync(IQueryActorContext context, GetTradingDaysQuery query)
+    async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        GetTradingDaysQuery query,
+        CancellationToken cancellationToken)
     {
-        var result = await query.GetTradingDaysAsync(dbFactory);
+        var result = await query.GetTradingDaysAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetTradingDaysQuery.Verb,
-            new ServiceResult<ScalarReadModel<int>>(result));
+            new ServiceResult<ScalarReadModel<int>>(result)).ConfigureAwait(false);
     }
 
-    async ValueTask ReceiveAsync(IQueryActorContext context, GetTradingDatesQuery query)
+    async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        GetTradingDatesQuery query,
+        CancellationToken cancellationToken)
     {
-        var result = await query.GetTradingDatesAsync(dbFactory);
+        var result = await query.GetTradingDatesAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetTradingDatesQuery.Verb,
-            new ServiceResult<DateOnly[]>(result));
+            new ServiceResult<DateOnly[]>(result)).ConfigureAwait(false);
     }
 
-    async ValueTask ReceiveAsync(IQueryActorContext context, GetValueDateQuery query)
+    async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        GetValueDateQuery query,
+        CancellationToken cancellationToken)
     {
-        var result = await query.GetValueDateAsync();
+        var result = await query.GetValueDateAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetValueDateQuery.Verb,
-            new ServiceResult<ScalarReadModel<DateOnly>>(result));
+            new ServiceResult<ScalarReadModel<DateOnly>>(result)).ConfigureAwait(false);
     }
 
     /// <summary>

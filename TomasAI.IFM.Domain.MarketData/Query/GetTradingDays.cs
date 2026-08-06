@@ -16,10 +16,17 @@ public static class GetTradingDays
     /// <param name="context">The query actor context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
 	public static async ValueTask<ScalarReadModel<int>> GetTradingDaysAsync(
-        this GetTradingDaysQuery q, IDbContextFactory dbFactory)
+        this GetTradingDaysQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
     {
-        var tradingDayCount = await dbFactory.MarketDataDb.GetTradingDayCountAsync(
-            q.StartDate, q.EndDate, q.MarketType, q.CurrencyType);
+        var tradingDayCount = cancellationToken.CanBeCanceled
+            ? await dbFactory.MarketDataDb.GetTradingDayCountAsync(
+                q.StartDate, q.EndDate, q.MarketType, q.CurrencyType, cancellationToken)
+                .ConfigureAwait(false)
+            : await dbFactory.MarketDataDb.GetTradingDayCountAsync(
+                q.StartDate, q.EndDate, q.MarketType, q.CurrencyType)
+                .ConfigureAwait(false);
         return new ScalarReadModel<int>(tradingDayCount);
     }
 }

@@ -46,6 +46,7 @@ Cancellation-aware overloads now cover:
 - PostgreSQL connection, transaction, prepare, execute, read, commit, and cancellation rollback paths;
 - ScyllaDB session creation, prepared statements, owned driver operations, paging, and canceled-driver-task draining.
 - Fund and FundTransaction query actors, query handlers, parallel financial calculations, projection-consistency reads, streaming fallback, and Fund read-model APIs.
+- MarketData and YieldCurveRate query actors, query handlers, trading-calendar reads/loops, MarketData read-model APIs, and external yield-curve HTTP/file parsing.
 
 Existing no-token methods remain as compatibility entry points and retain the original no-token dependency calls. Runtime dispatch selects the cancellation-aware overload when it has a cancellable worker token. This avoids a flag-day change for tests and callers while keeping the production actor path explicitly cancellation-aware.
 
@@ -69,7 +70,8 @@ The Release solution build and relevant unit-test suites are the verification ga
 
 ## Remaining work in this priority
 
-- Continue the explicit query/read-model migration for MarketData, Analytics, Securities, Reference, OptionPricer, SystemAdmin, and Trade.
+- Continue the explicit query/read-model migration for Analytics, Securities, Reference, OptionPricer, SystemAdmin, and Trade.
+- Complete the direct in-process `IActorMarketDataQueryApi` during the Securities tranche so its aggregate token reaches both MarketData and Securities storage leaves.
 - Add token-aware event and denormalizer handlers where they perform cancellable pre-commit I/O. Required post-commit projection/publication work must retain the non-cancelable rule.
 - Decide whether a separately named force-stop operation is needed. It must not overload graceful `ShutdownAsync` semantics or discard accepted messages silently.
 - Add host-level tests that cancel startup partway through actor registration and verify producer rollback.

@@ -74,21 +74,29 @@ public interface IMarketDataDbReadContext
     Task<ICollection<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalsAsync();
     Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalBySymbolAsync(string symbol, DateOnly valueDate);
     Task<RateOfReturnReadModel?> GetLastRateOfReturnAsync(string symbol);
+    Task<RateOfReturnReadModel?> GetLastRateOfReturnAsync(string symbol, CancellationToken cancellationToken);
     Task<VixFuturesEodDataReadModel?> GetLastVixFuturesEodDataAsync(string contractId, DateOnly valueDate);
     Task<VixFuturesEodDataReadModel?> GetVixFuturesEodDataAsync(string contractId, DateOnly valueDate);
 	Task<ICollection<VixFuturesEodDataReadModel>> GetVixFuturesEodDataByValueDateAsync(DateOnly valueDate);
 	Task<FuturesTickHLVDataReadModel?> GetVixFuturesTickHLVDataAsync(VixFuturesEodDataEntityId e);
 
     Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync();
+    Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync(CancellationToken cancellationToken);
     Task<YieldCurveRateReadModel?> GetYieldCurveRateAsync(DateOnly valueDate);
     Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesAsync(DateOnly startDate, DateOnly endDate);
+    Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesAsync(DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken);
     Task<ICollection<int>> GetYieldCurveRateYearsAsync();
+    Task<ICollection<int>> GetYieldCurveRateYearsAsync(CancellationToken cancellationToken);
     Task<bool> GetYieldCurveRateExistsAsync(DateOnly valueDate);
+    Task<bool> GetYieldCurveRateExistsAsync(DateOnly valueDate, CancellationToken cancellationToken);
     Task<ICollection<MarketHolidayReadModel>> GetMarketHolidaysAsync(CurrencyType currencyType);
+    Task<ICollection<MarketHolidayReadModel>> GetMarketHolidaysAsync(CurrencyType currencyType, CancellationToken cancellationToken);
     Task<ICollection<MarketHolidayReadModel>> GetMarketHolidaysByDateRangeAsync(CurrencyType currencyType, DateOnly startDate, DateOnly endDate);
     Task<int> GetTradingDaysAsync(DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType);
     Task<DateOnly[]> GetTradingDatesAsync(DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType);
+    Task<DateOnly[]> GetTradingDatesAsync(DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType, CancellationToken cancellationToken);
     Task<int> GetTradingDayCountAsync(DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType);
+    Task<int> GetTradingDayCountAsync(DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType, CancellationToken cancellationToken);
     Task<FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel> GetFuturesItiSignalAveragePredictedTrendDeltaRangeAsync(string symbol, DateOnly startDate, DateOnly endDate);
     Task<FuturesItiSignalAveragePredictedTrendDeltaDataModel> GetFuturesItiSignalAveragePredictedTrendDeltaAsync(string contractId, DateOnly valueDate);
 

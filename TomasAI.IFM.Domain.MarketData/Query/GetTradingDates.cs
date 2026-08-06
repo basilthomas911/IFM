@@ -16,6 +16,12 @@ public static class GetTradingDates
     /// <returns>A task representing the asynchronous operation.</returns>
 
 	public static ValueTask<DateOnly[]> GetTradingDatesAsync(
-        this GetTradingDatesQuery q, IDbContextFactory dbFactory)
-        => new(dbFactory.MarketDataDb.GetTradingDatesAsync(q.StartDate, q.EndDate, q.MarketType, q.CurrencyType));
+        this GetTradingDatesQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => new(cancellationToken.CanBeCanceled
+            ? dbFactory.MarketDataDb.GetTradingDatesAsync(
+                q.StartDate, q.EndDate, q.MarketType, q.CurrencyType, cancellationToken)
+            : dbFactory.MarketDataDb.GetTradingDatesAsync(
+                q.StartDate, q.EndDate, q.MarketType, q.CurrencyType));
 }

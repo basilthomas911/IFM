@@ -48,10 +48,16 @@ public class YieldCurveRatesDbContext(
     /// </summary>
     /// <returns></returns>
     public async Task<ICollection<YieldCurveRateReadModel>> ReadAsync()
+        => await ReadAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<ICollection<YieldCurveRateReadModel>> ReadAsync(
+        CancellationToken cancellationToken)
     {
         var yieldCurveRates = await _dbFactory.YieldCurveRatesDb
             .Use(connectionString => new DataReaderOptions(connectionString))
-            .ReadAsync(MapYieldCurveRate);
+            .ReadAsync(MapYieldCurveRate, cancellationToken)
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         return [.. yieldCurveRates.Select(e => e.ToViewModel())];
     }
 

@@ -15,8 +15,11 @@ public static class GetValueDate
     /// <param name="q">The query requesting the current value date.</param>
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
-    public static ValueTask<ScalarReadModel<DateOnly>> GetValueDateAsync(this GetValueDateQuery q)
+    public static ValueTask<ScalarReadModel<DateOnly>> GetValueDateAsync(
+        this GetValueDateQuery q,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var today = DateTime.Now;
         var valueDate = new ScalarReadModel<DateOnly>(DateOnly.FromDateTime(today));
         switch (today.DayOfWeek)

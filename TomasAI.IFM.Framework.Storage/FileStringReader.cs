@@ -29,9 +29,13 @@ public class FileStringReader : IStringReader
     /// approach to avoid high memory usage.</remarks>
     /// <returns>A task that represents the asynchronous operation. The task result contains an  IEnumerable{T} of strings, where
     /// each string is a line from the file.</returns>
-    public async IAsyncEnumerable<string> ReadLinesAsync()
+    public IAsyncEnumerable<string> ReadLinesAsync()
+        => ReadLinesAsync(CancellationToken.None);
+
+    public async IAsyncEnumerable<string> ReadLinesAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var line in File.ReadLinesAsync(_dataSourceUri.LocalPath))
+        await foreach (var line in File.ReadLinesAsync(_dataSourceUri.LocalPath, cancellationToken))
         {
             yield return line;
         }
@@ -42,6 +46,9 @@ public class FileStringReader : IStringReader
     /// </summary>
     /// <returns>A task that represents the asynchronous read operation. The value of the TResult parameter contains all characters from the current position to the end of the file.</returns>
     public async Task<string> ReadToEndAsync()
-        => await File.ReadAllTextAsync(_dataSourceUri.LocalPath);
+        => await ReadToEndAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<string> ReadToEndAsync(CancellationToken cancellationToken)
+        => await File.ReadAllTextAsync(_dataSourceUri.LocalPath, cancellationToken).ConfigureAwait(false);
     
 }

@@ -14,6 +14,41 @@ namespace TomasAI.IFM.Domain.MarketData.UnitTests;
 public class YieldCurveRateQueryActorTests
 {
     [Fact]
+    public async Task ReceiveAsync_WithCancellation_PropagatesTokenToMarketDataDatabaseAndDoesNotReply()
+    {
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var db = Substitute.For<IMarketDataDbContext>();
+        dbFactory.MarketDataDb.Returns(db);
+        var actor = new TestableYieldCurveRateQueryActor(
+            dbFactory, Substitute.For<ILogger<YieldCurveRateQueryActor>>());
+        var query = new GetLastYieldCurveRateQuery(initializeDefaults: true);
+        query = query with
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetLastYieldCurveRateQuery.Actor,
+                GetLastYieldCurveRateQuery.Verb,
+                query.EntityId.Format())
+        };
+        var context = Substitute.For<IQueryActorContext>();
+        using var cancellation = new CancellationTokenSource();
+        db.GetLastYieldCurveRateAsync(cancellation.Token)
+            .Returns(_ => Task.FromCanceled<YieldCurveRateReadModel?>(cancellation.Token));
+        cancellation.Cancel();
+
+        Func<Task> act = () => actor
+            .InvokeReceiveAsync(context, query, cancellation.Token)
+            .AsTask();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(act);
+        await db.Received(1).GetLastYieldCurveRateAsync(cancellation.Token);
+        context.DidNotReceiveWithAnyArgs().ReplyAsync(
+            default,
+            default!,
+            default(ServiceResult<YieldCurveRateReadModel?>)!);
+    }
+
+    [Fact]
     public async Task ReceiveAsync_GetLastYieldCurveRateQuery_RepliesWithTypedResultAndQueryVerb()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
@@ -48,5 +83,11 @@ public class YieldCurveRateQueryActorTests
     {
         public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => base.ReceiveAsync(context, query);
+
+        public ValueTask InvokeReceiveAsync(
+            IQueryActorContext context,
+            IQuery query,
+            CancellationToken cancellationToken)
+            => base.ReceiveAsync(context, query, cancellationToken);
     }
 }

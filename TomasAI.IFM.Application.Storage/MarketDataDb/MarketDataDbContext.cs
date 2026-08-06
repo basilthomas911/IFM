@@ -4064,6 +4064,15 @@ public class MarketDataDbContext(
             .SetParameters(new GetLastRateOfReturn(symbol))
             .ExecuteSingleAsync(MapToRateOfReturn);
 
+    public async Task<RateOfReturnReadModel?> GetLastRateOfReturnAsync(
+        string symbol,
+        CancellationToken cancellationToken)
+        => await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetLastRateOfReturn)
+            .SetParameters(new GetLastRateOfReturn(symbol))
+            .ExecuteSingleAsync(MapToRateOfReturn, cancellationToken)
+            .ConfigureAwait(false);
+
     /// <summary>
     /// Gets the last VIX futures EOD data for a given VixFuturesEodDataEntityId.
     /// </summary>
@@ -4116,6 +4125,14 @@ public class MarketDataDbContext(
             .ExecuteQueryAsync(MapToYieldCurveRate))
             ?.OrderByDescending(e => e.ValueDate)?.FirstOrDefault();    
 
+    public async Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync(
+        CancellationToken cancellationToken)
+        => (await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetAllYieldCurveRates)
+            .ExecuteQueryAsync(MapToYieldCurveRate, cancellationToken)
+            .ConfigureAwait(false))
+            ?.OrderByDescending(e => e.ValueDate)?.FirstOrDefault();
+
     /// <summary>
     /// Gets the yield curve rate for a given value date.
     /// </summary>
@@ -4139,6 +4156,16 @@ public class MarketDataDbContext(
             .SetParameters(new GetYieldCurveRates(startDate, endDate))
             .ExecuteQueryAsync(MapToYieldCurveRate);
 
+    public async Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesAsync(
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken cancellationToken)
+        => await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetYieldCurveRates)
+            .SetParameters(new GetYieldCurveRates(startDate, endDate))
+            .ExecuteQueryAsync(MapToYieldCurveRate, cancellationToken)
+            .ConfigureAwait(false);
+
     /// <summary>
     /// Gets a collection of integer values representing the years for yield curve rates.
     /// </summary>
@@ -4147,6 +4174,13 @@ public class MarketDataDbContext(
         => [.. (await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetAllYieldCurveRates)
             .ExecuteQueryAsync(MapToYieldCurveRate)).Select(e => e.ValueDate.Year)];
+
+    public async Task<ICollection<int>> GetYieldCurveRateYearsAsync(
+        CancellationToken cancellationToken)
+        => [.. (await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetAllYieldCurveRates)
+            .ExecuteQueryAsync(MapToYieldCurveRate, cancellationToken)
+            .ConfigureAwait(false)).Select(e => e.ValueDate.Year)];
 
     /// <summary>
     /// Retrieves market holidays for a given currency type.
@@ -4158,6 +4192,15 @@ public class MarketDataDbContext(
             .Use(MarketDataDbCql.GetMarketHolidays)
             .SetParameters(new GetMarketHolidays(currencyType: currencyType.ToStringFast()))
             .ExecuteQueryAsync(MapToMarketHoliday);
+
+    public async Task<ICollection<MarketHolidayReadModel>> GetMarketHolidaysAsync(
+        CurrencyType currencyType,
+        CancellationToken cancellationToken)
+        => await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetMarketHolidays)
+            .SetParameters(new GetMarketHolidays(currencyType: currencyType.ToStringFast()))
+            .ExecuteQueryAsync(MapToMarketHoliday, cancellationToken)
+            .ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously retrieves the live feed data for a specific trade identified by the provided order and trade
@@ -4304,6 +4347,32 @@ public class MarketDataDbContext(
         return [.. tradingDates];
     }
 
+    public async Task<DateOnly[]> GetTradingDatesAsync(
+       DateOnly startDate,
+       DateOnly endDate,
+       MarketType marketType,
+       CurrencyType currencyType,
+       CancellationToken cancellationToken)
+    {
+        var dbReader = (_dbFactory.MarketDataDb as IMarketDataDbReadContext)!;
+        var marketHolidays = await dbReader
+            .GetMarketHolidaysAsync(currencyType, cancellationToken)
+            .ConfigureAwait(false);
+        var holidayDates = marketHolidays
+            .Select(static holiday => holiday.HolidayDate)
+            .ToHashSet();
+        var tradingDates = new List<DateOnly>();
+        for (var tradeDate = startDate; tradeDate <= endDate; tradeDate = tradeDate.AddDays(1))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (tradeDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday
+                || holidayDates.Contains(tradeDate))
+                continue;
+            tradingDates.Add(tradeDate);
+        }
+        return [.. tradingDates];
+    }
+
     public async Task<int> GetTradingDayCountAsync(
        DateOnly startDate,
        DateOnly endDate,
@@ -4326,6 +4395,32 @@ public class MarketDataDbContext(
         return tradingDayCount;
     }
 
+    public async Task<int> GetTradingDayCountAsync(
+       DateOnly startDate,
+       DateOnly endDate,
+       MarketType marketType,
+       CurrencyType currencyType,
+       CancellationToken cancellationToken)
+    {
+        var dbReader = (_dbFactory.MarketDataDb as IMarketDataDbReadContext)!;
+        var marketHolidays = await dbReader
+            .GetMarketHolidaysAsync(currencyType, cancellationToken)
+            .ConfigureAwait(false);
+        var holidayDates = marketHolidays
+            .Select(static holiday => holiday.HolidayDate)
+            .ToHashSet();
+        var tradingDayCount = 0;
+        for (var tradeDate = startDate; tradeDate <= endDate; tradeDate = tradeDate.AddDays(1))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (tradeDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday
+                || holidayDates.Contains(tradeDate))
+                continue;
+            tradingDayCount++;
+        }
+        return tradingDayCount;
+    }
+
     /// <summary>
     /// Checks if yield curve rate data exists for a given value date.
     /// </summary>
@@ -4336,6 +4431,15 @@ public class MarketDataDbContext(
             .Use(MarketDataDbCql.GetYieldCurveRate)
             .SetParameters(new GetYieldCurveRate(valueDate))
             .ExecuteSingleAsync(MapToYieldCurveRate!)) is not null;
+
+    public async Task<bool> GetYieldCurveRateExistsAsync(
+        DateOnly valueDate,
+        CancellationToken cancellationToken)
+        => (await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetYieldCurveRate)
+            .SetParameters(new GetYieldCurveRate(valueDate))
+            .ExecuteSingleAsync(MapToYieldCurveRate!, cancellationToken)
+            .ConfigureAwait(false)) is not null;
 
     /// <summary>
     /// Retrieves a list of intrinsic time mode types as string representations.

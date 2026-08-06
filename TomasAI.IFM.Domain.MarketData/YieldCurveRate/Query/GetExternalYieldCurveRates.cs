@@ -14,13 +14,20 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query;
 public static class GetExternalYieldCurveRates
 {
     public static async ValueTask<YieldCurveRateReadModel[]> GetExternalYieldCurveRatesAsync(
-        this GetExternalYieldCurveRatesQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.GetExternalYieldCurveRatesAsync();
+        this GetExternalYieldCurveRatesQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => await dbFactory.GetExternalYieldCurveRatesAsync(cancellationToken).ConfigureAwait(false);
 
-    static async ValueTask<YieldCurveRateReadModel[]> GetExternalYieldCurveRatesAsync(this IDbContextFactory dbFactory)
+    static async ValueTask<YieldCurveRateReadModel[]> GetExternalYieldCurveRatesAsync(
+        this IDbContextFactory dbFactory,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (dbFactory.YieldCurveRatesDb is not IYieldCurveRatesDbContext ycRatesDb)
             return [];
-        return [.. await ycRatesDb.ReadAsync()];
+        return [.. cancellationToken.CanBeCanceled
+            ? await ycRatesDb.ReadAsync(cancellationToken).ConfigureAwait(false)
+            : await ycRatesDb.ReadAsync().ConfigureAwait(false)];
     }
 }

@@ -67,54 +67,80 @@ public class YieldCurveRateQueryActor(
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
     protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+
+    protected override ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         return query switch
         {
-            GetLastYieldCurveRateQuery typedQuery => ReceiveAsync(context, typedQuery),
-            GetYieldCurveRatesQuery typedQuery => ReceiveAsync(context, typedQuery),
-            GetYieldCurveRateExistsQuery typedQuery => ReceiveAsync(context, typedQuery),
-            GetYieldCurveRateYearsQuery typedQuery => ReceiveAsync(context, typedQuery),
-            GetExternalYieldCurveRatesQuery typedQuery => ReceiveAsync(context, typedQuery),
+            GetLastYieldCurveRateQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
+            GetYieldCurveRatesQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
+            GetYieldCurveRateExistsQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
+            GetYieldCurveRateYearsQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
+            GetExternalYieldCurveRatesQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
             _ => throw new InvalidOperationException(
                 $"Unable to process {ActorName} query: {query.GetType().Name}")
         };
     }
 
-    async ValueTask ReceiveAsync(IQueryActorContext context, GetLastYieldCurveRateQuery query)
+    async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        GetLastYieldCurveRateQuery query,
+        CancellationToken cancellationToken)
     {
-        var result = await query.GetLastYieldCurveRateAsync(dbFactory);
+        var result = await query.GetLastYieldCurveRateAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetLastYieldCurveRateQuery.Verb,
-            new ServiceResult<YieldCurveRateReadModel?>(result));
+            new ServiceResult<YieldCurveRateReadModel?>(result)).ConfigureAwait(false);
     }
 
-    async ValueTask ReceiveAsync(IQueryActorContext context, GetYieldCurveRatesQuery query)
+    async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        GetYieldCurveRatesQuery query,
+        CancellationToken cancellationToken)
     {
-        var result = await query.GetYieldCurveRatesAsync(dbFactory);
+        var result = await query.GetYieldCurveRatesAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRatesQuery.Verb,
-            new ServiceResult<YieldCurveRateReadModel[]>(result));
+            new ServiceResult<YieldCurveRateReadModel[]>(result)).ConfigureAwait(false);
     }
 
-    async ValueTask ReceiveAsync(IQueryActorContext context, GetYieldCurveRateExistsQuery query)
+    async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        GetYieldCurveRateExistsQuery query,
+        CancellationToken cancellationToken)
     {
-        var result = await query.GetYieldCurveRateExistsAsync(dbFactory);
+        var result = await query.GetYieldCurveRateExistsAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRateExistsQuery.Verb,
-            new ServiceResult<ScalarReadModel<bool>>(result));
+            new ServiceResult<ScalarReadModel<bool>>(result)).ConfigureAwait(false);
     }
 
-    async ValueTask ReceiveAsync(IQueryActorContext context, GetYieldCurveRateYearsQuery query)
+    async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        GetYieldCurveRateYearsQuery query,
+        CancellationToken cancellationToken)
     {
-        var result = await query.GetYieldCurveRateYearsAsync(dbFactory);
+        var result = await query.GetYieldCurveRateYearsAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRateYearsQuery.Verb,
-            new ServiceResult<YieldCurveRateYearsReadModel>(result));
+            new ServiceResult<YieldCurveRateYearsReadModel>(result)).ConfigureAwait(false);
     }
 
-    async ValueTask ReceiveAsync(IQueryActorContext context, GetExternalYieldCurveRatesQuery query)
+    async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        GetExternalYieldCurveRatesQuery query,
+        CancellationToken cancellationToken)
     {
-        var result = await query.GetExternalYieldCurveRatesAsync(dbFactory);
+        var result = await query.GetExternalYieldCurveRatesAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetExternalYieldCurveRatesQuery.Verb,
-            new ServiceResult<YieldCurveRateReadModel[]>(result));
+            new ServiceResult<YieldCurveRateReadModel[]>(result)).ConfigureAwait(false);
     }
 
     /// <summary>

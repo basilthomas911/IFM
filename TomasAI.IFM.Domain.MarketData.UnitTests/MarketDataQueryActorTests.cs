@@ -38,6 +38,12 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => await ReceiveAsync(context, query);
 
+        public async ValueTask InvokeReceiveAsync(
+            IQueryActorContext context,
+            IQuery query,
+            CancellationToken cancellationToken)
+            => await ReceiveAsync(context, query, cancellationToken);
+
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
@@ -531,6 +537,61 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
     #endregion
 
     #region ReceiveAsync Edge Case Tests
+
+    [Fact]
+    public async Task ReceiveAsync_WithCancellation_PropagatesTokenToMarketDataDatabaseAndDoesNotReply()
+    {
+        var marketDataDbContext = Substitute.For<IMarketDataDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.MarketDataDb.Returns(marketDataDbContext);
+        var actor = _fixture.CreateActor(
+            Substitute.For<ILogger<MarketDataQueryActor>>(),
+            dbFactory);
+        var entityId = new GetTradingDatesParameter(
+            SampleData.StartDate,
+            SampleData.EndDate,
+            SampleData.Market,
+            SampleData.Currency);
+        var query = new GetTradingDatesQuery
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetTradingDatesQuery.Actor,
+                GetTradingDatesQuery.Verb,
+                entityId.Format()),
+            EntityId = entityId,
+            StartDate = SampleData.StartDate,
+            EndDate = SampleData.EndDate,
+            MarketType = SampleData.Market,
+            CurrencyType = SampleData.Currency
+        };
+        var context = Substitute.For<IQueryActorContext>();
+        using var cancellation = new CancellationTokenSource();
+        marketDataDbContext.GetTradingDatesAsync(
+                query.StartDate,
+                query.EndDate,
+                query.MarketType,
+                query.CurrencyType,
+                cancellation.Token)
+            .Returns(_ => Task.FromCanceled<DateOnly[]>(cancellation.Token));
+        cancellation.Cancel();
+
+        Func<Task> act = () => actor
+            .InvokeReceiveAsync(context, query, cancellation.Token)
+            .AsTask();
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        await marketDataDbContext.Received(1).GetTradingDatesAsync(
+            query.StartDate,
+            query.EndDate,
+            query.MarketType,
+            query.CurrencyType,
+            cancellation.Token);
+        context.DidNotReceiveWithAnyArgs().ReplyAsync(
+            default,
+            default!,
+            default(ServiceResult<DateOnly[]>)!);
+    }
 
     [Fact]
     public async Task ReceiveAsync_ShouldThrowArgumentNullException_WhenContextIsNull()
