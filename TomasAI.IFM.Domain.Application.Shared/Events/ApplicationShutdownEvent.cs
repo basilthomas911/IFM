@@ -68,8 +68,8 @@ public record ApplicationShutdownEvent : IEvent<ApplicationEntityId>
         where TComplete : ICompleteEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
-        if (typeof(TEntityId) != typeof(ActorEntityId))
-            throw new InvalidOperationException($"ToCompletedEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(ActorEntityId).FullName}.");
+        if (typeof(TEntityId) != typeof(ApplicationEntityId))
+            throw new InvalidOperationException($"ToCompletedEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(ApplicationEntityId).FullName}.");
 
         var completed = new ApplicationShutdownCompleteEvent
         {

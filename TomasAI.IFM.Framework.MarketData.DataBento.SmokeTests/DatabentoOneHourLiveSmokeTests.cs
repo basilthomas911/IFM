@@ -43,7 +43,15 @@ public sealed class DatabentoOneHourLiveSmokeTests
         ], TimeSpan.FromSeconds(10));
         feed.Start(TimeSpan.FromSeconds(60));
         var registration = Assert.Single(feed.GetInstruments());
-        var counters = new DatabentoSoakCounters([registration.Instrument]);
+        using var csvCapture = DatabentoTickCsvCapture.CreateIfEnabled(
+            "es-future",
+            new Dictionary<InstrumentKey, string>
+            {
+                [registration.Instrument] = registration.RawSymbol
+            });
+        var counters = new DatabentoSoakCounters(
+            [registration.Instrument],
+            csvCapture);
         var consumer = counters.ConsumeAsync(feed.GetReader(registration.Instrument));
 
         _output.WriteLine(
@@ -52,6 +60,7 @@ public sealed class DatabentoOneHourLiveSmokeTests
             registration.Instrument,
             dataKinds,
             duration);
+        WriteCsvCaptureStatus(counters);
         await RunAndStopAsync(duration, feed.GetHealth, feed.Stop, consumer, counters);
 
         var health = feed.GetHealth();
@@ -106,7 +115,14 @@ public sealed class DatabentoOneHourLiveSmokeTests
             TimeSpan.FromSeconds(15));
         feed.Start(TimeSpan.FromSeconds(90));
         var expectedInstruments = contracts.Select(contract => contract.Instrument).ToHashSet();
-        var counters = new DatabentoSoakCounters(expectedInstruments);
+        using var csvCapture = DatabentoTickCsvCapture.CreateIfEnabled(
+            "es-futures-options",
+            contracts
+                .GroupBy(contract => contract.Instrument)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First().RawSymbol));
+        var counters = new DatabentoSoakCounters(expectedInstruments, csvCapture);
         var consumer = counters.ConsumeAsync(feed.Reader);
 
         _output.WriteLine(
@@ -117,6 +133,7 @@ public sealed class DatabentoOneHourLiveSmokeTests
             contracts.Length,
             dataKinds,
             duration);
+        WriteCsvCaptureStatus(counters);
         await RunAndStopAsync(duration, feed.GetHealth, feed.Stop, consumer, counters);
 
         var health = feed.GetHealth();
@@ -183,6 +200,14 @@ public sealed class DatabentoOneHourLiveSmokeTests
             {
                 counters.RecordException("consumer completion", exception);
             }
+            try
+            {
+                counters.FlushCapture();
+            }
+            catch (Exception exception)
+            {
+                counters.RecordException("CSV flush", exception);
+            }
         }
     }
 
@@ -197,7 +222,8 @@ public sealed class DatabentoOneHourLiveSmokeTests
         _output.WriteLine(
             "[{0:hh\\:mm\\:ss}] ticks={1:N0}, rate={2:N0}/s, quote={3:N0}, "
             + "trade={4:N0}, mbo={5:N0}, exceptions={6:N0}, state={7}, "
-            + "ring={8:N0}/{9:N0}, channelFull={10:N0}, poolMiss={11:N0}.",
+            + "ring={8:N0}/{9:N0}, channelFull={10:N0}, poolMiss={11:N0}, "
+            + "csvRows={12:N0}.",
             elapsed,
             counters.Ticks,
             rate,
@@ -209,7 +235,8 @@ public sealed class DatabentoOneHourLiveSmokeTests
             health.RingUsedRecords,
             health.RingCapacityRecords,
             health.ChannelFullCount,
-            health.PoolMissCount);
+            health.PoolMissCount,
+            counters.CapturedCsvRows);
     }
 
     private void WriteFinalSummary(
@@ -222,7 +249,8 @@ public sealed class DatabentoOneHourLiveSmokeTests
             "FINAL {0}: duration={1}, ticks={2:N0}, batches={3:N0}, quote={4:N0}, "
             + "trade={5:N0}, mbo={6:N0}, instrumentsWithTicks={7:N0}/{8:N0}, "
             + "exceptions={9:N0}, produced={10:N0}, consumed={11:N0}, "
-            + "channelFull={12:N0}, poolMiss={13:N0}, warning={14}.",
+            + "channelFull={12:N0}, poolMiss={13:N0}, warning={14}, "
+            + "csvRows={15:N0}, csvBytes={16:N0}, csvPath={17}.",
             testName,
             duration,
             counters.Ticks,
@@ -237,7 +265,10 @@ public sealed class DatabentoOneHourLiveSmokeTests
             health.RecordsConsumed,
             health.ChannelFullCount,
             health.PoolMissCount,
-            health.Warning ?? "none");
+            health.Warning ?? "none",
+            counters.CapturedCsvRows,
+            counters.CapturedCsvBytes,
+            counters.CapturedCsvPath ?? "disabled");
         foreach (var message in counters.ExceptionMessages)
         {
             _output.WriteLine("EXCEPTION: {0}", message);
@@ -307,8 +338,23 @@ public sealed class DatabentoOneHourLiveSmokeTests
                 $"The test consumed {counters.Ticks} ticks but feed health reports "
                 + $"{health.RecordsConsumed} consumed records.");
         }
+        if (counters.CapturedCsvPath is not null
+            && counters.CapturedCsvRows != counters.Ticks)
+        {
+            failures.Add(
+                $"CSV capture wrote {counters.CapturedCsvRows} rows but the test consumed "
+                + $"{counters.Ticks} ticks.");
+        }
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    private void WriteCsvCaptureStatus(DatabentoSoakCounters counters)
+    {
+        _output.WriteLine(
+            counters.CapturedCsvPath is null
+                ? "CSV capture: disabled."
+                : $"CSV capture: enabled, path={counters.CapturedCsvPath}.");
     }
 
     private static ContractDetail FindCurrentEsFuture(IDatabentoMarketDataQueries queries)

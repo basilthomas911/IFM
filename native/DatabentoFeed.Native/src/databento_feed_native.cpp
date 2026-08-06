@@ -31,6 +31,9 @@
 #include <databento/exceptions.hpp>
 #include <databento/historical.hpp>
 #include <databento/live.hpp>
+#if defined(_WIN32)
+#include <openssl/ssl.h>
+#endif
 #endif
 
 #if defined(_WIN32)
@@ -398,6 +401,19 @@ std::vector<contract_result_entry> fetch_definitions(
                           if (!ca_file.empty()) {
                               http.set_ca_cert_path(ca_file);
                           }
+#if defined(_WIN32)
+                          else {
+                              auto* ssl_context = static_cast<SSL_CTX*>(http.tls_context());
+                              if (ssl_context == nullptr ||
+                                  SSL_CTX_load_verify_store(
+                                      ssl_context,
+                                      "org.openssl.winstore:") != 1) {
+                                  throw std::runtime_error(
+                                      "Failed to load the Windows trusted-root certificate store");
+                              }
+                              http.enable_system_ca(false);
+                          }
+#endif
                       })
                       .Build();
     const auto dataset_range = client.MetadataGetDatasetRange(dataset);

@@ -7,6 +7,7 @@ internal sealed class DatabentoSoakCounters
 {
     private readonly Dictionary<InstrumentKey, long> _ticksByInstrument = [];
     private readonly ConcurrentQueue<string> _exceptionMessages = [];
+    private readonly DatabentoTickCsvCapture? _csvCapture;
     private long _batches;
     private long _ticks;
     private long _quotes;
@@ -16,8 +17,11 @@ internal sealed class DatabentoSoakCounters
     private long _unexpectedRecordKinds;
     private long _exceptions;
 
-    internal DatabentoSoakCounters(IEnumerable<InstrumentKey> expectedInstruments)
+    internal DatabentoSoakCounters(
+        IEnumerable<InstrumentKey> expectedInstruments,
+        DatabentoTickCsvCapture? csvCapture = null)
     {
+        _csvCapture = csvCapture;
         foreach (var instrument in expectedInstruments.ToHashSet())
         {
             _ticksByInstrument.Add(instrument, 0);
@@ -32,6 +36,9 @@ internal sealed class DatabentoSoakCounters
     internal long UnknownInstruments => Interlocked.Read(ref _unknownInstruments);
     internal long UnexpectedRecordKinds => Interlocked.Read(ref _unexpectedRecordKinds);
     internal long Exceptions => Interlocked.Read(ref _exceptions);
+    internal long CapturedCsvRows => _csvCapture?.Rows ?? 0;
+    internal long CapturedCsvBytes => _csvCapture?.Bytes ?? 0;
+    internal string? CapturedCsvPath => _csvCapture?.FilePath;
     internal IReadOnlyCollection<string> ExceptionMessages => _exceptionMessages.ToArray();
 
     internal int ExpectedInstrumentCount => _ticksByInstrument.Count;
@@ -69,7 +76,8 @@ internal sealed class DatabentoSoakCounters
                     Interlocked.Increment(ref _batches);
                     foreach (ref readonly var record in batch.Records)
                     {
-                        Interlocked.Increment(ref _ticks);
+                        var ordinal = Interlocked.Increment(ref _ticks);
+                        _csvCapture?.Write(ordinal, record);
                         var instrument = new InstrumentKey(
                             record.Header.PublisherId,
                             record.Header.InstrumentId);
@@ -101,6 +109,8 @@ internal sealed class DatabentoSoakCounters
                 }
             }
         });
+
+    internal void FlushCapture() => _csvCapture?.Flush();
 
     internal void RecordException(string operation, Exception exception)
     {

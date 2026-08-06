@@ -30,7 +30,7 @@ The first live-enabled configure requires network access. Offline Phase 1/2 buil
 
 ## Native prerequisites
 
-Databento `v0.62.1` requires OpenSSL 3 and Zstandard. The checked-in `vcpkg.json` records those dependencies and the same vcpkg baseline used by the pinned Databento release.
+Databento `v0.62.1` requires OpenSSL 3 and Zstandard. The checked-in `vcpkg.json` records those dependencies and pins an immutable vcpkg registry commit. That baseline currently resolves OpenSSL 3.6.3 and Zstandard 1.5.7.
 
 After installing CMake 3.24 or later and vcpkg, configure with the vcpkg toolchain. For example:
 
@@ -43,7 +43,7 @@ The native feed target links only to `IFM::DatabentoSdk`, not directly to the ve
 
 ## Live Phase 3/4/5 build
 
-The live-enabled build uses `DATABENTO_API_KEY` directly from the native process for both Live and Historical clients. The key is never passed through a managed string or logged. On OpenSSL-based Windows builds, set `SSL_CERT_FILE` to a trusted PEM CA bundle; TLS verification is not disabled when this variable is absent.
+The live-enabled build uses `DATABENTO_API_KEY` directly from the native process for both Live and Historical clients. The key is never passed through a managed string or logged. On Windows, the native adapter explicitly loads OpenSSL's `org.openssl.winstore:` provider so HTTPS verification uses the Windows trusted-root certificate store. `SSL_CERT_FILE` takes precedence as an optional override for an explicitly managed PEM CA bundle, corporate trust roots, containers, or diagnosing host trust configuration. TLS verification is never disabled.
 
 On Windows with Visual Studio vcpkg installed:
 
@@ -58,8 +58,15 @@ discover only contracts that are current when the test runs:
 
 ```powershell
 $env:IFM_RUN_DATABENTO_SMOKE_TESTS = '1'
-$env:SSL_CERT_FILE = 'C:\path\to\trusted-ca-bundle.pem'
 dotnet test ./TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests/TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests.csproj -c Release -p:DatabentoEnableLive=true
+```
+
+On Windows, the native adapter loads the Windows trusted-root certificate store
+through the pinned OpenSSL runtime.
+Set `SSL_CERT_FILE` only when an explicit PEM trust bundle is required:
+
+```powershell
+$env:SSL_CERT_FILE = 'C:\path\to\trusted-ca-bundle.pem'
 ```
 
 `ContractDetailsSmokeTests`, `ContractMappingSmokeTests`, and the definition-only
@@ -84,6 +91,21 @@ dotnet test ./TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests/TomasAI.IFM.
 Omit `IFM_DATABENTO_SOAK_MINUTES` for the default 60-minute duration. Quote and
 trade ticks are subscribed by default. Add `-e IFM_DATABENTO_INCLUDE_MBO=1` only
 when the Databento key is entitled to the MBO schema.
+
+Set `IFM_DATABENTO_TICK_CSV_DIRECTORY` to capture every consumed record in
+session order. Each soak test creates a distinct timestamped UTF-8 CSV file and
+reports its path, row count, and byte count in the final metrics. CSV capture is
+disabled by default because file formatting and I/O are intentionally outside
+the production feed's low-latency path:
+
+```powershell
+dotnet test ./TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests/TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests.csproj -c Release -p:DatabentoEnableLive=true -e IFM_RUN_DATABENTO_ONE_HOUR_TESTS=1 -e IFM_DATABENTO_SOAK_MINUTES=15 -e "IFM_DATABENTO_TICK_CSV_DIRECTORY=C:\DatabentoCaptures" --filter "FullyQualifiedName~DatabentoOneHourLiveSmokeTests.CurrentEsFutureReceivesEveryTickForConfiguredDuration"
+```
+
+Prices are written both as the original fixed-point integer and as a decimal
+scaled by `1,000,000,000`. Nanosecond timestamps and every quote, trade, and MBO
+payload field remain available in raw form for lossless analysis. The soak fails
+if the CSV row count does not equal the number of consumed ticks.
 That operational confirmation may be run later or during the final all-phases
 acceptance pass. The existing smoke asserts authentication, resolution, startup,
 running health, and shutdown; final runtime acceptance should separately retain

@@ -43,3 +43,7 @@ The state accepts `ApplicationStartupEvent` and `ApplicationShutdownEvent`. The 
 ## Extension points
 
 Add a lifecycle command by updating its shared contract, command parse/receive/validation maps, handler, state event application, and repository denormalization. Add an event consumer by aligning the event actor mailbox name and populating both event maps.
+
+## TODO: solution-wide graceful cancellation
+
+Cancellation remains a coordinated solution-wide follow-up. The supervisor token must flow through actor dispatch, lifecycle handlers, state repositories, event-source storage, denormalization, and publication so shutdown can drain or cancel work without leaving persistence and publication in an ambiguous state. Do not introduce partial Application-only cancellation semantics.
