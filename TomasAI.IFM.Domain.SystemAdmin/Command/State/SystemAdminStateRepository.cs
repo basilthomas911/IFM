@@ -49,8 +49,8 @@ public class SystemAdminStateRepository(
     /// <param name="state">The current command state containing new events to persist.</param>
     /// <param name="command">The command that triggered the state changes.</param>
     /// <returns>A task that represents the asynchronous save and denormalization operation.</returns>
-    public ValueTask SaveStateAsync(ICommandActorContext context, SystemAdminCommandState state, ICommand command)
-       => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
+    public async ValueTask SaveStateAsync(ICommandActorContext context, SystemAdminCommandState state, ICommand command)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the system admin state

@@ -33,8 +33,8 @@ public sealed class FundStateRepository(
     /// </summary>
     /// <param name="command"></param>
     /// <returns></returns>
-    public ValueTask<FundCommandState> LoadStateAsync(ICommand command)
-        => new(LoadStateFromSnapshotAsync<FundCommandState, FundCreatedEvent>(command));
+    public async ValueTask<FundCommandState> LoadStateAsync(ICommand command)
+        => await LoadStateFromSnapshotAsync<FundCommandState, FundCreatedEvent>(command).ConfigureAwait(false);
 
     /// <summary>
     /// save fund state changes
@@ -43,8 +43,8 @@ public sealed class FundStateRepository(
     /// <param name="state"></param>
     /// <param name="command"></param>
     /// <returns></returns>
-    public ValueTask SaveStateAsync(ICommandActorContext context, FundCommandState state, ICommand command)
-       => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
+    public async ValueTask SaveStateAsync(ICommandActorContext context, FundCommandState state, ICommand command)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
 
     /// <summary>
     /// Denormalize events to update read models or projections based on the domain events.

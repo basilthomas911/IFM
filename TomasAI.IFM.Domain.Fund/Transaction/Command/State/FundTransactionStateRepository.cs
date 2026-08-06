@@ -36,8 +36,8 @@ public sealed class FundTransactionStateRepository(
     /// <param name="command">The command for which to load the associated state. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded state for the specified
     /// fund transaction command.</returns>
-    public ValueTask<FundTransactionCommandState> LoadStateAsync(ICommand command)
-        => new(LoadStateAsync<FundTransactionCommandState>(command));
+    public async ValueTask<FundTransactionCommandState> LoadStateAsync(ICommand command)
+        => await LoadStateAsync<FundTransactionCommandState>(command).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously saves the specified fund transaction command state using the provided command.
@@ -46,8 +46,8 @@ public sealed class FundTransactionStateRepository(
     /// <param name="state">The fund transaction command state to be persisted. Cannot be null.</param>
     /// <param name="command">The command associated with the state to be saved. Cannot be null.</param>
     /// <returns>A value task that represents the asynchronous save operation.</returns>
-    public ValueTask SaveStateAsync(ICommandActorContext context, FundTransactionCommandState state, ICommand command)
-       => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
+    public async ValueTask SaveStateAsync(ICommandActorContext context, FundTransactionCommandState state, ICommand command)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the fund transaction query state

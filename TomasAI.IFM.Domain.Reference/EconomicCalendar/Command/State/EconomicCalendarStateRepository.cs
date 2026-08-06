@@ -28,12 +28,10 @@ public class EconomicCalendarStateRepository(
     /// state representation.</remarks>
     /// <param name="command">The command for which the state is being loaded. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded economic calendar command state.</returns>
-    public ValueTask<EconomicCalendarCommandState> LoadStateAsync(ICommand command)
+    public async ValueTask<EconomicCalendarCommandState> LoadStateAsync(ICommand command)
         => command is ImportEconomicCalendarsCommand
-            ? new ValueTask<EconomicCalendarCommandState>(
-                LoadStateFromSnapshotAsync<EconomicCalendarCommandState, EconomicCalendarsImportedEvent>(command))
-            : new ValueTask<EconomicCalendarCommandState>(
-                LoadStateFromSnapshotAsync<EconomicCalendarCommandState, EconomicCalendarAddedEvent>(command));
+            ? await LoadStateFromSnapshotAsync<EconomicCalendarCommandState, EconomicCalendarsImportedEvent>(command).ConfigureAwait(false)
+            : await LoadStateFromSnapshotAsync<EconomicCalendarCommandState, EconomicCalendarAddedEvent>(command).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously saves the current state of the economic calendar actor by persisting the pending events from the state
@@ -46,8 +44,8 @@ public class EconomicCalendarStateRepository(
     /// <param name="state">The current state of the economic calendar actor containing pending events to save. Cannot be null.</param>
     /// <param name="command">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous save operation.</returns>
-    public ValueTask SaveStateAsync(ICommandActorContext context, EconomicCalendarCommandState state, ICommand command)
-        => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
+    public async ValueTask SaveStateAsync(ICommandActorContext context, EconomicCalendarCommandState state, ICommand command)
+        => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the economic calendar query state

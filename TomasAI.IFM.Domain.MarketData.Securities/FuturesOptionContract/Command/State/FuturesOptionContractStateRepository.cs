@@ -36,10 +36,10 @@ public class FuturesOptionContractStateRepository(
     /// <param name="command">The command used to identify and load the state. Cannot be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> representing the asynchronous operation. The result contains the <see
     /// cref="FuturesOptionContractCommandState"/> associated with the specified command.</returns>
-    public ValueTask<FuturesOptionContractCommandState> LoadStateAsync(ICommand command)
+    public async ValueTask<FuturesOptionContractCommandState> LoadStateAsync(ICommand command)
         => command is AddFuturesOptionContractsCommand
-            ? new(LoadStateFromSnapshotAsync<FuturesOptionContractCommandState, FuturesOptionContractsAddedEvent>(command))
-            : new(LoadStateFromSnapshotAsync<FuturesOptionContractCommandState, FuturesOptionContractAddedEvent>(command));
+            ? await LoadStateFromSnapshotAsync<FuturesOptionContractCommandState, FuturesOptionContractsAddedEvent>(command).ConfigureAwait(false)
+            : await LoadStateFromSnapshotAsync<FuturesOptionContractCommandState, FuturesOptionContractAddedEvent>(command).ConfigureAwait(false);
 
     /// <summary>
     /// Saves the specified state asynchronously, associating it with the provided command.
@@ -48,8 +48,8 @@ public class FuturesOptionContractStateRepository(
     /// <param name="state">The state object to be saved. Must not be <see langword="null"/>.</param>
     /// <param name="command">The command associated with the state. Must not be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous save operation.</returns>
-    public ValueTask SaveStateAsync(ICommandActorContext context, FuturesOptionContractCommandState state, ICommand command)
-       => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
+    public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesOptionContractCommandState state, ICommand command)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures option contract query state

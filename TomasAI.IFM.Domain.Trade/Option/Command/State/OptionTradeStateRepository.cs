@@ -41,8 +41,8 @@ public class OptionTradeStateRepository(
     /// snapshot event type. The snapshot provides a point-in-time baseline from which subsequent events are applied.</remarks>
     /// <param name="command">The command that identifies the aggregate whose state should be loaded.</param>
     /// <returns>A <see cref="ValueTask{OptionTradeCommandState}"/> containing the reconstituted option trade command state.</returns>
-    public ValueTask<OptionTradeCommandState> LoadStateAsync(ICommand command)
-        => new(LoadStateFromSnapshotAsync<OptionTradeCommandState, OptionTradeSnapshotEvent>(command));
+    public async ValueTask<OptionTradeCommandState> LoadStateAsync(ICommand command)
+        => await LoadStateFromSnapshotAsync<OptionTradeCommandState, OptionTradeSnapshotEvent>(command).ConfigureAwait(false);
 
     /// <summary>
     /// Persists the option trade command state and denormalizes any pending domain events into the read model.
@@ -54,8 +54,8 @@ public class OptionTradeStateRepository(
     /// <param name="state">The current option trade command state containing pending domain events to be persisted.</param>
     /// <param name="command">The command that triggered the state change, used for correlation and auditing.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save and denormalization operation.</returns>
-    public ValueTask SaveStateAsync(ICommandActorContext context, OptionTradeCommandState state, ICommand command)
-       => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
+    public async ValueTask SaveStateAsync(ICommandActorContext context, OptionTradeCommandState state, ICommand command)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the option trade query state

@@ -30,8 +30,8 @@ public class LookupTypeStateRepository(
     /// state representation.</remarks>
     /// <param name="command">The command for which the state is being loaded. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded lookup type command state.</returns>
-    public ValueTask<LookupTypeCommandState> LoadStateAsync(ICommand command)
-        => new(LoadStateFromSnapshotAsync<LookupTypeCommandState, LookupTypeAddedEvent>(command));
+    public async ValueTask<LookupTypeCommandState> LoadStateAsync(ICommand command)
+        => await LoadStateFromSnapshotAsync<LookupTypeCommandState, LookupTypeAddedEvent>(command).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously saves the current state of the lookup type actor by persisting the pending events from the state
@@ -43,8 +43,8 @@ public class LookupTypeStateRepository(
     /// <param name="state">The current state of the lookup type actor containing pending events to save. Cannot be null.</param>
     /// <param name="command">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous save operation.</returns>
-    public ValueTask SaveStateAsync(ICommandActorContext context, LookupTypeCommandState state, ICommand command)
-        => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
+    public async ValueTask SaveStateAsync(ICommandActorContext context, LookupTypeCommandState state, ICommand command)
+        => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously denormalizes the specified domain events into the read model database.

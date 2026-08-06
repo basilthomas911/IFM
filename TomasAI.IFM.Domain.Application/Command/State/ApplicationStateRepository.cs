@@ -33,8 +33,8 @@ public sealed class ApplicationStateRepository(
     /// </summary>
     /// <param name="command">The command for which state is required.</param>
     /// <returns>The reconstructed <see cref="ApplicationCommandState"/>.</returns>
-    public ValueTask<ApplicationCommandState> LoadStateAsync(ICommand command)
-        => new(LoadStateFromSnapshotAsync<ApplicationCommandState, ApplicationStartupEvent>(command));
+    public async ValueTask<ApplicationCommandState> LoadStateAsync(ICommand command)
+        => await LoadStateFromSnapshotAsync<ApplicationCommandState, ApplicationStartupEvent>(command).ConfigureAwait(false);
 
     /// <summary>
     /// Save application state changes.
@@ -42,8 +42,8 @@ public sealed class ApplicationStateRepository(
     /// <param name="context">The command actor context.</param>
     /// <param name="state">The current actor command state.</param>
     /// <param name="command">The command that produced the state changes.</param>
-    public ValueTask SaveStateAsync(ICommandActorContext context, ApplicationCommandState state, ICommand command)
-        => new(SaveStateAndDenormalizeEventsAsync(context, state, command));
+    public async ValueTask SaveStateAsync(ICommandActorContext context, ApplicationCommandState state, ICommand command)
+        => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the application query state
