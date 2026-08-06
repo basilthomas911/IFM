@@ -17,9 +17,13 @@ internal static class GetFundTransactions
     /// <param name="context">The query actor context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FundTransactionReadModel[]> GetFundTransactionsAsync(
-        this GetFundTransactionsQuery q, IDbContextFactory dbFactory)
+        this GetFundTransactionsQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
     {
         var db = dbFactory.FundDb;
-        return [.. await db.GetFundTransactionsAsync(q.FundId, q.StartDate, q.EndDate)];
+        return cancellationToken.CanBeCanceled
+            ? [.. await db.GetFundTransactionsAsync(q.FundId, q.StartDate, q.EndDate, cancellationToken).ConfigureAwait(false)]
+            : [.. await db.GetFundTransactionsAsync(q.FundId, q.StartDate, q.EndDate).ConfigureAwait(false)];
     }
 }

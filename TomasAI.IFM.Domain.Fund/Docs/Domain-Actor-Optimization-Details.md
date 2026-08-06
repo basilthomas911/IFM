@@ -11,7 +11,7 @@ The review covered the Fund command, event, query, projector, and nested FundTra
 - A successful command result and a state update remain distinct concepts. A command can succeed without producing a state change.
 - State repository forwarding methods retain explicit `async`/`await`; no target-typed `ValueTask` forwarding micro-optimization was introduced.
 - Actor state remains mailbox-owned. No locks or `Task.Run` calls were added.
-- Cancellation propagation remains a solution-wide follow-up after the domain optimization passes.
+- Graceful cancellation now covers Fund command replay/persistence boundaries and the Fund/FundTransaction query-to-storage read paths.
 
 ## Top ten findings and disposition
 
@@ -80,6 +80,8 @@ Preserve unbounded immutable history while bounding reconstruction work:
 
 This subphase is intentionally separate because snapshot schema, cadence, compatibility, and deployment require their own design review.
 
-## TODO: solution-wide cancellation semantics
+## Graceful cancellation status
 
-After all domain optimization passes are complete, propagate graceful cancellation from supervisor through actor, repository, and storage APIs in one coordinated solution-wide change. Partial domain-only cancellation plumbing is intentionally avoided.
+The coordinated solution-wide cancellation work now reaches both Fund query actors, query handlers, parallel financial calculations, the Fund read context, projection-consistency reads, streaming fallbacks, and the underlying object repository operations. A real cancellable worker token selects the token-aware path; compatibility calls without a token retain the original database overloads. Cancellation is checked before replying, so a stopped query does not publish a stale success response.
+
+The solution-wide implementation contract and remaining bounded contexts are tracked in `docs/Solution-Wide-Graceful-Cancellation-Implementation-Details.md`.

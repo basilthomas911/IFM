@@ -16,6 +16,10 @@ internal static class GetFundOrders
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FundOrderReadModel[]> GetFundOrdersAsync(
-        this GetFundOrdersQuery q, IDbContextFactory dbFactory)
-        => [.. await dbFactory.FundDb.GetFundOrdersAsync()];
+        this GetFundOrdersQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? [.. await dbFactory.FundDb.GetFundOrdersAsync(cancellationToken).ConfigureAwait(false)]
+            : [.. await dbFactory.FundDb.GetFundOrdersAsync().ConfigureAwait(false)];
 }

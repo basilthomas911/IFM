@@ -37,6 +37,12 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => await ReceiveAsync(context, query);
 
+        public async ValueTask InvokeReceiveAsync(
+            IQueryActorContext context,
+            IQuery query,
+            CancellationToken cancellationToken)
+            => await ReceiveAsync(context, query, cancellationToken);
+
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
@@ -288,6 +294,41 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
     #endregion
 
     #region Remaining ReceiveAsync Tests
+
+    [Fact]
+    public async Task ReceiveAsync_WithCancellation_PropagatesTokenToFundDatabaseAndDoesNotReply()
+    {
+        var logger = Substitute.For<ILogger<FundQueryActor>>();
+        var fundDbContext = Substitute.For<IFundDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.FundDb.Returns(fundDbContext);
+        var actor = _fixture.CreateActor(dbFactory, logger);
+        var query = new GetFundBalanceQuery(SampleData.Fund.FundId);
+        query = query with
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                FundQueryActor.ActorName,
+                GetFundBalanceQuery.Verb,
+                query.EntityId.Format())
+        };
+        var context = Substitute.For<IQueryActorContext>();
+        using var cancellation = new CancellationTokenSource();
+        fundDbContext.GetFundBalanceAsync(query.FundId, cancellation.Token)
+            .Returns(_ => Task.FromCanceled<decimal>(cancellation.Token));
+        cancellation.Cancel();
+
+        Func<Task> act = () => actor
+            .InvokeReceiveAsync(context, query, cancellation.Token)
+            .AsTask();
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        await fundDbContext.Received(1).GetFundBalanceAsync(query.FundId, cancellation.Token);
+        context.DidNotReceiveWithAnyArgs().ReplyAsync(
+            default,
+            default!,
+            default(ServiceResult<FundBalanceReadModel>)!);
+    }
 
     [Fact]
     public async Task ReceiveAsync_GetClosingFundBalanceQuery_RepliesWithResult()

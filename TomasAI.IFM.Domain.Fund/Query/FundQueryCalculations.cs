@@ -12,14 +12,28 @@ internal static class FundQueryCalculations
         IFundDbContext db,
         int fundId,
         DateOnly startDate,
-        DateOnly endDate)
+        DateOnly endDate,
+        CancellationToken cancellationToken = default)
     {
-        var lossOrdersTask = db.GetFundLossOrdersAsync(fundId, startDate, endDate);
-        var profitOrdersTask = db.GetFundProfitOrdersAsync(fundId, startDate, endDate);
-        var startingBalanceTask = db.GetFundStartingBalanceAsync(fundId, startDate);
-        var endingBalanceTask = db.GetFundEndingBalanceAsync(fundId, endDate);
-        var tradeCommissionTask = db.GetFundTradeCommissionAsync(fundId, startDate, endDate);
-        var dailyBalancesTask = db.GetFundDailyBalancesAsync(fundId, startDate, endDate);
+        cancellationToken.ThrowIfCancellationRequested();
+        var lossOrdersTask = cancellationToken.CanBeCanceled
+            ? db.GetFundLossOrdersAsync(fundId, startDate, endDate, cancellationToken)
+            : db.GetFundLossOrdersAsync(fundId, startDate, endDate);
+        var profitOrdersTask = cancellationToken.CanBeCanceled
+            ? db.GetFundProfitOrdersAsync(fundId, startDate, endDate, cancellationToken)
+            : db.GetFundProfitOrdersAsync(fundId, startDate, endDate);
+        var startingBalanceTask = cancellationToken.CanBeCanceled
+            ? db.GetFundStartingBalanceAsync(fundId, startDate, cancellationToken)
+            : db.GetFundStartingBalanceAsync(fundId, startDate);
+        var endingBalanceTask = cancellationToken.CanBeCanceled
+            ? db.GetFundEndingBalanceAsync(fundId, endDate, cancellationToken)
+            : db.GetFundEndingBalanceAsync(fundId, endDate);
+        var tradeCommissionTask = cancellationToken.CanBeCanceled
+            ? db.GetFundTradeCommissionAsync(fundId, startDate, endDate, cancellationToken)
+            : db.GetFundTradeCommissionAsync(fundId, startDate, endDate);
+        var dailyBalancesTask = cancellationToken.CanBeCanceled
+            ? db.GetFundDailyBalancesAsync(fundId, startDate, endDate, cancellationToken)
+            : db.GetFundDailyBalancesAsync(fundId, startDate, endDate);
 
         await Task.WhenAll(
             lossOrdersTask,
@@ -64,10 +78,16 @@ internal static class FundQueryCalculations
         IFundDbContext db,
         int fundId,
         DateOnly startDate,
-        DateOnly endDate)
+        DateOnly endDate,
+        CancellationToken cancellationToken = default)
     {
-        var lossOrdersTask = db.GetFundLossOrdersAsync(fundId, startDate, endDate);
-        var profitOrdersTask = db.GetFundProfitOrdersAsync(fundId, startDate, endDate);
+        cancellationToken.ThrowIfCancellationRequested();
+        var lossOrdersTask = cancellationToken.CanBeCanceled
+            ? db.GetFundLossOrdersAsync(fundId, startDate, endDate, cancellationToken)
+            : db.GetFundLossOrdersAsync(fundId, startDate, endDate);
+        var profitOrdersTask = cancellationToken.CanBeCanceled
+            ? db.GetFundProfitOrdersAsync(fundId, startDate, endDate, cancellationToken)
+            : db.GetFundProfitOrdersAsync(fundId, startDate, endDate);
         await Task.WhenAll(lossOrdersTask, profitOrdersTask).ConfigureAwait(false);
 
         var lossOrders = await lossOrdersTask.ConfigureAwait(false);
@@ -92,10 +112,16 @@ internal static class FundQueryCalculations
         IFundDbContext db,
         int fundId,
         DateOnly startDate,
-        DateOnly endDate)
+        DateOnly endDate,
+        CancellationToken cancellationToken = default)
     {
-        var startingBalanceTask = db.GetFundStartingBalanceAsync(fundId, startDate);
-        var endingBalanceTask = db.GetFundEndingBalanceAsync(fundId, endDate);
+        cancellationToken.ThrowIfCancellationRequested();
+        var startingBalanceTask = cancellationToken.CanBeCanceled
+            ? db.GetFundStartingBalanceAsync(fundId, startDate, cancellationToken)
+            : db.GetFundStartingBalanceAsync(fundId, startDate);
+        var endingBalanceTask = cancellationToken.CanBeCanceled
+            ? db.GetFundEndingBalanceAsync(fundId, endDate, cancellationToken)
+            : db.GetFundEndingBalanceAsync(fundId, endDate);
         await Task.WhenAll(startingBalanceTask, endingBalanceTask).ConfigureAwait(false);
 
         return new FundDrawdownBalancesReadModel(
@@ -107,16 +133,28 @@ internal static class FundQueryCalculations
     internal static async Task<FundMaxProfitGeneratedReadModel> GetMaxProfitGeneratedAsync(
         IFundDbContext db,
         int fundId,
-        DateOnly tradeDate)
+        DateOnly tradeDate,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var ordersStartDate = new DateOnly(tradeDate.Year, tradeDate.Month, 1);
         var yearStart = new DateOnly(tradeDate.Year, 1, 1);
         var yearEnd = new DateOnly(tradeDate.Year, 12, 31);
-        var fundBalanceTask = db.GetFundBalanceAsync(fundId);
-        var profitOrdersTask = db.GetFundProfitOrdersAsync(fundId, ordersStartDate, tradeDate);
-        var lossOrdersTask = db.GetFundLossOrdersAsync(fundId, ordersStartDate, tradeDate);
-        var startingBalanceTask = db.GetFundStartingBalanceAsync(fundId, yearStart);
-        var endingBalanceTask = db.GetFundEndingBalanceAsync(fundId, yearEnd);
+        var fundBalanceTask = cancellationToken.CanBeCanceled
+            ? db.GetFundBalanceAsync(fundId, cancellationToken)
+            : db.GetFundBalanceAsync(fundId);
+        var profitOrdersTask = cancellationToken.CanBeCanceled
+            ? db.GetFundProfitOrdersAsync(fundId, ordersStartDate, tradeDate, cancellationToken)
+            : db.GetFundProfitOrdersAsync(fundId, ordersStartDate, tradeDate);
+        var lossOrdersTask = cancellationToken.CanBeCanceled
+            ? db.GetFundLossOrdersAsync(fundId, ordersStartDate, tradeDate, cancellationToken)
+            : db.GetFundLossOrdersAsync(fundId, ordersStartDate, tradeDate);
+        var startingBalanceTask = cancellationToken.CanBeCanceled
+            ? db.GetFundStartingBalanceAsync(fundId, yearStart, cancellationToken)
+            : db.GetFundStartingBalanceAsync(fundId, yearStart);
+        var endingBalanceTask = cancellationToken.CanBeCanceled
+            ? db.GetFundEndingBalanceAsync(fundId, yearEnd, cancellationToken)
+            : db.GetFundEndingBalanceAsync(fundId, yearEnd);
 
         await Task.WhenAll(
             fundBalanceTask,

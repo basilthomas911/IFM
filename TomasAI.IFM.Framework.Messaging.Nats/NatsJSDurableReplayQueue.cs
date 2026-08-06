@@ -137,12 +137,23 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     public async Task StopAsync(string eventProjectorName, CancellationToken cancellationToken = default)
     {
         ValidateProjectorName(eventProjectorName);
+        if (Volatile.Read(ref _disposed) != 0)
+            return;
         if (!_states.TryGetValue(eventProjectorName, out var state))
             return;
 
-        await state.LifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await state.LifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+        try
+        {
+            if (Volatile.Read(ref _disposed) != 0)
+                return;
             state.ProcessCancellation?.Cancel();
             state.ReplayCancellation?.Cancel();
             await AwaitStoppedAsync(state.ProcessWorker).ConfigureAwait(false);
@@ -151,7 +162,14 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         }
         finally
         {
-            state.LifecycleGate.Release();
+            try
+            {
+                state.LifecycleGate.Release();
+            }
+            catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+            {
+                // DisposeAsync owns final state cleanup once disposal has started.
+            }
         }
     }
 

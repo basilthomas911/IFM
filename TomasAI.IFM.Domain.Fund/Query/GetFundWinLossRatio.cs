@@ -13,10 +13,13 @@ internal static class GetFundWinLossRatio
     /// <param name="dbFactory">The database context factory</param>
     /// <returns></returns>
     internal static async ValueTask<FundWinLossRatioReadModel> GetFundWinLossRatioAsync(
-        this GetFundWinLossRatioQuery q, IDbContextFactory dbFactory)
+        this GetFundWinLossRatioQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
         => await FundQueryCalculations.GetWinLossRatioAsync(
             dbFactory.FundDb,
             q.FundId,
             q.StartDate,
-            q.EndDate).ConfigureAwait(false);
+            q.EndDate,
+            cancellationToken).ConfigureAwait(false);
 }

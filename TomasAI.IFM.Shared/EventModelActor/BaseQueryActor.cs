@@ -158,11 +158,17 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
 
             /// check if the message is a command and validate it
             cancellationToken.ThrowIfCancellationRequested();
-            await OnValidateAsync(_context!, query, cancellationToken).ConfigureAwait(false);
+            if (cancellationToken.CanBeCanceled)
+                await OnValidateAsync(_context!, query, cancellationToken).ConfigureAwait(false);
+            else
+                await OnValidateAsync(_context!, query).ConfigureAwait(false);
 
             /// process the message
             cancellationToken.ThrowIfCancellationRequested();
-            await ReceiveAsync(_context!, query, cancellationToken).ConfigureAwait(false);
+            if (cancellationToken.CanBeCanceled)
+                await ReceiveAsync(_context!, query, cancellationToken).ConfigureAwait(false);
+            else
+                await ReceiveAsync(_context!, query).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

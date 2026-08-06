@@ -15,6 +15,11 @@ public static class GetFundBalance
     /// <param name="q">The query.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns></returns>
-    internal static async ValueTask<decimal> GetFundBalanceAsync(this GetFundBalanceQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.FundDb.GetFundBalanceAsync(q.FundId);
+    internal static async ValueTask<decimal> GetFundBalanceAsync(
+        this GetFundBalanceQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.FundDb.GetFundBalanceAsync(q.FundId, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.FundDb.GetFundBalanceAsync(q.FundId).ConfigureAwait(false);
 }

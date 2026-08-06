@@ -14,6 +14,11 @@ public static class GetClosingFundBalance
     /// <param name="q"> The query for retrieving the closing fund balance. </param>
     /// <param name="dbFactory"> The factory for creating database contexts. </param>
     /// <returns> A task representing the asynchronous operation. </returns>
-    internal static async ValueTask<decimal> GetClosingFundBalanceAsync(this GetClosingFundBalanceQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.FundDb.GetClosingFundBalanceAsync(q.FundId, q.ValueDate);
+    internal static async ValueTask<decimal> GetClosingFundBalanceAsync(
+        this GetClosingFundBalanceQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.FundDb.GetClosingFundBalanceAsync(q.FundId, q.ValueDate, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.FundDb.GetClosingFundBalanceAsync(q.FundId, q.ValueDate).ConfigureAwait(false);
 }

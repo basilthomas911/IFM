@@ -255,6 +255,14 @@ public class NatsJetStreamActorConsumer(
             {
                 try { await _loopTask.ConfigureAwait(false); }
                 catch (OperationCanceledException) { /* expected */ }
+                catch (ObjectDisposedException)
+                {
+                    // A shared connection can be disposed by the host immediately before
+                    // the supervisor reaches this consumer. The loop may therefore have
+                    // recorded a transport-disposal fault before its token was canceled.
+                    // Once StopAsync has requested cancellation, that completed fault is
+                    // an expected, idempotent shutdown outcome.
+                }
             }
             _loopTask = null;
 
@@ -320,6 +328,11 @@ public class NatsJetStreamActorConsumer(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // NATS.Net drains buffered JetStream messages before completing cancellation.
+        }
+        catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Host disposal can release the shared connection immediately after the
+            // consumer token is canceled. That race is an expected shutdown outcome.
         }
         finally
         {

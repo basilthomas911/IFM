@@ -13,10 +13,13 @@ internal static class GetFundMaxProfitGenerated
     /// <param name="dbFactory"> The database context factory </param>
     /// <returns> A task representing the asynchronous operation </returns>
     internal static async ValueTask<FundMaxProfitGeneratedReadModel> GetFundMaxProfitGeneratedAsync(
-        this GetFundMaxProfitGeneratedQuery q, IDbContextFactory dbFactory)
+        this GetFundMaxProfitGeneratedQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
         => await FundQueryCalculations.GetMaxProfitGeneratedAsync(
             dbFactory.FundDb,
             q.FundId,
-            q.TradeDate).ConfigureAwait(false);
+            q.TradeDate,
+            cancellationToken).ConfigureAwait(false);
 
 }

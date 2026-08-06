@@ -17,7 +17,11 @@ internal static class GetOpeningFundBalance
     /// <param name="dbFactory"> The database context factory </param>
     /// <returns> A task representing the asynchronous operation </returns>
     internal static async ValueTask<FundBalanceReadModel> GetOpeningFundBalanceAsync(
-        this GetOpeningFundBalanceQuery q, IDbContextFactory dbFactory)
-        => new(await dbFactory.FundDb.GetOpeningFundBalanceAsync( q.FundId, q.ValueDate));
+        this GetOpeningFundBalanceQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => new(cancellationToken.CanBeCanceled
+            ? await dbFactory.FundDb.GetOpeningFundBalanceAsync(q.FundId, q.ValueDate, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.FundDb.GetOpeningFundBalanceAsync(q.FundId, q.ValueDate).ConfigureAwait(false));
     
 }

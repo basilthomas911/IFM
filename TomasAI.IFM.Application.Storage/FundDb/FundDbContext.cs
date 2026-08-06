@@ -317,7 +317,8 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     async Task<List<FundTransactionReadModel>> ReadFundTransactionTimelineAsync(
         int fundId,
         DateOnly startDate,
-        DateOnly endDate)
+        DateOnly endDate,
+        CancellationToken cancellationToken = default)
     {
         var ranges = FundTransactionProjection.GetMonthRanges(startDate, endDate);
         return await FundTransactionProjection.ReadBoundedAsync<FundTransactionMonthRange, FundTransactionReadModel>(
@@ -326,46 +327,57 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             {
                 var generation = await GetFundTransactionProjectionReadGenerationAsync(
                     fundId,
-                    range.MonthBucket).ConfigureAwait(false);
+                    range.MonthBucket,
+                    cancellationToken).ConfigureAwait(false);
                 if (generation is null)
-                    return await ReadBaseFundTransactionRangeAsync(fundId, range.StartDate, range.EndDate).ConfigureAwait(false);
+                    return await ReadBaseFundTransactionRangeAsync(fundId, range.StartDate, range.EndDate, cancellationToken).ConfigureAwait(false);
 
                 var projectedRows = await _dbFactory.FundDb
                     .Use(FundDbCql.GetFundTransactionTimelineV3)
                     .SetParameters(new GetFundTransactionTimelineV3(fundId, range.MonthBucket, range.StartDate, range.EndDate))
-                    .ExecuteQueryAsync(MapToFundTransaction!).ConfigureAwait(false);
+                    .ExecuteQueryAsync(MapToFundTransaction!, cancellationToken).ConfigureAwait(false);
 
                 return await IsFundTransactionProjectionReadGenerationValidAsync(
                     fundId,
                     range.MonthBucket,
-                    generation.Value).ConfigureAwait(false)
+                    generation.Value,
+                    cancellationToken).ConfigureAwait(false)
                     ? projectedRows
-                    : await ReadBaseFundTransactionRangeAsync(fundId, range.StartDate, range.EndDate).ConfigureAwait(false);
+                    : await ReadBaseFundTransactionRangeAsync(fundId, range.StartDate, range.EndDate, cancellationToken).ConfigureAwait(false);
             }).ConfigureAwait(false);
     }
 
-    async Task<FundTransactionProjectionState?> GetFundTransactionProjectionStateAsync(int fundId, DateOnly monthBucket)
+    async Task<FundTransactionProjectionState?> GetFundTransactionProjectionStateAsync(
+        int fundId,
+        DateOnly monthBucket,
+        CancellationToken cancellationToken = default)
     {
         var states = await _dbFactory.FundDb
             .Use(FundDbCql.GetFundTransactionProjectionStateV3)
             .SetParameters(new GetFundTransactionProjectionStateV3(fundId, monthBucket))
-            .ExecuteQueryAsync(MapToFundTransactionProjectionState).ConfigureAwait(false);
+            .ExecuteQueryAsync(MapToFundTransactionProjectionState, cancellationToken).ConfigureAwait(false);
         return states.Count == 0 ? null : states.First();
     }
 
-    async Task<ICollection<Guid>> GetFundTransactionProjectionMutationsAsync(int fundId, DateOnly monthBucket)
+    async Task<ICollection<Guid>> GetFundTransactionProjectionMutationsAsync(
+        int fundId,
+        DateOnly monthBucket,
+        CancellationToken cancellationToken = default)
         => await _dbFactory.FundDb
             .Use(FundDbCql.GetFundTransactionProjectionMutationsV3)
             .SetParameters(new GetFundTransactionProjectionMutationsV3(fundId, monthBucket))
-            .ExecuteQueryAsync(MapToGuid).ConfigureAwait(false);
+            .ExecuteQueryAsync(MapToGuid, cancellationToken).ConfigureAwait(false);
 
-    async Task<Guid?> GetFundTransactionProjectionReadGenerationAsync(int fundId, DateOnly monthBucket)
+    async Task<Guid?> GetFundTransactionProjectionReadGenerationAsync(
+        int fundId,
+        DateOnly monthBucket,
+        CancellationToken cancellationToken = default)
     {
-        var state = await GetFundTransactionProjectionStateAsync(fundId, monthBucket).ConfigureAwait(false);
+        var state = await GetFundTransactionProjectionStateAsync(fundId, monthBucket, cancellationToken).ConfigureAwait(false);
         if (state is null || !state.Value.IsComplete)
             return null;
 
-        return (await GetFundTransactionProjectionMutationsAsync(fundId, monthBucket).ConfigureAwait(false)).Count == 0
+        return (await GetFundTransactionProjectionMutationsAsync(fundId, monthBucket, cancellationToken).ConfigureAwait(false)).Count == 0
             ? state.Value.Generation
             : null;
     }
@@ -373,29 +385,32 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     async Task<bool> IsFundTransactionProjectionReadGenerationValidAsync(
         int fundId,
         DateOnly monthBucket,
-        Guid generation)
+        Guid generation,
+        CancellationToken cancellationToken = default)
     {
-        var state = await GetFundTransactionProjectionStateAsync(fundId, monthBucket).ConfigureAwait(false);
+        var state = await GetFundTransactionProjectionStateAsync(fundId, monthBucket, cancellationToken).ConfigureAwait(false);
         return state is { IsComplete: true } &&
             state.Value.Generation == generation &&
-            (await GetFundTransactionProjectionMutationsAsync(fundId, monthBucket).ConfigureAwait(false)).Count == 0;
+            (await GetFundTransactionProjectionMutationsAsync(fundId, monthBucket, cancellationToken).ConfigureAwait(false)).Count == 0;
     }
 
     Task<ICollection<FundTransactionReadModel>> ReadBaseFundTransactionRangeAsync(
         int fundId,
         DateOnly startDate,
-        DateOnly endDate)
+        DateOnly endDate,
+        CancellationToken cancellationToken = default)
         => _dbFactory.FundDb
             .Use(FundDbCql.GetFundTransactions)
             .SetParameters(new GetFundTransactions(fundId, startDate, endDate))
-            .ExecuteQueryAsync(MapToFundTransaction!);
+            .ExecuteQueryAsync(MapToFundTransaction!, cancellationToken);
 
     async Task<List<FundTransactionAmountProjection>> ReadFundTransactionAmountsAsync(
         int fundId,
         DateOnly startDate,
         DateOnly endDate,
         IEnumerable<FundTransactionType> transactionTypes,
-        IEnumerable<int> amountSigns)
+        IEnumerable<int> amountSigns,
+        CancellationToken cancellationToken = default)
     {
         var typeNames = transactionTypes.Select(transactionType => transactionType.ToStringFast()).Distinct().ToArray();
         var signs = amountSigns.Distinct().ToArray();
@@ -405,7 +420,8 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         {
             var generation = await GetFundTransactionProjectionReadGenerationAsync(
                 fundId,
-                range.MonthBucket).ConfigureAwait(false);
+                range.MonthBucket,
+                cancellationToken).ConfigureAwait(false);
             if (generation is null)
             {
                 await AddBaseRowsAsync(range).ConfigureAwait(false);
@@ -427,12 +443,13 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                         partition.AmountSign,
                         partition.Range.StartDate,
                         partition.Range.EndDate))
-                    .ExecuteQueryAsync(MapToFundTransactionAmount)).ConfigureAwait(false);
+                    .ExecuteQueryAsync(MapToFundTransactionAmount, cancellationToken)).ConfigureAwait(false);
 
             if (await IsFundTransactionProjectionReadGenerationValidAsync(
                     fundId,
                     range.MonthBucket,
-                    generation.Value).ConfigureAwait(false))
+                    generation.Value,
+                    cancellationToken).ConfigureAwait(false))
             {
                 foreach (var partitionResult in partitionResults)
                     results.AddRange(partitionResult.Rows);
@@ -450,7 +467,8 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             var baseRows = await ReadBaseFundTransactionRangeAsync(
                 fundId,
                 range.StartDate,
-                range.EndDate).ConfigureAwait(false);
+                range.EndDate,
+                cancellationToken).ConfigureAwait(false);
             results.AddRange(baseRows
                 .Where(transaction =>
                     typeNames.Contains(transaction.TransactionType.ToStringFast(), StringComparer.Ordinal) &&
@@ -471,14 +489,16 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         int fundId,
         DateOnly startDate,
         DateOnly endDate,
-        int amountSign)
+        int amountSign,
+        CancellationToken cancellationToken = default)
     {
         var transactions = await ReadFundTransactionAmountsAsync(
             fundId,
             startDate,
             endDate,
             OrderAmountTransactionTypes,
-            [amountSign]).ConfigureAwait(false);
+            [amountSign],
+            cancellationToken).ConfigureAwait(false);
 
         return transactions
             .GroupBy(transaction => new { transaction.FundId, transaction.ValueDate, transaction.OrderId })
@@ -496,13 +516,14 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         int fundId,
         DateOnly valueDate,
         TradeStatus tradeStatus,
-        bool ascending)
+        bool ascending,
+        CancellationToken cancellationToken = default)
     {
         var tradeStatusName = tradeStatus.ToStringFast();
         var monthBucket = FundTransactionProjection.GetMonthBucket(valueDate);
-        var generation = await GetFundTransactionProjectionReadGenerationAsync(fundId, monthBucket).ConfigureAwait(false);
+        var generation = await GetFundTransactionProjectionReadGenerationAsync(fundId, monthBucket, cancellationToken).ConfigureAwait(false);
         if (generation is null)
-            return await ReadBaseFundStatusBalanceAsync(fundId, valueDate, tradeStatus, ascending).ConfigureAwait(false);
+            return await ReadBaseFundStatusBalanceAsync(fundId, valueDate, tradeStatus, ascending, cancellationToken).ConfigureAwait(false);
 
         ICollection<decimal> projectedBalances;
         if (ascending)
@@ -510,31 +531,33 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             projectedBalances = await _dbFactory.FundDb
                 .Use(FundDbCql.GetOpeningFundBalanceV3)
                 .SetParameters(new GetOpeningFundBalanceV3(fundId, monthBucket, valueDate, tradeStatusName))
-                .ExecuteQueryAsync(MapToFundBalance!).ConfigureAwait(false);
+                .ExecuteQueryAsync(MapToFundBalance!, cancellationToken).ConfigureAwait(false);
         }
         else
         {
             projectedBalances = await _dbFactory.FundDb
                 .Use(FundDbCql.GetClosingFundBalanceV3)
                 .SetParameters(new GetClosingFundBalanceV3(fundId, monthBucket, valueDate, tradeStatusName))
-                .ExecuteQueryAsync(MapToFundBalance!).ConfigureAwait(false);
+                .ExecuteQueryAsync(MapToFundBalance!, cancellationToken).ConfigureAwait(false);
         }
 
         return await IsFundTransactionProjectionReadGenerationValidAsync(
             fundId,
             monthBucket,
-            generation.Value).ConfigureAwait(false)
+            generation.Value,
+            cancellationToken).ConfigureAwait(false)
             ? projectedBalances.FirstOrDefault()
-            : await ReadBaseFundStatusBalanceAsync(fundId, valueDate, tradeStatus, ascending).ConfigureAwait(false);
+            : await ReadBaseFundStatusBalanceAsync(fundId, valueDate, tradeStatus, ascending, cancellationToken).ConfigureAwait(false);
     }
 
     async Task<decimal> ReadBaseFundStatusBalanceAsync(
         int fundId,
         DateOnly valueDate,
         TradeStatus tradeStatus,
-        bool ascending)
+        bool ascending,
+        CancellationToken cancellationToken = default)
     {
-        var baseRows = await ReadBaseFundTransactionRangeAsync(fundId, valueDate, valueDate).ConfigureAwait(false);
+        var baseRows = await ReadBaseFundTransactionRangeAsync(fundId, valueDate, valueDate, cancellationToken).ConfigureAwait(false);
         var matchingRows = baseRows.Where(transaction => transaction.TradeStatus == tradeStatus);
         var selected = ascending
             ? matchingRows.MinBy(transaction => (transaction.TransactionDate, transaction.TransactionId))
@@ -1470,6 +1493,11 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             .Use(FundDbCql.GetFunds)
             .ExecuteQueryAsync(MapToFund!);
 
+    public async Task<ICollection<FundReadModel>> GetFundsAsync(CancellationToken cancellationToken)
+        => await _dbFactory.FundDb
+            .Use(FundDbCql.GetFunds)
+            .ExecuteQueryAsync(MapToFund!, cancellationToken).ConfigureAwait(false);
+
     /// <summary>
     /// return fund order by fund id and order id
     /// </summary>
@@ -1491,6 +1519,11 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             .Use(FundDbCql.GetFundOrders)
             .ExecuteQueryAsync(MapToFundOrder);
 
+    public async Task<ICollection<FundOrderReadModel>> GetFundOrdersAsync(CancellationToken cancellationToken)
+        => await _dbFactory.FundDb
+            .Use(FundDbCql.GetFundOrders)
+            .ExecuteQueryAsync(MapToFundOrder, cancellationToken).ConfigureAwait(false);
+
     /// <summary>
     /// return all fund orders
     /// </summary>
@@ -1506,6 +1539,11 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         => await _dbFactory.FundDb
                 .Use(FundDbCql.GetFundOrderTrades)
                 .ExecuteQueryAsync(MapToFundOrderTrade);
+
+    public async Task<ICollection<FundOrderTradeReadModel>> GetFundOrderTradesAsync(CancellationToken cancellationToken)
+        => await _dbFactory.FundDb
+            .Use(FundDbCql.GetFundOrderTrades)
+            .ExecuteQueryAsync(MapToFundOrderTrade, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// return fund order trade by fund id, order id and trade id
@@ -1561,6 +1599,17 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task<ICollection<FundTransactionReadModel>> GetFundTransactionsAsync(int fundId, DateOnly startDate, DateOnly endDate)
         => (await ReadFundTransactionTimelineAsync(fundId, startDate, endDate).ConfigureAwait(false))
+            .OrderByDescending(transaction => transaction.ValueDate)
+            .ThenByDescending(transaction => transaction.TransactionDate)
+            .ThenByDescending(transaction => transaction.TransactionId)
+            .ToArray();
+
+    public async Task<ICollection<FundTransactionReadModel>> GetFundTransactionsAsync(
+        int fundId,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken cancellationToken)
+        => (await ReadFundTransactionTimelineAsync(fundId, startDate, endDate, cancellationToken).ConfigureAwait(false))
             .OrderByDescending(transaction => transaction.ValueDate)
             .ThenByDescending(transaction => transaction.TransactionDate)
             .ThenByDescending(transaction => transaction.TransactionId)
@@ -1623,6 +1672,12 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             .SetParameters(new GetFundBalance(fundId))
             .ExecuteScalarAsync(MapToFundBalance!);
 
+    public async Task<decimal> GetFundBalanceAsync(int fundId, CancellationToken cancellationToken)
+        => await _dbFactory.FundDb
+            .Use(FundDbCql.GetFundBalance)
+            .SetParameters(new GetFundBalance(fundId))
+            .ExecuteScalarAsync(MapToFundBalance!, cancellationToken).ConfigureAwait(false);
+
     /// <summary>
     /// return fund trade commission
     /// </summary>
@@ -1637,6 +1692,20 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 endDate,
                 [FundTransactionType.TradeCommission],
                 AmountSigns).ConfigureAwait(false))
+            .Sum(transaction => transaction.Amount);
+
+    public async Task<decimal> GetFundTradeCommissionAsync(
+        int fundId,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken cancellationToken)
+        => (await ReadFundTransactionAmountsAsync(
+                fundId,
+                startDate,
+                endDate,
+                [FundTransactionType.TradeCommission],
+                AmountSigns,
+                cancellationToken).ConfigureAwait(false))
             .Sum(transaction => transaction.Amount);
 
     /// <summary>
@@ -1659,6 +1728,30 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             return 0m;
 
         var transactions = await ReadFundTransactionTimelineAsync(fundId, firstValueDate, firstValueDate).ConfigureAwait(false);
+
+        return transactions.Count == 0
+            ? 0m
+            : transactions.MinBy(transaction => transaction.TransactionId)!.Balance;
+    }
+
+    public async Task<decimal> GetFundStartingBalanceAsync(
+        int fundId,
+        DateOnly startDate,
+        CancellationToken cancellationToken)
+    {
+        var firstValueDate = await _dbFactory.FundDb
+            .Use(FundDbCql.GetFirstFundTransactionValueDate)
+            .SetParameters(new GetFirstFundTransactionValueDate(fundId, startDate))
+            .ExecuteScalarAsync(MapToValueDate!, cancellationToken).ConfigureAwait(false);
+
+        if (firstValueDate == DateOnly.MinValue)
+            return 0m;
+
+        var transactions = await ReadFundTransactionTimelineAsync(
+            fundId,
+            firstValueDate,
+            firstValueDate,
+            cancellationToken).ConfigureAwait(false);
 
         return transactions.Count == 0
             ? 0m
@@ -1690,6 +1783,30 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             : transactions.MaxBy(transaction => transaction.TransactionId)!.Balance;
     }
 
+    public async Task<decimal> GetFundEndingBalanceAsync(
+        int fundId,
+        DateOnly endDate,
+        CancellationToken cancellationToken)
+    {
+        var lastValueDate = await _dbFactory.FundDb
+            .Use(FundDbCql.GetLastFundTransactionValueDate)
+            .SetParameters(new GetLastFundTransactionValueDate(fundId, endDate))
+            .ExecuteScalarAsync(MapToValueDate!, cancellationToken).ConfigureAwait(false);
+
+        if (lastValueDate == DateOnly.MinValue)
+            return 0m;
+
+        var transactions = await ReadFundTransactionTimelineAsync(
+            fundId,
+            lastValueDate,
+            lastValueDate,
+            cancellationToken).ConfigureAwait(false);
+
+        return transactions.Count == 0
+            ? 0m
+            : transactions.MaxBy(transaction => transaction.TransactionId)!.Balance;
+    }
+
     /// <summary>
     /// return opening fund balance
     /// </summary>
@@ -1698,6 +1815,14 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task<decimal> GetOpeningFundBalanceAsync(int fundId, DateOnly valueDate)
         => await ReadFundStatusBalanceAsync(fundId, valueDate, TradeStatus.Open, ascending: true).ConfigureAwait(false);
+
+    public async Task<decimal> GetOpeningFundBalanceAsync(int fundId, DateOnly valueDate, CancellationToken cancellationToken)
+        => await ReadFundStatusBalanceAsync(
+            fundId,
+            valueDate,
+            TradeStatus.Open,
+            ascending: true,
+            cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// return closing fund balance
@@ -1708,6 +1833,14 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     public async Task<decimal> GetClosingFundBalanceAsync(int fundId, DateOnly valueDate)
         => await ReadFundStatusBalanceAsync(fundId, valueDate, TradeStatus.Close, ascending: false).ConfigureAwait(false);
 
+    public async Task<decimal> GetClosingFundBalanceAsync(int fundId, DateOnly valueDate, CancellationToken cancellationToken)
+        => await ReadFundStatusBalanceAsync(
+            fundId,
+            valueDate,
+            TradeStatus.Close,
+            ascending: false,
+            cancellationToken).ConfigureAwait(false);
+
     /// <summary>
     /// return fund orders with loss amounts
     /// </summary>
@@ -1716,6 +1849,13 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <param name="endDate"></param>
     public async Task<ICollection<FundOrderAmountReadModel>> GetFundLossOrdersAsync(int fundId, DateOnly startDate, DateOnly endDate)
         => await GetFundOrderAmountsAsync(fundId, startDate, endDate, -1).ConfigureAwait(false);
+
+    public async Task<ICollection<FundOrderAmountReadModel>> GetFundLossOrdersAsync(
+        int fundId,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken cancellationToken)
+        => await GetFundOrderAmountsAsync(fundId, startDate, endDate, -1, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// return fund orders with profit amounts
@@ -1726,6 +1866,13 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     public async Task<ICollection<FundOrderAmountReadModel>> GetFundProfitOrdersAsync(int fundId, DateOnly startDate, DateOnly endDate)
         => await GetFundOrderAmountsAsync(fundId, startDate, endDate, 1).ConfigureAwait(false);
 
+    public async Task<ICollection<FundOrderAmountReadModel>> GetFundProfitOrdersAsync(
+        int fundId,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken cancellationToken)
+        => await GetFundOrderAmountsAsync(fundId, startDate, endDate, 1, cancellationToken).ConfigureAwait(false);
+
     /// <summary>
     /// return fund daily balances
     /// </summary>
@@ -1734,6 +1881,17 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <paramref name="endDate"/>
     public async Task<ICollection<FundDailyBalanceReadModel>> GetFundDailyBalancesAsync(int fundId, DateOnly startDate, DateOnly endDate)
         => (await ReadFundTransactionTimelineAsync(fundId, startDate, endDate).ConfigureAwait(false))
+            .GroupBy(transaction => transaction.ValueDate)
+            .Select(group => new FundDailyBalanceReadModel(fundId, group.Key, group.Max(transaction => transaction.Balance)))
+            .OrderByDescending(balance => balance.ValueDate)
+            .ToArray();
+
+    public async Task<ICollection<FundDailyBalanceReadModel>> GetFundDailyBalancesAsync(
+        int fundId,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken cancellationToken)
+        => (await ReadFundTransactionTimelineAsync(fundId, startDate, endDate, cancellationToken).ConfigureAwait(false))
             .GroupBy(transaction => transaction.ValueDate)
             .Select(group => new FundDailyBalanceReadModel(fundId, group.Key, group.Max(transaction => transaction.Balance)))
             .OrderByDescending(balance => balance.ValueDate)
@@ -1778,6 +1936,38 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         await foreach (var order in db.Use(FundDbCql.GetFundOrders)
             .ExecuteStreamAsync(MapToFundOrder!))
         {
+            if (order.OrderId != orderId)
+                continue;
+            if (matchedFundId != 0 && matchedFundId != order.FundId)
+            {
+                throw new StorageException(
+                    $"Fund order {orderId} is assigned to canonical funds {matchedFundId} and {order.FundId}.");
+            }
+            matchedFundId = order.FundId;
+        }
+        return matchedFundId;
+    }
+
+    public async Task<int> GetFundIdFromOrderIdAsync(int orderId, CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.FundDb;
+        var projectedFundId = await db.Use(FundDbCql.GetFundIdFromOrderId)
+            .SetParameters(new GetFundIdFromOrderId(orderId))
+            .ExecuteScalarAsync(MapToFundId!, cancellationToken).ConfigureAwait(false);
+        if (projectedFundId != 0)
+        {
+            var canonical = await db.Use(FundDbCql.GetFundOrder)
+                .SetParameters(new GetFundOrder(projectedFundId, orderId))
+                .ExecuteSingleAsync(MapToFundOrder!, cancellationToken).ConfigureAwait(false);
+            if (canonical is not null)
+                return projectedFundId;
+        }
+
+        var matchedFundId = 0;
+        await foreach (var order in db.Use(FundDbCql.GetFundOrders)
+            .ExecuteStreamAsync(MapToFundOrder!, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             if (order.OrderId != orderId)
                 continue;
             if (matchedFundId != 0 && matchedFundId != order.FundId)

@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation started in August 2026 as the first item in the revised application-wide optimization order. The current phase establishes the cancellation contract and completes the command/event-source path. Query/read-model token propagation remains a separate follow-up within this priority because those domain database APIs require coordinated signature changes.
+Implementation started in August 2026 as the first item in the revised application-wide optimization order. The command/event-source path is complete. Query/read-model migration is proceeding bounded context by bounded context; Fund and FundTransaction now have explicit end-to-end token propagation.
 
 The legacy Interactive Brokers market-data implementation is excluded. Databento is the replacement and will be the reference design for any later IBKR implementation.
 
@@ -31,6 +31,8 @@ The caller's shutdown token bounds only that caller's wait. Once shutdown starts
 
 The API server now awaits actor startup directly and awaits supervisor shutdown after ASP.NET stops accepting requests. The former `Task.Run(...).Wait()` startup bridge has been removed from both the production host and its integration-test host.
 
+Host disposal order is also treated as an idempotent lifecycle boundary. A JetStream loop whose shared connection is released immediately after its stop token is canceled exits normally, and a projector stop issued after its durable queue has already been disposed is a no-op. This prevents correct host teardown from surfacing disposed transport primitives as aggregate shutdown failures.
+
 ## Implemented propagation
 
 Cancellation-aware overloads now cover:
@@ -43,6 +45,7 @@ Cancellation-aware overloads now cover:
 - generic object repository contexts and PostgreSQL/ScyllaDB command, queued-command, scalar, object, immutable-object, and map-reduce operations;
 - PostgreSQL connection, transaction, prepare, execute, read, commit, and cancellation rollback paths;
 - ScyllaDB session creation, prepared statements, owned driver operations, paging, and canceled-driver-task draining.
+- Fund and FundTransaction query actors, query handlers, parallel financial calculations, projection-consistency reads, streaming fallback, and Fund read-model APIs.
 
 Existing no-token methods remain as compatibility entry points and retain the original no-token dependency calls. Runtime dispatch selects the cancellation-aware overload when it has a cancellable worker token. This avoids a flag-day change for tests and callers while keeping the production actor path explicitly cancellation-aware.
 
@@ -59,13 +62,14 @@ Behavioral tests cover:
 - actor-service cancellation remaining an `OperationCanceledException`;
 - consumer intake stopping before actors;
 - cancellation of one shutdown waiter while the shared shutdown continues;
+- projector/JetStream cleanup remaining idempotent when dependency-injection disposal races actor shutdown;
 - previously existing actor-pool tests proving accepted mailbox messages drain before worker disposal.
 
 The Release solution build and relevant unit-test suites are the verification gate for this phase.
 
 ## Remaining work in this priority
 
-- Add cancellation parameters to the concrete query/read-model database APIs and override the new query actor token hook in current domains.
+- Continue the explicit query/read-model migration for MarketData, Analytics, Securities, Reference, OptionPricer, SystemAdmin, and Trade.
 - Add token-aware event and denormalizer handlers where they perform cancellable pre-commit I/O. Required post-commit projection/publication work must retain the non-cancelable rule.
 - Decide whether a separately named force-stop operation is needed. It must not overload graceful `ShutdownAsync` semantics or discard accepted messages silently.
 - Add host-level tests that cancel startup partway through actor registration and verify producer rollback.

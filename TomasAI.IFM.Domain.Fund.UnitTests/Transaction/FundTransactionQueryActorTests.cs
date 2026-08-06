@@ -41,6 +41,12 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => await ReceiveAsync(context, query);
 
+        public async ValueTask InvokeReceiveAsync(
+            IQueryActorContext context,
+            IQuery query,
+            CancellationToken cancellationToken)
+            => await ReceiveAsync(context, query, cancellationToken);
+
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
     }
@@ -147,6 +153,38 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
     #endregion
 
     #region ReceiveAsync
+
+    [Fact]
+    public async Task ReceiveAsync_WithCancellation_PropagatesTokenToFundDatabaseAndDoesNotReply()
+    {
+        var (dbFactory, fundDb) = CreateDbFactory();
+        var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
+        var context = CreateContext();
+        var query = CreateQuery();
+        using var cancellation = new CancellationTokenSource();
+        fundDb.GetFundTransactionsAsync(
+                query.FundId,
+                query.StartDate,
+                query.EndDate,
+                cancellation.Token)
+            .Returns(_ => Task.FromCanceled<ICollection<FundTransactionReadModel>>(cancellation.Token));
+        cancellation.Cancel();
+
+        Func<Task> act = () => actor
+            .InvokeReceiveAsync(context, query, cancellation.Token)
+            .AsTask();
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        await fundDb.Received(1).GetFundTransactionsAsync(
+            query.FundId,
+            query.StartDate,
+            query.EndDate,
+            cancellation.Token);
+        context.DidNotReceiveWithAnyArgs().ReplyAsync(
+            default,
+            default!,
+            default(ServiceResult<FundTransactionReadModel[]>)!);
+    }
 
     [Fact]
     public async Task ReceiveAsync_GivenExistingTransactionsInRange_WhenExecuted_ThenRepliesWithTransactions()

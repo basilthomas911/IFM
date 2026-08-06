@@ -61,6 +61,8 @@ obj/Release/net10.0/refint/
 
 Command actors parse NATS subjects and payloads, validate command data, load aggregate snapshots, dispatch to typed command logic, persist uncommitted events, and denormalize those events. Event actors route published events to side-effect handlers. Query actors delegate reads to database contexts through the API layer. Actor exceptions are converted to standardized error events/results by the shared actor base classes.
 
+Fund and FundTransaction query execution propagates cancellable actor-worker tokens through query handlers, parallel calculation fan-out, projection validation/fallback reads, and ScyllaDB paging. Compatibility entry points without a token retain their original calls. `OperationCanceledException` remains cancellation and is not converted into a failed query reply.
+
 ## Performance and concurrency model
 
 Each actor mailbox is the synchronization boundary for its entity stream; Fund actors intentionally do not add locks around mailbox-owned state. Fund order, trade, and transaction state use indexed collections so command validation and event application perform constant-time, allocation-free lookups. Transaction balance access is asynchronous end to end and never blocks an actor worker with `Task.Result`. Event projection remains ordered and the durable projector retains ownership of replay concurrency. See `TomasAI.IFM.Domain.Fund.Benchmarks/RESULTS.md` for reproducible before/after measurements.

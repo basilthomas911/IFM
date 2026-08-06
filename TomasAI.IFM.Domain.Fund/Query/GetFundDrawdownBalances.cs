@@ -14,11 +14,14 @@ internal static class GetFundDrawdownBalances
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FundDrawdownBalancesReadModel> GetFundDrawdownBalancesAsync(
-        this GetFundDrawdownBalancesQuery q, IDbContextFactory dbFactory)
+        this GetFundDrawdownBalancesQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
         => await FundQueryCalculations.GetDrawdownBalancesAsync(
             dbFactory.FundDb,
             q.FundId,
             q.StartDate,
-            q.EndDate).ConfigureAwait(false);
+            q.EndDate,
+            cancellationToken).ConfigureAwait(false);
   
 }

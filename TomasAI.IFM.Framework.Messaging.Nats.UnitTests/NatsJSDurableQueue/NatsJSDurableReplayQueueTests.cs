@@ -262,6 +262,19 @@ public sealed class NatsJSDurableReplayQueueTests
         transport.Queues["projector"].ReplayConsumerStarts.Should().Be(2);
     }
 
+    [Fact]
+    public async Task StopAsync_after_queue_disposal_is_an_idempotent_no_op()
+    {
+        var transport = new FakeNatsJSDurableQueueTransport();
+        var queue = CreateQueue(transport);
+        await queue.DequeueAsync("projector", _ => Task.CompletedTask);
+        await queue.DisposeAsync();
+
+        Func<Task> stop = () => queue.StopAsync("projector");
+
+        await stop.Should().NotThrowAsync();
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]

@@ -82,93 +82,110 @@ public class FundQueryActor(
     /// <param name="query"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+
+    protected override async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var queryType = query.GetType();
         if (!_receiveMap.TryGetValue(queryType, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {queryType.Name}");
-        await receiveFunc(query, dbFactory, context).ConfigureAwait(false);
+        await receiveFunc(query, dbFactory, context, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly Dictionary<Type, Func<IQuery, IDbContextFactory, IQueryActorContext, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQuery, IDbContextFactory, IQueryActorContext, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetClosingFundBalanceQuery)] =  async (q, dbFactory, ctx) =>
+        [typeof(GetClosingFundBalanceQuery)] =  async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetClosingFundBalanceQuery)!;
-            var result = await query.GetClosingFundBalanceAsync(dbFactory);
+            var result = await query.GetClosingFundBalanceAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundBalanceReadModel>(new FundBalanceReadModel(result));
             await ctx.ReplyAsync(q.Subject.ThreadId, GetClosingFundBalanceQuery.Verb, serviceResult);
         },
-        [typeof(GetFundBalanceQuery)] =  async (q, dbFactory, ctx) =>
+        [typeof(GetFundBalanceQuery)] =  async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetFundBalanceQuery)!;
-            var result = await query.GetFundBalanceAsync(dbFactory);
+            var result = await query.GetFundBalanceAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundBalanceReadModel>(new FundBalanceReadModel(result));
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundBalanceQuery.Verb, serviceResult);
         },
-        [typeof(GetFundDrawdownBalancesQuery)] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundDrawdownBalancesQuery)] = async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetFundDrawdownBalancesQuery)!;
-            var result = await query.GetFundDrawdownBalancesAsync(dbFactory);
+            var result = await query.GetFundDrawdownBalancesAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundDrawdownBalancesReadModel>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundDrawdownBalancesQuery.Verb, serviceResult);
 
         },
-        [typeof(GetFundIdFromOrderIdQuery)] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundIdFromOrderIdQuery)] = async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetFundIdFromOrderIdQuery)!;
-            var result = await query.GetFundIdFromOrderIdAsync(dbFactory);
+            var result = await query.GetFundIdFromOrderIdAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResut = new ServiceResult<ScalarReadModel<int>>(new ScalarReadModel<int>(result));
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundIdFromOrderIdQuery.Verb, serviceResut);
         },
-        [typeof(GetFundOrdersQuery)] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundOrdersQuery)] = async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetFundOrdersQuery)!;
-            var result = await query.GetFundOrdersAsync(dbFactory);
+            var result = await query.GetFundOrdersAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundOrderReadModel[]>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundOrdersQuery.Verb, serviceResult);
         },
-        [typeof(GetFundOrderTradesQuery)] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundOrderTradesQuery)] = async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetFundOrderTradesQuery)!;
-            var result = await query.GetFundOrderTradesAsync(dbFactory);
+            var result = await query.GetFundOrderTradesAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundOrderTradeReadModel[]>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundOrderTradesQuery.Verb, serviceResult);
         },
-        [typeof(GetFundPnlReportQuery)] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundPnlReportQuery)] = async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetFundPnlReportQuery)!;
-            var fundPnlReport = await  query.GetFundPnlReportAsync(dbFactory);
+            var fundPnlReport = await query.GetFundPnlReportAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundPnlReportReadModel>(fundPnlReport);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundPnlReportQuery.Verb, serviceResult);
         },
-        [typeof(GetFundsQuery)] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundsQuery)] = async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetFundsQuery)!;
-            var result = await query.GetFundsAsync(dbFactory);
+            var result = await query.GetFundsAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundReadModel[]>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundsQuery.Verb, serviceResult);
         },
-        [typeof(GetFundWinLossRatioQuery)] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundWinLossRatioQuery)] = async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetFundWinLossRatioQuery)!;
-            var result = await query.GetFundWinLossRatioAsync(dbFactory);
+            var result = await query.GetFundWinLossRatioAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundWinLossRatioReadModel>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundWinLossRatioQuery.Verb, serviceResult);
         },
-        [typeof(GetOpeningFundBalanceQuery)] = async (q, dbFactory, ctx) =>
+        [typeof(GetOpeningFundBalanceQuery)] = async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetOpeningFundBalanceQuery)!;
-            var result = await query.GetOpeningFundBalanceAsync(dbFactory);
+            var result = await query.GetOpeningFundBalanceAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundBalanceReadModel>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetOpeningFundBalanceQuery.Verb, serviceResult);
         },
-        [typeof(GetFundMaxProfitGeneratedQuery)] = async (q, dbFactory, ctx) =>
+        [typeof(GetFundMaxProfitGeneratedQuery)] = async (q, dbFactory, ctx, cancellationToken) =>
         {
             var query = (q as GetFundMaxProfitGeneratedQuery)!;
-            var fundMaxProfitGenerated = await query.GetFundMaxProfitGeneratedAsync(dbFactory);
+            var fundMaxProfitGenerated = await query.GetFundMaxProfitGeneratedAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FundMaxProfitGeneratedReadModel>(fundMaxProfitGenerated);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundMaxProfitGeneratedQuery.Verb, serviceResult);
         }

@@ -13,7 +13,11 @@ internal static class GetFundIdFromOrderId
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<int> GetFundIdFromOrderIdAsync(
-        this GetFundIdFromOrderIdQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.FundDb.GetFundIdFromOrderIdAsync(q.OrderId);
+        this GetFundIdFromOrderIdQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.FundDb.GetFundIdFromOrderIdAsync(q.OrderId, cancellationToken).ConfigureAwait(false)
+            : await dbFactory.FundDb.GetFundIdFromOrderIdAsync(q.OrderId).ConfigureAwait(false);
 
 }

@@ -12,6 +12,11 @@ internal static class GetFunds
     /// <param name="q">The GetFundsQuery instance.</param>
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    internal static async ValueTask<FundReadModel[]> GetFundsAsync(this GetFundsQuery q, IDbContextFactory dbFactory)
-        => [.. await dbFactory.FundDb.GetFundsAsync()];
+    internal static async ValueTask<FundReadModel[]> GetFundsAsync(
+        this GetFundsQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? [.. await dbFactory.FundDb.GetFundsAsync(cancellationToken).ConfigureAwait(false)]
+            : [.. await dbFactory.FundDb.GetFundsAsync().ConfigureAwait(false)];
 }

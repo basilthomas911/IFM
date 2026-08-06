@@ -15,10 +15,13 @@ internal static class GetFundPnlReport
     /// <param name="dbFactory"> The database context factory </param>
     /// <returns> A task representing the asynchronous operation </returns>
     internal static async ValueTask<FundPnlReportReadModel> GetFundPnlReportAsync(
-        this GetFundPnlReportQuery q, IDbContextFactory dbFactory)
+        this GetFundPnlReportQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
         => await FundQueryCalculations.GetPnlReportAsync(
             dbFactory.FundDb,
             q.FundId,
             q.StartDate,
-            q.EndDate).ConfigureAwait(false);
+            q.EndDate,
+            cancellationToken).ConfigureAwait(false);
 }

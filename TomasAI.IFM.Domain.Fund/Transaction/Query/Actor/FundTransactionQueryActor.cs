@@ -75,14 +75,20 @@ public class FundTransactionQueryActor(
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+
+    protected override async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var queryType = query.GetType();
         if (!_receiveMap.TryGetValue(queryType, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {queryType.Name}");
-        await receiveFunc.Invoke(context, dbFactory, query).ConfigureAwait(false);
+        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -92,12 +98,13 @@ public class FundTransactionQueryActor(
     /// <remarks>This dictionary enables dynamic dispatch of fund transaction-related queries by associating each query
     /// type name with a function that processes the query against a FundTransactionQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<Type, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFundTransactionsQuery)] = async (ctx, dbFactory, q) =>
+        [typeof(GetFundTransactionsQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetFundTransactionsQuery)!;
-            var result = await query.GetFundTransactionsAsync(dbFactory);
+            var result = await query.GetFundTransactionsAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundTransactionsQuery.Verb,
                 new ServiceResult<FundTransactionReadModel[]>(result));
         }
