@@ -1,6 +1,3 @@
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
@@ -15,37 +12,47 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions;
 public static class OptionLegReadModelExtension
 {
     public static OptionTradeLegReadModel? Get(this OptionTradeLegReadModel[] optionLegs, string contractId)
-       => optionLegs
-           .Where(o => o.ContractId == contractId)
-           .SingleOrDefault();
+    {
+        OptionTradeLegReadModel? result = null;
+        foreach (var optionLeg in optionLegs)
+        {
+            if (!string.Equals(optionLeg.ContractId, contractId, StringComparison.Ordinal))
+                continue;
+            EnsureUnique(result);
+            result = optionLeg;
+        }
+        return result;
+    }
 
     public static OptionTradeLegReadModel? Get(this OptionTradeLegReadModel[] optionLegs, OptionLegAction optionLegAction, OptionType optionType)
-       => optionLegs
-           .Where(o => o.OptionLegType == optionType && o.OptionLegAction == optionLegAction)
-           .SingleOrDefault();
+    {
+        OptionTradeLegReadModel? result = null;
+        foreach (var optionLeg in optionLegs)
+        {
+            if (optionLeg.OptionLegType != optionType || optionLeg.OptionLegAction != optionLegAction)
+                continue;
+            EnsureUnique(result);
+            result = optionLeg;
+        }
+        return result;
+    }
 
     public static string? GetContractId(this OptionTradeLegReadModel[] optionLegs, OptionLegAction optionLegAction, OptionType optionType)
     {
-        var item = optionLegs
-            .Where(o => o.OptionLegType == optionType && o.OptionLegAction == optionLegAction)
-            .SingleOrDefault();
+        var item = optionLegs.Get(optionLegAction, optionType);
         return item?.ContractId;
     }
 
 
     public static int? GetQuantity(this OptionTradeLegReadModel[] optionLegs, OptionLegAction optionLegAction, OptionType optionType)
     {
-         var item = optionLegs
-             .Where(o => o.OptionLegType == optionType && o.OptionLegAction == optionLegAction)
-             .SingleOrDefault();
+         var item = optionLegs.Get(optionLegAction, optionType);
          return item?.Quantity;
     }
 
     public static decimal? GetStrikePrice(this OptionTradeLegReadModel[] optionLegs, OptionLegAction optionLegAction, OptionType optionType)
     {
-          var item = optionLegs
-              .Where(o => o.OptionLegType == optionType && o.OptionLegAction == optionLegAction)
-              .SingleOrDefault();
+          var item = optionLegs.Get(optionLegAction, optionType);
           return item?.StrikePrice;
     }
 
@@ -76,33 +83,51 @@ public static class OptionLegReadModelExtension
             }
         }
     }
+
+    static void EnsureUnique(OptionTradeLegReadModel? current)
+    {
+        if (current is not null)
+            throw new InvalidOperationException("Sequence contains more than one matching element");
+    }
 }
 
 public static class OptionLegDataReadModelExtension
 {
     public static OptionTradeLegDataReadModel? Get(this OptionTradeLegDataReadModel[] optionLegData, string contractId)
-        => optionLegData
-            .Where(o => o.OptionLeg!.ContractId == contractId)
-            .SingleOrDefault();
+    {
+        OptionTradeLegDataReadModel? result = null;
+        foreach (var optionLegDataItem in optionLegData)
+        {
+            if (!string.Equals(optionLegDataItem.OptionLeg!.ContractId, contractId, StringComparison.Ordinal))
+                continue;
+            EnsureUnique(result);
+            result = optionLegDataItem;
+        }
+        return result;
+    }
 
     public static OptionTradeLegDataReadModel? Get(this OptionTradeLegDataReadModel[] optionLegData, OptionLegAction optionLegAction, OptionType optionType)
-        => optionLegData
-            .Where(o => o.OptionLeg!.OptionLegType == optionType && o.OptionLeg.OptionLegAction == optionLegAction)
-            .SingleOrDefault();
+    {
+        OptionTradeLegDataReadModel? result = null;
+        foreach (var optionLegDataItem in optionLegData)
+        {
+            if (optionLegDataItem.OptionLeg!.OptionLegType != optionType || optionLegDataItem.OptionLeg.OptionLegAction != optionLegAction)
+                continue;
+            EnsureUnique(result);
+            result = optionLegDataItem;
+        }
+        return result;
+    }
 
     public static decimal? GetBidPrice(this OptionTradeLegDataReadModel[] optionLegData, OptionLegAction optionLegAction, OptionType optionType)
     {
-        var item = optionLegData
-            .Where(o => o.OptionLeg!.OptionLegType == optionType && o.OptionLeg.OptionLegAction == optionLegAction)
-            .SingleOrDefault();
+        var item = optionLegData.Get(optionLegAction, optionType);
         return item?.BidPrice;
     }
 
     public static decimal? GetAskPrice(this OptionTradeLegDataReadModel[] optionLegData, OptionLegAction optionLegAction, OptionType optionType)
     {
-        var item = optionLegData
-            .Where(o => o.OptionLeg!.OptionLegType == optionType && o.OptionLeg.OptionLegAction == optionLegAction)
-            .SingleOrDefault();
+        var item = optionLegData.Get(optionLegAction, optionType);
         return item?.AskPrice;
     }
 
@@ -126,6 +151,12 @@ public static class OptionLegDataReadModelExtension
                 break;
             }
         }
+    }
+
+    static void EnsureUnique(OptionTradeLegDataReadModel? current)
+    {
+        if (current is not null)
+            throw new InvalidOperationException("Sequence contains more than one matching element");
     }
 
 }

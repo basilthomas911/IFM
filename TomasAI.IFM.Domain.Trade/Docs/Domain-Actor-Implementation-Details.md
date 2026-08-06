@@ -96,3 +96,9 @@ Option-trade commands use the shared event-source actor lifecycle: subject parsi
 ## Extension points
 
 Keep aggregate mutations in actor command paths and pure selection/pricing rules in algorithm or advisor folders. New workflow stages belong beneath the intrinsic-time workflow root. Populate scaffold folders only when the stage has a clear contract and actor transition.
+
+## Deferred solution-wide work
+
+- Cancellation propagation is intentionally deferred until all root domains have completed their optimization passes. The later solution-wide change must carry cancellation semantics from supervisor/actor lifecycle calls through actor APIs, repositories, database contexts, and storage providers so a supervisor can stop active work gracefully. Introducing only a Domain.Trade token would create incomplete semantics and is not part of this pass.
+- The inactive `Option/Algorithm/AlgorithmBuilder` path still contains synchronous `.Result` calls and an ineffective cache pattern. Its registrations are currently commented out. Treat removal of those waits and correction of cache ownership as a mandatory reactivation gate rather than expanding this actor-focused change into dormant workflow code.
+- `ItiStrategyWorkflowCommandActor` and its empty workflow branches remain intentional extension scaffolding. Empty command/event actor implementations must not be removed solely because they currently do no work.

@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections;
 using TomasAI.IFM.Domain.Trade.Shared;
 
@@ -25,27 +24,34 @@ public class OptionLegDataCollection(
     public double TradeMultiplier => (this[OptionLegAction.Short]?.Quantity ?? 0) * 50;
 
     public IOptionLegData? this[string contractId]
-        => _optionLegData
-            .Where(e => e.TradeId == _tradeId 
-                && e.TradeType == _tradeType
-                && e.ValueDate == _valueDate 
-                && e.DaysToExpiry == _daysToExpiry
-                && e.TradeStatus == _tradeStatus
-                && e.OptionLegId == contractId)
-            .FirstOrDefault();
+    {
+        get
+        {
+            foreach (var optionLegData in _optionLegData)
+                if (optionLegData.TradeId == _tradeId
+                && optionLegData.TradeType == _tradeType
+                && optionLegData.ValueDate == _valueDate
+                && optionLegData.DaysToExpiry == _daysToExpiry
+                && optionLegData.TradeStatus == _tradeStatus
+                && optionLegData.OptionLegId == contractId)
+                    return optionLegData;
+            return null;
+        }
+    }
 
     IOptionLegData? this[OptionLegAction optionLegAction]
-        => _optionLegData
-            .Where(e => e.OptionLegAction == optionLegAction)
-            .FirstOrDefault();
+    {
+        get
+        {
+            foreach (var optionLegData in _optionLegData)
+                if (optionLegData.OptionLegAction == optionLegAction)
+                    return optionLegData;
+            return null;
+        }
+    }
 
     public bool Exists(string contractId)
-        => _optionLegData.Any(e => e.TradeId == _tradeId
-                && e.TradeType == _tradeType
-                && e.ValueDate == _valueDate
-                && e.DaysToExpiry == _daysToExpiry
-                && e.TradeStatus == _tradeStatus
-                && e.OptionLegId == contractId);
+        => this[contractId] is not null;
 
     public void Add(IOptionLegData item)
         => _optionLegData.Add(item);

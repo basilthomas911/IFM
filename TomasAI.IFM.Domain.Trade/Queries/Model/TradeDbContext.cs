@@ -1,5 +1,3 @@
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -16,21 +14,26 @@ internal static class TradeDbContext
     /// </summary>
     internal static async ValueTask<ICollection<TradeHistoryReadModel>> GetTradeHistoryAsync(this IDbContextFactory dbFactory, int orderId)
     {
-        List<TradeHistoryReadModel> trades = [.. (await dbFactory.TradeDb
+        var trades = await dbFactory.TradeDb
             .Use(TradeDbCql.GetTradeHistory)
             .SetParameters(new GetTradeHistory(orderId))
-            .ExecuteQueryAsync(MapToTradeHistory!)).OrderBy(e => e.ValueDate)];
+            .ExecuteQueryAsync(MapToTradeHistory!);
 
-        var tradeHistory = new List<TradeHistoryReadModel>();
-        foreach (var valueDate in trades.Select(e => e.ValueDate).Distinct())
-        {
-            tradeHistory.AddRange(trades.Where(e => e.TradeStatus == TradeStatus.Open && e.ValueDate == valueDate));
-            tradeHistory.AddRange(trades.Where(e => e.TradeStatus == TradeStatus.IntraDay && e.ValueDate == valueDate));
-            tradeHistory.AddRange(trades.Where(e => e.TradeStatus == TradeStatus.EndOfDay && e.ValueDate == valueDate));
-            tradeHistory.AddRange(trades.Where(e => e.TradeStatus == TradeStatus.Close && e.ValueDate == valueDate));
-        }
-        return tradeHistory;
+        return [.. trades
+            .Where(trade => StatusOrder(trade.TradeStatus) >= 0)
+            .OrderBy(trade => trade.ValueDate)
+            .ThenBy(trade => StatusOrder(trade.TradeStatus))];
     }
+
+    static int StatusOrder(TradeStatus status)
+        => status switch
+        {
+            TradeStatus.Open => 0,
+            TradeStatus.IntraDay => 1,
+            TradeStatus.EndOfDay => 2,
+            TradeStatus.Close => 3,
+            _ => -1
+        };
 
     /// <summary>
     /// Retrieves the trade limit for the specified trade, enriched with trade type limit thresholds.
@@ -59,11 +62,11 @@ internal static class TradeDbContext
     /// <summary>
     /// Retrieves the trade type limit for the specified trade and trade type.
     /// </summary>
-    internal static async ValueTask<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync(this IDbContextFactory dbFactory, int tradeId, TradeType tradeType)
-        => await dbFactory.TradeDb
+    internal static ValueTask<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync(this IDbContextFactory dbFactory, int tradeId, TradeType tradeType)
+        => new(dbFactory.TradeDb
             .Use(TradeDbCql.GetTradeTypeLimit)
             .SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()))
-            .ExecuteSingleAsync(MapToTradeTypeLimit);
+            .ExecuteSingleAsync(MapToTradeTypeLimit));
 
     /// <summary>
     /// Retrieves a single trade position for the specified order, trade, type, date, days to expiry, and status.
@@ -78,11 +81,11 @@ internal static class TradeDbContext
     /// <summary>
     /// Retrieves all trade positions for the specified order and trade.
     /// </summary>
-    internal static async ValueTask<ICollection<TradePositionReadModel>> GetTradePositionsAsync(this IDbContextFactory dbFactory, int orderId, int tradeId)
-        => await dbFactory.TradeDb
+    internal static ValueTask<ICollection<TradePositionReadModel>> GetTradePositionsAsync(this IDbContextFactory dbFactory, int orderId, int tradeId)
+        => new(dbFactory.TradeDb
             .Use(TradeDbCql.GetTradePositions)
             .SetParameters(new GetTradePositions(orderId, tradeId))
-            .ExecuteQueryAsync(MapToTradePosition!);
+            .ExecuteQueryAsync(MapToTradePosition!));
 
     /// <summary>
     /// Retrieves the distinct trade types for positions matching the specified order, trade, date, days to expiry, and status.

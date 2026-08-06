@@ -7,11 +7,12 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Validation;
 
 public class OptionTradeValidationRules : BaseValidationRules, IValidationRules<OptionTradeReadModel>
 {
-    readonly OptionLegValidator _optionLeg = new OptionLegValidator();
-    readonly TradePositionValidator _tradePosition = new TradePositionValidator();
-    readonly TradeLimitValidator _tradeLimit = new TradeLimitValidator();
-    readonly TradeTypeLimitValidator _tradeTypeLimit = new TradeTypeLimitValidator();
-    readonly TradeFillValidator _tradeFill = new TradeFillValidator();
+    static readonly OptionTradeValidator Validator = new();
+    static readonly OptionLegValidator OptionLegRule = new();
+    static readonly TradePositionValidator TradePositionRule = new();
+    static readonly TradeLimitValidator TradeLimitRule = new();
+    static readonly TradeTypeLimitValidator TradeTypeLimitRule = new();
+    static readonly TradeFillValidator TradeFillRule = new();
 
     public const string InstanceErrorMessage = "OptionTrade instance is null";
     public const string TradeDateErrorMessage = "OptionTrade.TradeDate is invalid";
@@ -19,18 +20,18 @@ public class OptionTradeValidationRules : BaseValidationRules, IValidationRules<
     public const string UnderlyingContractIdErrorMessage = "OptionTrade.UnderlyingContractId is empty";
 
     public OptionTradeValidationRules OptionTrade => this;
-    public OptionLegValidator OptionLeg => _optionLeg;
-    public TradePositionValidator TradePosition => _tradePosition;
-    public TradeLimitValidator TradeLimit => _tradeLimit;
-    public TradeTypeLimitValidator TradeTypeLimits => _tradeTypeLimit;
-    public TradeFillValidator TradeFills => _tradeFill;
+    public OptionLegValidator OptionLeg => OptionLegRule;
+    public TradePositionValidator TradePosition => TradePositionRule;
+    public TradeLimitValidator TradeLimit => TradeLimitRule;
+    public TradeTypeLimitValidator TradeTypeLimits => TradeTypeLimitRule;
+    public TradeFillValidator TradeFills => TradeFillRule;
 
     public ValidationError[] Execute(OptionTradeReadModel optionTrade)
     {
         var validationErrors = new List<ValidationError>();
 
         // validate option trade...
-        var ruleErrors = Validate(optionTrade, new OptionTradeValidator());
+        var ruleErrors = Validate(optionTrade, Validator);
         if (ruleErrors is not null)
             validationErrors.AddRange(ruleErrors);
 
@@ -95,9 +96,8 @@ public class OptionTradeValidationRules : BaseValidationRules, IValidationRules<
                 if (tradePosition.TradeId != optionTrade.TradeId)
                     validationErrors.Add(new ValidationError($"TradePosition.TradeId: {tradePosition.TradeId} != {optionTrade.TradeId}"));
 
-            foreach (var tradePosition in optionTrade.TradePositions)
-                if (optionTrade?.TradeLimit!.TradeId != optionTrade?.TradeId)
-                    validationErrors.Add(new ValidationError($"TradeLimit.TradeId: {optionTrade?.TradeLimit!.TradeId} != {optionTrade?.TradeId}"));
+            if (optionTrade.TradeLimit!.TradeId != optionTrade.TradeId)
+                validationErrors.Add(new ValidationError($"TradeLimit.TradeId: {optionTrade.TradeLimit.TradeId} != {optionTrade.TradeId}"));
 
             foreach (var tradeTypeLimit in optionTrade?.TradeTypeLimits!)
                 if (tradeTypeLimit.TradeId != optionTrade.TradeId)

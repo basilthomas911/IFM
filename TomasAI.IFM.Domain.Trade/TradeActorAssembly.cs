@@ -4,5 +4,5 @@ namespace TomasAI.IFM.Domain.Trade;
 
 public static class TradeActorAssembly
 {
-    public static Assembly Current => Assembly.GetExecutingAssembly();
+    public static Assembly Current { get; } = typeof(TradeActorAssembly).Assembly;
 }

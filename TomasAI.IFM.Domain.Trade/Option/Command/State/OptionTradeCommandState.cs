@@ -1,11 +1,9 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
@@ -34,27 +32,22 @@ public class OptionTradeCommandState
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
-        try
+        return domainEvent switch
         {
-            return domainEvent switch
-            {
-                OptionTradeOrderPlacedEvent e => On(e),
-                OptionTradeToOpenEvent e => On(e),
-                OptionTradeToCloseEvent e => On(e),
-                OptionTradeSnapshotEvent e => On(e),
-                TradePositionAddedEvent e => On(e),
-                OptionTradeLegDataChangedEvent e => On(e),
-                OptionTradeSpreadDistributionStatisticsUpdatedEvent e => On(e),
-                OptionTradeEndOfDayProcessedEvent e => On(e),
-                OptionTradeDeletedEvent e => On(e),
-                OptionTradeDailyProfitTargetUpdatedEvent e => On(e),
-                OptionTradePositionOpenedEvent e => On(e),
-                OptionTradePositionClosedEvent e => On(e),
-                _ => false
-            }; ;
-        }
-        catch { }
-        return false;
+            OptionTradeOrderPlacedEvent e => On(e),
+            OptionTradeToOpenEvent e => On(e),
+            OptionTradeToCloseEvent e => On(e),
+            OptionTradeSnapshotEvent e => On(e),
+            TradePositionAddedEvent e => On(e),
+            OptionTradeLegDataChangedEvent e => On(e),
+            OptionTradeSpreadDistributionStatisticsUpdatedEvent e => On(e),
+            OptionTradeEndOfDayProcessedEvent e => On(e),
+            OptionTradeDeletedEvent e => On(e),
+            OptionTradeDailyProfitTargetUpdatedEvent e => On(e),
+            OptionTradePositionOpenedEvent e => On(e),
+            OptionTradePositionClosedEvent e => On(e),
+            _ => false
+        };
     }
 
     /// <summary>
@@ -129,28 +122,54 @@ public class OptionTradeCommandState
             updatedBy: createdBy
         );
 
+        var optionLegById = new Dictionary<string, IOptionLeg>(StringComparer.Ordinal);
+
         // add option legs...
         if (optionTrade.OptionLegs is not null && optionTrade.OptionLegs.Length > 0)
-            _optionTrade.AddOptionLegs([.. optionTrade.OptionLegs.Select(ol => new OptionLeg(
-                orderId: ol.OrderId,
-                tradeId: ol.TradeId,
-                contractId: ol.ContractId,
-                quantity: ol.Quantity,
-                strikePrice: ol.StrikePrice,
-                optionLegType: ol.OptionLegType,
-                optionLegAction: ol.OptionLegAction,
-                createdOn: createdOn,
-                createdBy: createdBy,
-                updatedOn: createdOn,
-                updatedBy: createdBy
-            )).Cast<IOptionLeg>()]);
+        {
+            var optionLegs = new List<IOptionLeg>(optionTrade.OptionLegs.Length);
+            foreach (var optionLegModel in optionTrade.OptionLegs)
+            {
+                IOptionLeg optionLeg = new OptionLeg(
+                    orderId: optionLegModel.OrderId,
+                    tradeId: optionLegModel.TradeId,
+                    contractId: optionLegModel.ContractId,
+                    quantity: optionLegModel.Quantity,
+                    strikePrice: optionLegModel.StrikePrice,
+                    optionLegType: optionLegModel.OptionLegType,
+                    optionLegAction: optionLegModel.OptionLegAction,
+                    createdOn: createdOn,
+                    createdBy: createdBy,
+                    updatedOn: createdOn,
+                    updatedBy: createdBy);
+                optionLegs.Add(optionLeg);
+                optionLegById.Add(optionLeg.ContractId, optionLeg);
+            }
+            _optionTrade.AddOptionLegs(optionLegs);
+        }
 
         // add trade position including option leg data...
         if (optionTrade.TradePositions is not null && optionTrade.TradePositions.Length > 0)
-            _optionTrade.AddTradePositions([.. optionTrade.TradePositions.Select(o =>
-                new TradePosition(o, createdOn, createdBy)
-                    .AddOptionLegData([.. o.OptionLegData.Select(x => new OptionLegData(o.EntityId, x.SetOptionLeg(_optionTrade.OptionLegs.Where(ol => ol.ContractId == x.OptionLegId).Single().ToDataModel()), 
-                        createdOn, createdBy, createdOn, createdBy)).Cast<IOptionLegData>()]))]);
+        {
+            var tradePositions = new List<ITradePosition>(optionTrade.TradePositions.Length);
+            foreach (var positionModel in optionTrade.TradePositions)
+            {
+                var legData = new List<IOptionLegData>(positionModel.OptionLegData.Length);
+                foreach (var legDataModel in positionModel.OptionLegData)
+                {
+                    var optionLeg = optionLegById[legDataModel.OptionLegId];
+                    legData.Add(new OptionLegData(
+                        positionModel.EntityId,
+                        legDataModel.SetOptionLeg(optionLeg.ToDataModel()),
+                        createdOn,
+                        createdBy,
+                        createdOn,
+                        createdBy));
+                }
+                tradePositions.Add(new TradePosition(positionModel, createdOn, createdBy).AddOptionLegData(legData));
+            }
+            _optionTrade.AddTradePositions(tradePositions);
+        }
 
         // set trade limit...
         if (optionTrade.TradeLimit is not  null)
@@ -158,11 +177,21 @@ public class OptionTradeCommandState
 
         // add trade type limits...
         if (optionTrade.TradeTypeLimits is not null && optionTrade.TradeTypeLimits.Length > 0)
-                _optionTrade.AddTradeTypeLimits([.. optionTrade.TradeTypeLimits.Select(o => new TradeTypeLimit(o.TradeId, o.TradeType, o.MaxLossLimit, o.MinProfitLimit, o.MaxProfitLimit))]);
+        {
+            var tradeTypeLimits = new List<ITradeTypeLimit>(optionTrade.TradeTypeLimits.Length);
+            foreach (var limit in optionTrade.TradeTypeLimits)
+                tradeTypeLimits.Add(new TradeTypeLimit(limit.TradeId, limit.TradeType, limit.MaxLossLimit, limit.MinProfitLimit, limit.MaxProfitLimit));
+            _optionTrade.AddTradeTypeLimits(tradeTypeLimits);
+        }
 
         // add trade fills if passed...
         if (optionTrade.TradeFills != null)
-            _optionTrade.AddTradeFills([.. optionTrade.TradeFills.Select(o => new TradeFill(o))], createdOn, createdBy);
+        {
+            var tradeFills = new List<ITradeFill>(optionTrade.TradeFills.Length);
+            foreach (var tradeFill in optionTrade.TradeFills)
+                tradeFills.Add(new TradeFill(tradeFill));
+            _optionTrade.AddTradeFills(tradeFills, createdOn, createdBy);
+        }
 
     }
 

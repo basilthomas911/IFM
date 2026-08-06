@@ -71,26 +71,47 @@ public static class OptionTradeFactory
         var createdBy = otvm.CreatedBy;
 
         // add option legs...
-        optionTrade.AddOptionLegs(otvm.OptionLegs!.Select(ol => new OptionLeg(
-                orderId: ol.OrderId,
-                tradeId: ol.TradeId,
-                contractId: ol.ContractId,
-                quantity: ol.Quantity,
-                strikePrice: ol.StrikePrice,
-                optionLegType: ol.OptionLegType,
-                optionLegAction: ol.OptionLegAction,
+        var optionLegModels = otvm.OptionLegs ?? [];
+        var optionLegs = new List<IOptionLeg>(optionLegModels.Length);
+        var optionLegById = new Dictionary<string, IOptionLeg>(optionLegModels.Length, StringComparer.Ordinal);
+        foreach (var optionLegModel in optionLegModels)
+        {
+            IOptionLeg optionLeg = new OptionLeg(
+                orderId: optionLegModel.OrderId,
+                tradeId: optionLegModel.TradeId,
+                contractId: optionLegModel.ContractId,
+                quantity: optionLegModel.Quantity,
+                strikePrice: optionLegModel.StrikePrice,
+                optionLegType: optionLegModel.OptionLegType,
+                optionLegAction: optionLegModel.OptionLegAction,
                 createdOn: createdOn,
                 createdBy: optionTrade.CreatedBy,
                 updatedOn: createdOn,
-                updatedBy: optionTrade.CreatedBy
-            )).Cast<IOptionLeg>().ToList());
+                updatedBy: optionTrade.CreatedBy);
+            optionLegs.Add(optionLeg);
+            optionLegById.Add(optionLeg.ContractId, optionLeg);
+        }
+        optionTrade.AddOptionLegs(optionLegs);
 
         // add trade position including option leg data...
-        optionTrade.AddTradePositions((otvm.TradePositions ?? []).Select(o =>
-            new TradePosition(o, createdOn, createdBy)
-                .AddOptionLegData(o.OptionLegData.Select(x => new OptionLegData(o.EntityId, x.SetOptionLeg(optionTrade.OptionLegs.Where(ol => ol.ContractId == x.OptionLegId).Single().ToDataModel()),
-                    createdOn, createdBy, createdOn, createdBy)).Cast<IOptionLegData>().ToList()))
-                .ToList());
+        var positionModels = otvm.TradePositions ?? [];
+        var tradePositions = new List<ITradePosition>(positionModels.Length);
+        foreach (var positionModel in positionModels)
+        {
+            var legData = new List<IOptionLegData>(positionModel.OptionLegData.Length);
+            foreach (var legDataModel in positionModel.OptionLegData)
+            {
+                legData.Add(new OptionLegData(
+                    positionModel.EntityId,
+                    legDataModel.SetOptionLeg(optionLegById[legDataModel.OptionLegId].ToDataModel()),
+                    createdOn,
+                    createdBy,
+                    createdOn,
+                    createdBy));
+            }
+            tradePositions.Add(new TradePosition(positionModel, createdOn, createdBy).AddOptionLegData(legData));
+        }
+        optionTrade.AddTradePositions(tradePositions);
 
         // set trade limit...
         if (otvm.TradeLimit is null)
@@ -98,13 +119,20 @@ public static class OptionTradeFactory
         optionTrade.SetTradeLimit(new TradeLimit(otvm.TradeLimit, optionTrade.CreatedOn, optionTrade.CreatedBy, optionTrade.CreatedOn, optionTrade.CreatedBy));
 
         // add trade type limits...
-        optionTrade.AddTradeTypeLimits((otvm.TradeTypeLimits ?? [])
-            .Select(o => new TradeTypeLimit(o.TradeId, o.TradeType, o.MaxLossLimit, o.MinProfitLimit, o.MaxProfitLimit))
-            .ToList<ITradeTypeLimit>());
+        var typeLimitModels = otvm.TradeTypeLimits ?? [];
+        var tradeTypeLimits = new List<ITradeTypeLimit>(typeLimitModels.Length);
+        foreach (var limit in typeLimitModels)
+            tradeTypeLimits.Add(new TradeTypeLimit(limit.TradeId, limit.TradeType, limit.MaxLossLimit, limit.MinProfitLimit, limit.MaxProfitLimit));
+        optionTrade.AddTradeTypeLimits(tradeTypeLimits);
 
         // add trade fills if passed...
         if (otvm.TradeFills != null)
-            optionTrade.AddTradeFills(otvm.TradeFills.Select(o => new TradeFill(o)).ToList<ITradeFill>(), optionTrade.CreatedOn, optionTrade.CreatedBy);
+        {
+            var tradeFills = new List<ITradeFill>(otvm.TradeFills.Length);
+            foreach (var tradeFill in otvm.TradeFills)
+                tradeFills.Add(new TradeFill(tradeFill));
+            optionTrade.AddTradeFills(tradeFills, optionTrade.CreatedOn, optionTrade.CreatedBy);
+        }
         return optionTrade;
     }
 }

@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Domain.Trade.Option.Command.Validation;
 
 public class OptionTradeSpreadsDataValidationRules : BaseValidationRules, IValidationRules<OptionTradeSpreadsDataModel>
 {
+    static readonly OptionTradeSpreadsDataValidator Validator = new();
     public const string InstanceErrorMessage = "OptionTradeSpreadsData instance is null";
     public const string OrderIdErrorMessage = "OptionTradeSpreadsData.OrderId must be > 0";
     public const string TradeIdErrorMessage = "OptionTradeSpreadsData.TradeId must be > 0";
@@ -21,7 +22,7 @@ public class OptionTradeSpreadsDataValidationRules : BaseValidationRules, IValid
     public const string CreatedByErrorMessage = "OptionTradeSpreadsData.CreatedBy is required";
 
     public ValidationError[] Execute(OptionTradeSpreadsDataModel optionTradeSpreadsData) =>
-        Validate(optionTradeSpreadsData, new OptionTradeSpreadsDataValidator());
+        Validate(optionTradeSpreadsData, Validator);
 
     class OptionTradeSpreadsDataValidator : AbstractValidator<OptionTradeSpreadsDataModel>
     {

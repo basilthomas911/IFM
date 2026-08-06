@@ -19,13 +19,10 @@ public class OptionTradeEventActor(
 {
     public const string Actor = "OptionTradeEvent";
     IActorOptionPricerCommandApi? _commandApi;
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorOptionPricerCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorOptionPricerCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(OptionTradeLegDataChangedEvent).Name] = async (evt, ctx, commandApi, statusConsoleWriter, logger) =>
-        {
-            var e = (evt as OptionTradeLegDataChangedEvent)!;
-            return await e.ExecuteAsync(ctx, commandApi, statusConsoleWriter, logger);
-        }
+        [typeof(OptionTradeLegDataChangedEvent).Name] = static (evt, ctx, commandApi, statusConsoleWriter, logger)
+            => ((OptionTradeLegDataChangedEvent)evt).ExecuteAsync(ctx, commandApi, statusConsoleWriter, logger)
     };
 
     protected override ValueTask OnStartup(IEventActorContext context)
@@ -71,14 +68,22 @@ public class OptionTradeEventActor(
     /// <param name="event">The event to be processed.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context), statusConsoleWriter, logger);
+        return AwaitHandlerAsync(receiveFunc.Invoke(
+            @event,
+            context,
+            GetCommandApi(context),
+            statusConsoleWriter,
+            logger));
+
+        static async ValueTask AwaitHandlerAsync(ValueTask<bool> operation)
+            => _ = await operation.ConfigureAwait(false);
     }
 
     /// <summary>

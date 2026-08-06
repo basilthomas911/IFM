@@ -1,13 +1,11 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Validation;
-using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Validation;
 using TomasAI.IFM.Shared.Validation;
@@ -33,7 +31,7 @@ public class OptionTradeCommandActor(
     : BaseEventSourceCommandActor<OptionTradeCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "OptionTradeCommand";
-    IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
     IEventSourceActorStateRepository<OptionTradeCommandState> _repo = default!;
 
     /// <summary>
@@ -44,10 +42,11 @@ public class OptionTradeCommandActor(
     /// to the actor.</remarks>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask OnStartup(ICommandActorContext context)
+    protected override ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<OptionTradeCommandState>>());
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -70,7 +69,7 @@ public class OptionTradeCommandActor(
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
         var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
-        _dbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow, JsonConvert.SerializeObject(command)).GetAwaiter().GetResult();
+        _commandAudit.Start(command);
         return command;
     }
 
@@ -106,7 +105,7 @@ public class OptionTradeCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
@@ -116,7 +115,8 @@ public class OptionTradeCommandActor(
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
         _ = receiveFunc.Invoke(cmd, context, optionTradeState);
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(
+            new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
     }
 
     /// <summary>
@@ -156,6 +156,7 @@ public class OptionTradeCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
+        await _commandAudit.CompleteAsync(cmd).ConfigureAwait(false);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
@@ -274,14 +275,14 @@ public class OptionTradeCommandActor(
     /// cref="OptionTradeCommandState"/>.</param>
     /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
+    protected override ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var optionTradeState = IsArgumentNull.Set((state as OptionTradeCommandState)!);
-        await _repo.SaveStateAsync(context, optionTradeState, cmd);
+        return _repo.SaveStateAsync(context, optionTradeState, cmd);
     }
 
     /// <summary>

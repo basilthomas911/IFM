@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections;
 using TomasAI.IFM.Domain.Trade.Shared;
 
@@ -6,22 +5,28 @@ namespace TomasAI.IFM.Domain.Trade.Model;
 
 public class TradePositionCollection : ITradePositionCollection
 {
-    List<ITradePosition> _tradePosition;
+    readonly List<ITradePosition> _tradePosition;
 
     public TradePositionCollection() =>  _tradePosition = new List<ITradePosition>();
 
     public int Count => _tradePosition.Count;
 
     public ITradePosition? this[TradePositionEntityId key]
-        => _tradePosition
-            .Where(e => 
-                e.OrderId == key.OrderId
-                && e.TradeId == key.TradeId
-                && e.TradeType == key.TradeType
-                && e.ValueDate == key.ValueDate
-                && e.DaysToExpiry == key.DaysToExpiry
-                && e.TradeStatus == key.TradeStatus)
-            .SingleOrDefault();
+    {
+        get
+        {
+            ITradePosition? match = null;
+            foreach (var position in _tradePosition)
+            {
+                if (!Matches(position, key))
+                    continue;
+                if (match is not null)
+                    throw new InvalidOperationException("Sequence contains more than one matching element");
+                match = position;
+            }
+            return match;
+        }
+    }
 
     public ITradePosition New(TradePositionEntityId key, DateTime createdOn, string createdBy)
        => new TradePosition(
@@ -35,25 +40,31 @@ public class TradePositionCollection : ITradePositionCollection
            createdBy: createdBy);
 
     public ITradePosition[] Opening()
-        => _tradePosition.Where(e => e.TradeStatus == TradeStatus.Open).ToArray();
+    {
+        var result = new List<ITradePosition>();
+        foreach (var position in _tradePosition)
+            if (position.TradeStatus == TradeStatus.Open)
+                result.Add(position);
+        return [.. result];
+    }
 
     public ITradePosition? Opening(TradeType tradeType)
-        => _tradePosition.Where(e => e.TradeType == tradeType && e.TradeStatus == TradeStatus.Open).FirstOrDefault();
+        => FindFirst(tradeType, TradeStatus.Open);
 
     public ITradePosition? IntraDay(TradeType tradeType)
-        => _tradePosition.Where(e => e.TradeType == tradeType && e.TradeStatus == TradeStatus.IntraDay).LastOrDefault();
+        => FindLast(tradeType, TradeStatus.IntraDay);
 
     public ITradePosition? IntraDay(TradeType tradeType, DateOnly valueDate)
-        => _tradePosition.Where(e => e.TradeType == tradeType && e.TradeStatus == TradeStatus.IntraDay && e.ValueDate == valueDate).LastOrDefault();
+        => FindLast(tradeType, TradeStatus.IntraDay, valueDate);
 
     public ITradePosition? EndOfDay(TradeType tradeType)
-        => _tradePosition.Where(e => e.TradeType == tradeType && e.TradeStatus == TradeStatus.EndOfDay).LastOrDefault();
+        => FindLast(tradeType, TradeStatus.EndOfDay);
 
     public ITradePosition? EndOfDay(TradeType tradeType, DateOnly valueDate)
-        => _tradePosition.Where(e => e.TradeType == tradeType && e.TradeStatus == TradeStatus.EndOfDay && e.ValueDate == valueDate).LastOrDefault();
+        => FindLast(tradeType, TradeStatus.EndOfDay, valueDate);
 
     public ITradePosition? Closing(TradeType tradeType)
-        => _tradePosition.Where(e => e.TradeType == tradeType && e.TradeStatus == TradeStatus.Close).FirstOrDefault();
+        => FindFirst(tradeType, TradeStatus.Close);
 
 
     public TradePositionChangeSourceType Source(TradeType tradeType)
@@ -69,13 +80,12 @@ public class TradePositionCollection : ITradePositionCollection
     }
 
     public bool Exists(TradePositionEntityId key)
-        => _tradePosition.Exists(e => 
-                        e.OrderId == key.OrderId
-                      && e.TradeId == key.TradeId
-                      && e.TradeType == key.TradeType
-                      && e.ValueDate == key.ValueDate
-                      && e.DaysToExpiry == key.DaysToExpiry
-                      && e.TradeStatus == key.TradeStatus);
+    {
+        foreach (var position in _tradePosition)
+            if (Matches(position, key))
+                return true;
+        return false;
+    }
 
     public void Add(ITradePosition spreadTradeData) => _tradePosition.Add(spreadTradeData);
 
@@ -104,5 +114,34 @@ public class TradePositionCollection : ITradePositionCollection
             intraDayTradeData.SetTradePnl(openingTradeValue - closingTradeData.TradeValue);
         return this;
     }
+
+    ITradePosition? FindFirst(TradeType tradeType, TradeStatus tradeStatus)
+    {
+        foreach (var position in _tradePosition)
+            if (position.TradeType == tradeType && position.TradeStatus == tradeStatus)
+                return position;
+        return null;
+    }
+
+    ITradePosition? FindLast(TradeType tradeType, TradeStatus tradeStatus, DateOnly? valueDate = null)
+    {
+        for (var index = _tradePosition.Count - 1; index >= 0; index--)
+        {
+            var position = _tradePosition[index];
+            if (position.TradeType == tradeType
+                && position.TradeStatus == tradeStatus
+                && (!valueDate.HasValue || position.ValueDate == valueDate.Value))
+                return position;
+        }
+        return null;
+    }
+
+    static bool Matches(ITradePosition position, TradePositionEntityId key)
+        => position.OrderId == key.OrderId
+            && position.TradeId == key.TradeId
+            && position.TradeType == key.TradeType
+            && position.ValueDate == key.ValueDate
+            && position.DaysToExpiry == key.DaysToExpiry
+            && position.TradeStatus == key.TradeStatus;
 
 }

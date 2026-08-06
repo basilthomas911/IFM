@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Domain.Trade.Option.Command.Validation;
 
 public class ChangeOptionTradeLegDataCommandValidationRules : BaseValidationRules, IValidationRules<ChangeOptionTradeLegDataCommand>
 {
+    static readonly ChangeOptionTradeLegDataCommandValidator Validator = new();
     public const string InstanceErrorMessage = "ChangeOptionTradeLegDataCommand instance is null";
     public const string OrderIdErrorMessage = "OrderId must be > 0";
     public const string TradeIdErrorMessage = "TradeId must be > 0";
@@ -16,7 +17,7 @@ public class ChangeOptionTradeLegDataCommandValidationRules : BaseValidationRule
     public const string OptionLegDataErrorMessage = "OptionLegData is required";
 
     public ValidationError[] Execute(ChangeOptionTradeLegDataCommand command) =>
-        Validate(command, new ChangeOptionTradeLegDataCommandValidator());
+        Validate(command, Validator);
 
     class ChangeOptionTradeLegDataCommandValidator : AbstractValidator<ChangeOptionTradeLegDataCommand>
     {

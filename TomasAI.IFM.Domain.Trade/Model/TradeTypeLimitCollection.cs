@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections;
 using TomasAI.IFM.Domain.Trade.Shared;
 
@@ -12,11 +11,23 @@ public class TradeTypeLimitCollection(int tradeId) : ITradeTypeLimitCollection
     public int Count => _tradeTypeLimits.Count;
     
     public ITradeTypeLimit? this[TradeType tradeType]
-        => _tradeTypeLimits
-            .Where(e => e.TradeId == _tradeId && e.TradeType == tradeType)
-            .SingleOrDefault();
+    {
+        get
+        {
+            ITradeTypeLimit? result = null;
+            foreach (var tradeTypeLimit in _tradeTypeLimits)
+            {
+                if (tradeTypeLimit.TradeId != _tradeId || tradeTypeLimit.TradeType != tradeType)
+                    continue;
+                if (result is not null)
+                    throw new InvalidOperationException("Sequence contains more than one matching element");
+                result = tradeTypeLimit;
+            }
+            return result;
+        }
+    }
 
-    public bool Exists(TradeType tradeType) => _tradeTypeLimits.Any(e => e.TradeId == _tradeId && e.TradeType == tradeType);
+    public bool Exists(TradeType tradeType) => this[tradeType] is not null;
 
     public void Add(ITradeTypeLimit item) => _tradeTypeLimits.Add(item);
 

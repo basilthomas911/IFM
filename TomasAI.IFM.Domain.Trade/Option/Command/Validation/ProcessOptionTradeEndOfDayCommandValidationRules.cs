@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Domain.Trade.Option.Command.Validation;
 public class ProcessOptionTradeEndOfDayCommandValidationRules 
     : BaseValidationRules, IValidationRules<ProcessOptionTradeEndOfDayCommand>
 {
+    static readonly ProcessOptionTradeEndOfDayCommandValidator Validator = new();
     public const string InstanceErrorMessage = "ProcessOptionTradeEndOfDayCommand instance is null";
     public const string FundIdErrorMessage = "FundId must be > 0";
     public const string OrderIdErrorMessage = "OrderId must be > 0";
@@ -24,7 +25,7 @@ public class ProcessOptionTradeEndOfDayCommandValidationRules
     public const string ReferenceErrorMessage = "Reference is required";
 
     public ValidationError[] Execute(ProcessOptionTradeEndOfDayCommand command) =>
-        Validate(command, new ProcessOptionTradeEndOfDayCommandValidator());
+        Validate(command, Validator);
 
     class ProcessOptionTradeEndOfDayCommandValidator : AbstractValidator<ProcessOptionTradeEndOfDayCommand>
     {

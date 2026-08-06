@@ -363,13 +363,18 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<OptionTradeReadModel>> GetOptionTradesAsync(int orderId)
     {
-        var optionTrades = new List<OptionTradeReadModel>();
         var db = _dbFactory.TradeDb;
-        foreach (var e in await db.Use(TradeDbCql.GetOptionTrades)
+        var optionTrades = await db.Use(TradeDbCql.GetOptionTrades)
                 .SetParameters(new GetOptionTrades(orderId))
-                .ExecuteQueryAsync(MapToOptionTrade!))
-            optionTrades.Add(await FillOptionTradeAsync(e));
-        return [.. optionTrades.OrderBy(e => e.IsPrimaryTrade)];
+                .ExecuteQueryAsync(MapToOptionTrade!);
+
+        var sourceTrades = optionTrades.ToArray();
+        var hydratedTrades = new OptionTradeReadModel[sourceTrades.Length];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, sourceTrades.Length),
+            new ParallelOptions { MaxDegreeOfParallelism = 4 },
+            async (index, _) => hydratedTrades[index] = await FillOptionTradeAsync(sourceTrades[index]));
+        return [.. hydratedTrades.OrderBy(e => e.IsPrimaryTrade)];
     }
 
     /// <summary>
@@ -477,45 +482,49 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var entityId = optionTrade.EntityId;
         var db = _dbFactory.TradeDb;
-        var tradePositions = await db
+        var tradePositionsTask = db
             .Use(TradeDbCql.GetTradePositions)
             .SetParameters(new GetTradePositions(entityId.OrderId, entityId.TradeId))
             .ExecuteQueryAsync(MapToTradePosition!);
-
-        List<OptionTradeLegReadModel> optionLegs = [.. await db
+        var optionLegsTask = db
             .Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
             .SetParameters(new GetOptionLegsByOrderAndTrade(entityId.OrderId, entityId.TradeId))
-            .ExecuteQueryAsync(MapToOptionLeg!)];
+            .ExecuteQueryAsync(MapToOptionLeg!);
+        var tradeLimitTask = GetTradeLimitAsync(optionTrade.TradeId);
+        var tradeTypeLimitsTask = db
+            .Use(TradeDbCql.GetTradeTypeLimits)
+            .SetParameters(new GetTradeTypeLimits(optionTrade.TradeId))
+            .ExecuteQueryAsync(MapToTradeTypeLimit);
+        var tradeFillsTask = GetTradeFillsAsync(optionTrade.OrderId, optionTrade.TradeId);
 
-        var tradePosition = tradePositions.Select(o =>
-            o.AddOptionLegData(GetOptionLegData(o.EntityId.OrderId,  o.EntityId.TradeId, o.EntityId.TradeType, o.EntityId.ValueDate, o.EntityId.DaysToExpiry, o.EntityId.TradeStatus)
-                .Result.Select(e => e.SetOptionLeg(optionLegs.Where(ol => ol.ContractId == e.OptionLegId).Single())).ToList())).ToList();
+        var tradePositions = await tradePositionsTask;
+        var valueDates = tradePositions.Select(position => position.ValueDate).Distinct().ToArray();
+        var legDataByDate = new ICollection<OptionTradeLegDataReadModel>[valueDates.Length];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, valueDates.Length),
+            new ParallelOptions { MaxDegreeOfParallelism = 4 },
+            async (dateIndex, _) => legDataByDate[dateIndex] = await db
+                .Use(TradeDbCql.GetOptionLegData)
+                .SetParameters(new GetOptionLegData(entityId.OrderId, entityId.TradeId, valueDates[dateIndex]))
+                .ExecuteQueryAsync(MapToOptionLegData!));
 
-        var tradeLimit = await GetTradeLimitAsync(optionTrade.TradeId);
+        await Task.WhenAll(optionLegsTask, tradeLimitTask, tradeTypeLimitsTask, tradeFillsTask);
+        var optionLegs = await optionLegsTask;
+        var optionLegById = optionLegs.ToDictionary(leg => leg.ContractId, StringComparer.Ordinal);
+        var legDataByPosition = BuildLegDataByPosition(legDataByDate, optionLegById, requireOptionLeg: true);
 
-        List<TradeTypeLimitReadModel> tradeTypeLimits = [.. (await db
-                .Use(TradeDbCql.GetTradeTypeLimits)
-                .SetParameters(new GetTradeTypeLimits(optionTrade.TradeId))
-                .ExecuteQueryAsync(MapToTradeTypeLimit))];
-
-        List<TradeFillReadModel> tradeFills = ([.. await GetTradeFillsAsync(optionTrade.OrderId, optionTrade.TradeId)]);
+        foreach (var position in tradePositions)
+        {
+            if (legDataByPosition.TryGetValue(PositionKey(position), out var legData))
+                position.AddOptionLegData(legData);
+        }
 
         return optionTrade
             .AddOptionLegs(optionLegs)
-            .AddTradePosition(tradePosition)
-            .SetTradeLimit(tradeLimit!)
-            .AddTradeTypeLimits(tradeTypeLimits)
-            .AddTradeFills(tradeFills);
-
-        async Task<List<OptionTradeLegDataReadModel>> GetOptionLegData(int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus)
-            => [.. (await db
-                .Use(TradeDbCql.GetOptionLegData)
-                .SetParameters(new GetOptionLegData(orderId, tradeId, valueDate))
-                .ExecuteQueryAsync(MapToOptionLegData))
-                    .Where(e => e.TradeType == tradeType
-                        && e.DaysToExpiry == daysToExpiry
-                        && e.TradeStatus == tradeStatus
-                    )];
+            .AddTradePosition(tradePositions)
+            .SetTradeLimit((await tradeLimitTask)!)
+            .AddTradeTypeLimits(await tradeTypeLimitsTask)
+            .AddTradeFills(await tradeFillsTask);
     }
 
     /// <summary>
@@ -527,58 +536,69 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<ICollection<TradePositionReadModel>> GetTradePositionsAsync(int orderId, int tradeId)
     {
         var db = _dbFactory.TradeDb;
-        var tradePositions = await db.Use(TradeDbCql.GetTradePositions)
+        var tradePositionsTask = db.Use(TradeDbCql.GetTradePositions)
              .SetParameters(new GetTradePositions(orderId, tradeId))
              .ExecuteQueryAsync(MapToTradePosition!);
-        if (tradePositions.Count > 0)
+
+        var tradePositions = await tradePositionsTask;
+        if (tradePositions.Count == 0)
+            return tradePositions;
+
+        var optionLegsTask = db.Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
+            .SetParameters(new GetOptionLegsByOrderAndTrade(orderId, tradeId))
+            .ExecuteQueryAsync(MapToOptionLeg!);
+        var valueDates = tradePositions.Select(position => position.ValueDate).Distinct().ToArray();
+        var legDataByDate = new ICollection<OptionTradeLegDataReadModel>[valueDates.Length];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, valueDates.Length),
+            new ParallelOptions { MaxDegreeOfParallelism = 4 },
+            async (dateIndex, _) => legDataByDate[dateIndex] = await db.Use(TradeDbCql.GetOptionLegData)
+                .SetParameters(new GetOptionLegData(orderId, tradeId, valueDates[dateIndex]))
+                .ExecuteQueryAsync(MapToOptionLegData!));
+
+        var optionLegs = await optionLegsTask;
+        var optionLegById = optionLegs.ToDictionary(leg => leg.ContractId, StringComparer.Ordinal);
+        var legDataByPosition = BuildLegDataByPosition(legDataByDate, optionLegById, requireOptionLeg: false);
+        foreach (var position in tradePositions)
         {
-            var optionLegs = await GetOptionLegs();
-            foreach (var e in tradePositions)
+            if (legDataByPosition.TryGetValue(PositionKey(position), out var legData))
+                position.AddOptionLegData(legData);
+        }
+
+        return tradePositions;
+    }
+
+    static (TradeType TradeType, DateOnly ValueDate, int DaysToExpiry, TradeStatus TradeStatus) PositionKey(
+        TradePositionReadModel position)
+        => (position.TradeType, position.ValueDate, position.DaysToExpiry, position.TradeStatus);
+
+    static Dictionary<(TradeType TradeType, DateOnly ValueDate, int DaysToExpiry, TradeStatus TradeStatus), List<OptionTradeLegDataReadModel>> BuildLegDataByPosition(
+        IEnumerable<ICollection<OptionTradeLegDataReadModel>> legDataByDate,
+        IReadOnlyDictionary<string, OptionTradeLegReadModel> optionLegById,
+        bool requireOptionLeg)
+    {
+        var result = new Dictionary<(TradeType, DateOnly, int, TradeStatus), List<OptionTradeLegDataReadModel>>();
+        foreach (var legDataForDate in legDataByDate)
+        {
+            foreach (var legData in legDataForDate)
             {
-                var updatedOptionLegData = new List<OptionTradeLegDataReadModel>();
-                var optionLegData = await GetOptionLegData(e.TradeType, e.ValueDate, e.DaysToExpiry, e.TradeStatus);
-                foreach (var old in optionLegData)
+                OptionTradeLegReadModel? optionLeg;
+                if (requireOptionLeg)
+                    optionLeg = optionLegById[legData.OptionLegId];
+                else
+                    optionLegById.TryGetValue(legData.OptionLegId, out optionLeg);
+
+                var hydratedLegData = legData.SetOptionLeg(optionLeg);
+                var key = (legData.TradeType, legData.ValueDate, legData.DaysToExpiry, legData.TradeStatus);
+                if (!result.TryGetValue(key, out var positionLegData))
                 {
-                    updatedOptionLegData.Add(new OptionTradeLegDataReadModel(
-                        orderId: e.EntityId.OrderId,
-                        tradeId: e.EntityId.TradeId,
-                        tradeType: e.EntityId.TradeType,
-                        valueDate: e.EntityId.ValueDate,
-                        daysToExpiry: e.EntityId.DaysToExpiry,
-                        tradeStatus: e.EntityId.TradeStatus,
-                        optionLegId: old.OptionLegId,
-                        bidPrice: old.BidPrice,
-                        askPrice: old.AskPrice,
-                        impliedVolatility: old.ImpliedVolatility,
-                        delta: old.Delta,
-                        gamma: old.Gamma,
-                        theta: old.Theta,
-                        vega: old.Vega,
-                        rho: old.Rho,
-                        createdOn: old.CreatedOn,
-                        createdBy: old.CreatedBy,
-                        updatedOn: old.UpdatedOn,
-                        updatedBy: old.UpdatedBy).SetOptionLeg(optionLegs.Where(o => o.ContractId == old.OptionLegId).SingleOrDefault()));
+                    positionLegData = [];
+                    result.Add(key, positionLegData);
                 }
-                e.AddOptionLegData(updatedOptionLegData);
+                positionLegData.Add(hydratedLegData);
             }
         }
-        return tradePositions;
-
-
-        async Task<ICollection<OptionTradeLegReadModel>> GetOptionLegs()
-           => await db.Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
-                  .SetParameters(new GetOptionLegsByOrderAndTrade(orderId, tradeId))
-                  .ExecuteQueryAsync(MapToOptionLeg!);
-
-        async Task<ICollection<OptionTradeLegDataReadModel>> GetOptionLegData(TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus)
-            => [.. (await db.Use(TradeDbCql.GetOptionLegData)
-                   .SetParameters(new GetOptionLegData(orderId, tradeId, valueDate))
-                   .ExecuteQueryAsync(MapToOptionLegData!))
-                        .Where(e => e.TradeType == tradeType
-                            && e.TradeStatus == tradeStatus
-                            && e.DaysToExpiry == daysToExpiry
-                        )];
+        return result;
     }
 
     /// <summary>

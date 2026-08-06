@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Validation;
 
 public class OptionLegDataValidationRules : BaseValidationRules, IValidationRules<OptionTradeLegDataReadModel>
 {
+    static readonly OptionLegDataValidator Validator = new();
     public const string InstanceErrorMessage = "OptionLegsData instance is null";
     public const string TradeIdErrorMessage = "OptionLegsData.TradeId must be > 0";
     public const string OptionLegIdErrorMessage = "OptionLegsData.OptionLegId is required";
@@ -25,7 +26,7 @@ public class OptionLegDataValidationRules : BaseValidationRules, IValidationRule
     public const string CreatedByErrorMessage = "OptionLegsData.CreatedBy is required";
     public const string UpdatedByErrorMessage = "OptionLegsData.UpdatedBy is required";
 
-    public ValidationError[] Execute(OptionTradeLegDataReadModel optionLegsData) => Validate(optionLegsData, new OptionLegDataValidator());
+    public ValidationError[] Execute(OptionTradeLegDataReadModel optionLegsData) => Validate(optionLegsData, Validator);
 
     class OptionLegDataValidator : AbstractValidator<OptionTradeLegDataReadModel>
     {

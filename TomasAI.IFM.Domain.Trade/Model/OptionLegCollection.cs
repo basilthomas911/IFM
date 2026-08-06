@@ -1,8 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using System.Collections;
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Model;
 
@@ -27,14 +25,34 @@ public class OptionLegCollection(int tradeId) : IOptionLegCollection
     /// <param name="optionType"></param>
     /// <returns></returns>
     public IOptionLeg? this[OptionLegAction optionLegAction, OptionType optionType]
-        => _optionLegs.SingleOrDefault(e => e.TradeId == _tradeId && e.OptionLegAction == optionLegAction && e.OptionLegType == optionType);
+    {
+        get
+        {
+            IOptionLeg? result = null;
+            foreach (var optionLeg in _optionLegs)
+            {
+                if (optionLeg.TradeId != _tradeId || optionLeg.OptionLegAction != optionLegAction || optionLeg.OptionLegType != optionType)
+                    continue;
+                if (result is not null)
+                    throw new InvalidOperationException("Sequence contains more than one matching element");
+                result = optionLeg;
+            }
+            return result;
+        }
+    }
 
     /// <summary>
     /// chekc if selected option leg exists with collection
     /// </summary>
     /// <param name="contractId"></param>
     /// <returns></returns>
-    public bool Exists(string contractId) => _optionLegs.Any(e => e.TradeId == _tradeId && e.ContractId == contractId);
+    public bool Exists(string contractId)
+    {
+        foreach (var optionLeg in _optionLegs)
+            if (optionLeg.TradeId == _tradeId && optionLeg.ContractId == contractId)
+                return true;
+        return false;
+    }
 
     /// <summary>
     /// add option leg to collection
