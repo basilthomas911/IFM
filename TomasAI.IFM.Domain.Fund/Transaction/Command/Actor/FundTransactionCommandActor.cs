@@ -241,7 +241,7 @@ public class FundTransactionCommandActor(
                 var cmdErrorEvent = await ex.SendErrorEventAsync<IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
-            return CommandFailed(ex, command);
+            return new ServiceFailed<GuidResult>(errorEvent);
         }
         catch (Exception innerEx)
         {

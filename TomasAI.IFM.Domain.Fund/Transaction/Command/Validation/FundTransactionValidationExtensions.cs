@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Command.Validation;
 /// </summary>
 public static class FundTransactionValidationExtensions
 {
+    static readonly FundTransactionValidationRules Rules = new();
     /// <summary>
     /// Validates the FundReadModel against the FundValidationRules and adds any validation errors to the provided list of validation errors.
     /// </summary>
@@ -16,8 +17,8 @@ public static class FundTransactionValidationExtensions
     /// <returns></returns>
     public static List<ValidationError> ValidateFundTransaction(this List<ValidationError> validationErrors, FundTransactionReadModel fundTransaction)
     {
-        var ruleErrors = new FundTransactionValidationRules().Execute(fundTransaction);
-        if (ruleErrors is not null)
+        var ruleErrors = Rules.Execute(fundTransaction);
+        if (ruleErrors.Length > 0)
             validationErrors.AddRange(ruleErrors);
         return validationErrors;
     }
@@ -39,11 +40,18 @@ public static class FundTransactionValidationExtensions
         {
             var fundId = fundTransactions[0].FundId;
             var orderId = fundTransactions[0].OrderId;
-            if (!fundTransactions.All(e => e.FundId == fundId && e.OrderId == orderId))
-                validationErrors.Add(new ValidationError($"{9999}", "ValidateFundTransactions.FundTransactions must all have same FundId and OrderId"));
-            else
-                foreach (var fundTransaction in fundTransactions)
-                    ValidateFundTransaction(validationErrors, fundTransaction);
+            for (var index = 0; index < fundTransactions.Length; index++)
+            {
+                var fundTransaction = fundTransactions[index];
+                if (fundTransaction.FundId != fundId || fundTransaction.OrderId != orderId)
+                {
+                    validationErrors.Add(new ValidationError($"{9999}", "ValidateFundTransactions.FundTransactions must all have same FundId and OrderId"));
+                    return validationErrors;
+                }
+            }
+
+            for (var index = 0; index < fundTransactions.Length; index++)
+                ValidateFundTransaction(validationErrors, fundTransactions[index]);
         }
         return validationErrors;
     }

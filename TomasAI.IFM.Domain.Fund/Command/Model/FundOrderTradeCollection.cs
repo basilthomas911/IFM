@@ -38,6 +38,9 @@ public class FundOrderTradeCollection : IFundOrderTradeCollection
     public bool Exists(int tradeId) 
         => _fundOrderTrades.ContainsKey(tradeId);
 
+    public bool TryGet(int tradeId, out IFundOrderTrade? trade)
+        => _fundOrderTrades.TryGetValue(tradeId, out trade);
+
     /// <summary>
     /// add fund order trade to collection
     /// </summary>
@@ -61,6 +64,9 @@ public class FundOrderTradeCollection : IFundOrderTradeCollection
     /// <param name="item"></param>
     public void Remove(IFundOrderTrade item) 
         => _fundOrderTrades.Remove(item.TradeId);
+
+    public bool Remove(int tradeId)
+        => _fundOrderTrades.Remove(tradeId);
 
     /// <summary>
     /// return collection iterator

@@ -14,26 +14,9 @@ internal static class GetFundMaxProfitGenerated
     /// <returns> A task representing the asynchronous operation </returns>
     internal static async ValueTask<FundMaxProfitGeneratedReadModel> GetFundMaxProfitGeneratedAsync(
         this GetFundMaxProfitGeneratedQuery q, IDbContextFactory dbFactory)
-    {
-        var ordersStartDate = new DateOnly(q.TradeDate.Year, q.TradeDate.Month, 1);
-        var ordersEndDate = new DateOnly(q.TradeDate.Year, q.TradeDate.Month, q.TradeDate.Day);
-        var yearStart = new DateOnly(q.TradeDate.Year, 1, 1);
-        var yearEnd = new DateOnly(q.TradeDate.Year, 12, 31);
-
-        var db = dbFactory.FundDb;
-        return new (
-            fundId: q.FundId,
-            tradeDate: q.TradeDate,
-            fundBalance: await db.GetFundBalanceAsync(q.FundId),
-            fundProfitOrders: await db.GetFundProfitOrdersAsync(q.FundId, ordersStartDate, ordersEndDate),
-            fundLossOrders: await db.GetFundLossOrdersAsync(q.FundId, ordersStartDate, ordersEndDate),
-            fundDrawdownBalances: new FundDrawdownBalancesReadModel
-            (
-                FundId: q.FundId,
-                StartBalance: await db.GetFundStartingBalanceAsync(q.FundId, yearStart),
-                EndBalance: await db.GetFundEndingBalanceAsync(q.FundId, yearEnd)
-            )
-        );
-    }
+        => await FundQueryCalculations.GetMaxProfitGeneratedAsync(
+            dbFactory.FundDb,
+            q.FundId,
+            q.TradeDate).ConfigureAwait(false);
 
 }

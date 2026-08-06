@@ -22,34 +22,19 @@ public static class CreateFundTransaction
         if (e.FundTransaction is null)
             return e.UpdateFailed($"{e.CommandName}: fund transaction is null");
 
-        var fundTransactionEvent = e.FundTransaction.CreateFundTransactionEvent(e.CommandId, e.OriginatedOn, e.OriginatedBy);
-        if (fundTransactionEvent is not null)
-        {
-            var fundTransaction = fundTransactionEvent.FundTransaction.TransactionType switch
-            {
-                FundTransactionType.OpeningTrade or
-                FundTransactionType.OpeningTradeAdjustment or
-                FundTransactionType.TradeCommission or
-                FundTransactionType.TradeCommissionAdjustment or
-                FundTransactionType.UnrealizedTradePnl or
-                FundTransactionType.UnrealizedTradePnlAdjustment or
-                FundTransactionType.RealizedTradePnl or
-                FundTransactionType.RealizedTradePnlAdjustment or
-                FundTransactionType.CashDeposit or
-                FundTransactionType.CashDepositAdjustment or
-                FundTransactionType.CashWithdrawalAdjustment
-                    => await fundTransactionEvent.UpdateFundTransactionBalanceAsync(state).ConfigureAwait(false),
-                FundTransactionType.CashWithdrawal
-                    => await fundTransactionEvent.UpdateCashWithdrawalBalanceAsync(state).ConfigureAwait(false),
-                _ => default
-            };
-            if (fundTransaction is null)
-                return e.UpdateFailed($"CreateFundTransaction: unsupported fund transaction type: {fundTransactionEvent.FundTransaction.TransactionType}");
-            EventInitHelper.SetProperty(fundTransactionEvent, nameof(FundTransactionEvent.FundTransaction), fundTransaction);
-        }
-        else
+        if (!IsSupported(e.FundTransaction.TransactionType))
             return e.UpdateFailed($"CreateFundTransaction: fund transaction {e.FundTransaction.TransactionType} does not exist");
-        return e.UpdatedOk(() =>  state.Update(fundTransactionEvent!, e));
+
+        var currentBalance = await state.GetCurrentBalanceAsync(e.FundTransaction.FundId).ConfigureAwait(false);
+        var balance = e.FundTransaction.TransactionType == FundTransactionType.CashWithdrawal
+            ? currentBalance - e.FundTransaction.Amount
+            : currentBalance + e.FundTransaction.Amount;
+        var fundTransaction = e.FundTransaction with { Balance = balance };
+        var fundTransactionEvent = fundTransaction.CreateFundTransactionEvent(
+            e.CommandId,
+            e.OriginatedOn,
+            e.OriginatedBy);
+        return e.UpdatedOk(() => state.Update(fundTransactionEvent, e));
     }
 
     /// <summary>
@@ -100,27 +85,18 @@ public static class CreateFundTransaction
             CreatedOn = createdOn
         };
 
-    /// <summary>
-    /// Updates the balance of the fund transaction based on the current balance of the fund and the transaction amount.
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="state"></param>
-    /// <returns></returns>
-    static async ValueTask<FundTransactionReadModel> UpdateFundTransactionBalanceAsync(this FundTransactionEvent e, FundTransactionCommandState state)
-    {
-        var currentBalance = await state.GetCurrentBalanceAsync(e.FundTransaction.FundId).ConfigureAwait(false);
-        return e.FundTransaction with { Balance = currentBalance + e.FundTransaction.Amount };
-    }
-
-    /// <summary>
-    /// Creates a cash withdrawal fund transaction based on the current balance of the fund.
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="state"></param>
-    /// <returns></returns>
-    static async ValueTask<FundTransactionReadModel> UpdateCashWithdrawalBalanceAsync(this FundTransactionEvent e, FundTransactionCommandState state)
-    {
-        var currentBalance = await state.GetCurrentBalanceAsync(e.FundTransaction.FundId).ConfigureAwait(false);
-        return e.FundTransaction with { Balance = currentBalance - e.FundTransaction.Amount };
-    }
+    static bool IsSupported(FundTransactionType transactionType)
+        => transactionType is
+            FundTransactionType.OpeningTrade or
+            FundTransactionType.OpeningTradeAdjustment or
+            FundTransactionType.TradeCommission or
+            FundTransactionType.TradeCommissionAdjustment or
+            FundTransactionType.UnrealizedTradePnl or
+            FundTransactionType.UnrealizedTradePnlAdjustment or
+            FundTransactionType.RealizedTradePnl or
+            FundTransactionType.RealizedTradePnlAdjustment or
+            FundTransactionType.CashDeposit or
+            FundTransactionType.CashDepositAdjustment or
+            FundTransactionType.CashWithdrawal or
+            FundTransactionType.CashWithdrawalAdjustment;
 }

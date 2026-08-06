@@ -8,6 +8,9 @@ namespace TomasAI.IFM.Domain.Fund.Command.Validation;
 /// </summary>
 public static class FundValidationExtensions
 {
+    static readonly FundValidationRules FundRules = new();
+    static readonly FundOrderValidationRules FundOrderRules = new();
+    static readonly FundOrderTradeValidationRules FundOrderTradeRules = new();
     /// <summary>
     /// Validates the FundReadModel against the FundValidationRules and adds any validation errors to the provided list of validation errors.
     /// </summary>
@@ -16,8 +19,8 @@ public static class FundValidationExtensions
     /// <returns></returns>
     public static List<ValidationError> ValidateFund(this List<ValidationError> validationErrors, FundReadModel fund)
     {
-        var ruleErrors = new FundValidationRules().Execute(fund);
-        if (ruleErrors is not null)
+        var ruleErrors = FundRules.Execute(fund);
+        if (ruleErrors.Length > 0)
             validationErrors.AddRange(ruleErrors);
         return validationErrors;
     }
@@ -30,8 +33,8 @@ public static class FundValidationExtensions
     /// <returns>The updated list of validation errors, including any errors found during validation of the fund order.</returns>
     public static List<ValidationError> ValidateFundOrder(this List<ValidationError> validationErrors, FundOrderReadModel fundOrder)
     {
-        var ruleErrors = new FundOrderValidationRules().Execute(fundOrder);
-        if (ruleErrors is not null)
+        var ruleErrors = FundOrderRules.Execute(fundOrder);
+        if (ruleErrors.Length > 0)
             validationErrors.AddRange(ruleErrors);
         return validationErrors;
     }
@@ -44,8 +47,8 @@ public static class FundValidationExtensions
     /// <returns>The list of validation errors, including any errors found during validation of the specified fund order trade.</returns>
     public static List<ValidationError> ValidateFundOrderTrade(this List<ValidationError> validationErrors, FundOrderTradeReadModel fundOrderTrade)
     {
-        var ruleErrors = new FundOrderTradeValidationRules().Execute(fundOrderTrade);
-        if (ruleErrors is not null)
+        var ruleErrors = FundOrderTradeRules.Execute(fundOrderTrade);
+        if (ruleErrors.Length > 0)
             validationErrors.AddRange(ruleErrors);
         return validationErrors;
     }

@@ -13,7 +13,9 @@ public interface IFundOrderCollection : IEnumerable<IFundOrder>
     int Count { get; }
     IFundOrder this[int orderId] { get; }
     bool Exists(int orderId);
+    bool TryGet(int orderId, out IFundOrder? order);
     void Add(IFundOrder item);
     void AddRange(IEnumerable<IFundOrder> items);
     void Remove(IFundOrder item);
+    bool Remove(int orderId);
 }

@@ -77,24 +77,13 @@ public class Fund(
     /// </summary>
     /// <param name="order"></param>
     public void AddOrderToFund(IFundOrder order)
-    {
-        if (Orders.Exists(order.OrderId))
-            Orders.Remove(order);
-        Orders.Add(order);
-    }
+        => Orders.Add(order);
 
     /// <summary>
     /// remove order from fund
     /// </summary>
     /// <param name="orderId"></param>
-    public void RemoveOrderFromFund(int orderId)
-    {
-        var order = Orders
-            .Where(e => e.OrderId == orderId)
-            .FirstOrDefault();
-        if (order is not null)
-            Orders.Remove(order);
-    }
+    public void RemoveOrderFromFund(int orderId) => Orders.Remove(orderId);
 
     /// <summary>
     /// add new trade to fund order
@@ -102,18 +91,16 @@ public class Fund(
     /// <param name="trade">fund order trade</param>
     public void AddTradeToFundOrder(IFundOrderTrade trade)
     {
-        if (Orders.Exists(trade.OrderId))
+        if (Orders.TryGet(trade.OrderId, out var order))
         {
-            if (Orders[trade.OrderId].Trades.Exists(trade.TradeId))
-                Orders[trade.OrderId].Trades.Remove(trade);
-            Orders[trade.OrderId].Trades.Add(trade);
+            order!.Trades.Add(trade);
         }
     }
 
     public void CompleteFundOrder(int orderId)
     {
-        if (Orders.Exists(orderId))
-            Orders[orderId].SetClosed();
+        if (Orders.TryGet(orderId, out var order))
+            order!.SetClosed();
     }
 
     /// <summary>
@@ -123,14 +110,8 @@ public class Fund(
     /// <param name="tradeId"></param>
     public void RemoveTradeFromFundOrder(int orderId, int tradeId)
     {
-        if (Orders.Exists(orderId))
-        {
-            var trade = Orders[orderId].Trades
-                .Where(e => e.TradeId == tradeId)
-                .SingleOrDefault();
-            if (trade != null)
-                Orders[orderId].Trades.Remove(trade);
-        }
+        if (Orders.TryGet(orderId, out var order))
+            order!.Trades.Remove(tradeId);
     }
 
     /// <summary>
@@ -141,13 +122,8 @@ public class Fund(
     /// <param name="tradeState"></param>
     public void ChangeFundOrderState(int orderId, int tradeId, TradeState tradeState)
     {
-        if (Orders.Exists(orderId))
-        {
-            var trade = Orders[orderId].Trades
-            .Where(e => e.TradeId == tradeId)
-            .SingleOrDefault();
+        if (Orders.TryGet(orderId, out var order) && order!.Trades.TryGet(tradeId, out var trade))
             trade?.SetTradeState(tradeState);
-        }
     }
 
     /// <summary>
@@ -156,8 +132,7 @@ public class Fund(
     /// <param name="order"></param>
     public void CancelOrder(FundOrder order)
     {
-        if (Orders.Exists(order.OrderId))
-            Orders.Remove(order);
+        Orders.Remove(order.OrderId);
     }
 
     /// <summary>

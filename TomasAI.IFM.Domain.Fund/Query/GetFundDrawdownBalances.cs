@@ -15,11 +15,10 @@ internal static class GetFundDrawdownBalances
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FundDrawdownBalancesReadModel> GetFundDrawdownBalancesAsync(
         this GetFundDrawdownBalancesQuery q, IDbContextFactory dbFactory)
-    {
-        var db = dbFactory.FundDb;
-        var startingBalance = await db.GetFundStartingBalanceAsync(q.FundId, q.StartDate);
-        var endingBalance = await db.GetFundEndingBalanceAsync(q.FundId, q.EndDate);
-        return new FundDrawdownBalancesReadModel(q.FundId, startingBalance, endingBalance);
-    }
+        => await FundQueryCalculations.GetDrawdownBalancesAsync(
+            dbFactory.FundDb,
+            q.FundId,
+            q.StartDate,
+            q.EndDate).ConfigureAwait(false);
   
 }

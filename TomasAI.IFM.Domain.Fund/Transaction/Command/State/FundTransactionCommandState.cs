@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -100,20 +99,13 @@ public sealed class FundTransactionCommandState(IFundDbContext db)
     }
 
     /// <summary>
-    /// Handle an end-of-day processed transaction event. This will compute and store the
-    /// resulting transaction derived from the provided event.
+    /// Handle an end-of-day processed transaction event by applying its immutable payload.
     /// </summary>
     /// <param name="e">The <see cref="EndOfDayFundTransactionProcessedEvent"/> to apply.</param>
     /// <returns>True when the event was applied successfully; otherwise false.</returns>
     bool On(EndOfDayFundTransactionProcessedEvent e)
     {
-        var key = new FundTransactionEntityId(e.FundTransaction.FundId, e.FundTransaction.OrderId);
-        var prevTradeTransaction = _fundTransactions?.Get(key, TradeStatus.EndOfDay);
-        prevTradeTransaction ??= _fundTransactions?.Get(key, TradeStatus.Open);
-        var unrealizedTradePnlTransaction = new FundTransaction(e.FundTransaction);
-        unrealizedTradePnlTransaction = unrealizedTradePnlTransaction.SetBalance((prevTradeTransaction?.Balance ?? 0m) + e.FundTransaction.Amount);
-        EventInitHelper.SetProperty(e, nameof(EndOfDayFundTransactionProcessedEvent.FundTransaction), unrealizedTradePnlTransaction.ToViewModel());
-        _fundTransactions?.Add(unrealizedTradePnlTransaction);
+        _fundTransactions.Add(new FundTransaction(e.FundTransaction));
         return true;
     }
 

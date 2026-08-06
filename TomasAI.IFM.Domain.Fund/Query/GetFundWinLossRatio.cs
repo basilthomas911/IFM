@@ -14,20 +14,9 @@ internal static class GetFundWinLossRatio
     /// <returns></returns>
     internal static async ValueTask<FundWinLossRatioReadModel> GetFundWinLossRatioAsync(
         this GetFundWinLossRatioQuery q, IDbContextFactory dbFactory)
-    {
-        var db = dbFactory.FundDb;
-        var lossOrders = await db.GetFundLossOrdersAsync(q.FundId, q.StartDate, q.EndDate);
-        var lossCount = Convert.ToDouble(lossOrders.Count);
-        var profitOrders = await db.GetFundProfitOrdersAsync(q.FundId, q.StartDate, q.EndDate);
-        var winCount = Convert.ToDouble(profitOrders.Count);
-        var winRate = (winCount + lossCount) > 0 ? winCount / (winCount + lossCount) : 0;
-        var lossRate = (winCount + lossCount) > 0 ? lossCount / (winCount + lossCount) : 0;
-        var avgTradeProfit = Convert.ToDouble(profitOrders.Count > 0 ? profitOrders.Average(e => e.Amount) : 0);
-        var avgTradeLoss = Convert.ToDouble(lossOrders.Count > 0 ? lossOrders.Average(e => e.Amount) : 0);
-        var winRatio = winRate * avgTradeProfit;
-        var lossRatio = lossRate * avgTradeLoss;
-        var winLossRatio = lossRatio == 0 ? 0 : Math.Abs(winRatio / lossRatio);
-        var kellyCriteria = (lossRate * avgTradeProfit) == 0 ? 0 : winRate * Math.Abs(avgTradeLoss) / (lossRate * avgTradeProfit);
-        return new (winLossRatio, kellyCriteria);
-    }
+        => await FundQueryCalculations.GetWinLossRatioAsync(
+            dbFactory.FundDb,
+            q.FundId,
+            q.StartDate,
+            q.EndDate).ConfigureAwait(false);
 }

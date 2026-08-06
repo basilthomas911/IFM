@@ -14,12 +14,13 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Command.Validation;
 /// </remarks>
 public class FundTransactionValidationRules : BaseValidationRules, IValidationRules<FundTransactionReadModel>
 {
+    static readonly FundTransactionValidator Validator = new();
     /// <summary>
     /// Validate the supplied <paramref name="fundTransaction"/> and return any validation errors.
     /// </summary>
     /// <param name="fundTransaction">The fund transaction view model to validate.</param>
     /// <returns>An array of <see cref="ValidationError"/> describing validation problems. Empty if valid.</returns>
-    public ValidationError[] Execute(FundTransactionReadModel fundTransaction) => Validate(fundTransaction, new FundTransactionValidator());
+    public ValidationError[] Execute(FundTransactionReadModel fundTransaction) => Validate(fundTransaction, Validator);
 
     /// <summary>
     /// FluentValidation validator that defines the validation rules for <see cref="FundTransactionReadModel"/>.

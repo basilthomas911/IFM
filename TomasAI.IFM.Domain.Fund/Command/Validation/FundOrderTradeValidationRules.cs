@@ -15,13 +15,14 @@ namespace TomasAI.IFM.Domain.Fund.Command.Validation;
 /// </remarks>
 public class FundOrderTradeValidationRules : BaseValidationRules, IValidationRules<FundOrderTradeReadModel>
 {
+    static readonly FundOrderTradeValidator Validator = new();
     /// <summary>
     /// Validate the provided <see cref="FundOrderTradeReadModel"/> and return any validation errors.
     /// </summary>
     /// <param name="fundOrderTrade">The fund order trade view model to validate.</param>
     /// <returns>An array of <see cref="ValidationError"/> describing validation failures. Empty if valid.</returns>
     public ValidationError[] Execute(FundOrderTradeReadModel fundOrderTrade)
-        => Validate(fundOrderTrade, new FundOrderTradeValidator());
+        => Validate(fundOrderTrade, Validator);
 
     /// <summary>
     /// FluentValidation validator describing rules for <see cref="FundOrderTradeReadModel"/>.

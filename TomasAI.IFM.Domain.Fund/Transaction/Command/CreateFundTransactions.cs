@@ -26,7 +26,7 @@ public static class CreateFundTransactions
         var currentBalance = await state.GetCurrentBalanceAsync(e.FundTransactions[0].FundId).ConfigureAwait(false);
         try
         {
-            FundTransactionReadModel[] fundTransactions = [.. CreateFundTransactions(e, currentBalance)];
+            var fundTransactions = CreateFundTransactions(e.FundTransactions, currentBalance);
             return e.UpdatedOk( () => state.Update(e.CreateFundTransactionsEvent(fundTransactions), e));
         }
         catch (Exception ex)
@@ -40,10 +40,14 @@ public static class CreateFundTransactions
         /// <param name="e">The create fund transactions command.</param>
         /// <param name="currentBalance">The current balance of the fund.</param>
         /// <returns>An enumerable of created fund transaction read models.</returns>
-        static IEnumerable<FundTransactionReadModel> CreateFundTransactions(CreateFundTransactionsCommand e, decimal currentBalance)
+        static FundTransactionReadModel[] CreateFundTransactions(
+            FundTransactionReadModel[] source,
+            decimal currentBalance)
         {
-            foreach (var fundTx in e.FundTransactions)
+            var result = new FundTransactionReadModel[source.Length];
+            for (var index = 0; index < source.Length; index++)
             {
+                var fundTx = source[index];
                 var updateFundTx = fundTx.TransactionType switch
                 {
                     FundTransactionType.OpeningTrade => UpdateFundTransaction(fundTx, currentBalance),
@@ -60,9 +64,10 @@ public static class CreateFundTransactions
                     FundTransactionType.CashWithdrawalAdjustment => UpdateFundTransaction(fundTx, currentBalance),
                     _ => throw new CreateFundTransactionException($"Unsupported fund transaction type: {fundTx.TransactionType}"),
                 };
-                yield return updateFundTx;
+                result[index] = updateFundTx;
                 currentBalance = updateFundTx.Balance;
             }
+            return result;
         }
 
         /// <summary>

@@ -59,7 +59,7 @@ public sealed class FundCommandState
     /// <param name="orderId"></param>
     /// <returns></returns>
     public bool FundOrderExists(int fundId, int orderId)
-        => FundExists && FundId == fundId && _fund!.Orders.Exists(orderId);
+        => TryGetFundOrder(fundId, orderId, out _);
 
     /// <summary>
     /// Determines whether the specified fund order is closed.
@@ -68,7 +68,7 @@ public sealed class FundCommandState
     /// <param name="orderId">The unique identifier of the order to check within the specified fund.</param>
     /// <returns>true if the fund exists, the order exists within the fund, and the order status is Closed; otherwise, false.</returns>
     public bool IsFundOrderClosed(int fundId, int orderId)
-        => FundExists && FundId == fundId && _fund!.Orders.Exists(orderId) && _fund!.Orders[orderId].OrderStatus == OrderStatus.Closed;
+        => TryGetFundOrder(fundId, orderId, out var order) && order!.OrderStatus == OrderStatus.Closed;
 
     /// <summary>
     /// check if fund order trade exists
@@ -78,7 +78,24 @@ public sealed class FundCommandState
     /// <param name="tradeId"></param>
     /// <returns></returns>
     public bool FundOrderTradeExists(int fundId, int orderId, int tradeId)
-        => FundOrderExists(fundId, orderId) && _fund!.Orders[orderId].Trades.Exists(tradeId);
+        => TryGetFundOrderTrade(fundId, orderId, tradeId, out _, out _);
+
+    bool TryGetFundOrder(int fundId, int orderId, out IFundOrder? order)
+    {
+        order = null;
+        return _fund is not null && _fund.FundId == fundId && _fund.Orders.TryGet(orderId, out order);
+    }
+
+    bool TryGetFundOrderTrade(
+        int fundId,
+        int orderId,
+        int tradeId,
+        out IFundOrder? order,
+        out IFundOrderTrade? trade)
+    {
+        trade = null;
+        return TryGetFundOrder(fundId, orderId, out order) && order!.Trades.TryGet(tradeId, out trade);
+    }
 
     bool On(FundCreatedEvent e)
     {
@@ -102,9 +119,9 @@ public sealed class FundCommandState
 
     bool On(TradeAddedToFundOrderEvent e)
     {
-        if (FundOrderExists(e.FundOrderTrade.FundId, e.FundOrderTrade.OrderId))
+        if (TryGetFundOrder(e.FundOrderTrade.FundId, e.FundOrderTrade.OrderId, out var fundOrder))
         {
-            _fund!.AddTradeToFundOrder(new FundOrderTrade(e.FundOrderTrade));
+            fundOrder!.Trades.Add(new FundOrderTrade(e.FundOrderTrade));
             return true;
         }
         return false;
@@ -112,10 +129,13 @@ public sealed class FundCommandState
 
     bool On(FundOrderTradeStateChangedEvent e)
     {
-        if (FundOrderTradeExists(e.FundOrderTradeId.FundId, e.FundOrderTradeId.OrderId, e.FundOrderTradeId.TradeId))
+        if (TryGetFundOrderTrade(
+            e.FundOrderTradeId.FundId,
+            e.FundOrderTradeId.OrderId,
+            e.FundOrderTradeId.TradeId,
+            out _,
+            out var fundOrderTrade))
         {
-            var fundOrder = _fund!.Orders[e.FundOrderTradeId.OrderId];
-            var fundOrderTrade = fundOrder.Trades[e.FundOrderTradeId.TradeId];
             fundOrderTrade?.SetTradeState(e.TradeState);
             return true;
         }
@@ -124,9 +144,9 @@ public sealed class FundCommandState
 
     bool On(FundOrderClosedEvent e)
     {
-        if (FundOrderExists(e.FundOrderId.FundId, e.FundOrderId.OrderId))
+        if (TryGetFundOrder(e.FundOrderId.FundId, e.FundOrderId.OrderId, out var fundOrder))
         {
-            _fund!.Orders[e.FundOrderId.OrderId].SetClosed();
+            fundOrder!.SetClosed();
             return true;
         }
         return false;
@@ -134,10 +154,9 @@ public sealed class FundCommandState
 
     bool On(OrderRemovedFromFundEvent e)
     {
-        if (FundOrderExists(e.FundOrderId.FundId, e.FundOrderId.OrderId))
+        if (TryGetFundOrder(e.FundOrderId.FundId, e.FundOrderId.OrderId, out _))
         {
-            var fundOrder = _fund!.Orders[e.FundOrderId.OrderId];
-            _fund!.Orders.Remove(fundOrder);
+            _fund!.Orders.Remove(e.FundOrderId.OrderId);
             return true;
         }
         return false;
@@ -145,11 +164,14 @@ public sealed class FundCommandState
 
     bool On(TradeRemovedFromFundOrderEvent e)
     {
-        if (FundOrderTradeExists(e.FundOrderTradeId.FundId, e.FundOrderTradeId.OrderId, e.FundOrderTradeId.TradeId))
+        if (TryGetFundOrderTrade(
+            e.FundOrderTradeId.FundId,
+            e.FundOrderTradeId.OrderId,
+            e.FundOrderTradeId.TradeId,
+            out var fundOrder,
+            out _))
         {
-            var fundOrder = _fund!.Orders[e.FundOrderTradeId.OrderId];
-            var fundOrderTrade = fundOrder.Trades[e.FundOrderTradeId.TradeId]!;
-            fundOrder.Trades.Remove(fundOrderTrade);
+            fundOrder!.Trades.Remove(e.FundOrderTradeId.TradeId);
             return true;
         }
         return false;

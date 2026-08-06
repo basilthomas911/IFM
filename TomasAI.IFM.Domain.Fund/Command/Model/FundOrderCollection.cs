@@ -31,6 +31,9 @@ public class FundOrderCollection : IFundOrderCollection
 
     public bool Exists(int orderId) => _fundOrders.ContainsKey(orderId);
 
+    public bool TryGet(int orderId, out IFundOrder? order)
+        => _fundOrders.TryGetValue(orderId, out order);
+
     public void Add(IFundOrder item) => _fundOrders[item.OrderId] = item;
 
     public void AddRange(IEnumerable<IFundOrder> items)
@@ -40,6 +43,8 @@ public class FundOrderCollection : IFundOrderCollection
     }
 
     public void Remove(IFundOrder item) => _fundOrders.Remove(item.OrderId);
+
+    public bool Remove(int orderId) => _fundOrders.Remove(orderId);
 
     public IEnumerator<IFundOrder> GetEnumerator() => _fundOrders.Values.GetEnumerator();
 

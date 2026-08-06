@@ -14,7 +14,9 @@ public interface IFundOrderTradeCollection : IEnumerable<IFundOrderTrade>
     int Count { get; }
     IFundOrderTrade? this[int tradeId] { get; }
     bool Exists(int tradeId);
+    bool TryGet(int tradeId, out IFundOrderTrade? trade);
     void Add(IFundOrderTrade trade);
     void AddRange(IEnumerable<IFundOrderTrade> trade);
     void Remove(IFundOrderTrade trade);
+    bool Remove(int tradeId);
 }
