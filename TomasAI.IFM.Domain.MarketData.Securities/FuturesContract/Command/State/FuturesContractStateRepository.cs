@@ -33,7 +33,10 @@ public class FuturesContractStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<FuturesContractCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<FuturesContractCommandState, FuturesContractAddedEvent>(command).ConfigureAwait(false);
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<FuturesContractCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromSnapshotAsync<FuturesContractCommandState, FuturesContractAddedEvent>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// save futures contract state changes
@@ -43,7 +46,10 @@ public class FuturesContractStateRepository(
     /// <param name="command"
     /// <returns></returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesContractCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
+       => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesContractCommandState state, ICommand command, CancellationToken cancellationToken)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures contract query state

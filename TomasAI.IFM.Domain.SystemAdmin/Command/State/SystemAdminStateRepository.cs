@@ -36,8 +36,12 @@ public class SystemAdminStateRepository(
     /// <param name="command">The command for which the state is to be loaded.</param>
     /// <returns>A task that represents the asynchronous operation containing the loaded state.</returns>
     public ValueTask<SystemAdminCommandState> LoadStateAsync(ICommand command)
+        => LoadStateAsync(command, CancellationToken.None);
+
+    public ValueTask<SystemAdminCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+        cancellationToken.ThrowIfCancellationRequested();
         return ValueTask.FromResult(
             (SystemAdminCommandState)_stateFactory.CreateState<SystemAdminCommandState>());
     }
@@ -50,7 +54,10 @@ public class SystemAdminStateRepository(
     /// <param name="command">The command that triggered the state changes.</param>
     /// <returns>A task that represents the asynchronous save and denormalization operation.</returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, SystemAdminCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
+       => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SaveStateAsync(ICommandActorContext context, SystemAdminCommandState state, ICommand command, CancellationToken cancellationToken)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the system admin state

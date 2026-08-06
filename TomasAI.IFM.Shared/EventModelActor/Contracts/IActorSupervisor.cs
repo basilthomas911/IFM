@@ -26,7 +26,9 @@ public interface IActorSupervisor
     IActorMailbox CreateMailbox(ActorMailboxId mailboxId);
 
     ValueTask StartAsync(ActorMailboxId mailboxId); 
+    ValueTask StartAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken);
     ValueTask StopAsync(ActorMailboxId mailboxId);
+    ValueTask StopAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken);
 
     IActorThread GetThread(ActorThreadId threadId);
     ValueTask<IActorThread> GetThreadAsync(ActorThreadId threadId, CancellationToken ct);
@@ -49,7 +51,14 @@ public interface IActorSupervisor
     ValueTask RouteEventToAsync(NatsMsg<byte[]> routedFromMsg);
 
     ValueTask StartConsumersAsync();
+    ValueTask StartConsumersAsync(CancellationToken cancellationToken);
     ValueTask StopConsumersAsync();
+    ValueTask StopConsumersAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stops intake, drains accepted mailbox work, and then stops actors and their producers.
+    /// </summary>
+    ValueTask ShutdownAsync(CancellationToken cancellationToken = default);
 
     ICommandActorContext CreateCommandActorContext(ActorMailboxId mailboxId);
     IEventActorContext CreateEventActorContext(ActorMailboxId mailboxId);

@@ -57,15 +57,18 @@ public class NatsJetStreamActorProducer(
     /// <param name="mailboxId">The unique identifier of the mailbox. Cannot be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     public async ValueTask StartAsync(ActorMailboxId mailboxId)
+        => await StartAsync(mailboxId, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StartAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(mailboxId);
-        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_isRunning)
                 return;
-            _nc = await _connectionManager.GetClientAsync(_options.Url).ConfigureAwait(false);
-            _js = await _connectionManager.GetJetStreamContextAsync(_options.Url).ConfigureAwait(false);
+            _nc = await _connectionManager.GetClientAsync(_options.Url, cancellationToken).ConfigureAwait(false);
+            _js = await _connectionManager.GetJetStreamContextAsync(_options.Url, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _isRunning, true);
         }
         finally
@@ -83,8 +86,11 @@ public class NatsJetStreamActorProducer(
     /// </remarks>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     public async ValueTask StopAsync()
+        => await StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
-        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (!_isRunning)
@@ -114,13 +120,22 @@ public class NatsJetStreamActorProducer(
     public async ValueTask SendAsync<TCommand, TEntityId>(ActorSubject subject, TCommand command, TEntityId entityId)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
+        => await SendAsync(subject, command, entityId, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SendAsync<TCommand, TEntityId>(
+        ActorSubject subject,
+        TCommand command,
+        TEntityId entityId,
+        CancellationToken cancellationToken)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
     {
         try
         {
             IsArgumentNull.Check(subject);
             IsArgumentNull.Check(command);
             IsArgumentNull.Check(entityId);
-            await PublishAsync(subject.ToString(), command.ToCommand<TCommand, TEntityId>()).ConfigureAwait(false);
+            await PublishAsync(subject.ToString(), command.ToCommand<TCommand, TEntityId>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Published command to JetStream subject {Subject} CommandId={CommandId}", subject, command.CommandId);
         }
@@ -142,12 +157,17 @@ public class NatsJetStreamActorProducer(
     public async ValueTask SendAsync<TEvent, TEntityId>(ActorSubject subject, TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
+        => await SendAsync<TEvent, TEntityId>(subject, @event, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SendAsync<TEvent, TEntityId>(ActorSubject subject, TEvent @event, CancellationToken cancellationToken)
+        where TEvent : class, IEvent<TEntityId>
+        where TEntityId : IActorEntityId
     {
         try
         {
             IsArgumentNull.Check(subject);
             IsArgumentNull.Check(@event);
-            await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>()).ConfigureAwait(false);
+            await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Published event to JetStream subject {Subject} CommandId={CommandId}", subject, @event.CommandId);
         }
@@ -158,12 +178,13 @@ public class NatsJetStreamActorProducer(
         }
     }
 
-    async ValueTask PublishAsync<T>(string subject, T message)
+    async ValueTask PublishAsync<T>(string subject, T message, CancellationToken cancellationToken)
     {
         var acknowledgement = await _js.PublishAsync(
             subject,
             message,
-            serializer: NatsMessagePackSerializer<T>.Default).ConfigureAwait(false);
+            serializer: NatsMessagePackSerializer<T>.Default,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
         acknowledgement.EnsureSuccess();
         NatsMessagingMetrics.Published.Add(1);
     }

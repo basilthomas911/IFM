@@ -28,6 +28,8 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     readonly ILogger<ActorSupervisor> _logger;
     readonly IContainerInstance _container;
     readonly static string _serviceId = "ActorSupervisor";
+    readonly object _shutdownGate = new();
+    Task? _shutdownTask;
     int _disposed;
 
     /// <summary>
@@ -184,11 +186,20 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// operation. Each consumer is provided with the current instance and its associated key.</remarks>
     /// <returns></returns>
     public async ValueTask StartConsumersAsync()
+        => await StartConsumersAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StartConsumersAsync(CancellationToken cancellationToken)
     {
         foreach (var consumer in _consumers)
-            await consumer.Value.StartAsync(this, consumer.Key).ConfigureAwait(false);
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await consumer.Value.StartAsync(this, consumer.Key, default!, cancellationToken).ConfigureAwait(false);
+        }
         foreach (var jsConsumer in _jsConsumers)
-            await jsConsumer.Value.StartAsync(this, jsConsumer.Key).ConfigureAwait(false);
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await jsConsumer.Value.StartAsync(this, jsConsumer.Key, default!, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -199,11 +210,46 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// before proceeding to the next.</remarks>
     /// <returns></returns>
     public async ValueTask StopConsumersAsync()
+        => await StopConsumersAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StopConsumersAsync(CancellationToken cancellationToken)
     {
+        List<Exception>? failures = null;
         foreach (var consumer in _consumers)
-            await consumer.Value.StopAsync().ConfigureAwait(false);
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await consumer.Value.StopAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
         foreach (var jsConsumer in _jsConsumers)
-            await jsConsumer.Value.StopAsync().ConfigureAwait(false);
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await jsConsumer.Value.StopAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        if (failures is not null)
+            throw new AggregateException("One or more actor consumers failed to stop.", failures);
     }
 
     /// <summary>
@@ -245,11 +291,15 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no actor is found for the specified <paramref name="mailboxId"/>.</exception>
     public ValueTask StartAsync(ActorMailboxId mailboxId)
+        => StartAsync(mailboxId, CancellationToken.None);
+
+    public ValueTask StartAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(mailboxId);
+        cancellationToken.ThrowIfCancellationRequested();
         if (!_children.TryGetValue(mailboxId, out var actor))
             throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
-        return actor.StartAsync(this);
+        return actor.StartAsync(this, cancellationToken);
     }
 
     /// <summary>
@@ -259,11 +309,15 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no actor is found with the specified <paramref name="mailboxId"/>.</exception>
     public ValueTask StopAsync(ActorMailboxId mailboxId)
+        => StopAsync(mailboxId, CancellationToken.None);
+
+    public ValueTask StopAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(mailboxId);
+        cancellationToken.ThrowIfCancellationRequested();
         if (!_children.TryGetValue(mailboxId, out var actor))
             throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
-        return actor.StopAsync();
+        return actor.StopAsync(cancellationToken);
     }
 
     /// <summary>
@@ -465,14 +519,73 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// </summary>
     public IActorThreadPool ThreadPool => _threadPool;
 
-    /// <summary>Stops and awaits the shared actor workers.</summary>
+    /// <summary>
+    /// Stops external intake first, drains all accepted mailbox work, then stops actors and their producers.
+    /// Cancellation bounds the caller's wait without cancelling the shared shutdown operation once it has begun.
+    /// </summary>
+    public async ValueTask ShutdownAsync(CancellationToken cancellationToken = default)
+    {
+        Task shutdownTask;
+        lock (_shutdownGate)
+        {
+            if (_shutdownTask is null)
+            {
+                _shutdownTask = ShutdownCoreAsync();
+            }
+            shutdownTask = _shutdownTask;
+        }
+
+        await shutdownTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    async Task ShutdownCoreAsync()
+    {
+        List<Exception>? failures = null;
+        try
+        {
+            await StopConsumersAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            (failures ??= []).Add(exception);
+            _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor consumers during shutdown.");
+        }
+
+        try
+        {
+            if (_threadPool is IAsyncDisposable asyncDisposable)
+                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            (failures ??= []).Add(exception);
+            _logger.LogErrorEvent(_serviceId, exception, "Failed while draining the actor thread pool during shutdown.");
+        }
+
+        foreach (var actor in _children.Values)
+        {
+            try
+            {
+                await actor.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor {ActorId}.", actor.Id);
+            }
+        }
+
+        if (failures is not null)
+            throw new AggregateException("One or more actor shutdown stages failed.", failures);
+    }
+
+    /// <summary>Stops intake, drains workers, and releases supervised actor resources.</summary>
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
 
-        if (_threadPool is IAsyncDisposable asyncDisposable)
-            await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+        await ShutdownAsync(CancellationToken.None).ConfigureAwait(false);
 
         GC.SuppressFinalize(this);
     }

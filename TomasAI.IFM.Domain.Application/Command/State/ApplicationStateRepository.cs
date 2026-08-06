@@ -34,7 +34,10 @@ public sealed class ApplicationStateRepository(
     /// <param name="command">The command for which state is required.</param>
     /// <returns>The reconstructed <see cref="ApplicationCommandState"/>.</returns>
     public async ValueTask<ApplicationCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<ApplicationCommandState, ApplicationStartupEvent>(command).ConfigureAwait(false);
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<ApplicationCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromSnapshotAsync<ApplicationCommandState, ApplicationStartupEvent>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Save application state changes.
@@ -43,7 +46,10 @@ public sealed class ApplicationStateRepository(
     /// <param name="state">The current actor command state.</param>
     /// <param name="command">The command that produced the state changes.</param>
     public async ValueTask SaveStateAsync(ICommandActorContext context, ApplicationCommandState state, ICommand command)
-        => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
+        => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SaveStateAsync(ICommandActorContext context, ApplicationCommandState state, ICommand command, CancellationToken cancellationToken)
+        => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the application query state

@@ -54,11 +54,18 @@ public class NatsActorConsumer(
     Task[]? _dispatcherTasks;
 
     public async ValueTask StartAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName = default!)
+        => await StartAsync(supervisor, actorType, consumerName, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StartAsync(
+        IActorSupervisor supervisor,
+        ActorType actorType,
+        string consumerName,
+        CancellationToken cancellationToken)
     {
-        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await StartCoreAsync(supervisor, actorType, consumerName).ConfigureAwait(false);
+            await StartCoreAsync(supervisor, actorType, consumerName, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -94,7 +101,11 @@ public class NatsActorConsumer(
     /// <returns>A <see cref="ValueTask"/> that completes once the consumer has been started.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a received message targets an actor identifier that
     /// does not exist in the supervisor's <see cref="IActorSupervisor.Children"/> collection.</exception>
-    async ValueTask StartCoreAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName)
+    async ValueTask StartCoreAsync(
+        IActorSupervisor supervisor,
+        ActorType actorType,
+        string consumerName,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -109,7 +120,7 @@ public class NatsActorConsumer(
                 return;
             }
 
-            _nc = await _connectionManager.GetClientAsync(_options.Url).ConfigureAwait(false);
+            _nc = await _connectionManager.GetClientAsync(_options.Url, cancellationToken).ConfigureAwait(false);
             _cts = new CancellationTokenSource();
             var ctsRequestToken = _cts.Token;
             _requestOptions = new()
@@ -159,11 +170,14 @@ public class NatsActorConsumer(
     /// </remarks>
     /// <returns>A <see cref="ValueTask"/> that completes once the consumer has been stopped and disposed.</returns>
     public async ValueTask StopAsync()
+        => await StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
-        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await StopCoreAsync().ConfigureAwait(false);
+            await StopCoreAsync().AsTask().WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {

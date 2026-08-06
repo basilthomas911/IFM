@@ -168,6 +168,12 @@ public sealed class ApplicationCommandActor(
     /// <param name="command">The command that encountered the exception.</param>
     /// <param name="ex">The exception that was thrown during command processing.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure.</returns>
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
+
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.SaveStateAsync(context, (ApplicationCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex)
     {
         try

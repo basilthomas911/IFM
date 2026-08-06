@@ -52,24 +52,35 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the mailbox is not set before starting the actor.</exception>
     public async ValueTask StartAsync(IActorSupervisor supervisor)
+        => await StartAsync(supervisor, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StartAsync(IActorSupervisor supervisor, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(supervisor);
+        cancellationToken.ThrowIfCancellationRequested();
         if (Interlocked.CompareExchange(ref _lifecycle, 1, 0) != 0)
             return;
+        IActorProducer? producer = null;
         try
         {
             _supervisor = supervisor;
             Mailbox = supervisor.CreateMailbox(_actorId);
-            var producer = supervisor.GetProducer(_actorId);
-            await producer.StartAsync(_actorId).ConfigureAwait(false);
+            producer = supervisor.GetProducer(_actorId);
+            await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
             _context = supervisor.CreateCommandActorContext(actorId);
+            cancellationToken.ThrowIfCancellationRequested();
             await OnStartup(_context).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
         catch
         {
+            if (producer is not null)
+            {
+                try { await producer.StopAsync().ConfigureAwait(false); }
+                catch (Exception cleanupException) { _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId); }
+            }
             Volatile.Write(ref _lifecycle, 0);
             throw;
         }
@@ -84,13 +95,18 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// cleanup begins so concurrent or re-entrant stop requests are idempotent.</remarks>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous stop operation.</returns>
     public async ValueTask StopAsync()
+        => await StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (Interlocked.CompareExchange(ref _lifecycle, 3, 2) != 2)
             return;
         try
         {
             // stop any actor producers/consumers if set...
             var producer = _supervisor.GetProducer(_actorId);
+            // Once shutdown owns the actor lifecycle transition, finish cleanup atomically.
             await producer.StopAsync().ConfigureAwait(false);
             _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
         }
@@ -118,7 +134,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
     public ValueTask HandleMessageAsync(IActorMessage message)
-        => HandleMessageAsync(message, message.Subject.ThreadId);
+        => HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
 
     /// <summary>
     /// Handles an incoming message using a pre-resolved thread identifier, avoiding redundant subject parsing.
@@ -127,12 +143,19 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// <param name="threadId">The pre-resolved thread identifier from the caller.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
+        => await HandleMessageAsync(message, threadId, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask HandleMessageAsync(
+        IActorMessage message,
+        ActorThreadId threadId,
+        CancellationToken cancellationToken)
     {
         ICommand command = default!;
         int errorCode = 9998;
         ServiceResult<GuidResult> result;
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 command = ParseMessage(_context!, message);
@@ -147,18 +170,31 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             errorCode = command.ErrorCode;
 
             /// check if the message is a command and validate it...
-            await OnValidateAsync(_context!, threadId, command);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.CanBeCanceled)
+                await OnValidateAsync(_context!, threadId, command, cancellationToken);
+            else
+                await OnValidateAsync(_context!, threadId, command);
 
             /// load the current state, process the message, and save the updated state...
-            var state = await OnLoadStateAsync(_context!, threadId, command);
+            cancellationToken.ThrowIfCancellationRequested();
+            var state = cancellationToken.CanBeCanceled
+                ? await OnLoadStateAsync(_context!, threadId, command, cancellationToken)
+                : await OnLoadStateAsync(_context!, threadId, command);
             state?.Id = threadId;
 
             /// process the message...
-            result = await ReceiveAsync(_context!, state!, command);
+            cancellationToken.ThrowIfCancellationRequested();
+            result = cancellationToken.CanBeCanceled
+                ? await ReceiveAsync(_context!, state!, command, cancellationToken)
+                : await ReceiveAsync(_context!, state!, command);
 
             /// save the updated state...
             await OnSaveStateAsync(_context!, threadId, state!, command);
-
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -190,16 +226,52 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     protected virtual ValueTask OnStartup(ICommandActorContext context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnShutdown(ICommandActorContext context) => ValueTask.CompletedTask;
     protected abstract ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand command);
+    protected virtual ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
+        ICommandActorContext context,
+        IActorState state,
+        ICommand command,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ReceiveAsync(context, state, command);
+    }
     protected virtual ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnValidateAsync(
+        ICommandActorContext context,
+        ActorThreadId threadId,
+        ICommand command,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnValidateAsync(context, threadId, command);
+    }
     protected virtual ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command )
     {
         return ValueTask.FromResult<IActorState>(default!);
+    }
+
+    protected virtual ValueTask<IActorState> OnLoadStateAsync(
+        ICommandActorContext context,
+        ActorThreadId threadId,
+        ICommand command,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnLoadStateAsync(context, threadId, command);
     }
 
     protected virtual ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
     {
         return ValueTask.CompletedTask;
     }
+
+    protected virtual ValueTask OnSaveStateAsync(
+        ICommandActorContext context,
+        ActorThreadId threadId,
+        IActorState state,
+        ICommand command,
+        CancellationToken cancellationToken)
+        => OnSaveStateAsync(context, threadId, state, command);
 
     protected abstract ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex);
 

@@ -13,9 +13,7 @@ namespace TomasAI.IFM.Application.Api.Server;
 /// actor-based event model architecture.</remarks>
 public static class ActorMaps
 {
-    static IActorSupervisor _supervisor = default!;
-    static string _serviceId = "ActorMaps";
-    static List<IActor> _actors = [];
+    const string ServiceId = "ActorMaps";
 
     /// <summary>
     /// Configures and registers event model actors, producers, and consumers with the application's actor supervisor,
@@ -28,72 +26,76 @@ public static class ActorMaps
     /// running.</remarks>
     /// <param name="app">The web application instance to which the event model actors and related services will be registered.</param>
     /// <param name="logger">The logger used to record informational and error messages during actor initialization and startup.</param>
+    /// <param name="cancellationToken">Cancels actor infrastructure startup before the host begins accepting requests.</param>
     /// <returns>The same web application instance, enabling method chaining.</returns>
-    public static WebApplication MapEventModelActors(this WebApplication app, ILogger logger)
+    public static async Task<WebApplication> MapEventModelActorsAsync(
+        this WebApplication app,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
     {
         // get supervisor...
-        _supervisor = app.Services.GetRequiredService<IActorSupervisor>();
+        var supervisor = app.Services.GetRequiredService<IActorSupervisor>();
+        var actors = new List<IActor>();
 
         // get actor types...
-        var registry = _supervisor.Container.Resolve<IActorRegistry>();
+        var registry = supervisor.Container.Resolve<IActorRegistry>();
 
         // get actor factory...
-        var factory = _supervisor.Container.Resolve<IActorFactory>();
+        var factory = supervisor.Container.Resolve<IActorFactory>();
 
         // add all domain actors to supervisor...
         var actorTypes = registry.ActorTypes;
         foreach (var actorType in actorTypes)
         {
             var actor = factory.GetActor(actorType);
-            _actors.Add(actor);
-            _supervisor.AddActor(actor);
-            var producer = _supervisor.Container.Resolve<IActorProducer>();
+            actors.Add(actor);
+            supervisor.AddActor(actor);
+            var producer = supervisor.Container.Resolve<IActorProducer>();
             if (producer is not null)
-                _supervisor.AddProducer(actor.Id, producer);
+                supervisor.AddProducer(actor.Id, producer);
 
             if (actor.Id.ActorType == ActorType.Event)
             {
-                var jsProducer = _supervisor.Container.Resolve<IJSActorProducer>();
+                var jsProducer = supervisor.Container.Resolve<IJSActorProducer>();
                 if (jsProducer is not null)
-                    _supervisor.AddJSProducer(actor.Id, jsProducer);
+                    supervisor.AddJSProducer(actor.Id, jsProducer);
             }
 
         }
 
-        var actorService = _supervisor.Container.Resolve<IActorService>();
         List<ActorType> consumerTypes = [ActorType.Command, ActorType.Query, ActorType.Supervisor];
         foreach (var consumerType in consumerTypes)
         {
-            var consumer = _supervisor.Container.Resolve<IActorConsumer>();
+            var consumer = supervisor.Container.Resolve<IActorConsumer>();
             if (consumer is not null)
-                _supervisor.AddConsumer(consumerType, consumer);
+                supervisor.AddConsumer(consumerType, consumer);
         }
 
         List<ActorType> jsConsumerTypes = [ActorType.Event];
         foreach (var consumerType in jsConsumerTypes)
         {
-            var consumer = _supervisor.Container.Resolve<IJSActorConsumer>();
+            var consumer = supervisor.Container.Resolve<IJSActorConsumer>();
             if (consumer is not null)
-                _supervisor.AddConsumer(consumerType, consumer);
+                supervisor.AddConsumer(consumerType, consumer);
         }
 
-        Task.Run(async () =>
+        try
         {
-            try
+            await supervisor.StartConsumersAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var actor in actors)
             {
-                await _supervisor.StartConsumersAsync();
-                foreach (var e in _actors)
-                {
-                    await e.StartAsync(_supervisor);
-                    logger.LogInformationEvent(_serviceId, "Started {ActorType} actor.", e.GetType().Name);
-                }
-                logger.LogInformationEvent(_serviceId, "Event model actor supervisor started with {ActorCount} actors.", actorTypes.Length);
+                cancellationToken.ThrowIfCancellationRequested();
+                await actor.StartAsync(supervisor, cancellationToken).ConfigureAwait(false);
+                logger.LogInformationEvent(ServiceId, "Started {ActorType} actor.", actor.GetType().Name);
             }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to start event model actor supervisor.");
-            }
-        }).Wait();
+            logger.LogInformationEvent(ServiceId, "Event model actor supervisor started with {ActorCount} actors.", actorTypes.Length);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to start event model actor supervisor.");
+            await supervisor.ShutdownAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
 
         return app;
     }

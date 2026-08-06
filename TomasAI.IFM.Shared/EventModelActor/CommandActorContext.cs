@@ -45,10 +45,19 @@ public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId ac
     public async ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
+        => await SendAsync<TEvent, TEntityId>(@event, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SendAsync<TEvent, TEntityId>(TEvent @event, CancellationToken cancellationToken)
+        where TEvent : class, IEvent<TEntityId>
+        where TEntityId : IActorEntityId
     {
         var actorId = @event.Subject.ActorId;
-        await (_jsProducer ??= _supervisor.GetJSProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
-        await (_producer ??= _supervisor.GetProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
+        await (_jsProducer ??= _supervisor.GetJSProducer(actorId))
+            .SendAsync<TEvent, TEntityId>(@event.Subject, @event, cancellationToken)
+            .ConfigureAwait(false);
+        await (_producer ??= _supervisor.GetProducer(actorId))
+            .SendAsync<TEvent, TEntityId>(@event.Subject, @event, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>

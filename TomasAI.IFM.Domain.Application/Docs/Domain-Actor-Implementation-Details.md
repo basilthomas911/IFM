@@ -44,6 +44,8 @@ The state accepts `ApplicationStartupEvent` and `ApplicationShutdownEvent`. The 
 
 Add a lifecycle command by updating its shared contract, command parse/receive/validation maps, handler, state event application, and repository denormalization. Add an event consumer by aligning the event actor mailbox name and populating both event maps.
 
-## TODO: solution-wide graceful cancellation
+## Solution-wide graceful cancellation
 
-Cancellation remains a coordinated solution-wide follow-up. The supervisor token must flow through actor dispatch, lifecycle handlers, state repositories, event-source storage, denormalization, and publication so shutdown can drain or cancel work without leaving persistence and publication in an ambiguous state. Do not introduce partial Application-only cancellation semantics.
+The solution-wide cancellation phase is now in progress. Application command validation and state replay honor the actor token through the event-source repository and storage providers. Once event persistence begins, save and required publication complete without caller cancellation so a committed command cannot be reported ambiguously as canceled.
+
+The API host awaits actor startup without `Task.Run(...).Wait()` and invokes the supervisor's idempotent shutdown after HTTP intake stops. The supervisor then stops message consumers, drains accepted mailbox work, and stops actor-owned producers. See `Docs/Solution-Wide-Graceful-Cancellation-Implementation-Details.md` for the complete semantics, implemented coverage, exclusions, and remaining query/read-model work.

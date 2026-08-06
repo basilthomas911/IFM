@@ -159,12 +159,16 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier  of the
     /// specified event stream as a <see langword="long"/>.</returns>
     public async Task<long> GetEventStreamIdAsync(string eventStream)
+        => await GetEventStreamIdAsync(eventStream, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<long> GetEventStreamIdAsync(string eventStream, CancellationToken cancellationToken)
     {
-        return (await _blackboardService.EventSourcing.EventStreamId.GetAsync(eventStream, InsertEntityTypeAsync)).EventStreamId;
+        var pending = _blackboardService.EventSourcing.EventStreamId.GetAsync(eventStream, InsertEntityTypeAsync);
+        return (await pending.AsTask().WaitAsync(cancellationToken).ConfigureAwait(false)).EventStreamId;
 
         async Task<EventStreamIdReadModel> InsertEntityTypeAsync(string eventStream)
         {
-            var eventStreamId = await InsertEventStreamAsync(eventStream);
+            var eventStreamId = await InsertEventStreamAsync(eventStream, cancellationToken).ConfigureAwait(false);
             return new EventStreamIdReadModel(eventStreamId, eventStream);
         }
     }
@@ -181,15 +185,23 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <param name="domainEvents">The collection of domain events to be saved. Cannot be null or empty.</param>
     /// <returns>A <see cref="DomainEventCollection"/> containing the saved domain events, including their updated identifiers.</returns>
     /// <exception cref="StorageException">Thrown if a storage-related error occurs during the operation.</exception>
-    public async Task<DomainEventCollection> SaveEventsAsync( string eventStream, Guid commandId, DomainEventCollection domainEvents)
+    public async Task<DomainEventCollection> SaveEventsAsync(string eventStream, Guid commandId, DomainEventCollection domainEvents)
+        => await SaveEventsAsync(eventStream, commandId, domainEvents, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<DomainEventCollection> SaveEventsAsync(
+        string eventStream,
+        Guid commandId,
+        DomainEventCollection domainEvents,
+        CancellationToken cancellationToken)
     {
         var savedEvents = new DomainEventCollection();
         List<(int EventNameId, IEvent DomainEvent)> eventLogParams = [];
 
-        var streamId = await GetEventStreamIdAsync(eventStream);
+        var streamId = await GetEventStreamIdAsync(eventStream, cancellationToken).ConfigureAwait(false);
         foreach (var e in domainEvents)
         {
-            var eventNameId = await GetEventNameIdFromDomainEventAsync(e);
+            cancellationToken.ThrowIfCancellationRequested();
+            var eventNameId = await GetEventNameIdFromDomainEventAsync(e, cancellationToken).ConfigureAwait(false);
             eventLogParams.Add((eventNameId, e));
         }
         var db = _dbFactory.ActorEventSourceDb;
@@ -208,7 +220,8 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                         e.EventNameId,
                         e.DomainEvent.ToEventData(),
                         commandId,
-                        eventDate));
+                        eventDate,
+                        cancellationToken).ConfigureAwait(false));
                 savedEvents.Add(e.DomainEvent);
             }
             tx?.Commit();
@@ -219,6 +232,11 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             throw;
         }
         catch (StorageException)
+        {
+            tx?.Rollback();
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             tx?.Rollback();
             throw;
@@ -240,6 +258,13 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <param name="commandData">A serialized representation of the command's data to be stored in the log. Cannot be null or empty.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task InsertCommandLogAsync(ICommand command, DateTime commandTimestamp, string commandData)
+        => await InsertCommandLogAsync(command, commandTimestamp, commandData, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task InsertCommandLogAsync(
+        ICommand command,
+        DateTime commandTimestamp,
+        string commandData,
+        CancellationToken cancellationToken)
         => await _dbFactory.ActorEventSourceDb
                 .Use(EventSourceDbSql.InsertCommandLog)
                 .SetParameters(new InsertActorCommandLog(
@@ -251,7 +276,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                     commandStatus: $"{CommandStatus.InProgress}",
                     commandData: commandData
                 ))
-                .ExecuteCommandAsync();
+                .ExecuteCommandAsync(cancellationToken);
 
     /// <summary>
     /// Asynchronously inserts a log entry for the result of an event projector into the event source database.
@@ -341,6 +366,13 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <param name="commandStatus">The new status to assign to the command in the log.</param>
     /// <returns>A task that represents the asynchronous update operation.</returns>
     public async Task UpdateCommandLogAsync(Guid commandId, DateTime updateTimestamp, CommandStatus commandStatus)
+        => await UpdateCommandLogAsync(commandId, updateTimestamp, commandStatus, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task UpdateCommandLogAsync(
+        Guid commandId,
+        DateTime updateTimestamp,
+        CommandStatus commandStatus,
+        CancellationToken cancellationToken)
         => await _dbFactory.ActorEventSourceDb
                 .Use(EventSourceDbSql.UpdateCommandLog)
                 .SetParameters(new UpdateCommandLog(
@@ -348,7 +380,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                     commandStatus: $"{commandStatus}",
                     updateTimestamp: updateTimestamp
                 ))
-                .ExecuteCommandAsync();
+                .ExecuteCommandAsync(cancellationToken);
 
     /// <summary>
     /// Deletes an event log entry from the database based on the specified event version.
@@ -456,20 +488,27 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <returns>The unique identifier of the event stream. If the event stream already exists, its existing identifier is
     /// returned; otherwise, the identifier of the newly inserted event stream is returned.</returns>
     internal async Task<long> InsertEventStreamAsync(string eventStream)
+        => await InsertEventStreamAsync(eventStream, CancellationToken.None).ConfigureAwait(false);
+
+    internal async Task<long> InsertEventStreamAsync(string eventStream, CancellationToken cancellationToken)
     {
-        var eventStreamIdModel = await GetEventStreamIdFromDbAsync(eventStream);
+        var eventStreamIdModel = await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.GetEventStreamId)
+            .SetParameters(new GetEventStreamId(eventStream))
+            .ExecuteSingleAsync<EventStreamIdReadModel>(MapToEventStreamId, cancellationToken)
+            .ConfigureAwait(false);
         if (eventStreamIdModel is not null)
             return eventStreamIdModel.EventStreamId;
 
         await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.DeleteEventStreamId)
             .SetParameters(new DeleteEventStreamId(eventStream))
-            .ExecuteCommandAsync();
+            .ExecuteCommandAsync(cancellationToken);
 
         return await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.InsertEventStreamId)
             .SetParameters(new InsertEventStreamId(eventStream))
-            .ExecuteScalarAsync(MapToLong);
+            .ExecuteScalarAsync(MapToLong, cancellationToken);
     }
         
    /// <summary>
@@ -480,7 +519,10 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
    /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier for the event
    /// name associated with the specified domain event type.</returns>
     public async Task<int> GetEventNameIdFromDomainEventAsync<TEvent>(TEvent domainEvent) where TEvent : IEvent
-        =>  await GetEventNameIdFromTypeAsync(domainEvent.GetType());
+        => await GetEventNameIdFromDomainEventAsync(domainEvent, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<int> GetEventNameIdFromDomainEventAsync<TEvent>(TEvent domainEvent, CancellationToken cancellationToken) where TEvent : IEvent
+        => await GetEventNameIdFromTypeAsync(domainEvent.GetType(), cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously retrieves the unique identifier for the event name associated with the specified event type.
@@ -489,7 +531,10 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier  for the event
     /// name associated with the specified event type.</returns>
     internal async Task<int> GetEventNameIdFromTypeAsync<TEvent>() where TEvent : IEvent
-        =>  await GetEventNameIdFromTypeAsync(typeof(TEvent));
+        => await GetEventNameIdFromTypeAsync(typeof(TEvent), CancellationToken.None).ConfigureAwait(false);
+
+    internal async Task<int> GetEventNameIdFromTypeAsync<TEvent>(CancellationToken cancellationToken) where TEvent : IEvent
+        => await GetEventNameIdFromTypeAsync(typeof(TEvent), cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously retrieves the unique identifier for an event name based on the specified event type.
@@ -500,19 +545,19 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// cref="Type.FullName"/> and <see cref="Type.Name"/> properties are used to determine the event name and type.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier  for the event
     /// name associated with the specified event type.</returns>
-    async Task<int> GetEventNameIdFromTypeAsync(Type eventType)
+    async Task<int> GetEventNameIdFromTypeAsync(Type eventType, CancellationToken cancellationToken)
     {
         //var eventTypeFullName = string.IsNullOrEmpty(eventType.AssemblyQualifiedName) ? string.Empty : $"{AssemblyQualifiedName}";
         var eventTypeFullName = eventType.AssemblyQualifiedName;
         if(!_eventNameIdCache.TryGetValue(eventTypeFullName, out EventNameIdReadModel eventNameIdModel))
         {
-            eventNameIdModel = await GetEventNameIdFromDbAsync(eventType.Name, eventTypeFullName);
+            eventNameIdModel = await GetEventNameIdFromDbAsync(eventType.Name, eventTypeFullName, cancellationToken).ConfigureAwait(false);
             if (eventNameIdModel.IsValid)
             {
                 _eventNameIdCache.TryAdd(eventTypeFullName, eventNameIdModel);
                 return eventNameIdModel.EventNameId;
             }
-            var newEventNameIdModel = await InsertEventNameIdAsync(eventType.Name, eventTypeFullName);
+            var newEventNameIdModel = await InsertEventNameIdAsync(eventType.Name, eventTypeFullName).ConfigureAwait(false);
             _eventNameIdCache.TryAdd(eventTypeFullName, newEventNameIdModel);
             return newEventNameIdModel.EventNameId;
         }
@@ -521,17 +566,17 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
 
         async Task<EventNameIdReadModel> InsertEventNameIdAsync(string eventName, string eventTypeName)
         {
-            var eventNameIdModel = await GetEventNameIdFromDbAsync(eventName, eventTypeName);
+            var eventNameIdModel = await GetEventNameIdFromDbAsync(eventName, eventTypeName, cancellationToken).ConfigureAwait(false);
             if (eventNameIdModel.IsValid)
                 return eventNameIdModel;
             await _dbFactory.ActorEventSourceDb
                   .Use(EventSourceDbSql.DeleteEventNameId)
                   .SetParameters(new DeleteEventNameId(eventName, eventTypeName))
-                  .ExecuteCommandAsync();
+                  .ExecuteCommandAsync(cancellationToken);
             var eventNameId = await _dbFactory.ActorEventSourceDb
                   .Use(EventSourceDbSql.InsertEventNameId)
                   .SetParameters(new InsertEventNameId(eventName, eventTypeName))
-                  .ExecuteScalarAsync(MapToInt);
+                  .ExecuteScalarAsync(MapToInt, cancellationToken);
             return new EventNameIdReadModel(eventNameId, eventName, eventTypeName);
         }
     }
@@ -547,10 +592,16 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <returns>An <see cref="EventNameIdReadModel"/> containing the event name and ID if the event is found; otherwise, <see
     /// langword="null"/>.</returns>
     internal async Task<EventNameIdReadModel> GetEventNameIdFromDbAsync(string eventName, string eventTypeName)
+        => await GetEventNameIdFromDbAsync(eventName, eventTypeName, CancellationToken.None).ConfigureAwait(false);
+
+    internal async Task<EventNameIdReadModel> GetEventNameIdFromDbAsync(
+        string eventName,
+        string eventTypeName,
+        CancellationToken cancellationToken)
         => await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.GetEventNameId)
             .SetParameters(new GetEventNameId(eventName, eventTypeName))
-            .ExecuteSingleAsync<EventNameIdReadModel>(MapToEventNameId);
+            .ExecuteSingleAsync<EventNameIdReadModel>(MapToEventNameId, cancellationToken);
 
     /// <summary>
     /// Inserts a new event log entry into the database asynchronously.
@@ -571,11 +622,12 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         int eventNameId,
         string eventData,
         Guid commandId,
-        DateTime eventTimestamp)
+        DateTime eventTimestamp,
+        CancellationToken cancellationToken)
         => await db
                 .Use(EventSourceDbSql.InsertEventLog)
                 .SetParameters(new InsertEventLog(eventStreamId, eventNameId, eventData, commandId, $"{eventTimestamp:o}"))
-                .ExecuteScalarAsync(MapToLong);
+                .ExecuteScalarAsync(MapToLong, cancellationToken);
 
     /// <summary>
     /// Retrieves a collection of domain events associated with the specified event stream ID.
@@ -646,12 +698,19 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <param name="reducerAction">The action invoked with the mapped <see cref="EventStreamReadModel"/> sequence.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     public async ValueTask MapReduceActorEventStreamAsync<TState>(long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction) where TState : IActorState<TState>
+        => await MapReduceActorEventStreamAsync<TState>(eventStreamId, reducerAction, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask MapReduceActorEventStreamAsync<TState>(
+        long eventStreamId,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken)
+        where TState : IActorState<TState>
     {
         var eventStream = new EventStreamReadModel();
         await _dbFactory.ActorEventSourceDb
                 .Use(EventSourceDbSql.GetEventLogByEventStreamId)
                 .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
-                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction);
+                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken);
 
         EventStreamReadModel EventStreamMapper(IObjectDataRecord o)
         {
@@ -674,15 +733,24 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     public async ValueTask MapReduceActorEventStreamAsync<TState, TEvent>(long eventStreamId, int lastNRange, Action<IEnumerable<EventStreamReadModel>> reducerAction)
         where TState : IActorState<TState>
         where TEvent : IEvent
+        => await MapReduceActorEventStreamAsync<TState, TEvent>(eventStreamId, lastNRange, reducerAction, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask MapReduceActorEventStreamAsync<TState, TEvent>(
+        long eventStreamId,
+        int lastNRange,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken)
+        where TState : IActorState<TState>
+        where TEvent : IEvent
     {
-        var eventNameId = await GetEventNameIdFromTypeAsync<TEvent>();
+        var eventNameId = await GetEventNameIdFromTypeAsync<TEvent>(cancellationToken).ConfigureAwait(false);
         await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.GetEventLogLastNRangeByEventName)
             .SetParameters(new GetEventLogLastNRangeByEventName(
                 eventStreamId,
                 eventNameId,
                 Math.Max(0, lastNRange)))
-            .ExecuteMapReduceAsync(MapToEventStream, reducerAction);
+            .ExecuteMapReduceAsync(MapToEventStream, reducerAction, cancellationToken);
     }
 
     /// <summary>
@@ -696,21 +764,29 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     public async ValueTask MapReduceActorEventStreamAsync<TState, TSnapshot>(long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction)
         where TState : IActorState<TState>
         where TSnapshot : IEvent
+        => await MapReduceActorEventStreamAsync<TState, TSnapshot>(eventStreamId, reducerAction, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask MapReduceActorEventStreamAsync<TState, TSnapshot>(
+        long eventStreamId,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken)
+        where TState : IActorState<TState>
+        where TSnapshot : IEvent
     {
         var eventStream = new EventStreamReadModel();
-        var snapshotEventNameId = await GetEventNameIdFromTypeAsync<TSnapshot>();
+        var snapshotEventNameId = await GetEventNameIdFromTypeAsync<TSnapshot>(cancellationToken).ConfigureAwait(false);
         var db = _dbFactory.ActorEventSourceDb;
         var maxEventVersion = await db.Use(EventSourceDbSql.GetMaxEventVersion)
             .SetParameters(new GetMaxEventVersion(eventStreamId, snapshotEventNameId))
-            .ExecuteScalarAsync(MapToLong);
+            .ExecuteScalarAsync(MapToLong, cancellationToken);
         if (maxEventVersion > 0)
             await db.Use(EventSourceDbSql.GetEventLogByMaxEventVersion)
                 .SetParameters(new GetEventLogByMaxEventVersion(eventStreamId, maxEventVersion))
-                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction);
+                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken);
         else
             await db.Use(EventSourceDbSql.GetEventLogByEventStreamId)
                 .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
-                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction);
+                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken);
 
         EventStreamReadModel EventStreamMapper(IObjectDataRecord o)
         {
@@ -732,9 +808,23 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         where TState : IActorState<TState>
         where TSnapshot : IEvent
         where TRangeEvent : IEvent
+        => await MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshot, TRangeEvent>(
+            eventStreamId,
+            lastNRange,
+            reducerAction,
+            CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshot, TRangeEvent>(
+        long eventStreamId,
+        int lastNRange,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken)
+        where TState : IActorState<TState>
+        where TSnapshot : IEvent
+        where TRangeEvent : IEvent
     {
-        var snapshotEventNameId = await GetEventNameIdFromTypeAsync<TSnapshot>();
-        var rangeEventNameId = await GetEventNameIdFromTypeAsync<TRangeEvent>();
+        var snapshotEventNameId = await GetEventNameIdFromTypeAsync<TSnapshot>(cancellationToken).ConfigureAwait(false);
+        var rangeEventNameId = await GetEventNameIdFromTypeAsync<TRangeEvent>(cancellationToken).ConfigureAwait(false);
         await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.GetEventLogFromSnapshotLastNRange)
             .SetParameters(new GetEventLogFromSnapshotLastNRange(
@@ -742,7 +832,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 snapshotEventNameId,
                 rangeEventNameId,
                 Math.Max(0, lastNRange)))
-            .ExecuteMapReduceAsync(MapToEventStream, reducerAction);
+            .ExecuteMapReduceAsync(MapToEventStream, reducerAction, cancellationToken);
     }
 
     /// <summary>

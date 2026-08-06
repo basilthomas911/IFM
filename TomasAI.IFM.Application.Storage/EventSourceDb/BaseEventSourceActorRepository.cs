@@ -53,11 +53,17 @@ public abstract class BaseEventSourceActorRepository
     /// <param name="streamIdValue">The logical stream ID value.</param>
     /// <returns>The numeric event stream ID.</returns>
     /// <exception cref="StorageException">Thrown when the event stream ID cannot be resolved.</exception>
-    protected async Task<long> GetStreamId(string streamIdValue)
+    protected async Task<long> GetStreamId(string streamIdValue, CancellationToken cancellationToken = default)
     {
         try
         {
-            return await _dbEventSource.GetEventStreamIdAsync(streamIdValue);
+            return cancellationToken.CanBeCanceled
+                ? await _dbEventSource.GetEventStreamIdAsync(streamIdValue, cancellationToken).ConfigureAwait(false)
+                : await _dbEventSource.GetEventStreamIdAsync(streamIdValue).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -74,16 +80,32 @@ public abstract class BaseEventSourceActorRepository
     /// <param name="command">Command whose stream ID is used to locate the event stream.</param>
     /// <returns>The state instance for the actor.</returns>
     /// <exception cref="StorageException">Thrown when loading the state fails.</exception>
-    protected async Task<TState> LoadStateAsync<TState>(ICommand command)
+    protected async Task<TState> LoadStateAsync<TState>(ICommand command, CancellationToken cancellationToken = default)
        where TState :  IEventSourceActorState<TState>
     {
         try
         {
             // load event stream from event storage filtered by stream id...
-            var streamId = await GetStreamId(command.StreamId);
+            var streamId = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
             var state = (TState) _stateFactory.CreateState<TState>();
-            await _dbEventSource.MapReduceActorEventStreamAsync<TState>(streamId, e => state.ReplayEvents(e.Select(o => o.ToDomainEvent())));
+            if (cancellationToken.CanBeCanceled)
+            {
+                await _dbEventSource.MapReduceActorEventStreamAsync<TState>(
+                    streamId,
+                    e => state.ReplayEvents(e.Select(o => o.ToDomainEvent())),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await _dbEventSource.MapReduceActorEventStreamAsync<TState>(
+                    streamId,
+                    e => state.ReplayEvents(e.Select(o => o.ToDomainEvent()))).ConfigureAwait(false);
+            }
             return state;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -102,20 +124,41 @@ public abstract class BaseEventSourceActorRepository
     /// <param name="lastNRange">The number of most recent events to replay.</param>
     /// <returns>The state instance reconstructed from the last N events.</returns>
     /// <exception cref="StorageException">Thrown when loading the state fails.</exception>
-    protected async Task<TState> LoadStateAsync< TState, TEvent>(ICommand command, int lastNRange)
+    protected async Task<TState> LoadStateAsync< TState, TEvent>(
+        ICommand command,
+        int lastNRange,
+        CancellationToken cancellationToken = default)
         where TState : IEventSourceActorState<TState> where TEvent : IEvent
     {
         try
         {
             // load event stream from event storage from last N range of events...
-            var streamId = await GetStreamId(command.StreamId);
+            var streamId = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
             var state = (TState)_stateFactory.CreateState<TState>();
             state.Id = command.Subject.ThreadId;
 
-            await _dbEventSource.MapReduceActorEventStreamAsync<TState, TEvent>(streamId, lastNRange, state.ReplayEvents);
+            if (cancellationToken.CanBeCanceled)
+            {
+                await _dbEventSource.MapReduceActorEventStreamAsync<TState, TEvent>(
+                    streamId,
+                    lastNRange,
+                    state.ReplayEvents,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await _dbEventSource.MapReduceActorEventStreamAsync<TState, TEvent>(
+                    streamId,
+                    lastNRange,
+                    state.ReplayEvents).ConfigureAwait(false);
+            }
             _logger.LogInformationEvent($"{GetType().Name}", "loading state: {StateName} for command: {CommandName} from event stream: {StreamId} with domain events in last: {LastNRange}",
                 typeof(TState).Name, command.CommandName, streamId, lastNRange);
             return state;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -157,7 +200,9 @@ public abstract class BaseEventSourceActorRepository
     /// <param name="command">Command whose stream ID is used to locate the event stream.</param>
     /// <returns>The state instance reconstructed from the snapshot and following events.</returns>
     /// <exception cref="StorageException">Thrown when loading the state from snapshot fails.</exception>
-    protected async Task<TState> LoadStateFromSnapshotAsync<TState, TSnapshotEvent>(ICommand command)
+    protected async Task<TState> LoadStateFromSnapshotAsync<TState, TSnapshotEvent>(
+        ICommand command,
+        CancellationToken cancellationToken = default)
          where TState : IEventSourceActorState<TState> where TSnapshotEvent : IEvent
     {
         var stateName = typeof(TState).Name;
@@ -165,14 +210,30 @@ public abstract class BaseEventSourceActorRepository
         try
         {
             // load bounded context event stream from most recent snapshot in event storage...
-            var streamId = await GetStreamId(command.StreamId);
+            var streamId = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
             var state = (TState)_stateFactory.CreateState<TState>();
             state.Id = command.Subject.ThreadId;
-            await _dbEventSource.MapReduceActorEventStreamAsync<TState, TSnapshotEvent>(streamId, state.ReplayEvents);
+            if (cancellationToken.CanBeCanceled)
+            {
+                await _dbEventSource.MapReduceActorEventStreamAsync<TState, TSnapshotEvent>(
+                    streamId,
+                    state.ReplayEvents,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await _dbEventSource.MapReduceActorEventStreamAsync<TState, TSnapshotEvent>(
+                    streamId,
+                    state.ReplayEvents).ConfigureAwait(false);
+            }
 
             _logger.LogInformationEvent(_serviceId, "loading state: {StateName} for command: {CommandName} from snapshot: {SnapshotEventName} in event stream: {StreamId}",
                     stateName, command.CommandName, snapshotEventName, streamId);
             return state;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -188,7 +249,8 @@ public abstract class BaseEventSourceActorRepository
     /// </summary>
     protected async Task<TState> LoadStateFromSnapshotLastNRangeAsync<TState, TSnapshotEvent, TRangeEvent>(
         ICommand command,
-        int lastNRange)
+        int lastNRange,
+        CancellationToken cancellationToken = default)
         where TState : IEventSourceActorState<TState>
         where TSnapshotEvent : IEvent
         where TRangeEvent : IEvent
@@ -198,13 +260,24 @@ public abstract class BaseEventSourceActorRepository
         var rangeEventName = typeof(TRangeEvent).Name;
         try
         {
-            var streamId = await GetStreamId(command.StreamId);
+            var streamId = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
             var state = (TState)_stateFactory.CreateState<TState>();
             state.Id = command.Subject.ThreadId;
-            await _dbEventSource.MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshotEvent, TRangeEvent>(
-                streamId,
-                lastNRange,
-                state.ReplayEvents);
+            if (cancellationToken.CanBeCanceled)
+            {
+                await _dbEventSource.MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshotEvent, TRangeEvent>(
+                    streamId,
+                    lastNRange,
+                    state.ReplayEvents,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await _dbEventSource.MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshotEvent, TRangeEvent>(
+                    streamId,
+                    lastNRange,
+                    state.ReplayEvents).ConfigureAwait(false);
+            }
 
             _logger.LogInformationEvent(
                 _serviceId,
@@ -216,6 +289,10 @@ public abstract class BaseEventSourceActorRepository
                 rangeEventName,
                 streamId);
             return state;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -245,7 +322,11 @@ public abstract class BaseEventSourceActorRepository
     /// denormalization.</param>
     /// <returns>A task that represents the asynchronous save and denormalization operation.</returns>
     /// <exception cref="StorageException">Thrown if an error occurs while saving the state or denormalizing events.</exception>
-    protected async Task SaveStateAndDenormalizeEventsAsync<TState>(ICommandActorContext context, TState state, ICommand command)
+    protected async Task SaveStateAndDenormalizeEventsAsync<TState>(
+        ICommandActorContext context,
+        TState state,
+        ICommand command,
+        CancellationToken cancellationToken = default)
         where TState : IEventSourceActorState<TState>
     {
         var stateName = typeof(TState).Name;
@@ -254,10 +335,25 @@ public abstract class BaseEventSourceActorRepository
             // check for any state change events...
             if (state!.Events.Count > 0)
             {
-                var domainEvents = await _dbEventSource.SaveEventsAsync(command.StreamId, command.CommandId, state.Events);
-                await DenormalizeEventsAsync(context, domainEvents);
+                cancellationToken.ThrowIfCancellationRequested();
+                var domainEvents = cancellationToken.CanBeCanceled
+                    ? await _dbEventSource.SaveEventsAsync(
+                        command.StreamId,
+                        command.CommandId,
+                        state.Events,
+                        cancellationToken).ConfigureAwait(false)
+                    : await _dbEventSource.SaveEventsAsync(
+                        command.StreamId,
+                        command.CommandId,
+                        state.Events).ConfigureAwait(false);
+                // Persistence has committed. Required denormalization/publication completes without caller cancellation.
+                await DenormalizeEventsAsync(context, domainEvents).ConfigureAwait(false);
                 _logger.LogInformationEvent(_serviceId, "saving state: {StateName} with {EventsCount} domain events from command: {CommandName} to event stream: {StreamId}", stateName, domainEvents.Count, command.CommandName, command.StreamId);
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

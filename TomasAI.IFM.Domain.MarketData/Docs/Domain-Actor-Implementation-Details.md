@@ -58,16 +58,10 @@ The boolean returned by a command state's `Update` operation means that state ch
 
 Add general reads beneath `Query`. Add a full command/event/query feature beneath its own market-data entity folder, mirroring `YieldCurveRate` and keeping state, validation, and models with the write side.
 
-## TODO: solution-wide graceful cancellation
+## Solution-wide graceful cancellation
 
-Cancellation propagation is intentionally deferred until optimization of all root domain projects is complete. Implement it as a dedicated solution-wide change so the supervisor can stop actors gracefully and cancellation semantics remain consistent from the highest orchestration layer to the lowest storage or network operation.
+The solution-wide cancellation phase is now in progress. Yield-curve command validation, state replay, repository calls, event-source storage, PostgreSQL/ScyllaDB operations, and NATS operations accept the actor token. Accepted mailbox work drains before actors and their producers stop. Event persistence and required publication become non-cancelable at the commit boundary to avoid ambiguous durable outcomes.
 
-The solution-wide design must define:
+General market-data query/read-model APIs still require their coordinated token signature update. That remaining work is tracked in `Docs/Solution-Wide-Graceful-Cancellation-Implementation-Details.md`.
 
-- supervisor shutdown deadlines and whether queued messages drain or are abandoned;
-- cancellation of in-flight actor handlers without violating per-entity ordering;
-- token propagation through actor contracts, base actors, repositories, storage contexts, providers, and network clients;
-- the distinction between a caller cancelling its wait and cancelling server-side execution; and
-- idempotency and consistency when cancellation occurs during event persistence, projection updates, or publication.
-
-Until that work begins, domain optimizations must keep operations properly awaited, remove sync-over-async calls, and avoid introducing fire-and-forget work so cancellation can be added without another behavioral rewrite.
+The existing Interactive Brokers feed is excluded because Databento will replace it. Future IBKR work should mirror the completed Databento lifecycle and backpressure design rather than extend the legacy implementation.

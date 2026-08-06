@@ -34,17 +34,20 @@ public class FuturesAtrSignalStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the state of type
     /// FuturesAtrSignalCommandState.</returns>
     public async ValueTask<FuturesAtrSignalCommandState> LoadStateAsync(ICommand command)
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<FuturesAtrSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
         => command switch
         {
             ICommand<FuturesAtrDailySignalEntityId> dailyCommand
                 => await LoadStateAsync<FuturesAtrSignalCommandState, FuturesAtrDailySignalGeneratedEvent>(
                     command,
-                    dailyCommand.EntityId.PeriodLength),
+                    dailyCommand.EntityId.PeriodLength, cancellationToken),
             ICommand<FuturesAtrSignalEntityId> atrCommand
                 => await LoadStateFromSnapshotLastNRangeAsync<
                     FuturesAtrSignalCommandState,
                     FuturesAtrSignalStartedEvent,
-                    FuturesAtrSignalGeneratedEvent>(command, atrCommand.EntityId.PeriodLength),
+                    FuturesAtrSignalGeneratedEvent>(command, atrCommand.EntityId.PeriodLength, cancellationToken),
             _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
         };
 
@@ -56,7 +59,10 @@ public class FuturesAtrSignalStateRepository(
     /// <param name="command">The command that triggered the state changes.</param>
     /// <returns>A task that represents the asynchronous save and denormalization operation.</returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesAtrSignalCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+       => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesAtrSignalCommandState state, ICommand command, CancellationToken cancellationToken)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures ATR signal

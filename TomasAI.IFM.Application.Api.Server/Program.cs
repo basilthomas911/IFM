@@ -1,5 +1,6 @@
 using Serilog;
 using TomasAI.IFM.Application.Api.Server;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 try
 {
@@ -10,8 +11,17 @@ try
     app.ConfigureRequestPipeline(logger);
     app.MapApiCommands(logger);
     app.MapApiQueries(logger);
-    app.MapEventModelActors(logger);
-    app.Run();
+    await app.MapEventModelActorsAsync(logger);
+    try
+    {
+        await app.RunAsync();
+    }
+    finally
+    {
+        await app.Services
+            .GetRequiredService<IActorSupervisor>()
+            .ShutdownAsync(CancellationToken.None);
+    }
 }
 catch (Exception ex)
 {

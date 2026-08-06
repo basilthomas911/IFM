@@ -58,6 +58,25 @@ internal static class ScyllaDbWriteAwaiter
         }
     }
 
+    public static async Task DrainAsync(Task pendingExecution, object lifetimeAnchor)
+    {
+        ArgumentNullException.ThrowIfNull(pendingExecution);
+        ArgumentNullException.ThrowIfNull(lifetimeAnchor);
+        try
+        {
+            await pendingExecution.ConfigureAwait(false);
+        }
+        catch
+        {
+            // Cancellation has already been reported to the caller. Observe the
+            // driver's eventual failure while retaining the object it is mutating.
+        }
+        finally
+        {
+            GC.KeepAlive(lifetimeAnchor);
+        }
+    }
+
     static async Task DrainCancelledAsync<TResult>(Task<TResult> pendingExecution)
         where TResult : IDisposable
     {

@@ -19,10 +19,14 @@ public interface IEventSourceActorDbContext
     Task DeleteEventLogByStreamIdAsync(long streamId);
     Task DeleteEventStreamByIdAsync(long eventStreamId);
     Task<long> GetEventStreamIdAsync(string eventStream);
+    Task<long> GetEventStreamIdAsync(string eventStream, CancellationToken cancellationToken);
     Task<EventStreamIdReadModel?> GetEventStreamIdFromDbAsync(string eventStream);
     Task<int> GetEventNameIdFromDomainEventAsync<TEvent>(TEvent domainEvent) where TEvent : IEvent;
+    Task<int> GetEventNameIdFromDomainEventAsync<TEvent>(TEvent domainEvent, CancellationToken cancellationToken) where TEvent : IEvent;
     Task InsertCommandLogAsync(ICommand command, DateTime commandTimestamp, string commandData);
+    Task InsertCommandLogAsync(ICommand command, DateTime commandTimestamp, string commandData, CancellationToken cancellationToken);
     Task UpdateCommandLogAsync(Guid commandId, DateTime updateTimestamp, CommandStatus commandStatus);
+    Task UpdateCommandLogAsync(Guid commandId, DateTime updateTimestamp, CommandStatus commandStatus, CancellationToken cancellationToken);
 
     Task InsertEventProjectorResultAsync(EventProjectorResultReadModel eventProjectorResult);
     Task InsertEventProjectorStateAsync(EventProjectorStateReadModel eventProjectorState);
@@ -32,20 +36,49 @@ public interface IEventSourceActorDbContext
         IReadOnlyCollection<string> eventNames);
 
     Task<DomainEventCollection> SaveEventsAsync( string eventStream, Guid commandId, DomainEventCollection domainEvents);
+    Task<DomainEventCollection> SaveEventsAsync(
+        string eventStream,
+        Guid commandId,
+        DomainEventCollection domainEvents,
+        CancellationToken cancellationToken);
 
     ValueTask MapReduceActorEventStreamAsync<TState>(long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction)
+    where TState : IActorState<TState>;
+    ValueTask MapReduceActorEventStreamAsync<TState>(
+        long eventStreamId,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken)
     where TState : IActorState<TState>;
 
     ValueTask MapReduceActorEventStreamAsync<TState, TEvent>(long eventStreamId, int lastNRange, Action<IEnumerable<EventStreamReadModel>> reducerAction)
         where TState : IActorState<TState> where TEvent : IEvent;
+    ValueTask MapReduceActorEventStreamAsync<TState, TEvent>(
+        long eventStreamId,
+        int lastNRange,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken)
+        where TState : IActorState<TState> where TEvent : IEvent;
 
     ValueTask MapReduceActorEventStreamAsync<TState, TSnapshot>(long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction)
+        where TState : IActorState<TState> where TSnapshot : IEvent;
+    ValueTask MapReduceActorEventStreamAsync<TState, TSnapshot>(
+        long eventStreamId,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken)
         where TState : IActorState<TState> where TSnapshot : IEvent;
 
     ValueTask MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshot, TRangeEvent>(
         long eventStreamId,
         int lastNRange,
         Action<IEnumerable<EventStreamReadModel>> reducerAction)
+        where TState : IActorState<TState>
+        where TSnapshot : IEvent
+        where TRangeEvent : IEvent;
+    ValueTask MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshot, TRangeEvent>(
+        long eventStreamId,
+        int lastNRange,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken)
         where TState : IActorState<TState>
         where TSnapshot : IEvent
         where TRangeEvent : IEvent;

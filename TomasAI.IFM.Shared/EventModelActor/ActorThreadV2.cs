@@ -167,7 +167,10 @@ sealed class ActorThreadV2(
                     try
                     {
                         _state = ActorThreadState.ProcessingMessage;
-                        await actor.HandleMessageAsync(message!, threadId).ConfigureAwait(false);
+                        await actor.HandleMessageAsync(message!, threadId, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
                     }
                     catch (Exception exception)
                     {

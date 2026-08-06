@@ -28,7 +28,10 @@ public class SpreadDistributionJobStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<SpreadDistributionJobCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<SpreadDistributionJobCommandState, SpreadDistributionJobSubmittedEvent>(command);
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<SpreadDistributionJobCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromSnapshotAsync<SpreadDistributionJobCommandState, SpreadDistributionJobSubmittedEvent>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// save spread distribution job state changes
@@ -38,7 +41,10 @@ public class SpreadDistributionJobStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, SpreadDistributionJobCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+       => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SaveStateAsync(ICommandActorContext context, SpreadDistributionJobCommandState state, ICommand command, CancellationToken cancellationToken)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// denormalize spread distribution job events to read model

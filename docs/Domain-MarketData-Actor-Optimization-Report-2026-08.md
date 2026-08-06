@@ -114,9 +114,9 @@ Use representative scenarios: normal market flow, opening and closing bursts, yi
 9. Validate under paper trading and compare p95/p99 latency, throughput, resource use, and error rates with the baseline.
 10. Record accepted changes, rejected experiments, deferred cross-cutting work, and the evidence-based stopping point in a dated report under `Docs/`.
 
-## Deferred solution-wide work
+## Solution-wide graceful cancellation status
 
-Graceful cancellation remains the principal cross-cutting follow-up after all root domain optimization passes are complete. Its design must cover supervisor deadlines, mailbox draining, in-flight handler cancellation, caller-versus-server cancellation semantics, repository/storage/network token propagation, and consistency when cancellation intersects event persistence or publication.
+The first implementation tranche is complete for the active command/event-source path. It covers supervisor wait semantics, intake shutdown, accepted-mailbox draining, actor/runtime/NATS propagation, repository and storage tokens, and the commit boundary between cancellable replay and non-cancelable durable persistence/publication. Concrete query/read-model APIs, host-level startup cancellation tests, and operational shutdown metrics remain in the revised priority order. See `docs/Solution-Wide-Graceful-Cancellation-Implementation-Details.md`.
 
 ## Related artifacts
 

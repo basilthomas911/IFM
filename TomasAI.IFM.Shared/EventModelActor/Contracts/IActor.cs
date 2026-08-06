@@ -26,6 +26,19 @@ public interface IActor
         => HandleMessageAsync(message);
 
     /// <summary>
+    /// Handles an incoming message with cancellation for work that has not crossed its durable commit boundary.
+    /// Implementations must not abandon a partially persisted command merely because this token is cancelled.
+    /// </summary>
+    ValueTask HandleMessageAsync(
+        IActorMessage message,
+        ActorThreadId threadId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return HandleMessageAsync(message, threadId);
+    }
+
+    /// <summary>
     /// Starts the actor asynchronously, initializing its components and setting it to a running state.
     /// </summary>
     /// <remarks>This method initializes the actor's mailbox and transitions the actor to a running state.
@@ -34,11 +47,28 @@ public interface IActor
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     ValueTask StartAsync(IActorSupervisor supervisor);
 
+    /// <summary>Starts the actor while allowing startup waits and external I/O to be cancelled.</summary>
+    ValueTask StartAsync(IActorSupervisor supervisor, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return StartAsync(supervisor);
+    }
+
     /// <summary>
     /// Stops the actor asynchronously, performing any necessary cleanup operations.
     /// </summary>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous stop operation.</returns>
     ValueTask StopAsync();
+
+    /// <summary>
+    /// Gracefully stops the actor. The token bounds the caller's wait; accepted commands are drained to a safe
+    /// persistence boundary rather than being abandoned.
+    /// </summary>
+    ValueTask StopAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return StopAsync();
+    }
 
     /// <summary>
     /// Gets the actor's mailbox.

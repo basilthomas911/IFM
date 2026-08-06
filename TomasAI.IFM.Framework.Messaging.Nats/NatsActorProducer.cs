@@ -47,16 +47,19 @@ public class NatsActorProducer(
     /// <param name="mailboxId">The unique identifier of the mailbox, including its name and actor type. Cannot be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     public async ValueTask StartAsync(ActorMailboxId mailboxId)
+        => await StartAsync(mailboxId, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StartAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken)
     {
         try
         {
             IsArgumentNull.Check(mailboxId);
-            await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+            await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
                 if (_isRunning)
                     return;
-                _nc = await _connectionManager.GetClientAsync(_options.Url).ConfigureAwait(false);
+                _nc = await _connectionManager.GetClientAsync(_options.Url, cancellationToken).ConfigureAwait(false);
                 _actorId = mailboxId;
                 Volatile.Write(ref _isRunning, true);
             }
@@ -79,10 +82,13 @@ public class NatsActorProducer(
     /// an error occurs during the disposal process, the exception is logged and rethrown.</remarks>
     /// <returns></returns>
     public async ValueTask StopAsync()
+        => await StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+            await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
                 if (!IsRunning)
@@ -122,6 +128,15 @@ public class NatsActorProducer(
     public async ValueTask SendAsync<TCommand, TEntityId>(ActorSubject subject, TCommand command, TEntityId entityId)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
+        => await SendAsync(subject, command, entityId, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SendAsync<TCommand, TEntityId>(
+        ActorSubject subject,
+        TCommand command,
+        TEntityId entityId,
+        CancellationToken cancellationToken)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
     {
         try
         {
@@ -129,8 +144,8 @@ public class NatsActorProducer(
             IsArgumentNull.Check(command);
             IsArgumentNull.Check(entityId);
             if (!IsRunning)
-                await StartAsync(_actorId).ConfigureAwait(false);
-            await PublishAsync(subject.ToString(), command.ToCommand<TCommand, TEntityId>()).ConfigureAwait(false);
+                await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
+            await PublishAsync(subject.ToString(), command.ToCommand<TCommand, TEntityId>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Published command to subject {Subject} CommandId={CommandId}", subject, command.CommandId);
         }
@@ -153,14 +168,22 @@ public class NatsActorProducer(
     public async ValueTask SendAsync<TEvent, TEntityId>(ActorSubject subject, TEvent @event) 
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
+        => await SendAsync<TEvent, TEntityId>(subject, @event, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SendAsync<TEvent, TEntityId>(
+        ActorSubject subject,
+        TEvent @event,
+        CancellationToken cancellationToken)
+        where TEvent : class, IEvent<TEntityId>
+        where TEntityId : IActorEntityId
     {
         try
         {
             IsArgumentNull.Check(subject);
             IsArgumentNull.Check(@event);
             if (!IsRunning)
-                await StartAsync(_actorId).ConfigureAwait(false);
-            await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>()).ConfigureAwait(false);
+                await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
+            await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Published event to subject {Subject} CommandId={CommandId}", subject, @event.CommandId);
         }
@@ -216,6 +239,14 @@ public class NatsActorProducer(
     public async ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(ActorSubject subject, TQuery query)
         where TQuery : class,IQuery<TResult>
         where TResult : class
+        => await RequestAsync<TResult, TQuery>(subject, query, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(
+        ActorSubject subject,
+        TQuery query,
+        CancellationToken cancellationToken)
+        where TQuery : class,IQuery<TResult>
+        where TResult : class
     {
         ServiceResult<TResult> result;
         try
@@ -223,15 +254,16 @@ public class NatsActorProducer(
             IsArgumentNull.Check(subject);
             IsArgumentNull.Check(query);
             if (!IsRunning)
-                await StartAsync(_actorId).ConfigureAwait(false);
+                await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
 
             // Deserialize the typed reply directly from NATS's receive sequence;
             // do not materialize an intermediate reply byte[].
             var reply = await _nc!.RequestAsync<TQuery, ServiceResult<TResult>>(
                 subject.ToString(),
-                query,
-                requestSerializer: NatsMessagePackSerializer<TQuery>.Default,
-                replySerializer: NatsMessagePackSerializer<ServiceResult<TResult>>.Default)
+                 query,
+                 requestSerializer: NatsMessagePackSerializer<TQuery>.Default,
+                 replySerializer: NatsMessagePackSerializer<ServiceResult<TResult>>.Default,
+                 cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
             result = IsArgumentNull.Set(reply.Data);
             NatsMessagingMetrics.Published.Add(1);
@@ -262,6 +294,16 @@ public class NatsActorProducer(
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
         where TResult : class
+        => await RequestAsync<TCommand, TEntityId, TResult>(subject, command, entityId, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<ServiceResult<TResult>> RequestAsync<TCommand,TEntityId, TResult>(
+        ActorSubject subject,
+        TCommand command,
+        TEntityId entityId,
+        CancellationToken cancellationToken)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
+        where TResult : class
     {
         ServiceResult<TResult> result;
         try
@@ -270,11 +312,12 @@ public class NatsActorProducer(
             IsArgumentNull.Check(command);
             IsArgumentNull.Check(entityId);
             if (!IsRunning)
-                await StartAsync(_actorId).ConfigureAwait(false);
+                await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
 
             var replyMessageData = await RequestAsync(
                 subject.ToString(),
-                command.ToCommand<TCommand, TEntityId>()).ConfigureAwait(false);
+                command.ToCommand<TCommand, TEntityId>(),
+                cancellationToken).ConfigureAwait(false);
             result = _dataSerializer.Deserialize<ServiceResult<TResult>>(replyMessageData)!;
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("Requested command to subject {Subject} CommandId={CommandId}", subject, command.CommandId);
@@ -287,22 +330,24 @@ public class NatsActorProducer(
         return result!;
     }
 
-    async ValueTask PublishAsync<T>(string subject, T message)
+    async ValueTask PublishAsync<T>(string subject, T message, CancellationToken cancellationToken = default)
     {
         await _nc!.PublishAsync(
             subject,
             message,
-            serializer: NatsMessagePackSerializer<T>.Default).ConfigureAwait(false);
+            serializer: NatsMessagePackSerializer<T>.Default,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
         NatsMessagingMetrics.Published.Add(1);
     }
 
-    async ValueTask<byte[]> RequestAsync<T>(string subject, T message)
+    async ValueTask<byte[]> RequestAsync<T>(string subject, T message, CancellationToken cancellationToken = default)
     {
         var data = (await _nc!.RequestAsync(
             subject,
             message,
             requestSerializer: NatsMessagePackSerializer<T>.Default,
-            replySerializer: _messageSerializer).ConfigureAwait(false)).Data!;
+            replySerializer: _messageSerializer,
+            cancellationToken: cancellationToken).ConfigureAwait(false)).Data!;
         NatsMessagingMetrics.Published.Add(1);
         return data;
     }

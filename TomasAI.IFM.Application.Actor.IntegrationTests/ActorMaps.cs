@@ -20,10 +20,13 @@ public static class ActorMaps
     public static IActorSupervisor Supervisor => _supervisor;
 
     static IActorSupervisor _supervisor = default!;
-    static string _serviceId = "ActorMaps";
-    static List<IActor> _actors = [];
-    public static WebApplication MapEventModelActors(this WebApplication app, ILogger logger)
+    const string ServiceId = "ActorMaps";
+    public static async Task<WebApplication> MapEventModelActorsAsync(
+        this WebApplication app,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
     {
+        var actors = new List<IActor>();
         // get supervisor...
         _supervisor = app.Services.GetRequiredService<IActorSupervisor>();
 
@@ -38,7 +41,7 @@ public static class ActorMaps
         foreach (var actorType in actorTypes)
         {
             var actor = factory.GetActor(actorType);
-            _actors.Add(actor);
+            actors.Add(actor);
             _supervisor.AddActor(actor);
             var producer = _supervisor.Container.Resolve<IActorProducer>();
             if (producer is not null)
@@ -53,7 +56,6 @@ public static class ActorMaps
   
         }
 
-        var actorService = _supervisor.Container.Resolve<IActorService>();
         List<ActorType> consumerTypes = [ActorType.Command, ActorType.Query, ActorType.Supervisor];
         foreach (var consumerType in consumerTypes)
         {
@@ -70,23 +72,23 @@ public static class ActorMaps
                 _supervisor.AddConsumer(consumerType, consumer);
         }
 
-        Task.Run(async () =>
+        try
         {
-            try
+            await _supervisor.StartConsumersAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var actor in actors)
             {
-                await _supervisor.StartConsumersAsync();
-                foreach (var e in _actors)
-                {
-                    await e.StartAsync(_supervisor);
-                    logger.LogInformationEvent(_serviceId, "Started {ActorType} actor.", e.GetType().Name);
-                }
-                logger.LogInformationEvent(_serviceId, "Event model actor supervisor started with {ActorCount} actors.", actorTypes.Length);
+                cancellationToken.ThrowIfCancellationRequested();
+                await actor.StartAsync(_supervisor, cancellationToken).ConfigureAwait(false);
+                logger.LogInformationEvent(ServiceId, "Started {ActorType} actor.", actor.GetType().Name);
             }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to start event model actor supervisor.");
-            }
-        }).Wait();
+            logger.LogInformationEvent(ServiceId, "Event model actor supervisor started with {ActorCount} actors.", actorTypes.Length);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to start event model actor supervisor.");
+            await _supervisor.ShutdownAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
 
         return app;
     }

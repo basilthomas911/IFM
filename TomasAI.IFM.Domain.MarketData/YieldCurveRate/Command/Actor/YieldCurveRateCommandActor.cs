@@ -117,13 +117,20 @@ public class YieldCurveRateCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override async ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+    protected override ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        => OnValidateAsync(context, threadId, cmd, CancellationToken.None);
+
+    protected override async ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _dbEventSource.InsertCommandLogAsync(
-            cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd));
+        if (cancellationToken.CanBeCanceled)
+            await _dbEventSource.InsertCommandLogAsync(
+                cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd), cancellationToken).ConfigureAwait(false);
+        else
+            await _dbEventSource.InsertCommandLogAsync(
+                cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
         var yieldCurveRateValidationRules = IsArgumentNull.Set(context.Container.Resolve<IValidationRules<YieldCurveRateReadModel>>());
         GetValidationErrors(cmd, yieldCurveRateValidationRules)
             .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
@@ -233,6 +240,12 @@ public class YieldCurveRateCommandActor(
     /// <param name="ex">The exception that was thrown during command processing. Determines the type of error event to generate.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure. The result
     /// reflects the nature of the exception and the associated command context.</returns>
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
+
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.SaveStateAsync(context, (YieldCurveRateCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex)
     {
         try

@@ -32,6 +32,9 @@ internal sealed class CommandAuditTracker(IEventSourceActorDbContext dbEventSour
     }
 
     public async ValueTask CompleteAsync(ICommand command)
+        => await CompleteAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask CompleteAsync(ICommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
         if (!_pending.TryRemove(command.CommandId, out var auditTask))
@@ -42,6 +45,6 @@ internal sealed class CommandAuditTracker(IEventSourceActorDbContext dbEventSour
                 JsonConvert.SerializeObject(command));
         }
 
-        await auditTask.ConfigureAwait(false);
+        await auditTask.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 }

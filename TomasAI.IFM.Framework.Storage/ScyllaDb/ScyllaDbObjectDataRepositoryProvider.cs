@@ -395,17 +395,27 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// </summary>
     /// <returns></returns>
     public async Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false)
+        => await ExecuteQueuedCommandsAsync(queuedCommands, useTransaction, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task ExecuteQueuedCommandsAsync(
+        List<object> queuedCommands,
+        bool useTransaction,
+        CancellationToken cancellationToken)
     {
         if (queuedCommands.Count == 0)
             throw new StorageException($"{ClassName}.ExecuteQueuedCommandsAsync: no commands have been queued for execution");
         var commandText = string.Empty;
         try
         {
-            var session = await _conn.CreateSessionAsync();
+            var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (!useTransaction)
                 await ExecuteQueuedCommandsSequentiallyAsync(session);
             else
                 await ExecuteQueuedCommandsAsBatchAsync(session);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -418,22 +428,24 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         {
             foreach (ScyllaDbObjectDataQueuedCommand cmd in queuedCommands.Cast<ScyllaDbObjectDataQueuedCommand>())
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (cmd is null) continue;
                 _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandText, cmd.BindValues?.Count ?? 0);
                 commandText = cmd.CommandText;
                 if (cmd.BindValues!.Count > 0)
                 {
-                    var ps = await GetOrPrepareAsync(session, commandText).ConfigureAwait(false);
+                    var ps = await GetOrPrepareAsync(session, commandText, cancellationToken).ConfigureAwait(false);
                     foreach (var bindValues in cmd.BindValues)
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         var boundStatement = Bind(ps, bindValues);
-                        using var rowSet = await session.ExecuteAsync(boundStatement).ConfigureAwait(false);
+                        using var rowSet = await ExecuteOwnedStatementAsync(session, boundStatement, cancellationToken).ConfigureAwait(false);
                     }
                 }
                 else
                 {
                     var simpleStatement = new SimpleStatement(commandText);
-                    using var rowSet = await session.ExecuteAsync(simpleStatement).ConfigureAwait(false);
+                    using var rowSet = await ExecuteOwnedStatementAsync(session, simpleStatement, cancellationToken).ConfigureAwait(false);
                 }
             }
         }
@@ -445,8 +457,9 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             var statementCount = 0;
             foreach (ScyllaDbObjectDataQueuedCommand cmd in queuedCommands.Cast<ScyllaDbObjectDataQueuedCommand>())
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandText, cmd.BindValues?.Count ?? 0);
-                var ps = await GetOrPrepareAsync(session, cmd.CommandText).ConfigureAwait(false);
+                var ps = await GetOrPrepareAsync(session, cmd.CommandText, cancellationToken).ConfigureAwait(false);
                 if (cmd.BindValues is { Count: > 0 })
                 {
                     foreach (var bindValues in cmd.BindValues)
@@ -468,7 +481,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                     ClassName,
                     statementCount);
             }
-            using var rowSet = await session.ExecuteAsync(batchStatement).ConfigureAwait(false);
+            using var rowSet = await ExecuteOwnedStatementAsync(session, batchStatement, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -478,6 +491,13 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// <typeparam name="TResult"></typeparam>
     /// <returns></returns>
     public async ValueTask ExecuteMapReduceAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper, Action<IEnumerable<TResult>> dataReducer)
+        => await ExecuteMapReduceAsync(ctx, dataMapper, dataReducer, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask ExecuteMapReduceAsync<TResult>(
+        IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TResult> dataMapper,
+        Action<IEnumerable<TResult>> dataReducer,
+        CancellationToken cancellationToken)
     {
         if (dataMapper is null)
             throw new StorageException($"{ClassName}.ExecuteMapReduceAsync: dataMapper parameter is null");
@@ -488,23 +508,27 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         try
         {
             _logger.LogInformationEvent(ClassName, "GetObjectsAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
-            var session = await _conn.CreateSessionAsync();
+            var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx.ParameterValues.Count > 0)
             {
-                var ps = await GetOrPrepareAsync(session, ctx.CommandText).ConfigureAwait(false);
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
                     var boundStatement = Bind(ps, bindValues);
-                    using var rowSet = await session.ExecuteAsync(boundStatement);
+                    using var rowSet = await ExecuteOwnedStatementAsync(session, boundStatement, cancellationToken).ConfigureAwait(false);
                     dataReducer.Invoke(GetReducer(rowSet));
                 }
             }
             else
             {
                 var simpleStatement = new SimpleStatement(ctx.CommandText);
-                using var rowSet = await session.ExecuteAsync(simpleStatement);
+                using var rowSet = await ExecuteOwnedStatementAsync(session, simpleStatement, cancellationToken).ConfigureAwait(false);
                 dataReducer.Invoke(GetReducer(rowSet));
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -517,7 +541,10 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         {
             var record = rowSet.ToObjectDataRecord();
             foreach (var row in rowSet)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
                 yield return dataMapper(record.SetRow(row));
+            }
         }
     }
     /// <summary>
@@ -547,47 +574,37 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             statement = new SimpleStatement(ctx.CommandText);
         }
         var rowSet = await ExecuteOwnedStatementAsync(session, statement, cancellationToken).ConfigureAwait(false);
-        var disposeOnExit = true;
-        try
+        var record = rowSet.ToObjectDataRecord();
+        while (true)
         {
-            var record = rowSet.ToObjectDataRecord();
-            while (true)
+            // Consume exactly the already-buffered rows. Calling MoveNext once beyond
+            // this count would make the driver's synchronous enumerator fetch the next
+            // page; fetching it explicitly below keeps the async path non-blocking.
+            var available = rowSet.GetAvailableWithoutFetching();
+            using var rows = rowSet.GetEnumerator();
+            for (var index = 0; index < available; index++)
             {
-                // Consume exactly the already-buffered rows. Calling MoveNext once beyond
-                // this count would make the driver's synchronous enumerator fetch the next
-                // page; fetching it explicitly below keeps the async path non-blocking.
-                var available = rowSet.GetAvailableWithoutFetching();
-                using var rows = rowSet.GetEnumerator();
-                for (var index = 0; index < available; index++)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    if (!rows.MoveNext())
-                        yield break;
-                    yield return dataMapper(record.SetRow(rows.Current));
-                }
-
-                if (rowSet.PagingState is null)
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!rows.MoveNext())
                     yield break;
-
-                var fetchTask = rowSet.FetchMoreResultsAsync();
-                try
-                {
-                    await fetchTask.WaitAsync(cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    // Fetch mutates the existing RowSet. Keep it alive until the driver
-                    // task settles, then let the drain release it.
-                    disposeOnExit = false;
-                    _ = ScyllaDbWriteAwaiter.DrainAndDisposeAsync(fetchTask, rowSet);
-                    throw;
-                }
+                yield return dataMapper(record.SetRow(rows.Current));
             }
-        }
-        finally
-        {
-            if (disposeOnExit)
-                rowSet.Dispose();
+
+            if (rowSet.PagingState is null)
+                yield break;
+
+            var fetchTask = rowSet.FetchMoreResultsAsync();
+            try
+            {
+                await fetchTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Fetch mutates the existing RowSet. Keep it alive until the driver
+                // task settles even though explicit RowSet disposal is no longer required.
+                _ = ScyllaDbWriteAwaiter.DrainAsync(fetchTask, rowSet);
+                throw;
+            }
         }
     }
 
@@ -596,6 +613,12 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// mapper, eliminating intermediate <c>object[]</c> allocation and value-type boxing.
     /// </summary>
     public async Task<ICollection<TResult>> GetObjectsAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper)
+        => await GetObjectsAsync(ctx, dataMapper, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<ICollection<TResult>> GetObjectsAsync<TResult>(
+        IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TResult> dataMapper,
+        CancellationToken cancellationToken)
     {
         if (dataMapper is null)
             throw new StorageException($"{ClassName}.GetObjectsAsync: dataMapper parameter is null");
@@ -605,24 +628,28 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         {
             _logger.LogInformationEvent(ClassName, "GetObjectsAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
             List<TResult> resultSet = [];
-            var session = await _conn.CreateSessionAsync();
+            var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx.ParameterValues.Count > 0)
             {
-                var ps = await GetOrPrepareAsync(session, ctx.CommandText).ConfigureAwait(false);
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
                     var boundStatement = Bind(ps, bindValues);
-                    using var rowSet = await session.ExecuteAsync(boundStatement);
+                    using var rowSet = await ExecuteOwnedStatementAsync(session, boundStatement, cancellationToken).ConfigureAwait(false);
                     resultSet = GetResultSet(rowSet, dataMapper);
                 }
             }
             else
             {
                 var simpleStatement = new SimpleStatement(ctx.CommandText);
-                using var rowSet = await session.ExecuteAsync(simpleStatement);
+                using var rowSet = await ExecuteOwnedStatementAsync(session, simpleStatement, cancellationToken).ConfigureAwait(false);
                 resultSet = GetResultSet(rowSet, dataMapper);
             }
             return resultSet;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -637,6 +664,13 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// using <see cref="ScyllaDbResultSetMaterializer"/>, eliminating per-row heap allocations.
     /// </summary>
     public async Task<IReadOnlyList<TResult>> GetImmutableObjectsAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper) where TResult : struct
+        => await GetImmutableObjectsAsync(ctx, dataMapper, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<TResult>> GetImmutableObjectsAsync<TResult>(
+        IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TResult> dataMapper,
+        CancellationToken cancellationToken)
+        where TResult : struct
     {
         if (dataMapper is null)
             throw new StorageException($"{ClassName}.GetImmutableObjectsAsync: dataMapper parameter is null");
@@ -645,24 +679,28 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         try
         {
             _logger.LogInformationEvent(ClassName, "GetImmutableObjectsAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
-            var session = await _conn.CreateSessionAsync();
+            var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx.ParameterValues.Count > 0)
             {
-                var ps = await GetOrPrepareAsync(session, ctx.CommandText).ConfigureAwait(false);
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
                 foreach (var bindValues in ctx.ParameterValues)
                 {
                     var boundStatement = Bind(ps, bindValues);
-                    using var rowSet = await session.ExecuteAsync(boundStatement);
+                    using var rowSet = await ExecuteOwnedStatementAsync(session, boundStatement, cancellationToken).ConfigureAwait(false);
                     return ScyllaDbResultSetMaterializer.GetResultSet(rowSet, dataMapper);
                 }
             }
             else
             {
                 var simpleStatement = new SimpleStatement(ctx.CommandText);
-                using var rowSet = await session.ExecuteAsync(simpleStatement);
+                using var rowSet = await ExecuteOwnedStatementAsync(session, simpleStatement, cancellationToken).ConfigureAwait(false);
                 return ScyllaDbResultSetMaterializer.GetResultSet(rowSet, dataMapper);
             }
             return new PooledReadOnlyBuffer<TResult>(System.Buffers.MemoryPool<TResult>.Shared.Rent(0), 0);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -677,6 +715,12 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// <see cref="IObjectDataRecord"/> mapper.
     /// </summary>
     public async Task<TResult?> GetObjectAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper)
+        => await GetObjectAsync(ctx, dataMapper, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<TResult?> GetObjectAsync<TResult>(
+        IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TResult> dataMapper,
+        CancellationToken cancellationToken)
     {
         if (dataMapper is null)
             throw new StorageException($"{ClassName}.GetObjectAsync: dataMapper parameter is null");
@@ -686,20 +730,24 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         {
             _logger.LogInformationEvent(ClassName, "GetObjectAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
             var rowSet = default(RowSet);
-            var session = await _conn.CreateSessionAsync();
+            var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx.ParameterValues.Count == 1)
             {
-                var ps = await GetOrPrepareAsync(session, ctx.CommandText).ConfigureAwait(false);
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
                 var boundStatement = Bind(ps, ctx.ParameterValues[0]);
-                rowSet = await session.ExecuteAsync(boundStatement);
+                rowSet = await ExecuteOwnedStatementAsync(session, boundStatement, cancellationToken).ConfigureAwait(false);
             }
             else
             {
                 var simpleStatement = new SimpleStatement(ctx.CommandText);
-                rowSet = await session.ExecuteAsync(simpleStatement);
+                rowSet = await ExecuteOwnedStatementAsync(session, simpleStatement, cancellationToken).ConfigureAwait(false);
             }
             using (rowSet)
                 return GetSingle(rowSet, dataMapper)!;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -713,6 +761,13 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// Executes a scalar query asynchronously and maps the result using an <see cref="IObjectDataRecord"/> mapper.
     /// </summary>
     public async Task<TScalar> GetScalarAsync<TScalar>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TScalar> dataMapper) where TScalar : struct
+        => await GetScalarAsync(ctx, dataMapper, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<TScalar> GetScalarAsync<TScalar>(
+        IObjectRepositoryContext ctx,
+        Func<IObjectDataRecord, TScalar> dataMapper,
+        CancellationToken cancellationToken)
+        where TScalar : struct
     {
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"{ClassName}.ExecuteScalar: only single parameter value accepted");
@@ -720,20 +775,24 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         {
             _logger.LogInformationEvent(ClassName, "GetScalarAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
             var rowSet = default(RowSet);
-            var session = await _conn.CreateSessionAsync();
+            var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx.ParameterValues.Count == 1)
             {
-                var ps = await GetOrPrepareAsync(session, ctx.CommandText).ConfigureAwait(false);
+                var ps = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
                 var boundStatement = Bind(ps, ctx.ParameterValues[0]);
-                rowSet = await session.ExecuteAsync(boundStatement);
+                rowSet = await ExecuteOwnedStatementAsync(session, boundStatement, cancellationToken).ConfigureAwait(false);
             }
             else
             {
                 var simpleStatement = new SimpleStatement(ctx.CommandText);
-                rowSet = await session.ExecuteAsync(simpleStatement);
+                rowSet = await ExecuteOwnedStatementAsync(session, simpleStatement, cancellationToken).ConfigureAwait(false);
             }
             using (rowSet)
                 return GetScalar(rowSet, dataMapper);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

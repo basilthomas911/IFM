@@ -141,12 +141,15 @@ public class FuturesContractCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="verb">The verb associated with the command being validated.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override async ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+    protected override ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        => OnValidateAsync(context, threadId, cmd, CancellationToken.None);
+
+    protected override async ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _commandAudit.CompleteAsync(cmd);
+        await _commandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
         var refLookupService = IsArgumentNull.Set(context.Container.Resolve<IReferenceLookupService>());
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
@@ -239,6 +242,12 @@ public class FuturesContractCommandActor(
     /// <param name="ex">The exception that was thrown during command processing. Determines the type of error event to generate.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure. The result
     /// reflects the nature of the exception and the associated command context.</returns>
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
+
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.SaveStateAsync(context, (FuturesContractCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex)
     {
         try

@@ -19,6 +19,13 @@ public interface ICommandActorContext
     ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId;
+    ValueTask SendAsync<TEvent, TEntityId>(TEvent @event, CancellationToken cancellationToken)
+        where TEvent : class, IEvent<TEntityId>
+        where TEntityId : IActorEntityId
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return SendAsync<TEvent, TEntityId>(@event);
+    }
     bool SetMessageInfo(ActorThreadId threadId, string verb, ActorMessageInfo info);
     ActorMessageInfo? GetMessageInfo(ActorThreadId threadId, string verb);
 }

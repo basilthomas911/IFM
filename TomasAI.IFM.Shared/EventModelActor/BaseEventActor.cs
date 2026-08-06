@@ -40,15 +40,20 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     /// Starts the actor by wiring up producer/consumer and initializing the event actor context.
     /// </summary>
     public async ValueTask StartAsync(IActorSupervisor supervisorArg)
+        => await StartAsync(supervisorArg, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StartAsync(IActorSupervisor supervisorArg, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(supervisorArg);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (Interlocked.CompareExchange(ref _lifecycle, 1, 0) != 0)
             return;
+        IJSActorProducer? producer = null;
         try
         {
-            var producer = _supervisor.GetJSProducer(_actorId);
-            await producer.StartAsync(_actorId).ConfigureAwait(false);
+            producer = _supervisor.GetJSProducer(_actorId);
+            await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
             _context = new EventActorContext(_supervisor, _actorId);
@@ -57,6 +62,11 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
         }
         catch
         {
+            if (producer is not null)
+            {
+                try { await producer.StopAsync().ConfigureAwait(false); }
+                catch (Exception cleanupException) { _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId); }
+            }
             Volatile.Write(ref _lifecycle, 0);
             throw;
         }
@@ -66,19 +76,30 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     /// Stops the actor and tears down producer/consumer resources.
     /// </summary>
     public async ValueTask StopAsync()
+        => await StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (Interlocked.CompareExchange(ref _lifecycle, 3, 2) != 2)
             return;
         try
         {
             var producer = _supervisor.GetJSProducer(_actorId);
+            // Once shutdown owns the actor lifecycle transition, finish cleanup atomically.
             await producer.StopAsync().ConfigureAwait(false);
             _logger.LogInformation("Stopped {MailboxId} producer.", _actorId);
-            await OnShutdown(_context!).ConfigureAwait(false);
         }
         finally
         {
-            Volatile.Write(ref _lifecycle, 0);
+            try
+            {
+                await OnShutdown(_context!).ConfigureAwait(false);
+            }
+            finally
+            {
+                Volatile.Write(ref _lifecycle, 0);
+            }
         }
     }
 
@@ -86,7 +107,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     /// Handles an incoming message by validating and receiving.
     /// </summary>
     public ValueTask HandleMessageAsync(IActorMessage message)
-        => HandleMessageAsync(message, message.Subject.ThreadId);
+        => HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
 
     /// <summary>
     /// Handles an incoming message using a pre-resolved thread identifier, avoiding redundant subject parsing.
@@ -95,10 +116,14 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     /// <param name="threadId">The pre-resolved thread identifier from the caller.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
+        => await HandleMessageAsync(message, threadId, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
     {
         IEvent @event = default! ;
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             // check if we can handle this event...
             if (_context is null)
             {
@@ -121,10 +146,16 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
                 return;
 
             /// Check if the message is a command and validate it
-            await OnValidateAsync(_context!, threadId, @event);
+            cancellationToken.ThrowIfCancellationRequested();
+            await OnValidateAsync(_context!, threadId, @event, cancellationToken).ConfigureAwait(false);
 
             // Process message
-            await ReceiveAsync(_context!, @event);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ReceiveAsync(_context!, @event, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -151,6 +182,16 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     protected virtual ValueTask OnStartup(IEventActorContext context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnShutdown(IEventActorContext context) => ValueTask.CompletedTask;
     protected abstract ValueTask ReceiveAsync(IEventActorContext context, IEvent @event);
+    protected virtual ValueTask ReceiveAsync(IEventActorContext context, IEvent @event, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ReceiveAsync(context, @event);
+    }
     protected virtual ValueTask OnValidateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnValidateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnValidateAsync(context, threadId, @event);
+    }
     protected abstract ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex);
 }

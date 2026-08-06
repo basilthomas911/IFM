@@ -143,11 +143,22 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     public Task<ICollection<TResult>> ExecuteQueryAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper)
         => _provider.GetObjectsAsync(this, dataReaderMapper);
 
+    public Task<ICollection<TResult>> ExecuteQueryAsync<TResult>(
+        Func<IObjectDataRecord, TResult> dataReaderMapper,
+        CancellationToken cancellationToken)
+        => _provider.GetObjectsAsync(this, dataReaderMapper, cancellationToken);
+
     /// <summary>
     /// Executes the query asynchronously and maps the results to a pooled, read-only buffer using an <see cref="IObjectDataRecord"/> mapper.
     /// </summary>
     public Task<IReadOnlyList<TResult>> ExecuteQueryImmutableAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper) where TResult : struct
         => _provider.GetImmutableObjectsAsync(this, dataReaderMapper);
+
+    public Task<IReadOnlyList<TResult>> ExecuteQueryImmutableAsync<TResult>(
+        Func<IObjectDataRecord, TResult> dataReaderMapper,
+        CancellationToken cancellationToken)
+        where TResult : struct
+        => _provider.GetImmutableObjectsAsync(this, dataReaderMapper, cancellationToken);
 
     public ValueTask ExecuteMapReduceAsync<TResult>(Func<IObjectDataRecord, TResult> mapper, Action<IEnumerable<TResult>> reducer)
     {
@@ -156,17 +167,38 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
         return _provider.ExecuteMapReduceAsync(this, mapper, reducer);
     }
 
+    public ValueTask ExecuteMapReduceAsync<TResult>(
+        Func<IObjectDataRecord, TResult> mapper,
+        Action<IEnumerable<TResult>> reducer,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(mapper);
+        ArgumentNullException.ThrowIfNull(reducer);
+        return _provider.ExecuteMapReduceAsync(this, mapper, reducer, cancellationToken);
+    }
+
     /// <summary>
     /// Executes the query and maps the first row to a single object using an <see cref="IObjectDataRecord"/> mapper.
     /// </summary>
     public Task<TResult?> ExecuteSingleAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper)
         => _provider.GetObjectAsync(this, dataReaderMapper);
 
+    public Task<TResult?> ExecuteSingleAsync<TResult>(
+        Func<IObjectDataRecord, TResult> dataReaderMapper,
+        CancellationToken cancellationToken)
+        => _provider.GetObjectAsync(this, dataReaderMapper, cancellationToken);
+
     /// <summary>
     /// Executes a scalar query asynchronously and maps the result using an <see cref="IObjectDataRecord"/> mapper.
     /// </summary>
     public Task<TResult> ExecuteScalarAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper) where TResult : struct
       => _provider.GetScalarAsync(this, dataReaderMapper);
+
+    public Task<TResult> ExecuteScalarAsync<TResult>(
+        Func<IObjectDataRecord, TResult> dataReaderMapper,
+        CancellationToken cancellationToken)
+        where TResult : struct
+        => _provider.GetScalarAsync(this, dataReaderMapper, cancellationToken);
 
     /// <summary>
     /// execute command stored procedure asynchronpusly
@@ -197,6 +229,12 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     /// <returns></returns>
     public Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false) 
         => _provider.ExecuteQueuedCommandsAsync(queuedCommands, useTransaction);
+
+    public Task ExecuteQueuedCommandsAsync(
+        List<object> queuedCommands,
+        bool useTransaction,
+        CancellationToken cancellationToken)
+        => _provider.ExecuteQueuedCommandsAsync(queuedCommands, useTransaction, cancellationToken);
 
     public void Dispose()
     {

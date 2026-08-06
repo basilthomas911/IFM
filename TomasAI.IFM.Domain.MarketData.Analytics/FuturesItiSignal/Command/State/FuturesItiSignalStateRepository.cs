@@ -41,7 +41,10 @@ public class FuturesItiSignalStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the state of type
     /// FuturesItiSignalCommandState.</returns>
     public async ValueTask<FuturesItiSignalCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<FuturesItiSignalCommandState, FuturesItiSignalGeneratedEvent>(command);
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<FuturesItiSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromSnapshotAsync<FuturesItiSignalCommandState, FuturesItiSignalGeneratedEvent>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Saves futures ITI signal state changes and denormalizes the associated domain events.
@@ -51,7 +54,10 @@ public class FuturesItiSignalStateRepository(
     /// <param name="command">The command that triggered the state changes.</param>
     /// <returns>A task that represents the asynchronous save and denormalization operation.</returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesItiSignalCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+       => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesItiSignalCommandState state, ICommand command, CancellationToken cancellationToken)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures ITI signal

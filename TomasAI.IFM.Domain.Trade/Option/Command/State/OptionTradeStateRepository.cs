@@ -42,7 +42,10 @@ public class OptionTradeStateRepository(
     /// <param name="command">The command that identifies the aggregate whose state should be loaded.</param>
     /// <returns>A <see cref="ValueTask{OptionTradeCommandState}"/> containing the reconstituted option trade command state.</returns>
     public async ValueTask<OptionTradeCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<OptionTradeCommandState, OptionTradeSnapshotEvent>(command).ConfigureAwait(false);
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<OptionTradeCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromSnapshotAsync<OptionTradeCommandState, OptionTradeSnapshotEvent>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Persists the option trade command state and denormalizes any pending domain events into the read model.
@@ -55,7 +58,10 @@ public class OptionTradeStateRepository(
     /// <param name="command">The command that triggered the state change, used for correlation and auditing.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save and denormalization operation.</returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, OptionTradeCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
+       => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SaveStateAsync(ICommandActorContext context, OptionTradeCommandState state, ICommand command, CancellationToken cancellationToken)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the option trade query state

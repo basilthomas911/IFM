@@ -11,7 +11,21 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 public interface IActorConsumer
 {
     ValueTask StartAsync(IActorSupervisor context, ActorType actorType, string consumerName = default!);
+    ValueTask StartAsync(
+        IActorSupervisor context,
+        ActorType actorType,
+        string consumerName,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return StartAsync(context, actorType, consumerName);
+    }
     ValueTask StopAsync();
+    ValueTask StopAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return StopAsync();
+    }
     bool IsRunning { get; }
 }
 

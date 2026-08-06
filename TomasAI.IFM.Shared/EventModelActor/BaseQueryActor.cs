@@ -49,16 +49,21 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the mailbox is not set before starting the actor.</exception>
     public async ValueTask StartAsync(IActorSupervisor supervisor)
+        => await StartAsync(supervisor, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StartAsync(IActorSupervisor supervisor, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(supervisor);
+        cancellationToken.ThrowIfCancellationRequested();
         if (Interlocked.CompareExchange(ref _lifecycle, 1, 0) != 0)
             return;
+        IActorProducer? producer = null;
         try
         {
             _supervisor = supervisor;
             Mailbox = supervisor.CreateMailbox(_actorId);
-            var producer = supervisor.GetProducer(_actorId);
-            await producer.StartAsync(_actorId).ConfigureAwait(false);
+            producer = supervisor.GetProducer(_actorId);
+            await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
             _context = supervisor.CreateQueryActorContext(actorId);
@@ -67,6 +72,11 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
         }
         catch
         {
+            if (producer is not null)
+            {
+                try { await producer.StopAsync().ConfigureAwait(false); }
+                catch (Exception cleanupException) { _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId); }
+            }
             Volatile.Write(ref _lifecycle, 0);
             throw;
         }
@@ -82,19 +92,30 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     /// services.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous stop operation.</returns>
     public async ValueTask StopAsync()
+        => await StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (Interlocked.CompareExchange(ref _lifecycle, 3, 2) != 2)
             return;
         try
         {
             var producer = _supervisor.GetProducer(_actorId);
+            // Once shutdown owns the actor lifecycle transition, finish cleanup atomically.
             await producer.StopAsync().ConfigureAwait(false);
             _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
-            await OnShutdown(_context!).ConfigureAwait(false);
         }
         finally
         {
-            Volatile.Write(ref _lifecycle, 0);
+            try
+            {
+                await OnShutdown(_context!).ConfigureAwait(false);
+            }
+            finally
+            {
+                Volatile.Write(ref _lifecycle, 0);
+            }
         }
     }
 
@@ -107,7 +128,7 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
     public ValueTask HandleMessageAsync(IActorMessage message)
-        => HandleMessageAsync(message, message.Subject.ThreadId);
+        => HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
 
     /// <summary>
     /// Handles an incoming message using a pre-resolved thread identifier, avoiding redundant subject parsing.
@@ -116,11 +137,15 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     /// <param name="threadId">The pre-resolved thread identifier from the caller.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
+        => await HandleMessageAsync(message, threadId, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
     {
         IQuery query = default!;
         var verb = message.Subject.Verb;
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 query = ParseMessage(_context!, message);
@@ -132,10 +157,16 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
             }
 
             /// check if the message is a command and validate it
-            await OnValidateAsync(_context!, query);
+            cancellationToken.ThrowIfCancellationRequested();
+            await OnValidateAsync(_context!, query, cancellationToken).ConfigureAwait(false);
 
             /// process the message
-            await ReceiveAsync(_context!, query);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ReceiveAsync(_context!, query, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -168,6 +199,16 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     protected virtual ValueTask OnStartup(IQueryActorContext context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnShutdown(IQueryActorContext context) => ValueTask.CompletedTask;
     protected abstract ValueTask ReceiveAsync(IQueryActorContext context, IQuery query);
+    protected virtual ValueTask ReceiveAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ReceiveAsync(context, query);
+    }
     protected virtual ValueTask OnValidateAsync(IQueryActorContext context, IQuery query) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnValidateAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnValidateAsync(context, query);
+    }
     protected abstract  ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex);
 }

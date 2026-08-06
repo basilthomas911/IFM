@@ -110,12 +110,18 @@ public class FuturesTradeSignalCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override async ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+    protected override ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        => OnValidateAsync(context, threadId, cmd, CancellationToken.None);
+
+    protected override async ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd));
+        if (cancellationToken.CanBeCanceled)
+            await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd), cancellationToken).ConfigureAwait(false);
+        else
+            await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
@@ -184,6 +190,12 @@ public class FuturesTradeSignalCommandActor(
     /// <param name="command">The command that encountered the exception.</param>
     /// <param name="ex">The exception that was thrown during command processing.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure.</returns>
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
+
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.SaveStateAsync(context, (FuturesTradeSignalCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex)
     {
         try

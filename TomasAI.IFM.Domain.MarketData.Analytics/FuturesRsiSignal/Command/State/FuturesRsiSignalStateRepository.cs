@@ -26,21 +26,24 @@ public class FuturesRsiSignalStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the state of type
     /// FuturesRsiSignalCommandState.</returns>
     public async ValueTask<FuturesRsiSignalCommandState> LoadStateAsync(ICommand command)
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<FuturesRsiSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
         => command switch
         {
             ICommand<FuturesRsiDailySignalEntityId> dailyCommand
                 => await LoadStateAsync<
                     FuturesRsiSignalCommandState,
-                    FuturesRsiDailySignalGeneratedEvent>(command, dailyCommand.EntityId.PeriodLength),
+                    FuturesRsiDailySignalGeneratedEvent>(command, dailyCommand.EntityId.PeriodLength, cancellationToken),
             ICommand<FuturesRsiSignalEntityId> rsiCommand
                 => await LoadStateFromSnapshotLastNRangeAsync<
                     FuturesRsiSignalCommandState,
                     FuturesRsiSignalStartedEvent,
-                    FuturesRsiSignalGeneratedEvent>(command, rsiCommand.EntityId.PeriodLength),
+                    FuturesRsiSignalGeneratedEvent>(command, rsiCommand.EntityId.PeriodLength, cancellationToken),
             _ => await LoadStateFromSnapshotLastNRangeAsync<
                 FuturesRsiSignalCommandState,
                 FuturesRsiSignalStartedEvent,
-                FuturesRsiSignalGeneratedEvent>(command, 0)
+                FuturesRsiSignalGeneratedEvent>(command, 0, cancellationToken)
         };
 
     /// <summary>
@@ -51,7 +54,10 @@ public class FuturesRsiSignalStateRepository(
     /// <param name="command">The command that triggered the state changes.</param>
     /// <returns>A task that represents the asynchronous save and denormalization operation.</returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesRsiSignalCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+       => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesRsiSignalCommandState state, ICommand command, CancellationToken cancellationToken)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Denormalizes domain events related to futures RSI signals and updates the read model in the database.

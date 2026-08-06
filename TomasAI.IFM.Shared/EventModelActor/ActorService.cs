@@ -35,13 +35,25 @@ public class ActorService(IActorSupervisor supervisor)
     public async ValueTask<ServiceResult<Guid>> SendAsync<TCommand, TEntityId>(TCommand command, TEntityId entityId)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
+        => await SendAsync(command, entityId, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<ServiceResult<Guid>> SendAsync<TCommand, TEntityId>(
+        TCommand command,
+        TEntityId entityId,
+        CancellationToken cancellationToken)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
     {
         try
         {
             IsArgumentNull.Check(command);
             var producer = _supervisor.GetProducer(command.Subject.ActorId);
-            await producer.SendAsync(command.Subject, command, entityId);
+            await producer.SendAsync(command.Subject, command, entityId, cancellationToken).ConfigureAwait(false);
             return new ServiceResult<Guid>(command.CommandId);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -65,12 +77,23 @@ public class ActorService(IActorSupervisor supervisor)
     public async ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(TQuery query)
         where TQuery : class, IQuery<TResult>
         where TResult : class
+        => await RequestAsync<TResult, TQuery>(query, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(
+        TQuery query,
+        CancellationToken cancellationToken)
+        where TQuery : class, IQuery<TResult>
+        where TResult : class
     {
         try 
         {
             IsArgumentNull.Check(query);
             var producer = _supervisor.GetProducer(query.Subject.ActorId);
-            return await producer.RequestAsync<TResult, TQuery>(query.Subject, query);
+            return await producer.RequestAsync<TResult, TQuery>(query.Subject, query, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -94,12 +117,23 @@ public class ActorService(IActorSupervisor supervisor)
     public async ValueTask<ServiceResult<Guid>> RequestAsync<TCommand,TEntityId>(TCommand command) 
         where TEntityId : IActorEntityId
         where TCommand : class, ICommand<TEntityId>
+        => await RequestAsync<TCommand, TEntityId>(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<ServiceResult<Guid>> RequestAsync<TCommand,TEntityId>(
+        TCommand command,
+        CancellationToken cancellationToken)
+        where TEntityId : IActorEntityId
+        where TCommand : class, ICommand<TEntityId>
     {
         try
         {
             IsArgumentNull.Check(command);
             var producer = _supervisor.GetProducer(command.Subject.ActorId);
-            var actorResult =  await producer.RequestAsync<TCommand, TEntityId, GuidResult>(command.Subject, command, command.EntityId);
+            var actorResult = await producer.RequestAsync<TCommand, TEntityId, GuidResult>(
+                command.Subject,
+                command,
+                command.EntityId,
+                cancellationToken).ConfigureAwait(false);
             return new ServiceResult<Guid>
             {
                 Success = actorResult.Success,
@@ -108,6 +142,10 @@ public class ActorService(IActorSupervisor supervisor)
                 ErrorEvent = actorResult.ErrorEvent,
                 Value = command.CommandId,
             };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -147,12 +185,24 @@ public class UIActorService(IActorProducer producer)
     public async ValueTask<ServiceResult<Guid>> SendAsync<TCommand, TEntityId>(TCommand command, TEntityId entityId)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
+        => await SendAsync(command, entityId, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<ServiceResult<Guid>> SendAsync<TCommand, TEntityId>(
+        TCommand command,
+        TEntityId entityId,
+        CancellationToken cancellationToken)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
     {
         try
         {
             IsArgumentNull.Check(command);
-            await _producer.SendAsync(command.Subject, command, entityId);
+            await _producer.SendAsync(command.Subject, command, entityId, cancellationToken).ConfigureAwait(false);
             return new ServiceResult<Guid>(command.CommandId);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -176,11 +226,22 @@ public class UIActorService(IActorProducer producer)
     public async ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(TQuery query)
         where TQuery : class, IQuery<TResult>
         where TResult : class
+        => await RequestAsync<TResult, TQuery>(query, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(
+        TQuery query,
+        CancellationToken cancellationToken)
+        where TQuery : class, IQuery<TResult>
+        where TResult : class
     {
         try
         {
             IsArgumentNull.Check(query);
-            return await _producer.RequestAsync<TResult, TQuery>(query.Subject, query);
+            return await _producer.RequestAsync<TResult, TQuery>(query.Subject, query, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -204,12 +265,27 @@ public class UIActorService(IActorProducer producer)
     public async ValueTask<ServiceResult<Guid>> RequestAsync<TCommand, TEntityId>(TCommand command)
         where TEntityId : IActorEntityId
         where TCommand : class, ICommand<TEntityId>
+        => await RequestAsync<TCommand, TEntityId>(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<ServiceResult<Guid>> RequestAsync<TCommand, TEntityId>(
+        TCommand command,
+        CancellationToken cancellationToken)
+        where TEntityId : IActorEntityId
+        where TCommand : class, ICommand<TEntityId>
     {
         try
         {
             IsArgumentNull.Check(command);
-            var actorResult = await _producer.RequestAsync<TCommand, TEntityId, GuidResult>(command.Subject, command, command.EntityId);
+            var actorResult = await _producer.RequestAsync<TCommand, TEntityId, GuidResult>(
+                command.Subject,
+                command,
+                command.EntityId,
+                cancellationToken).ConfigureAwait(false);
             return new ServiceResult<Guid>(command.CommandId);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

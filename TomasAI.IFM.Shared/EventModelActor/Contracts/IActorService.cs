@@ -15,12 +15,40 @@ public interface IActorService
     ValueTask<ServiceResult<Guid>> SendAsync<TCommand, TEntityId>(TCommand command, TEntityId entityId)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId;
+    ValueTask<ServiceResult<Guid>> SendAsync<TCommand, TEntityId>(
+        TCommand command,
+        TEntityId entityId,
+        CancellationToken cancellationToken)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return SendAsync(command, entityId);
+    }
 
     ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(TQuery query)
         where TQuery : class, IQuery<TResult>
         where TResult : class;
+    ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(
+        TQuery query,
+        CancellationToken cancellationToken)
+        where TQuery : class, IQuery<TResult>
+        where TResult : class
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return RequestAsync<TResult, TQuery>(query);
+    }
 
     ValueTask<ServiceResult<Guid>> RequestAsync<TCommand, TEntityId>(TCommand command)
         where TCommand: class, ICommand<TEntityId>
         where TEntityId : IActorEntityId;
+    ValueTask<ServiceResult<Guid>> RequestAsync<TCommand, TEntityId>(
+        TCommand command,
+        CancellationToken cancellationToken)
+        where TCommand: class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return RequestAsync<TCommand, TEntityId>(command);
+    }
 }

@@ -12,7 +12,7 @@ The following contracts remain unchanged:
 - A command can succeed without changing state; `Update` reports state change, not command success.
 - Event history remains immutable and unbounded.
 - Repository storage forwarding retains explicit `async`/`await` because its overhead is insignificant beside I/O.
-- Cancellation remains a solution-wide follow-up.
+- Coordinated graceful cancellation is now implemented through the active command/event-source path; concrete query/read-model APIs remain the next migration tranche.
 - The measured string switch remains in production; the benchmark-only jump table is not justified by the current variance.
 
 ## Top ten findings and disposition
@@ -26,7 +26,7 @@ The following contracts remain unchanged:
 7. **N+1 futures-option identifier lookup - fixed.** One bulk `IN` query preserves caller order and duplicates.
 8. **Sequential iron-condor reads - fixed.** Independent aggregate queries start together and are awaited as a group.
 9. **Trading-day array materialization - fixed.** A count-only path uses a holiday set and one date-range pass.
-10. **Dispatch micro-optimization and cancellation - deferred.** The jump-table result is statistically neutral, while cancellation requires a coordinated supervisor-to-storage change.
+10. **Dispatch micro-optimization deferred; graceful cancellation command path implemented.** The jump-table result remains statistically neutral. The coordinated supervisor-to-storage cancellation work now covers the active command/event-source path, with query/read-model APIs tracked separately.
 
 ## Benchmark summary
 

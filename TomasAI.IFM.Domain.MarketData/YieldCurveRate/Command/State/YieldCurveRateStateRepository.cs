@@ -24,7 +24,10 @@ public class YieldCurveRateStateRepository(
     /// <param name="command">The command used to identify and load the state. Must not be <see langword="null"/>.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the <see cref="YieldCurveRateCommandState"/>.</returns>
     public async ValueTask<YieldCurveRateCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotAsync<YieldCurveRateCommandState, YieldCurveRatesImportedEvent>(command).ConfigureAwait(false);
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<YieldCurveRateCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromSnapshotAsync<YieldCurveRateCommandState, YieldCurveRatesImportedEvent>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Saves the yield curve rate state changes.
@@ -34,7 +37,10 @@ public class YieldCurveRateStateRepository(
     /// <param name="command">The command associated with the state change. Cannot be <see langword="null"/>.</param>
     /// <returns>A task that represents the asynchronous save operation.</returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, YieldCurveRateCommandState state, ICommand command)
-        => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
+        => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SaveStateAsync(ICommandActorContext context, YieldCurveRateCommandState state, ICommand command, CancellationToken cancellationToken)
+        => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the yield curve rate query state

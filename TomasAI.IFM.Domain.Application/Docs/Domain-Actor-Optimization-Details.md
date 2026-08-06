@@ -12,7 +12,7 @@ The following contracts remain unchanged:
 - A command's success result remains distinct from whether its state changed.
 - Command logging, event persistence, and event publication remain awaited.
 - Repository storage forwarding retains explicit `async`/`await`; its overhead is immaterial beside I/O.
-- Cancellation remains a solution-wide graceful-shutdown change.
+- Coordinated graceful shutdown and cancellation now cover the active command/event-source path; concrete query/read-model APIs remain the next migration tranche.
 
 ## Top ten findings and disposition
 
@@ -25,7 +25,7 @@ The following contracts remain unchanged:
 7. **Recursive exception publication - fixed.** A failure while publishing an event-actor error is logged once instead of attempting the same failing publication again.
 8. **Denormalization dispatch overhead - fixed.** Ordered indexed traversal and a typed switch replace enumerator/interface dispatch while preserving event order and awaited publication.
 9. **Shutdown completion conversion contract - fixed.** `ApplicationShutdownEvent.ToCompleteEvent` now validates `ApplicationEntityId`, matching `ApplicationShutdownCompleteEvent`, and a regression test verifies the typed conversion and preserved metadata.
-10. **End-to-end cancellation and lifecycle coverage - deferred.** Cancellation must be implemented across the supervisor, actors, repositories, storage, and publication. Existing BDD and integrated projects contain placeholder tests and do not yet exercise the real startup/shutdown pipeline.
+10. **Graceful cancellation and lifecycle foundation - implemented for the command/event-source path.** Supervisor shutdown now stops intake, drains accepted mailbox work, and then stops actors. Tokens flow through command validation, replay, NATS, and storage while persistence/publication obeys the documented commit boundary. Query/read-model API migration and broader host integration coverage remain.
 
 ## Benchmark summary
 

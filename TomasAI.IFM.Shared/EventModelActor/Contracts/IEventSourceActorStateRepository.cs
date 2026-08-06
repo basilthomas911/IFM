@@ -12,6 +12,20 @@ public interface IEventSourceActorStateRepository<TState>
     where TState : IEventSourceActorState<TState>
 {
     ValueTask<TState> LoadStateAsync(ICommand command);
+    ValueTask<TState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return LoadStateAsync(command);
+    }
 
     ValueTask SaveStateAsync(ICommandActorContext context, TState state, ICommand command);
+    ValueTask SaveStateAsync(
+        ICommandActorContext context,
+        TState state,
+        ICommand command,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return SaveStateAsync(context, state, command);
+    }
 }

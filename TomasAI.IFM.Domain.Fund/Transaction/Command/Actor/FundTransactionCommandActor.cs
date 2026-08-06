@@ -219,6 +219,12 @@ public class FundTransactionCommandActor(
     /// <param name="ex">The exception that was thrown during command processing. Determines the type of error event to generate.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure. The result
     /// reflects the nature of the exception and the associated command context.</returns>
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
+
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
+        => await _repo.SaveStateAsync(context, (FundTransactionCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex)
     {
         try

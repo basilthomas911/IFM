@@ -37,7 +37,10 @@ public class SpreadDistributionStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<SpreadDistributionCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotLastNRangeAsync<SpreadDistributionCommandState, SpreadDistributionInsertedEvent, SpreadDistributionDeletedEvent>(command, 0);
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<SpreadDistributionCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromSnapshotLastNRangeAsync<SpreadDistributionCommandState, SpreadDistributionInsertedEvent, SpreadDistributionDeletedEvent>(command, 0, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// save spread distribution state changes
@@ -47,7 +50,10 @@ public class SpreadDistributionStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, SpreadDistributionCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+       => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask SaveStateAsync(ICommandActorContext context, SpreadDistributionCommandState state, ICommand command, CancellationToken cancellationToken)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the spread distribution query state
