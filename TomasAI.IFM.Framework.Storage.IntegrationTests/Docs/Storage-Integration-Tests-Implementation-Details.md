@@ -64,7 +64,7 @@ The skipped tests declare their infrastructure requirements in `Fact.Skip` and d
 
 ## PostgreSQL Transaction Fixture
 
-`EventDatabaseFixture` constructs a local `EventSourceDbContext` through the application storage factory and a PostgreSQL connection setting. It substitutes logging and blackboard dependencies, then exposes the context to tests through xUnit's `IClassFixture` mechanism.
+`EventDatabaseFixture` constructs a local `EventSourceActorDbContext` through the application storage factory and the actor event-source PostgreSQL connection setting. It substitutes logging and blackboard dependencies, then exposes the context to tests through xUnit's `IClassFixture` mechanism.
 
 The two active tests:
 

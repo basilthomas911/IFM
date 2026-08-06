@@ -192,14 +192,23 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             var eventNameId = await GetEventNameIdFromDomainEventAsync(e);
             eventLogParams.Add((eventNameId, e));
         }
-        var db = _dbFactory.EventSourceDb;
+        var db = _dbFactory.ActorEventSourceDb;
         var tx = db.BeginTransaction();
         try
         {
             var eventDate = DateTime.Now;
             foreach (var e in eventLogParams)
             {
-                EventInitHelper.SetProperty(e.DomainEvent, nameof(IEvent.EventId), await InsertEventLogAsync(streamId, e.EventNameId, e.DomainEvent.ToEventData(), commandId, eventDate));
+                EventInitHelper.SetProperty(
+                    e.DomainEvent,
+                    nameof(IEvent.EventId),
+                    await InsertEventLogAsync(
+                        db,
+                        streamId,
+                        e.EventNameId,
+                        e.DomainEvent.ToEventData(),
+                        commandId,
+                        eventDate));
                 savedEvents.Add(e.DomainEvent);
             }
             tx?.Commit();
@@ -548,6 +557,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// </summary>
     /// <remarks>This method performs an asynchronous database operation to insert an event log entry. Ensure
     /// that the provided parameters are valid and consistent with the database schema.</remarks>
+    /// <param name="db">The actor event-source repository that owns the surrounding transaction.</param>
     /// <param name="eventStreamId">The unique identifier of the event stream to which the event belongs.</param>
     /// <param name="eventNameId">The identifier of the event name, representing the type or category of the event.</param>
     /// <param name="eventData">The serialized data associated with the event. This cannot be null or empty.</param>
@@ -555,8 +565,14 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <param name="eventTimestamp">The timestamp of the event, in UTC, formatted as an ISO 8601 string.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier of the newly
     /// inserted event log entry.</returns>
-    internal async Task<long> InsertEventLogAsync(long eventStreamId, int eventNameId, string eventData, Guid commandId, DateTime eventTimestamp)
-        => await _dbFactory.ActorEventSourceDb
+    static async Task<long> InsertEventLogAsync(
+        IObjectRepository<EventSourceActorDbContext> db,
+        long eventStreamId,
+        int eventNameId,
+        string eventData,
+        Guid commandId,
+        DateTime eventTimestamp)
+        => await db
                 .Use(EventSourceDbSql.InsertEventLog)
                 .SetParameters(new InsertEventLog(eventStreamId, eventNameId, eventData, commandId, $"{eventTimestamp:o}"))
                 .ExecuteScalarAsync(MapToLong);

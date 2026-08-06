@@ -72,7 +72,6 @@ public class FundDatabaseFixture : IDisposable
     void SetEventSourceDatabase()
     {
         var dbConn = new DbConnectionSettings()
-                    .Add("EventSourceDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres")
                     .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
         var diContainer = new Dictionary<Type, object>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
@@ -84,7 +83,6 @@ public class FundDatabaseFixture : IDisposable
         BlackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
         var dbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<EventSourceDbContext>), new EventSourceDbContext(dbConn, dbFactory, BlackboardService, logger));
         diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, dbFactory, BlackboardService, logger));
         ActorEventSourceDb = (dbFactory.ActorEventSourceDb as EventSourceActorDbContext)!;
     }

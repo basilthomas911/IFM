@@ -4,7 +4,6 @@ using Xunit;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.BDDTests;
@@ -59,7 +58,6 @@ public class RunBDDTest<TBoundedContext, TboundedContextState, TEntity, TEventPr
                state?.ReplayEvents(domainEvents);
                return getBoundedContext(state!, resolver);
            });
-        var dbEventSource = Substitute.For<IEventSourceDbContext>();
         var dataCacheService = Substitute.For<IDataCacheService>();
         List<IEvent> denormalizerEvents = [];
         var eventDenormalizer = Substitute.For<IEventDenormalizer<TboundedContextState>>();

@@ -27,7 +27,6 @@ public sealed class EventSourceActorSnapshotRangeFixture
     public EventSourceActorSnapshotRangeFixture()
     {
         var connectionSettings = new DbConnectionSettings()
-            .Add("EventSourceDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres")
             .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
         var repositories = new Dictionary<Type, object>();
         var resolver = new DbContextResolver(type => repositories[type]);
@@ -47,14 +46,11 @@ public sealed class EventSourceActorSnapshotRangeFixture
             .Do(call => cacheValues[call.ArgAt<string>(0)] = call.ArgAt<string>(1));
         var blackboard = new BlackboardService(cache, new SystemTextJsonSerializer());
 
-        EventDb = new EventSourceDbContext(connectionSettings, DbFactory, blackboard, logger);
         ActorEventDb = new EventSourceActorDbContext(connectionSettings, DbFactory, blackboard, logger);
-        repositories.Add(typeof(IObjectRepository<EventSourceDbContext>), EventDb);
         repositories.Add(typeof(IObjectRepository<EventSourceActorDbContext>), ActorEventDb);
     }
 
     public DbContextFactory DbFactory { get; }
-    public EventSourceDbContext EventDb { get; }
     public EventSourceActorDbContext ActorEventDb { get; }
 }
 

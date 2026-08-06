@@ -376,7 +376,6 @@ The following settings are consumed during service registration:
 | `AppSettings:MarketDataFeedApi:{Host,Port,ClientId}` | Interactive Brokers live API |
 | `AppSettings:MarketDataFeedSnapshotApi:{Host,Port,ClientId}` | Interactive Brokers snapshot API |
 | `AzureStorage` | Azure storage options |
-| `ConnectionStrings:EventSourceDbConnection` | PostgreSQL event source |
 | `ConnectionStrings:EventSourceActorDbConnection` | PostgreSQL actor event source |
 | `ConnectionStrings:LogDbConnection` | PostgreSQL logs |
 | `ConnectionStrings:SequenceIdDbConnection` | PostgreSQL sequence IDs |

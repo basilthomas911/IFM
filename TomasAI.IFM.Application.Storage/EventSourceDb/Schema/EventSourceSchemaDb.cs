@@ -6,10 +6,10 @@ using TomasAI.IFM.Shared.Storage;
 namespace TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 
 /// <summary>
-/// Shared schema for EventSourceDbContext and EventSourceActorDbContext.
+/// Shared schema for EventSourceActorDbContext.
 /// </summary>
 public sealed class EventSourceSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger)
-    : SchemaDbContext<EventSourceSchemaDb>(connectionSettings[EventSourceDbContext.EventSourceDbConnection], logger)
+    : SchemaDbContext<EventSourceSchemaDb>(connectionSettings[EventSourceActorDbContext.EventSourceActorDbConnection], logger)
 {
     static readonly SchemaObjectDefinition[] Objects =
     [

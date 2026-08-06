@@ -323,7 +323,7 @@ This decorator is covered by unit tests but is not registered in API Server DI a
 
 ### Event sourcing and projection
 
-- [`EventSourceDbContext`](../../TomasAI.IFM.Application.Storage/EventSourceDb/EventSourceDbContext.cs) and `EventSourceActorDbContext` use `EventStreamId` and `EventNameId` as cache-aside lookups around event-source storage.
+- [`EventSourceActorDbContext`](../../TomasAI.IFM.Application.Storage/EventSourceDb/EventSourceActorDbContext.cs) uses `EventStreamId` and `EventNameId` as cache-aside lookups around event-source storage.
 - [`BaseEventProjector`](../../TomasAI.IFM.Application.EventProjector/BaseEventProjector.cs) and `EventProjectorBuilder` use `EventProjectorState`, isolated by projector name and event ID, while queueing, replaying, completing, or clearing projection work.
 - No production `DomainEvents` call site was found during the audit.
 

@@ -36,10 +36,10 @@ public sealed class PostgresStorageProviderFixture : IAsyncLifetime
         }
 
         var settings = new DbConnectionSettings()
-            .Add(EventSourceDbContext.EventSourceDbConnection, connectionString, ProviderName);
+            .Add(EventSourceActorDbContext.EventSourceActorDbConnection, connectionString, ProviderName);
 
         await new EventSourceSchemaDb(settings, _logger).CreateAllAsync();
-        Repository = new PostgresTestRepository(settings[EventSourceDbContext.EventSourceDbConnection], _logger);
+        Repository = new PostgresTestRepository(settings[EventSourceActorDbContext.EventSourceActorDbConnection], _logger);
 
         await CleanupAllScopesAsync();
     }

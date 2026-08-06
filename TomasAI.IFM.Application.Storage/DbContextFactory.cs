@@ -34,7 +34,6 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     readonly Dictionary<Type, object> _dbContextPoolMap = [];
 
     // DbContext properties
-    public IObjectRepository<EventSourceDbContext> EventSourceDb => _dbContextResolver.Resolve<EventSourceDbContext>();
     public IObjectRepository<EventSourceActorDbContext> ActorEventSourceDb => _dbContextResolver.Resolve<EventSourceActorDbContext>();
     public IObjectRepository<LogDbContext> LogDb => _dbContextResolver.Resolve<LogDbContext>();
     public IObjectRepository<SequenceIdDbContext> SequenceIdDb => _dbContextResolver.Resolve<SequenceIdDbContext>();

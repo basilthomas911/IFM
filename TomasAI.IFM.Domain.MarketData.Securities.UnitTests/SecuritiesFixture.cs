@@ -1,12 +1,8 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
-using TomasAI.IFM.Framework.Caching;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
@@ -32,7 +28,6 @@ public class SecuritiesFixture : IDisposable
 {
     public DbContextFactory DbFactory { get; private set; } = default!;
     public ISecuritiesDbContext SecuritiesDb { get; private set; } = default!;
-    public IEventSourceDbContext EventSourceDb { get; private set; } = default!;
 
     public SecuritiesFixture()
     {
@@ -49,28 +44,18 @@ public class SecuritiesFixture : IDisposable
     void SetDbFactory()
     {
         var dbConn = new DbConnectionSettings()
-          .Add("SecuritiesDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb")
-          .Add("EventSourceDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+          .Add("SecuritiesDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb");
 
         var diContainer = new Dictionary<Type, IObjectRepository>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var dbFactory = new DbContextFactory(dbResolver);
 
-        var redisCache = Substitute.For<IRedisCache>();
-        redisCache.When(_ => { }).Do(_ => { });
-        var blackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
-
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
 
-        var loggerDbEventSrc = Substitute.For<ILogger<DbProvider>>();
-        loggerDbEventSrc.When(_ => { }).Do(_ => { });
-
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), new SecuritiesDbContext(dbConn, dbFactory, logger));
-        diContainer.Add(typeof(IObjectRepository<EventSourceDbContext>), new EventSourceDbContext(dbConn, dbFactory, blackboardService, loggerDbEventSrc));
         DbFactory = dbFactory;
         SecuritiesDb = (dbFactory.SecuritiesDb as ISecuritiesDbContext)!;
-        EventSourceDb = (dbFactory.EventSourceDb as IEventSourceDbContext)!;
     }
 
     public TestableFuturesContractCommandActor CreateActor(

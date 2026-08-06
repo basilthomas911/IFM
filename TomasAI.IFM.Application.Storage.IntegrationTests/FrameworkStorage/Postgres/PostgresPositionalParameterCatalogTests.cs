@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.Post
 
 public sealed class PostgresPositionalParameterCatalogTests
 {
-    static readonly Assembly StorageAssembly = typeof(EventSourceDbContext).Assembly;
+    static readonly Assembly StorageAssembly = typeof(EventSourceActorDbContext).Assembly;
 
     static readonly IReadOnlyDictionary<string, string> CqlAliases =
         new Dictionary<string, string>(StringComparer.Ordinal)

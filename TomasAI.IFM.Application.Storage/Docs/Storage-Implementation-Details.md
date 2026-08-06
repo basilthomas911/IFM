@@ -226,7 +226,6 @@ Hosts must register settings for the contexts they resolve:
 
 | Context | Connection-setting key |
 | --- | --- |
-| Event source | `EventSourceDbConnection` |
 | Actor event source | `EventSourceActorDbConnection` |
 | Fund | `FundDbConnection` |
 | Log | `LogDbConnection` |
@@ -240,7 +239,7 @@ Hosts must register settings for the contexts they resolve:
 | Economic calendar external reader | `EconomicCalendarsDbConnection` |
 | Yield curve external reader | `YieldCurveRatesDbConnection` |
 
-Schema contexts reuse their corresponding runtime context setting. `EventSourceSchemaDb` uses `EventSourceDbConnection`; it does not use the actor-specific connection key.
+Schema contexts reuse their corresponding runtime context setting. `EventSourceSchemaDb` uses `EventSourceActorDbConnection`, the same setting as `EventSourceActorDbContext`.
 
 ### Credential-free configuration
 
@@ -259,7 +258,6 @@ Each value has the case-insensitive schema `{"userid":"...","password":"..."}`. 
 
 | Context | Main behavior |
 | --- | --- |
-| `EventSourceDbContext` | Saves and loads bounded-context streams, assigns stream/event-name identities, deletes logs, supports last-N and snapshot replay, and invokes a denormalizer callback during saves. |
 | `EventSourceActorDbContext` | Actor-oriented stream save/load/map-reduce, command log status, event projector state/result persistence, incomplete-projection recovery queries, and event identity caching. |
 | `FundDbContext` | Full fund/order/trade/transaction CRUD and bulk operations plus balances, P&L, drawdown reporting, state/status changes, and database backup. |
 | `LogDbContext` | Telemetry batch insert and date-range reads. |

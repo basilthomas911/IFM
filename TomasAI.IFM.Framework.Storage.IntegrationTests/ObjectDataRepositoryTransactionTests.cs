@@ -17,8 +17,8 @@ public class EventDatabaseFixture : IDisposable
     public EventDatabaseFixture()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("EventSourceDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
-        var diContainer = new Dictionary<Type, EventSourceDbContext>();
+             .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+        var diContainer = new Dictionary<Type, EventSourceActorDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         DbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
@@ -27,11 +27,11 @@ public class EventDatabaseFixture : IDisposable
         var blackboardService = Substitute.For<IBlackboardService>();
         blackboardService.When(_ => { }).Do(_ => { });
 
-        diContainer.Add(typeof(IObjectRepository<EventSourceDbContext>), new EventSourceDbContext(dbConn, DbFactory, blackboardService, logger));
-        Db = DbFactory.EventSourceDb as EventSourceDbContext;
+        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, DbFactory, blackboardService, logger));
+        Db = DbFactory.ActorEventSourceDb as EventSourceActorDbContext;
     }
 
-    public EventSourceDbContext Db { get; }
+    public EventSourceActorDbContext Db { get; }
 
     public IDbContextFactory DbFactory { get; }
 

@@ -29,7 +29,6 @@ public interface IDbContextFactory
     IObjectRepository<TRepo> Get<TRepo>() where TRepo : IObjectRepository;
     IDbContextPool<ReferenceDbContext> ReferencePool { get; }
 
-    IObjectRepository<EventSourceDbContext> EventSourceDb { get; }
     IObjectRepository<EventSourceActorDbContext> ActorEventSourceDb { get; }
     IObjectRepository<LogDbContext> LogDb { get; }
     IObjectRepository<SequenceIdDbContext> SequenceIdDb { get; }
