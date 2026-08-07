@@ -73,53 +73,64 @@ public class TradeQueryActor(
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
     protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+
+    protected override ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        return receiveFunc.Invoke(context, dbFactory, query);
+        return receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding trade
     /// query logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetTradeHistoryQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetTradeHistoryQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetTradeHistoryQuery)!;
-            var result = await query.GetTradeHistoryAsync(dbFactory);
+            var result = await query.GetTradeHistoryAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeHistoryQuery.Verb,
                 new ServiceResult<TradeHistoryReadModel[]>(result));
         },
-        [typeof(GetTradeLimitQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetTradeLimitQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetTradeLimitQuery)!;
-            var result = await query.GetTradeLimitAsync(dbFactory);
+            var result = await query.GetTradeLimitAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeLimitQuery.Verb,
                 new ServiceResult<TradeLimitReadModel>(result));
         },
-        [typeof(GetTradePositionQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetTradePositionQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetTradePositionQuery)!;
-            var result = await query.GetTradePositionAsync(dbFactory);
+            var result = await query.GetTradePositionAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetTradePositionQuery.Verb,
                 new ServiceResult<TradePositionReadModel>(result));
         },
-        [typeof(GetTradeQuantityQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetTradeQuantityQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetTradeQuantityQuery)!;
-            var result = await query.GetTradeQuantityAsync(dbFactory);
+            var result = await query.GetTradeQuantityAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeQuantityQuery.Verb,
                 new ServiceResult<ScalarReadModel<int>>(result));
         },
-        [typeof(GetTradeTypeLimitQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetTradeTypeLimitQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetTradeTypeLimitQuery)!;
-            var result = await query.GetTradeTypeLimitAsync(dbFactory);
+            var result = await query.GetTradeTypeLimitAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeTypeLimitQuery.Verb,
                 new ServiceResult<TradeTypeLimitReadModel>(result));
         }

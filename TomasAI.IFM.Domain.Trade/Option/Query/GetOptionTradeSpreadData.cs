@@ -17,6 +17,12 @@ internal static class GetOptionTradeSpreadData
     /// <param name="dbFactory">The database context factory used to create a context for accessing option trade spread data.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     internal static async ValueTask<OptionTradeSpreadsDataModel> GetOptionTradeSpreadDataAsync(
-        this GetOptionTradeSpreadDataQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.TradeDb.GetOptionTradeSpreadDataAsync(q.OrderId, q.TradeId, q.ValueDate, q.TradeType);
+        this GetOptionTradeSpreadDataQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => (await (cancellationToken.CanBeCanceled
+            ? dbFactory.TradeDb.GetOptionTradeSpreadDataAsync(
+                q.OrderId, q.TradeId, q.ValueDate, q.TradeType, cancellationToken)
+            : dbFactory.TradeDb.GetOptionTradeSpreadDataAsync(
+                q.OrderId, q.TradeId, q.ValueDate, q.TradeType)))!;
 }

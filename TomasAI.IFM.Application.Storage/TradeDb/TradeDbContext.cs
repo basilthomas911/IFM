@@ -24,7 +24,7 @@ namespace TomasAI.IFM.Application.Storage.TradeDb;
 /// <param name="dbFactory"></param>
 /// <param name="sequenceIdGenerator"></param>
 /// <param name="logger"></param>
-public class TradeDbContext(
+public partial class TradeDbContext(
     IDbConnectionSettings connectionSettings,
     IDbContextFactory dbFactory,
     ISequenceIdGenerator sequenceIdGenerator,

@@ -25,8 +25,10 @@ internal static class TradeQueryHandlers
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
     internal static async ValueTask<TradeHistoryReadModel[]> GetTradeHistoryAsync(
-        this GetTradeHistoryQuery q, IDbContextFactory dbFactory)
-        => [.. await dbFactory.GetTradeHistoryAsync(q.OrderId)];
+        this GetTradeHistoryQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => [.. await dbFactory.GetTradeHistoryAsync(q.OrderId, cancellationToken)];
 
     /// <summary>
     /// Handles a <see cref="GetTradeLimitQuery"/> by retrieving the trade limit for the specified trade,
@@ -37,8 +39,10 @@ internal static class TradeQueryHandlers
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
     internal static async ValueTask<TradeLimitReadModel> GetTradeLimitAsync(
-        this GetTradeLimitQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.GetTradeLimitAsync(q.TradeId);
+        this GetTradeLimitQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => await dbFactory.GetTradeLimitAsync(q.TradeId, cancellationToken);
 
     /// <summary>
     /// Handles a <see cref="GetTradePositionQuery"/> by retrieving the trade position for the specified
@@ -50,9 +54,12 @@ internal static class TradeQueryHandlers
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
     internal static async ValueTask<TradePositionReadModel> GetTradePositionAsync(
-        this GetTradePositionQuery q, IDbContextFactory dbFactory)
+        this GetTradePositionQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
         => await dbFactory.GetTradePositionAsync(
-            q.OrderId, q.TradeId, q.TradeType, q.ValueDate, q.DaysToExpiry, q.TradeStatus);
+            q.OrderId, q.TradeId, q.TradeType, q.ValueDate, q.DaysToExpiry, q.TradeStatus,
+            cancellationToken);
 
     /// <summary>
     /// Handles a <see cref="GetTradeQuantityQuery"/> by retrieving the quantity for the specified trade,
@@ -63,8 +70,10 @@ internal static class TradeQueryHandlers
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
     internal static async ValueTask<ScalarReadModel<int>> GetTradeQuantityAsync(
-        this GetTradeQuantityQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.GetTradeQuantityAsync(q.TradeId);
+        this GetTradeQuantityQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => await dbFactory.GetTradeQuantityAsync(q.TradeId, cancellationToken);
 
     /// <summary>
     /// Handles a <see cref="GetTradeTypeLimitQuery"/> by retrieving the trade type limit for the specified
@@ -75,6 +84,8 @@ internal static class TradeQueryHandlers
     /// <param name="msgInfo">Actor message context used to send the NATS reply to the caller.</param>
     /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
     internal static async ValueTask<TradeTypeLimitReadModel> GetTradeTypeLimitAsync(
-        this GetTradeTypeLimitQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.GetTradeTypeLimitAsync(q.TradeId, q.TradeType) ?? new();
+        this GetTradeTypeLimitQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => await dbFactory.GetTradeTypeLimitAsync(q.TradeId, q.TradeType, cancellationToken) ?? new();
 }

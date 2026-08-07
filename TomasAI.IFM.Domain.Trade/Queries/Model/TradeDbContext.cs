@@ -12,12 +12,17 @@ internal static class TradeDbContext
     /// <summary>
     /// Retrieves trade history for the specified order, ordered by value date and grouped by trade status.
     /// </summary>
-    internal static async ValueTask<ICollection<TradeHistoryReadModel>> GetTradeHistoryAsync(this IDbContextFactory dbFactory, int orderId)
+    internal static async ValueTask<ICollection<TradeHistoryReadModel>> GetTradeHistoryAsync(
+        this IDbContextFactory dbFactory,
+        int orderId,
+        CancellationToken cancellationToken = default)
     {
-        var trades = await dbFactory.TradeDb
+        var query = dbFactory.TradeDb
             .Use(TradeDbCql.GetTradeHistory)
-            .SetParameters(new GetTradeHistory(orderId))
-            .ExecuteQueryAsync(MapToTradeHistory!);
+            .SetParameters(new GetTradeHistory(orderId));
+        var trades = cancellationToken.CanBeCanceled
+            ? await query.ExecuteQueryAsync(MapToTradeHistory!, cancellationToken)
+            : await query.ExecuteQueryAsync(MapToTradeHistory!);
 
         return [.. trades
             .Where(trade => StatusOrder(trade.TradeStatus) >= 0)
@@ -38,17 +43,25 @@ internal static class TradeDbContext
     /// <summary>
     /// Retrieves the trade limit for the specified trade, enriched with trade type limit thresholds.
     /// </summary>
-    internal static async ValueTask<TradeLimitReadModel> GetTradeLimitAsync(this IDbContextFactory dbFactory, int tradeId)
+    internal static async ValueTask<TradeLimitReadModel> GetTradeLimitAsync(
+        this IDbContextFactory dbFactory,
+        int tradeId,
+        CancellationToken cancellationToken = default)
     {
-        var tradeLimit = await dbFactory.TradeDb
+        var query = dbFactory.TradeDb
             .Use(TradeDbCql.GetTradeLimit)
-            .SetParameters(new GetTradeLimit(tradeId))
-            .ExecuteSingleAsync(MapToTradeLimit!);
+            .SetParameters(new GetTradeLimit(tradeId));
+        var tradeLimit = cancellationToken.CanBeCanceled
+            ? await query.ExecuteSingleAsync(MapToTradeLimit!, cancellationToken)
+            : await query.ExecuteSingleAsync(MapToTradeLimit!);
 
         if (tradeLimit is null)
             return new();
 
-        var tradeTypeLimit = await dbFactory.GetTradeTypeLimitAsync(tradeLimit.TradeId, tradeLimit.TradeType);
+        var tradeTypeLimit = await dbFactory.GetTradeTypeLimitAsync(
+            tradeLimit.TradeId,
+            tradeLimit.TradeType,
+            cancellationToken);
         return tradeTypeLimit is not null
             ? tradeLimit with
             {
@@ -62,50 +75,82 @@ internal static class TradeDbContext
     /// <summary>
     /// Retrieves the trade type limit for the specified trade and trade type.
     /// </summary>
-    internal static ValueTask<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync(this IDbContextFactory dbFactory, int tradeId, TradeType tradeType)
-        => new(dbFactory.TradeDb
+    internal static ValueTask<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync(
+        this IDbContextFactory dbFactory,
+        int tradeId,
+        TradeType tradeType,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbFactory.TradeDb
             .Use(TradeDbCql.GetTradeTypeLimit)
-            .SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()))
-            .ExecuteSingleAsync(MapToTradeTypeLimit));
+            .SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()));
+        return new(cancellationToken.CanBeCanceled
+            ? query.ExecuteSingleAsync(MapToTradeTypeLimit, cancellationToken)
+            : query.ExecuteSingleAsync(MapToTradeTypeLimit));
+    }
 
     /// <summary>
     /// Retrieves a single trade position for the specified order, trade, type, date, days to expiry, and status.
     /// </summary>
     internal static async ValueTask<TradePositionReadModel> GetTradePositionAsync(this IDbContextFactory dbFactory,
-        int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus)
-        => await dbFactory.TradeDb
+        int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbFactory.TradeDb
             .Use(TradeDbCql.GetTradePosition)
-            .SetParameters(new GetTradePosition(orderId, tradeId, tradeType.ToStringFast(), valueDate, daysToExpiry, tradeStatus.ToStringFast()))
-            .ExecuteSingleAsync(MapToTradePosition!) ?? new();
+            .SetParameters(new GetTradePosition(orderId, tradeId, tradeType.ToStringFast(), valueDate, daysToExpiry, tradeStatus.ToStringFast()));
+        return (cancellationToken.CanBeCanceled
+            ? await query.ExecuteSingleAsync(MapToTradePosition!, cancellationToken)
+            : await query.ExecuteSingleAsync(MapToTradePosition!)) ?? new();
+    }
 
     /// <summary>
     /// Retrieves all trade positions for the specified order and trade.
     /// </summary>
-    internal static ValueTask<ICollection<TradePositionReadModel>> GetTradePositionsAsync(this IDbContextFactory dbFactory, int orderId, int tradeId)
-        => new(dbFactory.TradeDb
+    internal static ValueTask<ICollection<TradePositionReadModel>> GetTradePositionsAsync(
+        this IDbContextFactory dbFactory,
+        int orderId,
+        int tradeId,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbFactory.TradeDb
             .Use(TradeDbCql.GetTradePositions)
-            .SetParameters(new GetTradePositions(orderId, tradeId))
-            .ExecuteQueryAsync(MapToTradePosition!));
+            .SetParameters(new GetTradePositions(orderId, tradeId));
+        return new(cancellationToken.CanBeCanceled
+            ? query.ExecuteQueryAsync(MapToTradePosition!, cancellationToken)
+            : query.ExecuteQueryAsync(MapToTradePosition!));
+    }
 
     /// <summary>
     /// Retrieves the distinct trade types for positions matching the specified order, trade, date, days to expiry, and status.
     /// </summary>
     internal static async ValueTask<string[]> GetTradePositionTradeTypesAsync(this IDbContextFactory dbFactory,
-        int orderId, int tradeId, DateOnly valueDate, TradeStatus tradeStatus, int daysToExpiry)
-        => [.. (await dbFactory.TradeDb
+        int orderId, int tradeId, DateOnly valueDate, TradeStatus tradeStatus, int daysToExpiry,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbFactory.TradeDb
             .Use(TradeDbCql.GetTradePositionsById)
-            .SetParameters(new GetTradePositionsById(orderId, tradeId, valueDate, tradeStatus.ToStringFast(), daysToExpiry))
-            .ExecuteQueryAsync(MapToTradePosition!)).Select(e => e.TradeType.ToStringFast())];
+            .SetParameters(new GetTradePositionsById(orderId, tradeId, valueDate, tradeStatus.ToStringFast(), daysToExpiry));
+        var positions = cancellationToken.CanBeCanceled
+            ? await query.ExecuteQueryAsync(MapToTradePosition!, cancellationToken)
+            : await query.ExecuteQueryAsync(MapToTradePosition!);
+        return [.. positions.Select(e => e.TradeType.ToStringFast())];
+    }
 
     /// <summary>
     /// Retrieves the trade quantity for the specified trade, computed as the average option leg quantity.
     /// </summary>
-    internal static async ValueTask<ScalarReadModel<int>> GetTradeQuantityAsync(this IDbContextFactory dbFactory, int tradeId)
+    internal static async ValueTask<ScalarReadModel<int>> GetTradeQuantityAsync(
+        this IDbContextFactory dbFactory,
+        int tradeId,
+        CancellationToken cancellationToken = default)
     {
-        var optionLegs = await dbFactory.TradeDb
+        var query = dbFactory.TradeDb
             .Use(TradeDbCql.GetOptionLegs)
-            .SetParameters(new GetOptionLegs(tradeId))
-            .ExecuteQueryAsync(MapToOptionLeg!);
+            .SetParameters(new GetOptionLegs(tradeId));
+        var optionLegs = cancellationToken.CanBeCanceled
+            ? await query.ExecuteQueryAsync(MapToOptionLeg!, cancellationToken)
+            : await query.ExecuteQueryAsync(MapToOptionLeg!);
         var quantity = optionLegs.Count > 0
             ? optionLegs.Sum(e => e.Quantity) / optionLegs.Count
             : 0;

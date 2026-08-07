@@ -97,8 +97,10 @@ Option-trade commands use the shared event-source actor lifecycle: subject parsi
 
 Keep aggregate mutations in actor command paths and pure selection/pricing rules in algorithm or advisor folders. New workflow stages belong beneath the intrinsic-time workflow root. Populate scaffold folders only when the stage has a clear contract and actor transition.
 
-## Deferred solution-wide work
+## Solution-wide cancellation status
 
-- Cancellation propagation is intentionally deferred until all root domains have completed their optimization passes. The later solution-wide change must carry cancellation semantics from supervisor/actor lifecycle calls through actor APIs, repositories, database contexts, and storage providers so a supervisor can stop active work gracefully. Introducing only a Domain.Trade token would create incomplete semantics and is not part of this pass.
+- The coordinated solution-wide cancellation pass now covers both Trade query actors, their handlers/query model, all 15 direct in-process IActorTradeQueryApi operations, the Trade read-storage contract, and the concrete database calls used by those paths. Canceled actor reads publish no stale reply, while direct API cancellation remains an OperationCanceledException.
+- Hydrated option-trade graphs propagate one token through bounded sibling-trade and distinct-date fan-out, including positions, option legs, leg data, trade limits, type limits, fills, and fill data. The existing maximum concurrency of four remains unchanged.
+- Command validation/replay already honors cancellation. Event persistence and required denormalization retain the shared non-cancelable commit boundary so a durable mutation is never reported as safely abandoned.
 - The inactive `Option/Algorithm/AlgorithmBuilder` path still contains synchronous `.Result` calls and an ineffective cache pattern. Its registrations are currently commented out. Treat removal of those waits and correction of cache ownership as a mandatory reactivation gate rather than expanding this actor-focused change into dormant workflow code.
 - `ItiStrategyWorkflowCommandActor` and its empty workflow branches remain intentional extension scaffolding. Empty command/event actor implementations must not be removed solely because they currently do no work.

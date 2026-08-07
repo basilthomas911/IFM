@@ -17,7 +17,13 @@ internal static class GetOptionTradeSpreadBarData
     /// <param name="dbFactory">The database context factory used to access option trade spread bar data.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     internal static async ValueTask<OptionTradeSpreadBarsDataModel[]> GetOptionTradeSpreadBarDataAsync(
-        this GetOptionTradeSpreadBarDataQuery q, IDbContextFactory dbFactory)
-        => [.. await dbFactory.TradeDb.GetOptionTradeSpreadBarDataAsync(
-            q.OrderId, q.TradeId, q.ValueDate, q.TradeType, q.StartDate, q.EndDate)];
+        this GetOptionTradeSpreadBarDataQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => [.. await (cancellationToken.CanBeCanceled
+            ? dbFactory.TradeDb.GetOptionTradeSpreadBarDataAsync(
+                q.OrderId, q.TradeId, q.ValueDate, q.TradeType, q.StartDate, q.EndDate,
+                cancellationToken)
+            : dbFactory.TradeDb.GetOptionTradeSpreadBarDataAsync(
+                q.OrderId, q.TradeId, q.ValueDate, q.TradeType, q.StartDate, q.EndDate))];
 }

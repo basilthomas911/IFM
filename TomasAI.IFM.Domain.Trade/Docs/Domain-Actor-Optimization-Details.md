@@ -74,13 +74,13 @@ dotnet run -c Release --project TomasAI.IFM.Domain.Trade.Benchmarks -- --filter 
 
 ## Verification
 
-- `dotnet test TomasAI.IFM.Domain.Trade.UnitTests/TomasAI.IFM.Domain.Trade.UnitTests.csproj -c Release`: 37 passed, 0 failed, including non-blocking audit/validation coordination and position-history characterization.
+- `dotnet test TomasAI.IFM.Domain.Trade.UnitTests/TomasAI.IFM.Domain.Trade.UnitTests.csproj -c Release`: 39 passed, 0 failed, including non-blocking audit/validation coordination, position-history characterization, and actor/direct-API cancellation coverage.
 - `TomasAI.IFM.Domain.Trade.BDDTests` builds successfully but currently discovers zero tests; this pre-existing coverage gap remains visible rather than being counted as a passing suite.
 - Dedicated BenchmarkDotNet project builds and all 20 benchmark cases completed.
 - The only restore-time warning observed is the pre-existing transitive `Framework.Storage` obsolete `RowSet.Dispose()` warning; Domain.Trade builds cleanly under `--no-restore`.
 
 ## Deferred work
 
-- Implement solution-wide cancellation propagation only after the root-domain optimization sequence is complete; see `Domain-Actor-Implementation-Details.md`.
+- Trade query/read-model cancellation is complete across actors, handlers, the direct API, and concrete storage. Required post-commit denormalization retains the shared durable-outcome boundary.
 - Before reactivating legacy `AlgorithmBuilder` registrations, remove its `.Result` calls and repair its cache lifetime/ownership.
 - Paper-trading telemetry should guide any later verb-dispatch or other microoptimization; dictionary dispatch remains appropriate for this pass.

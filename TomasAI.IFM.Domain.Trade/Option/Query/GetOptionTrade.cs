@@ -16,6 +16,10 @@ internal static class GetOptionTrade
     /// <param name="dbFactory">The database context factory used to access option trade data.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     internal static async ValueTask<OptionTradeReadModel?> GetOptionTradeAsync(
-        this GetOptionTradeQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.TradeDb.GetOptionTradeAsync(q.OrderId, q.TradeId);
+        this GetOptionTradeQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => await (cancellationToken.CanBeCanceled
+            ? dbFactory.TradeDb.GetOptionTradeAsync(q.OrderId, q.TradeId, cancellationToken)
+            : dbFactory.TradeDb.GetOptionTradeAsync(q.OrderId, q.TradeId));
 }

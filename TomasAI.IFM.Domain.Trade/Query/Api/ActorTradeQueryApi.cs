@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.Trade.Query.Api;
 /// from <see cref="IBlackboardService"/>. Every supported public query owns its typed success/failure mapping.
 /// <c>GetTradePlanSummaryAsync</c> is intentionally unsupported pending removal of its obsolete UI contract.
 /// </remarks>
-public sealed class ActorTradeQueryApi(
+public sealed partial class ActorTradeQueryApi(
     IDbContextFactory dbFactory,
     IBlackboardService blackboardService) : IActorTradeQueryApi
 {
