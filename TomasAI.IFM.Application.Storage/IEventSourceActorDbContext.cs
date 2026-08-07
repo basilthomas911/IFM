@@ -25,6 +25,9 @@ public interface IEventSourceActorDbContext
     Task<int> GetEventNameIdFromDomainEventAsync<TEvent>(TEvent domainEvent, CancellationToken cancellationToken) where TEvent : IEvent;
     Task InsertCommandLogAsync(ICommand command, DateTime commandTimestamp, string commandData);
     Task InsertCommandLogAsync(ICommand command, DateTime commandTimestamp, string commandData, CancellationToken cancellationToken);
+    Task<bool> TryInsertCommandLogAsync(ICommand command, DateTime commandTimestamp, string commandData);
+    Task<CommandLogReadModel?> GetCommandLogAsync(Guid commandId);
+    Task<bool> HasEventForCommandAsync(Guid commandId);
     Task UpdateCommandLogAsync(Guid commandId, DateTime updateTimestamp, CommandStatus commandStatus);
     Task UpdateCommandLogAsync(Guid commandId, DateTime updateTimestamp, CommandStatus commandStatus, CancellationToken cancellationToken);
 

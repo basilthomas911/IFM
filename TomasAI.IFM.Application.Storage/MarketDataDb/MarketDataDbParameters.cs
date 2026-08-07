@@ -472,6 +472,16 @@ internal readonly record struct InsertFuturesTdiSignal(string contractId, DateOn
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod, timestamp, upTrendCount, downTrendCount, tdi, tdiStrength };
 }
+internal readonly record struct InsertTickTradeData(object?[] Values) : IBindValue
+{
+    public object Bind() => Values;
+}
+
+internal readonly record struct InsertTickQuoteData(object?[] Values) : IBindValue
+{
+    public object Bind() => Values;
+}
+
 internal readonly record struct InsertFuturesTickData(string contractId, DateOnly valueDate, long tickId, TimeOnly tickTime, decimal price, int size) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, tickId, tickTime, price, size };

@@ -8,6 +8,7 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
     private readonly object _gate = new();
     private readonly MarketDataBatch64?[] _slots;
     private readonly BatchPool _pool;
+    private readonly Action? _signalReader;
     private int _head;
     private int _tail;
     private int _count;
@@ -17,10 +18,14 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
     private ulong _fullCount;
     private long _maximumFullWaitTicks;
 
-    internal BoundedBatchChannel(int channelBatchSlots, int batchRecordCapacity)
+    internal BoundedBatchChannel(
+        int channelBatchSlots,
+        int batchRecordCapacity,
+        Action? signalReader = null)
     {
         _slots = new MarketDataBatch64[channelBatchSlots];
         _pool = new BatchPool(channelBatchSlots + 2, batchRecordCapacity);
+        _signalReader = signalReader;
     }
 
     internal int Count
@@ -97,8 +102,9 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
             _head = (_head + 1) % _slots.Length;
             _count++;
             Monitor.PulseAll(_gate);
-            return true;
         }
+        _signalReader?.Invoke();
+        return true;
     }
 
     private void UpdateMaximumFullWait(TimeSpan elapsed)
@@ -173,6 +179,7 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
 
     internal void Complete(Exception? error = null)
     {
+        var completed = false;
         lock (_gate)
         {
             if (_completed)
@@ -181,9 +188,12 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
             }
             _completed = true;
             _completionError = error;
+            completed = true;
             Monitor.PulseAll(_gate);
         }
         _pool.WakeAll();
+        if (completed)
+            _signalReader?.Invoke();
     }
 
     internal void ReturnUnpublished(MarketDataBatch64 batch) => _pool.Return(batch);

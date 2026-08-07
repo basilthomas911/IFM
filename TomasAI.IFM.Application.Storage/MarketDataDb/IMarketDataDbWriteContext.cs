@@ -6,11 +6,14 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbWriteContext
 {
+    Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e);
+    Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e);
     Task<MarketDataProjectionBackfillResult> BackfillQueryProjectionsV2Async(
         int batchSize = 256,
         CancellationToken cancellationToken = default,

@@ -2,6 +2,52 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 
 internal static class MarketDataSchemaCql
 {
+    public const string CreateTickQuoteItemType = """
+        CREATE TYPE IF NOT EXISTS tick_quote_item (
+            source_sequence bigint,
+            source_event_timestamp_ns bigint,
+            source_receive_timestamp_ns bigint,
+            header_flags smallint,
+            bid_price_raw bigint,
+            bid_price decimal,
+            bid_size bigint,
+            bid_count bigint,
+            ask_price_raw bigint,
+            ask_price decimal,
+            ask_size bigint,
+            ask_count bigint
+        );
+        """;
+
+    public const string CreateTickTradeDataTable = """
+        CREATE TABLE IF NOT EXISTS tick_trade_data (
+            asset_type_id tinyint, contract_id text, value_date date,
+            sequence_id bigint, aggregation_timestamp_utc timestamp,
+            aggregation_timestamp_utc_ticks bigint, aggregation_time time,
+            schema_version smallint, dataset text, definition_date date,
+            publisher_id int, instrument_id bigint, actor_event_id uuid,
+            actor_event_log_id bigint, command_id uuid, aggregate_id text,
+            event_source text, received_on timestamp, source_sequence bigint,
+            source_event_timestamp_ns bigint, source_receive_timestamp_ns bigint,
+            header_flags smallint, price_raw bigint, price decimal, size bigint,
+            action smallint, side smallint, dbn_flags smallint,
+            PRIMARY KEY ((asset_type_id, contract_id), value_date, aggregation_time, sequence_id)
+        ) WITH CLUSTERING ORDER BY (value_date ASC, aggregation_time ASC, sequence_id ASC);
+        """;
+
+    public const string CreateTickQuoteDataTable = """
+        CREATE TABLE IF NOT EXISTS tick_quote_data (
+            asset_type_id tinyint, contract_id text, value_date date,
+            sequence_id bigint, aggregation_timestamp_utc timestamp,
+            aggregation_timestamp_utc_ticks bigint, aggregation_time time,
+            schema_version smallint, dataset text, definition_date date,
+            publisher_id int, instrument_id bigint, actor_event_id uuid,
+            actor_event_log_id bigint, command_id uuid, aggregate_id text,
+            event_source text, received_on timestamp, emission_reason smallint,
+            quote_count smallint, quote_data frozen<list<frozen<tick_quote_item>>>,
+            PRIMARY KEY ((asset_type_id, contract_id), value_date, aggregation_time, sequence_id)
+        ) WITH CLUSTERING ORDER BY (value_date ASC, aggregation_time ASC, sequence_id ASC);
+        """;
     public const string CreateFuturesItiTrendDeltaModelTable = """
         CREATE TABLE IF NOT EXISTS futures_iti_trend_delta_model (
             symbol TEXT,

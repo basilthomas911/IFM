@@ -10,6 +10,8 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Commands;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
@@ -174,6 +176,36 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
 
         missingType.Should().BeEmpty();
         nonPositive.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Command_event_lookup_distinguishes_persisted_and_unknown_commands()
+    {
+        var commandId = Guid.NewGuid();
+        await fixture.ActorEventDb.SaveEventsAsync(
+            NewStream(),
+            commandId,
+            new DomainEventCollection([RangeEvent()]));
+
+        (await fixture.ActorEventDb.HasEventForCommandAsync(commandId)).Should().BeTrue();
+        (await fixture.ActorEventDb.HasEventForCommandAsync(Guid.NewGuid())).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Command_audit_try_insert_reports_new_then_existing_without_throwing()
+    {
+        var entity = new TickDataEntityId("ESU6", new DateOnly(2026, 8, 7), AssetTypeId.Futures);
+        var command = new InsertFuturesTickTradeDataCommand
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(ActorType.Command, InsertFuturesTickTradeDataCommand.Actor,
+                InsertFuturesTickTradeDataCommand.Verb, entity.Format()),
+            EntityId = entity
+        };
+
+        (await fixture.ActorEventDb.TryInsertCommandLogAsync(command, DateTime.UtcNow, "payload")).Should().BeTrue();
+        (await fixture.ActorEventDb.TryInsertCommandLogAsync(command, DateTime.UtcNow, "payload")).Should().BeFalse();
+        (await fixture.ActorEventDb.GetCommandLogAsync(command.CommandId)).Should().NotBeNull();
     }
 
     async Task<List<EventStreamReadModel>> LoadAsync(string stream, int lastNRange)

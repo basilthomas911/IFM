@@ -1,6 +1,8 @@
 using System.Globalization;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.MarketData.DataBento;
+using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.Blackboard;
@@ -38,7 +40,7 @@ public interface IDatabentoContractMappingCache
 /// 15-minute sliding time-to-live. Keys are isolated by dataset and UTC date
 /// because Databento instrument IDs can be remapped between trading days.
 /// </summary>
-public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCache
+public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCache, ITickContractMappingStore
 {
     public static readonly TimeSpan AbsoluteExpiration = TimeSpan.FromHours(24);
     public static readonly TimeSpan SlidingTimeToLive = TimeSpan.FromMinutes(15);
@@ -209,6 +211,59 @@ public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCac
             AbsoluteExpirationUtc = absoluteExpirationUtc
         };
         WritePair(entry);
+    }
+
+    public void SetTickMapping(
+        string dataset,
+        DateOnly definitionDate,
+        ushort publisherId,
+        uint instrumentId,
+        string contractId,
+        AssetTypeId assetTypeId)
+    {
+        ValidateDataset(dataset);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        if (publisherId == 0 || instrumentId == 0 || assetTypeId == AssetTypeId.Unknown)
+            throw new ArgumentOutOfRangeException(nameof(instrumentId), "Publisher, instrument, and asset type must be defined.");
+        var now = _timeProvider.GetUtcNow();
+        var entry = new DatabentoContractMappingCacheEntry
+        {
+            Dataset = dataset,
+            DefinitionDate = definitionDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
+            ContractId = contractId,
+            InstrumentId = instrumentId,
+            PublisherId = publisherId,
+            AssetTypeId = assetTypeId,
+            AbsoluteExpirationUtc = now + AbsoluteExpiration
+        };
+        var remaining = entry.AbsoluteExpirationUtc - now;
+        _redisCache.Set(
+            TickInstrumentKey(dataset, definitionDate, publisherId, instrumentId),
+            _jsonSerializer.Serialize(entry),
+            entry.AbsoluteExpirationUtc,
+            remaining < SlidingTimeToLive ? remaining : SlidingTimeToLive);
+        WritePair(entry);
+    }
+
+    public bool TryGetMapping(
+        string dataset,
+        DateOnly definitionDate,
+        InstrumentKey instrument,
+        out TickContractMapping mapping)
+    {
+        ValidateDataset(dataset);
+        var entry = ReadEntry(TickInstrumentKey(dataset, definitionDate, instrument.PublisherId, instrument.InstrumentId));
+        if (entry is null || entry.PublisherId != instrument.PublisherId ||
+            entry.InstrumentId != instrument.InstrumentId || entry.AssetTypeId == AssetTypeId.Unknown ||
+            !MatchesPartition(entry, dataset, definitionDate))
+        {
+            mapping = default;
+            return false;
+        }
+        mapping = new TickContractMapping(
+            dataset, definitionDate, entry.PublisherId, entry.InstrumentId,
+            entry.ContractId, entry.AssetTypeId);
+        return true;
     }
 
     public void ClearMapping(string dataset, string contractId)
@@ -465,6 +520,15 @@ public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCac
         $"{CacheName}:{Uri.EscapeDataString(dataset)}:{definitionDate:yyyyMMdd}:instrument:"
         + instrumentId.ToString(CultureInfo.InvariantCulture);
 
+    private static string TickInstrumentKey(
+        string dataset,
+        DateOnly definitionDate,
+        ushort publisherId,
+        uint instrumentId) =>
+        $"{CacheName}:{Uri.EscapeDataString(dataset)}:{definitionDate:yyyyMMdd}:tick-instrument:"
+        + publisherId.ToString(CultureInfo.InvariantCulture) + ":"
+        + instrumentId.ToString(CultureInfo.InvariantCulture);
+
     private static void ValidateDataset(string dataset) =>
         ArgumentException.ThrowIfNullOrWhiteSpace(dataset);
 }
@@ -475,5 +539,7 @@ public sealed record DatabentoContractMappingCacheEntry
     public required string DefinitionDate { get; init; }
     public required string ContractId { get; init; }
     public uint InstrumentId { get; init; }
+    public ushort PublisherId { get; init; }
+    public AssetTypeId AssetTypeId { get; init; }
     public DateTimeOffset AbsoluteExpirationUtc { get; init; }
 }

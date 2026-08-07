@@ -12,6 +12,11 @@
     <Folder Include="Docs\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Framework.MarketData\TomasAI.IFM.Framework.MarketData.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
+  </ItemGroup>
+
   <ItemGroup Condition="Exists('..\native\DatabentoFeed.Native\out\build\$(Configuration)\databento_feed_native.dll')">
     <None Include="..\native\DatabentoFeed.Native\out\build\$(Configuration)\*.dll"
           Link="runtimes\win-x64\native\%(Filename)%(Extension)"

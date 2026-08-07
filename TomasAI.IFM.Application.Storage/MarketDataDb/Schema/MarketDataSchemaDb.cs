@@ -10,6 +10,9 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("tick_quote_item", MarketDataSchemaCql.CreateTickQuoteItemType, "DROP TYPE IF EXISTS tick_quote_item;"),
+        new("tick_trade_data", MarketDataSchemaCql.CreateTickTradeDataTable, "DROP TABLE IF EXISTS tick_trade_data;"),
+        new("tick_quote_data", MarketDataSchemaCql.CreateTickQuoteDataTable, "DROP TABLE IF EXISTS tick_quote_data;"),
         new("trade_live_feed", MarketDataSchemaCql.CreateTradeLiveFeedTable, "DROP TABLE IF EXISTS trade_live_feed;"),
         new("futures_iti_signal", MarketDataSchemaCql.CreateFuturesitiSignalTable, "DROP TABLE IF EXISTS futures_iti_signal;"),
         new("futures_tick_data", MarketDataSchemaCql.CreateFuturesTickDataTable, "DROP TABLE IF EXISTS futures_tick_data;"),

@@ -63,6 +63,23 @@ public sealed class BoundedBatchChannelTests
         using var batch = channel.Read(TimeSpan.FromSeconds(1));
     }
 
+    [Fact]
+    public async Task Multiplexed_reader_waits_for_channel_signal_and_wakes_on_publish()
+    {
+        using var ready = new SemaphoreSlim(0);
+        var channel = new BoundedBatchChannel(1, 1, () => ready.Release());
+        using var reader = new MultiplexedTickerBatchReader(
+            [(new InstrumentKey(7, 42), (ISynchronousBatchReader<MarketDataBatch64>)channel)],
+            static () => { },
+            ready);
+
+        var read = Task.Run(() => reader.Read(TimeSpan.FromSeconds(2)));
+        PublishOne(channel);
+
+        using var batch = await read.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(new InstrumentKey(7, 42), batch.Instrument);
+    }
+
     private static void PublishOne(BoundedBatchChannel channel)
     {
         var batch = channel.RentBatch(static () => false);

@@ -1,6 +1,6 @@
 # Databento futures tick aggregation and persistence specification
 
-**Version:** 1.5
+**Version:** 1.8
 **Status:** Codex-ready staged implementation specification; durable cross-store sequence recovery remains an explicitly deferred system-wide work item
 **Date:** 2026-08-07  
 **Initial asset scope:** Futures  
@@ -113,11 +113,11 @@ The native Databento record and ring-buffer contracts remain unchanged.
 29. Changed events are published only through JetStream in V1. Core-NATS
     `IActorProducer` publication is not used for this high-level event-actor
     path and may be reconsidered only in a later approved specification.
-30. One DataBento `IMarketDataApi` implementation owns exactly one
-    `ITickAggregationService` instance and is the only component allowed to
-    start or stop it. The provider implementation adapts the existing
-    synchronous `IMarketDataApi.Start`/`Stop` boundary to the service's awaited
-    asynchronous lifecycle; no asynchronous operation is fire-and-forgotten.
+30. A future application-layer `IMarketDataApi` implementation will own exactly
+    one `ITickAggregationService` instance and will be the only component
+    allowed to start or stop it. That application API and its lifecycle adapter
+    are outside this specification; V1 implements only the asynchronous service
+    lifecycle contract and leaves it ready for that later owner.
 31. Quote accumulation uses fixed-capacity pooled arrays. A transport-only
     envelope transfers one rented array to the publisher, and a MessagePack
     segment formatter serializes only the active `QuoteCount` prefix.
@@ -539,12 +539,9 @@ stops every externally owned JetStream event producer after intake and
 publisher queues have drained. Shutdown aggregates failures consistently with
 the existing actor/consumer cleanup and never stops the same producer twice.
 
-### 3.12 Service lifecycle and `IMarketDataApi` ownership
+### 3.12 Service lifecycle contract
 
-The DataBento implementation of
-`TomasAI.IFM.Framework.MarketData.MarketDataApi.IMarketDataApi` is the sole
-lifecycle owner of one injected `ITickAggregationService`. The aggregation
-service contract is exactly:
+V1 implements the aggregation service lifecycle contract exactly as follows:
 
 ```csharp
 public interface ITickAggregationService : IAsyncDisposable
@@ -585,86 +582,16 @@ publisher envelope owned by the service.
 5. return all remaining leases and release the multiplexed-reader lease; and
 6. set `IsRunning == false`.
 
-The existing framework `IMarketDataApi` exposes synchronous `Start` and `Stop`
-members. The DataBento provider implementation adapts only this cold lifecycle
-boundary and never blocks a tick-processing or actor worker thread:
-
-```csharp
-public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
-{
-    private readonly ITickAggregationService _tickAggregationService;
-    private readonly object _lifecycleGate = new();
-
-    public DatabentoMarketDataApi(
-        ITickAggregationService tickAggregationService)
-    {
-        _tickAggregationService = tickAggregationService ??
-            throw new ArgumentNullException(nameof(tickAggregationService));
-    }
-
-    public void Start(
-        Guid commandId,
-        Action<Guid, int, string>? errorMessageHandler = null)
-    {
-        lock (_lifecycleGate)
-        {
-            try
-            {
-                _tickAggregationService.StartAsync()
-                    .AsTask().GetAwaiter().GetResult();
-            }
-            catch (Exception exception)
-            {
-                errorMessageHandler?.Invoke(
-                    commandId,
-                    DatabentoErrorCodes.TickAggregationStartFailed,
-                    exception.Message);
-                throw;
-            }
-        }
-    }
-
-    public void Stop(Guid commandId)
-    {
-        lock (_lifecycleGate)
-        {
-            _tickAggregationService.StopAsync()
-                .AsTask().GetAwaiter().GetResult();
-        }
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        lock (_lifecycleGate)
-        {
-            return _tickAggregationService.DisposeAsync();
-        }
-    }
-
-    // The existing query and streaming members are implemented/delegated by
-    // the complete provider class; they are omitted from this lifecycle excerpt.
-}
-```
-
-The error-code name is binding; WP0 assigns a non-colliding numeric value using
-the repository's existing range. The synchronous bridge is permitted only at
-this existing application API boundary. It must not appear in the aggregation,
-publisher, actor, repository, or storage hot paths. All awaited lifecycle
-implementations below this bridge use `ConfigureAwait(false)` so the cold
-synchronous adapter does not depend on a captured synchronization context.
-
-The provider implementation must receive exactly one aggregation service from
-DI; it must not resolve services dynamically or create one per ticker. No
-actor, hosted service, feed callback, or publisher may independently invoke the
-service lifecycle. The remaining non-lifecycle `IMarketDataApi` members are
-implemented/delegated by the DataBento provider according to their existing
-contracts; this specification changes only their provider's lifecycle
-coordination with TickAggregation.
+The future application-layer `IMarketDataApi` is the intended sole lifecycle
+caller, but its interface, implementation, DI registration, and any synchronous
+adapter are explicitly outside V1. Until that later specification is approved,
+tests and composition code may call `ITickAggregationService` directly. No
+actor, publisher, or feed callback independently owns this lifecycle.
 
 `DisposeAsync` calls `StopAsync` if necessary and disposes the service exactly
-once. Ordinary `Stop` does not stop the external JetStream producer because the
-same API instance may be started again; final producer shutdown remains owned
-by `IActorSupervisor.ShutdownAsync`.
+once. Ordinary stop does not stop the external JetStream producer because the
+service may be started again; final producer shutdown remains owned by
+`IActorSupervisor.ShutdownAsync`.
 
 `ITickAggregationEventPublisher.StopAsync` is likewise idempotent: it closes
 and drains only the current bounded publisher loop, returns all envelopes, and
@@ -707,10 +634,13 @@ execute concurrently on different actor threads.
 
 ### 4.3 State and command result semantics
 
-The minimal command state contains the last applied `SequenceId`, last applied
-`CommandId`, last applied `TickDataId`, and snapshot metadata. Large quote or
-trade payloads are not retained in live command state after the inserted event
-is created.
+V1 retains no mutable tick aggregate or payload in command state, so loading a
+command does not replay the unbounded tick stream. Retry decisions instead use
+the command log plus an indexed `event_log.CommandId` existence check. A
+bounded SHA-256 fingerprint of the command body is compared before retry handling: an exact command whose
+inserted event already exists succeeds without another state change; an audit
+entry with no inserted event is processed again; conflicting reuse of the same
+command ID fails validation.
 
 An operation result and a state change remain different concepts:
 
@@ -722,9 +652,10 @@ An operation result and a state change remain different concepts:
 The actor returns success for the idempotent no-change case. It must not report
 that a command failed merely because no state change was required.
 
-State recovery must start from a snapshot and replay only the bounded tail
-needed for sequence/idempotency validation. It must not reconstruct an
-unbounded in-memory tick collection.
+No tick-state snapshot is required in V1 because there is no mutable aggregate
+state to reconstruct. This deliberate empty-state load must not be replaced by
+unbounded event replay. Future mutable tick state must use the existing
+snapshot-plus-bounded-tail facility.
 
 ### 4.4 Validation rules
 
@@ -1662,6 +1593,13 @@ settings. Schema version is a constant, not an option.
 
 ## 16. Metrics and operational evidence
 
+The service also implements a separate `ITickAggregationMetricsSource` so the
+lifecycle API remains unchanged. Its lock-free snapshot exposes source quote
+and trade counts, emitted rows/items, full and partial flushes, duplicate,
+out-of-order and gap counts, publication failures, active tickers, and
+service-owned quote buffers. Application telemetry can sample this contract
+without adding synchronization to record processing.
+
 Metrics are tagged by asset type and, where cardinality permits, contract:
 
 - source quote and trade records;
@@ -1743,8 +1681,8 @@ long quote run may emit one or more `BufferFull` rows before the next trade.
 - pool exhaustion backpressures and never creates an untracked fallback array;
 - repeated and concurrent `ITickAggregationService.StartAsync`/`StopAsync`
   calls create at most one worker and produce the required lifecycle order;
-- `DatabentoMarketDataApi.Start`/`Stop` invoke exactly one injected aggregation
-  service, propagate failures, and never execute on the tick worker;
+- direct service lifecycle calls are serialized, idempotent, propagate
+  failures, and never execute lifecycle work on the tick worker;
 - service stop drains the publisher but leaves final external producer shutdown
   to `IActorSupervisor`;
 - the publisher constructor obtains the synthetic producer identifier's single
@@ -1875,8 +1813,6 @@ TomasAI.IFM.Domain.MarketData.Feed/
       (reserved; no V1 TickAggregation query actor)
 
 TomasAI.IFM.Framework.MarketData.DataBento/
-  MarketDataApi/
-    DatabentoMarketDataApi.cs
   Runtime/
     MultiplexedTickerBatchReader.cs
   TickAggregation/
@@ -1962,9 +1898,8 @@ The initial V1 pipeline implementation is complete when:
 - the service preserves all accepted futures trades and quotes exactly once at
   the logical event level;
 - per-ticker quote buffering remains bounded and isolated;
-- one DataBento `IMarketDataApi` implementation exclusively owns the lifecycle
-  of one `ITickAggregationService`, with the start/stop ordering in section
-  3.12;
+- the `ITickAggregationService` lifecycle follows the start/stop ordering in
+  section 3.12 and is ready for its future application-layer owner;
 - partial pooled quote buffers serialize only their active prefix and every
   lease is returned exactly once;
 - quote-before-trade order is proven through both actor stages and storage;
@@ -2002,8 +1937,8 @@ The following are intentionally outside V1:
 - market-wide cross-ticker query projections;
 - asset-specific `FuturesTick` and `FuturesOptionTick` query actors and their
   application-facing query contracts;
-- non-lifecycle application-layer `IMarketDataApi` redesign or expansion beyond
-  the existing provider contract;
+- the application-layer `IMarketDataApi`, its DataBento implementation, and its
+  ownership/adaptation of `ITickAggregationService`;
 - the system-wide durable sequence-recovery contract that reconciles
   `ActorEventSourceDb`, both V1 Scylla tables, projection catch-up, and exclusive
   writer ownership;
@@ -2081,10 +2016,9 @@ Codex must:
    integration-test fixture behavior.
 9. Inspect existing error-code ranges, bounded-context routing, actor names, and
    DI registration so new values do not collide.
-10. Inspect both existing `IMarketDataApi` namespaces, bind the DataBento
-    provider to `TomasAI.IFM.Framework.MarketData.MarketDataApi.IMarketDataApi`,
-    and verify that the required DataBento-to-Framework project reference does
-    not create a dependency cycle. Inspect existing pool and MessagePack custom
+10. Confirm that application-layer `IMarketDataApi` implementation remains out
+    of scope and verify project-reference directions for the service, mapping,
+    publisher, and actor contracts. Inspect existing pool and MessagePack custom
     formatter registration conventions before implementing quote leases.
 11. Inspect the existing benchmark harness and optimization-results format.
 12. Identify any specification statement that conflicts with compilable current
@@ -2125,9 +2059,8 @@ The following decisions are already approved:
   `IJSActorProducer` under a synthetic event identifier with no attached actor;
 - `TickAggregationEventPublisher` caches that producer in its constructor and
   starts it asynchronously before feed consumption;
-- the DataBento implementation of the framework `IMarketDataApi` exclusively
-  starts/stops one injected `ITickAggregationService` through the exact
-  lifecycle contract in section 3.12;
+- a future application-layer `IMarketDataApi` will exclusively start/stop one
+  injected `ITickAggregationService`; that owner is outside V1;
 - fixed-capacity quote buffers transfer as leases in a non-serialized publisher
   envelope, and key 17 serializes only the active quote segment;
 - high-level changed events use JetStream only in V1 and publication is
@@ -2278,9 +2211,9 @@ tables are added.
 Deliverables:
 
 - actor API/factory, supervisor, DI, configuration, health, and metrics wiring;
-- the exact `ITickAggregationService` lifecycle contract and one
-  `DatabentoMarketDataApi` lifecycle owner, including serialized/idempotent
-  start, drain-first stop, failure propagation, and asynchronous disposal;
+- the exact `ITickAggregationService` lifecycle contract, including
+  serialized/idempotent start, drain-first stop, failure propagation, and
+  asynchronous disposal; the application-level lifecycle owner is deferred;
 - concurrency-safe `IActorSupervisor.GetJSEventProducer` get-or-create behavior,
   synthetic-ID collision protection, and supervisor-owned shutdown cleanup;
 - `TickAggregationEventPublisher(IActorSupervisor)` constructor resolution of
@@ -2511,6 +2444,9 @@ package range.
 
 | Version | Date | Summary |
 |---|---|---|
+| 1.8 | 2026-08-07 | Added the separate lock-free aggregation metrics snapshot contract for source/emission, source-order anomaly, flush, publication-failure, ticker, and buffer-ownership counters without changing the lifecycle API. |
+| 1.7 | 2026-08-07 | Implemented retry-safe quote ownership/identity transfer, signal-driven multiplexed reads, and empty command state backed by exact command-body comparison plus indexed inserted-event existence checks; no unbounded tick replay is performed. |
+| 1.6 | 2026-08-07 | Removed the DataBento/framework `IMarketDataApi` implementation from V1. The asynchronous `ITickAggregationService` lifecycle remains binding and is ready for a future application-layer `IMarketDataApi`, which will be specified separately. |
 | 1.5 | 2026-08-07 | Bound one DataBento `IMarketDataApi` implementation as the exclusive lifecycle owner of one async `ITickAggregationService`; specified the bounded quote-buffer lease, active-segment MessagePack formatter, and once-only publisher envelope; deferred cross-store sequence recovery as a later system-wide change with an explicit production restart gate; removed the remaining source-mailbox terminology. |
 | 1.4 | 2026-08-07 | Replaced the dummy source actor with `IActorSupervisor.GetJSEventProducer`, a concurrency-safe get-or-create API for a supervisor-owned `IJSActorProducer` registered under a synthetic event identifier with no attached actor; added explicit publisher startup and supervisor shutdown ownership. |
 | 1.3 | 2026-08-07 | Defined the zero-copy multiplexed reader over managed per-ticker channels and bound framework-originated changed events to a single supervisor-owned `IJSActorProducer` identified by an empty `TickAggregationSourceEventActor`, with serialized JetStream publication and explicit startup/shutdown ordering. |

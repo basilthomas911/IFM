@@ -22,6 +22,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private readonly bool _singleChannel;
     private readonly ManualResetEventSlim _drainAllocated = new(false);
     private readonly ManualResetEventSlim _drainStart = new(false);
+    private readonly SemaphoreSlim _multiplexedReady = new(0);
     private TickerSubscription[]? _subscriptions;
     private OptionContractSelection[]? _optionContracts;
     private MarketDataKinds _optionDataKinds;
@@ -38,6 +39,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private bool _started;
     private bool _stopCompleted;
     private bool _disposed;
+    private bool _multiplexedReaderLeased;
+    private bool _directReaderMode;
     private long _batchesPublished;
     private long _drainAllocatedBytes;
     private long _drainPassLimitHitCount;
@@ -249,11 +252,55 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         lock (_lifecycleGate)
         {
             ThrowIfDisposed();
+            if (_multiplexedReaderLeased)
+                throw new InvalidOperationException("The multiplexed ticker reader owns the channel consumers.");
             if (!_channels.TryGetValue(instrument, out var state))
             {
                 throw new KeyNotFoundException($"No ticker reader exists for {instrument}.");
             }
+            _directReaderMode = true;
             return state.Channel;
+        }
+    }
+
+    public IMultiplexedTickerBatchReader GetMultiplexedReader()
+    {
+        lock (_lifecycleGate)
+        {
+            ThrowIfDisposed();
+            if (_multiplexedReaderLeased)
+                throw new InvalidOperationException("The multiplexed ticker reader is already leased.");
+            if (_directReaderMode)
+                throw new InvalidOperationException("Direct ticker readers already own the channel consumers.");
+            if (_channelStates.Length == 0)
+                throw new InvalidOperationException("Start the feed before acquiring its multiplexed reader.");
+            _multiplexedReaderLeased = true;
+            var readers = _channelStates
+                .Select(static state => (state.Instrument, (ISynchronousBatchReader<MarketDataBatch64>)state.Channel))
+                .ToArray();
+            return new MultiplexedTickerBatchReader(readers, ReleaseMultiplexedReader, _multiplexedReady);
+        }
+    }
+
+    private void ReleaseMultiplexedReader()
+    {
+        lock (_lifecycleGate)
+            _multiplexedReaderLeased = false;
+    }
+
+    private void SignalMultiplexedReader()
+    {
+        try
+        {
+            _multiplexedReady.Release();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Feed disposal is terminal; no reader remains to wake.
+        }
+        catch (SemaphoreFullException)
+        {
+            // A pending signal already guarantees that the reader will rescan.
         }
     }
 
@@ -361,6 +408,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         _placementLease = null;
         _drainAllocated.Dispose();
         _drainStart.Dispose();
+        _multiplexedReady.Dispose();
     }
 
     private SafeDbFeedHandle CreateAndSubscribeNative(MonotonicDeadline deadline)
@@ -555,7 +603,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 Instrument = default,
                 Channel = new BoundedBatchChannel(
                     channelSlots,
-                    _options.ManagedBatchRecordCapacity),
+                    _options.ManagedBatchRecordCapacity,
+                    SignalMultiplexedReader),
                 RequiresBaseline = (_optionDataKinds
                                     & (MarketDataKinds.Quote
                                        | MarketDataKinds.MboOrderUpdate)) != 0
@@ -573,7 +622,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                     Instrument = key,
                     Channel = new BoundedBatchChannel(
                         channelSlots,
-                        _options.ManagedBatchRecordCapacity),
+                        _options.ManagedBatchRecordCapacity,
+                        SignalMultiplexedReader),
                     RequiresBaseline = (_subscriptions![mapping.SubscriptionIndex].DataKinds
                                         & (MarketDataKinds.Quote
                                            | MarketDataKinds.MboOrderUpdate)) != 0

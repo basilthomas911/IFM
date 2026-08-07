@@ -35,6 +35,9 @@ public static class EventSourceSchemaSql
             EventTimestamp text NOT NULL,
             CONSTRAINT event_log_pkey PRIMARY KEY (EventStreamId, EventNameId, EventVersion)
         );
+
+        CREATE INDEX IF NOT EXISTS ix_event_log_command_id
+        ON public.event_log (CommandId);
         """;
 
     public const string CreateEventProjectorState = """

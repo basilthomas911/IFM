@@ -108,6 +108,17 @@ public readonly struct MarketRecordHeader32
     public readonly uint Sequence;
     public readonly ushort SourceSchema;
     public readonly ushort Reserved;
+
+    public MarketRecordHeader32(
+        uint instrumentId, ushort publisherId, MarketRecordKind recordKind,
+        byte flags, long eventTimestampNanoseconds, long receiveTimestampNanoseconds,
+        uint sequence, ushort sourceSchema = 0)
+    {
+        InstrumentId = instrumentId; PublisherId = publisherId; RecordKind = recordKind;
+        Flags = flags; EventTimestampNanoseconds = eventTimestampNanoseconds;
+        ReceiveTimestampNanoseconds = receiveTimestampNanoseconds;
+        Sequence = sequence; SourceSchema = sourceSchema; Reserved = 0;
+    }
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8, Size = 64)]
@@ -120,6 +131,14 @@ public readonly struct QuoteRecord64
     public readonly uint AskSize;
     public readonly uint BidCount;
     public readonly uint AskCount;
+
+    public QuoteRecord64(
+        MarketRecordHeader32 header, long bidPrice, long askPrice,
+        uint bidSize, uint askSize, uint bidCount, uint askCount)
+    {
+        Header = header; BidPrice = bidPrice; AskPrice = askPrice;
+        BidSize = bidSize; AskSize = askSize; BidCount = bidCount; AskCount = askCount;
+    }
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8, Size = 64)]
@@ -138,6 +157,16 @@ public readonly struct TradeRecord64
     private readonly byte _reserved1;
     private readonly byte _reserved2;
     public readonly long TimestampOutNanoseconds;
+
+    public TradeRecord64(
+        MarketRecordHeader32 header, long price, uint size, byte action,
+        byte side, byte dbnFlags)
+    {
+        Header = header; Price = price; Size = size; Action = action; Side = side;
+        DbnFlags = dbnFlags; Depth = 0; TimestampInDeltaNanoseconds = 0;
+        ChannelId = 0; _reserved0 = _reserved1 = _reserved2 = 0;
+        TimestampOutNanoseconds = 0;
+    }
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8, Size = 64)]
@@ -162,6 +191,18 @@ public readonly struct MarketRecord64
     [FieldOffset(0)] public readonly QuoteRecord64 Quote;
     [FieldOffset(0)] public readonly TradeRecord64 Trade;
     [FieldOffset(0)] public readonly MboRecord64 Mbo;
+
+    public MarketRecord64(QuoteRecord64 quote)
+    {
+        this = default;
+        Quote = quote;
+    }
+
+    public MarketRecord64(TradeRecord64 trade)
+    {
+        this = default;
+        Trade = trade;
+    }
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8, Size = 128)]

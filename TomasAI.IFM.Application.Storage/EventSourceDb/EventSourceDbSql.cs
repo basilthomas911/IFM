@@ -72,6 +72,14 @@ DELETE FROM event_stream_id WHERE EventStream = $1;
     where cl.CommandId = $1
     """;
 
+    public const string HasEventForCommand = """
+    SELECT EXISTS (
+        SELECT 1
+        FROM event_log
+        WHERE CommandId = $1
+    );
+    """;
+
     /// <summary>
     /// Represents the SQL statement used to insert a new record into the command log table.
     /// </summary>
@@ -302,6 +310,23 @@ ORDER BY el.eventVersion ASC;
             UpdatedTimestamp as "UpdatedTimestamp"
         FROM event_projector_state
         WHERE EventId = $1 AND ProjectorName = $2;
+    """;
+
+    public const string TryInsertCommandLog = """
+        WITH inserted AS (
+            INSERT INTO command_log (
+                CommandId,
+                StreamId,
+                ActorName,
+                CommandName,
+                CommandTimestamp,
+                CommandStatus,
+                CommandData
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (CommandId) DO NOTHING
+            RETURNING CommandId
+        )
+        SELECT EXISTS (SELECT 1 FROM inserted);
     """;
 
     /// <summary>

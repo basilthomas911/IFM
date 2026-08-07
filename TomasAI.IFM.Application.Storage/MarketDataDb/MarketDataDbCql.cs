@@ -2,6 +2,65 @@
 
 internal static class MarketDataDbCql
 {
+    public const string InsertTickTradeData = """
+        INSERT INTO tick_trade_data (
+            asset_type_id, contract_id, value_date, aggregation_time, sequence_id,
+            aggregation_timestamp_utc, aggregation_timestamp_utc_ticks,
+            schema_version, dataset, definition_date, publisher_id, instrument_id,
+            actor_event_id, actor_event_log_id, command_id, aggregate_id,
+            event_source, received_on, source_sequence, source_event_timestamp_ns,
+            source_receive_timestamp_ns, header_flags, price_raw, price, size,
+            action, side, dbn_flags)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """;
+
+    public const string InsertTickQuoteData = """
+        INSERT INTO tick_quote_data (
+            asset_type_id, contract_id, value_date, aggregation_time, sequence_id,
+            aggregation_timestamp_utc, aggregation_timestamp_utc_ticks,
+            schema_version, dataset, definition_date, publisher_id, instrument_id,
+            actor_event_id, actor_event_log_id, command_id, aggregate_id,
+            event_source, received_on, emission_reason, quote_count, quote_data)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """;
+
+    public const string GetTickTradeDataRange = """
+        SELECT * FROM tick_trade_data
+        WHERE asset_type_id = ? AND contract_id = ?
+          AND value_date >= ? AND value_date <= ?;
+        """;
+
+    public const string GetTickQuoteDataRange = """
+        SELECT * FROM tick_quote_data
+        WHERE asset_type_id = ? AND contract_id = ?
+          AND value_date >= ? AND value_date <= ?;
+        """;
+
+    public const string GetTickTradeDataIntradayRange = """
+        SELECT * FROM tick_trade_data
+        WHERE asset_type_id = ? AND contract_id = ? AND value_date = ?
+          AND aggregation_time >= ? AND aggregation_time <= ?;
+        """;
+
+    public const string GetTickQuoteDataIntradayRange = """
+        SELECT * FROM tick_quote_data
+        WHERE asset_type_id = ? AND contract_id = ? AND value_date = ?
+          AND aggregation_time >= ? AND aggregation_time <= ?;
+        """;
+
+    public const string GetTickTradeDataExactRange = """
+        SELECT * FROM tick_trade_data
+        WHERE asset_type_id = ? AND contract_id = ?
+          AND (value_date, aggregation_time) >= (?, ?)
+          AND (value_date, aggregation_time) <= (?, ?);
+        """;
+
+    public const string GetTickQuoteDataExactRange = """
+        SELECT * FROM tick_quote_data
+        WHERE asset_type_id = ? AND contract_id = ?
+          AND (value_date, aggregation_time) >= (?, ?)
+          AND (value_date, aggregation_time) <= (?, ?);
+        """;
     public const string TruncateFuturesTickDataByTime = "TRUNCATE futures_tick_data_by_time;";
     public const string TruncateFuturesEodDataByMonth = "TRUNCATE futures_eod_data_by_month;";
     public const string TruncateVixFuturesContractIndex = "TRUNCATE vix_futures_contract_index;";

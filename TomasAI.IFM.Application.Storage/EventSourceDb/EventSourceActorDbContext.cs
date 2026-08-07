@@ -278,6 +278,22 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 ))
                 .ExecuteCommandAsync(cancellationToken);
 
+    public async Task<bool> TryInsertCommandLogAsync(
+        ICommand command,
+        DateTime commandTimestamp,
+        string commandData)
+        => await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TryInsertCommandLog)
+            .SetParameters(new InsertActorCommandLog(
+                command.CommandId,
+                command.StreamId,
+                $"{command.RouteTo}",
+                command.CommandName,
+                $"{commandTimestamp:o}",
+                $"{CommandStatus.InProgress}",
+                commandData))
+            .ExecuteScalarAsync(static value => value.GetBool(0));
+
     /// <summary>
     /// Asynchronously inserts a log entry for the result of an event projector into the event source database.
     /// </summary>
@@ -462,11 +478,17 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// command.</remarks>
     /// <param name="commandId">The unique identifier of the command whose log is to be retrieved.</param>
     /// <returns>A <see cref="CommandLogReadModel"/> representing the command log if found; otherwise, <see langword="null"/>.</returns>
-    internal async Task<CommandLogReadModel?> GetCommandLogAsync(Guid commandId)
+    public async Task<CommandLogReadModel?> GetCommandLogAsync(Guid commandId)
         =>  await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.GetCommandLog)
             .SetParameters(new GetCommandLog(commandId))
             .ExecuteSingleAsync<CommandLogReadModel>(MapToCommandLog);
+
+    public async Task<bool> HasEventForCommandAsync(Guid commandId)
+        => await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.HasEventForCommand)
+            .SetParameters(new GetCommandLog(commandId))
+            .ExecuteScalarAsync(static value => value.GetBool(0));
 
     /// <summary>
     /// Asynchronously retrieves the unique identifier for the specified event stream.

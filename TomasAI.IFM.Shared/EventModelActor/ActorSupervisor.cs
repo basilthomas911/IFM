@@ -20,6 +20,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     readonly IActorThreadPool _threadPool;
     readonly ConcurrentDictionary<ActorMailboxId, IActorProducer> _producers;
     readonly ConcurrentDictionary<ActorMailboxId, IJSActorProducer> _jsProducers;
+    readonly ConcurrentDictionary<ActorMailboxId, IJSActorProducer> _externalJsProducers;
     readonly ConcurrentDictionary<ActorType, IActorConsumer> _consumers;
     readonly ConcurrentDictionary<ActorType, IJSActorConsumer> _jsConsumers;
     readonly ConcurrentDictionary<ActorThreadId, IActorState> _threadState;
@@ -30,6 +31,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     readonly IContainerInstance _container;
     readonly static string _serviceId = "ActorSupervisor";
     readonly object _shutdownGate = new();
+    readonly object _externalProducerGate = new();
     Task? _shutdownTask;
     int _disposed;
 
@@ -42,6 +44,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         _logger = logger ?? NullLogger<ActorSupervisor>.Instance;
         _producers = new ConcurrentDictionary<ActorMailboxId, IActorProducer>();
         _jsProducers = new ConcurrentDictionary<ActorMailboxId, IJSActorProducer>();
+        _externalJsProducers = new ConcurrentDictionary<ActorMailboxId, IJSActorProducer>();
         _consumers = new ConcurrentDictionary<ActorType, IActorConsumer>();
         _jsConsumers = new ConcurrentDictionary<ActorType, IJSActorConsumer>();
         _threadState = new ConcurrentDictionary<ActorThreadId, IActorState>();
@@ -62,8 +65,13 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// <param name="actor">Actor to add. Must not be null.</param>
     public void AddActor(IActor actor)
     {
-        IsArgumentNull.Check(actor);   
-        _children.TryAdd(actor.Id, actor);
+        IsArgumentNull.Check(actor);
+        lock (_externalProducerGate)
+        {
+            if (_externalJsProducers.ContainsKey(actor.Id))
+                throw new InvalidOperationException($"Actor identifier '{actor.Id}' is reserved by an external event producer.");
+            _children.TryAdd(actor.Id, actor);
+        }
     }
 
     /// <summary>
@@ -383,6 +391,9 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     public void RemoveJSProducer(ActorMailboxId mailboxId)
     {
         IsArgumentNull.Check(mailboxId);
+        if (_externalJsProducers.ContainsKey(mailboxId))
+            throw new InvalidOperationException(
+                $"JetStreamProducer for synthetic identifier '{mailboxId}' is supervisor-owned and cannot be removed directly.");
         if (!_jsProducers.TryRemove(mailboxId, out _))
             throw new InvalidOperationException($"JetStreamProducer for mailbox '{mailboxId}' not found.");
     }
@@ -400,6 +411,37 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         if (!_jsProducers.TryGetValue(mailboxId, out var producer))
             throw new KeyNotFoundException($"JetStreamProducer for mailbox '{mailboxId}' not found.");
         return producer;
+    }
+
+    /// <summary>
+    /// Gets or creates a supervisor-owned JetStream producer for a non-actor
+    /// service. The identifier is synthetic and must never collide with an actor.
+    /// </summary>
+    public IJSActorProducer GetJSEventProducer(ActorMailboxId syntheticProducerId)
+    {
+        if (syntheticProducerId.ActorType != ActorType.Event)
+            throw new ArgumentException("A service event producer requires an Event identifier.", nameof(syntheticProducerId));
+        if (string.IsNullOrWhiteSpace(syntheticProducerId.Name))
+            throw new ArgumentException("A synthetic producer identifier requires a name.", nameof(syntheticProducerId));
+
+        lock (_externalProducerGate)
+        {
+            if (_children.ContainsKey(syntheticProducerId))
+                throw new InvalidOperationException($"Synthetic producer identifier '{syntheticProducerId}' belongs to an actor.");
+            if (_externalJsProducers.TryGetValue(syntheticProducerId, out var existing))
+                return existing;
+            if (_jsProducers.ContainsKey(syntheticProducerId))
+                throw new InvalidOperationException($"JetStream producer identifier '{syntheticProducerId}' is already registered.");
+
+            var producer = IsArgumentNull.Set(_container.Resolve<IJSActorProducer>());
+            if (!_jsProducers.TryAdd(syntheticProducerId, producer) ||
+                !_externalJsProducers.TryAdd(syntheticProducerId, producer))
+            {
+                _jsProducers.TryRemove(syntheticProducerId, out _);
+                throw new InvalidOperationException($"Unable to register synthetic producer '{syntheticProducerId}'.");
+            }
+            return producer;
+        }
     }
 
     /// <summary>
@@ -589,6 +631,22 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
                     (failures ??= []).Add(exception);
                     ActorLifecycleMetrics.RecordCleanupFailure("actors");
                     _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor {ActorId}.", actor.Id);
+                }
+            }
+
+            foreach (var producer in new HashSet<IJSActorProducer>(
+                         _externalJsProducers.Values,
+                         ReferenceEqualityComparer.Instance))
+            {
+                try
+                {
+                    await producer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    (failures ??= []).Add(exception);
+                    ActorLifecycleMetrics.RecordCleanupFailure("external_js_producers");
+                    _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping an external JetStream producer.");
                 }
             }
 

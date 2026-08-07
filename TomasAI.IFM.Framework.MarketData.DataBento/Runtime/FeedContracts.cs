@@ -30,12 +30,27 @@ public interface ISynchronousBatchReader<TBatch>
     bool IsCompleted { get; }
 }
 
+public readonly record struct InstrumentBatch64(
+    InstrumentKey Instrument,
+    MarketDataBatch64 Batch) : IDisposable
+{
+    public void Dispose() => Batch.Dispose();
+}
+
+public interface IMultiplexedTickerBatchReader : IDisposable
+{
+    bool TryRead(out InstrumentBatch64 batch);
+    InstrumentBatch64 Read(TimeSpan timeout);
+    bool IsCompleted { get; }
+}
+
 public interface IDatabentoTickerFeed : IDisposable
 {
     void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout);
     void Start(TimeSpan timeout);
     void Stop(TimeSpan timeout);
     ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey instrument);
+    IMultiplexedTickerBatchReader GetMultiplexedReader();
     IReadOnlyList<TickerInstrumentRegistration> GetInstruments();
     FeedHealthSnapshot GetHealth();
 }

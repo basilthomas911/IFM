@@ -54,6 +54,9 @@ public sealed class EventProjectorStatePersistenceTests
             .Contain("eps.ProjectorName = $1")
             .And.Contain("eps.Outcome IN ('Processing', 'Retrying')")
             .And.NotContain("eps.EventId IS NULL");
+        EventSourceSchemaSql.CreateEventLogTable.Should()
+            .Contain("ix_event_log_command_id")
+            .And.Contain("(CommandId)");
         EventSourceDbSql.GetEventNameId.Should()
             .Contain("e.eventName = $1")
             .And.Contain("e.eventTypeName = $2");

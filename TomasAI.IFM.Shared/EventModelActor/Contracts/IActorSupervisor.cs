@@ -40,6 +40,7 @@ public interface IActorSupervisor
     void AddJSProducer(ActorMailboxId mailboxId, IJSActorProducer producer);
     void RemoveJSProducer(ActorMailboxId mailboxId);
     IJSActorProducer GetJSProducer(ActorMailboxId mailboxId);
+    IJSActorProducer GetJSEventProducer(ActorMailboxId syntheticProducerId);
 
     void AddConsumer(ActorType actorType, IActorConsumer consumer);
     void AddConsumer(ActorType actorType, IJSActorConsumer consumer);
