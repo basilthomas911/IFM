@@ -63,6 +63,8 @@ Command actors parse NATS subjects and payloads, validate command data, load agg
 
 Fund and FundTransaction query execution propagates cancellable actor-worker tokens through query handlers, parallel calculation fan-out, projection validation/fallback reads, and ScyllaDB paging. Compatibility entry points without a token retain their original calls. `OperationCanceledException` remains cancellation and is not converted into a failed query reply.
 
+Fund command-actor startup now passes the host token into durable projector registration, recovery-state reads, and queue startup. Cancellation before the actor becomes runnable stops the partially started projector and rolls back the actor producer. Projection application and processing/completion publication remain non-cancelable after persisted domain events enter the durable projector, preserving the required post-commit completion contract.
+
 ## Performance and concurrency model
 
 Each actor mailbox is the synchronization boundary for its entity stream; Fund actors intentionally do not add locks around mailbox-owned state. Fund order, trade, and transaction state use indexed collections so command validation and event application perform constant-time, allocation-free lookups. Transaction balance access is asynchronous end to end and never blocks an actor worker with `Task.Result`. Event projection remains ordered and the durable projector retains ownership of replay concurrency. See `TomasAI.IFM.Domain.Fund.Benchmarks/RESULTS.md` for reproducible before/after measurements.

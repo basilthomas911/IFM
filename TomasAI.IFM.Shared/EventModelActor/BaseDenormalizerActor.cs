@@ -67,7 +67,7 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
             _context = supervisor.CreateDenormalizerActorContext(actorId);
-            await OnStartup(_context).ConfigureAwait(false);
+            await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
         catch
@@ -171,6 +171,13 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
 
     // Protected hooks for derived classes
     protected virtual ValueTask OnStartup(IDenormalizerActorContext context) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnStartup(
+        IDenormalizerActorContext context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnStartup(context);
+    }
     protected virtual ValueTask OnShutdown(IDenormalizerActorContext context) => ValueTask.CompletedTask;
     protected abstract ValueTask ReceiveAsync(IDenormalizerActorContext context, ActorThreadId threadId, IEvent @event);
     protected virtual ValueTask ReceiveAsync(

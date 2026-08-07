@@ -46,10 +46,28 @@ public class FundCommandActor(
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     protected override async ValueTask OnStartup(ICommandActorContext context)
+        => await StartProjectorAsync(context, CancellationToken.None).ConfigureAwait(false);
+
+    protected override async ValueTask OnStartup(
+        ICommandActorContext context,
+        CancellationToken cancellationToken)
+        => await StartProjectorAsync(context, cancellationToken).ConfigureAwait(false);
+
+    async ValueTask StartProjectorAsync(
+        ICommandActorContext context,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FundCommandState>>());
-        await _eventProjector.StartAsync(context).ConfigureAwait(false);
+        try
+        {
+            await _eventProjector.StartAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await _eventProjector.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
     }
 
     /// <summary>

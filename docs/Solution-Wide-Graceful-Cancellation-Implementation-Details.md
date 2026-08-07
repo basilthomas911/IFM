@@ -33,15 +33,18 @@ The API server now awaits actor startup directly and awaits supervisor shutdown 
 
 Host disposal order is also treated as an idempotent lifecycle boundary. A JetStream loop whose shared connection is released immediately after its stop token is canceled exits normally, and a projector stop issued after its durable queue has already been disposed is a no-op. This prevents correct host teardown from surfacing disposed transport primitives as aggregate shutdown failures.
 
+Command, query, event, and denormalizer actor startup hooks now receive the host startup token. Cancellation raised after producer startup but before the actor becomes runnable rolls the producer back and resets the lifecycle state. Fund's owned durable projector additionally stops its partially initialized queue during this rollback.
+
 ## Implemented propagation
 
 Cancellation-aware overloads now cover:
 
 - actor, supervisor, producer, consumer, actor-service, and command-context contracts;
-- command, event, query, and denormalizer base dispatch;
+- command, event, query, and denormalizer base dispatch and startup hooks;
 - NATS publish/request and NATS/JetStream lifecycle operations;
 - optimized/current domain command validation, state repositories, snapshot replay, last-N replay, and state persistence;
 - event-source stream/name lookup, command log writes, event writes, and map-reduce replay;
+- event-projector startup recovery state queries and writes, durable handler registration, and queue startup;
 - generic object repository contexts and PostgreSQL/ScyllaDB command, queued-command, scalar, object, immutable-object, and map-reduce operations;
 - PostgreSQL connection, transaction, prepare, execute, read, commit, and cancellation rollback paths;
 - ScyllaDB session creation, prepared statements, owned driver operations, paging, and canceled-driver-task draining.
@@ -72,15 +75,17 @@ Behavioral tests cover:
 - consumer intake stopping before actors;
 - cancellation of one shutdown waiter while the shared shutdown continues;
 - projector/JetStream cleanup remaining idempotent when dependency-injection disposal races actor shutdown;
+- cancellation during command, query, event, and denormalizer actor startup rolling back the started producer;
+- cancellation during Fund projector recovery preventing worker startup and rolling back projector ownership;
 - previously existing actor-pool tests proving accepted mailbox messages drain before worker disposal.
 
 The Release solution build and relevant unit-test suites are the verification gate for this phase.
 
 ## Remaining work in this priority
 
-- Add token-aware event and denormalizer handlers where they perform cancellable pre-commit I/O. Required post-commit projection/publication work must retain the non-cancelable rule.
+- Audit derived event and denormalizer handlers for cancellable work that occurs before a durable boundary. Required post-commit projection/application/publication work remains deliberately non-cancelable.
 - Decide whether a separately named force-stop operation is needed. It must not overload graceful `ShutdownAsync` semantics or discard accepted messages silently.
-- Add host-level tests that cancel startup partway through actor registration and verify producer rollback.
+- Add an API-host orchestration test that cancels between registration of multiple actors; per-actor producer and owned-projector rollback now has focused framework/Fund coverage.
 - Add operational metrics for shutdown duration, drained messages, cancellation count, and failed cleanup stages.
 
 ## Explicit exclusions

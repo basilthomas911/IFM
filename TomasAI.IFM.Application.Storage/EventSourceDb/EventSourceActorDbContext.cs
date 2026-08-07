@@ -300,6 +300,11 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     */
 
     public async Task InsertEventProjectorStateAsync(EventProjectorStateReadModel state)
+        => await InsertEventProjectorStateAsync(state, CancellationToken.None).ConfigureAwait(false);
+
+    public async Task InsertEventProjectorStateAsync(
+        EventProjectorStateReadModel state,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentException.ThrowIfNullOrWhiteSpace(state.ProjectorName);
@@ -318,7 +323,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 errorMessage: state.ErrorMessage ?? string.Empty,
                 createdTimestamp: $"{createdTimestamp:o}",
                 updatedTimestamp: $"{now:o}"))
-            .ExecuteCommandAsync()
+            .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -328,12 +333,21 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     public async Task<EventProjectorStateReadModel?> GetEventProjectorStateAsync(
         long eventId,
         string projectorName)
+        => await GetEventProjectorStateAsync(
+            eventId,
+            projectorName,
+            CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<EventProjectorStateReadModel?> GetEventProjectorStateAsync(
+        long eventId,
+        string projectorName,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
         return await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.GetEventProjectorState)
             .SetParameters(new GetEventProjectorState(eventId, projectorName))
-            .ExecuteSingleAsync<EventProjectorStateReadModel>(MapToEventProjectorState)
+            .ExecuteSingleAsync<EventProjectorStateReadModel>(MapToEventProjectorState, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -343,6 +357,15 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     public async Task<ICollection<EventLogReadModel>> GetUncompletedEventProjectorEventsAsync(
         string projectorName,
         IReadOnlyCollection<string> eventNames)
+        => await GetUncompletedEventProjectorEventsAsync(
+            projectorName,
+            eventNames,
+            CancellationToken.None).ConfigureAwait(false);
+
+    public async Task<ICollection<EventLogReadModel>> GetUncompletedEventProjectorEventsAsync(
+        string projectorName,
+        IReadOnlyCollection<string> eventNames,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
         ArgumentNullException.ThrowIfNull(eventNames);
@@ -354,7 +377,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             .SetParameters(new GetUncompletedEventProjectorEvents(
                 projectorName,
                 string.Join(',', eventNames)))
-            .ExecuteQueryAsync<EventLogReadModel>(MapToEventLog)
+            .ExecuteQueryAsync<EventLogReadModel>(MapToEventLog, cancellationToken)
             .ConfigureAwait(false);
     }
 

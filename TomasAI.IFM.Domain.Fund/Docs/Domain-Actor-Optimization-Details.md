@@ -84,4 +84,6 @@ This subphase is intentionally separate because snapshot schema, cadence, compat
 
 The coordinated solution-wide cancellation work now reaches both Fund query actors, query handlers, parallel financial calculations, the Fund read context, projection-consistency reads, streaming fallbacks, and the underlying object repository operations. A real cancellable worker token selects the token-aware path; compatibility calls without a token retain the original database overloads. Cancellation is checked before replying, so a stopped query does not publish a stale success response.
 
+Fund projector startup is also cancellable end to end. Its recovery query, per-event state lookup/update, durable handler registration, and worker start receive the same host token. If startup is canceled, the projector and command-actor producer are rolled back and the actor never becomes runnable. Normal event projection intentionally remains non-cancelable because it follows durable event persistence and must reach a terminal projection/publication state.
+
 The solution-wide implementation contract and remaining bounded contexts are tracked in `docs/Solution-Wide-Graceful-Cancellation-Implementation-Details.md`.

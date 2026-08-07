@@ -171,7 +171,8 @@ public abstract class BaseEventProjector<TActor> (
             .ToArray();
         var eventLogs = await DbEventSource.GetUncompletedEventProjectorEventsAsync(
             ProjectorName,
-            eventNames) ?? [];
+            eventNames,
+            cancellationToken) ?? [];
 
         foreach (var eventLog in eventLogs)
         {
@@ -185,7 +186,9 @@ public abstract class BaseEventProjector<TActor> (
                     Outcome = EventProjectorOutcomeType.Failed,
                     ErrorMessage = $"Unable to deserialize event '{eventLog.EventName}' from event log version {eventLog.EventVersion}."
                 };
-                await DbEventSource.InsertEventProjectorStateAsync(failedState);
+                await DbEventSource.InsertEventProjectorStateAsync(
+                    failedState,
+                    cancellationToken);
                 Logger.LogError(
                     "Unable to recover event {EventId} ({EventName}) for projector {ProjectorName}.",
                     eventLog.EventVersion,
@@ -196,7 +199,8 @@ public abstract class BaseEventProjector<TActor> (
 
             var currentState = await DbEventSource.GetEventProjectorStateAsync(
                 eventLog.EventVersion,
-                ProjectorName);
+                ProjectorName,
+                cancellationToken);
             if (currentState is null)
             {
                 Logger.LogWarning(
@@ -208,7 +212,9 @@ public abstract class BaseEventProjector<TActor> (
             if (IsTerminal(currentState))
                 continue;
 
-            await DbEventSource.InsertEventProjectorStateAsync(currentState);
+            await DbEventSource.InsertEventProjectorStateAsync(
+                currentState,
+                cancellationToken);
             BlackboardService.EventSourcing.EventProjectorState.Set(
                 eventLog.EventVersion,
                 ProjectorName,

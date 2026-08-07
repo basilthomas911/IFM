@@ -57,7 +57,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
             _context = new EventActorContext(_supervisor, _actorId);
-            await OnStartup(_context).ConfigureAwait(false);
+            await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
         catch
@@ -180,6 +180,13 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     protected IEvent ParseMessage(IEventActorContext context, in NatsMsg<byte[]> message)
         => ParseMessage(context, new LegacyNatsActorMessage(message));
     protected virtual ValueTask OnStartup(IEventActorContext context) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnStartup(
+        IEventActorContext context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnStartup(context);
+    }
     protected virtual ValueTask OnShutdown(IEventActorContext context) => ValueTask.CompletedTask;
     protected abstract ValueTask ReceiveAsync(IEventActorContext context, IEvent @event);
     protected virtual ValueTask ReceiveAsync(IEventActorContext context, IEvent @event, CancellationToken cancellationToken)

@@ -49,6 +49,63 @@ public sealed class FundEventProjectorTests
     }
 
     [Fact]
+    public async Task StartAsync_propagates_token_through_recovery_and_queue_startup()
+    {
+        var durableReplayQueue = Substitute.For<IDurableReplayQueue>();
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        using var cancellation = new CancellationTokenSource();
+        dbEventSource.GetUncompletedEventProjectorEventsAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyCollection<string>>(),
+                cancellation.Token)
+            .Returns(Array.Empty<EventLogReadModel>());
+        var projector = CreateProjector(durableReplayQueue, dbEventSource, CreateBlackboard());
+
+        await projector.StartAsync(Substitute.For<ICommandActorContext>(), cancellation.Token);
+
+        await durableReplayQueue.Received(1).DequeueAsync(
+            projector.ProjectorName,
+            Arg.Any<Func<IEvent, Task>>(),
+            cancellation.Token);
+        await dbEventSource.Received(1).GetUncompletedEventProjectorEventsAsync(
+            projector.ProjectorName,
+            Arg.Any<IReadOnlyCollection<string>>(),
+            cancellation.Token);
+        await durableReplayQueue.Received(1).StartAsync(
+            projector.ProjectorName,
+            TimeSpan.FromSeconds(30),
+            cancellation.Token);
+    }
+
+    [Fact]
+    public async Task StartAsync_cancellation_during_recovery_prevents_worker_start()
+    {
+        var durableReplayQueue = Substitute.For<IDurableReplayQueue>();
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        using var cancellation = new CancellationTokenSource();
+        dbEventSource.GetUncompletedEventProjectorEventsAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyCollection<string>>(),
+                cancellation.Token)
+            .Returns(_ =>
+            {
+                cancellation.Cancel();
+                return Task.FromCanceled<ICollection<EventLogReadModel>>(cancellation.Token);
+            });
+        var projector = CreateProjector(durableReplayQueue, dbEventSource, CreateBlackboard());
+
+        Func<Task> start = () => projector
+            .StartAsync(Substitute.For<ICommandActorContext>(), cancellation.Token)
+            .AsTask();
+
+        await start.Should().ThrowAsync<OperationCanceledException>();
+        await durableReplayQueue.DidNotReceive().StartAsync(
+            projector.ProjectorName,
+            Arg.Any<TimeSpan>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task DomainEventsProjectionAsync_persists_recovery_state_before_enqueue()
     {
         var calls = new List<string>();
@@ -95,10 +152,14 @@ public sealed class FundEventProjectorTests
             EventTimestamp: $"{DateTime.UtcNow:o}");
         dbEventSource.GetUncompletedEventProjectorEventsAsync(
                 Arg.Any<string>(),
-                Arg.Any<IReadOnlyCollection<string>>())
+                Arg.Any<IReadOnlyCollection<string>>(),
+                CancellationToken.None)
             .Returns([eventLog]);
         var projector = CreateProjector(durableReplayQueue, dbEventSource, CreateBlackboard());
-        dbEventSource.GetEventProjectorStateAsync(eventId, projector.ProjectorName)
+        dbEventSource.GetEventProjectorStateAsync(
+                eventId,
+                projector.ProjectorName,
+                CancellationToken.None)
             .Returns(new EventProjectorStateReadModel(
                 eventId,
                 projector.ActorName,
@@ -112,11 +173,13 @@ public sealed class FundEventProjectorTests
 
         await dbEventSource.Received(1).GetUncompletedEventProjectorEventsAsync(
             projector.ProjectorName,
-            Arg.Is<IReadOnlyCollection<string>>(names => names.Contains(nameof(FundCreatedEvent))));
+            Arg.Is<IReadOnlyCollection<string>>(names => names.Contains(nameof(FundCreatedEvent))),
+            CancellationToken.None);
         await dbEventSource.Received().InsertEventProjectorStateAsync(
             Arg.Is<EventProjectorStateReadModel>(state =>
                 state.EventId == eventId
-                && state.ProjectorName == projector.ProjectorName));
+                && state.ProjectorName == projector.ProjectorName),
+            CancellationToken.None);
         durableReplayQueue.Received(1).Enqueue(
             projector.ProjectorName,
             Arg.Is<IEvent>(domainEvent => domainEvent.EventId == eventId),
@@ -132,7 +195,8 @@ public sealed class FundEventProjectorTests
         var sourceEvent = new FundCreatedEvent { NewFund = SampleData.Fund };
         dbEventSource.GetUncompletedEventProjectorEventsAsync(
                 Arg.Any<string>(),
-                Arg.Any<IReadOnlyCollection<string>>())
+                Arg.Any<IReadOnlyCollection<string>>(),
+                CancellationToken.None)
             .Returns([
                 new EventLogReadModel(
                     EventStreamId: 34L,
@@ -143,7 +207,10 @@ public sealed class FundEventProjectorTests
                     CommandId: Guid.NewGuid(),
                     EventTimestamp: $"{DateTime.UtcNow:o}")
             ]);
-        dbEventSource.GetEventProjectorStateAsync(eventId, Arg.Any<string>())
+        dbEventSource.GetEventProjectorStateAsync(
+                eventId,
+                Arg.Any<string>(),
+                CancellationToken.None)
             .Returns((EventProjectorStateReadModel?)null);
         var projector = CreateProjector(durableReplayQueue, dbEventSource, CreateBlackboard());
 
@@ -154,7 +221,8 @@ public sealed class FundEventProjectorTests
             Arg.Any<IEvent>(),
             Arg.Any<CancellationToken>());
         await dbEventSource.DidNotReceive().InsertEventProjectorStateAsync(
-            Arg.Is<EventProjectorStateReadModel>(state => state.EventId == eventId));
+            Arg.Is<EventProjectorStateReadModel>(state => state.EventId == eventId),
+            Arg.Any<CancellationToken>());
     }
 
     static FundEventProjector CreateProjector(

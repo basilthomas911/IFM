@@ -71,7 +71,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
             _context = supervisor.CreateCommandActorContext(actorId);
             cancellationToken.ThrowIfCancellationRequested();
-            await OnStartup(_context).ConfigureAwait(false);
+            await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
         catch
@@ -224,6 +224,13 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     protected ICommand ParseMessage(ICommandActorContext context, in NatsMsg<byte[]> message)
         => ParseMessage(context, new LegacyNatsActorMessage(message));
     protected virtual ValueTask OnStartup(ICommandActorContext context) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnStartup(
+        ICommandActorContext context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnStartup(context);
+    }
     protected virtual ValueTask OnShutdown(ICommandActorContext context) => ValueTask.CompletedTask;
     protected abstract ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand command);
     protected virtual ValueTask<ServiceResult<GuidResult>> ReceiveAsync(

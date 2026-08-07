@@ -92,6 +92,71 @@ public sealed class ActorCancellationTests
         order.Should().Equal("consumer", "actor");
     }
 
+    [Fact]
+    public async Task QueryActor_StartupCancellation_ReachesHookAndRollsBackProducer()
+    {
+        var supervisor = new Mock<IActorSupervisor>();
+        var producer = new Mock<IActorProducer>();
+        var context = new Mock<IQueryActorContext>();
+        var actor = new CancellableQueryActor();
+        using var cancellation = new CancellationTokenSource();
+        supervisor.Setup(instance => instance.CreateMailbox(actor.Id)).Returns(Mock.Of<IActorMailbox>());
+        supervisor.Setup(instance => instance.GetProducer(actor.Id)).Returns(producer.Object);
+        supervisor.Setup(instance => instance.CreateQueryActorContext(actor.Id)).Returns(context.Object);
+
+        var startup = actor.StartAsync(supervisor.Object, cancellation.Token).AsTask();
+        await actor.StartupEntered.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        cancellation.Cancel();
+
+        Func<Task> waitForStartup = () => startup;
+        await waitForStartup.Should().ThrowAsync<OperationCanceledException>();
+        actor.IsRunning.Should().BeFalse();
+        producer.Verify(instance => instance.StopAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task EventActor_StartupCancellation_ReachesHookAndRollsBackProducer()
+    {
+        var supervisor = new Mock<IActorSupervisor>();
+        var producer = new Mock<IJSActorProducer>();
+        var actorId = new ActorMailboxId(ActorType.Event, "StartupCancellation");
+        supervisor.Setup(instance => instance.CreateMailbox(actorId)).Returns(Mock.Of<IActorMailbox>());
+        supervisor.Setup(instance => instance.GetJSProducer(actorId)).Returns(producer.Object);
+        var actor = new CancellableEventActor(supervisor.Object, actorId);
+        using var cancellation = new CancellationTokenSource();
+
+        var startup = actor.StartAsync(supervisor.Object, cancellation.Token).AsTask();
+        await actor.StartupEntered.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        cancellation.Cancel();
+
+        Func<Task> waitForStartup = () => startup;
+        await waitForStartup.Should().ThrowAsync<OperationCanceledException>();
+        actor.IsRunning.Should().BeFalse();
+        producer.Verify(instance => instance.StopAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task DenormalizerActor_StartupCancellation_ReachesHookAndRollsBackProducer()
+    {
+        var supervisor = new Mock<IActorSupervisor>();
+        var producer = new Mock<IActorProducer>();
+        var context = new Mock<IDenormalizerActorContext>();
+        var actor = new CancellableDenormalizerActor();
+        using var cancellation = new CancellationTokenSource();
+        supervisor.Setup(instance => instance.CreateMailbox(actor.Id)).Returns(Mock.Of<IActorMailbox>());
+        supervisor.Setup(instance => instance.GetProducer(actor.Id)).Returns(producer.Object);
+        supervisor.Setup(instance => instance.CreateDenormalizerActorContext(actor.Id)).Returns(context.Object);
+
+        var startup = actor.StartAsync(supervisor.Object, cancellation.Token).AsTask();
+        await actor.StartupEntered.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        cancellation.Cancel();
+
+        Func<Task> waitForStartup = () => startup;
+        await waitForStartup.Should().ThrowAsync<OperationCanceledException>();
+        actor.IsRunning.Should().BeFalse();
+        producer.Verify(instance => instance.StopAsync(), Times.Once);
+    }
+
     sealed record TestCommand(ActorEntityId EntityId) : ICommand<ActorEntityId>
     {
         public ActorSubject Subject { get; init; } = new(ActorType.Command, "CancellationTest", "Run", EntityId.Format());
@@ -101,6 +166,103 @@ public sealed class ActorCancellationTests
         public string StreamId => EntityId.Format();
         public string EventSource => nameof(TestCommand);
         public int ErrorCode => 0;
+    }
+
+    sealed class CancellableQueryActor()
+        : BaseQueryActor<CancellableQueryActor>(
+            NullLogger<CancellableQueryActor>.Instance,
+            new ActorMailboxId(ActorType.Query, "StartupCancellation"))
+    {
+        public TaskCompletionSource StartupEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override async ValueTask OnStartup(
+            IQueryActorContext context,
+            CancellationToken cancellationToken)
+        {
+            StartupEntered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+
+        protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+            => throw new NotSupportedException();
+
+        protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+            => ValueTask.CompletedTask;
+
+        protected override ValueTask OnExceptionAsync(
+            IQueryActorContext context,
+            ActorThreadId threadId,
+            IQuery query,
+            string verb,
+            Exception ex)
+            => ValueTask.CompletedTask;
+    }
+
+    sealed class CancellableEventActor(IActorSupervisor supervisor, ActorMailboxId actorId)
+        : BaseEventActor<CancellableEventActor>(
+            supervisor,
+            NullLogger<CancellableEventActor>.Instance,
+            actorId)
+    {
+        public TaskCompletionSource StartupEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override async ValueTask OnStartup(
+            IEventActorContext context,
+            CancellationToken cancellationToken)
+        {
+            StartupEntered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+
+        protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+            => throw new NotSupportedException();
+
+        protected override ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+            => ValueTask.CompletedTask;
+
+        protected override ValueTask OnExceptionAsync(
+            IEventActorContext context,
+            ActorThreadId threadId,
+            IEvent @event,
+            Exception ex)
+            => ValueTask.CompletedTask;
+    }
+
+    sealed class CancellableDenormalizerActor()
+        : BaseDenormalizerActor<CancellableDenormalizerActor>(
+            NullLogger<CancellableDenormalizerActor>.Instance,
+            new ActorMailboxId(ActorType.Event, "StartupCancellationDenormalizer"))
+    {
+        public TaskCompletionSource StartupEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override async ValueTask OnStartup(
+            IDenormalizerActorContext context,
+            CancellationToken cancellationToken)
+        {
+            StartupEntered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+
+        protected override IEvent ParseMessage(
+            IDenormalizerActorContext context,
+            NatsMsg<byte[]> message)
+            => throw new NotSupportedException();
+
+        protected override ValueTask ReceiveAsync(
+            IDenormalizerActorContext context,
+            ActorThreadId threadId,
+            IEvent @event)
+            => ValueTask.CompletedTask;
+
+        protected override ValueTask OnExceptionAsync(
+            IDenormalizerActorContext context,
+            ActorThreadId threadId,
+            IEvent @event,
+            Exception ex)
+            => ValueTask.CompletedTask;
     }
 
     sealed class RecordingConsumer(List<string> order, bool pauseStop = false) : IActorConsumer

@@ -110,6 +110,43 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
+    public async Task RuntimeStartupCancellation_rolls_back_projector_and_actor_producer()
+    {
+        var eventProjector = Substitute.For<IEventProjector<FundCommandActor>>();
+        var actor = _fixture.CreateActor(eventProjector: eventProjector);
+        var supervisor = Substitute.For<IActorSupervisor>();
+        var producer = Substitute.For<IActorProducer>();
+        var mailbox = Substitute.For<IActorMailbox>();
+        var context = Substitute.For<ICommandActorContext>();
+        var container = Substitute.For<IContainerInstance>();
+        container.Resolve<IEventSourceActorStateRepository<FundCommandState>>()
+            .Returns(Substitute.For<IEventSourceActorStateRepository<FundCommandState>>());
+        context.Container.Returns(container);
+        supervisor.CreateMailbox(actor.Id).Returns(mailbox);
+        supervisor.GetProducer(actor.Id).Returns(producer);
+        supervisor.CreateCommandActorContext(actor.Id).Returns(context);
+        using var cancellation = new CancellationTokenSource();
+        var projectorStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        eventProjector.StartAsync(context, cancellation.Token)
+            .Returns(_ => new ValueTask(WaitForCancellationAsync()));
+
+        var startup = actor.StartAsync(supervisor, cancellation.Token).AsTask();
+        await projectorStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => startup);
+        actor.IsRunning.Should().BeFalse();
+        await eventProjector.Received(1).StopAsync(CancellationToken.None);
+        await producer.Received(1).StopAsync();
+
+        async Task WaitForCancellationAsync()
+        {
+            projectorStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellation.Token);
+        }
+    }
+
+    [Fact]
     public async Task OnShutdown_StopsEventProjector()
     {
         var eventProjector = Substitute.For<IEventProjector<FundCommandActor>>();

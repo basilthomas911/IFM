@@ -67,7 +67,7 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
             _context = supervisor.CreateQueryActorContext(actorId);
-            await OnStartup(_context).ConfigureAwait(false);
+            await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
         catch
@@ -203,6 +203,13 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     protected IQuery ParseMessage(IQueryActorContext context, in NatsMsg<byte[]> message)
         => ParseMessage(context, new LegacyNatsActorMessage(message));
     protected virtual ValueTask OnStartup(IQueryActorContext context) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnStartup(
+        IQueryActorContext context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnStartup(context);
+    }
     protected virtual ValueTask OnShutdown(IQueryActorContext context) => ValueTask.CompletedTask;
     protected abstract ValueTask ReceiveAsync(IQueryActorContext context, IQuery query);
     protected virtual ValueTask ReceiveAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)

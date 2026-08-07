@@ -30,10 +30,21 @@ public interface IEventSourceActorDbContext
 
     Task InsertEventProjectorResultAsync(EventProjectorResultReadModel eventProjectorResult);
     Task InsertEventProjectorStateAsync(EventProjectorStateReadModel eventProjectorState);
+    Task InsertEventProjectorStateAsync(
+        EventProjectorStateReadModel eventProjectorState,
+        CancellationToken cancellationToken);
     Task<EventProjectorStateReadModel?> GetEventProjectorStateAsync(long eventId, string projectorName);
+    Task<EventProjectorStateReadModel?> GetEventProjectorStateAsync(
+        long eventId,
+        string projectorName,
+        CancellationToken cancellationToken);
     Task<ICollection<EventLogReadModel>> GetUncompletedEventProjectorEventsAsync(
         string projectorName,
         IReadOnlyCollection<string> eventNames);
+    Task<ICollection<EventLogReadModel>> GetUncompletedEventProjectorEventsAsync(
+        string projectorName,
+        IReadOnlyCollection<string> eventNames,
+        CancellationToken cancellationToken);
 
     Task<DomainEventCollection> SaveEventsAsync( string eventStream, Guid commandId, DomainEventCollection domainEvents);
     Task<DomainEventCollection> SaveEventsAsync(
