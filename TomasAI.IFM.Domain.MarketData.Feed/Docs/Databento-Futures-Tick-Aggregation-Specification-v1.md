@@ -1,7 +1,7 @@
 # Databento futures tick aggregation and persistence specification
 
-**Version:** 1.0  
-**Status:** Codex-ready implementation specification; implementation requires an explicit user instruction to proceed  
+**Version:** 1.5
+**Status:** Codex-ready staged implementation specification; durable cross-store sequence recovery remains an explicitly deferred system-wide work item
 **Date:** 2026-08-07  
 **Initial asset scope:** Futures  
 **Managed target:** .NET 10 (`net10.0`), x64  
@@ -79,8 +79,9 @@ The native Databento record and ring-buffer contracts remain unchanged.
 19. `AggregationTime` is UTC `TimeOnly`; `ValueDate` remains the exchange
     trading-session date.
 20. A `ValueDate` change flushes the old date's non-empty quote buffer, closes
-    that ticker/date state, and starts the new ticker/date sequence at 1 unless
-    durable recovery finds an existing higher sequence.
+    that ticker/date state, and starts a genuinely new ticker/date sequence at
+    1. Cross-store durable sequence recovery for an existing ticker/date is a
+    separately implemented system-wide work item recorded in section 3.6.
 21. One-sided quotes are preserved. An unavailable side retains Databento's raw
     undefined sentinel and has a null formatted decimal price.
 22. Valid duplicate or out-of-order source records are preserved and counted in
@@ -88,6 +89,42 @@ The native Databento record and ring-buffer contracts remain unchanged.
 23. One quote-buffer actor event is stored as one Scylla row containing one
     bounded frozen quote collection. Array position preserves source order; no
     per-quote storage row or `quote_index` column is used.
+24. `TickAggregationService` belongs in
+    `TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation`; every
+    interface owned by that aggregation subsystem belongs in its `Contracts`
+    subfolder.
+25. The V1 TickAggregation command and event actor implementations belong in
+    the corresponding `Command` and `Event` folders under
+    `TomasAI.IFM.Domain.MarketData.Feed/TickAggregation`. The existing `Query`
+    folder is reserved for a later application-layer query specification and
+    receives no TickAggregation query actor in V1.
+26. The Databento managed drain continues to write one bounded channel per
+    `InstrumentKey`. `TickAggregationService` consumes those channels through
+    one zero-copy multiplexed reader rather than one blocking thread per ticker.
+27. Framework-originated changed events enter the actor system through one
+    supervisor-owned `IJSActorProducer` associated with the synthetic
+    `Event.TickAggregationSourceEventActor` producer identifier. No actor or
+    mailbox is attached to that identifier.
+28. `ITickAggregationEventPublisher` is an implementation-independent contract
+    in `TomasAI.IFM.Framework.MarketData`, not a Databento-owned contract. Its
+    V1 implementation receives `IActorSupervisor`, calls the concurrency-safe
+    `GetJSEventProducer` get-or-create operation once in its constructor, and
+    reuses the returned producer.
+29. Changed events are published only through JetStream in V1. Core-NATS
+    `IActorProducer` publication is not used for this high-level event-actor
+    path and may be reconsidered only in a later approved specification.
+30. One DataBento `IMarketDataApi` implementation owns exactly one
+    `ITickAggregationService` instance and is the only component allowed to
+    start or stop it. The provider implementation adapts the existing
+    synchronous `IMarketDataApi.Start`/`Stop` boundary to the service's awaited
+    asynchronous lifecycle; no asynchronous operation is fire-and-forgotten.
+31. Quote accumulation uses fixed-capacity pooled arrays. A transport-only
+    envelope transfers one rented array to the publisher, and a MessagePack
+    segment formatter serializes only the active `QuoteCount` prefix.
+32. Durable sequence recovery across `ActorEventSourceDb`, `tick_trade_data`,
+    and `tick_quote_data` is intentionally not implemented by the initial code
+    generation. The production restart limitation and future work are explicit
+    in sections 3.6 and 22.
 
 ## 3. TickAggregationService
 
@@ -96,12 +133,19 @@ The native Databento record and ring-buffer contracts remain unchanged.
 `TickAggregationService` is the low-latency boundary between the managed
 Databento feed and the actor system. It drains normalized records from the
 futures input ring, resolves provider identity to domain identity, owns all
-per-ticker mutable state, creates actor-event messages, and publishes them to a
-bounded actor-event output channel.
+per-ticker mutable state, and posts trade/quote changes through an injected,
+bounded, ordered event-publisher abstraction owned by
+`TomasAI.IFM.Framework.MarketData/Contracts/TickAggregation`:
+`ITickAggregationEventPublisher`. The service constructs the concrete
+`FuturesTickTradeDataChangedEvent` or
+`FuturesTickQuoteDataChangedEvent` actor message and publishes it through that
+interface. The publisher bridges the non-actor framework service to the actor
+runtime through the supervisor-owned synthetic producer identifier.
 
 ScyllaDB, Redis, NATS request/reply, and remote contract queries are forbidden
-on the record-processing hot path. Contract mappings and sequence recovery must
-be ready before a ticker is admitted to live processing.
+on the record-processing hot path. Contract mappings must be ready before a
+ticker is admitted to live processing. Once the deferred sequence-recovery
+work is implemented, its result must also be ready before admission.
 
 ### 3.2 Ownership and threading
 
@@ -114,13 +158,52 @@ be ready before a ticker is admitted to live processing.
 - The dictionary is pre-sized from the subscribed ticker count and may grow
   only on the cold subscription path.
 - Record classification is synchronous. No task is created per tick.
-- Actor publication uses one bounded, ordered, single-reader output channel.
-  If publication requires an asynchronous wait, the service awaits that wait at
-  the batch/channel boundary and never uses fire-and-forget work.
+- Event publication uses one bounded, ordered, single-reader channel behind the
+  injected publisher contract. One publisher loop dequeues events and invokes
+  the cached `IJSActorProducer`, so V1 never issues concurrent sends through
+  that producer. If publication requires an asynchronous wait, the loop awaits
+  it and never uses fire-and-forget work.
 - Metrics readers consume copied or atomic counters and never mutate ticker
   state.
 
-### 3.3 Per-ticker state
+### 3.3 Managed ticker-channel ingress
+
+The existing managed Databento drain remains the only reader of the native C++
+SPSC ring. It normalizes each 64-byte record, routes it by
+`InstrumentKey(PublisherId, InstrumentId)`, and writes pooled
+`MarketDataBatch64` instances into the existing bounded per-ticker channels.
+Tick aggregation does not read the native ring directly and does not execute on
+the managed drain thread.
+
+`IDatabentoTickerFeed` exposes one mutually exclusive multiplexed-reader mode
+for production aggregation in addition to the existing per-instrument readers
+used by diagnostics and smoke tests. The first selected mode owns all channel
+consumer leases for that feed instance; mixing `GetReader(InstrumentKey)` with
+the multiplexed reader is rejected.
+
+```csharp
+ISynchronousBatchReader<MarketDataBatch64> GetMultiplexedReader();
+```
+
+The multiplexed reader uses a bounded readiness queue containing channel
+indexes, not copied market records. A ticker channel is queued when it
+transitions from empty to non-empty. The aggregation worker blocks on that
+readiness signal, obtains the original pooled batch from the ready channel,
+processes and disposes it, and requeues the channel when more batches remain.
+One-batch rotation prevents a busy ticker from indefinitely starving another.
+
+Mandatory ingress properties are:
+
+- no record or batch copy between the ticker channel and aggregation service;
+- no busy scan across inactive tickers;
+- no permanently blocked thread or task per ticker;
+- exactly one consumer lease per underlying ticker channel;
+- strict record order within each ticker;
+- no cross-ticker total-order guarantee or requirement;
+- bounded readiness memory proportional to configured ticker count;
+- source completion only after all ticker channels are completed and drained.
+
+### 3.4 Per-ticker state
 
 ```text
 FuturesTickerAggregationState
@@ -132,7 +215,7 @@ FuturesTickerAggregationState
     AssetTypeId = Futures
     NextSequenceId
     LastSourceSequence
-    QuoteBufferOwner
+    QuoteBufferLease
     QuoteCount
     IsAccepting
 ```
@@ -147,7 +230,7 @@ emissions. The service increments it only after the output channel accepts the
 message. A publication retry reuses the same sequence, timestamp, event ID, and
 command ID.
 
-### 3.4 Identity readiness
+### 3.5 Identity readiness
 
 Before processing the first tick for an instrument, the service must hold a
 verified mapping containing:
@@ -181,22 +264,41 @@ ready and produces a visible mapping fault; other valid tickers may continue.
 calendar/session service. It is not automatically the UTC calendar date.
 `DefinitionDate` remains the provider mapping date and is stored separately.
 
-### 3.5 Sequence recovery
+### 3.6 Deferred system-wide sequence recovery
 
-The service cannot restart at sequence zero for an existing entity/day. Before
-admitting a ticker, it establishes the last committed sequence from the durable
-actor event stream, reconciled with the latest projected sequence in both V1
-Scylla tables, and sets `NextSequenceId = maximum + 1`.
+**TODO — later system-wide implementation:** Define and implement the shared
+cold-path recovery contract in a separately reviewed specification.
 
-The command/event pipeline must be caught up before live admission. One active
-writer is permitted for each stable entity. A deployment must prevent two
-services from concurrently owning the same entity/day; split-brain sequence
-generation is a terminal readiness failure.
+The final production design cannot restart at sequence zero for an existing
+entity/day. It must establish the last committed sequence from the durable
+actor event stream, reconcile that value with the latest projected sequence in
+both V1 Scylla tables, and set `NextSequenceId = maximum + 1` before admitting
+that ticker.
 
-Sequence recovery is a cold-path operation. No durable maximum query is issued
-per tick.
+The recovery interface and its implementation are deliberately deferred. They
+will be designed as a separate system-wide change because the authoritative
+contract must span `ActorEventSourceDb`, Scylla projection state, actor replay,
+and exclusive writer ownership. This specification does not authorize Codex to
+invent a TickAggregation-only recovery interface or query each store through
+ad hoc dependencies.
 
-### 3.6 Quote processing
+Until that later work is implemented:
+
+- a genuinely new `TickDataEntityId` starts at sequence 1;
+- the service never guesses a durable maximum and never performs a maximum
+  query on the per-record path;
+- a same-`ValueDate` restart against an existing stream is not production-ready;
+- any resulting sequence conflict must fail visibly in normal command
+  validation rather than overwrite or silently renumber immutable history; and
+- production promotion and restart-recovery acceptance tests remain blocked,
+  while fresh-stream unit, integration, benchmark, and paper-trading work may
+  proceed.
+
+The future system-wide design must also ensure that the command/event pipeline
+is caught up before admission and that only one active writer owns a stable
+entity. Split-brain sequence generation remains a terminal readiness failure.
+
+### 3.7 Quote processing
 
 For a valid quote record:
 
@@ -220,7 +322,7 @@ or out-of-order counter but does not suppress the valid source record. These
 counters describe provider/source behavior and are separate from actor-message
 idempotency.
 
-### 3.7 Trade processing and cross-category order
+### 3.8 Trade processing and cross-category order
 
 For a valid trade record:
 
@@ -241,7 +343,7 @@ This rule applies even when Databento publishes a trade and its associated quote
 with the same source timestamp/sequence. The service never reverses the prior
 quote history behind the trade.
 
-### 3.8 Full buffer and graceful stop
+### 3.9 Full buffer and graceful stop
 
 When capacity is reached without a trade, the service publishes the full buffer
 with `BufferFull`, then continues with an empty/replacement buffer. This bounds
@@ -256,22 +358,318 @@ drain it. Empty buffers produce no event.
 When an instrument's resolved `ValueDate` changes, the service first publishes
 the old date's non-empty quote buffer with `ValueDateChanged`, then closes and
 removes the old ticker/date state. It creates the new state before processing
-the triggering record. A new stream starts at sequence 1 unless cold-path
-durable recovery finds prior events for that same entity/date, in which case it
-continues at the recovered maximum plus 1.
+the triggering record. A genuinely new stream starts at sequence 1. Re-entry
+into an existing entity/date remains subject to the deferred recovery limitation
+in section 3.6 and must not silently reuse or renumber its history.
 
 The solution-wide supervisor-to-storage cancellation contract is a known later
 cross-cutting change. V1 must expose a graceful stop boundary compatible with
 that future token propagation and must not introduce a conflicting private
 cancellation model.
 
-### 3.9 Buffer ownership
+### 3.10 Buffer ownership
 
-Before publication, the service owns the quote buffer. After the output channel
-accepts the event transport, ownership belongs to the actor-event producer. The
-producer returns the buffer only after MessagePack serialization has copied the
-payload into transport-owned memory. A failed write retains ownership in the
-service. Pool exhaustion backpressures; it never falls back to unbounded arrays.
+The concrete V1 transport uses a bounded lease pool shared by the aggregation
+service and framework publisher:
+
+```csharp
+public interface ITickQuoteBufferLease : IDisposable
+{
+    FuturesTickQuoteData[] Buffer { get; }
+    int Capacity { get; }
+}
+
+public interface ITickQuoteBufferPool
+{
+    ITickQuoteBufferLease Rent(TimeSpan timeout);
+}
+```
+
+The pool is registered as one singleton. Every rented array has exactly the
+configured V1 capacity, defaults to 64, and is never resized. The pool contains
+a configured bounded number of leases. Exhaustion waits up to the configured
+backpressure timeout and then faults visibly; it never allocates an untracked
+fallback array.
+
+The quote event's key 17 uses a `FuturesTickQuoteDataSegment` value containing
+the rented array and active `QuoteCount`. Its registered MessagePack formatter
+writes an ordinary array header of `QuoteCount` and serializes only buffer
+indexes `0..QuoteCount-1`. Unused capacity is never placed on the wire. On the
+consumer side, deserialization produces an exact-length managed array that is
+independent of the producer's lease. Commands and inserted events therefore
+continue to carry only the active quote values.
+
+The framework publisher stores accepted quote work in an internal,
+non-serialized `PooledQuoteChangedEventEnvelope` containing:
+
+```text
+Message: FuturesTickQuoteDataChangedEvent
+Lease: ITickQuoteBufferLease
+Returned: atomic once-only state
+```
+
+Ownership follows these exact rules:
+
+1. The service rents and owns the lease while accumulating quotes.
+2. It constructs the event segment over `Lease.Buffer` with the current
+   `QuoteCount` and calls the quote `PublishAsync` overload with both values.
+   The publisher validates reference equality between the segment buffer and
+   `Lease.Buffer`, validates the active count/capacity, and rejects a disposed
+   or foreign lease before attempting channel acceptance.
+3. Until the bounded output channel accepts the envelope, the service retains
+   ownership. If acceptance fails or times out, the service keeps the same
+   lease and event identity for visible failure/retry handling.
+4. Successful `PublishAsync` completion means ownership transferred to the
+   publisher. The service immediately detaches that lease from ticker state and
+   rents another only when the next quote arrives.
+5. The single publisher reader awaits `IJSActorProducer.SendAsync`. After that
+   call completes successfully, MessagePack has copied the active segment into
+   transport-owned memory and the envelope disposes the lease.
+6. A publication fault is recorded before cleanup. Fault/shutdown cleanup
+   drains every accepted envelope and disposes each lease exactly once. The
+   envelope uses `Interlocked.Exchange` so competing failure and shutdown paths
+   cannot double-return a buffer.
+
+The lease and envelope never cross JetStream and are never properties of an
+actor message. Formatter registration is shared by producer and consumer, and
+tests must prove that a partial capacity-64 buffer with `QuoteCount = 7`
+serializes and deserializes as exactly seven items while returning its lease
+once.
+
+### 3.11 Actor-event publisher and synthetic producer identity
+
+`ITickAggregationEventPublisher` is the narrow outbound port from the framework
+aggregation service to high-level event-actor processing:
+
+```csharp
+public interface ITickAggregationEventPublisher
+{
+    ValueTask StartAsync();
+
+    ValueTask StopAsync();
+
+    ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event);
+
+    ValueTask PublishAsync(
+        FuturesTickQuoteDataChangedEvent @event,
+        ITickQuoteBufferLease lease);
+}
+```
+
+It exposes only the two V1 changed-event families. It cannot publish inserted,
+complete, or failure events and contains no Databento-specific API.
+
+No source actor is created. `IActorSupervisor` gains a dedicated get-or-create
+operation for non-actor services that need to publish high-level events:
+
+```csharp
+IJSActorProducer GetJSEventProducer(ActorMailboxId producerId);
+```
+
+The supplied identifier must use `ActorType.Event`, must have a non-empty name,
+and must not identify a registered actor. The supervisor resolves exactly one
+`IJSActorProducer` from its container, registers it under the synthetic
+identifier, records that it is externally owned, and returns the same instance
+for every later call with that identifier. The operation is synchronous and
+creates/registers the producer only; it performs no network startup and blocks
+on no asynchronous operation.
+
+Get-or-create is serialized on the cold path so concurrent callers cannot
+resolve duplicate producers or leak losing instances. An actor cannot later be
+attached to an identifier reserved for an external event producer, and an
+actor-owned producer identifier cannot be repurposed for a non-actor service.
+
+The publisher constructor calls that operation exactly once and caches the
+returned producer:
+
+```csharp
+public TickAggregationEventPublisher(IActorSupervisor supervisor)
+{
+    ArgumentNullException.ThrowIfNull(supervisor);
+
+    _producer = supervisor.GetJSEventProducer(
+        TickAggregationProducerIds.SourceEvent);
+}
+
+public ValueTask StartAsync() =>
+    _producer.StartAsync(TickAggregationProducerIds.SourceEvent);
+
+public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event) =>
+    _producer.SendAsync<
+        FuturesTickTradeDataChangedEvent,
+        TickDataEntityId>(@event.Subject, @event);
+
+public ValueTask PublishAsync(
+    FuturesTickQuoteDataChangedEvent @event,
+    ITickQuoteBufferLease lease) =>
+    EnqueueOwnedQuoteAsync(@event, lease);
+```
+
+Because constructors cannot safely block on asynchronous transport startup,
+the publisher exposes an asynchronous startup operation that calls
+`_producer.StartAsync(TickAggregationProducerIds.SourceEvent)` before the
+aggregation service
+consumes any ticker channel. Publication before successful startup is rejected.
+The synthetic identifier identifies the actor-system source boundary. Each
+event's `ActorSubject` still targets `TickAggregationEventActor` with the
+appropriate verb and `TickDataEntityId`.
+
+V1 caches exactly one `IJSActorProducer`. The bounded service output has one
+publisher reader, so `SendAsync` calls are serialized even if later aggregation
+inputs become multi-producer. Trade publications use a non-owning envelope;
+quote publications use the pooled envelope from section 3.10. This preserves
+quote-before-trade ordering without a per-send lock and avoids relying on
+concurrent transport calls for order. Different tickers do not require a
+global ordering contract.
+
+JetStream acknowledgement is awaited. Only after `SendAsync` completes may the
+publisher release any pooled quote payload ownership associated with that
+message. A publish exception faults the publisher loop visibly and stops source
+consumption through bounded backpressure; it is never swallowed or retried as
+an untracked fire-and-forget task.
+
+Shutdown ordering is source drain, quote-buffer flush, changed-event-channel
+drain, publisher completion, and only then supervisor shutdown.
+This prevents a concurrent send from racing producer shutdown. The publisher
+must be started before feed consumption and drained before actor runtime
+shutdown.
+
+Because no actor owns this producer, `ActorSupervisor.ShutdownAsync` explicitly
+stops every externally owned JetStream event producer after intake and
+publisher queues have drained. Shutdown aggregates failures consistently with
+the existing actor/consumer cleanup and never stops the same producer twice.
+
+### 3.12 Service lifecycle and `IMarketDataApi` ownership
+
+The DataBento implementation of
+`TomasAI.IFM.Framework.MarketData.MarketDataApi.IMarketDataApi` is the sole
+lifecycle owner of one injected `ITickAggregationService`. The aggregation
+service contract is exactly:
+
+```csharp
+public interface ITickAggregationService : IAsyncDisposable
+{
+    bool IsRunning { get; }
+
+    ValueTask StartAsync();
+
+    ValueTask StopAsync();
+}
+```
+
+Cancellation parameters are intentionally omitted until the approved
+solution-wide cancellation change. Both lifecycle operations are thread-safe
+and idempotent. Concurrent callers observe the same in-progress transition;
+they do not start a second worker or publisher loop. A failed start performs
+best-effort cleanup, leaves `IsRunning == false`, and propagates the original
+failure. A completed stop leaves no worker, channel lease, ticker buffer, or
+publisher envelope owned by the service.
+
+`StartAsync` performs these stages in order:
+
+1. validate configuration and mappings and expose the current
+   fresh-stream-only recovery limitation in health/status;
+2. obtain the exclusive multiplexed-reader lease;
+3. await `ITickAggregationEventPublisher.StartAsync`;
+4. start the single aggregation worker in a ready/waiting state;
+5. start the owned `IDatabentoTickerFeed`; and
+6. set `IsRunning` only after every prior stage succeeds.
+
+`StopAsync` performs the reverse data-safe order:
+
+1. stop new native feed intake;
+2. drain completed managed ticker channels;
+3. flush every non-empty per-ticker quote buffer;
+4. await `ITickAggregationEventPublisher.StopAsync`, which drains its bounded
+   channel but does not stop the supervisor-owned `IJSActorProducer`;
+5. return all remaining leases and release the multiplexed-reader lease; and
+6. set `IsRunning == false`.
+
+The existing framework `IMarketDataApi` exposes synchronous `Start` and `Stop`
+members. The DataBento provider implementation adapts only this cold lifecycle
+boundary and never blocks a tick-processing or actor worker thread:
+
+```csharp
+public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
+{
+    private readonly ITickAggregationService _tickAggregationService;
+    private readonly object _lifecycleGate = new();
+
+    public DatabentoMarketDataApi(
+        ITickAggregationService tickAggregationService)
+    {
+        _tickAggregationService = tickAggregationService ??
+            throw new ArgumentNullException(nameof(tickAggregationService));
+    }
+
+    public void Start(
+        Guid commandId,
+        Action<Guid, int, string>? errorMessageHandler = null)
+    {
+        lock (_lifecycleGate)
+        {
+            try
+            {
+                _tickAggregationService.StartAsync()
+                    .AsTask().GetAwaiter().GetResult();
+            }
+            catch (Exception exception)
+            {
+                errorMessageHandler?.Invoke(
+                    commandId,
+                    DatabentoErrorCodes.TickAggregationStartFailed,
+                    exception.Message);
+                throw;
+            }
+        }
+    }
+
+    public void Stop(Guid commandId)
+    {
+        lock (_lifecycleGate)
+        {
+            _tickAggregationService.StopAsync()
+                .AsTask().GetAwaiter().GetResult();
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        lock (_lifecycleGate)
+        {
+            return _tickAggregationService.DisposeAsync();
+        }
+    }
+
+    // The existing query and streaming members are implemented/delegated by
+    // the complete provider class; they are omitted from this lifecycle excerpt.
+}
+```
+
+The error-code name is binding; WP0 assigns a non-colliding numeric value using
+the repository's existing range. The synchronous bridge is permitted only at
+this existing application API boundary. It must not appear in the aggregation,
+publisher, actor, repository, or storage hot paths. All awaited lifecycle
+implementations below this bridge use `ConfigureAwait(false)` so the cold
+synchronous adapter does not depend on a captured synchronization context.
+
+The provider implementation must receive exactly one aggregation service from
+DI; it must not resolve services dynamically or create one per ticker. No
+actor, hosted service, feed callback, or publisher may independently invoke the
+service lifecycle. The remaining non-lifecycle `IMarketDataApi` members are
+implemented/delegated by the DataBento provider according to their existing
+contracts; this specification changes only their provider's lifecycle
+coordination with TickAggregation.
+
+`DisposeAsync` calls `StopAsync` if necessary and disposes the service exactly
+once. Ordinary `Stop` does not stop the external JetStream producer because the
+same API instance may be started again; final producer shutdown remains owned
+by `IActorSupervisor.ShutdownAsync`.
+
+`ITickAggregationEventPublisher.StopAsync` is likewise idempotent: it closes
+and drains only the current bounded publisher loop, returns all envelopes, and
+leaves the cached producer running. A later `StartAsync` creates a fresh bounded
+channel/loop and reuses the same supervisor-owned producer.
 
 ## 4. TickAggregationCommandActor
 
@@ -346,9 +744,10 @@ Both commands require:
   repeat or decrease;
 - a payload count within configured limits.
 
-The quote command additionally requires a non-empty array, count equal to array
-length, unique zero-based quote positions, and count no greater than the
-configured maximum of 64 in V1. The trade command contains exactly one trade.
+The quote command additionally requires a non-empty segment, its active count
+equal to `QuoteCount`, its active values in source order, and a count no greater
+than the configured maximum of 64 in V1. The trade command contains exactly one
+trade.
 
 ### 4.5 Event creation
 
@@ -365,15 +764,23 @@ position; that `EventId` is not the tick `SequenceId`.
 `TickAggregationEventActor` has two deterministic stages distinguished by
 event verb:
 
-1. On a `...DataChangedEvent`, it creates and sends the matching insert command.
-2. On a durably committed `...DataInsertedEvent`, it idempotently writes the
-   payload to the matching ScyllaDB V1 table and publishes the matching complete
-   or fail event.
+1. On a service-originated `FuturesTickTradeDataChangedEvent` or
+   `FuturesTickQuoteDataChangedEvent`, it creates and sends the matching
+   `InsertFuturesTickTradeDataCommand` or
+   `InsertFuturesTickQuoteDataCommand`.
+2. On a durably committed `FuturesTickTradeDataInsertedEvent` or
+   `FuturesTickQuoteDataInsertedEvent` produced by the command actor, it
+   idempotently writes the payload to the matching ScyllaDB V1 table and
+   publishes the matching inserted-complete or inserted-fail event.
 
 This preserves the dependency direction:
 
 ```text
 TickAggregationService
+    -> bounded changed-event channel
+    -> TickAggregationEventPublisher
+    -> synthetic Event.TickAggregationSourceEventActor IJSActorProducer
+    -> JetStream
     -> FuturesTick*DataChangedEvent
     -> TickAggregationEventActor
     -> InsertFuturesTick*DataCommand
@@ -396,6 +803,10 @@ Command publication is awaited. A failure is allowed to propagate to the actor
 pipeline so the existing exception and retry behavior remains authoritative.
 No fire-and-forget command publication is permitted.
 
+The changed event is not persisted directly to ScyllaDB. Its sole domain-side
+effect in this flow is to initiate the corresponding insert command. This keeps
+command validation and durable event creation in the command actor.
+
 ### 5.3 Inserted-event projection
 
 For a trade inserted event, the actor executes one prepared idempotent insert
@@ -417,6 +828,13 @@ inserted-fail event and permits durable replay/retry according to existing actor
 policy. Failure messages include identity and diagnostic metadata, not a second
 serialized copy of the quote buffer.
 
+The inserted event is the durable fact produced by the command actor and may be
+consumed by other actors immediately. The inserted-complete event is the later
+confirmation that the ScyllaDB projection succeeded. Downstream consumers such
+as market-data signal actors may deliberately subscribe to either lifecycle
+point according to whether they require the earliest durable event or confirmed
+ScyllaDB persistence; the TickAggregation actors do not prescribe that choice.
+
 ### 5.4 Terminal events
 
 Inserted-complete and inserted-fail events are terminal for this persistence
@@ -428,9 +846,15 @@ storage write. An intentionally empty domain-event handler is valid by design.
 
 ```text
 Futures Databento SPSC ring (many InstrumentKeys)
+    -> managed C# drain
+       -> bounded channel per InstrumentKey
+    -> zero-copy multiplexed ticker-channel reader
     -> one TickAggregationService owner
        -> per-ticker quote buffer and shared quote/trade sequence
-       -> bounded actor-event producer channel
+    -> bounded changed-event channel
+    -> TickAggregationEventPublisher
+       -> one synthetic-identifier IJSActorProducer
+       -> JetStream actor changed event
     -> TickAggregationEventActor: Changed handlers
        -> TickAggregationCommandActor: Insert handlers
        -> ActorEventSourceDb: immutable Inserted events
@@ -572,6 +996,29 @@ available raw price, is invalid.
 V1 intentionally omits depth, channel ID, timestamp-in delta, timestamp-out,
 and fields not required to reproduce approved futures trade/quote history.
 
+### 8.3 FuturesTickQuoteDataSegment
+
+`FuturesTickQuoteDataSegment` is the serialized view over a quote buffer. It is
+a readonly value and does not own or return the underlying array:
+
+```csharp
+[MessagePackFormatter(typeof(FuturesTickQuoteDataSegmentFormatter))]
+public readonly struct FuturesTickQuoteDataSegment
+{
+    public FuturesTickQuoteData[] Buffer { get; }
+    public ushort Count { get; }
+    public ReadOnlySpan<FuturesTickQuoteData> Items =>
+        Buffer.AsSpan(0, Count);
+}
+```
+
+Construction rejects a null buffer, zero count, count greater than buffer
+length, and count greater than 64. The formatter represents the value on the
+wire as a normal MessagePack array containing only `Items`. Deserialization
+creates a segment whose backing array length equals the serialized count. Lease
+ownership remains exclusively in the transport envelope described in section
+3.10.
+
 ## 9. Actor event message schemas
 
 All actor events follow the repository's standard base event keys:
@@ -628,10 +1075,11 @@ EventType = DomainEvent
 | 14 | `InstrumentId` | `uint` |
 | 15 | `EmissionReason` | `QuoteEmissionReason` |
 | 16 | `QuoteCount` | `ushort` |
-| 17 | `QuoteData` | `FuturesTickQuoteData[]` |
+| 17 | `QuoteData` | `FuturesTickQuoteDataSegment` (wire array) |
 
-The array length equals `QuoteCount`, is in source order, and is in the range
-1..64 for V1.
+The serialized array length equals `QuoteCount`, is in source order, and is in
+the range 1..64 for V1. The producer-side pooled backing array may have unused
+capacity that the formatter never serializes.
 
 The service generates a non-empty `CommandId` for each changed event. The event
 actor reuses it for the resulting insert command, making the complete flow
@@ -687,7 +1135,7 @@ Verb = InsertFuturesTickQuoteData
 | 12 | `InstrumentId` | `uint` |
 | 13 | `EmissionReason` | `QuoteEmissionReason` |
 | 14 | `QuoteCount` | `ushort` |
-| 15 | `QuoteData` | `FuturesTickQuoteData[]` |
+| 15 | `QuoteData` | `FuturesTickQuoteDataSegment` (wire array) |
 
 ## 11. Persisted, complete, and failed event schemas
 
@@ -1018,7 +1466,7 @@ SSTable compression remains independently managed by Scylla.
 | raw price `long` | `bigint` | Authoritative value |
 | quote-side `decimal?` | nullable `decimal` UDT field | Exact scaled value, or null only for an undefined raw side |
 | trade `decimal` | `decimal` | Exact scaled value; a persisted trade price is defined |
-| `FuturesTickQuoteData[]` | `frozen<list<frozen<tick_quote_item>>>` | Preserve order; count 1..64; replace as one immutable value |
+| `FuturesTickQuoteDataSegment` | `frozen<list<frozen<tick_quote_item>>>` | Bind only the active ordered items; count 1..64; replace as one immutable value |
 | `Guid` | `uuid` | Preserve original value on retry |
 
 ### 12.7 Writes, consistency, and idempotency
@@ -1223,6 +1671,8 @@ Metrics are tagged by asset type and, where cardinality permits, contract:
 - buffer-full count and partial flush count;
 - actor output channel depth and blocked duration;
 - last source and output sequence per ticker;
+- sequence-recovery capability/readiness, which remains explicitly false for
+  same-`ValueDate` restarts until the deferred system-wide work is complete;
 - sequence gap, duplicate, mapping conflict, and out-of-order counts;
 - changed-to-command and command-to-inserted latency;
 - inserted-to-Scylla-complete latency;
@@ -1260,6 +1710,11 @@ long quote run may emit one or more `BufferFull` rows before the next trade.
 
 ### 17.1 Service tests
 
+- managed drain batches reach aggregation through the multiplexed reader without
+  copying records or changing per-ticker order;
+- per-instrument and multiplexed reader modes are mutually exclusive;
+- multiplexing rotates among ready tickers, blocks without busy scanning, and
+  completes only after all ticker channels drain;
 - first quote buffers without emitting;
 - trade with no quotes emits one trade only;
 - trade flushes only its own ticker's quote buffer before the trade;
@@ -1269,7 +1724,7 @@ long quote run may emit one or more `BufferFull` rows before the next trade.
   V1 enables futures only;
 - graceful stop and ticker removal flush non-empty partial buffers;
 - `ValueDate` rollover flushes the old non-empty buffer with
-  `ValueDateChanged`, closes the old state, and starts/recovers the new stream;
+  `ValueDateChanged`, closes the old state, and starts a genuinely new stream;
 - no operation emits an empty quote event;
 - every accepted source record is conserved exactly once;
 - duplicate and out-of-order valid source records are preserved while metrics
@@ -1279,10 +1734,38 @@ long quote run may emit one or more `BufferFull` rows before the next trade.
 - available raw/decimal fields are exactly equivalent and undefined quote sides
   retain the raw sentinel with a null decimal;
 - mapping miss/conflict prevents only the affected ticker from readiness;
-- pooled buffers are returned exactly once after serialization.
+- a partial capacity-64 quote lease with count 7 serializes as exactly seven
+  MessagePack array items and round-trips without unused entries;
+- quote lease ownership remains with the service when output-channel acceptance
+  fails and transfers only after successful acceptance;
+- pooled buffers are returned exactly once after successful serialization,
+  publisher fault cleanup, and shutdown/fault races;
+- pool exhaustion backpressures and never creates an untracked fallback array;
+- repeated and concurrent `ITickAggregationService.StartAsync`/`StopAsync`
+  calls create at most one worker and produce the required lifecycle order;
+- `DatabentoMarketDataApi.Start`/`Stop` invoke exactly one injected aggregation
+  service, propagate failures, and never execute on the tick worker;
+- service stop drains the publisher but leaves final external producer shutdown
+  to `IActorSupervisor`;
+- the publisher constructor obtains the synthetic producer identifier's single
+  `IJSActorProducer` through `GetJSEventProducer` exactly once;
+- publisher startup starts that producer before ticker-channel consumption;
+- one publisher loop prevents concurrent `SendAsync` calls and preserves
+  quote-before-trade order;
+- JetStream publication failure is visible and retains/backpressures owned data;
+- graceful shutdown drains accepted changed events before stopping the
+  supervisor-owned external producer.
 
 ### 17.2 Actor tests
 
+- concurrent `GetJSEventProducer` calls for one synthetic identifier resolve
+  exactly one producer and return the same reference to every caller;
+- `GetJSEventProducer` rejects an invalid actor type, an empty name, and an
+  identifier already attached to an actor or actor-owned producer;
+- an actor cannot later attach to an identifier reserved by an external event
+  producer;
+- supervisor shutdown stops each started external producer exactly once and
+  safely handles a producer that was created but never started;
 - every changed-event verb parses to the correct type;
 - changed quote/trade events create the matching command without payload drift;
 - all MessagePack schemas round-trip with exact key compatibility;
@@ -1328,6 +1811,9 @@ Required inputs:
 - capacity boundary at 63/64/65;
 - CSV-derived ES distribution;
 - raw-to-decimal materialization;
+- per-ticker polling/thread baseline versus the zero-copy readiness multiplexer;
+- bounded changed-event enqueue/dequeue and serialized JetStream-publisher
+  dispatch using a transport-free benchmark double;
 - MessagePack trade and quote-batch serialization;
 - command actor parse/dispatch;
 - event actor trade-row and 1/64-item frozen quote-row insert preparation;
@@ -1352,7 +1838,10 @@ not determine production settings without paper-trading evidence.
 
 ## 19. Implementation layout
 
-Candidate locations, subject to a repository audit immediately before coding:
+The following locations are binding. The repository audit may refine filenames
+and lower-level subfolders to match established conventions, but it must not
+move ownership across these project and `TickAggregation` boundaries without
+user approval:
 
 ```text
 TomasAI.IFM.Domain.MarketData.Feed.Shared/
@@ -1368,16 +1857,50 @@ TomasAI.IFM.Domain.MarketData.Feed.Shared/
     TickDataEntityId.cs
     TickDataId.cs
     TickDataPayloads.cs
+    FuturesTickQuoteDataSegment.cs
     TickContractMapping.cs
+  Serialization/
+    FuturesTickQuoteDataSegmentFormatter.cs
 
 TomasAI.IFM.Domain.MarketData.Feed/
   TickAggregation/
-    Service/
-    Command/Actor/TickAggregationCommandActor.cs
-    Command/State/
-    Command/Validation/
-    Event/Actor/TickAggregationEventActor.cs
-    Event/Extensions/
+    Command/
+      Actor/TickAggregationCommandActor.cs
+      State/
+      Validation/
+    Event/
+      Actor/TickAggregationEventActor.cs
+      Extensions/
+    Query/
+      (reserved; no V1 TickAggregation query actor)
+
+TomasAI.IFM.Framework.MarketData.DataBento/
+  MarketDataApi/
+    DatabentoMarketDataApi.cs
+  Runtime/
+    MultiplexedTickerBatchReader.cs
+  TickAggregation/
+    TickAggregationService.cs
+    Contracts/
+      ITickAggregationService.cs
+      (all other TickAggregation-owned interfaces)
+
+TomasAI.IFM.Framework.MarketData/
+  Contracts/
+    TickAggregation/
+      ITickAggregationEventPublisher.cs
+      ITickQuoteBufferLease.cs
+      ITickQuoteBufferPool.cs
+  TickAggregation/
+    TickAggregationEventPublisher.cs
+    TickAggregationProducerIds.cs
+    TickQuoteBufferPool.cs
+    PooledQuoteChangedEventEnvelope.cs
+
+TomasAI.IFM.Shared/
+  EventModelActor/
+    ActorSupervisor.cs
+    Contracts/IActorSupervisor.cs
 
 TomasAI.IFM.Application.Storage/MarketDataDb/
   TickAggregation/
@@ -1385,20 +1908,39 @@ TomasAI.IFM.Application.Storage/MarketDataDb/
   Schema/MarketDataSchemaDb.cs
 ```
 
-The Databento framework project remains actor-transport-neutral. A producer at
-an integration layer that can reference both the framework transport and domain
-contracts maps the owned aggregation transport into these actor messages; the
-framework must not gain a reverse reference to the domain project.
+The DataBento `TickAggregation/Contracts` folder is the single home for
+interfaces owned specifically by the Databento TickAggregation subsystem;
+interfaces must not be placed beside the service implementation or in the
+domain actor folders. Their namespace is
+`TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts`.
+Transport-neutral data contracts may also live there when required by those
+interfaces.
+
+The implementation-independent `ITickAggregationEventPublisher` and its
+supervisor-backed implementation belong in `TomasAI.IFM.Framework.MarketData`.
+That project already references the MarketData Feed shared-contract project;
+it must not reference the root domain actor implementation. DataBento references
+the implementation-independent framework contract and the shared event schemas,
+not the root MarketData Feed actor project.
+
+Command and event actor implementation code remains in its corresponding root
+MarketData Feed `TickAggregation` folder. Shared serialized actor messages
+remain in the MarketData Feed shared-contract project. The synthetic producer
+identifier is Framework MarketData infrastructure and does not name a
+registered actor. The root `TickAggregation/Query` folder is intentionally
+reserved and empty for this V1 implementation.
 
 ## 20. Implementation sequence and review gates
 
 1. Implement the approved shared identities, enum values, payload fields,
    actor names/verbs, and MessagePack keys in this specification.
-2. Implement pure per-ticker aggregation and buffer ownership with deterministic
-   tests.
+2. Implement the zero-copy multiplexed ticker-channel reader, pure per-ticker
+   aggregation, and buffer ownership with deterministic tests.
 3. Implement mapping extension, readiness, session value-date resolution, and
-   durable sequence recovery.
-4. Implement changed events and the ordered actor-event producer.
+   fresh-stream sequence initialization; retain the explicit production restart
+   gate for deferred system-wide sequence recovery.
+4. Implement changed events, the supervisor get-or-create external JetStream
+   producer API, and the ordered framework event publisher.
 5. Implement insert commands, command actor, minimal state, snapshots, and
    inserted event families.
 6. Add the two Scylla schemas and prepared storage paths.
@@ -1414,13 +1956,23 @@ does not authorize implementation; coding begins only after explicit approval.
 
 ## 21. V1 acceptance criteria
 
-V1 is complete when:
+The initial V1 pipeline implementation is complete when:
 
 - futures quote and trade payload schemas are approved and versioned;
 - the service preserves all accepted futures trades and quotes exactly once at
   the logical event level;
 - per-ticker quote buffering remains bounded and isolated;
+- one DataBento `IMarketDataApi` implementation exclusively owns the lifecycle
+  of one `ITickAggregationService`, with the start/stop ordering in section
+  3.12;
+- partial pooled quote buffers serialize only their active prefix and every
+  lease is returned exactly once;
 - quote-before-trade order is proven through both actor stages and storage;
+- production aggregation reads the managed per-ticker channels through one
+  bounded zero-copy multiplexer without one thread per ticker;
+- framework changed events are published through one supervisor-owned
+  `IJSActorProducer` registered under the synthetic
+  `Event.TickAggregationSourceEventActor` identifier with no attached actor;
 - actor event sourcing and Scylla projection are replay-safe and idempotent;
 - only the approved `tick_quote_item` UDT and two V1 Scylla tables are added;
 - all legacy tick tables are untouched and receive no V1 writes;
@@ -1428,10 +1980,16 @@ V1 is complete when:
   envelopes, and stored rows;
 - available raw and decimal prices agree exactly, while an undefined quote side
   retains its raw sentinel with a null decimal;
-- unit, MessagePack, actor, storage, shutdown, and recovery tests pass;
+- unit, MessagePack, actor-state recovery, storage, and shutdown tests pass;
 - BenchmarkDotNet before/after results and paper-trading metrics are documented;
 - no unbounded queue, collection, history replay, or per-tick asynchronous task
   exists in the hot path.
+
+Production promotion across same-`ValueDate` process restarts is a separate
+acceptance gate. It remains incomplete until the deferred system-wide sequence
+recovery contract in section 3.6 is implemented and its restart/split-brain
+tests pass. The initial implementation must report that limitation explicitly
+and must not claim production restart recovery.
 
 ## 22. Deferred work
 
@@ -1442,10 +2000,19 @@ The following are intentionally outside V1:
 - replacement or deletion of legacy IBKR tick tables;
 - analytics/materialized query tables;
 - market-wide cross-ticker query projections;
+- asset-specific `FuturesTick` and `FuturesOptionTick` query actors and their
+  application-facing query contracts;
+- non-lifecycle application-layer `IMarketDataApi` redesign or expansion beyond
+  the existing provider contract;
+- the system-wide durable sequence-recovery contract that reconciles
+  `ActorEventSourceDb`, both V1 Scylla tables, projection catch-up, and exclusive
+  writer ownership;
 - retention, TTL, cold archival, and deletion policy;
 - an independent permanent Databento mapping-history table;
 - solution-wide cancellation-token propagation from supervisor through actor,
   repository, and storage;
+- replacement of the V1 JetStream changed-event transport with core NATS or
+  another high-level event-actor transport;
 - micro-optimizations that are not supported by paper-trading metrics.
 
 ## 23. Codex implementation authority
@@ -1492,23 +2059,37 @@ Codex must:
 4. Inspect the current project references among the Databento framework,
    MarketData Feed shared/domain, Blackboard, Application Storage, test, and
    benchmark projects.
+   Confirm the binding separation between DataBento-owned aggregation contracts,
+   the implementation-independent Framework MarketData publisher contract, the
+   shared actor messages, and the root domain actor implementations.
 5. Inspect the current actor-message patterns, including explicit MessagePack
    base keys, serialization constructors, concrete complete/fail conversions,
    actor API factories, registration, and supervisor wiring.
+   Verify `IActorSupervisor`/`ActorSupervisor` producer registration,
+   container resolution, existing `AddJSProducer`/`GetJSProducer` behavior,
+   JetStream event consumption, externally owned producer cleanup, and shutdown
+   order before adding `GetJSEventProducer`.
 6. Inspect `IEventSourceActorDbContext`, actor state repositories, snapshots,
    and the available bounded-tail replay APIs. Only `ActorEventSourceDb` may be
    used; the removed `EventSourceDb` must not be reintroduced.
 7. Inspect the current normalized Databento quote/trade record definitions,
-   managed batch ownership, synchronous readers, and contract mapping cache.
+   managed batch ownership, synchronous readers, per-instrument bounded
+   channels, and contract mapping cache. Verify the multiplexed reader can be
+   additive and mutually exclusive with diagnostic per-instrument readers.
 8. Inspect `MarketDataSchemaCql`, `MarketDataSchemaDb`, `MarketDataDbContext`,
    prepared CQL/parameter patterns, `DateOnly`/`TimeOnly` driver mappings, and
    integration-test fixture behavior.
 9. Inspect existing error-code ranges, bounded-context routing, actor names, and
    DI registration so new values do not collide.
-10. Inspect the existing benchmark harness and optimization-results format.
-11. Identify any specification statement that conflicts with compilable current
+10. Inspect both existing `IMarketDataApi` namespaces, bind the DataBento
+    provider to `TomasAI.IFM.Framework.MarketData.MarketDataApi.IMarketDataApi`,
+    and verify that the required DataBento-to-Framework project reference does
+    not create a dependency cycle. Inspect existing pool and MessagePack custom
+    formatter registration conventions before implementing quote leases.
+11. Inspect the existing benchmark harness and optimization-results format.
+12. Identify any specification statement that conflicts with compilable current
     repository contracts.
-12. Present a concrete file-by-file implementation plan, validation plan,
+13. Present a concrete file-by-file implementation plan, validation plan,
     working-tree overlap, assumptions, and blockers, then wait for approval.
 
 WP0 is read-only except for an explicitly requested update to this
@@ -1530,14 +2111,27 @@ The following decisions are already approved:
 - sequence and timestamp originate in `TickAggregationService` and are reused
   unchanged on retry;
 - aggregation `TimeOnly` is UTC while `ValueDate` is the trading-session date;
-- `ValueDate` rollover flushes the old quote buffer and starts/recovers the new
-  entity/date sequence;
+- `ValueDate` rollover flushes the old quote buffer and starts a genuinely new
+  entity/date sequence; existing-stream recovery remains deferred;
 - valid duplicate and out-of-order source records are preserved and measured;
 - command success and actor-state mutation are separate concepts;
 - an exact duplicate command may succeed without another state change;
 - empty domain-event handlers are permitted when intentionally terminal;
 - changed events flow to commands, inserted events are durable in
   `ActorEventSourceDb`, and inserted events project to Scylla;
+- the managed C# drain writes the existing per-`InstrumentKey` channels and the
+  aggregation service consumes them through one zero-copy readiness multiplexer;
+- `IActorSupervisor.GetJSEventProducer` creates or returns one externally owned
+  `IJSActorProducer` under a synthetic event identifier with no attached actor;
+- `TickAggregationEventPublisher` caches that producer in its constructor and
+  starts it asynchronously before feed consumption;
+- the DataBento implementation of the framework `IMarketDataApi` exclusively
+  starts/stops one injected `ITickAggregationService` through the exact
+  lifecycle contract in section 3.12;
+- fixed-capacity quote buffers transfer as leases in a non-serialized publisher
+  envelope, and key 17 serializes only the active quote segment;
+- high-level changed events use JetStream only in V1 and publication is
+  serialized through one publisher loop;
 - storage has exactly two new asset-neutral tables: `tick_trade_data` and
   `tick_quote_data`;
 - the complete storage partition key is `(asset_type_id, contract_id)`;
@@ -1554,7 +2148,11 @@ The following decisions are already approved:
 - repository `LoadStateAsync` and `SaveStateAsync` overrides retain ordinary
   awaited base/repository calls; this feature does not introduce insignificant
   async-elision micro-optimizations;
-- solution-wide cancellation propagation remains deferred.
+- solution-wide cancellation propagation remains deferred;
+- cross-store sequence recovery and same-`ValueDate` production restart support
+  remain deferred as a separately designed system-wide change;
+- TickAggregation command/event implementation ownership follows the binding
+  project/folder layout in section 19; the query folder remains reserved.
 
 ### 24.3 Conditions requiring user direction
 
@@ -1610,21 +2208,30 @@ WP1 must not add Scylla or live-feed behavior.
 Deliverables:
 
 - validated aggregation options with a default quote capacity of 64;
+- additive multiplexed-reader mode over the existing per-instrument bounded
+  channels, with zero-copy leases, bounded readiness, fair rotation, and
+  mutually exclusive consumer modes;
 - single-owner futures aggregation service and per-ticker state;
-- fixed-capacity pooled quote buffers with explicit ownership transfer;
+- placement of the service under the Databento `TickAggregation` folder and all
+  subsystem-owned interfaces under `TickAggregation/Contracts`;
+- the implementation-independent `ITickAggregationEventPublisher` contract in
+  Framework MarketData and a bounded ordered service output channel;
+- fixed-capacity pooled quote leases, the active-segment MessagePack formatter,
+  the internal once-only transport envelope, and explicit ownership transfer;
 - futures quote/trade mapping from normalized Databento records;
 - extension of Blackboard mapping to include publisher and asset type while
   preserving both lookup directions and conflict behavior;
-- cold-path mapping readiness and durable sequence initialization;
-- bounded ordered actor-event producer integration without introducing a
-  framework-to-domain reverse dependency;
+- cold-path mapping readiness and fresh-stream sequence initialization, with a
+  visible production gate for the deferred existing-stream recovery contract;
+- service-originated construction of the approved shared changed-event schemas;
 - graceful stop, ticker removal, backpressure, and visible fault behavior;
 - deterministic unit tests for every transition and conservation invariant in
   section 17.1.
 
-WP2 must not perform Scylla, Redis, provider-query, or NATS request/reply work on
-the per-record hot path. It must not create a task, lock, LINQ iterator, boxed
-value, or growable collection per tick.
+WP2 must not perform Scylla, Redis, provider-query, or JetStream publication on
+the per-record classification hot path. It must not create a task, lock, LINQ
+iterator, boxed value, or growable collection per tick. JetStream work occurs
+only in the separate single-reader publisher loop.
 
 ### WP3 - TickAggregationCommandActor and event sourcing
 
@@ -1671,12 +2278,27 @@ tables are added.
 Deliverables:
 
 - actor API/factory, supervisor, DI, configuration, health, and metrics wiring;
+- the exact `ITickAggregationService` lifecycle contract and one
+  `DatabentoMarketDataApi` lifecycle owner, including serialized/idempotent
+  start, drain-first stop, failure propagation, and asynchronous disposal;
+- concurrency-safe `IActorSupervisor.GetJSEventProducer` get-or-create behavior,
+  synthetic-ID collision protection, and supervisor-owned shutdown cleanup;
+- `TickAggregationEventPublisher(IActorSupervisor)` constructor resolution of
+  the synthetic identifier's single `IJSActorProducer` and explicit async
+  startup before ticker-channel consumption;
+- command and event implementations kept in their binding sibling folders
+  under the domain project's root `TickAggregation` folder;
+- service output-channel to serialized JetStream publisher to changed-event
+  actor subscription integration;
 - end-to-end futures flow from synthetic normalized records through event
   source and Scylla projection;
 - quote-before-trade ordering proof across both actor stages;
 - multi-ticker isolation and concurrency tests;
-- restart, durable sequence recovery, idempotent replay, failed-row retry,
-  backpressure, ticker removal, and graceful-stop coverage;
+- idempotent actor replay, failed-row retry, backpressure, ticker removal, and
+  graceful-stop coverage; same-day service restart recovery remains a later
+  system-wide work package and is not claimed by WP5;
+- proof that no concurrent `IJSActorProducer.SendAsync` calls occur and that
+  publisher drain finishes before supervisor-owned producer shutdown;
 - all MarketData Feed unit/integration tests passing;
 - the full Fund integration suite run as the final core-actor regression suite.
 
@@ -1692,6 +2314,8 @@ Deliverables:
   project;
 - a genuine before baseline representing one actor message per source record;
 - after measurements for capacity-64 per-ticker quote aggregation;
+- per-ticker polling/thread versus readiness-multiplexer comparison and bounded
+  publisher-channel overhead using a transport-free producer double;
 - all distributions and metrics required by section 18;
 - raw BenchmarkDotNet artifacts left ignored/untracked unless repository policy
   says otherwise;
@@ -1720,34 +2344,40 @@ explicitly pending.
    `raw / 1_000_000_000m`.
 7. Keep quote buffers bounded and per ticker. Never use an unbounded channel,
    history list, or fallback allocation path.
-8. Preserve pooled-buffer ownership until channel acceptance and return it only
-   after serialization has completed.
+8. Use the section 3.10 lease and envelope contract. Serialize only the active
+   quote segment, transfer ownership only after channel acceptance, and return
+   every lease exactly once after serialization or terminal cleanup.
 9. Do not use fire-and-forget actor publication or storage writes.
-10. Do not conceal exceptions, mapping conflicts, sequence conflicts,
+10. Publish V1 changed events through the synthetic event identifier's cached
+    `IJSActorProducer` only. Do not dual-publish them through core NATS.
+11. Do not conceal exceptions, mapping conflicts, sequence conflicts,
     backpressure timeouts, partial writes, or pool ownership failures.
-11. Do not add code-thrown reconstruction failures merely because a stream or
+12. Do not add code-thrown reconstruction failures merely because a stream or
     requested event type is empty; return the best valid empty state unless an
     underlying query actually fails.
-12. Keep intentionally empty terminal event implementations when required by
-    domain routing.
-13. Do not alter existing command semantics: successful operation and state
+13. Keep intentionally empty terminal or source event implementations when
+    required by domain routing.
+14. Do not alter existing command semantics: successful operation and state
     mutation remain independent.
-14. Do not replace clear awaited repository operations with `new`, task
+15. Do not replace clear awaited repository operations with `new`, task
     wrapping, or async-elision micro-optimizations.
-15. Do not add cancellation parameters across unrelated layers in this feature;
+16. Do not add cancellation parameters across unrelated layers in this feature;
     remain compatible with the deferred solution-wide cancellation design.
-16. Do not change native layouts, legacy IBKR feeds, or legacy tick-table
+17. Do not invent a TickAggregation-only durable sequence-recovery interface or
+    claim same-`ValueDate` restart support. Preserve the explicit production
+    gate until the later system-wide design is approved.
+18. Do not change native layouts, legacy IBKR feeds, or legacy tick-table
     behavior.
-17. Do not add a third Scylla table, index, materialized view, storage bucket,
+19. Do not add a third Scylla table, index, materialized view, storage bucket,
     `ALLOW FILTERING`, or full-table/token scan. The single `tick_quote_item`
     UDT defined in section 12.3 is approved.
-18. Use prepared/bound statements and the established storage abstraction; do
+20. Use prepared/bound statements and the established storage abstraction; do
     not construct per-record CQL strings.
-19. Page date-range results and stream/map pages incrementally. Never call
+21. Page date-range results and stream/map pages incrementally. Never call
     `ToList` over an unbounded tick history.
-20. Treat live credentials and captured market data as sensitive. Do not print,
+22. Treat live credentials and captured market data as sensitive. Do not print,
     serialize into errors, or commit secrets.
-21. Do not commit or push unless the user explicitly requests it after reviewing
+23. Do not commit or push unless the user explicitly requests it after reviewing
     the completed changes.
 
 ## 27. Required verification commands
@@ -1759,9 +2389,17 @@ check. Commands run from the repository root.
 ### 27.1 Fast build and unit loop
 
 ```powershell
+dotnet build .\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj -c Release --no-restore --nologo
+
 dotnet build .\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj -c Release --no-restore --nologo
 
+dotnet build .\TomasAI.IFM.Framework.MarketData\TomasAI.IFM.Framework.MarketData.csproj -c Release --no-restore --nologo
+
+dotnet build .\TomasAI.IFM.Framework.MarketData.DataBento\TomasAI.IFM.Framework.MarketData.DataBento.csproj -c Release --no-restore --nologo
+
 dotnet build .\TomasAI.IFM.Domain.MarketData.Feed\TomasAI.IFM.Domain.MarketData.Feed.csproj -c Release --no-restore --nologo
+
+dotnet test .\TomasAI.IFM.Shared.UnitTests\TomasAI.IFM.Shared.UnitTests.csproj -c Release --no-restore --nologo
 
 dotnet test .\TomasAI.IFM.Domain.MarketData.Feed.UnitTests\TomasAI.IFM.Domain.MarketData.Feed.UnitTests.csproj -c Release --no-restore --nologo
 
@@ -1852,8 +2490,8 @@ Read TomasAI.IFM.Domain.MarketData.Feed/Docs/Databento-Futures-Tick-Aggregation-
 Execute WP0 only. Inspect the current repository, working tree, actor patterns,
 Databento contracts, Blackboard mapping, MarketData Scylla storage, tests, and
 benchmarks. Present a concrete file-by-file implementation and validation plan
-mapped to WP1-WP6, identify conflicts or blockers, and wait for my review. Do not
-edit production code, commit, or push.
+mapped to WP1-WP6, identify conflicts or blockers, and wait for my review. Do
+not edit production code, commit, or push.
 ```
 
 After approving the plan, use:
@@ -1873,4 +2511,9 @@ package range.
 
 | Version | Date | Summary |
 |---|---|---|
+| 1.5 | 2026-08-07 | Bound one DataBento `IMarketDataApi` implementation as the exclusive lifecycle owner of one async `ITickAggregationService`; specified the bounded quote-buffer lease, active-segment MessagePack formatter, and once-only publisher envelope; deferred cross-store sequence recovery as a later system-wide change with an explicit production restart gate; removed the remaining source-mailbox terminology. |
+| 1.4 | 2026-08-07 | Replaced the dummy source actor with `IActorSupervisor.GetJSEventProducer`, a concurrency-safe get-or-create API for a supervisor-owned `IJSActorProducer` registered under a synthetic event identifier with no attached actor; added explicit publisher startup and supervisor shutdown ownership. |
+| 1.3 | 2026-08-07 | Defined the zero-copy multiplexed reader over managed per-ticker channels and bound framework-originated changed events to a single supervisor-owned `IJSActorProducer` identified by an empty `TickAggregationSourceEventActor`, with serialized JetStream publication and explicit startup/shutdown ordering. |
+| 1.2 | 2026-08-07 | Deferred TickAggregation query actors and application-layer `IMarketDataApi` lifecycle orchestration; clarified the service-originated changed-event publisher, changed-event-to-command flow, command-produced inserted events, Scylla projection, and downstream inserted versus inserted-complete consumption points. |
+| 1.1 | 2026-08-07 | Bound TickAggregationService and interface ownership to DataBento `TickAggregation/Contracts`; bound command, event, and paged query actors to the root MarketData Feed `TickAggregation/Command`, `Event`, and `Query` folders; clarified the transport-neutral framework boundary and added query-actor implementation requirements. |
 | 1.0 | 2026-08-07 | Codex-ready implementation specification for the futures TickAggregationService, command/event actors, versioned actor messages, per-ticker quote buffering, nullable quote-side decimals with raw sentinels, UTC `TimeOnly`, ValueDate rollover, preserved duplicate/out-of-order source records, Blackboard mapping, a bounded frozen quote-list UDT, and exactly two asset-neutral MarketData Scylla tables with single-statement date/time range queries while preserving legacy tick tables. |
