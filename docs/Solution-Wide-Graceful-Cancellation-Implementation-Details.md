@@ -35,11 +35,14 @@ Host disposal order is also treated as an idempotent lifecycle boundary. A JetSt
 
 Command, query, event, and denormalizer actor startup hooks now receive the host startup token. Cancellation raised after producer startup but before the actor becomes runnable rolls the producer back and resets the lifecycle state. Fund's owned durable projector additionally stops its partially initialized queue during this rollback.
 
+Both the production API host and actor integration host use `ActorRuntimeStartup` for registration and startup. Actor, producer, and consumer registration is inside the same guarded operation as consumer/actor startup. Cancellation or failure at any point invokes `ShutdownAsync(CancellationToken.None)`, so already registered or started resources are cleaned up without a second host-specific implementation drifting from the first.
+
 ## Implemented propagation
 
 Cancellation-aware overloads now cover:
 
 - actor, supervisor, producer, consumer, actor-service, and command-context contracts;
+- centralized production/integration host actor registration and rollback-safe startup orchestration;
 - command, event, query, and denormalizer base dispatch and startup hooks;
 - NATS publish/request and NATS/JetStream lifecycle operations;
 - optimized/current domain command validation, state repositories, snapshot replay, last-N replay, and state persistence;
@@ -67,6 +70,12 @@ This policy favors an unambiguous durable outcome over a misleading fast cancell
 
 Securities projection fallback uses the same rule. Cancellation is honored through projection-fence reads and repair-journal acquisition. After the fallback begins deleting/repopulating a durable projection, the canonical scan, verification, and journal completion finish without caller cancellation.
 
+## Event and denormalizer boundary audit
+
+The 26 production `BaseEventActor` implementations and four legacy queue denormalizers were reviewed. Their receives are downstream of durable event persistence: they publish follow-up events, update projections, schedule recurring indicator work, or intentionally do nothing as same-domain event sinks. None performs cancellable work before the durable boundary.
+
+No derived token-aware receive overload was added. Once a persisted event begins handler execution, its projection and required follow-up publication finish without the actor worker token. Empty handlers such as `YieldCurveRateEventActor` and `FundTransactionEventActor` remain valid by design. The legacy Interactive Brokers feed remains excluded from optimization changes.
+
 ## Verification
 
 Behavioral tests cover:
@@ -77,15 +86,14 @@ Behavioral tests cover:
 - projector/JetStream cleanup remaining idempotent when dependency-injection disposal races actor shutdown;
 - cancellation during command, query, event, and denormalizer actor startup rolling back the started producer;
 - cancellation during Fund projector recovery preventing worker startup and rolling back projector ownership;
+- cancellation between actor registrations invoking shared host-level supervisor cleanup before consumers start;
 - previously existing actor-pool tests proving accepted mailbox messages drain before worker disposal.
 
 The Release solution build and relevant unit-test suites are the verification gate for this phase.
 
 ## Remaining work in this priority
 
-- Audit derived event and denormalizer handlers for cancellable work that occurs before a durable boundary. Required post-commit projection/application/publication work remains deliberately non-cancelable.
 - Decide whether a separately named force-stop operation is needed. It must not overload graceful `ShutdownAsync` semantics or discard accepted messages silently.
-- Add an API-host orchestration test that cancels between registration of multiple actors; per-actor producer and owned-projector rollback now has focused framework/Fund coverage.
 - Add operational metrics for shutdown duration, drained messages, cancellation count, and failed cleanup stages.
 
 ## Explicit exclusions

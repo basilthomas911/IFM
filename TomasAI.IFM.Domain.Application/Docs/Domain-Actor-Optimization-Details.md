@@ -25,7 +25,7 @@ The following contracts remain unchanged:
 7. **Recursive exception publication - fixed.** A failure while publishing an event-actor error is logged once instead of attempting the same failing publication again.
 8. **Denormalization dispatch overhead - fixed.** Ordered indexed traversal and a typed switch replace enumerator/interface dispatch while preserving event order and awaited publication.
 9. **Shutdown completion conversion contract - fixed.** `ApplicationShutdownEvent.ToCompleteEvent` now validates `ApplicationEntityId`, matching `ApplicationShutdownCompleteEvent`, and a regression test verifies the typed conversion and preserved metadata.
-10. **Graceful cancellation and lifecycle foundation - implemented for the command/event-source path.** Supervisor shutdown now stops intake, drains accepted mailbox work, and then stops actors. Tokens flow through command validation, replay, NATS, and storage while persistence/publication obeys the documented commit boundary. Query/read-model API migration and broader host integration coverage remain.
+10. **Graceful cancellation and lifecycle foundation - implemented.** Supervisor shutdown now stops intake, drains accepted mailbox work, and then stops actors. Tokens flow through startup registration, actor hooks, command validation, replay, queries, NATS, and storage while persistence/publication obeys the documented commit boundary. Production and integration hosts use one rollback-safe startup coordinator.
 
 ## Benchmark summary
 
@@ -51,9 +51,10 @@ Full results and methodology are in `TomasAI.IFM.Domain.Application.Benchmarks/R
 - Application BDD project: 1 placeholder test passed; it is not behavioral actor coverage.
 - Application integrated project: 1 placeholder test passed; it is not an end-to-end lifecycle test.
 - Root MarketData unit tests also passed during this coverage pass: 38 passed.
+- Shared actor lifecycle tests now cover cancellation between two actor registrations and verify that partial runtime state enters non-cancelable supervisor cleanup.
 
 ## Deferred work
 
 1. Replace placeholder BDD/integrated tests with real actor-pipeline startup, shutdown, event-routing, persistence, and failure cases.
-2. Propagate graceful cancellation solution-wide, including explicit drain and persistence/publication semantics.
-3. Add production lifecycle duration and shutdown-drain telemetry. Do not pursue further Application dispatch micro-optimization without profiles showing it matters.
+2. Add production lifecycle duration and shutdown-drain telemetry.
+3. Do not pursue further Application dispatch micro-optimization without profiles showing it matters.

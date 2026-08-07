@@ -157,6 +157,45 @@ public sealed class ActorCancellationTests
         producer.Verify(instance => instance.StopAsync(), Times.Once);
     }
 
+    [Fact]
+    public async Task RuntimeStartup_CancellationBetweenActorRegistrations_ShutsDownPartialRuntime()
+    {
+        var container = new Mock<IContainerInstance>();
+        var supervisor = new Mock<IActorSupervisor>();
+        var registry = new Mock<IActorRegistry>();
+        var factory = new Mock<IActorFactory>();
+        var producer = new Mock<IActorProducer>();
+        var firstActor = new Mock<IActor>();
+        var firstActorId = new ActorMailboxId(ActorType.Command, "FirstStartupActor");
+        firstActor.SetupGet(instance => instance.Id).Returns(firstActorId);
+        registry.SetupGet(instance => instance.ActorTypes).Returns(
+            [typeof(FirstRegistrationMarker), typeof(SecondRegistrationMarker)]);
+        using var cancellation = new CancellationTokenSource();
+        factory.Setup(instance => instance.GetActor(typeof(FirstRegistrationMarker)))
+            .Returns(() =>
+            {
+                cancellation.Cancel();
+                return firstActor.Object;
+            });
+        container.Setup(instance => instance.Resolve<IActorRegistry>()).Returns(registry.Object);
+        container.Setup(instance => instance.Resolve<IActorFactory>()).Returns(factory.Object);
+        container.Setup(instance => instance.Resolve<IActorProducer>()).Returns(producer.Object);
+        supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        supervisor.Setup(instance => instance.ShutdownAsync(CancellationToken.None))
+            .Returns(ValueTask.CompletedTask);
+
+        Func<Task> start = () => ActorRuntimeStartup
+            .StartAsync(supervisor.Object, NullLogger.Instance, cancellation.Token)
+            .AsTask();
+
+        await start.Should().ThrowAsync<OperationCanceledException>();
+        supervisor.Verify(instance => instance.AddActor(firstActor.Object), Times.Once);
+        supervisor.Verify(instance => instance.AddProducer(firstActorId, producer.Object), Times.Once);
+        factory.Verify(instance => instance.GetActor(typeof(SecondRegistrationMarker)), Times.Never);
+        supervisor.Verify(instance => instance.StartConsumersAsync(It.IsAny<CancellationToken>()), Times.Never);
+        supervisor.Verify(instance => instance.ShutdownAsync(CancellationToken.None), Times.Once);
+    }
+
     sealed record TestCommand(ActorEntityId EntityId) : ICommand<ActorEntityId>
     {
         public ActorSubject Subject { get; init; } = new(ActorType.Command, "CancellationTest", "Run", EntityId.Format());
@@ -167,6 +206,9 @@ public sealed class ActorCancellationTests
         public string EventSource => nameof(TestCommand);
         public int ErrorCode => 0;
     }
+
+    sealed class FirstRegistrationMarker;
+    sealed class SecondRegistrationMarker;
 
     sealed class CancellableQueryActor()
         : BaseQueryActor<CancellableQueryActor>(
