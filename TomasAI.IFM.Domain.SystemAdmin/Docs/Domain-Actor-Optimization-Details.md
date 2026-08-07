@@ -58,7 +58,7 @@ The audit benchmark measures how quickly parsing releases the actor; it does not
 
 - Baseline Release unit tests: 64 passed.
 - Baseline BDD project: built with no discoverable tests.
-- Final Release unit tests: 69 passed, including non-blocking audit completion, stateless load, immutable caching, task reuse, and MessagePack round-trip coverage.
+- Final Release unit tests: 71 passed, including non-blocking audit completion, stateless load, immutable caching, task reuse, MessagePack round-trip coverage, and actor/direct-API cancellation behavior.
 - Final Release BDD tests: 2 passed, covering backup event production and stable read-only database-name results.
 - Final Release integration tests: 1 passed (the current placeholder integration test).
 - Domain, benchmark, SystemAdmin server, API server, and UI model projects build successfully with zero warnings and errors. A pre-existing obsolete `RowSet.Dispose()` warning may appear only when the transitive storage framework is rebuilt from restore.
@@ -73,7 +73,7 @@ dotnet run -c Release --project TomasAI.IFM.Domain.SystemAdmin.Benchmarks -- --f
 
 ### Solution-wide cancellation
 
-Cancellation remains a dedicated solution-wide follow-up. A supervisor cancellation token must flow consistently through actor dispatch, command/query/event APIs, repositories, storage interfaces and providers, broker operations, timers, and external I/O. Graceful shutdown must define what happens when cancellation arrives before persistence, after event persistence, or during read-model denormalization. Adding cancellation to SystemAdmin alone would create an incomplete contract.
+SystemAdmin cancellation is complete across command-audit observation, command replay, the query actor/resolver, and the direct in-process query API. Event persistence retains the shared non-cancelable durable-outcome boundary. The database-name query has no storage leaf because it returns an immutable process-local snapshot.
 
 ### Regular review
 

@@ -14,6 +14,8 @@ public static class GetMDIForwardLossRatios
     /// Handles a request to retrieve MDI forward loss ratios for the trend direction and trade type carried by the query.
     /// </summary>
     public static async ValueTask<MDIForwardLossRatioReadModel[]> GetMDIForwardLossRatiosAsync(
-        this GetMDIForwardLossRatiosQuery q, IDbContextFactory dbFactory)
-        => [.. await dbFactory.ReferenceDb.GetMDIForwardLossRatiosAsync(q.TrendDirection, q.TradeType)];
+        this GetMDIForwardLossRatiosQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+        => [.. await (cancellationToken.CanBeCanceled
+            ? dbFactory.ReferenceDb.GetMDIForwardLossRatiosAsync(q.TrendDirection, q.TradeType, cancellationToken)
+            : dbFactory.ReferenceDb.GetMDIForwardLossRatiosAsync(q.TrendDirection, q.TradeType))];
 }

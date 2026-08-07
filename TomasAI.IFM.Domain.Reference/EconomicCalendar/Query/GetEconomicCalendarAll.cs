@@ -17,6 +17,8 @@ public static class GetEconomicCalendarAll
     /// <param name="dbFactory">The database context factory used to access reference storage.</param>
     /// <returns>A value task that completes after the reply has been posted.</returns>
     public static async ValueTask<EconomicCalendarReadModel[]> GetEconomicCalendarAllAsync(
-        this GetEconomicCalendarAllQuery q, IDbContextFactory dbFactory)
-        => [.. await dbFactory.ReferenceDb.GetEconomicCalendarAllAsync()];
+        this GetEconomicCalendarAllQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+        => [.. await (cancellationToken.CanBeCanceled
+            ? dbFactory.ReferenceDb.GetEconomicCalendarAllAsync(cancellationToken)
+            : dbFactory.ReferenceDb.GetEconomicCalendarAllAsync())];
 }

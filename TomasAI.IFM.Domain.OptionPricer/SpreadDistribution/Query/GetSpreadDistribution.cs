@@ -12,7 +12,20 @@ public static class GetSpreadDistribution
 {
     internal static ValueTask<SpreadDistributionReadModel?> GetSpreadDistributionAsync(
         this GetSpreadDistributionQuery q, IDbContextFactory dbFactory,
-        int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry)
-        => new(dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
-            tradeId, tradeType, tradeStatus, valueDate, daysToExpiry));
+        int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry,
+        CancellationToken cancellationToken = default)
+        => new(cancellationToken.CanBeCanceled
+            ? dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
+                tradeId,
+                tradeType,
+                tradeStatus,
+                valueDate,
+                daysToExpiry,
+                cancellationToken)
+            : dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
+                tradeId,
+                tradeType,
+                tradeStatus,
+                valueDate,
+                daysToExpiry));
 }

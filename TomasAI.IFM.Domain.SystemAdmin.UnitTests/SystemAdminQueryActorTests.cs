@@ -31,6 +31,12 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
         public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => await ReceiveAsync(context, query);
 
+        public async ValueTask InvokeReceiveAsync(
+            IQueryActorContext context,
+            IQuery query,
+            CancellationToken cancellationToken)
+            => await ReceiveAsync(context, query, cancellationToken);
+
 
         public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
@@ -355,6 +361,26 @@ public class SystemAdminQueryActorTests : IClassFixture<SystemAdminFixture>
             Arg.Is<ActorThreadId>(tid => tid == query.Subject.ThreadId),
             Arg.Is(GetDatabaseNamesQuery.Verb),
             Arg.Any<ServiceResult<DatabaseNamesReadModel>>());
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_WithCancellation_DoesNotReply()
+    {
+        var actor = _fixture.CreateQueryActor();
+        var query = CreateQuery();
+        var context = Substitute.For<IQueryActorContext>();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Func<Task> act = () => actor
+            .InvokeReceiveAsync(context, query, cancellation.Token)
+            .AsTask();
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        context.DidNotReceiveWithAnyArgs().ReplyAsync(
+            default,
+            default!,
+            default(ServiceResult<DatabaseNamesReadModel>)!);
     }
 
     #endregion

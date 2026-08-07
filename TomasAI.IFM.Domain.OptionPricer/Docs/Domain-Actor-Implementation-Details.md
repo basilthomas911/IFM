@@ -57,8 +57,10 @@ Distribution commands are parsed, validated, applied to event-sourced state, and
 
 Keep pricing-domain state beneath `SpreadDistribution`; keep scheduling, progress, and retry behavior beneath `Job`. Add cross-domain request/response types to Shared projects and register new mailbox verbs in all corresponding maps.
 
-## Deferred solution-wide cancellation TODO
+## Graceful cancellation status
 
-After all root domain optimization passes are complete, implement cancellation propagation as a dedicated solution-wide change. Cancellation must flow consistently from supervisor stop requests through actor processing, domain APIs, repositories, storage contracts, and concrete storage operations so actors stop gracefully. Do not add isolated optional tokens to this domain before the solution-wide semantics and failure behavior are designed together.
+The coordinated solution-wide cancellation pass now covers the complete OptionPricer query/read-model path. `SpreadDistributionQueryActor`, its handler, all three direct in-process `IActorOptionPricerQueryApi` operations, the OptionPricer storage contract, and the concrete database operations accept and propagate the worker token. Canceled actor reads do not publish stale replies, and direct API cancellation remains an `OperationCanceledException` rather than being converted into a normal service failure.
+
+The event-sourced command path already propagates cancellation through command-audit observation and state replay. It retains the solution-wide commit boundary: once event persistence begins, required denormalization and publication complete without caller cancellation so a durable mutation is never reported as safely abandoned.
 
 The current OptionPricer optimization decisions, top-ten findings, and BenchmarkDotNet baseline are recorded in [Domain-Actor-Optimization-Details.md](Domain-Actor-Optimization-Details.md).

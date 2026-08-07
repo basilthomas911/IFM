@@ -80,14 +80,17 @@ public class ReferenceQueryActor(
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+
+    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
     }
 
     /// <summary>
@@ -97,40 +100,44 @@ public class ReferenceQueryActor(
     /// <remarks>This dictionary enables dynamic dispatch of reference-related queries by associating each query
     /// type name with a function that processes the query against a ReferenceQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetCurrentSeedIdQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetCurrentSeedIdQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetCurrentSeedIdQuery);
-            var result = await query.GetCurrentSeedIdAsync(dbFactory);
+            var result = await query.GetCurrentSeedIdAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetCurrentSeedIdQuery.Verb,
                 new ServiceResult<ScalarReadModel<int>>(result));
         },
-        [typeof(GetNextSeedIdQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetNextSeedIdQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetNextSeedIdQuery);
-            var result = await query.GetNextSeedIdAsync(dbFactory);
+            var result = await query.GetNextSeedIdAsync(dbFactory, cancellationToken);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetNextSeedIdQuery.Verb,
                 new ServiceResult<ScalarReadModel<int>>(result));
         },
-        [typeof(GetDefaultFuturesContractDefinitionsQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetDefaultFuturesContractDefinitionsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetDefaultFuturesContractDefinitionsQuery);
-            var result = await query.GetDefaultFuturesContractDefinitionsAsync(dbFactory);
+            var result = await query.GetDefaultFuturesContractDefinitionsAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetDefaultFuturesContractDefinitionsQuery.Verb,
                 new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result));
         },
-        [typeof(GetFuturesOptionStrikePriceDefinitionsQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetFuturesOptionStrikePriceDefinitionsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetFuturesOptionStrikePriceDefinitionsQuery);
-            var result = await query.GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory);
+            var result = await query.GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionStrikePriceDefinitionsQuery.Verb,
                 new ServiceResult<FuturesOptionStrikePriceReadModel>(result));
         },
-        [typeof(GetMDIForwardLossRatiosQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetMDIForwardLossRatiosQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetMDIForwardLossRatiosQuery);
-            var result = await query.GetMDIForwardLossRatiosAsync(dbFactory);
+            var result = await query.GetMDIForwardLossRatiosAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetMDIForwardLossRatiosQuery.Verb,
                 new ServiceResult<MDIForwardLossRatioReadModel[]>(result));
         }

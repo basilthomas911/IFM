@@ -18,18 +18,22 @@ public static class GetExternalEconomicCalendars
     /// <param name="dbFactory"></param>
     /// <returns></returns>
     public static async ValueTask<EconomicCalendarReadModel[]> GetExternalEconomicCalendarsAsync(
-        this GetExternalEconomicCalendarsQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.GetExternalEconomicCalendarsAsync();
+        this GetExternalEconomicCalendarsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+        => await dbFactory.GetExternalEconomicCalendarsAsync(cancellationToken);
 
     /// <summary>
     /// 
     /// </summary>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    static async ValueTask<EconomicCalendarReadModel[]> GetExternalEconomicCalendarsAsync(this IDbContextFactory dbFactory)
+    static async ValueTask<EconomicCalendarReadModel[]> GetExternalEconomicCalendarsAsync(
+        this IDbContextFactory dbFactory,
+        CancellationToken cancellationToken)
     {
         if (dbFactory.EconomicCalendarsDb is not IEconomicCalendarsDbContext ecCal)
             return [];
-        return [.. await ecCal.ReadAsync()];
+        return [.. await (cancellationToken.CanBeCanceled
+            ? ecCal.ReadAsync(cancellationToken)
+            : ecCal.ReadAsync())];
     }
 }

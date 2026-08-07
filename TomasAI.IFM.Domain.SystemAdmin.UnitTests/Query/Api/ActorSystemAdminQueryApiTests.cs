@@ -17,4 +17,16 @@ public class ActorSystemAdminQueryApiTests
         result.Success.Should().BeTrue();
         result.Value.Should().NotBeNull();
     }
+
+    [Fact]
+    public async Task CancellationIsNotConvertedToFailure()
+    {
+        var api = new ActorSystemAdminQueryApi();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Func<Task> act = async () => await api.GetDatabaseNamesAsync(cancellation.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
 }

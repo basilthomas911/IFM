@@ -12,7 +12,7 @@ The following domain rules were preserved:
 - Command success remains distinct from state mutation. A successful command is not forced to produce an event.
 - `EconomicCalendarEventActor` and `LookupTypeEventActor` remain intentionally empty default event targets.
 - Dictionary dispatch remains in place. A generated jump table is deferred until paper-trading telemetry shows dispatch to be material.
-- The solution-wide cancellation pass now covers all Reference storage reads and external calendar parsing; actor/API propagation is the next Reference slice.
+- The solution-wide cancellation pass now covers all Reference query actors, handlers, direct API operations, storage reads, and external calendar parsing.
 
 ## Top ten issues found and resolved
 
@@ -107,7 +107,7 @@ The arithmetic path has constant bounded cost and fixes `NextWeek` on Monday so 
 
 - Baseline Release unit tests: 10 passed.
 - Baseline BDD project: built but contained no discoverable tests.
-- Final Release unit tests: 17 passed.
+- Final Release unit tests: 19 passed, including actor and direct-API cancellation coverage.
 - Final Release BDD tests: 1 passed.
 - Live Reference integration verification: 28 of 31 tests passed. Both optimized short-code existence cases passed after validating the deployed Scylla clustering order (existing code and missing code). The remaining failures were shared-fixture state issues: one remove test could not perform its prerequisite add, and two calendar-range fixtures did not find their directly inserted rows among stale shared projections.
 - Production, benchmark, API server, actor integration-test, and Reference integration-test projects build successfully with zero warnings and errors. One existing obsolete `RowSet.Dispose()` warning can appear while rebuilding the transitive Framework.Storage project and is outside this domain pass.
@@ -122,7 +122,7 @@ dotnet run -c Release --project TomasAI.IFM.Domain.Reference.Benchmarks -- --fil
 
 ### Solution-wide cancellation
 
-Reference storage now accepts cancellation throughout read-model and external-calendar operations. Actor/query-handler and direct-API propagation remains pending, so the bounded context is not yet recorded as end-to-end complete. Seed compare-and-set submission retains a non-cancelable resolution boundary to avoid losing an allocated identifier.
+Reference cancellation is end-to-end across query actors, handlers, direct API operations, read-model storage, and external calendar parsing. Canceled reads publish no actor reply and direct APIs rethrow cancellation. Seed compare-and-set submission retains a non-cancelable resolution boundary to avoid losing an allocated identifier.
 
 ### Synchronous lookup interface
 

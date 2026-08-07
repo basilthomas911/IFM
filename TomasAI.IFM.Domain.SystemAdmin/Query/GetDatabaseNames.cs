@@ -11,9 +11,12 @@ public static class GetDatabaseNames
     /// </summary>
     /// <param name="query">The query to handle.</param>
     /// <returns>The immutable database-name read model.</returns>
-    public static DatabaseNamesReadModel ResolveDatabaseNames(this GetDatabaseNamesQuery query)
+    public static DatabaseNamesReadModel ResolveDatabaseNames(
+        this GetDatabaseNamesQuery query,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
+        cancellationToken.ThrowIfCancellationRequested();
         return SystemAdminQueryState.GetDatabaseNames();
     }
 }

@@ -15,6 +15,8 @@ public static class GetCurrentSeedId
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async ValueTask<ScalarReadModel<int>> GetCurrentSeedIdAsync(
-        this GetCurrentSeedIdQuery q, IDbContextFactory dbFactory)
-        => new(await dbFactory.ReferenceDb.GetCurrentSeedIdAsync(q.SeedType));
+        this GetCurrentSeedIdQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+        => new(await (cancellationToken.CanBeCanceled
+            ? dbFactory.ReferenceDb.GetCurrentSeedIdAsync(q.SeedType, cancellationToken)
+            : dbFactory.ReferenceDb.GetCurrentSeedIdAsync(q.SeedType)));
 }

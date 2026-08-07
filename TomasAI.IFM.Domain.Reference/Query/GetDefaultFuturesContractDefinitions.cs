@@ -14,19 +14,25 @@ public static class GetDefaultFuturesContractDefinitions
     /// Handles a request to retrieve default futures contract definitions.
     /// </summary>
     public static ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(
-        this GetDefaultFuturesContractDefinitionsQuery q, IDbContextFactory dbFactory)
-        => GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb);
+        this GetDefaultFuturesContractDefinitionsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+        => GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
 
-    internal static async ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(IReferenceDbContext db)
+    internal static async ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(
+        IReferenceDbContext db,
+        CancellationToken cancellationToken = default)
     {
-        var currency = db.GetLookupTypeAsync("DefaultFuturesContractCurrency");
-        var exchange = db.GetLookupTypeAsync("DefaultFuturesContractExchange");
-        var multiplier = db.GetLookupTypeAsync("DefaultFuturesContractMultiplier");
-        var securityType = db.GetLookupTypeAsync("DefaultFuturesContractSecurityType");
-        var optionSecurityType = db.GetLookupTypeAsync("DefaultFuturesOptionContractSecurityType");
-        var symbol = db.GetLookupTypeAsync("DefaultFuturesContractSymbol");
+        Task<ICollection<LookupTypeReadModel>> ReadAsync(string name) => cancellationToken.CanBeCanceled
+            ? db.GetLookupTypeAsync(name, cancellationToken)
+            : db.GetLookupTypeAsync(name);
+        var currency = ReadAsync("DefaultFuturesContractCurrency");
+        var exchange = ReadAsync("DefaultFuturesContractExchange");
+        var multiplier = ReadAsync("DefaultFuturesContractMultiplier");
+        var securityType = ReadAsync("DefaultFuturesContractSecurityType");
+        var optionSecurityType = ReadAsync("DefaultFuturesOptionContractSecurityType");
+        var symbol = ReadAsync("DefaultFuturesContractSymbol");
         var values = await Task.WhenAll(currency, exchange, multiplier, securityType, optionSecurityType, symbol)
             .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
 
         return new DefaultFuturesContractDefinitionsReadModel
         {

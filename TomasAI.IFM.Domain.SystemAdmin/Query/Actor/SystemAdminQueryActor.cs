@@ -63,25 +63,32 @@ public class SystemAdminQueryActor(
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
     protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+
+    protected override ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        return receiveFunc.Invoke(context, query);
+        return receiveFunc.Invoke(context, query, cancellationToken);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding system admin query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetDatabaseNamesQuery).Name] = (ctx, q) =>
+        [typeof(GetDatabaseNamesQuery).Name] = (ctx, q, cancellationToken) =>
         {
             var query = (q as GetDatabaseNamesQuery)!;
-            var result = query.ResolveDatabaseNames();
+            var result = query.ResolveDatabaseNames(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             return ctx.ReplyAsync(query.Subject.ThreadId, GetDatabaseNamesQuery.Verb,
                 new ServiceResult<DatabaseNamesReadModel>(result));
         }

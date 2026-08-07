@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Domain.Reference.Query.Api;
 /// optional external calendar reader. Every public method owns its typed success/failure mapping. The
 /// implementation does not capture actor context and may be registered as a singleton.
 /// </remarks>
-public sealed class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActorReferenceQueryApi
+public sealed partial class ActorReferenceQueryApi(IDbContextFactory dbFactory) : IActorReferenceQueryApi
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 

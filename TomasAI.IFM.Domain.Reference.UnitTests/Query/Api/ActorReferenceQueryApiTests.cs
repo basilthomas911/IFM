@@ -76,6 +76,30 @@ public class ActorReferenceQueryApiTests
         await db.DidNotReceive().GetLookupTypeShortCodesAsync(Arg.Any<string>());
     }
 
+    [Fact]
+    public async Task CancellationUsesTokenAwareStorageAndIsNotConvertedToFailure()
+    {
+        var (api, db) = CreateApi();
+        using var cancellation = new CancellationTokenSource();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        db.GetCurrentSeedIdAsync("Trade", cancellation.Token)
+            .Returns(async _ =>
+            {
+                started.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellation.Token);
+                return 0;
+            });
+
+        var operation = api.GetCurrentSeedIdAsync("Trade", cancellation.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        cancellation.Cancel();
+
+        Func<Task> act = async () => await operation;
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        await db.Received(1).GetCurrentSeedIdAsync("Trade", cancellation.Token);
+    }
+
     static (ActorReferenceQueryApi Api, IReferenceDbContext Db) CreateApi()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();

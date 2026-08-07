@@ -15,6 +15,8 @@ public static class GetNextSeedId
     /// <param name="dbFactory"></param>
     /// <returns></returns>
     public static async ValueTask<ScalarReadModel<int>> GetNextSeedIdAsync(
-        this GetNextSeedIdQuery q, IDbContextFactory dbFactory)
-        => new(await dbFactory.ReferenceDb.GetNextSeedIdAsync(q.SeedType));
+        this GetNextSeedIdQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+        => new(await (cancellationToken.CanBeCanceled
+            ? dbFactory.ReferenceDb.GetNextSeedIdAsync(q.SeedType, cancellationToken)
+            : dbFactory.ReferenceDb.GetNextSeedIdAsync(q.SeedType)));
 }

@@ -42,6 +42,17 @@ public sealed class ActorOptionPricerQueryApi(IDbContextFactory dbFactory) : IAc
         }
     }
 
+    public Task<ServiceResult<OptionPricerDevicesReadModel>> GetOptionPricerDevicesAsync(
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            GetOptionPricerDevicesQuery.ErrorId,
+            cancellationToken,
+            async () => new OptionPricerDevicesReadModel
+            {
+                Devices = [.. await _dbFactory.OptionPricerDb
+                    .GetOptionPricerDevicesAsync(cancellationToken)]
+            });
+
     /// <summary>
     /// Gets spread distribution.
     /// </summary>
@@ -73,6 +84,24 @@ public sealed class ActorOptionPricerQueryApi(IDbContextFactory dbFactory) : IAc
         }
     }
 
+    public Task<ServiceResult<SpreadDistributionReadModel>> GetSpreadDistributionAsync(
+        int tradeId,
+        TradeType tradeType,
+        TradeStatus tradeStatus,
+        DateOnly valueDate,
+        int daysToExpiry,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            GetSpreadDistributionQuery.ErrorId,
+            cancellationToken,
+            async () => (await _dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
+                tradeId,
+                tradeType,
+                tradeStatus,
+                valueDate,
+                daysToExpiry,
+                cancellationToken))!);
+
     /// <summary>
     /// Determines whether spread distribution job in progress.
     /// </summary>
@@ -95,6 +124,42 @@ public sealed class ActorOptionPricerQueryApi(IDbContextFactory dbFactory) : IAc
             return new ServiceFailed<ScalarReadModel<bool>>(
                 GetSpreadDistributionJobInProgressQuery.ErrorId,
                 ex.Message);
+        }
+    }
+
+    public Task<ServiceResult<ScalarReadModel<bool>>> IsSpreadDistributionJobInProgressAsync(
+        int orderId,
+        int tradeId,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            GetSpreadDistributionJobInProgressQuery.ErrorId,
+            cancellationToken,
+            async () => new ScalarReadModel<bool>(
+                await _dbFactory.OptionPricerDb
+                    .GetSpreadDistributionJobInProgressCountAsync(
+                        orderId,
+                        tradeId,
+                        cancellationToken) > 0));
+
+    static async Task<ServiceResult<T>> ExecuteAsync<T>(
+        int errorId,
+        CancellationToken cancellationToken,
+        Func<Task<T>> operation)
+    {
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await operation().ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return new ServiceOk<T>(result);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<T>(errorId, ex.Message);
         }
     }
 }

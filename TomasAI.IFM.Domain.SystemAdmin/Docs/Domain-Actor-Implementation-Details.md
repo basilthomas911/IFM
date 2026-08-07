@@ -35,9 +35,11 @@ The command actor follows the shared event-sourced lifecycle: parse, validate, c
 
 Command-audit persistence begins during parsing without synchronously blocking the actor. Validation awaits that same operation before command execution continues, preserving audit failure semantics.
 
-## TODO: solution-wide cancellation
+## Graceful cancellation status
 
-Do not add domain-local cancellation parameters in isolation. After all root-domain optimization passes, implement one coordinated change that propagates supervisor cancellation through the actor pipeline, APIs, repositories, storage providers, messaging, timers, and external I/O. Define graceful-stop semantics around event persistence and denormalization before changing these contracts.
+The coordinated solution-wide cancellation pass now covers SystemAdmin. Command-audit observation and the event-sourced command pipeline honor the supervisor token before the durable commit boundary. The query actor, its database-name resolver, and the direct in-process query API also accept cancellation; a canceled query sends no stale actor reply and remains an `OperationCanceledException` rather than a normal failure result.
+
+Database-name resolution is an immutable in-memory lookup, so there is no lower storage operation to cancel. The no-token API continues to reuse its cached completed task without adding hot-path allocation.
 
 ## Extension points
 

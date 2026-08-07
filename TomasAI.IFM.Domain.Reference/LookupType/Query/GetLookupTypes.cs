@@ -16,6 +16,8 @@ public static class GetLookupTypes
     /// <param name="dbFactory">The database context factory for accessing reference storage.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async ValueTask<LookupTypeCollection> GetLookupTypesAsync(
-        this GetLookupTypesQuery q, IDbContextFactory dbFactory)
-        => [.. await dbFactory.ReferenceDb.GetLookupTypesAsync()];
+        this GetLookupTypesQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+        => [.. await (cancellationToken.CanBeCanceled
+            ? dbFactory.ReferenceDb.GetLookupTypesAsync(cancellationToken)
+            : dbFactory.ReferenceDb.GetLookupTypesAsync())];
 }

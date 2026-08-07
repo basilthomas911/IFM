@@ -57,27 +57,40 @@ public class SpreadDistributionQueryActor(
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+
+    protected override async ValueTask ReceiveAsync(
+        IQueryActorContext context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding spread distribution query
     /// logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext,  IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetSpreadDistributionQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetSpreadDistributionQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetSpreadDistributionQuery)!;
             var result = await query.GetSpreadDistributionAsync(
-                dbFactory, query.TradeId, query.TradeType, query.TradeStatus, query.ValueDate, query.DaysToExpiry);
+                dbFactory,
+                query.TradeId,
+                query.TradeType,
+                query.TradeStatus,
+                query.ValueDate,
+                query.DaysToExpiry,
+                cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetSpreadDistributionQuery.Verb,
                 new ServiceResult<SpreadDistributionReadModel?>(result));
         }

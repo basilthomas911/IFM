@@ -158,6 +158,14 @@ public class OptionPricerDbContext(
             .Use(OptionPricerDbCql.GetOptionPricerDevices)
             .ExecuteQueryAsync<OptionPricerDeviceReadModel>(MapToOptionPricerDevice!);
 
+    public async Task<ICollection<OptionPricerDeviceReadModel>> GetOptionPricerDevicesAsync(
+        CancellationToken cancellationToken)
+        => await _dbFactory.OptionPricerDb
+            .Use(OptionPricerDbCql.GetOptionPricerDevices)
+            .ExecuteQueryAsync<OptionPricerDeviceReadModel>(
+                MapToOptionPricerDevice!,
+                cancellationToken);
+
     /// <summary>
     /// return count of spread distribution jobs in progress
     /// </summary>
@@ -171,6 +179,22 @@ public class OptionPricerDbContext(
             .SetParameters(new GetSpreadDistributionJobs(orderId, tradeId))
              .ExecuteQueryAsync<SpreadDistributionJobReadModel>(MapToSpreadDistributionJob!);
         return spreadDistributionJobs.Count(e => 
+            e.JobStatus == SpreadDistributionJobStatus.InProgress
+            || e.InProgress);
+    }
+
+    public async Task<int> GetSpreadDistributionJobInProgressCountAsync(
+        int orderId,
+        int tradeId,
+        CancellationToken cancellationToken)
+    {
+        var db = _dbFactory.OptionPricerDb;
+        var spreadDistributionJobs = await db.Use(OptionPricerDbCql.GetSpreadDistributionJobs)
+            .SetParameters(new GetSpreadDistributionJobs(orderId, tradeId))
+            .ExecuteQueryAsync<SpreadDistributionJobReadModel>(
+                MapToSpreadDistributionJob!,
+                cancellationToken);
+        return spreadDistributionJobs.Count(e =>
             e.JobStatus == SpreadDistributionJobStatus.InProgress
             || e.InProgress);
     }
@@ -190,6 +214,25 @@ public class OptionPricerDbContext(
                 .Use(OptionPricerDbCql.GetSpreadDistribution)
                 .SetParameters(new GetSpreadDistribution(tradeId, tradeType.ToStringFast(), tradeStatus.ToStringFast(), valueDate, daysToExpiry))
                 .ExecuteSingleAsync<SpreadDistributionReadModel>(MapToSpreadDistribution!);
+
+    public async Task<SpreadDistributionReadModel?> GetSpreadDistributionAsync(
+        int tradeId,
+        TradeType tradeType,
+        TradeStatus tradeStatus,
+        DateOnly valueDate,
+        int daysToExpiry,
+        CancellationToken cancellationToken)
+        => await _dbFactory.OptionPricerDb
+            .Use(OptionPricerDbCql.GetSpreadDistribution)
+            .SetParameters(new GetSpreadDistribution(
+                tradeId,
+                tradeType.ToStringFast(),
+                tradeStatus.ToStringFast(),
+                valueDate,
+                daysToExpiry))
+            .ExecuteSingleAsync<SpreadDistributionReadModel>(
+                MapToSpreadDistribution!,
+                cancellationToken);
 
     /// <summary>
     /// insert option pricer device configuration

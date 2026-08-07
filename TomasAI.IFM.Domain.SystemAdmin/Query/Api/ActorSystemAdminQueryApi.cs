@@ -25,4 +25,10 @@ public sealed class ActorSystemAdminQueryApi : IActorSystemAdminQueryApi
     /// </summary>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public Task<ServiceResult<DatabaseNamesReadModel>> GetDatabaseNamesAsync() => DatabaseNamesResult;
+
+    public Task<ServiceResult<DatabaseNamesReadModel>> GetDatabaseNamesAsync(
+        CancellationToken cancellationToken)
+        => cancellationToken.IsCancellationRequested
+            ? Task.FromCanceled<ServiceResult<DatabaseNamesReadModel>>(cancellationToken)
+            : DatabaseNamesResult;
 }

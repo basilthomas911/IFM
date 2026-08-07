@@ -73,14 +73,17 @@ public class LookupTypeQueryActor(
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+
+    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
     }
 
     /// <summary>
@@ -90,40 +93,45 @@ public class LookupTypeQueryActor(
     /// <remarks>This dictionary enables dynamic dispatch of lookup type-related queries by associating each query
     /// type name with a function that processes the query against a LookupTypeQueryActorState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetLookupTypesQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetLookupTypesQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypesQuery);
-            var result = await query.GetLookupTypesAsync(dbFactory);
+            var result = await query.GetLookupTypesAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypesQuery.Verb,
                 new ServiceResult<LookupTypeCollection>(result));
         },
-        [typeof(GetLookupTypeNamesQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetLookupTypeNamesQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeNamesQuery);
-            var result = await query.GetLookupTypeNamesAsync(dbFactory);
+            var result = await query.GetLookupTypeNamesAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeNamesQuery.Verb,
                 new ServiceResult<string[]>(result));
         },
-        [typeof(GetLookupTypeQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetLookupTypeQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeQuery);
-            var result = await query.GetLookupTypeAsync(dbFactory);
+            var result = await query.GetLookupTypeAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeQuery.Verb,
                 new ServiceResult<LookupTypeCollection>(result));
         },
-        [typeof(GetLookupTypeShortCodesQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetLookupTypeShortCodesQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeShortCodesQuery);
-            var result = await query.GetLookupTypeShortCodesAsync(dbFactory);
+            var result = await query.GetLookupTypeShortCodesAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeShortCodesQuery.Verb,
                 new ServiceResult<LookupTypeShortCodeReadModel[]>(result));
         },
-        [typeof(GetLookupTypeShortCodeExistsQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetLookupTypeShortCodeExistsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeShortCodeExistsQuery);
-            var result = await query.GetLookupTypeShortCodeExistsAsync(dbFactory);
+            var result = await query.GetLookupTypeShortCodeExistsAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeShortCodeExistsQuery.Verb,
                 new ServiceResult<ScalarReadModel<bool>>(result));
         }

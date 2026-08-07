@@ -39,6 +39,31 @@ public class ActorOptionPricerQueryApiTests
         result.ErrorMessage.Should().Be(exception.Message);
     }
 
+    [Fact]
+    public async Task CancellationUsesTokenAwareStorageAndIsNotConvertedToFailure()
+    {
+        var (api, db) = CreateApi();
+        using var cancellation = new CancellationTokenSource();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        db.GetSpreadDistributionJobInProgressCountAsync(1, 2, cancellation.Token)
+            .Returns(async _ =>
+            {
+                started.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellation.Token);
+                return 0;
+            });
+
+        var operation = api.IsSpreadDistributionJobInProgressAsync(1, 2, cancellation.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        cancellation.Cancel();
+
+        Func<Task> act = async () => await operation;
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        await db.Received(1)
+            .GetSpreadDistributionJobInProgressCountAsync(1, 2, cancellation.Token);
+    }
+
     static (ActorOptionPricerQueryApi Api, IOptionPricerDbContext Db) CreateApi()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();

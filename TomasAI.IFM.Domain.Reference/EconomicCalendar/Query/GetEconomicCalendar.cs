@@ -19,8 +19,9 @@ public static class GetEconomicCalendar
     /// <param name="dbFactory">The database context factory.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async ValueTask<EconomicCalendarReadModel[]> GetEconomicCalendarAsync(
-        this GetEconomicCalendarQuery q, IDbContextFactory dbFactory)
-        => [.. await GetEconomicCalendarAsync(dbFactory.ReferenceDb, q.TodaysDate, q.CalendarViewType, q.CountryCode)];
+        this GetEconomicCalendarQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+        => [.. await GetEconomicCalendarAsync(
+            dbFactory.ReferenceDb, q.TodaysDate, q.CalendarViewType, q.CountryCode, cancellationToken)];
 
     /// <summary>
     /// Gets the economic calendar data from the database based on the specified parameters.
@@ -33,26 +34,36 @@ public static class GetEconomicCalendar
     /// <exception cref="NotImplementedException">Thrown when the calendar view type is not implemented.</exception>
     /// <returns></returns>
     /// <exception cref="NotImplementedException"></exception>
-    internal static async ValueTask<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAsync(IReferenceDbContext db, DateTime todaysDate, EconomicCalendarViewType calendarViewType, string countryCode)
+    internal static async ValueTask<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAsync(
+        IReferenceDbContext db,
+        DateTime todaysDate,
+        EconomicCalendarViewType calendarViewType,
+        string countryCode,
+        CancellationToken cancellationToken = default)
     {
         if (calendarViewType is EconomicCalendarViewType.ThisWeek or EconomicCalendarViewType.NextWeek)
         {
             var startDate = calendarViewType == EconomicCalendarViewType.ThisWeek
                 ? GetThisWeekStartingDate(todaysDate)
                 : GetNextWeekStartingDate(todaysDate);
-            return await db.GetEconomicCalendarsAsync(
-                startDate,
-                startDate.AddDays(7).AddMilliseconds(-1),
-                countryCode: countryCode);
+            var endDate = startDate.AddDays(7).AddMilliseconds(-1);
+            return cancellationToken.CanBeCanceled
+                ? await db.GetEconomicCalendarsAsync(startDate, endDate, countryCode, cancellationToken)
+                : await db.GetEconomicCalendarsAsync(startDate, endDate, countryCode);
         }
 
         return calendarViewType switch
         {
-            EconomicCalendarViewType.Today => await db.GetEconomicCalendarsAsync(todaysDate, countryCode),
-            EconomicCalendarViewType.Tomorrow => await db.GetEconomicCalendarsAsync(todaysDate.AddDays(1).Date, countryCode),
-            EconomicCalendarViewType.Yesterday => await db.GetEconomicCalendarsAsync(todaysDate.AddDays(-1).Date, countryCode),
+            EconomicCalendarViewType.Today => await ReadDateAsync(todaysDate),
+            EconomicCalendarViewType.Tomorrow => await ReadDateAsync(todaysDate.AddDays(1).Date),
+            EconomicCalendarViewType.Yesterday => await ReadDateAsync(todaysDate.AddDays(-1).Date),
             _ => throw new NotImplementedException($"Invalid CalendarViewType: {calendarViewType}")
         };
+
+        Task<ICollection<EconomicCalendarReadModel>> ReadDateAsync(DateTime eventDate)
+            => cancellationToken.CanBeCanceled
+                ? db.GetEconomicCalendarsAsync(eventDate, countryCode, cancellationToken)
+                : db.GetEconomicCalendarsAsync(eventDate, countryCode);
     }
 
     internal static DateTime GetThisWeekStartingDate(this DateTime todaysDate)

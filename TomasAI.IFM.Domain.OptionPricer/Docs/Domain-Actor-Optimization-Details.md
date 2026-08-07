@@ -50,11 +50,11 @@ Run the benchmark suite with:
 dotnet run -c Release --project TomasAI.IFM.Domain.OptionPricer.Benchmarks -- --filter '*' --join
 ```
 
-Regression coverage verifies spread-value equivalence and caching, fused loss-probability equivalence, and correct option-trade actor routing. Production, unit-test, BDD-test, and benchmark projects are built and tested in Release configuration.
+Regression coverage verifies spread-value equivalence and caching, fused loss-probability equivalence, and correct option-trade actor routing. Production, unit-test, BDD-test, and benchmark projects are built and tested in Release configuration. The coordinated cancellation follow-up added focused actor and direct-API coverage; the final OptionPricer unit suite contains 10 passing tests.
 
 ## Deferred work
 
-- **Solution-wide cancellation propagation:** add cancellation semantics from supervisor through actor contexts, command/query/event APIs, repositories, storage interfaces, and concrete providers in one coordinated solution-wide change after all root-domain optimization passes. The supervisor must be able to request a graceful actor stop without abruptly abandoning storage or event operations. This pass deliberately does not introduce partial cancellation semantics.
+- **Solution-wide cancellation propagation:** OptionPricer query/read-model cancellation is complete from actor/direct API entry points through concrete storage. Command validation and replay are cancellable, while event persistence and required post-commit denormalization retain the non-cancelable durable-outcome boundary. Long-running job-event cancellation remains part of the later coordinated event-context/API work because its cross-domain requests currently expose no token-aware context contract.
 - **QLNet graph allocation:** four legs allocate about 102 MB in the current QLNet workflow. Lock batching did not improve it. Any future graph/process reuse must be benchmarked for numerical equivalence and global-settings safety before adoption.
 - **Dispatch micro-optimization:** retain dictionary dispatch. Revisit a generated true jump table only with paper-trading profiles showing parsing to be material.
 
