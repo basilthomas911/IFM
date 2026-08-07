@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation started in August 2026 as the first item in the revised application-wide optimization order. The command/event-source path is complete. Query/read-model migration is proceeding bounded context by bounded context; Fund, FundTransaction, MarketData, YieldCurveRate, Analytics actor queries, Securities, Reference, OptionPricer, SystemAdmin, and Trade now have explicit end-to-end token propagation.
+Implementation started in August 2026 as the first item in the revised application-wide optimization order. The command/event-source path is complete. Query/read-model migration is proceeding bounded context by bounded context; Fund, FundTransaction, MarketData, YieldCurveRate, Analytics actor and direct in-process queries, Securities, Reference, OptionPricer, SystemAdmin, and Trade now have explicit end-to-end token propagation.
 
 The legacy Interactive Brokers market-data implementation is excluded. Databento is the replacement and will be the reference design for any later IBKR implementation.
 
@@ -47,7 +47,7 @@ Cancellation-aware overloads now cover:
 - ScyllaDB session creation, prepared statements, owned driver operations, paging, and canceled-driver-task draining.
 - Fund and FundTransaction query actors, query handlers, parallel financial calculations, projection-consistency reads, streaming fallback, and Fund read-model APIs.
 - MarketData and YieldCurveRate query actors, query handlers, trading-calendar reads/loops, MarketData read-model APIs, and external yield-curve HTTP/file parsing.
-- MarketData Analytics query actors, query handlers, concurrent ITI composite reads, and 17 PostgreSQL read-model operations across RSI, MACD, ATR, ADX, TDI, Trade Signal, and ITI.
+- MarketData Analytics query actors, query handlers, all 21 direct in-process API operations, concurrent ITI composite reads, and PostgreSQL read-model operations across RSI, MACD, ATR, ADX, TDI, Trade Signal, and ITI.
 - Securities query actors, all contract/option read-model operations, projection-fence reads, and the direct in-process `IActorMarketDataQueryApi`, including concurrent aggregate reads spanning the Securities and MarketData stores.
 - Reference query actors, handlers, all 18 direct in-process API operations, projection-fence validation, economic-calendar parallel bucket reads and streaming fallback, scheduled-job reads, seed-reservation pre-submit cancellation, and external calendar parsing.
 - OptionPricer's spread-distribution query actor and handler, all three direct in-process query API operations, and concrete OptionPricer read-model storage calls.
@@ -78,7 +78,6 @@ The Release solution build and relevant unit-test suites are the verification ga
 
 ## Remaining work in this priority
 
-- Add cancellation to the direct in-process `IActorMarketDataAnalyticsQueryApi`; this service surface is separate from the completed Analytics actor query paths.
 - Add token-aware event and denormalizer handlers where they perform cancellable pre-commit I/O. Required post-commit projection/publication work must retain the non-cancelable rule.
 - Decide whether a separately named force-stop operation is needed. It must not overload graceful `ShutdownAsync` semantics or discard accepted messages silently.
 - Add host-level tests that cancel startup partway through actor registration and verify producer rollback.

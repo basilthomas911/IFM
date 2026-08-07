@@ -32,7 +32,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <param name="connectionSettings"></param>
 /// <param name="dbFactory"></param>
 /// <param name="logger"></param>
-public class MarketDataDbContext(
+public partial class MarketDataDbContext(
     IDbConnectionSettings connectionSettings,
     IDbContextFactory dbFactory,
     IBlackboardService blackboardService,

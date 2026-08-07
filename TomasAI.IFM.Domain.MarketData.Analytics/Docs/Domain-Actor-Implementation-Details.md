@@ -138,7 +138,9 @@ All seven Analytics query actors now receive the supervisor worker token and pro
 
 The composite ITI signal-data query starts its independent trend-direction, trend-extreme, and trend-reversal reads together and awaits them as one cancellable group. This removes avoidable serial database latency without changing result construction or event ordering.
 
-No-token overloads remain compatibility entry points for existing callers and tests. The direct in-process `IActorMarketDataAnalyticsQueryApi` is a separate service-API surface and remains a solution-wide cancellation follow-up; the actor query paths described here are cancellation-aware end to end. The local indicator timer cancellation source continues to own only recurring-loop lifecycle and drain behavior.
+The direct in-process `IActorMarketDataAnalyticsQueryApi` now exposes cancellation-aware overloads for all 21 operations. Tokens flow through the API adapter and every underlying Analytics storage read, including symbol-to-contract lookup and the multi-step ITI MDI queries. `OperationCanceledException` remains cancellation and is never converted to a failed service result.
+
+The token-aware RSI trend-direction storage path starts its independent up/down count queries together. ITI signal-data and up/down MDI composition preserve their existing concurrent fan-out while passing the same token to every branch. No-token overloads remain compatibility entry points for existing callers and tests. The local indicator timer cancellation source continues to own only recurring-loop lifecycle and drain behavior.
 
 ## Preserved actor semantics
 

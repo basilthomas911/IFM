@@ -88,10 +88,12 @@ Every variant reduced managed allocation by approximately 99.2%. The prior repos
 - Stop waits for an in-flight callback and prevents later ticks.
 - ITI query reads all start before any delayed fake is released.
 - All seven query actors propagate their worker cancellation token through handlers and 17 PostgreSQL read-model leaves.
+- All 21 direct in-process Analytics query API operations now have cancellation-aware overloads; the four previously uncovered composite storage paths propagate the token through every database branch.
+- The token-aware RSI trend-direction read overlaps its independent up/down count queries instead of awaiting two storage round trips serially.
 - Canceled query work publishes no reply; focused RSI and composite ITI tests cover the single-read and concurrent-read paths.
 - Cached validation rules execute safely under concurrent callers.
 - Command audit writes remain observable and failures propagate asynchronously.
-- Existing command/event/query behavior remains covered by 760 passing unit tests and 449 passing BDD tests.
+- Existing command/event/query behavior remains covered by 764 passing unit tests and 449 passing BDD tests.
 - PostgreSQL integration coverage proves latest-snapshot selection, typed filtering before limiting, ascending replay order, snapshot boundaries, missing snapshot/range behavior, nonpositive ranges, and exact/fewer/more-than-N ranges.
 
 ## Repeatable review process

@@ -18,6 +18,76 @@ public class ActorMarketDataAnalyticsQueryApiTests
     const TimeFrameType TimePeriod = TimeFrameType.Daily;
 
     [Fact]
+    public void AllDirectActorQueriesExposeCancellationAwareOverloads()
+    {
+        string[] methodNames =
+        [
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesTradeSignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetLastFuturesTradeSignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesTradeSignalBySymbolAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesTradeSignalIdsAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesRsiSignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesRsiDailySignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesTrendDirectionFromRSISignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesTdiSignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiSignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiTrendDirectionChangedSignalsAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiSignalDataAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiMDIDistributionAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiMDIDistributionByTrendAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiSignalMDIAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiSignalMDIByTrendAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesAtrSignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesAtrDailySignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesAdxSignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesAdxDailySignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesMacdSignalAsync),
+            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesMacdDailySignalAsync)
+        ];
+
+        var methods = typeof(IActorMarketDataAnalyticsQueryApi).GetMethods();
+        foreach (var methodName in methodNames)
+        {
+            methods.Should().Contain(method =>
+                method.Name == methodName &&
+                method.GetParameters().Last().ParameterType == typeof(CancellationToken));
+        }
+    }
+
+    [Fact]
+    public async Task PreCanceledDirectQueryDoesNotStartStorageWork()
+    {
+        var (api, db) = CreateApi();
+        var valueDate = new DateOnly(2026, 1, 5);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => api.GetFuturesTradeSignalIdsAsync(valueDate, cancellation.Token));
+
+        db.DidNotReceive().GetFuturesTradeSignalIdByValueDateAsync(
+            Arg.Any<DateOnly>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task StorageCancellationIsNotConvertedIntoAServiceFailure()
+    {
+        var (api, db) = CreateApi();
+        var valueDate = new DateOnly(2026, 1, 5);
+        using var cancellation = new CancellationTokenSource();
+        db.GetFuturesTradeSignalIdByValueDateAsync(valueDate, cancellation.Token)
+            .Returns(_ =>
+            {
+                cancellation.Cancel();
+                return Task.FromCanceled<ICollection<FuturesTradeSignalId>>(cancellation.Token);
+            });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => api.GetFuturesTradeSignalIdsAsync(valueDate, cancellation.Token));
+    }
+
+    [Fact]
     public void DailySignalQueriesAreActorOnlyContractMethods()
     {
         string[] methodNames =
@@ -30,8 +100,10 @@ public class ActorMarketDataAnalyticsQueryApiTests
 
         foreach (var methodName in methodNames)
         {
-            typeof(IActorMarketDataAnalyticsQueryApi).GetMethod(methodName).Should().NotBeNull();
-            typeof(IMarketDataAnalyticsQueryApi).GetMethod(methodName).Should().BeNull();
+            typeof(IActorMarketDataAnalyticsQueryApi).GetMethods().Should().Contain(method =>
+                method.Name == methodName && method.GetParameters().Length == 3);
+            typeof(IMarketDataAnalyticsQueryApi).GetMethods().Should().NotContain(method =>
+                method.Name == methodName);
         }
     }
 
@@ -192,6 +264,52 @@ public class ActorMarketDataAnalyticsQueryApiTests
         var result = await pending;
         result.Success.Should().BeTrue();
         result.Value.Should().BeEmpty();
+
+        Task<ICollection<FuturesItiSignalMDIV2ReadModel>> Started(
+            Task<ICollection<FuturesItiSignalMDIV2ReadModel>> task)
+        {
+            if (Interlocked.Increment(ref started) == 2)
+                bothStarted.TrySetResult();
+            return task;
+        }
+    }
+
+    [Fact]
+    public async Task CancellationAwareItiMdiByTrendStartsBothTokenAwareReads()
+    {
+        var (api, db) = CreateApi();
+        var valueDate = new DateOnly(2026, 1, 5);
+        using var cancellation = new CancellationTokenSource();
+        var up = new TaskCompletionSource<ICollection<FuturesItiSignalMDIV2ReadModel>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var down = new TaskCompletionSource<ICollection<FuturesItiSignalMDIV2ReadModel>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var bothStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = 0;
+
+        db.GetFuturesItiSignalMDIByTrendAsync(
+                ContractId,
+                valueDate,
+                IntrinsicTimeTrendType.UpTrend,
+                7,
+                cancellation.Token)
+            .Returns(_ => Started(up.Task));
+        db.GetFuturesItiSignalMDIByTrendAsync(
+                ContractId,
+                valueDate,
+                IntrinsicTimeTrendType.DownTrend,
+                7,
+                cancellation.Token)
+            .Returns(_ => Started(down.Task));
+
+        var pending = api.GetFuturesItiSignalMDIByTrendAsync(
+            ContractId, valueDate, 7, cancellation.Token);
+        await bothStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        pending.IsCompleted.Should().BeFalse();
+
+        up.SetResult(Array.Empty<FuturesItiSignalMDIV2ReadModel>());
+        down.SetResult(Array.Empty<FuturesItiSignalMDIV2ReadModel>());
+        (await pending).Success.Should().BeTrue();
 
         Task<ICollection<FuturesItiSignalMDIV2ReadModel>> Started(
             Task<ICollection<FuturesItiSignalMDIV2ReadModel>> task)
