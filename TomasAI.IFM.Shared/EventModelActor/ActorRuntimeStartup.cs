@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 
@@ -25,6 +26,7 @@ public static class ActorRuntimeStartup
     {
         ArgumentNullException.ThrowIfNull(supervisor);
         ArgumentNullException.ThrowIfNull(logger);
+        var startedTimestamp = Stopwatch.GetTimestamp();
 
         try
         {
@@ -81,12 +83,32 @@ public static class ActorRuntimeStartup
                 ServiceId,
                 "Event model actor supervisor started with {ActorCount} actors.",
                 actors.Length);
+            ActorLifecycleMetrics.StartupCompleted.Add(1);
         }
         catch (Exception exception)
         {
+            if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested)
+                ActorLifecycleMetrics.RecordStartupCancellation();
+            else
+                ActorLifecycleMetrics.StartupFailures.Add(1);
+
             logger.LogError(exception, "Failed to start event model actor supervisor.");
-            await supervisor.ShutdownAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                await supervisor.ShutdownAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception rollbackException)
+            {
+                ActorLifecycleMetrics.RecordCleanupFailure("startup_rollback");
+                logger.LogError(rollbackException, "Failed to roll back event model actor supervisor startup.");
+                throw;
+            }
             throw;
+        }
+        finally
+        {
+            ActorLifecycleMetrics.StartupDuration.Record(
+                Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds);
         }
     }
 }

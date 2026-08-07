@@ -25,7 +25,7 @@ The following contracts remain unchanged:
 7. **Recursive exception publication - fixed.** A failure while publishing an event-actor error is logged once instead of attempting the same failing publication again.
 8. **Denormalization dispatch overhead - fixed.** Ordered indexed traversal and a typed switch replace enumerator/interface dispatch while preserving event order and awaited publication.
 9. **Shutdown completion conversion contract - fixed.** `ApplicationShutdownEvent.ToCompleteEvent` now validates `ApplicationEntityId`, matching `ApplicationShutdownCompleteEvent`, and a regression test verifies the typed conversion and preserved metadata.
-10. **Graceful cancellation and lifecycle foundation - implemented.** Supervisor shutdown now stops intake, drains accepted mailbox work, and then stops actors. Tokens flow through startup registration, actor hooks, command validation, replay, queries, NATS, and storage while persistence/publication obeys the documented commit boundary. Production and integration hosts use one rollback-safe startup coordinator.
+10. **Graceful cancellation, lifecycle coordination, and telemetry - implemented.** Supervisor shutdown now stops intake, drains accepted mailbox work, and then stops actors. Tokens flow through startup registration, actor hooks, command validation, replay, queries, NATS, and storage while persistence/publication obeys the documented commit boundary. Production and integration hosts use one rollback-safe startup coordinator. Low-cardinality metrics now expose startup/shutdown duration and outcomes, caller cancellations, cleanup stage failures, and drained-message counts without per-message allocation; the drain counter is inactive during normal processing.
 
 ## Benchmark summary
 
@@ -52,9 +52,10 @@ Full results and methodology are in `TomasAI.IFM.Domain.Application.Benchmarks/R
 - Application integrated project: 1 placeholder test passed; it is not an end-to-end lifecycle test.
 - Root MarketData unit tests also passed during this coverage pass: 38 passed.
 - Shared actor lifecycle tests now cover cancellation between two actor registrations and verify that partial runtime state enters non-cancelable supervisor cleanup.
+- Shared lifecycle tests verify metric publication, cleanup-failure stage tags, and exact drain counting in addition to graceful shutdown ordering; all 57 shared tests pass.
+- The full Release solution build completes with zero warnings and errors, and all 23 non-manual Fund integration tests pass as the major shared-runtime validation gate.
 
 ## Deferred work
 
 1. Replace placeholder BDD/integrated tests with real actor-pipeline startup, shutdown, event-routing, persistence, and failure cases.
-2. Add production lifecycle duration and shutdown-drain telemetry.
-3. Do not pursue further Application dispatch micro-optimization without profiles showing it matters.
+2. Do not pursue further Application dispatch micro-optimization without profiles showing it matters.

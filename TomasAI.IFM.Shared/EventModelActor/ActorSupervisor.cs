@@ -4,6 +4,7 @@ using NATS.Client.Core;
 using QLNet;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
@@ -535,48 +536,77 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             shutdownTask = _shutdownTask;
         }
 
-        await shutdownTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await shutdownTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            ActorLifecycleMetrics.RecordShutdownWaitCancellation();
+            throw;
+        }
     }
 
     async Task ShutdownCoreAsync()
     {
+        var startedTimestamp = Stopwatch.GetTimestamp();
         List<Exception>? failures = null;
+        var completed = false;
         try
-        {
-            await StopConsumersAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            (failures ??= []).Add(exception);
-            _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor consumers during shutdown.");
-        }
-
-        try
-        {
-            if (_threadPool is IAsyncDisposable asyncDisposable)
-                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            (failures ??= []).Add(exception);
-            _logger.LogErrorEvent(_serviceId, exception, "Failed while draining the actor thread pool during shutdown.");
-        }
-
-        foreach (var actor in _children.Values)
         {
             try
             {
-                await actor.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await StopConsumersAsync(CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
                 (failures ??= []).Add(exception);
-                _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor {ActorId}.", actor.Id);
+                ActorLifecycleMetrics.RecordCleanupFailure("consumers");
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor consumers during shutdown.");
             }
-        }
 
-        if (failures is not null)
-            throw new AggregateException("One or more actor shutdown stages failed.", failures);
+            _threadPool.BeginDrainMeasurement();
+            try
+            {
+                if (_threadPool is IAsyncDisposable asyncDisposable)
+                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+                ActorLifecycleMetrics.RecordCleanupFailure("mailbox_drain");
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while draining the actor thread pool during shutdown.");
+            }
+
+            foreach (var actor in _children.Values)
+            {
+                try
+                {
+                    await actor.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    (failures ??= []).Add(exception);
+                    ActorLifecycleMetrics.RecordCleanupFailure("actors");
+                    _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor {ActorId}.", actor.Id);
+                }
+            }
+
+            if (failures is not null)
+                throw new AggregateException("One or more actor shutdown stages failed.", failures);
+
+            completed = true;
+        }
+        finally
+        {
+            ActorLifecycleMetrics.ShutdownDrainedMessages.Add(_threadPool.DrainedMessageCount);
+            ActorLifecycleMetrics.ShutdownDuration.Record(
+                Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds);
+            if (completed)
+                ActorLifecycleMetrics.ShutdownCompleted.Add(1);
+            else
+                ActorLifecycleMetrics.ShutdownFailures.Add(1);
+        }
     }
 
     /// <summary>Stops intake, drains workers, and releases supervised actor resources.</summary>

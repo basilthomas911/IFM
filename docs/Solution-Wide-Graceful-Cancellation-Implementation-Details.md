@@ -37,6 +37,24 @@ Command, query, event, and denormalizer actor startup hooks now receive the host
 
 Both the production API host and actor integration host use `ActorRuntimeStartup` for registration and startup. Actor, producer, and consumer registration is inside the same guarded operation as consumer/actor startup. Cancellation or failure at any point invokes `ShutdownAsync(CancellationToken.None)`, so already registered or started resources are cleaned up without a second host-specific implementation drifting from the first.
 
+## Operational lifecycle metrics
+
+The shared actor runtime publishes low-cardinality `System.Diagnostics.Metrics` instruments from the `TomasAI.IFM.Shared.EventModelActor` meter. They are dormant when no listener is attached and do not allocate per actor message.
+
+| Instrument | Type | Meaning |
+|---|---|---|
+| `ifm.actor.startup.duration` | Histogram, milliseconds | Registration and startup elapsed time, including failed or canceled attempts. |
+| `ifm.actor.startup.completed` | Counter | Runtime startup attempts that completed successfully. |
+| `ifm.actor.startup.failures` | Counter | Runtime startup attempts that failed for a reason other than caller cancellation. |
+| `ifm.actor.shutdown.duration` | Histogram, milliseconds | Elapsed time of the one shared graceful shutdown operation. |
+| `ifm.actor.shutdown.completed` | Counter | Shared graceful shutdown operations that completed successfully. |
+| `ifm.actor.shutdown.failures` | Counter | Shared graceful shutdown operations that ended with one or more failures. |
+| `ifm.actor.shutdown.cleanup_failures` | Counter with `stage` tag | Cleanup-stage failures tagged as `consumers`, `mailbox_drain`, `actors`, or `startup_rollback`. |
+| `ifm.actor.shutdown.messages_drained` | Counter | Mailbox messages completed after external intake had stopped. |
+| `ifm.actor.lifecycle.cancellations` | Counter with `phase` tag | Caller cancellations tagged as `startup` or `shutdown_wait`. A canceled shutdown waiter does not cancel the shared drain. |
+
+Drain counting is activated only after consumer shutdown finishes. During normal processing each worker executes a dormant volatile branch; it does not contend on a global counter. Once measurement is active, completed messages use an interlocked increment until the pool is drained. Startup and shutdown timers run only at lifecycle boundaries.
+
 ## Implemented propagation
 
 Cancellation-aware overloads now cover:
@@ -87,14 +105,14 @@ Behavioral tests cover:
 - cancellation during command, query, event, and denormalizer actor startup rolling back the started producer;
 - cancellation during Fund projector recovery preventing worker startup and rolling back projector ownership;
 - cancellation between actor registrations invoking shared host-level supervisor cleanup before consumers start;
-- previously existing actor-pool tests proving accepted mailbox messages drain before worker disposal.
+- actor lifecycle metric publication for successful shutdown, canceled startup/shutdown waits, duration, and drained-message count;
+- actor-pool tests proving accepted mailbox messages drain before worker disposal and are counted exactly once after drain measurement begins.
 
-The Release solution build and relevant unit-test suites are the verification gate for this phase.
+Current verification completed with a zero-warning Release solution build, 57 passing shared unit tests, and all 23 non-manual Fund integration tests passing. Fund remains the integration gate for major shared actor-runtime changes during this optimization phase.
 
 ## Remaining work in this priority
 
 - Decide whether a separately named force-stop operation is needed. It must not overload graceful `ShutdownAsync` semantics or discard accepted messages silently.
-- Add operational metrics for shutdown duration, drained messages, cancellation count, and failed cleanup stages.
 
 ## Explicit exclusions
 

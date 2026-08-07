@@ -60,6 +60,7 @@ public sealed class ActorThreadPoolV2Tests
     {
         const int messageCount = 300;
         var runtime = CreateRuntime(messageCount, handlerDelay: TimeSpan.FromMilliseconds(1));
+        runtime.Pool.BeginDrainMeasurement();
 
         for (var sequence = 0; sequence < messageCount; sequence++)
         {
@@ -72,6 +73,7 @@ public sealed class ActorThreadPoolV2Tests
         runtime.Actor.Sequences.Should().HaveCount(messageCount);
         runtime.Actor.DisposeCounts.Should().HaveCount(messageCount);
         runtime.Actor.DisposeCounts.Values.Should().OnlyContain(count => count == 1);
+        runtime.Pool.DrainedMessageCount.Should().Be(messageCount);
     }
 
     static TestRuntime CreateRuntime(int expectedMessages, TimeSpan handlerDelay = default)

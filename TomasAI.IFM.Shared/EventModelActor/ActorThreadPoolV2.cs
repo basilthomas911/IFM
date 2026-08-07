@@ -15,6 +15,7 @@ public sealed class ActorThreadPoolV2(
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly ActorReadyQueue _readyQueue = new();
+    readonly ActorThreadPoolMetricsState _metricsState = new();
     ActorThreadV2[] _workers = [];
     int _initialized;
     int _disposed;
@@ -29,7 +30,7 @@ public sealed class ActorThreadPoolV2(
         var workers = new ActorThreadV2[initialThreadCount];
         for (var index = 0; index < workers.Length; index++)
         {
-            var worker = new ActorThreadV2(_supervisor, _logger, _readyQueue);
+            var worker = new ActorThreadV2(_supervisor, _logger, _readyQueue, _metricsState);
             worker.Start();
             workers[index] = worker;
         }
@@ -62,6 +63,10 @@ public sealed class ActorThreadPoolV2(
 
     public int Count => Volatile.Read(ref _workers).Length;
 
+    public void BeginDrainMeasurement() => _metricsState.BeginDrainMeasurement();
+
+    public long DrainedMessageCount => _metricsState.DrainedMessageCount;
+
     void ThrowIfUnavailable()
     {
         if (Volatile.Read(ref _initialized) == 0)
@@ -84,5 +89,25 @@ public sealed class ActorThreadPoolV2(
 
         Volatile.Write(ref _workers, []);
         GC.SuppressFinalize(this);
+    }
+}
+
+sealed class ActorThreadPoolMetricsState
+{
+    long _drainedMessageCount;
+    int _measureDrain;
+
+    public long DrainedMessageCount => Volatile.Read(ref _drainedMessageCount);
+
+    public void BeginDrainMeasurement()
+    {
+        Interlocked.Exchange(ref _drainedMessageCount, 0);
+        Volatile.Write(ref _measureDrain, 1);
+    }
+
+    public void RecordMessageCompleted()
+    {
+        if (Volatile.Read(ref _measureDrain) != 0)
+            Interlocked.Increment(ref _drainedMessageCount);
     }
 }

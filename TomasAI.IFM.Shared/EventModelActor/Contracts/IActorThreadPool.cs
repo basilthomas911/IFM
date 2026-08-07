@@ -47,4 +47,10 @@ public interface IActorThreadPool
     /// Gets the number of actor threads currently managed by the pool.
     /// </summary>
     int Count { get; }
+
+    /// <summary>Starts counting messages completed during graceful shutdown drain.</summary>
+    void BeginDrainMeasurement() { }
+
+    /// <summary>Gets messages completed since drain measurement began.</summary>
+    long DrainedMessageCount => 0;
 }

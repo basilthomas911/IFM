@@ -16,12 +16,14 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 sealed class ActorThreadV2(
     IActorSupervisor supervisor,
     ILogger logger,
-    ActorReadyQueue readyQueue) : IActorThread, IAsyncDisposable, IDisposable
+    ActorReadyQueue readyQueue,
+    ActorThreadPoolMetricsState metricsState) : IActorThread, IAsyncDisposable, IDisposable
 {
     const int MaxBatchSize = 64;
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ActorReadyQueue _readyQueue = IsArgumentNull.Set(readyQueue);
+    readonly ActorThreadPoolMetricsState _metricsState = IsArgumentNull.Set(metricsState);
     readonly CancellationTokenSource _cts = new();
     volatile ActorThreadState _state = ActorThreadState.Ready;
     Task? _processingTask;
@@ -180,6 +182,7 @@ sealed class ActorThreadV2(
                     finally
                     {
                         message?.Dispose();
+                        _metricsState.RecordMessageCompleted();
                     }
 
                     processed++;

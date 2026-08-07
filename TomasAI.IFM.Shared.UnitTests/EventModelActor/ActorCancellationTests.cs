@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -67,8 +69,44 @@ public sealed class ActorCancellationTests
     }
 
     [Fact]
+    public async Task SupervisorShutdown_EmitsLifecycleMetrics()
+    {
+        using var metrics = new LifecycleMetricCollector();
+        var container = new Mock<IContainerInstance>();
+        await using var supervisor = new ActorSupervisor(container.Object, NullLogger<ActorSupervisor>.Instance);
+
+        await supervisor.ShutdownAsync();
+
+        metrics.Measurements.Should().Contain(measurement =>
+            measurement.Name == "ifm.actor.shutdown.completed" && measurement.Value == 1);
+        metrics.Measurements.Should().Contain(measurement =>
+            measurement.Name == "ifm.actor.shutdown.duration" && measurement.Value >= 0);
+        metrics.Measurements.Should().Contain(measurement =>
+            measurement.Name == "ifm.actor.shutdown.messages_drained" && measurement.Value >= 0);
+    }
+
+    [Fact]
+    public async Task SupervisorShutdown_WhenActorStopFails_EmitsFailureMetrics()
+    {
+        using var metrics = new LifecycleMetricCollector();
+        var container = new Mock<IContainerInstance>();
+        var supervisor = new ActorSupervisor(container.Object, NullLogger<ActorSupervisor>.Instance);
+        supervisor.AddActor(new RecordingActor([], failStop: true));
+
+        Func<Task> shutdown = () => supervisor.ShutdownAsync().AsTask();
+
+        await shutdown.Should().ThrowAsync<AggregateException>();
+        metrics.Measurements.Should().Contain(measurement =>
+            measurement.Name == "ifm.actor.shutdown.failures" && measurement.Value == 1);
+        metrics.Measurements.Should().Contain(measurement =>
+            measurement.Name == "ifm.actor.shutdown.cleanup_failures" &&
+            measurement.Stage == "actors");
+    }
+
+    [Fact]
     public async Task SupervisorShutdown_WhenCallerCancelsWait_ShutdownContinues()
     {
+        using var metrics = new LifecycleMetricCollector();
         var order = new List<string>();
         var container = new Mock<IContainerInstance>();
         await using var supervisor = new ActorSupervisor(container.Object, NullLogger<ActorSupervisor>.Instance);
@@ -85,6 +123,9 @@ public sealed class ActorCancellationTests
         Func<Task> canceledShutdown = () => shutdown;
         await canceledShutdown.Should().ThrowAsync<OperationCanceledException>();
         order.Should().Equal("consumer");
+        metrics.Measurements.Should().Contain(measurement =>
+            measurement.Name == "ifm.actor.lifecycle.cancellations" &&
+            measurement.Phase == "shutdown_wait");
 
         consumer.ReleaseStop();
         await supervisor.ShutdownAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
@@ -160,6 +201,7 @@ public sealed class ActorCancellationTests
     [Fact]
     public async Task RuntimeStartup_CancellationBetweenActorRegistrations_ShutsDownPartialRuntime()
     {
+        using var metrics = new LifecycleMetricCollector();
         var container = new Mock<IContainerInstance>();
         var supervisor = new Mock<IActorSupervisor>();
         var registry = new Mock<IActorRegistry>();
@@ -194,6 +236,59 @@ public sealed class ActorCancellationTests
         factory.Verify(instance => instance.GetActor(typeof(SecondRegistrationMarker)), Times.Never);
         supervisor.Verify(instance => instance.StartConsumersAsync(It.IsAny<CancellationToken>()), Times.Never);
         supervisor.Verify(instance => instance.ShutdownAsync(CancellationToken.None), Times.Once);
+        metrics.Measurements.Should().Contain(measurement =>
+            measurement.Name == "ifm.actor.lifecycle.cancellations" &&
+            measurement.Phase == "startup");
+        metrics.Measurements.Should().Contain(measurement =>
+            measurement.Name == "ifm.actor.startup.duration" && measurement.Value >= 0);
+    }
+
+    readonly record struct LifecycleMeasurement(
+        string Name,
+        double Value,
+        string? Phase,
+        string? Stage);
+
+    sealed class LifecycleMetricCollector : IDisposable
+    {
+        const string ActorMeterName = "TomasAI.IFM.Shared.EventModelActor";
+        readonly MeterListener _listener = new();
+
+        public LifecycleMetricCollector()
+        {
+            _listener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == ActorMeterName)
+                    listener.EnableMeasurementEvents(instrument);
+            };
+            _listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
+                Capture(instrument, value, tags));
+            _listener.SetMeasurementEventCallback<double>((instrument, value, tags, _) =>
+                Capture(instrument, value, tags));
+            _listener.Start();
+        }
+
+        public ConcurrentQueue<LifecycleMeasurement> Measurements { get; } = new();
+
+        void Capture(
+            Instrument instrument,
+            double value,
+            ReadOnlySpan<KeyValuePair<string, object?>> tags)
+        {
+            string? phase = null;
+            string? stage = null;
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "phase")
+                    phase = tag.Value as string;
+                else if (tag.Key == "stage")
+                    stage = tag.Value as string;
+            }
+
+            Measurements.Enqueue(new LifecycleMeasurement(instrument.Name, value, phase, stage));
+        }
+
+        public void Dispose() => _listener.Dispose();
     }
 
     sealed record TestCommand(ActorEntityId EntityId) : ICommand<ActorEntityId>
@@ -329,7 +424,7 @@ public sealed class ActorCancellationTests
         public void ReleaseStop() => _release.TrySetResult();
     }
 
-    sealed class RecordingActor(List<string> order) : IActor
+    sealed class RecordingActor(List<string> order, bool failStop = false) : IActor
     {
         public ActorMailboxId Id { get; } = new(ActorType.Command, "CancellationTest");
         public IActorMailbox Mailbox => null!;
@@ -340,7 +435,9 @@ public sealed class ActorCancellationTests
         public ValueTask StopAsync()
         {
             order.Add("actor");
-            return ValueTask.CompletedTask;
+            return failStop
+                ? ValueTask.FromException(new InvalidOperationException("Actor stop failed."))
+                : ValueTask.CompletedTask;
         }
     }
 }
