@@ -37,10 +37,7 @@ public sealed class FundTransactionStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded state for the specified
     /// fund transaction command.</returns>
     public async ValueTask<FundTransactionCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
-
-    public async ValueTask<FundTransactionCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateAsync<FundTransactionCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateAsync<FundTransactionCommandState>(command);
 
     /// <summary>
     /// Asynchronously saves the specified fund transaction command state using the provided command.
@@ -50,10 +47,7 @@ public sealed class FundTransactionStateRepository(
     /// <param name="command">The command associated with the state to be saved. Cannot be null.</param>
     /// <returns>A value task that represents the asynchronous save operation.</returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, FundTransactionCommandState state, ICommand command)
-       => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
-
-    public async ValueTask SaveStateAsync(ICommandActorContext context, FundTransactionCommandState state, ICommand command, CancellationToken cancellationToken)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the fund transaction query state
@@ -79,11 +73,11 @@ public sealed class FundTransactionStateRepository(
             };
         }
 
-        ValueTask InsertFundTransactionAsync(FundTransactionReadModel fundTransaction)
-            => new(db.InsertFundTransactionAsync(fundTransaction));
+        async ValueTask InsertFundTransactionAsync(FundTransactionReadModel fundTransaction)
+            => await db.InsertFundTransactionAsync(fundTransaction);
 
-        ValueTask InsertFundTransactionsAsync(ICollection<FundTransactionReadModel> fundTransactions)
-            => new(db.InsertFundTransactionsAsync(fundTransactions));
+        async ValueTask InsertFundTransactionsAsync(ICollection<FundTransactionReadModel> fundTransactions)
+            => await db.InsertFundTransactionsAsync(fundTransactions);
     }
 
 }
