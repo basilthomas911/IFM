@@ -82,6 +82,8 @@ public partial class MarketDataDbContext
     public async Task<FuturesTrendDirectionReadModel> GetFuturesTrendDirectionFromRSISignalAsync(
         string contractId,
         DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int periodLength,
         DateTime timestamp,
         int lookbackInterval,
         DateTime startTime,
@@ -89,26 +91,19 @@ public partial class MarketDataDbContext
         CancellationToken cancellationToken)
     {
         var db = _dbFactory.MarketDataDb;
-        var upTrendCountTask = db
-            .Use(MarketDataDbCql.GetFuturesRsiSignalUpTrendCount)
-            .SetParameters(new GetFuturesRsiSignalUpTrendCount(
+        var rsiValues = await db
+            .Use(MarketDataDbCql.GetFuturesRsiSignalsForTrend)
+            .SetParameters(new GetFuturesRsiSignalsForTrend(
                 contractId,
+                timePeriod.ToStringFast(),
+                periodLength,
                 valueDate,
-                startTime,
-                endTime))
-            .ExecuteScalarAsync(MapToRsiTrendCount!, cancellationToken);
-        var downTrendCountTask = db
-            .Use(MarketDataDbCql.GetFuturesRsiSignalDownTrendCount)
-            .SetParameters(new GetFuturesRsiSignalDownTrendCount(
-                contractId,
-                valueDate,
-                startTime,
-                endTime))
-            .ExecuteScalarAsync(MapToRsiTrendCount!, cancellationToken);
-
-        await Task.WhenAll(upTrendCountTask, downTrendCountTask).ConfigureAwait(false);
-        var upTrendCount = await upTrendCountTask.ConfigureAwait(false);
-        var downTrendCount = await downTrendCountTask.ConfigureAwait(false);
+                TimeOnly.FromDateTime(startTime),
+                TimeOnly.FromDateTime(endTime)))
+            .ExecuteQueryAsync(MapToRsi!, cancellationToken)
+            .ConfigureAwait(false);
+        var upTrendCount = rsiValues.Count(static rsi => rsi >= 50);
+        var downTrendCount = rsiValues.Count(static rsi => rsi < 50);
         var trendDirection = upTrendCount.CompareTo(downTrendCount) switch
         {
             > 0 => FuturesTrendType.UpTrending,

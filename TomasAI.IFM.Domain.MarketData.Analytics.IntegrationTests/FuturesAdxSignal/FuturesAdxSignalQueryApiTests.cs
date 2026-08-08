@@ -23,7 +23,7 @@ public class FuturesAdxSignalQueryApiTests(WebApplicationFactory<Program> factor
         var contractId = SampleData.ContractId;
         var valueDate = SampleData.ValueDate;
 
-        await dbFixture.MarketDataDb.DeleteFuturesAdxSignalAsync(contractId, valueDate);
+        await dbFixture.MarketDataDb.DeleteFuturesAdxSignalAsync(contractId, valueDate, SampleData.TimePeriod, SampleData.PeriodLength);
 
         await dbFixture.MarketDataDb.InsertFuturesAdxSignalAsync(
             SampleData.CreateAdxSignalViewModel(FuturesTrendDirectionType.UpTrending, FuturesTrendDirectionStrengthType.Medium));

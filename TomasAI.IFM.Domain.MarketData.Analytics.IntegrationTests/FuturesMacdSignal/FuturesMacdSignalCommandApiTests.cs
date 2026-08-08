@@ -31,12 +31,18 @@ public class FuturesMacdSignalCommandApiTests(WebApplicationFactory<Program> fac
         FuturesMacdSignalGeneratedEvent futuresMacdSignalGeneratedEvent = default!;
         FuturesMacdSignalGeneratedCompleteEvent futuresMacdSignalGeneratedCompleteEvent = default!;
         FuturesMacdSignalGeneratedFailEvent futuresMacdSignalGeneratedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesMacdSignalGeneratedEvent.Actor)] = [FuturesMacdSignalGeneratedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesMacdSignalGeneratedEvent.Actor)] =
+                [
+                    FuturesMacdSignalGeneratedEvent.Verb,
+                    FuturesMacdSignalGeneratedCompleteEvent.Verb,
+                    FuturesMacdSignalGeneratedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -58,7 +64,7 @@ public class FuturesMacdSignalCommandApiTests(WebApplicationFactory<Program> fac
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
         var response = await marketDataAnalyticsApi.GenerateFuturesMacdSignalAsync(macdSignalId, futuresPrice);
 
-        await Task.Delay(1000);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -95,9 +101,15 @@ public class FuturesMacdSignalCommandApiTests(WebApplicationFactory<Program> fac
                 if (@event is FuturesMacdSignalGeneratedEvent generated)
                     futuresMacdSignalGeneratedEvent = generated;
                 if (@event is FuturesMacdSignalGeneratedCompleteEvent generatedComplete)
+                {
                     futuresMacdSignalGeneratedCompleteEvent = generatedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesMacdSignalGeneratedFailEvent generatedFail)
+                {
                     futuresMacdSignalGeneratedFailEvent = generatedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }

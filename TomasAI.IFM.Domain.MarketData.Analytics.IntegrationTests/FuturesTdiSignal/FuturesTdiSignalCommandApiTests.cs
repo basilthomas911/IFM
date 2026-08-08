@@ -62,7 +62,7 @@ public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> fact
         await Task.Delay(1000);
 
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         futuresTdiSignalGeneratedEvent.Should().NotBeNull();
         futuresTdiSignalGeneratedCompleteEvent.Should().NotBeNull();

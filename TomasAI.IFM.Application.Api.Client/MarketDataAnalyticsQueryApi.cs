@@ -25,7 +25,8 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     public async Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalAsync(string contractId, DateOnly valueDate)
     {
         var qryParam = new GetFuturesTradeSignalParameter(contractId, valueDate);
-        return await _querySvc.PostQueryAsync<FuturesTradeSignalV2ReadModel>(MarketDataAnalyticsQueryUriPath.GetFuturesTradeSignal, qryParam, 1008);
+        return await _querySvc.ExecuteQueryAsync<FuturesTradeSignalV2ReadModel>(
+            MarketDataAnalyticsQueryUriPath.GetFuturesTradeSignal, qryParam, GetFuturesTradeSignalQuery.ErrorId);
     }
 
     /// <summary>
@@ -34,7 +35,8 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     public async Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetLastFuturesTradeSignalAsync()
     {
         var qryParam = new GetLastFuturesTradeSignalParameter();
-        return await _querySvc.PostQueryAsync<FuturesTradeSignalV2ReadModel>(MarketDataAnalyticsQueryUriPath.GetLastFuturesTradeSignal, qryParam, 1009);
+        return await _querySvc.ExecuteQueryAsync<FuturesTradeSignalV2ReadModel>(
+            MarketDataAnalyticsQueryUriPath.GetLastFuturesTradeSignal, qryParam, GetLastFuturesTradeSignalQuery.ErrorId);
     }
 
     /// <summary>
@@ -52,7 +54,8 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     public async Task<ServiceResult<FuturesTradeSignalId[]>> GetFuturesTradeSignalIdsAsync(DateOnly valueDate)
     {
         var qryParam = new GetFuturesTradeSignalIdsParameter(valueDate);
-        return await _querySvc.PostQueryAsync<FuturesTradeSignalId[]>(MarketDataAnalyticsQueryUriPath.GetFuturesTradeSignalIds, qryParam, 1009);
+        return await _querySvc.ExecuteQueryAsync<FuturesTradeSignalId[]>(
+            MarketDataAnalyticsQueryUriPath.GetFuturesTradeSignalIds, qryParam, GetFuturesTradeSignalIdsQuery.ErrorId);
     }
 
     /// <summary>
@@ -69,9 +72,11 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     /// Gets the futures trend direction from RSI signal.
     /// </summary>
     public async Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(
-        string contractId, DateOnly valueDate, DateTime timestamp, int loopbackInterval, DateTime startTime, DateTime endTime)
+        string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength,
+        DateTime timestamp, int loopbackInterval, DateTime startTime, DateTime endTime)
     {
-        var qryParam = new GetFuturesTrendDirectionFromRSISignalParameter(contractId, valueDate, timestamp, loopbackInterval, startTime, endTime);
+        var qryParam = new GetFuturesTrendDirectionFromRSISignalParameter(
+            contractId, valueDate, timePeriod, periodLength, timestamp, loopbackInterval, startTime, endTime);
         return await _querySvc.ExecuteQueryAsync<FuturesTrendDirectionReadModel>(MarketDataAnalyticsQueryUriPath.GetFuturesTrendDirectionFromRSISignal, qryParam, 1011);
     }
 
@@ -81,7 +86,10 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     public async Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(string contractId, DateOnly valueDate)
     {
         var qryParam = new GetFuturesTdiSignalParameter(contractId, valueDate);
-        return await _querySvc.PostQueryAsync<FuturesTdiSignalReadModel>(MarketDataAnalyticsQueryUriPath.GetFuturesTdiSignal, qryParam, 1021);
+        return await _querySvc.ExecuteQueryAsync<FuturesTdiSignalReadModel>(
+            MarketDataAnalyticsQueryUriPath.GetFuturesTdiSignal,
+            qryParam,
+            GetFuturesTdiSignalQuery.ErrorId);
     }
 
     /// <summary>

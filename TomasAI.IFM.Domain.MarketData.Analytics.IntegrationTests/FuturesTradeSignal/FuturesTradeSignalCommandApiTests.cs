@@ -30,16 +30,15 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
     public async Task UpdateFuturesTradeSignal_Ok()
     {
         // arrange...
-        const string tradeSignalUpdatedCompleteVerb = "TradeSignalUpdatedComplete";
-
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FuturesTradeSignalUpdatedCompleteEvent futuresTradeSignalUpdatedCompleteEvent = default!;
+        var eventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesTradeSignalEventActor.Actor)] = [tradeSignalUpdatedCompleteVerb]
+                [new ActorMailboxId(ActorType.Event, FuturesTradeSignalEventActor.Actor)] = [FuturesTradeSignalUpdatedCompleteEvent.Verb]
             },
             EventHandlerAsync);
 
@@ -60,11 +59,11 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
             CreateItiSignalData(),
             20m);
 
-        await Task.Delay(1000);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         futuresTradeSignalUpdatedCompleteEvent.Should().NotBeNull();
         futuresTradeSignalUpdatedCompleteEvent.FuturesTradeSignal.Should().NotBeNull();
@@ -82,7 +81,7 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
         {
             IEvent receivedEvent = eventVerb switch
             {
-                _ when eventVerb == tradeSignalUpdatedCompleteVerb => SetEvent(eventMsg.AsEvent<FuturesTradeSignalUpdatedCompleteEvent>()!),
+                _ when eventVerb == FuturesTradeSignalUpdatedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTradeSignalUpdatedCompleteEvent>()!),
                 _ => default!
             };
             await ValueTask.CompletedTask;
@@ -90,7 +89,10 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is FuturesTradeSignalUpdatedCompleteEvent updatedComplete)
+                {
                     futuresTradeSignalUpdatedCompleteEvent = updatedComplete;
+                    eventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -126,8 +128,12 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
             FuturesTrendDirectionStrengthType.Medium);
 
     static FuturesItiSignalDataReadModel CreateItiSignalData()
-        => new(
-            SampleData.StartOfDayEvent.FuturesItiSignal,
-            SampleData.StartOfDayEvent.FuturesItiSignal,
-            SampleData.StartOfDayEvent.FuturesItiSignal);
+    {
+        var signal = SampleData.StartOfDayEvent.FuturesItiSignal! with
+        {
+            SequenceId = 1,
+            TradingDays = 1
+        };
+        return new(signal, signal, signal);
+    }
 }

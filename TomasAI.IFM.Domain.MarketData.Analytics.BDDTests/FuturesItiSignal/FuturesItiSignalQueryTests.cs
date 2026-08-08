@@ -83,7 +83,7 @@ public class FuturesItiSignalQueryTests
         // Arrange - Given an ITI signal exists for the requested contract/value date
         var (dbFactory, marketDataDb) = CreateDbFactory();
         var expected = CreateReadModel(timePeriod);
-        marketDataDb.GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate).Returns(expected);
+        marketDataDb.GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod).Returns(expected);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
         var query = WithSubject(new GetFuturesItiSignalQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod), GetFuturesItiSignalQuery.Verb);
@@ -107,7 +107,7 @@ public class FuturesItiSignalQueryTests
     {
         // Arrange - Given no ITI signal exists for the requested contract/value date (edge case)
         var (dbFactory, marketDataDb) = CreateDbFactory();
-        marketDataDb.GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate)
+        marketDataDb.GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod)
             .Returns((FuturesItiSignalV2ReadModel?)null);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
@@ -130,7 +130,7 @@ public class FuturesItiSignalQueryTests
         const string otherContractId = "CLZ25";
         var (dbFactory, marketDataDb) = CreateDbFactory();
         var expected = CreateReadModel(TimeFrameType.Daily) with { ContractId = otherContractId };
-        marketDataDb.GetLastFuturesItiSignalAsync(otherContractId, SampleData.ValueDate).Returns(expected);
+        marketDataDb.GetLastFuturesItiSignalAsync(otherContractId, SampleData.ValueDate, TimeFrameType.Daily).Returns(expected);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
         var query = WithSubject(new GetFuturesItiSignalQuery(otherContractId, SampleData.ValueDate, TimeFrameType.Daily), GetFuturesItiSignalQuery.Verb);
@@ -139,8 +139,8 @@ public class FuturesItiSignalQueryTests
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then the correct contract is requested and returned
-        await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(otherContractId, SampleData.ValueDate);
-        await marketDataDb.DidNotReceive().GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate);
+        await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(otherContractId, SampleData.ValueDate, TimeFrameType.Daily);
+        await marketDataDb.DidNotReceive().GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily);
         await context.Received(1).ReplyAsync(
             Arg.Any<ActorThreadId>(),
             Arg.Any<string>(),

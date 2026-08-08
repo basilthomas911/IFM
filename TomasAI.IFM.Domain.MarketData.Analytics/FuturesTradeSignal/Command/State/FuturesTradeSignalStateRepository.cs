@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Framework.SequenceId;
 
@@ -58,27 +59,29 @@ public class FuturesTradeSignalStateRepository(
         {
             _ = domainEvent switch
             {
-                FuturesTradeSignalUpdatedEvent e => await UpdateFuturesTradeSignalAsync(db, blackboardService, e),
-                FuturesItiSignalHoldTradeChangedEvent e => await PostHoldTradeChangedEventAsync(e),
+                FuturesTradeSignalUpdatedEvent e => await UpdateReadModelAsync<
+                    FuturesTradeSignalUpdatedEvent,
+                    FuturesTradeSignalUpdatedCompleteEvent,
+                    FuturesTradeSignalUpdatedFailEvent,
+                    FuturesTradeSignalEntityId>(
+                        context,
+                        e,
+                        () => UpdateFuturesTradeSignalAsync(db, blackboardService, e)),
+                FuturesItiSignalHoldTradeChangedEvent e => await PostEventAsync<
+                    FuturesItiSignalHoldTradeChangedEvent,
+                    FuturesItiSignalEntityId>(context, e),
                 _ => false
             };
         }
 
         ///
-        static async ValueTask<bool> UpdateFuturesTradeSignalAsync(
+        static async ValueTask UpdateFuturesTradeSignalAsync(
             IMarketDataDbContext db, IBlackboardService blackboardService, FuturesTradeSignalUpdatedEvent e)
         {
             var tradeSignal = e.FuturesTradeSignal ?? throw new InvalidOperationException("FuturesTradeSignal payload is required.");
             var sequenceId = blackboardService.Application.SequenceCounter.Get(SequenceName.FuturesTradeSignal_SequenceId);
             tradeSignal = tradeSignal with { SequenceId = sequenceId };
             await db.InsertFuturesTradeSignalAsync(tradeSignal);
-            return true;
-        }
-
-        static async ValueTask<bool> PostHoldTradeChangedEventAsync(FuturesItiSignalHoldTradeChangedEvent e)
-        {
-            await ValueTask.CompletedTask;
-            return true;
         }
     }
 }

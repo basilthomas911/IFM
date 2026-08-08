@@ -54,7 +54,9 @@ public class FuturesRsiSignalQueryActor(
     static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
         [GetFuturesRsiSignalQuery.Verb] = msg => msg.AsQuery<GetFuturesRsiSignalQuery, FuturesRsiSignalReadModel>()!,
-        [GetFuturesRsiDailySignalQuery.Verb] = msg => msg.AsQuery<GetFuturesRsiDailySignalQuery, FuturesRsiSignalReadModel>()!
+        [GetFuturesRsiDailySignalQuery.Verb] = msg => msg.AsQuery<GetFuturesRsiDailySignalQuery, FuturesRsiSignalReadModel>()!,
+        [GetFuturesTrendDirectionFromRSISignalQuery.Verb] = msg =>
+            msg.AsQuery<GetFuturesTrendDirectionFromRSISignalQuery, FuturesTrendDirectionReadModel>()!
     };
 
     /// <summary>
@@ -103,6 +105,17 @@ public class FuturesRsiSignalQueryActor(
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
+        },
+        [typeof(GetFuturesTrendDirectionFromRSISignalQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        {
+            var query = (GetFuturesTrendDirectionFromRSISignalQuery)q;
+            var result = await query.GetFuturesTrendDirectionAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var serviceResult = new ServiceResult<FuturesTrendDirectionReadModel>(result);
+            await ctx.ReplyAsync(
+                q.Subject.ThreadId,
+                GetFuturesTrendDirectionFromRSISignalQuery.Verb,
+                serviceResult).ConfigureAwait(false);
         }
     };
 
@@ -130,6 +143,8 @@ public class FuturesRsiSignalQueryActor(
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesRsiSignalReadModel?>(query.ErrorCode, ex!.Message)),
                 _ when query is GetFuturesRsiDailySignalQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesRsiSignalReadModel?>(query.ErrorCode, ex!.Message)),
+                _ when query is GetFuturesTrendDirectionFromRSISignalQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesTrendDirectionReadModel>(query.ErrorCode, ex!.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
             };
             await serviceResultTask;

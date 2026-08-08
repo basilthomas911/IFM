@@ -36,7 +36,7 @@ public class FuturesTdiSignalQueryApiTests(WebApplicationFactory<Program> factor
         var response = await analyticsApi.GetFuturesTdiSignalAsync(expectedSignal.ContractId, expectedSignal.ValueDate);
 
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value!.ContractId.Should().Be(expectedSignal.ContractId);
         response.Value.ValueDate.Should().Be(expectedSignal.ValueDate);

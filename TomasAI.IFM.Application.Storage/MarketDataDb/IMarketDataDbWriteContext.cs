@@ -54,9 +54,9 @@ public interface IMarketDataDbWriteContext
     Task InsertFuturesTdiSignalAsync(FuturesTdiSignalReadModel e);
     Task InsertFuturesMacdSignalAsync(FuturesMacdSignalReadModel e);
     Task InsertFuturesAtrSignalAsync(FuturesAtrSignalReadModel e);
-    Task DeleteFuturesAtrSignalAsync(string contractId, DateOnly valueDate);
+    Task DeleteFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength);
     Task InsertFuturesAdxSignalAsync(FuturesAdxSignalReadModel e);
-    Task DeleteFuturesAdxSignalAsync(string contractId, DateOnly valueDate);
+    Task DeleteFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength);
     Task DeleteTradeLiveFeedAsync(int orderid, int tradeId);
     Task InsertFuturesTradeSignalAsync(FuturesTradeSignalV2ReadModel e);
     Task InsertFuturesTradeSignalsAsync(ICollection<FuturesTradeSignalV2ReadModel> futuresTradeSignals);

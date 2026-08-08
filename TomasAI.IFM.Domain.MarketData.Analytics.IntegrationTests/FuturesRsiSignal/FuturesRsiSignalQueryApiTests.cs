@@ -47,13 +47,23 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
     {
         var baseTime = TimeOnly.FromDateTime(SampleData.Timestamp);
 
-        // OneMinute signal 1
+        // Default signal 1
         await dbFixture.MarketDataDb.InsertFuturesRsiSignalAsync(
-            CreateRsiSignal(TimeFrameType.OneMinute, baseTime, (decimal)SampleData.FuturesPrice, rsi: 55.0));
+            CreateRsiSignal(
+                SampleData.TimePeriod,
+                baseTime,
+                (decimal)SampleData.FuturesPrice,
+                rsi: 55.0,
+                windowSize: SampleData.PeriodLength));
 
-        // OneMinute signal 2
+        // Default signal 2
         await dbFixture.MarketDataDb.InsertFuturesRsiSignalAsync(
-            CreateRsiSignal(TimeFrameType.OneMinute, baseTime.AddMinutes(1), (decimal)SampleData.FuturesPrice + 10m, rsi: 58.0));
+            CreateRsiSignal(
+                SampleData.TimePeriod,
+                baseTime.AddMinutes(1),
+                (decimal)SampleData.FuturesPrice + 10m,
+                rsi: 58.0,
+                windowSize: SampleData.PeriodLength));
 
         // Daily signal
         await dbFixture.MarketDataDb.InsertFuturesRsiSignalAsync(
@@ -74,7 +84,7 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value!.ContractId.Should().Be(SampleData.ContractId);
         response.Value.ValueDate.Should().Be(SampleData.ValueDate);
@@ -95,7 +105,7 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value!.ContractId.Should().Be(SampleData.ContractId);
         response.Value.ValueDate.Should().Be(SampleData.ValueDate);
@@ -118,11 +128,18 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
         var response = await analyticsApi.GetFuturesTrendDirectionFromRSISignalAsync(
-            SampleData.ContractId, SampleData.ValueDate, timestamp, lookbackInterval, startTime, endTime);
+            SampleData.ContractId,
+            SampleData.ValueDate,
+            SampleData.TimePeriod,
+            SampleData.PeriodLength,
+            timestamp,
+            lookbackInterval,
+            startTime,
+            endTime);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value!.ContractId.Should().Be(SampleData.ContractId);
         response.Value.ValueDate.Should().Be(SampleData.ValueDate);

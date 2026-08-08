@@ -29,6 +29,7 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FuturesRsiSignalStartedEvent futuresRsiSignalStartedEvent = default!;
+        var eventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -52,11 +53,11 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
         var response = await marketDataAnalyticsApi.StartFuturesRsiSignalAsync(entityId);
 
-        await Task.Delay(1000);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         futuresRsiSignalStartedEvent.Should().NotBeNull();
         futuresRsiSignalStartedEvent.EntityId.Should().Be(entityId);
@@ -75,7 +76,10 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is FuturesRsiSignalStartedEvent started)
+                {
                     futuresRsiSignalStartedEvent = started;
+                    eventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -88,6 +92,7 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FuturesRsiSignalStartedEvent futuresRsiSignalStartedEvent = default!;
         FuturesRsiSignalStoppedEvent futuresRsiSignalStoppedEvent = default!;
+        var eventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -118,20 +123,21 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
         var startResponse = await marketDataAnalyticsApi.StartFuturesRsiSignalAsync(entityId);
 
-        await Task.Delay(1000);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         startResponse.Should().NotBeNull();
-        startResponse.Success.Should().BeTrue();
+        startResponse.Success.Should().BeTrue(startResponse.ErrorMessage);
 
         // step 2: stop signal
         futuresRsiSignalStartedEvent = default!;
+        eventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var stopResponse = await marketDataAnalyticsApi.StopFuturesRsiSignalAsync(entityId);
 
-        await Task.Delay(1000);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         stopResponse.Should().NotBeNull();
-        stopResponse.Success.Should().BeTrue();
+        stopResponse.Success.Should().BeTrue(stopResponse.ErrorMessage);
         stopResponse.Value.Should().NotBe(Guid.Empty);
         futuresRsiSignalStoppedEvent.Should().NotBeNull();
         futuresRsiSignalStoppedEvent.EntityId.Should().Be(entityId);
@@ -151,9 +157,15 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is FuturesRsiSignalStartedEvent started)
+                {
                     futuresRsiSignalStartedEvent = started;
+                    eventReceived.TrySetResult();
+                }
                 if (@event is FuturesRsiSignalStoppedEvent stopped)
+                {
                     futuresRsiSignalStoppedEvent = stopped;
+                    eventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -165,12 +177,20 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FuturesRsiSignalGeneratedEvent futuresRsiSignalGeneratedEvent = default!;
+        FuturesRsiSignalGeneratedCompleteEvent futuresRsiSignalGeneratedCompleteEvent = default!;
+        FuturesRsiSignalGeneratedFailEvent futuresRsiSignalGeneratedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesRsiSignalGeneratedEvent.Actor)] = [FuturesRsiSignalGeneratedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesRsiSignalGeneratedEvent.Actor)] =
+                [
+                    FuturesRsiSignalGeneratedEvent.Verb,
+                    FuturesRsiSignalGeneratedCompleteEvent.Verb,
+                    FuturesRsiSignalGeneratedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -189,19 +209,21 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
         var response = await marketDataAnalyticsApi.GenerateFuturesRsiSignalAsync(futuresEodData, TimeFrameType.FifteenMinutes, 14);
 
-        await Task.Delay(1000);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         futuresRsiSignalGeneratedEvent.Should().NotBeNull();
+        futuresRsiSignalGeneratedCompleteEvent.Should().NotBeNull(futuresRsiSignalGeneratedFailEvent?.ErrorMessage);
+        futuresRsiSignalGeneratedFailEvent.Should().BeNull();
         futuresRsiSignalGeneratedEvent.FuturesRsiSignal.Should().NotBeNull();
         futuresRsiSignalGeneratedEvent.FuturesRsiSignal.ContractId.Should().Be(SampleData.ContractId);
         futuresRsiSignalGeneratedEvent.FuturesRsiSignal.ValueDate.Should().Be(SampleData.ValueDate);
         futuresRsiSignalGeneratedEvent.FuturesRsiSignal.Price.Should().Be((decimal)SampleData.FuturesPrice);
 
-        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.OneMinute, 14);
+        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.FifteenMinutes, 14);
         lastSignal.Should().NotBeNull();
         lastSignal!.ContractId.Should().Be(SampleData.ContractId);
         lastSignal.ValueDate.Should().Be(SampleData.ValueDate);
@@ -213,6 +235,8 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
             IEvent receivedEvent = eventVerb switch
             {
                 _ when eventVerb == FuturesRsiSignalGeneratedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesRsiSignalGeneratedEvent>()!),
+                _ when eventVerb == FuturesRsiSignalGeneratedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesRsiSignalGeneratedCompleteEvent>()!),
+                _ when eventVerb == FuturesRsiSignalGeneratedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesRsiSignalGeneratedFailEvent>()!),
                 _ => default!
             };
             await ValueTask.CompletedTask;
@@ -221,6 +245,16 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
             {
                 if (@event is FuturesRsiSignalGeneratedEvent generated)
                     futuresRsiSignalGeneratedEvent = generated;
+                if (@event is FuturesRsiSignalGeneratedCompleteEvent generatedComplete)
+                {
+                    futuresRsiSignalGeneratedCompleteEvent = generatedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
+                if (@event is FuturesRsiSignalGeneratedFailEvent generatedFail)
+                {
+                    futuresRsiSignalGeneratedFailEvent = generatedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -232,12 +266,20 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FuturesRsiDailySignalGeneratedEvent futuresRsiDailySignalGeneratedEvent = default!;
+        FuturesRsiDailySignalGeneratedCompleteEvent futuresRsiDailySignalGeneratedCompleteEvent = default!;
+        FuturesRsiDailySignalGeneratedFailEvent futuresRsiDailySignalGeneratedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesRsiDailySignalGeneratedEvent.Actor)] = [FuturesRsiDailySignalGeneratedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesRsiDailySignalGeneratedEvent.Actor)] =
+                [
+                    FuturesRsiDailySignalGeneratedEvent.Verb,
+                    FuturesRsiDailySignalGeneratedCompleteEvent.Verb,
+                    FuturesRsiDailySignalGeneratedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -256,13 +298,15 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
         var response = await marketDataAnalyticsApi.GenerateFuturesRsiDailySignalAsync(futuresEodData, TimeFrameType.Daily, 14);
 
-        await Task.Delay(1000);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         futuresRsiDailySignalGeneratedEvent.Should().NotBeNull();
+        futuresRsiDailySignalGeneratedCompleteEvent.Should().NotBeNull(futuresRsiDailySignalGeneratedFailEvent?.ErrorMessage);
+        futuresRsiDailySignalGeneratedFailEvent.Should().BeNull();
         futuresRsiDailySignalGeneratedEvent.FuturesRsiSignal.Should().NotBeNull();
         futuresRsiDailySignalGeneratedEvent.FuturesRsiSignal.ContractId.Should().Be(SampleData.ContractId);
         futuresRsiDailySignalGeneratedEvent.FuturesRsiSignal.ValueDate.Should().Be(SampleData.ValueDate);
@@ -280,6 +324,8 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
             IEvent receivedEvent = eventVerb switch
             {
                 _ when eventVerb == FuturesRsiDailySignalGeneratedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesRsiDailySignalGeneratedEvent>()!),
+                _ when eventVerb == FuturesRsiDailySignalGeneratedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesRsiDailySignalGeneratedCompleteEvent>()!),
+                _ when eventVerb == FuturesRsiDailySignalGeneratedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesRsiDailySignalGeneratedFailEvent>()!),
                 _ => default!
             };
             await ValueTask.CompletedTask;
@@ -288,6 +334,16 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
             {
                 if (@event is FuturesRsiDailySignalGeneratedEvent generated)
                     futuresRsiDailySignalGeneratedEvent = generated;
+                if (@event is FuturesRsiDailySignalGeneratedCompleteEvent generatedComplete)
+                {
+                    futuresRsiDailySignalGeneratedCompleteEvent = generatedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
+                if (@event is FuturesRsiDailySignalGeneratedFailEvent generatedFail)
+                {
+                    futuresRsiDailySignalGeneratedFailEvent = generatedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }

@@ -916,6 +916,49 @@ public static class MarketDataAnalyticsCommands
 {
     public static IEndpointRouteBuilder MapMarketDataAnalyticsCommands(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapPost(MarketDataAnalyticsUriPath.UpdateFuturesTradeSignal, async (IActorService e, UpdateFuturesTradeSignalParameter cp) =>
+        {
+            var cmd = new UpdateFuturesTradeSignalCommand(
+                cp.FuturesEodData,
+                cp.FuturesRsiSignal,
+                cp.FuturesTdiSignal,
+                cp.FuturesItiSignalData,
+                cp.VixFuturesPrice)
+            {
+                CommandId = Guid.CreateVersion7(),
+                ErrorCode = cp.ErrorCode
+            };
+            cmd = cmd with
+            {
+                Subject = new ActorSubject(
+                    ActorType.Command,
+                    UpdateFuturesTradeSignalCommand.Actor,
+                    UpdateFuturesTradeSignalCommand.Verb,
+                    cmd.EntityId.Format())
+            };
+            return await e.RequestAsync<UpdateFuturesTradeSignalCommand, FuturesTradeSignalEntityId>(cmd);
+        });
+
+        endpoints.MapPost(MarketDataAnalyticsUriPath.GenerateFuturesTdiSignal, async (IActorService e, GenerateFuturesTdiSignalParameter cp) =>
+        {
+            var entityId = new FuturesTdiSignalEntityId(
+                cp.FuturesTdiSignalId.ContractId,
+                cp.FuturesTdiSignalId.ValueDate,
+                TimeFrameType.Daily);
+            var cmd = new GenerateFuturesTdiSignalCommand(cp.FuturesTdiSignalId, cp.FuturesRsiSignals)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(
+                    ActorType.Command,
+                    GenerateFuturesTdiSignalCommand.Actor,
+                    GenerateFuturesTdiSignalCommand.Verb,
+                    entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<GenerateFuturesTdiSignalCommand, FuturesTdiSignalEntityId>(cmd);
+        });
+
         endpoints.MapPost(MarketDataAnalyticsUriPath.GenerateFuturesItiSignal, async (IActorService e, GenerateFuturesItiSignalParameter cp)
             => {
                 var entityId = new FuturesItiSignalEntityId(cp.ContractId, cp.ValueDate, cp.TimePeriod);
@@ -960,6 +1003,60 @@ public static class MarketDataAnalyticsCommands
                 };
                 return await e.RequestAsync<ClearFuturesItiSignalHoldTradeCommand, FuturesItiSignalEntityId>(cmd!);
             });
+
+        endpoints.MapPost(MarketDataAnalyticsUriPath.StartFuturesRsiSignal, async (IActorService e, StartFuturesRsiSignalParameter cp) =>
+        {
+            var cmd = new StartFuturesRsiSignalCommand(cp.EntityId)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(ActorType.Command, StartFuturesRsiSignalCommand.Actor, StartFuturesRsiSignalCommand.Verb, cp.EntityId.Format()),
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<StartFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(cmd);
+        });
+        endpoints.MapPost(MarketDataAnalyticsUriPath.StopFuturesRsiSignal, async (IActorService e, StopFuturesRsiSignalParameter cp) =>
+        {
+            var cmd = new StopFuturesRsiSignalCommand(cp.EntityId)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(ActorType.Command, StopFuturesRsiSignalCommand.Actor, StopFuturesRsiSignalCommand.Verb, cp.EntityId.Format()),
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<StopFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(cmd);
+        });
+        endpoints.MapPost(MarketDataAnalyticsUriPath.GenerateFuturesRsiSignal, async (IActorService e, GenerateFuturesRsiSignalParameter cp) =>
+        {
+            var signalId = new FuturesRsiSignalId(
+                cp.FuturesEodData.ContractId,
+                cp.FuturesEodData.ValueDate,
+                cp.TimePeriod,
+                cp.PeriodLength,
+                TimeOnly.MinValue);
+            var entityId = signalId.ToEntityId();
+            var cmd = new GenerateFuturesRsiSignalCommand(signalId, cp.FuturesEodData.ClosePrice)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiSignalCommand.Actor, GenerateFuturesRsiSignalCommand.Verb, entityId.Format()),
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(cmd);
+        });
+        endpoints.MapPost(MarketDataAnalyticsUriPath.GenerateFuturesRsiDailySignal, async (IActorService e, GenerateFuturesRsiDailySignalParameter cp) =>
+        {
+            var signalId = new FuturesRsiSignalId(
+                cp.FuturesEodData.ContractId,
+                cp.FuturesEodData.ValueDate,
+                cp.TimePeriod,
+                cp.PeriodLength,
+                TimeOnly.MinValue);
+            var cmd = new GenerateFuturesRsiDailySignalCommand(signalId, cp.FuturesEodData.ClosePrice)
+            {
+                CommandId = Guid.CreateVersion7(),
+                Subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiDailySignalCommand.Actor, GenerateFuturesRsiDailySignalCommand.Verb, signalId.ToEntityDailyId().Format()),
+                ErrorCode = cp.ErrorCode
+            };
+            return await e.RequestAsync<GenerateFuturesRsiDailySignalCommand, FuturesRsiDailySignalEntityId>(cmd);
+        });
 
         endpoints.MapPost(MarketDataAnalyticsUriPath.StartFuturesMacdSignal, async (IActorService e, StartFuturesMacdSignalParameter cp) =>
         {

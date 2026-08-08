@@ -36,7 +36,12 @@ public class FuturesAdxSignalCommandApiTests(WebApplicationFactory<Program> fact
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesAdxSignalGeneratedEvent.Actor)] = [FuturesAdxSignalGeneratedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesAdxSignalGeneratedEvent.Actor)] =
+                [
+                    FuturesAdxSignalGeneratedEvent.Verb,
+                    FuturesAdxSignalGeneratedCompleteEvent.Verb,
+                    FuturesAdxSignalGeneratedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -51,7 +56,7 @@ public class FuturesAdxSignalCommandApiTests(WebApplicationFactory<Program> fact
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
-        await dbFixture.MarketDataDb.DeleteFuturesAdxSignalAsync(contractId, valueDate);
+        await dbFixture.MarketDataDb.DeleteFuturesAdxSignalAsync(contractId, valueDate, adxSignalId.TimePeriod, adxSignalId.PeriodLength);
 
         // act...
         _httpClientFactory.CreateClient();

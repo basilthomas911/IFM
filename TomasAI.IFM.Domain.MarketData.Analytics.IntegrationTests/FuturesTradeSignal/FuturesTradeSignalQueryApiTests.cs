@@ -31,7 +31,7 @@ public class FuturesTradeSignalQueryApiTests(WebApplicationFactory<Program> fact
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value.ContractId.Should().Be(contractId);
         response.Value.ValueDate.Should().Be(valueDate);
@@ -53,7 +53,7 @@ public class FuturesTradeSignalQueryApiTests(WebApplicationFactory<Program> fact
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value.ContractId.Should().Be(contractId);
         response.Value.ValueDate.Should().Be(valueDate);
@@ -75,7 +75,7 @@ public class FuturesTradeSignalQueryApiTests(WebApplicationFactory<Program> fact
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value.Should().Contain(id => id.ContractId == contractId && id.ValueDate == valueDate && id.TimePeriod == TimeFrameType.FifteenSeconds);
     }

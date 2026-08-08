@@ -21,7 +21,8 @@ public interface IActorMarketDataAnalyticsQueryApi : IMarketDataAnalyticsQueryAp
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength,
         CancellationToken cancellationToken);
     Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(
-        string contractId, DateOnly valueDate, DateTime timestamp, int loopbackInterval,
+        string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength,
+        DateTime timestamp, int loopbackInterval,
         DateTime startTime, DateTime endTime, CancellationToken cancellationToken);
     Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(
         string contractId, DateOnly valueDate, CancellationToken cancellationToken);

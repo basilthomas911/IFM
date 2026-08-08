@@ -116,7 +116,7 @@ internal static class MarketDataSchemaCql
             signalType TEXT,
             timePeriod TEXT,
             windowSize INT,
-            PRIMARY KEY (contractId, valueDate, timestamp)
+            PRIMARY KEY ((contractId, timePeriod, periodLength), valueDate, timestamp)
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
         """;
 
@@ -131,6 +131,56 @@ internal static class MarketDataSchemaCql
             timePeriod TEXT,
             upTrendCount INT,
             PRIMARY KEY (contractId, valueDate, timestamp)
+        ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
+        """;
+
+    public const string CreateFuturesMacdSignalTable = """
+        CREATE TABLE IF NOT EXISTS futures_macd_signal (
+            contractId TEXT,
+            valueDate DATE,
+            timePeriod TEXT,
+            periodLength INT,
+            timestamp TIME,
+            futuresPrice DECIMAL,
+            macdLine DOUBLE,
+            signalLine DOUBLE,
+            histogram DOUBLE,
+            macd TEXT,
+            macdStrength TEXT,
+            PRIMARY KEY ((contractId, timePeriod, periodLength), valueDate, timestamp)
+        ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
+        """;
+
+    public const string CreateFuturesAdxSignalTable = """
+        CREATE TABLE IF NOT EXISTS futures_adx_signal (
+            contractId TEXT,
+            valueDate DATE,
+            timePeriod TEXT,
+            periodLength INT,
+            timestamp TIME,
+            futuresPrice DECIMAL,
+            plusDI DOUBLE,
+            minusDI DOUBLE,
+            adxValue DOUBLE,
+            adx TEXT,
+            adxStrength TEXT,
+            PRIMARY KEY ((contractId, timePeriod, periodLength), valueDate, timestamp)
+        ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
+        """;
+
+    public const string CreateFuturesAtrSignalTable = """
+        CREATE TABLE IF NOT EXISTS futures_atr_signal (
+            contractId TEXT,
+            valueDate DATE,
+            timePeriod TEXT,
+            periodLength INT,
+            timestamp TIME,
+            futuresPrice DECIMAL,
+            atrValue DOUBLE,
+            trueRange DOUBLE,
+            atr TEXT,
+            atrStrength TEXT,
+            PRIMARY KEY ((contractId, timePeriod, periodLength), valueDate, timestamp)
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
         """;
 
@@ -475,6 +525,18 @@ internal static class MarketDataSchemaCql
     tradeExecuteState text,
     PRIMARY KEY (contractId, valueDate, timePeriod, timestamp, sequenceId)
     ) WITH CLUSTERING ORDER BY (valueDate DESC, timePeriod DESC, timestamp DESC, sequenceId DESC);
+    """;
+
+    public const string CreateFuturesTradeSignalLookupTable = """
+    CREATE TABLE IF NOT EXISTS futures_trade_signal_lookup_by_scope (
+    scope text,
+    entryId text,
+    sequenceId bigint,
+    contractId text,
+    valueDate date,
+    timePeriod text,
+    PRIMARY KEY (scope, entryId)
+    );
     """;
 
     public const string CreateFuturesEodDataIndexTable = """

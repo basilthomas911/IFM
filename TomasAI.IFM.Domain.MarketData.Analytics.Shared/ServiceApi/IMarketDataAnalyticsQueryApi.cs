@@ -16,7 +16,8 @@ public interface IMarketDataAnalyticsQueryApi
     /// </summary>
     Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength);
     Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(
-        string contractId, DateOnly valueDate, DateTime timestamp, int loopbackInterval, DateTime startTime, DateTime endTime);
+        string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength,
+        DateTime timestamp, int loopbackInterval, DateTime startTime, DateTime endTime);
     Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(string contractId, DateOnly valueDate);
     Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod);
     Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod);

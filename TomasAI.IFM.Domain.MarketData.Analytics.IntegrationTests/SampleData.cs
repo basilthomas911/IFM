@@ -223,7 +223,7 @@ public static class SampleData
         => new(
             contractId: ContractId,
             valueDate: ValueDate,
-            timePeriod: RSITimePeriod,
+            timePeriod: TimePeriod,
             periodLength: PeriodLength,
             timestamp: TimeOnly.FromDateTime(Timestamp),
             futuresPrice: (decimal)FuturesPrice,

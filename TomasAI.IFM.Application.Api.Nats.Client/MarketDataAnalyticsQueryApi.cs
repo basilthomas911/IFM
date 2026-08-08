@@ -90,10 +90,13 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// Gets the futures trend direction from RSI signal.
     /// </summary>
     public async Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(
-        string contractId, DateOnly valueDate, DateTime timestamp, int loopbackInterval, DateTime startTime, DateTime endTime)
+        string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength,
+        DateTime timestamp, int loopbackInterval, DateTime startTime, DateTime endTime)
     {
-        var entityId = new GetFuturesTrendDirectionFromRSISignalParameter(contractId, valueDate, timestamp, loopbackInterval, startTime, endTime);
-        GetFuturesTrendDirectionFromRSISignalQuery query = new(contractId, valueDate, timestamp, loopbackInterval, startTime, endTime)
+        var entityId = new GetFuturesTrendDirectionFromRSISignalParameter(
+            contractId, valueDate, timePeriod, periodLength, timestamp, loopbackInterval, startTime, endTime);
+        GetFuturesTrendDirectionFromRSISignalQuery query = new(
+            contractId, valueDate, timePeriod, periodLength, timestamp, loopbackInterval, startTime, endTime)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesTrendDirectionFromRSISignalQuery.Actor, GetFuturesTrendDirectionFromRSISignalQuery.Verb, entityId.Format()),
         };

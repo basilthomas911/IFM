@@ -70,6 +70,8 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi
     public Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(
         string contractId,
         DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int periodLength,
         DateTime timestamp,
         int loopbackInterval,
         DateTime startTime,
@@ -79,7 +81,8 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi
             GetFuturesTrendDirectionFromRSISignalQuery.ErrorId,
             cancellationToken,
             () => _dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
-                contractId, valueDate, timestamp, loopbackInterval, startTime, endTime, cancellationToken));
+                contractId, valueDate, timePeriod, periodLength,
+                timestamp, loopbackInterval, startTime, endTime, cancellationToken));
 
     public Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(
         string contractId,
@@ -100,7 +103,7 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi
             GetFuturesItiSignalQuery.ErrorId,
             cancellationToken,
             async () => (await _dbFactory.MarketDataDb
-                .GetLastFuturesItiSignalAsync(contractId, valueDate, cancellationToken))!);
+                .GetLastFuturesItiSignalAsync(contractId, valueDate, timePeriod, cancellationToken))!);
 
     public Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(
         string contractId,

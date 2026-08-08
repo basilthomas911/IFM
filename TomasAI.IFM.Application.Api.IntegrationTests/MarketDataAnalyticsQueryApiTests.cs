@@ -107,7 +107,8 @@ public class MarketDataAnalyticsQueryApiTests(WebApplicationFactory<Program> fac
         var queryApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
         var now = DateTime.UtcNow;
         var response = await queryApi.GetFuturesTrendDirectionFromRSISignalAsync(
-            "ESU25", new DateOnly(2025, 9, 10), now, 30, now.AddHours(-1), now);
+            "ESU25", new DateOnly(2025, 9, 10), TimeFrameType.OneMinute, 14,
+            now, 30, now.AddHours(-1), now);
         response.Success.Should().BeTrue();
         response.Value.Should().BeAssignableTo<FuturesTrendDirectionReadModel>();
     }

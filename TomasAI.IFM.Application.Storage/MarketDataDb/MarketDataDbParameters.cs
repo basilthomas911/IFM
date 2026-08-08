@@ -2,13 +2,13 @@ using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
-internal readonly record struct DeleteFuturesAdxSignal(string contractId, DateOnly valueDate) : IBindValue
+internal readonly record struct DeleteFuturesAdxSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate };
+    public object Bind() => new object?[] { contractId, timePeriod, periodLength, valueDate };
 }
-internal readonly record struct DeleteFuturesAtrSignal(string contractId, DateOnly valueDate) : IBindValue
+internal readonly record struct DeleteFuturesAtrSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate };
+    public object Bind() => new object?[] { contractId, timePeriod, periodLength, valueDate };
 }
 internal readonly record struct DeleteFuturesBarData(string contractId, string symbol, DateOnly valueDate) : IBindValue
 {
@@ -209,13 +209,9 @@ internal readonly record struct GetFuturesOptionTickPriceData(string contractId,
     public object Bind() => new object?[] { contractId, valueDate, tickId };
 }
 
-internal readonly record struct GetFuturesRsiSignalDownTrendCount(string contractId, DateOnly valueDate, DateTime startTime, DateTime endTime) : IBindValue
+internal readonly record struct GetFuturesRsiSignalsForTrend(string contractId, string timePeriod, int periodLength, DateOnly valueDate, TimeOnly startTime, TimeOnly endTime) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, startTime, endTime };
-}
-internal readonly record struct GetFuturesRsiSignalUpTrendCount(string contractId, DateOnly valueDate, DateTime startTime, DateTime endTime) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, valueDate, startTime, endTime };
+    public object Bind() => new object?[] { contractId, timePeriod, periodLength, valueDate, startTime, endTime };
 }
 internal readonly record struct GetFuturesTickData(string contractId, DateOnly valueDate, long tickId) : IBindValue
 {
@@ -256,6 +252,10 @@ internal readonly record struct GetLastFuturesEodData(string contractId, DateOnl
 internal readonly record struct GetLastFuturesItiSignal(string contractId, DateOnly valueDate) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate };
+}
+internal readonly record struct GetLastFuturesItiSignalByTimePeriod(string contractId, DateOnly valueDate, string timePeriod) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod };
 }
 internal readonly record struct GetLastFuturesItiSignalTrendDirectionChange(string contractId, DateOnly valueDate) : IBindValue
 {
@@ -310,9 +310,13 @@ internal readonly record struct GetLastFuturesTickDataByTickTime(string contract
 {
     public object Bind() => new object?[] { contractId, valueDate, tickTime };
 }
-internal readonly record struct GetLastFuturesTradeSignalById(string contractId, DateOnly valueDate) : IBindValue
+internal readonly record struct GetLastFuturesTradeSignalById(string contractId, DateOnly valueDate, string timePeriod) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate };
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod };
+}
+internal readonly record struct GetLastFuturesTradeSignal(string scope) : IBindValue
+{
+    public object Bind() => new object?[] { scope };
 }
 internal readonly record struct GetLastFuturesTradeSignalBySymbol(List<string> contractIds, DateOnly valueDate) : IBindValue
 {
@@ -333,6 +337,10 @@ internal readonly record struct GetMarketHolidays(string currencyType) : IBindVa
 internal readonly record struct GetMarketHolidaysByDateRange(string currencyType, DateOnly startDate, DateOnly endDate) : IBindValue
 {
     public object Bind() => new object?[] { currencyType, startDate, endDate };
+}
+internal readonly record struct GetFuturesTradeSignalIdByValueDate(string scope) : IBindValue
+{
+    public object Bind() => new object?[] { scope };
 }
 internal readonly record struct GetMarketDataProjectionMonths(string projectionName, int yearMonth) : IBindValue
 {
@@ -392,13 +400,13 @@ internal readonly record struct GetYieldCurveRates(DateOnly startDate, DateOnly 
 {
     public object Bind() => new object?[] { startDate, endDate };
 }
-internal readonly record struct InsertFuturesAdxSignal(string contractId, DateOnly valueDate, TimeOnly timestamp, double plusDI, double minusDI, double adxValue, string adx, string adxStrength) : IBindValue
+internal readonly record struct InsertFuturesAdxSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double plusDI, double minusDI, double adxValue, string adx, string adxStrength) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, timestamp, plusDI, minusDI, adxValue, adx, adxStrength };
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, plusDI, minusDI, adxValue, adx, adxStrength };
 }
-internal readonly record struct InsertFuturesAtrSignal(string contractId, DateOnly valueDate, TimeOnly timestamp, double atrValue, double trueRange, string atr, string atrStrength) : IBindValue
+internal readonly record struct InsertFuturesAtrSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double atrValue, double trueRange, string atr, string atrStrength) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, timestamp, atrValue, trueRange, atr, atrStrength };
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, atrValue, trueRange, atr, atrStrength };
 }
 internal readonly record struct InsertFuturesBarData(string contractId, string symbol, DateOnly valueDate, DateTime barDate, string barRateType, decimal barValue, double upTrendTrigger, double downTrendTrigger) : IBindValue
 {
@@ -448,9 +456,9 @@ internal readonly record struct InsertFuturesItiTrendDeltaModel(string symbol, D
 {
     public object Bind() => new object?[] { symbol, valueDate, startDate, endDate, count, maximum, mean, median, minimum, skewness, stdDev, variance, meanAbsoluteError, meanSquaredError, rootMeanSquaredError, lossFunction, rSquared, modelData };
 }
-internal readonly record struct InsertFuturesMacdSignal(string contractId, DateOnly valueDate, TimeOnly timestamp, double macdLine, double signalLine, double histogram, string macd, string macdStrength) : IBindValue
+internal readonly record struct InsertFuturesMacdSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double macdLine, double signalLine, double histogram, string macd, string macdStrength) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, timestamp, macdLine, signalLine, histogram, macd, macdStrength };
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, macdLine, signalLine, histogram, macd, macdStrength };
 }
 internal readonly record struct InsertFuturesOptionQuote(int quoteId, string contractId, int requestId, string createdBy, DateTime createdOn) : IBindValue
 {
@@ -493,6 +501,10 @@ internal readonly record struct InsertFuturesTickDataByTime(string contractId, D
 internal readonly record struct InsertFuturesTradeSignal(string contractId, DateOnly valueDate, string timePeriod, long sequenceId, TimeOnly timestamp, double mean, double stdDev, double futuresPrice, double priceChangePercent, double fundRiskPercent, double rsi, double rsiSlope, string trendType, string trendStrength, string tradeSignal, string tdi, string tdiStrength, double mdi, string mdiTrend, double mdiUpTrendLimit, double mdiDownTrendLimit, double upTrendingTrigger, double downTrendingTrigger, double entryTrigger, double exitTrigger, double trendDelta, double trendExtreme, double trendReversal, decimal fiftyDma, decimal twoHundredDma, string tradeExecuteState) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod, sequenceId, timestamp, mean, stdDev, futuresPrice, priceChangePercent, fundRiskPercent, rsi, rsiSlope, trendType, trendStrength, tradeSignal, tdi, tdiStrength, mdi, mdiTrend, mdiUpTrendLimit, mdiDownTrendLimit, upTrendingTrigger, downTrendingTrigger, entryTrigger, exitTrigger, trendDelta, trendExtreme, trendReversal, fiftyDma, twoHundredDma, tradeExecuteState };
+}
+internal readonly record struct InsertFuturesTradeSignalIndex(string scope, string entryId, long sequenceId, string contractId, DateOnly valueDate, string timePeriod) : IBindValue
+{
+    public object Bind() => new object?[] { scope, entryId, sequenceId, contractId, valueDate, timePeriod };
 }
 internal readonly record struct InsertMarketHoliday(string currencyType, DateOnly holidayDate, string description) : IBindValue
 {

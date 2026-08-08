@@ -29,15 +29,21 @@ public record GetFuturesTrendDirectionFromRSISignalQuery : IQuery<FuturesTrendDi
     public DateOnly ValueDate { get; init; }
 
     [Key(4)]
-    public DateTime Timestamp { get; init; }
+    public TimeFrameType TimePeriod { get; init; }
 
     [Key(5)]
-    public int LookBackInterval { get; init; }
+    public int PeriodLength { get; init; }
 
     [Key(6)]
-    public DateTime StartTime { get; init; }
+    public DateTime Timestamp { get; init; }
 
     [Key(7)]
+    public int LookBackInterval { get; init; }
+
+    [Key(8)]
+    public DateTime StartTime { get; init; }
+
+    [Key(9)]
     public DateTime EndTime { get; init; }
 
     public GetFuturesTrendDirectionFromRSISignalQuery() { }
@@ -45,6 +51,8 @@ public record GetFuturesTrendDirectionFromRSISignalQuery : IQuery<FuturesTrendDi
     public GetFuturesTrendDirectionFromRSISignalQuery(
         string contractId,
         DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int periodLength,
         DateTime timestamp,
         int lookBackInterval,
         DateTime startTime,
@@ -52,11 +60,14 @@ public record GetFuturesTrendDirectionFromRSISignalQuery : IQuery<FuturesTrendDi
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
+        TimePeriod = timePeriod;
+        PeriodLength = periodLength;
         Timestamp = timestamp;
         LookBackInterval = lookBackInterval;
         StartTime = startTime;
         EndTime = endTime;
-        EntityId = new GetFuturesTrendDirectionFromRSISignalParameter(contractId, valueDate, timestamp, lookBackInterval, startTime, endTime);
+        EntityId = new GetFuturesTrendDirectionFromRSISignalParameter(
+            contractId, valueDate, timePeriod, periodLength, timestamp, lookBackInterval, startTime, endTime);
         ErrorCode = ErrorId;
     }
 
@@ -69,15 +80,20 @@ public record GetFuturesTrendDirectionFromRSISignalQuery : IQuery<FuturesTrendDi
         IActorEntityId entityId,  // Key(1)
         string contractId,        // Key(2)
         DateOnly valueDate,       // Key(3)
-        DateTime timestamp,       // Key(4)
-        int lookBackInterval,     // Key(5)
-        DateTime startTime,       // Key(6)
-        DateTime endTime)         // Key(7)
+        TimeFrameType timePeriod, // Key(4)
+        int periodLength,         // Key(5)
+        DateTime timestamp,       // Key(6)
+        int lookBackInterval,     // Key(7)
+        DateTime startTime,       // Key(8)
+        DateTime endTime)         // Key(9)
     {
         Subject = subject;
-        EntityId = new GetFuturesTrendDirectionFromRSISignalParameter(contractId, valueDate, timestamp, lookBackInterval, startTime, endTime);
+        EntityId = new GetFuturesTrendDirectionFromRSISignalParameter(
+            contractId, valueDate, timePeriod, periodLength, timestamp, lookBackInterval, startTime, endTime);
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
+        TimePeriod = timePeriod;
+        PeriodLength = periodLength;
         Timestamp = timestamp;
         LookBackInterval = lookBackInterval;
         StartTime = startTime;

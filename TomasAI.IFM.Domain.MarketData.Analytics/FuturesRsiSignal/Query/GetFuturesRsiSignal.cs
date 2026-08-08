@@ -24,4 +24,29 @@ public static class GetFuturesRsiSignal
                 q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
             : await dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
                 q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
+
+    public static async ValueTask<FuturesTrendDirectionReadModel> GetFuturesTrendDirectionAsync(
+        this GetFuturesTrendDirectionFromRSISignalQuery q,
+        IDbContextFactory dbFactory,
+        CancellationToken cancellationToken = default)
+        => cancellationToken.CanBeCanceled
+            ? await dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
+                q.ContractId,
+                q.ValueDate,
+                q.TimePeriod,
+                q.PeriodLength,
+                q.Timestamp,
+                q.LookBackInterval,
+                q.StartTime,
+                q.EndTime,
+                cancellationToken).ConfigureAwait(false)
+            : await dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
+                q.ContractId,
+                q.ValueDate,
+                q.TimePeriod,
+                q.PeriodLength,
+                q.Timestamp,
+                q.LookBackInterval,
+                q.StartTime,
+                q.EndTime).ConfigureAwait(false);
 }

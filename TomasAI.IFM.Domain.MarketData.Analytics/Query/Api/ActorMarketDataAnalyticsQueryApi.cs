@@ -173,7 +173,8 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi(IDbContextFactory d
     /// <param name="endTime">The end of the intraday time window.</param>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(
-        string contractId, DateOnly valueDate, DateTime timestamp, int loopbackInterval,
+        string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength,
+        DateTime timestamp, int loopbackInterval,
         DateTime startTime, DateTime endTime)
     {
         try
@@ -182,6 +183,8 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi(IDbContextFactory d
                 await _dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
                     contractId,
                     valueDate,
+                    timePeriod,
+                    periodLength,
                     timestamp,
                     loopbackInterval,
                     startTime,
@@ -230,7 +233,10 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi(IDbContextFactory d
         try
         {
             FuturesItiSignalV2ReadModel result =
-                (await _dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(contractId, valueDate))!;
+                (await _dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(
+                    contractId,
+                    valueDate,
+                    timePeriod))!;
             return new ServiceOk<FuturesItiSignalV2ReadModel>(result);
         }
         catch (Exception ex)

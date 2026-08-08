@@ -398,7 +398,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
         var readModel = CreateReadModel();
-        marketDataDb.GetLastFuturesItiSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>())
+        marketDataDb.GetLastFuturesItiSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>())
             .Returns(Task.FromResult<FuturesItiSignalV2ReadModel?>(readModel));
 
         var actor = _fixture.CreateItiQueryActor(dbFactory);
@@ -413,7 +413,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(query.ContractId, query.ValueDate);
+        await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesItiSignalQuery.Verb,
@@ -427,7 +427,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var dbFactory = Substitute.For<IDbContextFactory>();
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        marketDataDb.GetLastFuturesItiSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>())
+        marketDataDb.GetLastFuturesItiSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>())
             .Returns(Task.FromResult<FuturesItiSignalV2ReadModel?>(null));
 
         var actor = _fixture.CreateItiQueryActor(dbFactory);
@@ -551,7 +551,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
         var readModel = CreateReadModel();
-        marketDataDb.GetLastFuturesItiSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>())
+        marketDataDb.GetLastFuturesItiSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>())
             .Returns(Task.FromResult<FuturesItiSignalV2ReadModel?>(readModel));
 
         var actor = _fixture.CreateItiQueryActor(dbFactory);
@@ -570,7 +570,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(query.ContractId, query.ValueDate);
+        await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod);
     }
 
     #endregion

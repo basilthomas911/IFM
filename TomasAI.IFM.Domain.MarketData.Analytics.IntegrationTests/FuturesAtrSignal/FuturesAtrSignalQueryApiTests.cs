@@ -23,7 +23,7 @@ public class FuturesAtrSignalQueryApiTests(WebApplicationFactory<Program> factor
         var contractId = SampleData.ContractId;
         var valueDate = SampleData.ValueDate;
 
-        await dbFixture.MarketDataDb.DeleteFuturesAtrSignalAsync(contractId, valueDate);
+        await dbFixture.MarketDataDb.DeleteFuturesAtrSignalAsync(contractId, valueDate, SampleData.TimePeriod, SampleData.PeriodLength);
 
         await dbFixture.MarketDataDb.InsertFuturesAtrSignalAsync(
             SampleData.CreateAtrSignalViewModel(FuturesTrendDirectionType.UpTrending, FuturesTrendDirectionStrengthType.Medium));
@@ -39,7 +39,7 @@ public class FuturesAtrSignalQueryApiTests(WebApplicationFactory<Program> factor
         _httpClientFactory.CreateClient();
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
-        var response = await analyticsApi.GetFuturesAtrSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily, SampleData.PeriodLength);
+        var response = await analyticsApi.GetFuturesAtrSignalAsync(SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength);
 
         // assert...
         response.Should().NotBeNull();

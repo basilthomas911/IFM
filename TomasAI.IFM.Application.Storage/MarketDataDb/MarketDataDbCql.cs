@@ -1737,30 +1737,15 @@ internal static class MarketDataDbCql
         );
     """;
 
-    public const string DeleteFuturesRsiSignal = """
-        DELETE FROM futures_rsi_signal
-        WHERE contractId = :contractId
-        AND valueDate = :valueDate;
-    """;
-
-    public const string GetFuturesRsiSignalUpTrendCount = """
-        SELECT count(*) AS "Value"
+    public const string GetFuturesRsiSignalsForTrend = """
+        SELECT rsi AS "RSI"
         FROM futures_rsi_signal
         WHERE contractid = :contractid
+        AND timeperiod = :timePeriod
+        AND periodlength = :periodLength
         AND valuedate = :valuedate
         AND timestamp >= :startTime
-        AND timestamp <= :endTime
-        AND rsi >= 50;
-    """;
-
-    public const string GetFuturesRsiSignalDownTrendCount = """
-        SELECT count(*) AS "Value"
-        FROM futures_rsi_signal
-        WHERE contractid = :contractid
-        AND valuedate = :valuedate
-        AND timestamp >= :startTime
-        AND timestamp <= :endTime
-        AND rsi < 50;
+        AND timestamp <= :endTime;
     """;
 
     public const string GetLastFuturesItiSignal = """
@@ -1970,8 +1955,7 @@ internal static class MarketDataDbCql
         AND timePeriod = :timePeriod
         AND periodLength = :periodLength
         AND valuedate = :valueDate
-        LIMIT 1
-        ALLOW FILTERING;
+        LIMIT 1;
     """;
 
     public const string GetLastFuturesRsiDailySignal = """
@@ -1995,8 +1979,7 @@ internal static class MarketDataDbCql
            WHERE contractid = :contractId
         AND timePeriod = :timePeriod
         AND periodLength = :periodLength
-        LIMIT 1
-        ALLOW FILTERING;
+        LIMIT 1;
     """;
 
     public const string InsertFuturesTdiSignal = """
@@ -2109,6 +2092,24 @@ internal static class MarketDataDbCql
         );
     """;
 
+    public const string InsertFuturesTradeSignalIndex = """
+        INSERT INTO futures_trade_signal_lookup_by_scope (
+            scope,
+            entryId,
+            sequenceId,
+            contractId,
+            valueDate,
+            timePeriod
+        ) VALUES (
+            :scope,
+            :entryId,
+            :sequenceId,
+            :contractId,
+            :valueDate,
+            :timePeriod
+        );
+    """;
+
     public const string GetLastFuturesTradeSignalById = """
         SELECT 
             contractId AS "ContractId",
@@ -2143,43 +2144,20 @@ internal static class MarketDataDbCql
             twoHundredDMA AS "TwoHundredDMA",
             tradeExecuteState AS "TradeExecuteState"
         FROM futures_trade_signal
-        WHERE contractId = :contractId AND valueDate = :valueDate
+        WHERE contractId = :contractId
+        AND valueDate = :valueDate
+        AND timePeriod = :timePeriod
         LIMIT 1;
     """;
 
     public const string GetLastFuturesTradeSignal = """
-        SELECT 
+        SELECT
             contractId AS "ContractId",
             valueDate AS "ValueDate",
-            sequenceId AS "SequenceId",
-            timestamp AS "Timestamp",
-            mean AS "Mean",
-            stdDev AS "StdDev",
-            futuresPrice AS "FuturesPrice",
-            priceChangePercent AS "PriceChangePercent",
-            fundRiskPercent AS "FundRiskPercent",
-            rsi AS "RSI",
-            rsiSlope AS "RSISlope",
-            trendType AS "TrendType",
-            trendStrength AS "TrendStrength",
-            tradeSignal AS "TradeSignal",
-            tdi AS "TDI",
-            tdiStrength AS "TDIStrength",
-            mdi AS "MDI",
-            mdiTrend AS "MDITrend",
-            mdiUpTrendLimit AS "MDIUpTrendLimit",
-            mdiDownTrendLimit AS "MDIDownTrendLimit",
-            upTrendingTrigger AS "UpTrendingTrigger",
-            downTrendingTrigger AS "DownTrendingTrigger",
-            entryTrigger AS "EntryTrigger",
-            exitTrigger AS "ExitTrigger",
-            trendDelta AS "TrendDelta",
-            trendExtreme AS "TrendExtreme",
-            trendReversal AS "TrendReversal",
-            fiftyDMA AS "FiftyDMA",
-            twoHundredDMA AS "TwoHundredDMA",
-            tradeExecuteState AS "TradeExecuteState"
-        FROM futures_trade_signal
+            timePeriod AS "TimePeriod",
+            sequenceId AS "SequenceId"
+        FROM futures_trade_signal_lookup_by_scope
+        WHERE scope = :scope
         LIMIT 1;
     """;
 
@@ -2276,6 +2254,36 @@ internal static class MarketDataDbCql
     public const string InsertVixFuturesEodData = """
         INSERT INTO vix_futures_eod_data (contractId, valueDate, openPrice, highPrice, lowPrice, closePrice, volume)
         VALUES (:contractId, :valueDate, :openPrice, :highPrice, :lowPrice, :closePrice, :volume);
+    """;
+
+    public const string GetLastFuturesItiSignalByTimePeriod = """
+        SELECT
+            contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod",
+            sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime",
+            intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength",
+            intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend",
+            intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice",
+            trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal",
+            trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta",
+            lambda AS "Lambda",
+            tradingDays AS "TradingDays",
+            threshold AS "Threshold",
+            upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger",
+            tradeState AS "TradeState"
+        FROM futures_iti_signal
+        WHERE contractId = :contractId
+        AND valueDate = :valueDate
+        AND timePeriod = :timePeriod
+        LIMIT 1;
     """;
 
     public const string InsertVixFuturesContractIndex = """
@@ -2652,18 +2660,23 @@ internal static class MarketDataDbCql
     """;
 
     public const string GetFuturesTradeSignalIdByValueDate = """
-        SELECT ContractId, MAX(ValueDate) AS ValueDate
-        FROM futures_trade_signal
-        WHERE ValueDate = :valueDate
-        AND TimePeriod = :timePeriod
-        GROUP BY ContractId;
+        SELECT
+            contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod",
+            sequenceId AS "SequenceId"
+        FROM futures_trade_signal_lookup_by_scope
+        WHERE scope = :scope;
     """;
 
     public const string InsertFuturesMacdSignal = """
         INSERT INTO futures_macd_signal (
             contractId,
             valueDate,
+            timePeriod,
+            periodLength,
             timestamp,
+            futuresPrice,
             macdLine,
             signalLine,
             histogram,
@@ -2672,7 +2685,10 @@ internal static class MarketDataDbCql
         ) VALUES (
             :contractId,
             :valueDate,
+            :timePeriod,
+            :periodLength,
             :timestamp,
+            :futuresPrice,
             :macdLine,
             :signalLine,
             :histogram,
@@ -2684,7 +2700,10 @@ internal static class MarketDataDbCql
     public const string GetLastFuturesMacdSignal = """
         SELECT ContractId AS "ContractId",
             ValueDate AS "ValueDate",
+            TimePeriod AS "TimePeriod",
+            PeriodLength AS "PeriodLength",
             Timestamp AS "Timestamp",
+            FuturesPrice AS "FuturesPrice",
             MacdLine AS "MacdLine",
             SignalLine AS "SignalLine",
             Histogram AS "Histogram",
@@ -2720,7 +2739,10 @@ internal static class MarketDataDbCql
         INSERT INTO futures_atr_signal (
             contractId,
             valueDate,
+            timePeriod,
+            periodLength,
             timestamp,
+            futuresPrice,
             atrValue,
             trueRange,
             atr,
@@ -2728,7 +2750,10 @@ internal static class MarketDataDbCql
         ) VALUES (
             :contractId,
             :valueDate,
+            :timePeriod,
+            :periodLength,
             :timestamp,
+            :futuresPrice,
             :atrValue,
             :trueRange,
             :atr,
@@ -2770,19 +2795,25 @@ internal static class MarketDataDbCql
         WHERE ContractId = :contractId 
         AND TimePeriod = :timePeriod
         AND PeriodLength = :periodLength
-        Limit 1;    
+        LIMIT 1;
     """;
 
     public const string DeleteFuturesAtrSignal = """
         DELETE FROM futures_atr_signal
-        WHERE contractId = :contractId AND valueDate = :valueDate
+        WHERE contractId = :contractId
+        AND timePeriod = :timePeriod
+        AND periodLength = :periodLength
+        AND valueDate = :valueDate
     """;
 
     public const string InsertFuturesAdxSignal = """
         INSERT INTO futures_adx_signal (
             contractId,
             valueDate,
+            timePeriod,
+            periodLength,
             timestamp,
+            futuresPrice,
             plusDI,
             minusDI,
             adxValue,
@@ -2791,7 +2822,10 @@ internal static class MarketDataDbCql
         ) VALUES (
             :contractId,
             :valueDate,
+            :timePeriod,
+            :periodLength,
             :timestamp,
+            :futuresPrice,
             :plusDI,
             :minusDI,
             :adxValue,
@@ -2806,6 +2840,7 @@ internal static class MarketDataDbCql
             TimePeriod as "TimePeriod",
             PeriodLength as "PeriodLength",
             Timestamp AS "Timestamp",
+            FuturesPrice AS "FuturesPrice",
             PlusDI AS "PlusDI",
             MinusDI AS "MinusDI",
             AdxValue AS "AdxValue",
@@ -2825,6 +2860,7 @@ internal static class MarketDataDbCql
             TimePeriod as "TimePeriod",
             PeriodLength as "PeriodLength",
             Timestamp AS "Timestamp",
+            FuturesPrice AS "FuturesPrice",
             PlusDI AS "PlusDI",
             MinusDI AS "MinusDI",
             AdxValue AS "AdxValue",
@@ -2839,7 +2875,10 @@ internal static class MarketDataDbCql
 
     public const string DeleteFuturesAdxSignal = """
         DELETE FROM futures_adx_signal
-        WHERE contractId = :contractId AND valueDate = :valueDate
+        WHERE contractId = :contractId
+        AND timePeriod = :timePeriod
+        AND periodLength = :periodLength
+        AND valueDate = :valueDate
     """;
 
 }

@@ -32,6 +32,7 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesItiSignalGeneratedEvent futuresItiSignalGeneratedEvent = default!;
         FuturesItiSignalGeneratedCompleteEvent futuresItiSignalGeneratedCompleteEvent = default!;
         FuturesItiSignalGeneratedFailEvent futuresItiSignalGeneratedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
        
         var contractId = SampleData.ContractId;
@@ -52,7 +53,12 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
            "TestEventListener",
            new()
            {
-               [new ActorMailboxId(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor)] = [FuturesItiSignalGeneratedEvent.Verb]
+               [new ActorMailboxId(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor)] =
+               [
+                   FuturesItiSignalGeneratedEvent.Verb,
+                   FuturesItiSignalGeneratedCompleteEvent.Verb,
+                   FuturesItiSignalGeneratedFailEvent.Verb
+               ]
            },
            EventHandlerAsync
        );
@@ -63,7 +69,7 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         var response = await marketDataAnalyticsApi.GenerateFuturesItiSignalAsync(
             contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp, SampleData.FuturesPrice, SampleData.VixFuturesPrice);
 
-        await Task.Delay(1);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         sw.Stop();
         // assert...
@@ -108,9 +114,15 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
                 if (@event is FuturesItiSignalGeneratedEvent generated)
                     futuresItiSignalGeneratedEvent = generated;
                 if (@event is FuturesItiSignalGeneratedCompleteEvent generatedComplete)
+                {
                     futuresItiSignalGeneratedCompleteEvent = generatedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesItiSignalGeneratedFailEvent generatedFail)
+                {
                     futuresItiSignalGeneratedFailEvent = generatedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -124,12 +136,18 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesItiSignalGeneratedEvent futuresItiSignalGeneratedEvent = default!;
         FuturesItiSignalGeneratedCompleteEvent futuresItiSignalGeneratedCompleteEvent = default!;
         FuturesItiSignalGeneratedFailEvent futuresItiSignalGeneratedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor)] = [FuturesItiSignalGeneratedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor)] =
+                [
+                    FuturesItiSignalGeneratedEvent.Verb,
+                    FuturesItiSignalGeneratedCompleteEvent.Verb,
+                    FuturesItiSignalGeneratedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -154,20 +172,25 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
 
-        await marketDataAnalyticsApi.GenerateFuturesItiSignalAsync(
+        var generateResponse = await marketDataAnalyticsApi.GenerateFuturesItiSignalAsync(
             contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp,
-            SampleData.FuturesPrice, 0);
-        await Task.Delay(10);
+            SampleData.FuturesPrice, SampleData.VixFuturesPrice);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        generateResponse.Success.Should().BeTrue();
+        futuresItiSignalGeneratedCompleteEvent.Should().NotBeNull();
+        futuresItiSignalGeneratedFailEvent.Should().BeNull();
 
         futuresItiSignalGeneratedEvent = default!;
         futuresItiSignalGeneratedCompleteEvent = default!;
         futuresItiSignalGeneratedFailEvent = default!;
+        terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         // act...
         var itiSignalId = new FuturesItiSignalId(contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp);
         var response = await marketDataAnalyticsApi.SetFuturesItiSignalHoldTradeAsync(itiSignalId);
 
-        await Task.Delay(10);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -200,9 +223,15 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
                 if (@event is FuturesItiSignalGeneratedEvent generated)
                     futuresItiSignalGeneratedEvent = generated;
                 if (@event is FuturesItiSignalGeneratedCompleteEvent generatedComplete)
+                {
                     futuresItiSignalGeneratedCompleteEvent = generatedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesItiSignalGeneratedFailEvent generatedFail)
+                {
                     futuresItiSignalGeneratedFailEvent = generatedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -216,12 +245,18 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesItiSignalGeneratedEvent futuresItiSignalGeneratedEvent = default!;
         FuturesItiSignalGeneratedCompleteEvent futuresItiSignalGeneratedCompleteEvent = default!;
         FuturesItiSignalGeneratedFailEvent futuresItiSignalGeneratedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor)] = [FuturesItiSignalGeneratedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor)] =
+                [
+                    FuturesItiSignalGeneratedEvent.Verb,
+                    FuturesItiSignalGeneratedCompleteEvent.Verb,
+                    FuturesItiSignalGeneratedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -253,22 +288,31 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
 
         var itiSignalId = new FuturesItiSignalId(contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp);
 
-        await marketDataAnalyticsApi.GenerateFuturesItiSignalAsync(
+        var generateResponse = await marketDataAnalyticsApi.GenerateFuturesItiSignalAsync(
             contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp,
-            SampleData.FuturesPrice, 0);
-        await Task.Delay(10);
+            SampleData.FuturesPrice, SampleData.VixFuturesPrice);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        await marketDataAnalyticsApi.SetFuturesItiSignalHoldTradeAsync(itiSignalId);
-        await Task.Delay(10);
+        generateResponse.Success.Should().BeTrue();
+        futuresItiSignalGeneratedCompleteEvent.Should().NotBeNull();
+        futuresItiSignalGeneratedFailEvent.Should().BeNull();
+        terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var setResponse = await marketDataAnalyticsApi.SetFuturesItiSignalHoldTradeAsync(itiSignalId);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        setResponse.Success.Should().BeTrue();
+        futuresItiSignalGeneratedEvent.FuturesItiSignal!.TradeState.Should().Be(IntrinsicTimeTradeState.Hold);
 
         futuresItiSignalGeneratedEvent = default!;
         futuresItiSignalGeneratedCompleteEvent = default!;
         futuresItiSignalGeneratedFailEvent = default!;
+        terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         // act...
         var response = await marketDataAnalyticsApi.ClearFuturesItiSignalHoldTradeAsync(itiSignalId);
 
-        await Task.Delay(10);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -301,9 +345,15 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
                 if (@event is FuturesItiSignalGeneratedEvent generated)
                     futuresItiSignalGeneratedEvent = generated;
                 if (@event is FuturesItiSignalGeneratedCompleteEvent generatedComplete)
+                {
                     futuresItiSignalGeneratedCompleteEvent = generatedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesItiSignalGeneratedFailEvent generatedFail)
+                {
                     futuresItiSignalGeneratedFailEvent = generatedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
