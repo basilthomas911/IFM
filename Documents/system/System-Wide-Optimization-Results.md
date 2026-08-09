@@ -364,6 +364,42 @@ Real-network Enforce coverage uses an actual admission controller and an oversiz
 
 The exact final domain TRX evidence is under `TestResults/SystemWideOptimizationTrancheDFinal/` and is intentionally not source-controlled. SWO-02 remains in progress because production-like ObserveOnly/paper-trading measurements, capacity approval, and explicit production activation are still pending.
 
+### 7.12 Experimental MPSC ring mailbox investigation
+
+An independent `ActorThreadQueueMpscRing` now implements the same public mailbox and internal V2 scheduling contracts as the Channel-backed `ActorThreadQueueV2`. A validated `ActorRuntime:Admission:MailboxImplementation` option makes the implementations interchangeable at the DI boundary. `Channel` remains the checked-in development and production default, and the existing Channel implementation was not changed.
+
+The ring uses sequence-stamped slots with one atomic producer ticket after capacity reservation, supports worker ownership handoff, carries the complete admission/timing envelope, and preserves asynchronous slot backpressure, immediate enforced rejection, scheduling, retirement, cancellation, and stop/drain ownership. The scheduler's single-consumer guarantee removes redundant consumer CAS, while the compatibility-reader semaphore is signaled only when an asynchronous reader is waiting. Eight focused tests cover the ring itself and its operation through the shared actor pool.
+
+The final BenchmarkDotNet comparison uses isolated benchmark processes and persistent dedicated producer threads at 8,192 slots. This removes the `Parallel.For`/ThreadPool noise in the original comparison:
+
+| Workload | Producers | Channel | MPSC ring | Ring result |
+| --- | ---: | ---: | ---: | ---: |
+| Scheduled round trip | 1 | 90.19 ns | 79.54 ns | 11.8% faster |
+| Concurrent batch | 1 | 82.51 ns | 77.25 ns | 6.4% faster |
+| Concurrent batch | 4 | 405.19 ns | 391.09 ns | 3.5% faster; confidence intervals overlap |
+| Concurrent batch | 8 | 573.42 ns | 416.87 ns | 27.3% faster |
+
+Neither implementation allocates per hot-path operation. At the current production-compatible capacity, empty mailbox construction allocated 2.13 KB for Channel versus 320.94 KB for the ring and took 224.6 ns versus 151.430 us. Ring allocation falls to 3.12 KB at 64 slots, 10.62 KB at 256, and 40.62 KB at 1,024. The optimized ring is now a credible throughput candidate, especially at eight producers, but remains default-off until high-cardinality retained-memory and end-to-end actor-pipeline evidence supports changing production configuration.
+
+### 7.13 SPSC ring mailbox aligned to striped dispatch
+
+Production mailbox writes were traced to the Core and JetStream dispatch loops. Each `ActorThreadId` hashes to one stripe within its single registered actor-type consumer, so an entity mailbox has one logical stripe producer. `ActorThreadId` includes actor type, actor name, and entity ID but excludes the verb, which keeps every verb for the entity in the same ordered mailbox. The actor scheduler guarantees one concurrent consumer. `ActorThreadQueueSpscRing` makes this invariant explicit as a third DI-selectable implementation. It is now the recommended production implementation, while checked-in production configuration deliberately remains on Channel with capacity 8,192 until a controlled paper-trading or initial-production review.
+
+The production `ActorThreadPoolV2` differs from the legacy leased-thread design: it owns a fixed `2 * ProcessorCount` worker set and one shared ready-mailbox queue. A worker processes at most 64 messages before releasing or rescheduling the mailbox, and the atomic mailbox scheduling state prevents another worker from overlapping it. The same logical entity can therefore migrate between OS worker threads while remaining strictly sequential. There is no two-minute task retirement in V2. Drained entity mailboxes remain retained up to `RetainedIdleMailboxesPerActor` (1,024 by default); beyond that bound, newly-idle mailboxes retire immediately and their workers simply continue reading the shared ready queue.
+
+The SPSC hot path uses cache-isolated producer/consumer indices, direct power-of-two array masking, no producer CAS, no per-message capacity semaphore, and no atomic mailbox count. The queue owns one immutable ring for its lifetime, drain completion reads only the remotely-owned producer index, and already-scheduled burst writes avoid a redundant locked compare/exchange. Full-ring backpressure and empty compatibility-reader waits use transition-only signals. Async backpressure, cancellation, enforced immediate rejection, accounting, FIFO scheduling, retirement, and stop/drain ownership remain covered.
+
+Isolated-process BenchmarkDotNet results:
+
+| Workload | Capacity | Channel | MPSC ring | SPSC ring | SPSC result |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Scheduled actor round trip | 8,192 | 89.37 ns | 78.88 ns | 24.68 ns | 72.4% faster than Channel |
+| 4,096-message enqueue/schedule/drain burst | 8,192 | 86.50 ns | 78.80 ns | 24.43 ns | 71.8% faster than Channel |
+| Dedicated single-producer batch | 8,192 | 82.07 ns | n/a | 27.50 ns | 66.5% faster than Channel |
+| Dedicated single-producer batch | 65,536 | 82.80 ns | n/a | 27.77 ns | 66.5% faster than Channel |
+
+Every hot-path case reports 0 B/op. The final immutable-ring/drain and scheduling pass improved the SPSC scheduled round trip from 25.19 ns to 24.68 ns (2.0%); the read-before-CAS scheduling fast path improved the scheduled burst from 24.83 ns to 24.43 ns per message (1.6%). Increasing SPSC capacity from 8,192 to 65,536 did not produce a meaningful throughput penalty in this 4,096-operation working set. Empty 8,192-slot mailbox creation allocates 256.98 KB for SPSC versus 2.13 KB for Channel and 321.05 KB for MPSC. SPSC is recommended for production based on the verified topology and measured throughput, subject to confirming the producer invariant, full-pipeline latency, retained memory, and high-cardinality behavior during paper trading or an initial controlled production run. Until that review, Channel remains the active production selection and 8,192 remains the default capacity; 65,536 remains experimental.
+
 ## 8. References
 
 - [OpenTelemetry .NET metrics documentation](https://opentelemetry.io/docs/languages/dotnet/metrics/)
@@ -383,3 +419,7 @@ The exact final domain TRX evidence is under `TestResults/SystemWideOptimization
 | 0.3 | 2026-08-09 | Recorded SWO-02 Tranche B atomic runtime enforcement, concurrency and lifecycle coverage, accepted/rejected benchmarks, complete Release verification, and pending transport activation. |
 | 0.4 | 2026-08-09 | Recorded SWO-02 Tranche C Core classification, typed overload replies, delayed JetStream redelivery, transport metrics, complete Release verification, and the remaining rollout gate. |
 | 0.5 | 2026-08-09 | Recorded SWO-02 Tranche D route migration, local enforced stress and CPU/allocation evidence, complete regression verification, and the remaining production capacity/activation gate. |
+| 0.6 | 2026-08-09 | Recorded the optional MPSC ring mailbox, correctness coverage, Channel comparison benchmarks, and the decision to retain Channel as the production default. |
+| 0.7 | 2026-08-09 | Recorded the optimized atomic-ticket/single-consumer MPSC ring, isolated persistent-producer benchmarks, and its improved throughput while retaining the production rollout gate. |
+| 0.8 | 2026-08-09 | Recorded the striped-topology SPSC mailbox, transition-only backpressure, 8,192/65,536 capacity benchmarks, and the unchanged Channel/8,192 production defaults. |
+| 0.9 | 2026-08-09 | Marked SPSC as the recommended production implementation while retaining Channel as the checked-in selection until paper-trading or initial-production validation. |

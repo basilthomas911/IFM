@@ -527,6 +527,8 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 2026-08-09 | Implement Tranche B runtime enforcement without enabling it in production. | Runtime safety and performance can be proven with deterministic test limits while real capacities and transport-specific overload policies remain pending. |
 | 2026-08-09 | Implement Tranche C while keeping production in `ObserveOnly`. | Typed replies and durable redelivery can be proven now, but the audited required non-durable Command/Supervisor traffic must block enforcement until migrated. |
 | 2026-08-09 | Complete Tranche D locally without changing production mode. | Required Command/Supervisor routes are resolved and enforced behavior is verified, but capacity selection still requires production-like memory and traffic evidence. |
+| 2026-08-09 | Retain Channel as the actor-mailbox default while preparing an optimized MPSC production trial. | The optimized ring is 6.4% faster with one producer, 27.3% faster with eight producers, and 11.8% faster in the scheduled round trip; the four-producer result is 3.5% faster but statistically overlapping. It still allocates 320.94 KB per 8,192-slot mailbox versus 2.13 KB for Channel, so high-cardinality and end-to-end evidence is required before changing production configuration. |
+| 2026-08-09 | Recommend the topology-aligned SPSC mailbox for production, but retain Channel and capacity 8,192 in checked-in production configuration until the paper-trading or initial-production review. | SPSC is 72.4% faster than Channel in the scheduled round trip, 71.8% faster in the scheduled burst, and 66.5% faster in the dedicated single-producer batch. The activation gate must confirm the single-producer stripe invariant, full-pipeline latency, retained memory, and high-cardinality mailbox behavior under production-like traffic. Capacity 65,536 remains experimental. |
 
 ## 13. Revision history
 
@@ -539,6 +541,10 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 0.5 | 2026-08-09 | Recorded SWO-02 Tranche B atomic enforcement, queue lifecycle safety, benchmark results, and the remaining transport-policy gate. |
 | 0.6 | 2026-08-09 | Recorded SWO-02 Tranche C Core classification, typed overload replies, delayed JetStream redelivery, transport metrics, and the remaining rollout gate. |
 | 0.7 | 2026-08-09 | Recorded SWO-02 Tranche D route migration, local saturation evidence, full regression confirmation, and the remaining production measurement and activation gate. |
+| 0.8 | 2026-08-09 | Recorded the pluggable MPSC ring mailbox experiment and the benchmark-supported decision to retain Channel as default. |
+| 0.9 | 2026-08-09 | Recorded the optimized MPSC implementation and isolated-process benchmark evidence supporting a future production trial. |
+| 0.10 | 2026-08-09 | Recorded the topology-aligned SPSC mailbox, capacity comparison, and production rollout requirements. |
+| 0.11 | 2026-08-09 | Marked SPSC as the recommended production implementation while retaining Channel as the active selection until paper-trading or initial-production validation. |
 
 ## 14. Related documents
 

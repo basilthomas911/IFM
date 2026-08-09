@@ -37,6 +37,31 @@ public sealed class ActorThreadPoolV2Tests
         runtime.Actor.DisposeCounts.Values.Should().OnlyContain(count => count == 1);
     }
 
+    [Theory]
+    [InlineData(ActorMailboxImplementation.MpscRing)]
+    [InlineData(ActorMailboxImplementation.SpscRing)]
+    public async Task RingMailbox_PlugsIntoActorPoolAndPreservesFifoSingleConsumerExecution(
+        ActorMailboxImplementation mailboxImplementation)
+    {
+        const int messageCount = 500;
+        var runtime = CreateRuntime(
+            messageCount,
+            mailboxImplementation: mailboxImplementation);
+        await using var pool = runtime.Pool;
+
+        for (var sequence = 0; sequence < messageCount; sequence++)
+        {
+            (await runtime.Mailbox.ThreadQueues.WriteAsync(
+                new TestActorMessage(sequence) { Owner = runtime.Actor })).Should().BeTrue();
+        }
+        await runtime.Actor.Completed.WaitAsync(TimeSpan.FromSeconds(10));
+        await runtime.Actor.DisposedCompleted.WaitAsync(TimeSpan.FromSeconds(10));
+
+        runtime.Actor.MaximumEntityConcurrency.Should().Be(1);
+        runtime.Actor.Sequences.Should().Equal(Enumerable.Range(0, messageCount));
+        runtime.Actor.DisposeCounts.Values.Should().OnlyContain(count => count == 1);
+    }
+
     [Fact]
     public async Task DifferentEntities_CanRunConcurrently()
     {
@@ -234,12 +259,19 @@ public sealed class ActorThreadPoolV2Tests
     static TestRuntime CreateRuntime(
         int expectedMessages,
         TimeSpan handlerDelay = default,
-        int maxRetainedIdleQueues = ActorAdmissionOptions.ExistingRetainedIdleMailboxesPerActor)
+        int maxRetainedIdleQueues = ActorAdmissionOptions.ExistingRetainedIdleMailboxesPerActor,
+        ActorMailboxImplementation mailboxImplementation = ActorMailboxImplementation.Channel)
     {
         var mailboxId = new ActorMailboxId(ActorType.Command, "SchedulerTest");
         var container = new Mock<IContainerInstance>();
         container.Setup(instance => instance.Resolve<IActorThreadQueue>())
-            .Returns(() => new ActorThreadQueueV2(64));
+            .Returns(() => mailboxImplementation switch
+            {
+                ActorMailboxImplementation.Channel => new ActorThreadQueueV2(64),
+                ActorMailboxImplementation.MpscRing => new ActorThreadQueueMpscRing(64),
+                ActorMailboxImplementation.SpscRing => new ActorThreadQueueSpscRing(64),
+                _ => throw new ArgumentOutOfRangeException(nameof(mailboxImplementation))
+            });
 
         var supervisor = new Mock<IActorSupervisor>();
         supervisor.SetupGet(instance => instance.Container).Returns(container.Object);

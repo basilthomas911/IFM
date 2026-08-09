@@ -267,11 +267,23 @@ public static class Startup
                 instance ??= GetContainerInstance(type)!;
                 return instance;
             }));
-            services.AddTransient<IActorThreadQueue>(provider => new ActorThreadQueueV2(
-                provider.GetRequiredService<ActorAdmissionController>(),
-                admissionOptions.DefaultMailboxMessageLimit,
-                32,
-                32));
+            services.AddTransient<IActorThreadQueue>(provider =>
+                admissionOptions.MailboxImplementation switch
+                {
+                    ActorMailboxImplementation.Channel => new ActorThreadQueueV2(
+                        provider.GetRequiredService<ActorAdmissionController>(),
+                        admissionOptions.DefaultMailboxMessageLimit,
+                        32,
+                        32),
+                    ActorMailboxImplementation.MpscRing => new ActorThreadQueueMpscRing(
+                        provider.GetRequiredService<ActorAdmissionController>(),
+                        admissionOptions.DefaultMailboxMessageLimit),
+                    ActorMailboxImplementation.SpscRing => new ActorThreadQueueSpscRing(
+                        provider.GetRequiredService<ActorAdmissionController>(),
+                        admissionOptions.DefaultMailboxMessageLimit),
+                    _ => throw new InvalidOperationException(
+                        $"Unknown actor mailbox implementation '{admissionOptions.MailboxImplementation}'.")
+                });
 
 
         }

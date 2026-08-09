@@ -14,6 +14,7 @@ This worksheet converts actor payload, queue, transport, and host-memory measure
 
 | Capacity | Current value | Source |
 | --- | ---: | --- |
+| Mailbox implementation | Channel | Active production-compatible selection remains `Channel`; `SpscRing` is the recommended production target for a controlled paper-trading or initial-production trial, while `MpscRing` remains comparison-only |
 | Per-entity actor mailbox | 8,192 messages | `ActorRuntime:Admission:DefaultMailboxMessageLimit` |
 | Retained idle entity queues per actor | 1,024 | `ActorRuntime:Admission:RetainedIdleMailboxesPerActor` |
 | Actor workers on this host | 64 | `Environment.ProcessorCount * 2`, with 32 logical processors visible to the process |
@@ -207,3 +208,4 @@ Production must not enable enforcement until the reviewer approves:
 | 0.2 | 2026-08-09 | Added Tranche B accepted and rejected runtime-enforcement benchmarks while retaining the pending production capacity gate. |
 | 0.3 | 2026-08-09 | Added Tranche C transport metrics, validated reply/NAK settings, explicit Core traffic inventory, and the required non-durable enforcement blocker. |
 | 0.4 | 2026-08-09 | Recorded the Tranche D enforced stress baseline, Command request/reply migration, inactive Supervisor route, and the remaining production measurement and capacity-approval gate. |
+| 0.5 | 2026-08-09 | Recorded that the SPSC 65,536-slot capacity experiment has neutral hot-path cost but does not change the pending memory-budget gate or the 8,192-slot default. |

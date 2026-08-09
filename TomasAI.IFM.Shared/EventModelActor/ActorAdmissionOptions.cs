@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace TomasAI.IFM.Shared.EventModelActor;
 
 /// <summary>Validated process, actor-type, and mailbox capacity configuration.</summary>
@@ -8,6 +10,7 @@ public sealed class ActorAdmissionOptions
     public const int ExistingRetainedIdleMailboxesPerActor = 1024;
 
     public ActorAdmissionMode Mode { get; set; } = ActorAdmissionMode.Disabled;
+    public ActorMailboxImplementation MailboxImplementation { get; set; } = ActorMailboxImplementation.Channel;
     public long GlobalMessageLimit { get; set; }
     public long GlobalByteLimit { get; set; }
     public int MaximumPayloadBytes { get; set; }
@@ -24,6 +27,8 @@ public sealed class ActorAdmissionOptions
         ActorTypes ??= [];
         if (!Enum.IsDefined(Mode))
             throw new InvalidOperationException($"Unknown actor admission mode '{Mode}'.");
+        if (!Enum.IsDefined(MailboxImplementation))
+            throw new InvalidOperationException($"Unknown actor mailbox implementation '{MailboxImplementation}'.");
         ValidateNonNegative(GlobalMessageLimit, nameof(GlobalMessageLimit));
         ValidateNonNegative(GlobalByteLimit, nameof(GlobalByteLimit));
         ValidateNonNegative(MaximumPayloadBytes, nameof(MaximumPayloadBytes));
@@ -31,6 +36,12 @@ public sealed class ActorAdmissionOptions
         ValidateNonNegative(DefaultActorTypeByteLimit, nameof(DefaultActorTypeByteLimit));
         if (DefaultMailboxMessageLimit <= 0)
             throw new InvalidOperationException($"{nameof(DefaultMailboxMessageLimit)} must be greater than zero.");
+        if (MailboxImplementation is ActorMailboxImplementation.MpscRing or ActorMailboxImplementation.SpscRing
+            && !BitOperations.IsPow2(DefaultMailboxMessageLimit))
+        {
+            throw new InvalidOperationException(
+                $"{nameof(DefaultMailboxMessageLimit)} must be a power of two for {MailboxImplementation}.");
+        }
         if (RetainedIdleMailboxesPerActor < 0)
             throw new InvalidOperationException($"{nameof(RetainedIdleMailboxesPerActor)} cannot be negative.");
         if (JetStreamNakDelayMilliseconds < 0)
