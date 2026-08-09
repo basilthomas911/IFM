@@ -29,6 +29,8 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     readonly EventRouteRegistry _eventRouters;
     readonly ILogger<ActorSupervisor> _logger;
     readonly IContainerInstance _container;
+    readonly ActorAdmissionOptions _admissionOptions;
+    readonly ActorAdmissionController _admissionController;
     readonly static string _serviceId = "ActorSupervisor";
     readonly object _shutdownGate = new();
     readonly object _externalProducerGate = new();
@@ -39,9 +41,25 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// Initializes a new instance of <see cref="ActorSupervisor"/>.
     /// </summary>
     public ActorSupervisor(IContainerInstance container, ILogger<ActorSupervisor> logger)
+        : this(
+            container,
+            logger,
+            new ActorAdmissionOptions(),
+            ActorAdmissionController.Disabled)
+    {
+    }
+
+    public ActorSupervisor(
+        IContainerInstance container,
+        ILogger<ActorSupervisor> logger,
+        ActorAdmissionOptions admissionOptions,
+        ActorAdmissionController admissionController)
     {
         _container = IsArgumentNull.Set(container);
         _logger = logger ?? NullLogger<ActorSupervisor>.Instance;
+        _admissionOptions = admissionOptions ?? throw new ArgumentNullException(nameof(admissionOptions));
+        _admissionOptions.Validate();
+        _admissionController = admissionController ?? throw new ArgumentNullException(nameof(admissionController));
         _producers = new ConcurrentDictionary<ActorMailboxId, IActorProducer>();
         _jsProducers = new ConcurrentDictionary<ActorMailboxId, IJSActorProducer>();
         _externalJsProducers = new ConcurrentDictionary<ActorMailboxId, IJSActorProducer>();
@@ -168,7 +186,11 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// <param name="mailboxId">The unique identifier of the actor for which the mailbox is being created.</param>
     /// <returns>An instance of <see cref="IActorMailbox"/> representing the newly created mailbox.</returns>
     public IActorMailbox CreateMailbox(ActorMailboxId mailboxId)
-        => new ActorMailbox(this, mailboxId);
+        => new ActorMailbox(
+            this,
+            mailboxId,
+            _admissionOptions.RetainedIdleMailboxesPerActor,
+            _admissionController);
 
     /// <summary>
     /// Retrieves an actor thread for the specified thread id from the internal thread pool.

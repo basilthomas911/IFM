@@ -39,7 +39,7 @@ sealed class ActorThreadV2(
         var subject = message.Subject;
         if (!_supervisor.Children.TryGetValue(subject.ActorId, out var actor))
             throw new KeyNotFoundException($"Actor with mailbox id '{subject.ActorId}' not found.");
-        return actor.Mailbox.ThreadQueues.Write(message, subject);
+        return actor.Mailbox.ThreadQueues.TryAdmit(message, subject).Accepted;
     }
 
     public ValueTask WriteToActorThreadQueueAsync(
@@ -59,19 +59,23 @@ sealed class ActorThreadV2(
             return ValueTask.FromException(
                 new KeyNotFoundException($"Actor with mailbox id '{subject.ActorId}' not found."));
 
-        var pending = actor.Mailbox.ThreadQueues.WriteAsync(message, subject, cancellationToken);
+        var pending = actor.Mailbox.ThreadQueues.TryAdmitAsync(message, subject, cancellationToken);
         if (pending.IsCompletedSuccessfully)
-            return pending.Result
+            return pending.Result.Accepted
                 ? ValueTask.CompletedTask
-                : ValueTask.FromException(new InvalidOperationException("Actor mailbox rejected the message."));
+                : ValueTask.FromException(CreateAdmissionException(pending.Result));
         return AwaitWrite(pending);
     }
 
-    static async ValueTask AwaitWrite(ValueTask<bool> pending)
+    static async ValueTask AwaitWrite(ValueTask<ActorAdmissionResult> pending)
     {
-        if (!await pending.ConfigureAwait(false))
-            throw new InvalidOperationException("Actor mailbox rejected the message.");
+        var result = await pending.ConfigureAwait(false);
+        if (!result.Accepted)
+            throw CreateAdmissionException(result);
     }
+
+    static InvalidOperationException CreateAdmissionException(ActorAdmissionResult result)
+        => new($"Actor mailbox rejected the message: {result.Reason.ToStringFast()}.");
 
     public bool Start()
     {

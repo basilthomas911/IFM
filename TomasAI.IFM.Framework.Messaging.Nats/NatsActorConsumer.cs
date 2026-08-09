@@ -29,8 +29,6 @@ public class NatsActorConsumer(
     NatsConnectionManager? connectionManager = null)
     : IActorConsumer
 {
-    const int DefaultStripeCapacity = 4096;
-
     readonly INatsConsumerOptions _options = IsArgumentNull.Set(options);
     readonly INatsSerializer<byte[]> _deserializer = new NatsByteArrayMessageSerializer();
     readonly ILogger _logger = IsArgumentNull.Set(logger);
@@ -127,7 +125,7 @@ public class NatsActorConsumer(
             {
                 ChannelOpts = new NatsSubChannelOpts
                 {
-                    Capacity = DefaultStripeCapacity * Math.Max(1, _options.DispatcherCount),
+                    Capacity = GetSubscriptionCapacity(),
                     FullMode = BoundedChannelFullMode.Wait
                 }
             };
@@ -139,7 +137,7 @@ public class NatsActorConsumer(
             for (var i = 0; i < dispatcherCount; i++)
             {
                 _stripeChannels[i] = Channel.CreateBounded<(IActorMessage, ActorSubject)>(
-                    new BoundedChannelOptions(DefaultStripeCapacity)
+                    new BoundedChannelOptions(GetDispatcherCapacity())
                     {
                         SingleWriter = true,
                         SingleReader = true,
@@ -184,6 +182,20 @@ public class NatsActorConsumer(
             _lifecycleGate.Release();
         }
     }
+
+    int GetDispatcherCapacity()
+        => _options is NatsConsumerOptions concrete
+            ? concrete.DispatcherCapacity
+            : _options.DispatcherCapacity > 0
+                ? _options.DispatcherCapacity
+                : NatsConsumerOptions.ExistingDispatcherCapacity;
+
+    int GetSubscriptionCapacity()
+        => _options is NatsConsumerOptions concrete
+            ? concrete.GetSubscriptionCapacity()
+            : _options.SubscriptionCapacity > 0
+                ? _options.SubscriptionCapacity
+                : checked(GetDispatcherCapacity() * Math.Max(1, _options.DispatcherCount));
 
     async ValueTask StopCoreAsync()
     {
@@ -442,12 +454,14 @@ public class NatsActorConsumer(
                 {
                     var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
                         ?? throw new InvalidOperationException(string.Concat("Actor not found in context children for mailbox ", msgSubject.ActorId.ToString()));
-                    transferred = await actor.Mailbox.ThreadQueues.WriteAsync(
+                    var admission = await actor.Mailbox.ThreadQueues.TryAdmitAsync(
                         msg,
                         msgSubject,
                         CancellationToken.None).ConfigureAwait(false);
-                    if (!transferred)
-                        throw new InvalidOperationException($"Mailbox rejected message for {msgSubject.ActorId}.");
+                    transferred = admission.Accepted;
+                    if (!admission.Accepted)
+                        throw new InvalidOperationException(
+                            $"Mailbox rejected message for {msgSubject.ActorId}: {admission.Reason.ToStringFast()}.");
                 }
                 catch (Exception ex)
                 {

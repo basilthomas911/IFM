@@ -259,7 +259,7 @@ public class NatsActorEventListenerTests
     }
 
     [Fact]
-    public async Task StartAsync_WithMultipleDifferentMailboxKeys_ShouldThrowArgumentException()
+    public async Task StartAsync_WithMultipleMailboxKeys_ShouldStartAllSubscriptions()
     {
         // Arrange
         var listener = new NatsActorEventListener(_options, _logger);
@@ -274,11 +274,13 @@ public class NatsActorEventListenerTests
         var eventHandler = CreateValidEventHandler();
 
         // Act
-        Func<Task> act = async () => await listener.StartAsync(eventListenerId, eventMap, eventHandler);
+        await listener.StartAsync(eventListenerId, eventMap, eventHandler);
 
         // Assert
-        await act.Should().ThrowAsync<ArgumentException>()
-            .WithMessage("*Event map must have same mailbox key*");
+        listener.State.Should().BeOneOf(EventListenerState.Started, EventListenerState.Running);
+
+        // Cleanup
+        await listener.StopAsync();
     }
 
     [Fact]

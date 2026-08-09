@@ -23,6 +23,8 @@ public class NatsOwnedEventMessageTests
             sourceEvent.Subject.Verb,
             sourceEvent.Subject.EntityId);
         var routed = payload.CreateBranch(routedSubject);
+        primary.AdmissionSizeBytes.Should().BeGreaterThan(0);
+        routed.AdmissionSizeBytes.Should().Be(primary.AdmissionSizeBytes);
         payload.ReferenceCount.Should().Be(3);
         payload.Dispose();
         payload.ReferenceCount.Should().Be(2);

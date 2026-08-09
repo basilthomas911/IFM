@@ -23,9 +23,9 @@ public record GetLastFuturesTickDataByTickDateParameter : IActorEntityId, IQuery
     {
         ContractId = contractId ?? string.Empty;
         TickDate = tickDate;
-        QueryParams = $"contractId={ContractId}&tickDate={TickDate:yyyy-MM-ddTHH:mm:ss.fff}";
+        QueryParams = $"contractId={ContractId}&tickDate={TickDate:yyyy-MM-ddTHH:mm:ss.fffffff}";
     }
 
     public string Format()
-        => $"{ContractId}.{TickDate:yyyy-MM-ddTHH:mm:ss.fff}";
+        => $"{ContractId}.{TickDate:yyyy-MM-ddTHH:mm:ss.fffffff}";
 }

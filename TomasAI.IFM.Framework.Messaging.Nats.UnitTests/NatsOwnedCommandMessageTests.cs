@@ -33,12 +33,14 @@ public class NatsOwnedCommandMessageTests
             default);
         var message = new NatsOwnedCommandMessage(source, command.Subject);
 
+        message.AdmissionSizeBytes.Should().Be(writer.WrittenCount);
         var deserialized = message.AsCommand<TestCommand>();
 
         deserialized.Should().BeEquivalentTo(command);
         message.ReleasePayload();
         message.ReleasePayload();
         message.IsPayloadReleased.Should().BeTrue();
+        message.AdmissionSizeBytes.Should().Be(0);
         FluentActions.Invoking(() => message.AsCommand<TestCommand>())
             .Should().Throw<ObjectDisposedException>();
     }

@@ -24,6 +24,18 @@ public interface INatsJetStreamConsumerOptions
     /// <remarks>Defaults to 4. Values less than 1 are clamped to 1.</remarks>
     int DispatcherCount { get; set; }
 
+    /// <summary>Gets or sets the bounded capacity of each dispatch stripe.</summary>
+    int DispatcherCapacity { get; set; }
+
+    /// <summary>Gets or sets MaxAckPending. Zero derives it from dispatcher count and capacity.</summary>
+    int MaxAckPending { get; set; }
+
+    /// <summary>Gets or sets the maximum messages requested per consume batch. Zero uses the derived outstanding limit.</summary>
+    int MaxMessages { get; set; }
+
+    /// <summary>Gets or sets the consume refill threshold. Zero uses one dispatch-stripe capacity.</summary>
+    int ThresholdMessages { get; set; }
+
     /// <summary>
     /// Gets or sets whether event ingress uses a reference-counted NATS pooled
     /// payload across the primary and routed actor mailboxes. Disable only for

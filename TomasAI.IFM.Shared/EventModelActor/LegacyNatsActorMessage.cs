@@ -9,6 +9,8 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </summary>
 public sealed class LegacyNatsActorMessage(NatsMsg<byte[]> message) : IActorMessage
 {
+    public int AdmissionSizeBytes => message.Data?.Length ?? 0;
+
     public ActorSubject Subject { get; } = message.Subject.ToSubject();
 
     public ActorSubject ReplySubject { get; set; } = default!;

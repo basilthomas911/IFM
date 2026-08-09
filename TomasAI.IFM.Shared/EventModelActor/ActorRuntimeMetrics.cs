@@ -75,6 +75,29 @@ internal static class ActorRuntimeMetrics
         "ifm.actor.stage.failures",
         description: "Actor processing stage failures handled by a domain actor.");
 
+    internal static readonly Counter<long> AdmissionWouldReject = Meter.CreateCounter<long>(
+        "ifm.actor.admission.would_reject",
+        description: "Messages that would be rejected by configured admission limits in observe-only mode.");
+
+    internal static readonly Counter<long> AdmissionRejected = Meter.CreateCounter<long>(
+        "ifm.actor.admission.rejected",
+        description: "Messages rejected by enforced actor admission limits.");
+
+    internal static readonly UpDownCounter<long> AdmissionInUse = Meter.CreateUpDownCounter<long>(
+        "ifm.actor.admission.in_use",
+        "{message}",
+        "Messages currently tracked by aggregate actor admission.");
+
+    internal static readonly UpDownCounter<long> AdmissionBytesInUse = Meter.CreateUpDownCounter<long>(
+        "ifm.actor.admission.bytes_in_use",
+        "By",
+        "Serialized payload bytes currently tracked by aggregate actor admission.");
+
+    internal static readonly Histogram<long> AdmissionPayloadSize = Meter.CreateHistogram<long>(
+        "ifm.actor.admission.payload.size",
+        "By",
+        "Serialized actor message payload size observed at mailbox admission.");
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static long StartEnqueueWait()
         => EnqueueWaitDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
@@ -159,6 +182,37 @@ internal static class ActorRuntimeMetrics
             1,
             new KeyValuePair<string, object?>("stage", stage),
             ActorTypeTag(actorType));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void RecordAdmissionAccepted(ActorType actorType, int payloadBytes)
+    {
+        var tag = ActorTypeTag(actorType);
+        AdmissionInUse.Add(1, tag);
+        AdmissionBytesInUse.Add(payloadBytes, tag);
+        AdmissionPayloadSize.Record(payloadBytes, tag);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void RecordAdmissionReleased(ActorType actorType, int payloadBytes)
+    {
+        var tag = ActorTypeTag(actorType);
+        AdmissionInUse.Add(-1, tag);
+        AdmissionBytesInUse.Add(-payloadBytes, tag);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void RecordAdmissionWouldReject(ActorType actorType, ActorAdmissionReason reason)
+        => AdmissionWouldReject.Add(
+            1,
+            ActorTypeTag(actorType),
+            new KeyValuePair<string, object?>("reason", reason.ToStringFast()));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void RecordAdmissionRejected(ActorType actorType, ActorAdmissionReason reason)
+        => AdmissionRejected.Add(
+            1,
+            ActorTypeTag(actorType),
+            new KeyValuePair<string, object?>("reason", reason.ToStringFast()));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void RecordDuration(Histogram<double> histogram, long startedTimestamp, ActorType actorType)

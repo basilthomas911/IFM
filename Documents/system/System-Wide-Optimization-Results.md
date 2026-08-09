@@ -5,11 +5,11 @@
 **Created:** 2026-08-09
 **Last updated:** 2026-08-09
 **Baseline commit:** `32d025c8`
-**Current work package:** SWO-01, Operational metrics export and stage timing
+**Current work package:** SWO-02 Tranche B, actor runtime enforcement
 
 ## 1. Executive result
 
-SWO-01 now has a production-capable OpenTelemetry/OTLP export path, low-cardinality actor and NATS instruments, detailed actor processing-stage timing, focused correctness tests, and a BenchmarkDotNet overhead measurement. The complete domain integration gate passes with 193 of 193 tests across all ten domain integration projects.
+SWO-01 has a production-capable OpenTelemetry/OTLP export path, low-cardinality actor and NATS instruments, detailed actor processing-stage timing, focused correctness tests, and a BenchmarkDotNet overhead measurement. SWO-02 Tranches A and B add aggregate actor admission contracts, observe-only evidence, and allocation-free runtime enforcement with exact capacity ownership. Production configuration remains `ObserveOnly` until capacity evidence and Tranche C transport policies are approved.
 
 The code tranche is implemented and verified, but SWO-01 remains in **Measuring** status until a production-like collector and paper-trading run provide the required p95/p99 attribution and exporter/load evidence. This document distinguishes implemented evidence from work that still requires a live topology.
 
@@ -191,16 +191,122 @@ The following items require a live collector, provider-specific integration, or 
 
 These gaps do not block the next optimization work package from being designed, but SWO-01 should remain **Measuring** until the operational acceptance criteria are met.
 
-## 7. References
+## 7. SWO-02 Tranche A result
+
+### 7.1 Implemented baseline
+
+Tranche A adds:
+
+- validated `Disabled`, `ObserveOnly`, and future `Enforce` configuration contracts;
+- structured admission result and bounded-cardinality rejection reasons;
+- exact serialized payload-byte reporting for every current NATS actor-message implementation;
+- process-wide and actor-type message/byte utilization, payload-size, and would-reject instruments;
+- observe-only accounting integrated with enqueue, dequeue, failed write, and stop-drain paths;
+- configurable per-mailbox and retained-idle-mailbox capacity;
+- configurable Core NATS dispatcher/subscription capacity and JetStream dispatcher/outstanding/refill capacity; and
+- a zero-retained-idle-queue lifecycle test and focused validation of options, accounting, payload ownership, and compatibility defaults.
+
+`Enforce` mode is now implemented by Tranche B at the actor-runtime boundary. The checked-in host configuration remains `ObserveOnly`; transport-specific command/query replies and durable-event rejection behavior belong to Tranche C and must be complete before production enforcement.
+
+### 7.2 Admission microbenchmark
+
+`ActorAdmissionBenchmarks` executes 256 scheduled enqueue/dequeue operations with a 256-byte payload. On .NET 10.0.10 x64 under Windows 10.0.19045, using three warmups and eight measurement iterations:
+
+| Mode | Mean | Increment | Allocated | Lock contentions |
+| --- | ---: | ---: | ---: | ---: |
+| Disabled | 84.710 ns/op | Baseline | 0 B reported | 0 reported |
+| ObserveOnly | 150.620 ns/op | 65.910 ns/op | 0 B reported | 0 reported |
+
+The incremental cost passes the proposed 75 ns gate. This isolated measurement does not include transport, serialization, handler, storage, telemetry export, or scheduler cost.
+
+### 7.3 Capacity status
+
+No production message or byte limits are claimed. `Documents/system/Actor-Backlog-Capacity-Worksheet.md` records compatibility geometry, memory formulas, required normal/open/reconnect/replay measurements, and the approval gate. Runtime enforcement can be validated with deterministic test limits, but production activation and transport enforcement remain blocked until that evidence and the Core traffic classification are reviewed.
+
+### 7.4 Verification
+
+The final Tranche A Release verification passed:
+
+| Gate | Result |
+| --- | ---: |
+| Complete solution build | 0 warnings, 0 errors |
+| `TomasAI.IFM.Shared.UnitTests` | 73/73 passed |
+| `TomasAI.IFM.Framework.Messaging.Nats.UnitTests` | 37/37 passed |
+| `TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests` | 40/40 passed |
+| Ten-domain integration gate | 193/193 passed |
+
+The domain TRX evidence is generated under `TestResults/SystemWideOptimizationTrancheA/` and is intentionally not source-controlled.
+
+The first NATS integration run exposed two restart failures because an event listener disposed its internally owned process-level connection manager on `StopAsync`. The listener now disposes and recreates its owned manager between start cycles. A stale listener test also claimed that multiple mailbox subscriptions were invalid; the full domain gate proved MarketData Feed legitimately requires them, so the test now verifies multi-mailbox startup instead of blocking the supported production contract. One complete run also saw the existing SPSC concurrent test exceed its 10-second deadline; the test passed alone in 40 ms and the subsequent complete NATS run passed 40/40, so no SPSC implementation change was made without reproducible evidence.
+
+### 7.5 Tranche B runtime enforcement
+
+Tranche B adds:
+
+- CAS-based global and actor-type message/byte reservations with reverse-order rollback;
+- immediate oversized, global, actor-type, mailbox, stopping, and retired-queue outcomes;
+- non-waiting entity-slot acquisition in `Enforce` mode while preserving existing waiting behavior in `Disabled` and `ObserveOnly`;
+- a single reservation carried across retired-queue retry and stored in the accepted queue envelope;
+- release on dequeue, failed publish, cancellation, exception, and stop drain;
+- structured `TryAdmit`/`TryAdmitAsync` production paths used by actor workers and NATS dispatchers;
+- explicit cold queue create/`TryAdd`/stop cleanup so losing factories cannot leak started queues; and
+- a separate `ifm.actor.admission.rejected` metric with bounded actor-type and reason tags.
+
+The deterministic suite covers exact count and byte boundaries, every controller rejection dimension, rollback, 2,000 concurrent reservation attempts, immediate hot-mailbox rejection, a 128-entity high-cardinality burst, payload ownership, stop drain, retired reservation transfer, distinct stopping behavior, and an eight-writer cold-key creation race.
+
+### 7.6 Tranche B microbenchmarks
+
+The final accepted-path run uses the same 256-operation scheduled enqueue/dequeue benchmark and environment as Tranche A:
+
+| Mode | Mean | Increment over disabled | Allocated | Lock contentions |
+| --- | ---: | ---: | ---: | ---: |
+| Disabled | 89.37 ns/op | Baseline | 0 B reported | 0 reported |
+| ObserveOnly | 178.11 ns/op | 88.74 ns/op | 0 B reported | 0 reported |
+| Enforce | 146.75 ns/op | 57.38 ns/op | 0 B reported | 0 reported |
+
+The enforced accepted path passes the 75 ns incremental gate. Observe-only is intentionally more expensive when hypothetical thresholds are configured because it accepts the message and also evaluates and records which limit would have rejected it.
+
+Final enforced rejection results:
+
+| Rejection path | Mean | Allocated | Lock contentions |
+| --- | ---: | ---: | ---: |
+| Global message limit | 4.424 ns | 0 B reported | 0 reported |
+| Global byte limit | 18.950 ns | 0 B reported | 0 reported |
+| Actor-type message limit | 32.921 ns | 0 B reported | 0 reported |
+| Actor-type byte limit | 47.232 ns | 0 B reported | 0 reported |
+| Payload too large | 11.570 ns | 0 B reported | 0 reported |
+| Entity mailbox limit, including reserve/rollback | 91.943 ns | 0 B reported | 0 reported |
+
+### 7.7 Tranche B verification
+
+The final Tranche B Release gate passed in full:
+
+| Gate | Result |
+| --- | ---: |
+| Complete solution Release build | 0 warnings, 0 errors |
+| `TomasAI.IFM.Shared.UnitTests` | 82/82 passed |
+| `TomasAI.IFM.Framework.Messaging.Nats.UnitTests` | 37/37 passed |
+| `TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests` | 40/40 passed |
+| Ten domain integration projects | 193/193 passed |
+
+The exact final domain TRX evidence is under `TestResults/SystemWideOptimizationTrancheBFinal/` and is intentionally not source-controlled.
+
+The full gate also verified two integration details that were corrected during the tranche: an event listener may legitimately start multiple mailbox-key subscriptions, and futures tick-date query parameters now preserve all seven .NET fractional-second digits. The latter has a deterministic BDD regression test and avoids silently truncating a `TimeOnly` value to milliseconds.
+
+## 8. References
 
 - [OpenTelemetry .NET metrics documentation](https://opentelemetry.io/docs/languages/dotnet/metrics/)
 - [OpenTelemetry.Extensions.Hosting package](https://www.nuget.org/packages/OpenTelemetry.Extensions.Hosting/)
 - [OpenTelemetry OTLP exporter package](https://www.nuget.org/packages/OpenTelemetry.Exporter.OpenTelemetryProtocol/)
 - [Built-in .NET runtime metrics](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/built-in-metrics-runtime)
 - `Documents/system/System-Wide-Optimization-Plan.md`
+- `Documents/system/Aggregate-Actor-Backlog-Overload-Control-Implementation-Plan.md`
+- `Documents/system/Actor-Backlog-Capacity-Worksheet.md`
 
-## 8. Revision history
+## 9. Revision history
 
 | Version | Date | Summary |
 | --- | --- | --- |
 | 0.1 | 2026-08-09 | Recorded SWO-01 implementation, benchmark, focused tests, complete domain integration gate, defect correction, and remaining production-like measurements. |
+| 0.2 | 2026-08-09 | Recorded SWO-02 Tranche A contracts, observe-only instrumentation, configurable capacity geometry, microbenchmark result, and pending production-like capacity evidence. |
+| 0.3 | 2026-08-09 | Recorded SWO-02 Tranche B atomic runtime enforcement, concurrency and lifecycle coverage, accepted/rejected benchmarks, complete Release verification, and pending transport activation. |

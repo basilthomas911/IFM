@@ -11,6 +11,14 @@ internal interface IScheduledActorThreadQueue
     bool IsRetired { get; }
     bool TryWrite(IActorMessage message, CancellationToken cancellationToken);
     ValueTask<bool> TryWriteAsync(IActorMessage message, CancellationToken cancellationToken);
+    ActorAdmissionResult TryWriteReserved(
+        IActorMessage message,
+        ActorAdmissionCharge charge,
+        CancellationToken cancellationToken);
+    ValueTask<ActorAdmissionResult> TryWriteReservedAsync(
+        IActorMessage message,
+        ActorAdmissionCharge charge,
+        CancellationToken cancellationToken);
     bool TryRead(out IActorMessage? message);
     bool TrySchedule();
     bool CompleteDrain();

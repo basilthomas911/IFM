@@ -10,6 +10,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests.FuturesTickData;
@@ -67,6 +68,17 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var typed = parsed.Should().BeOfType<GetLastFuturesTickDataByTickDateQuery>().Which;
         typed.ContractId.Should().Be(SampleData.EsTickData.ContractId);
         typed.TickDate.Should().Be(TickDate);
+    }
+
+    [Fact]
+    public void Given_ATickDateParameter_When_ItIsFormatted_Then_AllDateTimeTicksArePreserved()
+    {
+        var tickDate = new DateTime(2042, 1, 5, 10, 15, 30, 123, DateTimeKind.Utc).AddTicks(4567);
+
+        var parameter = new GetLastFuturesTickDataByTickDateParameter("ES2042", tickDate);
+
+        parameter.QueryParams.Should().Be("contractId=ES2042&tickDate=2042-01-05T10:15:30.1234567");
+        parameter.Format().Should().Be("ES2042.2042-01-05T10:15:30.1234567");
     }
 
     [Theory]

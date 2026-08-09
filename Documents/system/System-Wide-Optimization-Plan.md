@@ -159,9 +159,9 @@ Implementation, benchmark, validation, dashboard guidance, and remaining evidenc
 ### SWO-02: Aggregate actor backlog and overload control
 
 **Priority:** P0  
-**Status:** Proposed  
+**Status:** In progress; Tranches A and B implemented, production remains ObserveOnly
 
-The detailed design, implementation tranches, overload contracts, test matrix, benchmark gates, rollout, and review decisions are defined in `Documents/system/Aggregate-Actor-Backlog-Overload-Control-Implementation-Plan.md`. That document is currently a draft for review; implementation has not started.
+The detailed design, implementation tranches, overload contracts, test matrix, benchmark gates, rollout, and review decisions are defined in `Documents/system/Aggregate-Actor-Backlog-Overload-Control-Implementation-Plan.md`. Tranche A contracts, configuration, observe-only accounting, and the capacity worksheet are implemented. Tranche B adds allocation-free runtime enforcement and deterministic capacity ownership. Production enforcement and Tranche C transport behavior remain blocked pending measured limits and Core traffic classification.
 
 #### Objective
 
@@ -169,7 +169,7 @@ Bound total actor-runtime memory and make overload behavior explicit across many
 
 #### Current evidence
 
-Individual V2 entity queues have bounded slot accounting, but the shared ready-mailbox channel is unbounded. A burst containing many unique entity IDs can create many independently bounded queues, so the aggregate number of queued messages and active entity queues does not have a single system-wide bound.
+Individual V2 entity queues previously had bounded slot accounting without a process-wide bound. Tranche B now supports atomic global and actor-type message/byte limits plus non-waiting per-entity enforcement while keeping the ready-mailbox channel physically unbounded and logically bounded by admitted non-empty mailboxes. Production remains in observe-only mode until the worksheet supplies approved capacities.
 
 #### Design requirements
 
@@ -502,11 +502,11 @@ When specialized optimization work interrupts this plan:
 
 ### Current tranche
 
-**Work package:** SWO-01, operational metrics export and stage timing
-**State:** Measuring; implementation and local validation are complete in the working tree
-**Implemented scope:** OTLP host export, actor mailbox/outcome/timing metrics, bounded command/query/event stages, NATS operation latency/failures, runtime and ASP.NET Core meters, correctness tests, and an overhead benchmark
-**Validation recorded:** Release solution build succeeds with 0 warnings/errors; focused tests pass 148 of 148; the complete domain integration gate passes 193 of 193; enabled instrumentation adds approximately 124.671 ns per measured mailbox operation with no reported per-operation allocation
-**Next action:** Run the production-like collector and paper-trading capture, add provider-specific storage evidence where runtime meters are insufficient, and record p95/p99 attribution in the results document
+**Work package:** SWO-02 Tranche B, actor runtime enforcement
+**State:** Implemented and verified in the working tree; production remains `ObserveOnly`
+**Implemented scope:** atomic global/type count and byte reservation, structured admission outcomes, non-waiting enforced mailbox slots, exact rollback/release, race-safe cold queue creation, retirement transfer, and structured production call sites
+**Validation recorded:** enforced accepted admission adds 57.38 ns over disabled operation with no reported per-operation allocation or lock contention; enforced rejection paths complete in 4.42-91.94 ns; focused and full-suite results are recorded in `System-Wide-Optimization-Results.md`
+**Next action:** collect and approve capacity evidence, classify Core traffic, and review Tranche C command/query replies and JetStream NAK behavior before transport enforcement
 
 This record is intentionally temporary and must be updated after the tranche is committed, revised, or abandoned.
 
@@ -523,6 +523,8 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 2026-08-07 | Use Fund integration tests as the current shared-runtime gate. | Other integrated suites are not yet uniformly reliable, but specialized validation remains required. |
 | 2026-08-09 | Promote all ten domain integration projects to the shared-runtime gate. | The repaired suites pass 193 of 193 tests in one sequential Release confirmation run. |
 | 2026-08-09 | Keep SWO-01 in Measuring after code completion. | OTLP, instrumentation, tests, and the microbenchmark are complete, but paper-trading p95/p99 attribution still requires a production-like collector. |
+| 2026-08-09 | Implement SWO-02 Tranche A without enforcement. | Capacity values require production-like traffic and an approved memory budget; observe-only instrumentation gathers that evidence without changing admission behavior. |
+| 2026-08-09 | Implement Tranche B runtime enforcement without enabling it in production. | Runtime safety and performance can be proven with deterministic test limits while real capacities and transport-specific overload policies remain pending. |
 
 ## 13. Revision history
 
@@ -531,12 +533,15 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 0.1 | 2026-08-07 | Created the living system-wide optimization plan from the completed domain reviews and remaining infrastructure priorities. |
 | 0.2 | 2026-08-09 | Recorded SWO-01 implementation and measurement status, promoted the complete domain integration gate, and linked the optimization results record. |
 | 0.3 | 2026-08-09 | Added the detailed SWO-02 aggregate backlog and overload-control plan for review. |
+| 0.4 | 2026-08-09 | Recorded SWO-02 Tranche A contracts, observe-only accounting, configurable capacities, benchmark gate, and remaining capacity approval evidence. |
+| 0.5 | 2026-08-09 | Recorded SWO-02 Tranche B atomic enforcement, queue lifecycle safety, benchmark results, and the remaining transport-policy gate. |
 
 ## 14. Related documents
 
 - `docs/Solution-Wide-Graceful-Cancellation-Implementation-Details.md`
 - `Documents/system/System-Wide-Optimization-Results.md`
 - `Documents/system/Aggregate-Actor-Backlog-Overload-Control-Implementation-Plan.md`
+- `Documents/system/Actor-Backlog-Capacity-Worksheet.md`
 - `docs/Domain-MarketData-Actor-Optimization-Report-2026-08.md`
 - `TomasAI.IFM.Framework.Messaging.Nats/PERFORMANCE.md`
 - `TomasAI.IFM.Framework.Messaging.Nats.Benchmarks/RESULTS.md`

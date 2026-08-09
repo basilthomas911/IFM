@@ -1,7 +1,7 @@
 # Aggregate Actor Backlog and Overload Control Implementation Plan
 
 **Work package:** SWO-02
-**Status:** Draft for review; implementation is not authorized by this document
+**Status:** Approved; Tranches A and B implemented, Tranche C awaiting transport-policy approval
 **Priority:** P0
 **Created:** 2026-08-09
 **Last updated:** 2026-08-09
@@ -404,6 +404,8 @@ Expose sustained saturation through a dedicated health check. Never fail process
 
 **Review gate:** approve actual count/byte limits and Core traffic classifications before enforcement.
 
+**Implementation status (2026-08-09):** Complete in the working tree. The actor runtime now has validated admission contracts, exact serialized-payload size reporting, configurable actor and NATS capacity geometry, and observe-only message/byte accounting. The initial admission benchmark reported 65.910 ns incremental cost with no reported allocation or lock contention. Production count/byte limits and Core traffic classifications remain pending in `Actor-Backlog-Capacity-Worksheet.md`.
+
 ### Tranche B: Runtime enforcement
 
 1. Implement the allocation-free uncontended admission controller.
@@ -415,6 +417,8 @@ Expose sustained saturation through a dedicated health check. Never fail process
 7. Configure idle queue retention.
 
 **Review gate:** deterministic concurrency tests and microbenchmarks pass before transport rejection is enabled.
+
+**Implementation status (2026-08-09):** Complete in the working tree. The runtime uses atomic process and actor-type count/byte reservation, a structured admission result, non-waiting enforced mailbox slots, one reservation across retired-queue retry, and release on dequeue, failed publish, cancellation, exception, and stop drain. Explicit create/`TryAdd`/stop makes cold mailbox creation race-safe. Enforced accepted admission adds 57.38 ns over disabled operation with no reported allocation or lock contention; rejection paths range from 4.42 ns for a full global count budget to 91.94 ns for a full entity mailbox. Focused concurrency, high-cardinality, ownership, retirement, shutdown, and real-network NATS tests pass. Production remains `ObserveOnly`, and Tranche C transport responses are not implemented.
 
 ### Tranche C: Transport behavior
 
@@ -595,6 +599,7 @@ The reviewer should explicitly approve or change:
 
 - `Documents/system/System-Wide-Optimization-Plan.md`
 - `Documents/system/System-Wide-Optimization-Results.md`
+- `Documents/system/Actor-Backlog-Capacity-Worksheet.md`
 - `TomasAI.IFM.Framework.Messaging.Nats/PERFORMANCE.md`
 - `TomasAI.IFM.Framework.Messaging.Nats.Benchmarks/RESULTS.md`
 - [NATS Core delivery semantics](https://docs.nats.io/nats-concepts/core-nats)
@@ -605,3 +610,5 @@ The reviewer should explicitly approve or change:
 | Version | Date | Summary |
 | --- | --- | --- |
 | 0.1 | 2026-08-09 | Created the review-ready SWO-02 implementation, test, benchmark, rollout, and rollback plan from the current actor and NATS runtime. |
+| 0.2 | 2026-08-09 | Recorded approved Tranche A implementation, benchmark outcome, capacity worksheet, and the still-blocked enforcement gate. |
+| 0.3 | 2026-08-09 | Recorded Tranche B atomic runtime enforcement, deterministic tests, microbenchmark gates, and the remaining Tranche C transport-policy boundary. |

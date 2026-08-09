@@ -19,6 +19,14 @@ public interface INatsConsumerOptions
     /// <remarks>Defaults to 4. Values less than 1 are clamped to 1.</remarks>
     int DispatcherCount { get; set; }
 
+    /// <summary>Gets or sets the bounded capacity of each dispatch stripe.</summary>
+    int DispatcherCapacity { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Core NATS subscription channel capacity. Zero derives it from dispatcher count and capacity.
+    /// </summary>
+    int SubscriptionCapacity { get; set; }
+
     /// <summary>
     /// Gets or sets whether command ingress retains NATS pooled payload ownership
     /// through actor deserialization. Disable only for controlled A/B diagnostics.

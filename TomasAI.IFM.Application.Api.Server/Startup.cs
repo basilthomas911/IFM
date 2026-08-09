@@ -224,6 +224,21 @@ public static class Startup
             services.AddSingleton<IOptionTradeLiveFeedMap, OptionTradeLiveFeedMap>();
 
             // register Event Model Actor instances...
+            var admissionOptions = config
+                .GetSection(ActorAdmissionOptions.SectionName)
+                .Get<ActorAdmissionOptions>() ?? new ActorAdmissionOptions();
+            admissionOptions.Validate();
+            var natsConsumerOptions = config
+                .GetSection(NatsConsumerOptions.SectionName)
+                .Get<NatsConsumerOptions>() ?? new NatsConsumerOptions();
+            natsConsumerOptions.Validate();
+            var natsJetStreamConsumerOptions = config
+                .GetSection(NatsJetStreamConsumerOptions.SectionName)
+                .Get<NatsJetStreamConsumerOptions>() ?? new NatsJetStreamConsumerOptions();
+            natsJetStreamConsumerOptions.Validate();
+
+            services.AddSingleton(admissionOptions);
+            services.AddSingleton<ActorAdmissionController>();
             services.AddSingleton<IActorSupervisor, ActorSupervisor>();
             services.AddSingleton<IActorService, ActorService>();
             services.AddSingleton<IActorRegistry>(_ => {
@@ -237,13 +252,13 @@ public static class Startup
             });
             services.AddSingleton<IActorFactory>( _ => new ActorFactory(actorType => GetContainerInstance(actorType)!));
             services.AddSingleton<INatsProducerOptions, NatsProducerOptions>();
-            services.AddSingleton<INatsConsumerOptions, NatsConsumerOptions>();
+            services.AddSingleton<INatsConsumerOptions>(natsConsumerOptions);
             services.AddSingleton<INatsEventListenerOptions, NatsEventListenerOptions>();
             services.AddSingleton<NatsConnectionManager>();
             services.AddTransient<IActorProducer, NatsActorProducer>();
             services.AddTransient<IActorConsumer, NatsActorConsumer>();
             services.AddSingleton<INatsJetStreamProducerOptions, NatsJetStreamProducerOptions>();
-            services.AddSingleton<INatsJetStreamConsumerOptions, NatsJetStreamConsumerOptions>();
+            services.AddSingleton<INatsJetStreamConsumerOptions>(natsJetStreamConsumerOptions);
             services.AddSingleton<IDurableReplayQueue, NatsJSDurableReplayQueue>();
             services.AddTransient<IJSActorProducer, NatsJetStreamActorProducer>();
             services.AddTransient<IJSActorConsumer, NatsJetStreamActorConsumer>();
@@ -252,7 +267,11 @@ public static class Startup
                 instance ??= GetContainerInstance(type)!;
                 return instance;
             }));
-            services.AddTransient<IActorThreadQueue>(_ => new ActorThreadQueueV2(8192, 32, 32));
+            services.AddTransient<IActorThreadQueue>(provider => new ActorThreadQueueV2(
+                provider.GetRequiredService<ActorAdmissionController>(),
+                admissionOptions.DefaultMailboxMessageLimit,
+                32,
+                32));
 
 
         }

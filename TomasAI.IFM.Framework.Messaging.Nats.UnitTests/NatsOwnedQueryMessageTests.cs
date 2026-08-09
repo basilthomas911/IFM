@@ -30,12 +30,14 @@ public class NatsOwnedQueryMessageTests
             default);
         var message = new NatsOwnedQueryMessage(source, query.Subject);
 
+        message.AdmissionSizeBytes.Should().Be(writer.WrittenCount);
         var deserialized = message.AsQuery<TestQuery, TestQueryResult>();
 
         deserialized.Should().BeEquivalentTo(query);
         message.ReleasePayload();
         message.ReleasePayload();
         message.IsPayloadReleased.Should().BeTrue();
+        message.AdmissionSizeBytes.Should().Be(0);
         FluentActions.Invoking(() => message.AsQuery<TestQuery, TestQueryResult>())
             .Should().Throw<ObjectDisposedException>();
     }

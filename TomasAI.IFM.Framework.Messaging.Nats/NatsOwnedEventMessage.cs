@@ -32,6 +32,9 @@ public sealed class NatsOwnedEventMessage : IActorMessage
 
     public ActorSubject Subject { get; }
 
+    public int AdmissionSizeBytes
+        => Volatile.Read(ref _released) == 0 ? _payload.Memory.Length : 0;
+
     public ActorSubject ReplySubject { get; set; } = default!;
 
     internal bool IsPayloadReleased => Volatile.Read(ref _released) != 0;

@@ -48,7 +48,10 @@ public class FuturesTickDataQueryApiTests(WebApplicationFactory<Program> factory
     public async Task GetLastFuturesTickDataByTickDate_Ok()
     {
         // arrange...
-        var tickData = SampleData.UnderlyingFuturesTickData;
+        var tickData = SampleData.UnderlyingFuturesTickData with
+        {
+            TickTime = new TimeOnly(10, 15, 30)
+        };
         await dbFixture.MarketDataDb.DeleteFuturesTickDataAsync(tickData.ContractId, tickData.ValueDate);
         await dbFixture.MarketDataDb.InsertFuturesTickDataAsync(tickData);
         var tickDate = tickData.ValueDate.ToDateTime(tickData.TickTime);

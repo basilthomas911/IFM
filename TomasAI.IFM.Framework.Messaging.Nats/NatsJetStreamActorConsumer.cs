@@ -33,8 +33,6 @@ public class NatsJetStreamActorConsumer(
     NatsConnectionManager? connectionManager = null)
     : IJSActorConsumer
 {
-    const int DefaultStripeCapacity = 4096;
-
     readonly INatsJetStreamConsumerOptions _options = IsArgumentNull.Set(options);
     readonly INatsSerializer<byte[]> _deserializer = new NatsByteArrayMessageSerializer();
     readonly ILogger _logger = IsArgumentNull.Set(logger);
@@ -142,13 +140,13 @@ public class NatsJetStreamActorConsumer(
                 FilterSubject = consumerSubjectFilter,
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
                 DeliverPolicy = ConsumerConfigDeliverPolicy.All,
-                MaxAckPending = DefaultStripeCapacity * Math.Max(1, _options.DispatcherCount)
+                MaxAckPending = GetOutstandingLimit()
             });
 
             _consumerOpts = new()
             {
-                MaxMsgs = DefaultStripeCapacity * Math.Max(1, _options.DispatcherCount),
-                ThresholdMsgs = DefaultStripeCapacity,
+                MaxMsgs = GetMaxMessages(),
+                ThresholdMsgs = GetThresholdMessages(),
                 DrainOnCancel = true
             };
 
@@ -168,7 +166,7 @@ public class NatsJetStreamActorConsumer(
                     _ownedStripeChannels[i] = Channel.CreateBounded<(
                         NatsOwnedEventMessage,
                         ActorSubject,
-                        EventFanoutDelivery)>(new BoundedChannelOptions(DefaultStripeCapacity)
+                        EventFanoutDelivery)>(new BoundedChannelOptions(GetDispatcherCapacity())
                         {
                             SingleWriter = true,
                             SingleReader = true,
@@ -190,7 +188,7 @@ public class NatsJetStreamActorConsumer(
                         NatsMsg<byte[]>,
                         ActorSubject,
                         INatsJSMsg<byte[]>?,
-                        bool)>(new BoundedChannelOptions(DefaultStripeCapacity)
+                        bool)>(new BoundedChannelOptions(GetDispatcherCapacity())
                         {
                             // Routed legacy messages can be written by every dispatcher.
                             SingleWriter = false,
@@ -236,6 +234,30 @@ public class NatsJetStreamActorConsumer(
             _lifecycleGate.Release();
         }
     }
+
+    int GetDispatcherCapacity()
+        => _options is NatsJetStreamConsumerOptions concrete
+            ? concrete.DispatcherCapacity
+            : _options.DispatcherCapacity > 0
+                ? _options.DispatcherCapacity
+                : NatsJetStreamConsumerOptions.ExistingDispatcherCapacity;
+
+    int GetOutstandingLimit()
+        => _options is NatsJetStreamConsumerOptions concrete
+            ? concrete.GetOutstandingLimit()
+            : _options.MaxAckPending > 0
+                ? _options.MaxAckPending
+                : checked(GetDispatcherCapacity() * Math.Max(1, _options.DispatcherCount));
+
+    int GetMaxMessages()
+        => _options is NatsJetStreamConsumerOptions concrete
+            ? concrete.GetMaxMessages()
+            : _options.MaxMessages > 0 ? _options.MaxMessages : GetOutstandingLimit();
+
+    int GetThresholdMessages()
+        => _options is NatsJetStreamConsumerOptions concrete
+            ? concrete.GetThresholdMessages()
+            : _options.ThresholdMessages > 0 ? _options.ThresholdMessages : GetDispatcherCapacity();
 
     async ValueTask StopCoreAsync()
     {
@@ -556,13 +578,15 @@ public class NatsJetStreamActorConsumer(
                 var actor = _supervisor.Children.GetValueOrDefault(subject.ActorId)
                     ?? throw new InvalidOperationException(
                         $"Actor not found in context children for mailbox {subject.ActorId}");
-                accepted = await actor.Mailbox.ThreadQueues.WriteAsync(
+                var admission = await actor.Mailbox.ThreadQueues.TryAdmitAsync(
                     message,
                     subject,
                     CancellationToken.None).ConfigureAwait(false);
-                if (!accepted)
+                accepted = admission.Accepted;
+                if (!admission.Accepted)
                     throw new InvalidOperationException(
-                        $"Mailbox rejected owned JetStream event for {subject.ActorId}.");
+                        $"Mailbox rejected owned JetStream event for {subject.ActorId}: "
+                        + $"{admission.Reason.ToStringFast()}.");
             }
             catch (Exception ex)
             {
@@ -608,14 +632,16 @@ public class NatsJetStreamActorConsumer(
                 var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
                     ?? throw new InvalidOperationException($"Actor not found in context children for mailbox {msgSubject.ActorId}");
                 var actorMessage = new NatsActorMessage(msg);
-                var accepted = await actor.Mailbox.ThreadQueues.WriteAsync(
+                var admission = await actor.Mailbox.ThreadQueues.TryAdmitAsync(
                     actorMessage,
                     msgSubject,
                     CancellationToken.None).ConfigureAwait(false);
-                if (!accepted)
+                if (!admission.Accepted)
                 {
                     actorMessage.Dispose();
-                    throw new InvalidOperationException($"Mailbox rejected JetStream message for {msgSubject.ActorId}.");
+                    throw new InvalidOperationException(
+                        $"Mailbox rejected JetStream message for {msgSubject.ActorId}: "
+                        + $"{admission.Reason.ToStringFast()}.");
                 }
                 if (!isRoutedMessage)
                 {

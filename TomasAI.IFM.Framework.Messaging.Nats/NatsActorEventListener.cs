@@ -19,7 +19,7 @@ public class NatsActorEventListener(
     readonly INatsSerializer<byte[]> _deserializer = new NatsByteArrayMessageSerializer();
     readonly ILogger  _logger = IsArgumentNull.Set(logger);
     readonly string _serviceId = "NatsActorEventListener";
-    readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
+    NatsConnectionManager? _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     NatsSubOpts _requestOptions = default!;
@@ -88,7 +88,6 @@ public class NatsActorEventListener(
             // validate arguments...
             if (_eventMap.Count == 0)
                 throw new ArgumentException("Event map cannot be empty.", nameof(eventMap));
-
             ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
             ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
             if (_nc is not null)
@@ -100,6 +99,7 @@ public class NatsActorEventListener(
             // Create a new CancellationTokenSource for this start cycle
             _cts = new CancellationTokenSource();
 
+            _connectionManager ??= new NatsConnectionManager();
             _nc = await _connectionManager.GetClientAsync(_options.Url).ConfigureAwait(false);
             _requestOptions = new()
             {
@@ -171,7 +171,10 @@ public class NatsActorEventListener(
             _cts.Dispose();
             _cts = default!;
             if (_ownsConnectionManager)
-                await _connectionManager.DisposeAsync().ConfigureAwait(false);
+            {
+                await _connectionManager!.DisposeAsync().ConfigureAwait(false);
+                _connectionManager = null;
+            }
             _nc = default!;
             _state = EventListenerState.Stopped;
             _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} stopped.", _eventListenerId);

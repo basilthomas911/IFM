@@ -37,6 +37,9 @@ public sealed class NatsOwnedCommandMessage : IActorMessage
 
     public ActorSubject Subject { get; }
 
+    public int AdmissionSizeBytes
+        => Volatile.Read(ref _released) == 0 ? _owner.Memory.Length : 0;
+
     public ActorSubject ReplySubject { get; set; } = default!;
 
     internal bool IsPayloadReleased => Volatile.Read(ref _released) != 0;

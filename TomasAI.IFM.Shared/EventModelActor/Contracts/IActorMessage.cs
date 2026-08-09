@@ -12,6 +12,9 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// which identifies  the actor or entity associated with the message.</remarks>
 public interface IActorMessage : IDisposable
 {
+    /// <summary>Serialized payload bytes charged to aggregate admission accounting.</summary>
+    int AdmissionSizeBytes => 0;
+
     TCommand? AsCommand<TCommand>() where TCommand : class, ICommand;
     TEvent? AsEvent<TEvent>() where TEvent : class, IEvent;
     TQuery? AsQuery<TQuery, TResult>() 

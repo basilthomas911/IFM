@@ -23,6 +23,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
 
     readonly object _startLock = new();
     readonly SemaphoreSlim _slots;
+    readonly ActorAdmissionController _admissionController;
     Channel<QueuedActorMessage>? _channel;
     ActorThreadId _id;
     int _lifecycle;
@@ -30,9 +31,21 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
     int _writers;
     int _count;
     int _mailboxMetricActive;
+    int _stopRequested;
+    int _stopOnce;
 
     public ActorThreadQueueV2(int capacity = DefaultCapacity, int spinEnqueue = 32, int spinDequeue = 32)
+        : this(ActorAdmissionController.Disabled, capacity, spinEnqueue, spinDequeue)
     {
+    }
+
+    public ActorThreadQueueV2(
+        ActorAdmissionController admissionController,
+        int capacity = DefaultCapacity,
+        int spinEnqueue = 32,
+        int spinDequeue = 32)
+    {
+        _admissionController = admissionController ?? throw new ArgumentNullException(nameof(admissionController));
         if (capacity <= 0)
             throw new ArgumentOutOfRangeException(nameof(capacity));
 
@@ -65,6 +78,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
             {
                 Interlocked.Decrement(ref _count);
                 _slots.Release();
+                _admissionController.Release(queued.AdmissionCharge);
                 ActorRuntimeMetrics.RecordDequeued(queued.EnqueuedTimestamp, _id.ActorType);
                 yield return queued.Message;
             }
@@ -87,26 +101,23 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
     bool IScheduledActorThreadQueue.TryWrite(IActorMessage message, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(message);
-        if (!TryAcquireWriter())
+        var admission = _admissionController.TryReserve(message, _id.ActorType, out var charge);
+        if (!admission.Accepted)
             return false;
 
         try
         {
-            var enqueueStarted = ActorRuntimeMetrics.StartEnqueueWait();
-            _slots.Wait(cancellationToken);
-            ActorRuntimeMetrics.RecordEnqueueWait(enqueueStarted, _id.ActorType);
-            if (!_channel!.Writer.TryWrite(new QueuedActorMessage(message, ActorRuntimeMetrics.StartQueueWait())))
-            {
-                _slots.Release();
-                throw new ChannelClosedException();
-            }
-            Interlocked.Increment(ref _count);
-            ActorRuntimeMetrics.RecordAccepted(_id.ActorType);
-            return true;
+            var result = ((IScheduledActorThreadQueue)this)
+                .TryWriteReserved(message, charge, cancellationToken);
+            if (result.Accepted)
+                return true;
+            _admissionController.Release(charge);
+            return false;
         }
-        finally
+        catch
         {
-            Interlocked.Decrement(ref _writers);
+            _admissionController.Release(charge);
+            throw;
         }
     }
 
@@ -126,29 +137,99 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(message);
-        if (!TryAcquireWriter())
+        var admission = _admissionController.TryReserve(message, _id.ActorType, out var charge);
+        if (!admission.Accepted)
             return ValueTask.FromResult(false);
+
+        ValueTask<ActorAdmissionResult> pending;
+        try
+        {
+            pending = ((IScheduledActorThreadQueue)this)
+                .TryWriteReservedAsync(message, charge, cancellationToken);
+        }
+        catch
+        {
+            _admissionController.Release(charge);
+            throw;
+        }
+        if (pending.IsCompletedSuccessfully)
+        {
+            if (pending.Result.Accepted)
+                return ValueTask.FromResult(true);
+            _admissionController.Release(charge);
+            return ValueTask.FromResult(false);
+        }
+
+        return AwaitCompatibilityWrite(pending, charge);
+    }
+
+    ActorAdmissionResult IScheduledActorThreadQueue.TryWriteReserved(
+        IActorMessage message,
+        ActorAdmissionCharge charge,
+        CancellationToken cancellationToken)
+    {
+        IsArgumentNull.Check(message);
+        if (!TryAcquireWriter(out var unavailableReason))
+            return RejectQueueAdmission(unavailableReason);
 
         try
         {
             var enqueueStarted = ActorRuntimeMetrics.StartEnqueueWait();
+            if (_admissionController.Mode == ActorAdmissionMode.Enforce)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!_slots.Wait(0))
+                    return RejectQueueAdmission(ActorAdmissionReason.MailboxLimit);
+            }
+            else
+            {
+                if (_slots.CurrentCount == 0)
+                    _admissionController.RecordQueueRejection(_id.ActorType, ActorAdmissionReason.MailboxLimit);
+                _slots.Wait(cancellationToken);
+            }
+
+            ActorRuntimeMetrics.RecordEnqueueWait(enqueueStarted, _id.ActorType);
+            return PublishReserved(message, charge);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _writers);
+        }
+    }
+
+    ValueTask<ActorAdmissionResult> IScheduledActorThreadQueue.TryWriteReservedAsync(
+        IActorMessage message,
+        ActorAdmissionCharge charge,
+        CancellationToken cancellationToken)
+    {
+        IsArgumentNull.Check(message);
+        if (!TryAcquireWriter(out var unavailableReason))
+            return ValueTask.FromResult(RejectQueueAdmission(unavailableReason));
+
+        try
+        {
+            var enqueueStarted = ActorRuntimeMetrics.StartEnqueueWait();
+            if (_admissionController.Mode == ActorAdmissionMode.Enforce)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var result = _slots.Wait(0)
+                    ? PublishReserved(message, charge)
+                    : RejectQueueAdmission(ActorAdmissionReason.MailboxLimit);
+                Interlocked.Decrement(ref _writers);
+                return ValueTask.FromResult(result);
+            }
+
             var pending = _slots.WaitAsync(cancellationToken);
             if (pending.IsCompletedSuccessfully)
             {
                 ActorRuntimeMetrics.RecordEnqueueWait(enqueueStarted, _id.ActorType);
-                if (!_channel!.Writer.TryWrite(new QueuedActorMessage(message, ActorRuntimeMetrics.StartQueueWait())))
-                {
-                    _slots.Release();
-                    Interlocked.Decrement(ref _writers);
-                    return ValueTask.FromException<bool>(new ChannelClosedException());
-                }
-                Interlocked.Increment(ref _count);
-                ActorRuntimeMetrics.RecordAccepted(_id.ActorType);
+                var result = PublishReserved(message, charge);
                 Interlocked.Decrement(ref _writers);
-                return ValueTask.FromResult(true);
+                return ValueTask.FromResult(result);
             }
 
-            return AwaitSlotAndWrite(pending, message, enqueueStarted);
+            _admissionController.RecordQueueRejection(_id.ActorType, ActorAdmissionReason.MailboxLimit);
+            return AwaitSlotAndWrite(pending, message, charge, enqueueStarted);
         }
         catch
         {
@@ -157,20 +238,17 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         }
     }
 
-    async ValueTask<bool> AwaitSlotAndWrite(Task waitForSlot, IActorMessage message, long enqueueStarted)
+    async ValueTask<ActorAdmissionResult> AwaitSlotAndWrite(
+        Task waitForSlot,
+        IActorMessage message,
+        ActorAdmissionCharge charge,
+        long enqueueStarted)
     {
         try
         {
             await waitForSlot.ConfigureAwait(false);
             ActorRuntimeMetrics.RecordEnqueueWait(enqueueStarted, _id.ActorType);
-            if (!_channel!.Writer.TryWrite(new QueuedActorMessage(message, ActorRuntimeMetrics.StartQueueWait())))
-            {
-                _slots.Release();
-                throw new ChannelClosedException();
-            }
-            Interlocked.Increment(ref _count);
-            ActorRuntimeMetrics.RecordAccepted(_id.ActorType);
-            return true;
+            return PublishReserved(message, charge);
         }
         finally
         {
@@ -184,17 +262,66 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
             throw new ObjectDisposedException(nameof(ActorThreadQueueV2));
     }
 
-    bool TryAcquireWriter()
+    async ValueTask<bool> AwaitCompatibilityWrite(
+        ValueTask<ActorAdmissionResult> pending,
+        ActorAdmissionCharge charge)
+    {
+        try
+        {
+            var result = await pending.ConfigureAwait(false);
+            if (result.Accepted)
+                return true;
+            _admissionController.Release(charge);
+            return false;
+        }
+        catch
+        {
+            _admissionController.Release(charge);
+            throw;
+        }
+    }
+
+    ActorAdmissionResult PublishReserved(IActorMessage message, ActorAdmissionCharge charge)
+    {
+        var channel = Volatile.Read(ref _channel);
+        Interlocked.Increment(ref _count);
+        if (channel is null || !channel.Writer.TryWrite(new QueuedActorMessage(
+                message,
+                ActorRuntimeMetrics.StartQueueWait(),
+                charge)))
+        {
+            Interlocked.Decrement(ref _count);
+            _slots.Release();
+            return RejectQueueAdmission(ActorAdmissionReason.Stopping);
+        }
+        ActorRuntimeMetrics.RecordAccepted(_id.ActorType);
+        return ActorAdmissionResult.AcceptedResult;
+    }
+
+    ActorAdmissionResult RejectQueueAdmission(ActorAdmissionReason reason)
+    {
+        if (reason != ActorAdmissionReason.MailboxRetired)
+            _admissionController.RecordQueueRejection(_id.ActorType, reason);
+        return ActorAdmissionResult.Rejected(reason);
+    }
+
+    bool TryAcquireWriter(out ActorAdmissionReason unavailableReason)
     {
         while (Volatile.Read(ref _lifecycle) == Active)
         {
             Interlocked.Increment(ref _writers);
             if (Volatile.Read(ref _lifecycle) == Active)
+            {
+                unavailableReason = ActorAdmissionReason.None;
                 return true;
+            }
 
             Interlocked.Decrement(ref _writers);
         }
 
+        unavailableReason = Volatile.Read(ref _stopRequested) != 0
+            ? ActorAdmissionReason.Stopping
+            : ActorAdmissionReason.MailboxRetired;
         return false;
     }
 
@@ -217,6 +344,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         }
         Interlocked.Decrement(ref _count);
         _slots.Release();
+        _admissionController.Release(queued.AdmissionCharge);
         ActorRuntimeMetrics.RecordDequeued(queued.EnqueuedTimestamp, _id.ActorType);
         message = queued.Message;
         return true;
@@ -285,8 +413,9 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
 
     public void Stop()
     {
-        var previous = Interlocked.Exchange(ref _lifecycle, Retired);
-        if (previous == Retired)
+        Volatile.Write(ref _stopRequested, 1);
+        Interlocked.Exchange(ref _lifecycle, Retired);
+        if (Interlocked.Exchange(ref _stopOnce, 1) != 0)
             return;
 
         RecordMailboxStopped();
@@ -299,6 +428,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
             {
                 Interlocked.Decrement(ref _count);
                 _slots.Release();
+                _admissionController.Release(pending.AdmissionCharge);
                 ActorRuntimeMetrics.RecordDequeued(pending.EnqueuedTimestamp, _id.ActorType);
                 pending.Message.Dispose();
             }
@@ -314,5 +444,8 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
             ActorRuntimeMetrics.RecordMailboxStopped(_id.ActorType);
     }
 
-    readonly record struct QueuedActorMessage(IActorMessage Message, long EnqueuedTimestamp);
+    readonly record struct QueuedActorMessage(
+        IActorMessage Message,
+        long EnqueuedTimestamp,
+        ActorAdmissionCharge AdmissionCharge);
 }

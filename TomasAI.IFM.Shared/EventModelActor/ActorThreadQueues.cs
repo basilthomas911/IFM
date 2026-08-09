@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 
@@ -8,10 +7,17 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// <summary>
 /// Owns the entity mailboxes for one actor and publishes each non-empty mailbox to the shared actor scheduler once.
 /// </summary>
-public sealed class ActorThreadQueues(IActorSupervisor supervisor) : IActorThreadQueues
+public sealed class ActorThreadQueues(
+    IActorSupervisor supervisor,
+    int maxRetainedIdleQueues = ActorAdmissionOptions.ExistingRetainedIdleMailboxesPerActor,
+    ActorAdmissionController? admissionController = null) : IActorThreadQueues
 {
-    const int MaxRetainedIdleQueues = 1024;
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
+    readonly ActorAdmissionController _admissionController =
+        admissionController ?? ActorAdmissionController.Disabled;
+    readonly int _maxRetainedIdleQueues = maxRetainedIdleQueues >= 0
+        ? maxRetainedIdleQueues
+        : throw new ArgumentOutOfRangeException(nameof(maxRetainedIdleQueues));
     readonly ConcurrentDictionary<ActorThreadId, IActorThreadQueue> _threadQueues = new();
 
     public int Count => _threadQueues.Count;
@@ -23,26 +29,53 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor) : IActorThrea
         IActorMessage message,
         ActorSubject subject,
         CancellationToken cancellationToken = default)
+        => TryAdmit(message, subject, cancellationToken).Accepted;
+
+    public ActorAdmissionResult TryAdmit(
+        IActorMessage message,
+        ActorSubject subject,
+        CancellationToken cancellationToken = default)
     {
         IsArgumentNull.Check(message);
         var threadId = subject.ThreadId;
-        var thread = _supervisor.GetThread(threadId);
+        var admission = _admissionController.TryReserve(message, threadId.ActorType, out var charge);
+        if (!admission.Accepted)
+            return admission;
 
-        while (true)
+        var reservationOwned = true;
+        try
         {
-            var queue = GetThreadQueue(threadId);
-            if (queue is not IScheduledActorThreadQueue scheduled)
-                throw CreateQueueConfigurationException(queue);
-
-            if (!scheduled.TryWrite(message, cancellationToken))
+            var thread = _supervisor.GetThread(threadId);
+            while (true)
             {
-                RemoveRetired(threadId, queue);
-                continue;
-            }
+                var queue = GetThreadQueue(threadId);
+                if (queue is not IScheduledActorThreadQueue scheduled)
+                    throw CreateQueueConfigurationException(queue);
 
-            if (scheduled.TrySchedule())
-                thread.SignalMessageAvailable(threadId);
-            return true;
+                var result = scheduled.TryWriteReserved(message, charge, cancellationToken);
+                if (result.Reason == ActorAdmissionReason.MailboxRetired)
+                {
+                    RemoveRetired(threadId, queue);
+                    continue;
+                }
+
+                if (result.Accepted)
+                {
+                    reservationOwned = false;
+                    if (scheduled.TrySchedule())
+                        thread.SignalMessageAvailable(threadId);
+                    return result;
+                }
+
+                _admissionController.Release(charge);
+                reservationOwned = false;
+                return result;
+            }
+        }
+        finally
+        {
+            if (reservationOwned)
+                _admissionController.Release(charge);
         }
     }
 
@@ -56,91 +89,82 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor) : IActorThrea
         ActorSubject subject,
         CancellationToken cancellationToken = default)
     {
+        var pending = TryAdmitAsync(message, subject, cancellationToken);
+        if (pending.IsCompletedSuccessfully)
+            return ValueTask.FromResult(pending.Result.Accepted);
+        return AwaitBooleanResult(pending);
+    }
+
+    public async ValueTask<ActorAdmissionResult> TryAdmitAsync(
+        IActorMessage message,
+        ActorSubject subject,
+        CancellationToken cancellationToken = default)
+    {
         IsArgumentNull.Check(message);
         var threadId = subject.ThreadId;
-        var getThread = _supervisor.GetThreadAsync(threadId, cancellationToken);
-        if (!getThread.IsCompletedSuccessfully)
-            return AwaitThreadAndWrite(getThread, message, threadId, cancellationToken);
+        var admission = _admissionController.TryReserve(message, threadId.ActorType, out var charge);
+        if (!admission.Accepted)
+            return admission;
 
-        return WriteToQueueAsync(getThread.Result, message, threadId, cancellationToken);
-    }
-
-    ValueTask<bool> WriteToQueueAsync(
-        IActorThread thread,
-        IActorMessage message,
-        ActorThreadId threadId,
-        CancellationToken cancellationToken)
-    {
-        while (true)
+        var reservationOwned = true;
+        try
         {
-            var queue = GetThreadQueue(threadId);
-            if (queue is not IScheduledActorThreadQueue scheduled)
-                return ValueTask.FromException<bool>(CreateQueueConfigurationException(queue));
-
-            var enqueue = scheduled.TryWriteAsync(message, cancellationToken);
-            if (!enqueue.IsCompletedSuccessfully)
-                return AwaitScheduledWrite(enqueue, scheduled, thread, message, threadId, queue, cancellationToken);
-
-            if (!enqueue.Result)
+            var thread = await _supervisor.GetThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+            while (true)
             {
-                RemoveRetired(threadId, queue);
-                continue;
+                var queue = GetThreadQueue(threadId);
+                if (queue is not IScheduledActorThreadQueue scheduled)
+                    throw CreateQueueConfigurationException(queue);
+
+                var result = await scheduled
+                    .TryWriteReservedAsync(message, charge, cancellationToken)
+                    .ConfigureAwait(false);
+                if (result.Reason == ActorAdmissionReason.MailboxRetired)
+                {
+                    RemoveRetired(threadId, queue);
+                    continue;
+                }
+
+                if (result.Accepted)
+                {
+                    reservationOwned = false;
+                    if (scheduled.TrySchedule())
+                        thread.SignalMessageAvailable(threadId);
+                    return result;
+                }
+
+                _admissionController.Release(charge);
+                reservationOwned = false;
+                return result;
             }
-
-            if (scheduled.TrySchedule())
-                thread.SignalMessageAvailable(threadId);
-            return ValueTask.FromResult(true);
         }
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    async ValueTask<bool> AwaitThreadAndWrite(
-        ValueTask<IActorThread> pendingThread,
-        IActorMessage message,
-        ActorThreadId threadId,
-        CancellationToken cancellationToken)
-    {
-        var thread = await pendingThread.ConfigureAwait(false);
-        return await WriteToQueueAsync(thread, message, threadId, cancellationToken).ConfigureAwait(false);
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    async ValueTask<bool> AwaitScheduledWrite(
-        ValueTask<bool> pending,
-        IScheduledActorThreadQueue scheduled,
-        IActorThread thread,
-        IActorMessage message,
-        ActorThreadId threadId,
-        IActorThreadQueue queue,
-        CancellationToken cancellationToken)
-    {
-        if (await pending.ConfigureAwait(false))
+        finally
         {
-            if (scheduled.TrySchedule())
-                thread.SignalMessageAvailable(threadId);
-            return true;
+            if (reservationOwned)
+                _admissionController.Release(charge);
         }
-
-        RemoveRetired(threadId, queue);
-        return await WriteToQueueAsync(thread, message, threadId, cancellationToken).ConfigureAwait(false);
     }
+
+    static async ValueTask<bool> AwaitBooleanResult(ValueTask<ActorAdmissionResult> pending)
+        => (await pending.ConfigureAwait(false)).Accepted;
 
     public IActorThreadQueue GetThreadQueue(ActorThreadId threadId)
     {
         while (true)
         {
-            var queue = _threadQueues.GetOrAdd(threadId, static (id, state) =>
+            if (_threadQueues.TryGetValue(threadId, out var existing))
             {
-                var created = state.Container.Resolve<IActorThreadQueue>();
-                created.SetId(id);
-                created.Start();
+                if (existing is not IScheduledActorThreadQueue scheduled || !scheduled.IsRetired)
+                    return existing;
+                RemoveRetired(threadId, existing);
+            }
+
+            var created = _supervisor.Container.Resolve<IActorThreadQueue>();
+            created.SetId(threadId);
+            created.Start();
+            if (_threadQueues.TryAdd(threadId, created))
                 return created;
-            }, _supervisor);
-
-            if (queue is not IScheduledActorThreadQueue scheduled || !scheduled.IsRetired)
-                return queue;
-
-            RemoveRetired(threadId, queue);
+            created.Stop();
         }
     }
 
@@ -151,7 +175,7 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor) : IActorThrea
     {
         // Keep the normal actor working set warm. Beyond the bound, newly idle high-cardinality mailboxes are
         // retired immediately so memory remains bounded without allocating a timer or an eviction task per actor.
-        if (_threadQueues.Count <= MaxRetainedIdleQueues)
+        if (_threadQueues.Count <= _maxRetainedIdleQueues)
             return;
 
         if (!_threadQueues.TryGetValue(threadId, out var queue))
@@ -174,8 +198,11 @@ public sealed class ActorThreadQueues(IActorSupervisor supervisor) : IActorThrea
         if (queue is not IScheduledActorThreadQueue { IsRetired: true })
             return;
 
-        ((ICollection<KeyValuePair<ActorThreadId, IActorThreadQueue>>)_threadQueues)
-            .Remove(new KeyValuePair<ActorThreadId, IActorThreadQueue>(threadId, queue));
+        if (((ICollection<KeyValuePair<ActorThreadId, IActorThreadQueue>>)_threadQueues)
+            .Remove(new KeyValuePair<ActorThreadId, IActorThreadQueue>(threadId, queue)))
+        {
+            queue.Stop();
+        }
     }
 
     static InvalidOperationException CreateQueueConfigurationException(IActorThreadQueue queue)
