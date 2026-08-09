@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Queries;
 [MessagePackObject(AllowPrivate = true)]
 public record GetIronCondorTradePriceQuery : IQuery<TradePriceReadModel>
 {
-    [IgnoreMember] public const string Actor = "IronCondorTradePriceQuery";
+    [IgnoreMember] public const string Actor = "OptionTradeQuery";
     [IgnoreMember] public const string Verb = "GetIronCondorTradePrice";
     [IgnoreMember] public const int ErrorId = 1044;
 

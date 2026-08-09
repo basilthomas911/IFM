@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 /// derived/collection members are excluded from MessagePack via IgnoreMember/JsonIgnore.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record TradeOrderReadModel
+public partial record TradeOrderReadModel
 {
     [Key(0)]
     public int FundId { get; init; }
@@ -146,18 +146,18 @@ public record TradeOrderReadModel
         UpdatedBy = updatedBy ?? string.Empty;
     }
 
-    // Backing collections (not serialized by MessagePack)
+    // Backing collections are included in MessagePack command payloads.
     [JsonIgnore]
-    [IgnoreMember]
+    [Key(27)]
     private List<OptionTradeLegReadModel>? _optionLegs = [];
     [JsonIgnore]
-    [IgnoreMember]
-    private TradeLimitReadModel _tradeLimit;
+    [Key(28)]
+    private TradeLimitReadModel? _tradeLimit;
     [JsonIgnore]
-    [IgnoreMember]
+    [Key(29)]
     private List<TradeTypeLimitReadModel>? _tradeTypeLimits = [];
     [JsonIgnore]
-    [IgnoreMember]
+    [Key(30)]
     private List<TradeFillReadModel>? _tradeFills = [];
 
     /// <summary>Computed trade order entity identifier (excluded from MessagePack).</summary>
@@ -177,7 +177,7 @@ public record TradeOrderReadModel
     /// <summary>Trade limit projection for JSON (excluded from MessagePack).</summary>
     [JsonProperty]
     [IgnoreMember]
-    public TradeLimitReadModel TradeLimit => _tradeLimit;
+    public TradeLimitReadModel TradeLimit => _tradeLimit!;
 
     /// <summary>Trade type limits projection for JSON (excluded from MessagePack).</summary>
     [JsonProperty]

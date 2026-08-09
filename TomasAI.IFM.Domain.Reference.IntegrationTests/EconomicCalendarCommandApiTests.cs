@@ -3,20 +3,19 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests;
 
 public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> factory, ReferenceFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<ReferenceFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    static readonly TimeSpan StateTimeout = TimeSpan.FromSeconds(10);
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 
     [Fact]
     public async Task AddEconomicCalendar_Ok()
@@ -34,23 +33,19 @@ public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> fact
         );
         var entityId = new EconomicCalendarId(economicCalendar.EventDate, economicCalendar.CountryCode, economicCalendar.EventName);
         var subject = new ActorSubject(ActorType.Command, AddEconomicCalendarCommand.Actor, AddEconomicCalendarCommand.Verb, entityId.Format());
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        await ClearEventStreamAsync(subject);
         await dbFixture.ReferenceDb.DeleteEconomicCalendarAsync(economicCalendar.Id);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceCommandApi(commandServiceApi);
+        var referenceApi = new ReferenceCommandApi(_actorProducer);
         var response = await referenceApi.AddEconomicCalendarAsync(economicCalendar);
 
-        // wait for denormalization to complete
-        await Task.Delay(1000);
+        await WaitUntilAsync(async () =>
+            await dbFixture.ReferenceDb.GetEconomicCalendarAsync(economicCalendar.Id) is not null);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
 
         // verify economic calendar was added to database
@@ -81,22 +76,21 @@ public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> fact
         );
 
         var entityId = new EconomicCalendarId(economicCalendar.EventDate, economicCalendar.CountryCode, economicCalendar.EventName);
-        var subject = new ActorSubject(ActorType.Command, AddEconomicCalendarCommand.Actor, AddEconomicCalendarCommand.Verb, entityId.Format());
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        await ClearEventStreamAsync(new ActorSubject(
+            ActorType.Command, AddEconomicCalendarCommand.Actor, AddEconomicCalendarCommand.Verb, entityId.Format()));
+        await ClearEventStreamAsync(new ActorSubject(
+            ActorType.Command, ChangeEconomicCalendarCommand.Actor, ChangeEconomicCalendarCommand.Verb, entityId.Format()));
 
         // ensure record exists first by adding it
         await dbFixture.ReferenceDb.DeleteEconomicCalendarAsync(economicCalendarId);
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceCommandApi(commandServiceApi);
+        var referenceApi = new ReferenceCommandApi(_actorProducer);
         var response = await referenceApi.AddEconomicCalendarAsync(economicCalendar);
-        await Task.Delay(1000);
+        await WaitUntilAsync(async () =>
+            await dbFixture.ReferenceDb.GetEconomicCalendarAsync(economicCalendar.Id) is not null);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
 
         // verify economic calendar was added to database
@@ -121,16 +115,14 @@ public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> fact
         );
 
         // act...
-        commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        referenceApi = new ReferenceCommandApi(commandServiceApi);
         response = await referenceApi.ChangeEconomicCalendarAsync(economicCalendarId, updatedEconomicCalendar, overwrite: true);
 
-        // wait for denormalization to complete
-        await Task.Delay(1000);
+        await WaitUntilAsync(async () =>
+            (await dbFixture.ReferenceDb.GetEconomicCalendarAsync(economicCalendarId))?.Actual == updatedEconomicCalendar.Actual);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
 
         // verify economic calendar was changed in database
@@ -160,27 +152,25 @@ public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> fact
             createdBy: "IntegrationTest"
         );
         var entityId = new EconomicCalendarId(economicCalendar.EventDate, economicCalendar.CountryCode, economicCalendar.EventName);
-        var subject = new ActorSubject(ActorType.Command, AddEconomicCalendarCommand.Actor, AddEconomicCalendarCommand.Verb, entityId.Format());
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        await ClearEventStreamAsync(new ActorSubject(
+            ActorType.Command, AddEconomicCalendarCommand.Actor, AddEconomicCalendarCommand.Verb, entityId.Format()));
+        await ClearEventStreamAsync(new ActorSubject(
+            ActorType.Command, RemoveEconomicCalendarCommand.Actor, RemoveEconomicCalendarCommand.Verb, entityId.Format()));
 
 
         // ensure clean state - delete if exists
         await dbFixture.ReferenceDb.DeleteEconomicCalendarAsync(economicCalendarId);
 
         // add economic calendar first
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceCommandApi(commandServiceApi);
+        var referenceApi = new ReferenceCommandApi(_actorProducer);
         var addResponse = await referenceApi.AddEconomicCalendarAsync(economicCalendar);
 
-        // wait for denormalization to complete
-        await Task.Delay(1000);
+        await WaitUntilAsync(async () =>
+            await dbFixture.ReferenceDb.GetEconomicCalendarAsync(economicCalendarId) is not null);
 
         // verify economic calendar was added to database
         addResponse.Should().NotBeNull();
-        addResponse.Success.Should().BeTrue();
+        addResponse.Success.Should().BeTrue(addResponse.ErrorMessage);
         addResponse.Value.Should().NotBe(Guid.Empty);
 
         var addedCalendar = await dbFixture.ReferenceDb.GetEconomicCalendarAsync(economicCalendarId);
@@ -189,16 +179,14 @@ public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> fact
         addedCalendar.EventName.Should().Be(economicCalendar.EventName);
 
         // act - remove economic calendar
-        commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        referenceApi = new ReferenceCommandApi(commandServiceApi);
         var removeResponse = await referenceApi.RemoveEconomicCalendarAsync(economicCalendarId, overwrite: true);
 
-        // wait for denormalization to complete
-        await Task.Delay(1000);
+        await WaitUntilAsync(async () =>
+            await dbFixture.ReferenceDb.GetEconomicCalendarAsync(economicCalendarId) is null);
 
         // assert...
         removeResponse.Should().NotBeNull();
-        removeResponse.Success.Should().BeTrue();
+        removeResponse.Success.Should().BeTrue(removeResponse.ErrorMessage);
         removeResponse.Value.Should().NotBe(Guid.Empty);
 
         // verify economic calendar was removed from database
@@ -212,6 +200,9 @@ public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> fact
         // arrange...
         var importedDate = DateTime.UtcNow;
         var economicCalendars = SampleData.EconomicCalendars;
+        var importEntityId = new EconomicCalendarId(importedDate, "ZZ", "ImportEconomicCalendars");
+        await ClearEventStreamAsync(new ActorSubject(
+            ActorType.Command, ImportEconomicCalendarsCommand.Actor, ImportEconomicCalendarsCommand.Verb, importEntityId.Format()));
 
         // clean up any existing records
         foreach (var calendar in economicCalendars)
@@ -220,17 +211,23 @@ public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> fact
         }
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceCommandApi(commandServiceApi);
+        var referenceApi = new ReferenceCommandApi(_actorProducer);
         var response = await referenceApi.ImportEconomicCalendarsAsync(importedDate, economicCalendars);
 
-        // wait for denormalization to complete
-        await Task.Delay(1000);
+        await WaitUntilAsync(async () =>
+        {
+            foreach (var calendar in economicCalendars)
+            {
+                if (await dbFixture.ReferenceDb.GetEconomicCalendarAsync(calendar.Id) is null)
+                    return false;
+            }
+
+            return true;
+        });
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
 
         // verify all 5 economic calendars were added to database
@@ -244,5 +241,20 @@ public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> fact
             savedCalendar.Forecast.Should().Be(calendar.Forecast);
             savedCalendar.Prior.Should().Be(calendar.Prior);
         }
+    }
+
+    async Task ClearEventStreamAsync(ActorSubject subject)
+    {
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
+        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
+        if (eventStreamId > 0)
+            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+    }
+
+    static async Task WaitUntilAsync(Func<Task<bool>> condition)
+    {
+        using var timeout = new CancellationTokenSource(StateTimeout);
+        while (!await condition())
+            await Task.Delay(TimeSpan.FromMilliseconds(50), timeout.Token);
     }
 }

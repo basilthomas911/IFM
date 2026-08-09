@@ -27,6 +27,7 @@ namespace TomasAI.IFM.Domain.Trade.Option.Command.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class OptionTradeCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IDbContextFactory dbFactory,
     ILogger<OptionTradeCommandActor> logger)
     : BaseEventSourceCommandActor<OptionTradeCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
@@ -92,7 +93,8 @@ public class OptionTradeCommandActor(
         [InsertOptionTradeSpreadBarDataCommand.Verb] = msg => msg.AsCommand<InsertOptionTradeSpreadBarDataCommand>()!,
         [InsertOptionTradeSpreadDataCommand.Verb] = msg => msg.AsCommand<InsertOptionTradeSpreadDataCommand>()!,
         [ProcessOptionTradeEndOfDayCommand.Verb] = msg => msg.AsCommand<ProcessOptionTradeEndOfDayCommand>()!,
-        [UpdateOptionTradeDailyProfitTargetCommand.Verb] = msg => msg.AsCommand<UpdateOptionTradeDailyProfitTargetCommand>()!
+        [UpdateOptionTradeDailyProfitTargetCommand.Verb] = msg => msg.AsCommand<UpdateOptionTradeDailyProfitTargetCommand>()!,
+        [DeleteOptionTradesCommand.Verb] = msg => msg.AsCommand<DeleteOptionTradesCommand>()!
     };
 
     /// <summary>
@@ -105,18 +107,28 @@ public class OptionTradeCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
+
+        if (cmd is DeleteOptionTradesCommand deleteAll)
+        {
+            var db = dbFactory.TradeDb;
+            var trades = await db.GetOptionTradesAsync(deleteAll.OrderId.Id).ConfigureAwait(false);
+            foreach (var trade in trades)
+                await db.DeleteOptionTradeAsync(trade.OrderId, trade.TradeId).ConfigureAwait(false);
+
+            return new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId));
+        }
+
         var optionTradeState = IsArgumentNull.Set((state as OptionTradeCommandState)!);
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
         _ = receiveFunc.Invoke(cmd, context, optionTradeState);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(
-            new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId));
     }
 
     /// <summary>
@@ -249,6 +261,10 @@ public class OptionTradeCommandActor(
             var e = cmd as UpdateOptionTradeDailyProfitTargetCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName);
+        },
+        [typeof(DeleteOptionTradesCommand).Name] = cmd => {
+            var e = cmd as DeleteOptionTradesCommand; return new List<ValidationError>()
+                .ValidateCommandId(e!.CommandId, e.CommandName);
         }
     };
 
@@ -305,6 +321,7 @@ public class OptionTradeCommandActor(
 
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex)
     {
+        logger.LogError(ex, "Error processing {CommandName} in {Actor} for thread {ThreadId}", command.CommandName, ActorName, threadId);
         try
         {
             IsArgumentNull.Check(context);

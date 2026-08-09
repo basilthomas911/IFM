@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 /// members are excluded from MessagePack via IgnoreMember/JsonIgnore.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record OptionTradeReadModel
+public partial record OptionTradeReadModel
 {
     /// <summary>Parent order identifier.</summary>
     [Key(0)]
@@ -137,29 +137,29 @@ public record OptionTradeReadModel
     [IgnoreMember]
     public OptionTradeEntityId EntityId => new(OrderId, TradeId);
 
-    /// <summary>Option legs (JSON only; excluded from MessagePack).</summary>
+    /// <summary>Option legs.</summary>
     [JsonProperty]
-    [IgnoreMember]
+    [Key(16)]
     public OptionTradeLegReadModel[]? OptionLegs { get; private set; }
 
-    /// <summary>Trade positions (JSON only; excluded from MessagePack).</summary>
+    /// <summary>Trade positions.</summary>
     [JsonProperty]
-    [IgnoreMember]
+    [Key(17)]
     public TradePositionReadModel[]? TradePositions { get; private set; }
 
-    /// <summary>Trade limit (JSON only; excluded from MessagePack).</summary>
+    /// <summary>Trade limit.</summary>
     [JsonProperty]
-    [IgnoreMember]
+    [Key(18)]
     public TradeLimitReadModel? TradeLimit { get; private set; }
 
-    /// <summary>Trade type limits (JSON only; excluded from MessagePack).</summary>
+    /// <summary>Trade type limits.</summary>
     [JsonProperty]
-    [IgnoreMember]
+    [Key(19)]
     public TradeTypeLimitReadModel[]? TradeTypeLimits { get; private set; }
 
-    /// <summary>Trade fills (JSON only; excluded from MessagePack).</summary>
+    /// <summary>Trade fills.</summary>
     [JsonProperty]
-    [IgnoreMember]
+    [Key(20)]
     public TradeFillReadModel[]? TradeFills { get; private set; }
 
     /// <summary>

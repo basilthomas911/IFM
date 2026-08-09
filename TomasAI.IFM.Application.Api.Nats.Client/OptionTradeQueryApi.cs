@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

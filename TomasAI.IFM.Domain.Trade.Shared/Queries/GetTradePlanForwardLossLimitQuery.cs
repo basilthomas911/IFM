@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Queries;
 [MessagePackObject(AllowPrivate = true)]
 public record GetTradePlanForwardLossLimitQuery : IQuery<TradePlanForwardLossLimitReadModel>
 {
-    [IgnoreMember] public const string Actor = "TradePlanForwardLossLimitQuery";
+    [IgnoreMember] public const string Actor = "TradePlanQuery";
     [IgnoreMember] public const string Verb = "GetTradePlanForwardLossLimit";
     [IgnoreMember] public const int ErrorId = 1030;
 

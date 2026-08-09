@@ -21,7 +21,7 @@ internal static class OptionPricerSchemaCql
     tradeId int,
     tradeType text,
     tradeStatus text,
-    valueDate timestamp,
+    valueDate date,
     daysToExpiry int,
     jobSubmitted timestamp,
     jobStatus text,

@@ -2,24 +2,18 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Logging;
-using NSubstitute;
+using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Plan;
 
 public class TradePlanQueryApiTests(WebApplicationFactory<Program> factory, TradeDatabaseFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<TradeDatabaseFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
-    readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 
     [Fact]
     public async Task GetStopLossLimit_Ok()
@@ -29,9 +23,7 @@ public class TradePlanQueryApiTests(WebApplicationFactory<Program> factory, Trad
         await dbFixture.TradeDb.InsertTradePlanAsync(tradePlan);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new TradePlanQueryApi(queryServiceApi);
+        var tradeApi = new TradePlanQueryApi(_actorProducer);
         var response = await tradeApi.GetIronCondorStopLossLimitAsync(tradePlan.OrderId, tradePlan.TradeId);
 
         // assert...
@@ -49,9 +41,7 @@ public class TradePlanQueryApiTests(WebApplicationFactory<Program> factory, Trad
         await dbFixture.TradeDb.InsertTradePlanForwardLossRatioAsync(startDate, ratio.ForwardLossRatio);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new TradePlanQueryApi(queryServiceApi);
+        var tradeApi = new TradePlanQueryApi(_actorProducer);
         var response = await tradeApi.GetIronCondorTradePlanForwardLossRatiosAsync(startDate, endDate);
 
         // assert...
@@ -70,9 +60,7 @@ public class TradePlanQueryApiTests(WebApplicationFactory<Program> factory, Trad
         await dbFixture.TradeDb.InsertTradePlanForwardLossRatioAsync(valueDate, ratio.ForwardLossRatio);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new TradePlanQueryApi(queryServiceApi);
+        var tradeApi = new TradePlanQueryApi(_actorProducer);
         var response = await tradeApi.GetIronCondorTradePlanForwardLossRatioAsync(valueDate);
 
         // assert...
@@ -90,9 +78,7 @@ public class TradePlanQueryApiTests(WebApplicationFactory<Program> factory, Trad
         await dbFixture.TradeDb.InsertTradePlanAsync(tradePlan);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new TradePlanQueryApi(queryServiceApi);
+        var tradeApi = new TradePlanQueryApi(_actorProducer);
         var response = await tradeApi.GetTradePlansAsync(tradePlan.OrderId, tradePlan.TradeId, tradePlan.ValueDate);
 
         // assert...
@@ -114,9 +100,7 @@ public class TradePlanQueryApiTests(WebApplicationFactory<Program> factory, Trad
         var riskPositionType = RiskPositionType.Low;
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new TradePlanQueryApi(queryServiceApi);
+        var tradeApi = new TradePlanQueryApi(_actorProducer);
         var response = await tradeApi.GetIronCondorForwardDeltaAsync(vixContractId, valueDate, tradeType, riskPositionType);
 
         // assert...
@@ -135,9 +119,7 @@ public class TradePlanQueryApiTests(WebApplicationFactory<Program> factory, Trad
         await dbFixture.TradeDb.InsertTradePlanForwardLossLimitAsync(forwardLossLimit);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new TradePlanQueryApi(queryServiceApi);
+        var tradeApi = new TradePlanQueryApi(_actorProducer);
         var response = await tradeApi.GetForwardLossLimitTypeAsync(
             forwardLossLimit.OrderId,
             forwardLossLimit.TradeId,

@@ -1,24 +1,18 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Logging;
-using NSubstitute;
+using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
-using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Option;
 
 public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, TradeDatabaseFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<TradeDatabaseFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
-    readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 
     [Fact]
     public async Task GetOptionTrade_Ok()
@@ -29,9 +23,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetOptionTradeAsync(optionTrade.OrderId, optionTrade.TradeId);
 
         // assert...
@@ -51,9 +43,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetOptionTradesAsync(optionTrade.OrderId);
 
         // assert...
@@ -72,9 +62,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertTradeLimitAsync(tradeLimit);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetTradeLimitAsync(tradeLimit.TradeId);
 
         // assert...
@@ -93,9 +81,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertTradeTypeLimitAsync(tradeTypeLimit);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetTradeTypeLimitAsync(tradeTypeLimit.TradeId, tradeTypeLimit.TradeType);
 
         // assert...
@@ -115,9 +101,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetTradeQuantityAsync(optionTrade.TradeId);
 
         // assert...
@@ -135,9 +119,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetTradeHistoryAsync(optionTrade.OrderId);
 
         // assert...
@@ -155,9 +137,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetOptionLegContractIdsAsync(optionTrade.TradeId);
 
         // assert...
@@ -175,9 +155,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetTradePositionsAsync(optionTrade.OrderId, optionTrade.TradeId);
 
         // assert...
@@ -200,9 +178,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetTradePositionAsync(optionTrade.OrderId, optionTrade.TradeId, tradeType, valueDate, daysToExpiry, tradeStatus);
 
         // assert...
@@ -221,9 +197,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetIronCondorTradePriceAsync(optionTrade.TradeId, valueDate);
 
         // assert...
@@ -242,9 +216,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetTradePlanSummaryAsync( optionTrade.OrderId, optionTrade.TradeId, valueDate);
 
         // assert...
@@ -266,9 +238,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetTradePositionTradeTypesAsync(optionTrade.OrderId, optionTrade.TradeId, valueDate, daysToExpiry, tradeStatus);
 
         // assert...
@@ -288,9 +258,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetIronCondorMDILimitAsync(optionTrade.OrderId, optionTrade.TradeId, valueDate);
 
         // assert...
@@ -320,9 +288,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeSpreadDataAsync(spreadData);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetOptionTradeSpreadDataAsync(optionTrade.OrderId, optionTrade.TradeId, tradeType, valueDate);
 
         // assert...
@@ -357,9 +323,7 @@ public class OptionTradeQueryApiTests(WebApplicationFactory<Program> factory, Tr
         await dbFixture.TradeDb.InsertOptionTradeSpreadBarDataAsync(spreadBarData);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeQueryApi(queryServiceApi);
+        var tradeApi = new OptionTradeQueryApi(_actorProducer);
         var response = await tradeApi.GetOptionTradeSpreadBarDataAsync(optionTrade.OrderId, optionTrade.TradeId, tradeType, valueDate, startDate, endDate);
 
         // assert...

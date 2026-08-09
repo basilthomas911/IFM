@@ -1,18 +1,17 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Application.Api.Nats.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.OptionPricer.IntegrationTests.SpreadDistribution;
 
 public class SpreadDistributionQueryApiTests(WebApplicationFactory<Program> factory, OptionPricerFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<OptionPricerFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 
     async Task SeedSpreadDistributionAsync()
     {
@@ -27,15 +26,13 @@ public class SpreadDistributionQueryApiTests(WebApplicationFactory<Program> fact
         await SeedSpreadDistributionAsync();
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var optionPricerQueryApi = new OptionPricerQueryApi(queryServiceApi);
+        var optionPricerQueryApi = new OptionPricerQueryApi(_actorProducer);
         var response = await optionPricerQueryApi.GetSpreadDistributionAsync(
             SampleData.TradeId, SampleData.PutTradeType, SampleData.TradeStatus, SampleData.ValueDate, SampleData.DaysToExpiry);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value!.TradeId.Should().Be(SampleData.TradeId);
         response.Value.ValueDate.Should().Be(SampleData.ValueDate);

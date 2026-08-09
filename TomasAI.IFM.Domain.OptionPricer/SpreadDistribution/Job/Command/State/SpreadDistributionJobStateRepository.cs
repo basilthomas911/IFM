@@ -69,7 +69,7 @@ public class SpreadDistributionJobStateRepository(
         }
 
         static async ValueTask UpdateSpreadDistributionJobStatusAsync(IOptionPricerDbContext db, SpreadDistributionJobStatusUpdatedEvent e)
-            => await db.UpdateSpreadDistributionJobStatusAsync(e.EntityId.OrderId, e.EntityId.TradeId, e.JobStatus, e.ReceivedOn);
+            => await db.UpdateSpreadDistributionJobStatusAsync(e.EntityId.OrderId, e.EntityId.TradeId, e.EntityId.ValueDate, e.JobStatus, e.ReceivedOn);
 
         static async ValueTask SpreadDistributionJobsInProgressDeletedAsync(IOptionPricerDbContext db, SpreadDistributionJobsInProgressDeletedEvent e)
             => await db.DeleteSpreadDistributionJobsAsync(e.EntityId.OrderId, e.EntityId.TradeId);

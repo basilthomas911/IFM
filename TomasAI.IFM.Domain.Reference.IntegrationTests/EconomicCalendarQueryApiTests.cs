@@ -1,13 +1,13 @@
 using TomasAI.IFM.Domain.Reference.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -17,8 +17,7 @@ namespace TomasAI.IFM.Domain.Reference.IntegrationTests;
 public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factory, ReferenceFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<ReferenceFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -30,9 +29,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         await dbFixture.ReferenceDb.InsertEconomicCalendarAsync(economicCalendar);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetEconomicCalendarsAsync();
 
         // assert...
@@ -59,9 +56,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         await dbFixture.ReferenceDb.InsertEconomicCalendarAsync(economicCalendar);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetEconomicCalendarAsync(todaysDate,EconomicCalendarViewType.Today, economicCalendar.CountryCode);
 
         // assert...
@@ -77,19 +72,17 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
     public async Task GetEconomicCalendarQuery_Tomorrow_Ok()
     {
         // arrange...
-        var tomorrowsDate = DateTime.UtcNow.Date.AddDays(1);
+        var todaysDate = DateTime.UtcNow.Date;
         var economicCalendar = SampleData.EconomicCalendar2 with
         {
-            EventDate = tomorrowsDate.AddHours(10)
+            EventDate = todaysDate.AddDays(1).AddHours(10)
         };
         await dbFixture.ReferenceDb.DeleteEconomicCalendarAsync(economicCalendar.Id);
         await dbFixture.ReferenceDb.InsertEconomicCalendarAsync(economicCalendar);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
-        var response = await referenceApi.GetEconomicCalendarAsync(tomorrowsDate, EconomicCalendarViewType.Tomorrow, economicCalendar.CountryCode);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
+        var response = await referenceApi.GetEconomicCalendarAsync(todaysDate, EconomicCalendarViewType.Tomorrow, economicCalendar.CountryCode);
 
         // assert...
         response.Should().NotBeNull();
@@ -104,19 +97,17 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
     public async Task GetEconomicCalendarQuery_Yesterday_Ok()
     {
         // arrange...
-        var yesterdaysDate = DateTime.UtcNow.Date.AddDays(-1);
+        var todaysDate = DateTime.UtcNow.Date;
         var economicCalendar = SampleData.EconomicCalendar3 with
         {
-            EventDate = yesterdaysDate.AddHours(9)
+            EventDate = todaysDate.AddDays(-1).AddHours(9)
         };
         await dbFixture.ReferenceDb.DeleteEconomicCalendarAsync(economicCalendar.Id);
         await dbFixture.ReferenceDb.InsertEconomicCalendarAsync(economicCalendar);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
-        var response = await referenceApi.GetEconomicCalendarAsync(yesterdaysDate,  EconomicCalendarViewType.Yesterday, economicCalendar.CountryCode);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
+        var response = await referenceApi.GetEconomicCalendarAsync(todaysDate, EconomicCalendarViewType.Yesterday, economicCalendar.CountryCode);
 
         // assert...
         response.Should().NotBeNull();
@@ -134,9 +125,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         var todaysDate = DateTime.UtcNow;
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetEconomicCalendarDateAsync(todaysDate, EconomicCalendarViewType.Today);
 
         // assert...
@@ -152,9 +141,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         var todaysDate = DateTime.UtcNow;
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetEconomicCalendarDateAsync(todaysDate, EconomicCalendarViewType.Tomorrow);
 
         // assert...
@@ -170,9 +157,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         var todaysDate = DateTime.UtcNow;
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetEconomicCalendarDateAsync(todaysDate, EconomicCalendarViewType.Yesterday);
 
         // assert...
@@ -188,9 +173,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         var todaysDate = DateTime.UtcNow;
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetEconomicCalendarDateAsync(todaysDate, EconomicCalendarViewType.ThisWeek);
 
         // assert...
@@ -206,9 +189,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         var todaysDate = DateTime.UtcNow;
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetEconomicCalendarDateAsync(todaysDate, EconomicCalendarViewType.NextWeek);
 
         // assert...
@@ -226,9 +207,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         await dbFixture.ReferenceDb.InsertEconomicCalendarAsync(economicCalendar);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetEconomicCalendarCountryCodesAsync();
 
         // assert...
@@ -246,9 +225,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         // Note: This test assumes external economic calendar source is available
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetExternalEconomicCalendarsAsync();
 
         // assert...
@@ -269,9 +246,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         }
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetEconomicCalendarsAsync();
 
         // assert...
@@ -296,9 +271,7 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
         await dbFixture.ReferenceDb.InsertEconomicCalendarAsync(euCalendar);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var usResponse = await referenceApi.GetEconomicCalendarAsync(todaysDate, EconomicCalendarViewType.Today, "US");
         var euResponse = await referenceApi.GetEconomicCalendarAsync(todaysDate, EconomicCalendarViewType.Today, "EU");
 

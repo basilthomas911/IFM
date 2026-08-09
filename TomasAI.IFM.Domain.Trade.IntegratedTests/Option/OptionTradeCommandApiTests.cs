@@ -1,15 +1,14 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
@@ -21,8 +20,7 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Option;
 public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, TradeDatabaseFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<TradeDatabaseFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -42,23 +40,17 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         );
 
         var tradeOrder = SampleData.CreateTradeOrder();
-        var subject = new ActorSubject(ActorType.Command, OpenOptionTradeCommand.Actor, OpenOptionTradeCommand.Verb, $"{tradeOrder.OrderId}:{tradeOrder.TradeId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        var subject = new ActorSubject(ActorType.Command, OpenOptionTradeCommand.Actor, OpenOptionTradeCommand.Verb, new OptionTradeEntityId(tradeOrder.OrderId, tradeOrder.TradeId).Format());
+        await ClearEventStreamAsync(subject);
         await dbFixture.TradeDb.DeleteOptionTradeAsync(tradeOrder.OrderId, tradeOrder.TradeId);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeCommandApi(commandServiceApi);
+        var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.OpenOptionTradeAsync(tradeOrder);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         optionTradeToOpenEvent.Should().NotBeNull();
 
@@ -97,10 +89,8 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         var optionTrade = SampleData.CreateOptionTrade(orderId: 101, tradeId: 2, tradeState: TradeState.TradeToClose);
 
         // ensure trade exists before closing
-        var subject = new ActorSubject(ActorType.Command, CloseOptionTradeCommand.Actor, CloseOptionTradeCommand.Verb, $"{tradeOrder.OrderId}:{tradeOrder.TradeId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        var subject = new ActorSubject(ActorType.Command, CloseOptionTradeCommand.Actor, CloseOptionTradeCommand.Verb, new OptionTradeEntityId(tradeOrder.OrderId, tradeOrder.TradeId).Format());
+        await ClearEventStreamAsync(subject);
         await dbFixture.TradeDb.DeleteOptionTradeAsync(tradeOrder.OrderId, tradeOrder.TradeId);
 
         await eventListener.StartAsync(
@@ -113,16 +103,12 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         );
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeCommandApi(commandServiceApi);
+        var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.CloseOptionTradeAsync(tradeOrder);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         optionTradeToCloseEvent.Should().NotBeNull();
         await eventListener.StopAsync();
@@ -159,10 +145,8 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         await dbFixture.TradeDb.DeleteOptionTradeAsync(tradeOrder.OrderId, tradeOrder.TradeId);
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
-        var subject = new ActorSubject(ActorType.Command, DeleteOptionTradeCommand.Actor, DeleteOptionTradeCommand.Verb, $"{tradeOrder.OrderId}:{tradeOrder.TradeId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        var subject = new ActorSubject(ActorType.Command, DeleteOptionTradeCommand.Actor, DeleteOptionTradeCommand.Verb, new OptionTradeEntityId(tradeOrder.OrderId, tradeOrder.TradeId).Format());
+        await ClearEventStreamAsync(subject);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -174,16 +158,12 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         );
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeCommandApi(commandServiceApi);
+        var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.DeleteAsync(tradeOrder.OrderId, tradeOrder.TradeId);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         optionTradeDeletedEvent.Should().NotBeNull();
         await eventListener.StopAsync();
@@ -216,10 +196,8 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         var tradeOrder = SampleData.CreateTradeOrder(orderId: 103, tradeId: 4);
         var optionTrade = SampleData.CreateOptionTrade(orderId: 103, tradeId: 4);
 
-        var subject = new ActorSubject(ActorType.Command, PlaceOptionTradeOrderCommand.Actor, PlaceOptionTradeOrderCommand.Verb, $"{tradeOrder.OrderId}:{tradeOrder.TradeId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        var subject = new ActorSubject(ActorType.Command, PlaceOptionTradeOrderCommand.Actor, PlaceOptionTradeOrderCommand.Verb, new OptionTradeEntityId(tradeOrder.OrderId, tradeOrder.TradeId).Format());
+        await ClearEventStreamAsync(subject);
         await dbFixture.TradeDb.DeleteOptionTradeAsync(tradeOrder.OrderId, tradeOrder.TradeId);
 
         await eventListener.StartAsync(
@@ -232,16 +210,12 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         );
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeCommandApi(commandServiceApi);
+        var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.PlaceOrderAsync(tradeOrder, optionTrade);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         optionTradeOrderPlacedEvent.Should().NotBeNull();
         await eventListener.StopAsync();
@@ -278,10 +252,8 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         await dbFixture.TradeDb.DeleteOptionTradeAsync(tradeOrder.OrderId, tradeOrder.TradeId);
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
-        var subject = new ActorSubject(ActorType.Command, SnapshotOptionTradeCommand.Actor, SnapshotOptionTradeCommand.Verb, $"{tradeOrder.OrderId}:{tradeOrder.TradeId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        var subject = new ActorSubject(ActorType.Command, SnapshotOptionTradeCommand.Actor, SnapshotOptionTradeCommand.Verb, new OptionTradeEntityId(tradeOrder.OrderId, tradeOrder.TradeId).Format());
+        await ClearEventStreamAsync(subject);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -293,16 +265,12 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         );
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeCommandApi(commandServiceApi);
+        var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.SnapshotAsync(tradeOrder.OrderId, tradeOrder.TradeId);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         optionTradeSnapshotEvent.Should().NotBeNull();
         await eventListener.StopAsync();
@@ -343,25 +311,26 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
             OrderId = tradeOrder.OrderId,
             TradeId = tradeOrder.TradeId,
             ValueDate = valueDate,
-            TradeType = TradeType.PutCreditSpread
+            TradeType = TradeType.PutCreditSpread,
+            SequenceId = 1,
+            LossLimit = 1m,
+            WinLimit = 2m,
+            ForwardSpread = 1.5m,
+            NetSpread = 1.25m,
+            CreatedOn = DateTime.UtcNow,
+            CreatedBy = "IntegrationTest"
         };
 
-        var subject = new ActorSubject(ActorType.Command, InsertOptionTradeSpreadDataCommand.Actor, InsertOptionTradeSpreadDataCommand.Verb, $"{tradeOrder.OrderId}:{tradeOrder.TradeId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        var subject = new ActorSubject(ActorType.Command, InsertOptionTradeSpreadDataCommand.Actor, InsertOptionTradeSpreadDataCommand.Verb, new OptionTradeEntityId(tradeOrder.OrderId, tradeOrder.TradeId).Format());
+        await ClearEventStreamAsync(subject);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeCommandApi(commandServiceApi);
+        var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.InsertOptionTradeSpreadDataAsync(spreadData);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
     }
 
@@ -383,25 +352,24 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
             OrderId = tradeOrder.OrderId,
             TradeId = tradeOrder.TradeId,
             ValueDate = valueDate,
-            TradeType = TradeType.PutCreditSpread
+            TradeType = TradeType.PutCreditSpread,
+            BarDate = DateTime.UtcNow,
+            LossLimit = 1m,
+            WinLimit = 2m,
+            ForwardSpread = 1.5m,
+            NetSpread = 1.25m
         };
 
-        var subject = new ActorSubject(ActorType.Command, InsertOptionTradeSpreadBarDataCommand.Actor, InsertOptionTradeSpreadBarDataCommand.Verb, $"{tradeOrder.OrderId}:{tradeOrder.TradeId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        var subject = new ActorSubject(ActorType.Command, InsertOptionTradeSpreadBarDataCommand.Actor, InsertOptionTradeSpreadBarDataCommand.Verb, new OptionTradeEntityId(tradeOrder.OrderId, tradeOrder.TradeId).Format());
+        await ClearEventStreamAsync(subject);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeCommandApi(commandServiceApi);
+        var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.InsertOptionTradeSpreadBarDataAsync(spreadBarData);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
     }
 
@@ -418,22 +386,16 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         await dbFixture.TradeDb.DeleteOptionTradeAsync(tradeOrder.OrderId, tradeOrder.TradeId);
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
-        var subject = new ActorSubject(ActorType.Command, DeleteOptionTradeSpreadBarDataCommand.Actor, DeleteOptionTradeSpreadBarDataCommand.Verb, $"{tradeOrder.OrderId}:{tradeOrder.TradeId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        var subject = new ActorSubject(ActorType.Command, DeleteOptionTradeSpreadBarDataCommand.Actor, DeleteOptionTradeSpreadBarDataCommand.Verb, new OptionTradeEntityId(tradeOrder.OrderId, tradeOrder.TradeId).Format());
+        await ClearEventStreamAsync(subject);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeCommandApi(commandServiceApi);
+        var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.DeleteOptionTradeSpreadBarDataAsync(entityId, TradeType.PutCreditSpread, valueDate);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
     }
 
@@ -448,22 +410,16 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         await dbFixture.TradeDb.DeleteOptionTradeAsync(tradeOrder.OrderId, tradeOrder.TradeId);
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
-        var subject = new ActorSubject(ActorType.Command, UpdateOptionTradeDailyProfitTargetCommand.Actor, UpdateOptionTradeDailyProfitTargetCommand.Verb, $"{tradeOrder.OrderId}:{tradeOrder.TradeId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        var subject = new ActorSubject(ActorType.Command, UpdateOptionTradeDailyProfitTargetCommand.Actor, UpdateOptionTradeDailyProfitTargetCommand.Verb, new OptionTradeEntityId(tradeOrder.OrderId, tradeOrder.TradeId).Format());
+        await ClearEventStreamAsync(subject);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeCommandApi(commandServiceApi);
+        var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.UpdateTradeLimitDailyProfitTargetAsync(tradeOrder.OrderId, tradeOrder.TradeId, 5, 30);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
     }
 
@@ -479,21 +435,23 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
 
         var subject = new ActorSubject(ActorType.Command, DeleteOptionTradesCommand.Actor, DeleteOptionTradesCommand.Verb, $"{tradeOrder.OrderId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        await ClearEventStreamAsync(subject);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new OptionTradeCommandApi(commandServiceApi);
+        var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.DeleteAsync(tradeOrder.OrderId);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
+    }
+
+    async Task ClearEventStreamAsync(ActorSubject subject)
+    {
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
+        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
+        if (eventStreamId > 0)
+            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
     }
 }

@@ -1,25 +1,19 @@
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Logging;
-using NSubstitute;
+using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests;
 
 public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, ReferenceFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<ReferenceFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 
     [Fact]
     public async Task GetDefaultFuturesContractDefinitionsQuery_Ok()
@@ -88,9 +82,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
         await dbFixture.ReferenceDb.InsertLookupTypeAsync(symbol);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetDefaultFuturesContractDefinitionsAsync();
 
         // assert...
@@ -112,9 +104,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
         var seedType = "IntegrationTestSeedId";
 
          // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetNextSeedIdAsync(seedType);
 
         // assert...
@@ -131,9 +121,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
         var seedType = "IntegrationTestCurrentSeedId";
 
         // act - get next seed id first...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var nextSeedIdResponse = await referenceApi.GetNextSeedIdAsync(seedType);
 
         // assert - verify next seed id is not zero...
@@ -189,9 +177,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
         await dbFixture.ReferenceDb.InsertLookupTypeAsync(incrementStrikePrice);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetFuturesOptionStrikePriceDefinitionsAsync();
 
         // assert...
@@ -236,9 +222,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
         await dbFixture.ReferenceDb.InsertMDIForwardLossRatioAsync(mdiForwardLossRatio2);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetMDIForwardLossRatiosAsync(trendDirection, tradeType);
 
         // assert...

@@ -283,18 +283,6 @@ internal readonly record struct InsertTradePlanForwardLossRatio(int partitionId,
 {
     public object Bind() => new object?[] { partitionId, valueDate, forwardLossRatio, sequenceId };
 }
-internal readonly record struct InsertTradePlanForwardLossRatioShort(DateOnly valueDate, double forwardLossRatio, long sequenceId) : IBindValue
-{
-    public object Bind() => new object?[]
-    {
-        sequenceId, null, null, null, null, valueDate, null, null,
-        null, null, null, null, null, forwardLossRatio, null, null,
-        null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null,
-        null, null, null, null, null, null, null, null
-    };
-}
 internal readonly record struct InsertTradePlacementSignal(long sequenceId, string contractId, DateOnly valueDate, string tradePlacementSignal, decimal tradePrice, DateTime createdOn, string createdBy) : IBindValue
 {
     public object Bind() => new object?[] { sequenceId, contractId, valueDate, tradePlacementSignal, tradePrice, createdOn, createdBy };

@@ -289,10 +289,10 @@ public class OptionPricerDbContext(
     /// <param name="jobCompleted">job completion date</param>
     /// <param name="jobFailed"></param>
     /// <returns></returns>
-    public async Task UpdateSpreadDistributionJobStatusAsync(int orderId, int tradeId, SpreadDistributionJobStatus jobStatus, DateTime jobCompleted, DateTime? jobFailed)
+    public async Task UpdateSpreadDistributionJobStatusAsync(int orderId, int tradeId, DateOnly valueDate, SpreadDistributionJobStatus jobStatus, DateTime jobCompleted, DateTime? jobFailed)
         => await _dbFactory.OptionPricerDb
             .Use(OptionPricerDbCql.UpdateSreadDistributionJobStatus)
-            .SetParameters(new UpdateSpreadDistributionJobStatus(orderId, tradeId, jobStatus.ToStringFast(), jobCompleted, jobFailed, jobStatus == SpreadDistributionJobStatus.InProgress))
+            .SetParameters(new UpdateSpreadDistributionJobStatus(orderId, tradeId, valueDate, jobStatus.ToStringFast(), jobCompleted, jobFailed, jobStatus == SpreadDistributionJobStatus.InProgress))
             .ExecuteCommandAsync();
 
 }

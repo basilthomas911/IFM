@@ -1,14 +1,14 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
@@ -21,8 +21,7 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Plan;
 public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, TradeDatabaseFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<TradeDatabaseFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -31,6 +30,7 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         TradePlanUpdatedEvent tradePlanUpdatedEvent = default!;
+        var eventReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -44,23 +44,18 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
         var tradePlan = SampleData.CreateTradePlan(orderId: 300, tradeId: 1);
         var entityId = new TradePlanEntityId(tradePlan.OrderId, tradePlan.TradeId, tradePlan.ValueDate);
         var subject = new ActorSubject(ActorType.Command, UpdateTradePlanCommand.Actor, UpdateTradePlanCommand.Verb, entityId.Format());
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+        await ClearEventStreamAsync(subject);
 
         await dbFixture.TradeDb.InsertTradePlanAsync(tradePlan);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new TradePlanCommandApi(commandServiceApi);
+        var tradeApi = new TradePlanCommandApi(_actorProducer);
         var response = await tradeApi.UpdateTradePlanAsync(tradePlan);
-
-        await Task.Delay(1000);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         tradePlanUpdatedEvent.Should().NotBeNull();
 
@@ -78,6 +73,7 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
             IEvent SetEvent(IEvent @event)
             {
                 tradePlanUpdatedEvent = (TradePlanUpdatedEvent)@event;
+                eventReceived.TrySetResult(true);
                 return @event;
             }
         }
@@ -89,6 +85,7 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         TradePlanForwardLossLimitUpdatedEvent forwardLossLimitUpdatedEvent = default!;
+        var eventReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -101,19 +98,21 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
 
         var forwardLossLimit = SampleData.CreateTradePlanForwardLossLimit(orderId: 301, tradeId: 1);
         var entityId = forwardLossLimit.EntityId;
+        await ClearEventStreamAsync(new ActorSubject(
+            ActorType.Command,
+            UpdateTradePlanForwardLossLimitCommand.Actor,
+            UpdateTradePlanForwardLossLimitCommand.Verb,
+            entityId.Format()));
         await dbFixture.TradeDb.DeleteTradePlanForwardLossLimitAsync(entityId);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new TradePlanCommandApi(commandServiceApi);
+        var tradeApi = new TradePlanCommandApi(_actorProducer);
         var response = await tradeApi.UpdateTradePlanForwardLossLimitAsync(forwardLossLimit);
-
-        await Task.Delay(1000);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         forwardLossLimitUpdatedEvent.Should().NotBeNull();
 
@@ -131,6 +130,7 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
             IEvent SetEvent(IEvent @event)
             {
                 forwardLossLimitUpdatedEvent = (TradePlanForwardLossLimitUpdatedEvent)@event;
+                eventReceived.TrySetResult(true);
                 return @event;
             }
         }
@@ -142,6 +142,7 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         TradePlanForwardLossLimitClearedEvent forwardLossLimitClearedEvent = default!;
+        var eventReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -154,20 +155,22 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
 
         var forwardLossLimit = SampleData.CreateTradePlanForwardLossLimit(orderId: 302, tradeId: 1);
         var entityId = forwardLossLimit.EntityId;
+        await ClearEventStreamAsync(new ActorSubject(
+            ActorType.Command,
+            ClearTradePlanForwardLossLimitCommand.Actor,
+            ClearTradePlanForwardLossLimitCommand.Verb,
+            entityId.Format()));
         await dbFixture.TradeDb.DeleteTradePlanForwardLossLimitAsync(entityId);
         await dbFixture.TradeDb.InsertTradePlanForwardLossLimitAsync(forwardLossLimit);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var tradeApi = new TradePlanCommandApi(commandServiceApi);
+        var tradeApi = new TradePlanCommandApi(_actorProducer);
         var response = await tradeApi.ClearTradePlanForwardLossLimitAsync(entityId);
-
-        await Task.Delay(1000);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         forwardLossLimitClearedEvent.Should().NotBeNull();
 
@@ -185,8 +188,17 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
             IEvent SetEvent(IEvent @event)
             {
                 forwardLossLimitClearedEvent = (TradePlanForwardLossLimitClearedEvent)@event;
+                eventReceived.TrySetResult(true);
                 return @event;
             }
         }
+    }
+
+    async Task ClearEventStreamAsync(ActorSubject subject)
+    {
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
+        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
+        if (eventStreamId > 0)
+            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
     }
 }

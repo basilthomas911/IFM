@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
+using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -22,6 +24,7 @@ namespace TomasAI.IFM.Domain.Trade.Option.Query.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class OptionTradeQueryActor(
     IDbContextFactory dbFactory,
+    IBlackboardService blackboardService,
     ILogger<OptionTradeQueryActor> logger)
     : BaseQueryActor<OptionTradeQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
 {
@@ -61,7 +64,11 @@ public class OptionTradeQueryActor(
         [GetOptionTradeSpreadDataQuery.Verb] = msg => msg.AsQuery<GetOptionTradeSpreadDataQuery, OptionTradeSpreadsDataModel>()!,
         [GetOptionTradeSpreadBarDataQuery.Verb] = msg => msg.AsQuery<GetOptionTradeSpreadBarDataQuery, OptionTradeSpreadBarsDataModel[]>()!,
         [GetOptionLegContractIdsQuery.Verb] = msg => msg.AsQuery<GetOptionLegContractIdsQuery, string[]>()!,
-        [GetIronCondorTradePriceQuery.Verb] = msg => msg.AsQuery<GetIronCondorTradePriceQuery, TradePriceReadModel>()!
+        [GetIronCondorTradePriceQuery.Verb] = msg => msg.AsQuery<GetIronCondorTradePriceQuery, TradePriceReadModel>()!,
+        [GetTradePositionsQuery.Verb] = msg => msg.AsQuery<GetTradePositionsQuery, TradePositionReadModel[]>()!,
+        [GetTradePositionTradeTypesQuery.Verb] = msg => msg.AsQuery<GetTradePositionTradeTypesQuery, string[]>()!,
+        [GetTradePlanActionQuery.Verb] = msg => msg.AsQuery<GetTradePlanActionQuery, TradePlanActionReadModel[]>()!,
+        [GetIronCondorMDILimitQuery.Verb] = msg => msg.AsQuery<GetIronCondorMDILimitQuery, IronCondorMDILimitDataModel>()!
     };
 
     /// <summary>
@@ -91,7 +98,7 @@ public class OptionTradeQueryActor(
     /// Provides a mapping from query type names to delegate functions that execute the corresponding option trade query
     /// logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
         [typeof(GetOptionTradeQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
@@ -140,6 +147,42 @@ public class OptionTradeQueryActor(
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetIronCondorTradePriceQuery.Verb,
                 new ServiceResult<TradePriceReadModel?>(result));
+        },
+        [typeof(GetTradePositionsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        {
+            var query = (GetTradePositionsQuery)q;
+            var result = await dbFactory.TradeDb.GetTradePositionsAsync(
+                query.OrderId, query.TradeId, cancellationToken);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradePositionsQuery.Verb,
+                new ServiceResult<TradePositionReadModel[]>([.. result]));
+        },
+        [typeof(GetTradePositionTradeTypesQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        {
+            var query = (GetTradePositionTradeTypesQuery)q;
+            var result = await dbFactory.TradeDb.GetTradePositionTradeTypesAsync(
+                query.OrderId,
+                query.TradeId,
+                query.ValueDate,
+                query.TradeStatus,
+                query.DaysToExpiry,
+                cancellationToken);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradePositionTradeTypesQuery.Verb,
+                new ServiceResult<string[]>([.. result]));
+        },
+        [typeof(GetTradePlanActionQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradePlanActionQuery.Verb,
+                new ServiceResult<TradePlanActionReadModel[]>([]));
+        },
+        [typeof(GetIronCondorMDILimitQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        {
+            var query = (GetIronCondorMDILimitQuery)q;
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = blackboardService.Trade.IronCondorMDILimit.Get(
+                new OptionTradeEntityId(query.OrderId, query.TradeId), query.ValueDate);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetIronCondorMDILimitQuery.Verb,
+                new ServiceResult<IronCondorMDILimitDataModel?>(result));
         }
     };
 
@@ -175,6 +218,14 @@ public class OptionTradeQueryActor(
                     => context.ReplyAsync(threadId, verb, new ServiceResult<string[]>(query.ErrorCode, ex!.Message)),
                 _ when query is GetIronCondorTradePriceQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<TradePriceReadModel?>(query.ErrorCode, ex!.Message)),
+                _ when query is GetTradePositionsQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<TradePositionReadModel[]>(query.ErrorCode, ex!.Message)),
+                _ when query is GetTradePositionTradeTypesQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<string[]>(query.ErrorCode, ex!.Message)),
+                _ when query is GetTradePlanActionQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<TradePlanActionReadModel[]>(query.ErrorCode, ex!.Message)),
+                _ when query is GetIronCondorMDILimitQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<IronCondorMDILimitDataModel?>(query.ErrorCode, ex!.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
             };
             await serviceResultTask;

@@ -99,6 +99,7 @@ public class TradeEventProducer : NatsEventProducer,  ITradeEventProducer
             TradePlanForwardLossLimitClearedEvent e => StreamEventAsync(e.ForwardLossLimitId, e),
             TradePlanForwardLossLimitClearedCompleteEvent e => StreamEventAsync(e.CommandId, e),
             TradePlanForwardLossLimitClearedFailEvent e => SendEventAsync(e.CommandId, e),
+            TradePlanForwardLossLimitUpdatedEvent e => StreamEventAsync(e.TradePlanForwardLossLimit.EntityId, e),
             TradePlanForwardLossLimitWarningUpdatedEvent e => StreamEventAsync(e.TradePlanForwardLossLimit.EntityId, e),
             TradePlanForwardLossLimitWarningUpdatedCompleteEvent e => StreamEventAsync(e.CommandId, e),
             TradePlanForwardLossLimitWarningUpdatedFailEvent e => SendEventAsync(e.CommandId, e),

@@ -1,14 +1,14 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
@@ -26,8 +26,8 @@ namespace TomasAI.IFM.Domain.OptionPricer.IntegrationTests.SpreadDistribution.Jo
 public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program> factory, OptionPricerFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<OptionPricerFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(10);
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -38,6 +38,7 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         SpreadDistributionJobSubmittedEvent submittedEvent = default!;
         SpreadDistributionJobSubmittedCompleteEvent submittedCompleteEvent = default!;
         SpreadDistributionJobSubmittedFailEvent submittedFailEvent = default!;
+        var eventsReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -54,23 +55,21 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         var job = SampleData.SpreadDistributionJob;
         var entityId = SampleData.SpreadDistributionJobEntityId;
         var subject = new ActorSubject(ActorType.Command, SubmitSpreadDistributionJobCommand.Actor, SubmitSpreadDistributionJobCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
         await dbFixture.OptionPricerDb.DeleteSpreadDistributionJobsAsync(SampleData.OrderId, SampleData.TradeId);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var optionPricerApi = new OptionPricerCommandApi(commandServiceApi);
+        var optionPricerApi = new OptionPricerCommandApi(_actorProducer);
         var response = await optionPricerApi.SubmitSpreadDistributionJobAsync(job);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
+        await eventsReceived.Task.WaitAsync(EventTimeout);
         submittedEvent.Should().NotBeNull();
         submittedCompleteEvent.Should().NotBeNull();
         submittedFailEvent.Should().BeNull();
@@ -99,6 +98,8 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
                     submittedCompleteEvent = submittedComplete;
                 if (@event is SpreadDistributionJobSubmittedFailEvent submittedFail)
                     submittedFailEvent = submittedFail;
+                if (submittedCompleteEvent is not null || submittedFailEvent is not null)
+                    eventsReceived.TrySetResult(true);
                 return @event;
             }
         }
@@ -112,17 +113,20 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         SpreadDistributionJobStatusUpdatedEvent statusUpdatedEvent = default!;
         SpreadDistributionJobStatusUpdatedCompleteEvent statusUpdatedCompleteEvent = default!;
         SpreadDistributionJobStatusUpdatedFailEvent statusUpdatedFailEvent = default!;
+        var eventsReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var job = SampleData.SpreadDistributionJob;
         var entityId = SampleData.SpreadDistributionJobEntityId;
 
         // clean up event streams...
         var submitSubject = new ActorSubject(ActorType.Command, SubmitSpreadDistributionJobCommand.Actor, SubmitSpreadDistributionJobCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{submitSubject.ThreadId}");
         var submitStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{submitSubject.ThreadId}");
         if (submitStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(submitStreamId);
 
         var completeSubject = new ActorSubject(ActorType.Command, CompleteSpreadDistributionJobCommand.Actor, CompleteSpreadDistributionJobCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{completeSubject.ThreadId}");
         var completeStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{completeSubject.ThreadId}");
         if (completeStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(completeStreamId);
@@ -130,12 +134,10 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         await dbFixture.OptionPricerDb.DeleteSpreadDistributionJobsAsync(SampleData.OrderId, SampleData.TradeId);
 
         // submit job first...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var optionPricerApi = new OptionPricerCommandApi(commandServiceApi);
+        var optionPricerApi = new OptionPricerCommandApi(_actorProducer);
         var submitResponse = await optionPricerApi.SubmitSpreadDistributionJobAsync(job);
-        await Task.Delay(1000);
-        submitResponse.Success.Should().BeTrue();
+        submitResponse.Success.Should().BeTrue(submitResponse.ErrorMessage);
+        await WaitForSubmittedJobAsync(dbFixture);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -153,15 +155,14 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         var response = await optionPricerApi.CompleteSpreadDistributionJobAsync(
             entityId, DateTime.UtcNow, SpreadDistributionJobStatus.Completed);
 
-        await Task.Delay(1000);
-
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
+        await eventsReceived.Task.WaitAsync(EventTimeout);
         statusUpdatedEvent.Should().NotBeNull();
         statusUpdatedEvent.JobStatus.Should().Be(SpreadDistributionJobStatus.Completed);
-        statusUpdatedCompleteEvent.Should().NotBeNull();
+        statusUpdatedCompleteEvent.Should().NotBeNull(statusUpdatedFailEvent?.ErrorMessage);
         statusUpdatedFailEvent.Should().BeNull();
 
         var inProgressCount = await dbFixture.OptionPricerDb.GetSpreadDistributionJobInProgressCountAsync(SampleData.OrderId, SampleData.TradeId);
@@ -188,6 +189,8 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
                     statusUpdatedCompleteEvent = updatedComplete;
                 if (@event is SpreadDistributionJobStatusUpdatedFailEvent updatedFail)
                     statusUpdatedFailEvent = updatedFail;
+                if (statusUpdatedCompleteEvent is not null || statusUpdatedFailEvent is not null)
+                    eventsReceived.TrySetResult(true);
                 return @event;
             }
         }
@@ -201,17 +204,20 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         SpreadDistributionJobStatusUpdatedEvent statusUpdatedEvent = default!;
         SpreadDistributionJobStatusUpdatedCompleteEvent statusUpdatedCompleteEvent = default!;
         SpreadDistributionJobStatusUpdatedFailEvent statusUpdatedFailEvent = default!;
+        var eventsReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var job = SampleData.SpreadDistributionJob;
         var entityId = SampleData.SpreadDistributionJobEntityId;
 
         // clean up event streams...
         var submitSubject = new ActorSubject(ActorType.Command, SubmitSpreadDistributionJobCommand.Actor, SubmitSpreadDistributionJobCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{submitSubject.ThreadId}");
         var submitStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{submitSubject.ThreadId}");
         if (submitStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(submitStreamId);
 
         var failSubject = new ActorSubject(ActorType.Command, FailSpreadDistributionJobCommand.Actor, FailSpreadDistributionJobCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{failSubject.ThreadId}");
         var failStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{failSubject.ThreadId}");
         if (failStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(failStreamId);
@@ -219,12 +225,10 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         await dbFixture.OptionPricerDb.DeleteSpreadDistributionJobsAsync(SampleData.OrderId, SampleData.TradeId);
 
         // submit job first...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var optionPricerApi = new OptionPricerCommandApi(commandServiceApi);
+        var optionPricerApi = new OptionPricerCommandApi(_actorProducer);
         var submitResponse = await optionPricerApi.SubmitSpreadDistributionJobAsync(job);
-        await Task.Delay(1000);
-        submitResponse.Success.Should().BeTrue();
+        submitResponse.Success.Should().BeTrue(submitResponse.ErrorMessage);
+        await WaitForSubmittedJobAsync(dbFixture);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -242,15 +246,14 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         var response = await optionPricerApi.FailSpreadDistributionJobAsync(
             entityId, DateTime.UtcNow, SpreadDistributionJobStatus.Failed, "Test failure reason");
 
-        await Task.Delay(1000);
-
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
+        await eventsReceived.Task.WaitAsync(EventTimeout);
         statusUpdatedEvent.Should().NotBeNull();
         statusUpdatedEvent.JobStatus.Should().Be(SpreadDistributionJobStatus.Failed);
-        statusUpdatedCompleteEvent.Should().NotBeNull();
+        statusUpdatedCompleteEvent.Should().NotBeNull(statusUpdatedFailEvent?.ErrorMessage);
         statusUpdatedFailEvent.Should().BeNull();
 
         var inProgressCount = await dbFixture.OptionPricerDb.GetSpreadDistributionJobInProgressCountAsync(SampleData.OrderId, SampleData.TradeId);
@@ -277,6 +280,8 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
                     statusUpdatedCompleteEvent = updatedComplete;
                 if (@event is SpreadDistributionJobStatusUpdatedFailEvent updatedFail)
                     statusUpdatedFailEvent = updatedFail;
+                if (statusUpdatedCompleteEvent is not null || statusUpdatedFailEvent is not null)
+                    eventsReceived.TrySetResult(true);
                 return @event;
             }
         }
@@ -290,17 +295,20 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         SpreadDistributionJobStatusUpdatedEvent statusUpdatedEvent = default!;
         SpreadDistributionJobStatusUpdatedCompleteEvent statusUpdatedCompleteEvent = default!;
         SpreadDistributionJobStatusUpdatedFailEvent statusUpdatedFailEvent = default!;
+        var eventsReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var job = SampleData.SpreadDistributionJob;
         var entityId = SampleData.SpreadDistributionJobEntityId;
 
         // clean up event streams...
         var submitSubject = new ActorSubject(ActorType.Command, SubmitSpreadDistributionJobCommand.Actor, SubmitSpreadDistributionJobCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{submitSubject.ThreadId}");
         var submitStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{submitSubject.ThreadId}");
         if (submitStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(submitStreamId);
 
         var clearSubject = new ActorSubject(ActorType.Command, ClearSpreadDistributionJobCommand.Actor, ClearSpreadDistributionJobCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{clearSubject.ThreadId}");
         var clearStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{clearSubject.ThreadId}");
         if (clearStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(clearStreamId);
@@ -308,12 +316,10 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         await dbFixture.OptionPricerDb.DeleteSpreadDistributionJobsAsync(SampleData.OrderId, SampleData.TradeId);
 
         // submit job first...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var optionPricerApi = new OptionPricerCommandApi(commandServiceApi);
+        var optionPricerApi = new OptionPricerCommandApi(_actorProducer);
         var submitResponse = await optionPricerApi.SubmitSpreadDistributionJobAsync(job);
-        await Task.Delay(1000);
-        submitResponse.Success.Should().BeTrue();
+        submitResponse.Success.Should().BeTrue(submitResponse.ErrorMessage);
+        await WaitForSubmittedJobAsync(dbFixture);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -330,15 +336,14 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         // act...
         var response = await optionPricerApi.ClearSpreadDistributionJobAsync(entityId);
 
-        await Task.Delay(1000);
-
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
+        await eventsReceived.Task.WaitAsync(EventTimeout);
         statusUpdatedEvent.Should().NotBeNull();
         statusUpdatedEvent.JobStatus.Should().Be(SpreadDistributionJobStatus.Cleared);
-        statusUpdatedCompleteEvent.Should().NotBeNull();
+        statusUpdatedCompleteEvent.Should().NotBeNull(statusUpdatedFailEvent?.ErrorMessage);
         statusUpdatedFailEvent.Should().BeNull();
 
         var inProgressCount = await dbFixture.OptionPricerDb.GetSpreadDistributionJobInProgressCountAsync(SampleData.OrderId, SampleData.TradeId);
@@ -365,6 +370,8 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
                     statusUpdatedCompleteEvent = updatedComplete;
                 if (@event is SpreadDistributionJobStatusUpdatedFailEvent updatedFail)
                     statusUpdatedFailEvent = updatedFail;
+                if (statusUpdatedCompleteEvent is not null || statusUpdatedFailEvent is not null)
+                    eventsReceived.TrySetResult(true);
                 return @event;
             }
         }
@@ -378,17 +385,20 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         SpreadDistributionJobsInProgressDeletedEvent deletedEvent = default!;
         SpreadDistributionJobsInProgressDeletedCompleteEvent deletedCompleteEvent = default!;
         SpreadDistributionJobsInProgressDeletedFailEvent deletedFailEvent = default!;
+        var eventsReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var job = SampleData.SpreadDistributionJob;
         var entityId = SampleData.SpreadDistributionJobEntityId;
 
         // clean up event streams...
         var submitSubject = new ActorSubject(ActorType.Command, SubmitSpreadDistributionJobCommand.Actor, SubmitSpreadDistributionJobCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{submitSubject.ThreadId}");
         var submitStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{submitSubject.ThreadId}");
         if (submitStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(submitStreamId);
 
         var deleteSubject = new ActorSubject(ActorType.Command, DeleteSpreadDistributionJobsInProgressCommand.Actor, DeleteSpreadDistributionJobsInProgressCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{deleteSubject.ThreadId}");
         var deleteStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{deleteSubject.ThreadId}");
         if (deleteStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(deleteStreamId);
@@ -396,12 +406,10 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         await dbFixture.OptionPricerDb.DeleteSpreadDistributionJobsAsync(SampleData.OrderId, SampleData.TradeId);
 
         // submit job first...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var optionPricerApi = new OptionPricerCommandApi(commandServiceApi);
+        var optionPricerApi = new OptionPricerCommandApi(_actorProducer);
         var submitResponse = await optionPricerApi.SubmitSpreadDistributionJobAsync(job);
-        await Task.Delay(1000);
-        submitResponse.Success.Should().BeTrue();
+        submitResponse.Success.Should().BeTrue(submitResponse.ErrorMessage);
+        await WaitForSubmittedJobAsync(dbFixture);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -418,12 +426,11 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
         // act...
         var response = await optionPricerApi.DeleteSpreadDistributionJobsInProgressAsync(entityId);
 
-        await Task.Delay(1000);
-
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
+        await eventsReceived.Task.WaitAsync(EventTimeout);
         deletedEvent.Should().NotBeNull();
         deletedCompleteEvent.Should().NotBeNull();
         deletedFailEvent.Should().BeNull();
@@ -452,8 +459,21 @@ public class SpreadDistributionJobCommandApiTests(WebApplicationFactory<Program>
                     deletedCompleteEvent = deletedComplete;
                 if (@event is SpreadDistributionJobsInProgressDeletedFailEvent deletedFail)
                     deletedFailEvent = deletedFail;
+                if (deletedCompleteEvent is not null || deletedFailEvent is not null)
+                    eventsReceived.TrySetResult(true);
                 return @event;
             }
+        }
+    }
+
+    static async Task WaitForSubmittedJobAsync(OptionPricerFixture dbFixture)
+    {
+        using var timeout = new CancellationTokenSource(EventTimeout);
+        while (await dbFixture.OptionPricerDb.GetSpreadDistributionJobInProgressCountAsync(
+                   SampleData.OrderId,
+                   SampleData.TradeId) == 0)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(50), timeout.Token);
         }
     }
 }

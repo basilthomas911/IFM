@@ -1,23 +1,22 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests;
 
 public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, ReferenceFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<ReferenceFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -29,9 +28,7 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
         await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetLookupTypesAsync();
 
         // assert...
@@ -57,9 +54,7 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
         await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType2);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetLookupTypesAsync(lookupType1.LookupTypeName);
 
         // assert...
@@ -87,9 +82,7 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
         await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType3);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetLookupTypeNamesAsync();
 
         // assert...
@@ -113,9 +106,7 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
         await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType2);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.GetLookupTypeShortCodesAsync(lookupType1.LookupTypeName);
 
         // assert...
@@ -136,9 +127,7 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
         await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.LookupTypeShortCodeExistsAsync(lookupType.LookupTypeName, lookupType.ShortCode);
 
         // assert...
@@ -157,9 +146,7 @@ public class LookupTypeQueryApiTests(WebApplicationFactory<Program> factory, Ref
         await dbFixture.ReferenceDb.InsertLookupTypeAsync(lookupType);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var referenceApi = new ReferenceQueryApi(queryServiceApi);
+        var referenceApi = new ReferenceQueryApi(_actorProducer);
         var response = await referenceApi.LookupTypeShortCodeExistsAsync(lookupType.LookupTypeName, "NONEXISTENT");
 
         // assert...

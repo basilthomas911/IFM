@@ -34,8 +34,8 @@ internal readonly record struct InsertSpreadDistributionJob(int orderId, int tra
 {
     public object Bind() => new object?[] { orderId, tradeId, tradeType, tradeStatus, valueDate, daysToExpiry, jobSubmitted, jobStatus, jobCompleted, jobFailed, inProgress, lossProbabilityFactor };
 }
-internal readonly record struct UpdateSpreadDistributionJobStatus(int orderId, int tradeId, string jobStatus, DateTime jobCompleted, DateTime? jobFailed, bool inProgress) : IBindValue
+internal readonly record struct UpdateSpreadDistributionJobStatus(int orderId, int tradeId, DateOnly valueDate, string jobStatus, DateTime jobCompleted, DateTime? jobFailed, bool inProgress) : IBindValue
 {
-    public object Bind() => new object?[] { jobCompleted, jobFailed, jobStatus, inProgress, orderId, tradeId };
+    public object Bind() => new object?[] { jobCompleted, jobFailed, jobStatus, inProgress, orderId, tradeId, valueDate };
 }
 

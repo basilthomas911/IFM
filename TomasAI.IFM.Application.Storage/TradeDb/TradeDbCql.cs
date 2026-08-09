@@ -865,11 +865,10 @@ and  valueDate >= :startDate
 and valueDate <= :endDate
 """;
     public const string GetLastTradePlanForwardLossRatio = """
-        select forwardLossRatio as "ForwardLossRatio"
+        select forwardLossRatio as "ForwardLossRatio", sequenceId as "SequenceId"
 from trade_plan_forward_loss_ratio
 where partitionId = 1 
 and valueDate = :valueDate
-limit 1;
 """;
     public const string GetTradePlanForwardLossLimit = """
         SELECT 

@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Queries;
 [MessagePackObject(AllowPrivate = true)]
 public record GetOptionLegContractIdsQuery : IQuery<string[]>
 {
-    [IgnoreMember] public const string Actor = "OptionLegContractIdsQuery";
+    [IgnoreMember] public const string Actor = "OptionTradeQuery";
     [IgnoreMember] public const string Verb = "GetOptionLegContractIds";
     [IgnoreMember] public const int ErrorId = 1017;
 

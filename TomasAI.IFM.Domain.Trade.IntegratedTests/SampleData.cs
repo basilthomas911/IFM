@@ -1,10 +1,8 @@
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests;
 
@@ -51,7 +49,7 @@ public static class SampleData
         int tradeId = 1,
         TradeType tradeType = TradeType.ShortIronCondor,
         TradeState tradeState = TradeState.TradeToOpen)
-        => new(
+        => new OptionTradeReadModel(
             orderId: orderId,
             tradeId: tradeId,
             tradeStrategy: "IronCondor",
@@ -67,7 +65,8 @@ public static class SampleData
             createdOn: DateTime.UtcNow,
             createdBy: "TestUser",
             updatedOn: DateTime.UtcNow,
-            updatedBy: "TestUser");
+            updatedBy: "TestUser")
+        .SetTradeLimit(new TradeLimitReadModel { TradeId = tradeId, TradeType = tradeType });
 
     public static TradePlanReadModel CreateTradePlan(
         int orderId = 300,

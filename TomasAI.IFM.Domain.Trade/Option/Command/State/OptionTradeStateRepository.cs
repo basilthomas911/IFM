@@ -1,12 +1,11 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
@@ -45,7 +44,38 @@ public class OptionTradeStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<OptionTradeCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<OptionTradeCommandState, OptionTradeSnapshotEvent>(command, cancellationToken).ConfigureAwait(false);
+    {
+        var state = await LoadStateFromSnapshotAsync<OptionTradeCommandState, OptionTradeSnapshotEvent>(command, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Some existing trades predate the event stream. Use the read model as the
+        // initial snapshot so commands can operate on those migrated aggregates.
+        if (command is ICommand<OptionTradeEntityId> optionTradeCommand
+            && state.TradeDoesNotExist(optionTradeCommand.EntityId)
+            && await dbFactory.TradeDb.GetOptionTradeAsync(
+                optionTradeCommand.EntityId.OrderId,
+                optionTradeCommand.EntityId.TradeId,
+                cancellationToken).ConfigureAwait(false) is { } optionTrade)
+        {
+            state.ReplayEvents([
+                new OptionTradeSnapshotEvent
+                {
+                    Subject = new ActorSubject(
+                        ActorType.Event,
+                        OptionTradeSnapshotEvent.Actor,
+                        OptionTradeSnapshotEvent.Verb,
+                        optionTradeCommand.EntityId.Format()),
+                    EntityId = optionTradeCommand.EntityId,
+                    OrderId = optionTrade.OrderId,
+                    OptionTrade = optionTrade,
+                    CreatedOn = optionTrade.CreatedOn,
+                    CreatedBy = optionTrade.CreatedBy
+                }
+            ]);
+        }
+
+        return state;
+    }
 
     /// <summary>
     /// Persists the option trade command state and denormalizes any pending domain events into the read model.
@@ -84,22 +114,63 @@ public class OptionTradeStateRepository(
             _ = domainEvent switch
             {
                 OptionTradeOrderPlacedEvent e => await PostEventAndInsertOptionTradeAsync(db, context, e),
-                OptionTradeSnapshotEvent => true,
-                OptionTradePositionOpenedEvent => true,
-                OptionTradePositionClosedEvent => true,
-                OptionTradeEndOfDayProcessedEvent => true,
-                OptionTradeSpreadDistributionStatisticsUpdatedEvent => true,
-                OptionTradeSpreadDataInsertedEvent e => await InsertOptionTradeSpreadDataAsync(db, e),
-                OptionTradeSpreadBarDataInsertedEvent e => await InsertOptionTradeSpreadBarDataAsync(db, e),
-                OptionTradeSpreadBarDataDeletedEvent e => await DeleteOptionTradeSpreadBarDataAsync(db, e),
+                OptionTradeToOpenEvent e => await PostEventAndReplaceOptionTradeAsync(db, context, e),
+                OptionTradeToCloseEvent e => await PostEventAndReplaceOptionTradeAsync(db, context, e),
+                OptionTradeSnapshotEvent e => await PostEventOnlyAsync(context, e),
+                OptionTradePositionOpenedEvent e => await PostEventOnlyAsync(context, e),
+                OptionTradePositionClosedEvent e => await PostEventOnlyAsync(context, e),
+                OptionTradeEndOfDayProcessedEvent e => await PostEventOnlyAsync(context, e),
+                OptionTradeSpreadDistributionStatisticsUpdatedEvent e => await PostEventOnlyAsync(context, e),
+                OptionTradeSpreadDataInsertedEvent e => await PostEventAndRunAsync(context, e, () => InsertOptionTradeSpreadDataAsync(db, e)),
+                OptionTradeSpreadBarDataInsertedEvent e => await PostEventAndRunAsync(context, e, () => InsertOptionTradeSpreadBarDataAsync(db, e)),
+                OptionTradeSpreadBarDataDeletedEvent e => await PostEventAndRunAsync(context, e, () => DeleteOptionTradeSpreadBarDataAsync(db, e)),
                 TradePositionAddedEvent e => await InsertTradePositionAsync(db, e),
                 TradePositionUpdatedEvent e => await UpdateTradePositionAsync(db, e),
                 TradePositionStatusUpdatedEvent e => await UpdateTradePositionStatusAsync(db, e),
-                OptionTradeDeletedEvent e => await DeleteOptionTradeAsync(db, e),
-                OptionTradeDailyProfitTargetUpdatedEvent e => await UpdateTradeLimitDailyProfitTargetAsync(db, e),
+                OptionTradeDeletedEvent e => await PostEventAndRunAsync(context, e, () => DeleteOptionTradeAsync(db, e)),
+                OptionTradeDailyProfitTargetUpdatedEvent e => await PostEventAndRunAsync(context, e, () => UpdateTradeLimitDailyProfitTargetAsync(db, e)),
                 _ => false
             };
         }
+    }
+
+    async ValueTask<bool> PostEventAndReplaceOptionTradeAsync(
+        ITradeDbContext db,
+        ICommandActorContext context,
+        OptionTradeToOpenEvent e)
+    {
+        await PostEventAsync<OptionTradeToOpenEvent, OptionTradeEntityId>(context, e);
+        await db.DeleteOptionTradeAsync(e.OptionTrade.OrderId, e.OptionTrade.TradeId);
+        await db.InsertOptionTradeAsync(e.OptionTrade);
+        return true;
+    }
+
+    async ValueTask<bool> PostEventAndReplaceOptionTradeAsync(
+        ITradeDbContext db,
+        ICommandActorContext context,
+        OptionTradeToCloseEvent e)
+    {
+        await PostEventAsync<OptionTradeToCloseEvent, OptionTradeEntityId>(context, e);
+        await db.DeleteOptionTradeAsync(e.OptionTrade.OrderId, e.OptionTrade.TradeId);
+        await db.InsertOptionTradeAsync(e.OptionTrade);
+        return true;
+    }
+
+    async ValueTask<bool> PostEventOnlyAsync<TEvent>(ICommandActorContext context, TEvent e)
+        where TEvent : class, IEvent<OptionTradeEntityId>
+    {
+        await PostEventAsync<TEvent, OptionTradeEntityId>(context, e);
+        return true;
+    }
+
+    async ValueTask<bool> PostEventAndRunAsync<TEvent>(
+        ICommandActorContext context,
+        TEvent e,
+        Func<ValueTask<bool>> action)
+        where TEvent : class, IEvent<OptionTradeEntityId>
+    {
+        await PostEventAsync<TEvent, OptionTradeEntityId>(context, e);
+        return await action();
     }
 
     /// <summary>

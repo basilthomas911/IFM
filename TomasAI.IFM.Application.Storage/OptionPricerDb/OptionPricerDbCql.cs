@@ -140,6 +140,7 @@ internal class OptionPricerDbCql
         JobStatus = :jobStatus,
         InProgress = :inProgress
         where orderId = :orderId
-        and tradeId = :tradeId 
+        and tradeId = :tradeId
+        and valueDate = :valueDate
         """;
 }

@@ -22,6 +22,7 @@ public class OptionPricerFixture : IDisposable
     public SequenceIdDbContext SeqIdDatabase { get; private set; }
     public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
     public EventSourceActorDbContext ActorEventSourceDb { get; private set; }
+    public BlackboardService BlackboardService { get; private set; } = default!;
 
     public OptionPricerFixture()
     {
@@ -71,10 +72,10 @@ public class OptionPricerFixture : IDisposable
         var redisUri = "localhost:6379";
         var connMultiplexer = ConnectionMultiplexer.Connect(redisUri);
         var redisCache = new RedisCache(connMultiplexer);
-        var blackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
+        BlackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
         var dbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, dbFactory, blackboardService, logger));
+        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, dbFactory, BlackboardService, logger));
         ActorEventSourceDb = (dbFactory.ActorEventSourceDb as EventSourceActorDbContext)!;
     }
 

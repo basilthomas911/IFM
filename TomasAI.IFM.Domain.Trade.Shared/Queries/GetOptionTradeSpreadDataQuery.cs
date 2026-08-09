@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Queries;
 [MessagePackObject(AllowPrivate = true)]
 public record GetOptionTradeSpreadDataQuery : IQuery<OptionTradeSpreadsDataModel>
 {
-    [IgnoreMember] public const string Actor = "OptionTradeSpreadDataQuery";
+    [IgnoreMember] public const string Actor = "OptionTradeQuery";
     [IgnoreMember] public const string Verb = "GetOptionTradeSpreadData";
     [IgnoreMember] public const int ErrorId = 1019;
 

@@ -1,15 +1,15 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
@@ -22,8 +22,8 @@ namespace TomasAI.IFM.Domain.OptionPricer.IntegrationTests.SpreadDistribution;
 public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> factory, OptionPricerFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<OptionPricerFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(10);
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -34,6 +34,7 @@ public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> fa
         SpreadDistributionInsertedEvent insertedEvent = default!;
         SpreadDistributionInsertedCompleteEvent insertedCompleteEvent = default!;
         SpreadDistributionInsertedFailEvent insertedFailEvent = default!;
+        var eventsReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -51,23 +52,21 @@ public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> fa
         var callSpread = SampleData.CallSpreadDistribution;
         var entityId = new SpreadDistributionEntityId(SampleData.TradeId, SampleData.ValueDate);
         var subject = new ActorSubject(ActorType.Command, InsertSpreadDistributionCommand.Actor, InsertSpreadDistributionCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
         await dbFixture.OptionPricerDb.DeleteSpreadDistributionAsync(SampleData.TradeId, SampleData.ValueDate);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var optionPricerApi = new OptionPricerCommandApi(commandServiceApi);
+        var optionPricerApi = new OptionPricerCommandApi(_actorProducer);
         var response = await optionPricerApi.InsertSpreadDistributionsAsync(putSpread, callSpread);
-
-        await Task.Delay(1000);
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
+        await eventsReceived.Task.WaitAsync(EventTimeout);
         insertedEvent.Should().NotBeNull();
         insertedCompleteEvent.Should().NotBeNull();
         insertedFailEvent.Should().BeNull();
@@ -105,6 +104,8 @@ public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> fa
                     insertedCompleteEvent = insertedComplete;
                 if (@event is SpreadDistributionInsertedFailEvent insertedFail)
                     insertedFailEvent = insertedFail;
+                if (insertedCompleteEvent is not null || insertedFailEvent is not null)
+                    eventsReceived.TrySetResult(true);
                 return @event;
             }
         }
@@ -118,6 +119,7 @@ public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> fa
         SpreadDistributionDeletedEvent deletedEvent = default!;
         SpreadDistributionDeletedCompleteEvent deletedCompleteEvent = default!;
         SpreadDistributionDeletedFailEvent deletedFailEvent = default!;
+        var eventsReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -137,6 +139,7 @@ public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> fa
 
         // clean up event stream for insert command...
         var insertSubject = new ActorSubject(ActorType.Command, InsertSpreadDistributionCommand.Actor, InsertSpreadDistributionCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{insertSubject.ThreadId}");
         var insertStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{insertSubject.ThreadId}");
         if (insertStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(insertStreamId);
@@ -144,6 +147,7 @@ public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> fa
         // clean up event stream for delete command...
         var deleteKey = new SpreadDistributionKey(SampleData.TradeId, SampleData.TradeStatus, SampleData.ValueDate, SampleData.DaysToExpiry);
         var deleteSubject = new ActorSubject(ActorType.Command, DeleteSpreadDistributionCommand.Actor, DeleteSpreadDistributionCommand.Verb, deleteKey.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{deleteSubject.ThreadId}");
         var deleteStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{deleteSubject.ThreadId}");
         if (deleteStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(deleteStreamId);
@@ -151,22 +155,19 @@ public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> fa
         await dbFixture.OptionPricerDb.DeleteSpreadDistributionAsync(SampleData.TradeId, SampleData.ValueDate);
 
         // seed data by inserting first...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var optionPricerApi = new OptionPricerCommandApi(commandServiceApi);
+        var optionPricerApi = new OptionPricerCommandApi(_actorProducer);
         var insertResponse = await optionPricerApi.InsertSpreadDistributionsAsync(putSpread, callSpread);
-        await Task.Delay(1000);
-        insertResponse.Success.Should().BeTrue();
+        insertResponse.Success.Should().BeTrue(insertResponse.ErrorMessage);
+        await WaitForSpreadDistributionAsync(dbFixture);
 
         // act...
         var response = await optionPricerApi.DeleteSpreadDistributionAsync(entityId, global::TomasAI.IFM.Domain.Trade.Shared.TradeStatus.IntraDay,SampleData.DaysToExpiry);
 
-        await Task.Delay(1000);
-
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
+        await eventsReceived.Task.WaitAsync(EventTimeout);
         deletedEvent.Should().NotBeNull();
         deletedCompleteEvent.Should().NotBeNull();
         deletedFailEvent.Should().BeNull();
@@ -200,8 +201,24 @@ public class SpreadDistributionCommandApiTests(WebApplicationFactory<Program> fa
                     deletedCompleteEvent = deletedComplete;
                 if (@event is SpreadDistributionDeletedFailEvent deletedFail)
                     deletedFailEvent = deletedFail;
+                if (deletedCompleteEvent is not null || deletedFailEvent is not null)
+                    eventsReceived.TrySetResult(true);
                 return @event;
             }
+        }
+    }
+
+    static async Task WaitForSpreadDistributionAsync(OptionPricerFixture dbFixture)
+    {
+        using var timeout = new CancellationTokenSource(EventTimeout);
+        while (await dbFixture.OptionPricerDb.GetSpreadDistributionAsync(
+                   SampleData.TradeId,
+                   SampleData.PutTradeType,
+                   SampleData.TradeStatus,
+                   SampleData.ValueDate,
+                   SampleData.DaysToExpiry) is null)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(50), timeout.Token);
         }
     }
 }

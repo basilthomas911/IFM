@@ -70,6 +70,12 @@ public partial class TradeDbContext(
             forwardLossRatio: e.GetDouble(0)
         );
 
+    sealed record TradePlanForwardLossRatioRow(double ForwardLossRatio, long SequenceId);
+
+    static TradePlanForwardLossRatioRow MapToTradePlanForwardLossRatioRow<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord
+        => new(e.GetDouble(0), e.GetLong(1));
+
     static TradeLiveFeedReadModel MapToTradeLiveFeed<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
             orderId: e.GetInt(0),
@@ -1022,10 +1028,16 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <param name="valueDate"></param>
     /// <returns></returns>
     public async Task<TradePlanForwardLossRatioReadModel?> GetTradePlanForwardLossRatioAsync(DateOnly valueDate)
-        => await _dbFactory.TradeDb
+    {
+        var rows = await _dbFactory.TradeDb
             .Use(TradeDbCql.GetLastTradePlanForwardLossRatio)
             .SetParameters(new GetLastTradePlanForwardLossRatio(valueDate))
-            .ExecuteSingleAsync(MapToTradePlanForwardLossRatio!);
+            .ExecuteQueryAsync(MapToTradePlanForwardLossRatioRow!);
+        var latest = rows.MaxBy(row => row.SequenceId);
+        return latest is null
+            ? null
+            : new TradePlanForwardLossRatioReadModel(latest.ForwardLossRatio);
+    }
 
     /// <summary>
     /// return trade plan forward loss limit by id
@@ -2366,8 +2378,9 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.TradePlan_SequenceId);
         var db = _dbFactory.TradeDb;
-        await db.Use(TradeDbCql.InsertTradePlan)
-            .SetParameters(new InsertTradePlanForwardLossRatioShort(
+        await db.Use(TradeDbCql.InsertTradePlanForwardLossRatio)
+            .SetParameters(new InsertTradePlanForwardLossRatio(
+                1,
                 valueDate,
                 forwardLossRatio,
                 sequenceId

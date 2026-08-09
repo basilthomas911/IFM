@@ -23,7 +23,7 @@ public static class OptionTradeFactory
         };
 
         // add option legs...
-        optionTrade.AddOptionLegs(tradeOrder.OptionLegs.Select(ol => new OptionLeg(
+        optionTrade.AddOptionLegs((tradeOrder.OptionLegs ?? []).Select(ol => new OptionLeg(
                 orderId: ol.OrderId,
                 tradeId: ol.TradeId,
                 contractId: ol.ContractId,
@@ -41,7 +41,7 @@ public static class OptionTradeFactory
         optionTrade.SetTradeLimit(new TradeLimit(tradeOrder.TradeLimit, optionTrade.CreatedOn, optionTrade.CreatedBy, optionTrade.CreatedOn, optionTrade.CreatedBy));
 
         // add trade type limits...
-        optionTrade.AddTradeTypeLimits([.. tradeOrder.TradeTypeLimits.Select(o => new TradeTypeLimit(o.TradeId, o.TradeType, o.MaxLossLimit, o.MinProfitLimit, o.MaxProfitLimit))]);
+        optionTrade.AddTradeTypeLimits([.. (tradeOrder.TradeTypeLimits ?? []).Select(o => new TradeTypeLimit(o.TradeId, o.TradeType, o.MaxLossLimit, o.MinProfitLimit, o.MaxProfitLimit))]);
 
         // add trade fills if passed...
         if (tradeOrder.TradeFills != null)
