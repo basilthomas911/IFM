@@ -168,7 +168,7 @@ public sealed partial class ActorReferenceQueryApi(IDbContextFactory dbFactory) 
     }
 
     /// <summary>
-    /// Gets current seed ID.
+    /// Gets the highest seed ID currently reserved by PostgreSQL.
     /// </summary>
     /// <param name="seedType">The seed category.</param>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>

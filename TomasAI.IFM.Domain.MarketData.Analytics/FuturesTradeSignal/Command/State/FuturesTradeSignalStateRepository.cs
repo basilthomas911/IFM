@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -16,7 +15,7 @@ public class FuturesTradeSignalStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
     IDbContextFactory dbFactory,
-    IBlackboardService blackboardService,
+    ISequenceIdGenerator sequenceIdGenerator,
     ILogger<FuturesTradeSignalStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesTradeSignalCommandState>
 {
@@ -66,7 +65,7 @@ public class FuturesTradeSignalStateRepository(
                     FuturesTradeSignalEntityId>(
                         context,
                         e,
-                        () => UpdateFuturesTradeSignalAsync(db, blackboardService, e)),
+                        () => UpdateFuturesTradeSignalAsync(db, sequenceIdGenerator, e)),
                 FuturesItiSignalHoldTradeChangedEvent e => await PostEventAsync<
                     FuturesItiSignalHoldTradeChangedEvent,
                     FuturesItiSignalEntityId>(context, e),
@@ -76,10 +75,14 @@ public class FuturesTradeSignalStateRepository(
 
         ///
         static async ValueTask UpdateFuturesTradeSignalAsync(
-            IMarketDataDbContext db, IBlackboardService blackboardService, FuturesTradeSignalUpdatedEvent e)
+            IMarketDataDbContext db,
+            ISequenceIdGenerator sequenceIdGenerator,
+            FuturesTradeSignalUpdatedEvent e)
         {
             var tradeSignal = e.FuturesTradeSignal ?? throw new InvalidOperationException("FuturesTradeSignal payload is required.");
-            var sequenceId = blackboardService.Application.SequenceCounter.Get(SequenceName.FuturesTradeSignal_SequenceId);
+            var sequenceId = await sequenceIdGenerator
+                .GetSequenceIdAsync(SequenceName.FuturesTradeSignal_SequenceId)
+                .ConfigureAwait(false);
             tradeSignal = tradeSignal with { SequenceId = sequenceId };
             await db.InsertFuturesTradeSignalAsync(tradeSignal);
         }

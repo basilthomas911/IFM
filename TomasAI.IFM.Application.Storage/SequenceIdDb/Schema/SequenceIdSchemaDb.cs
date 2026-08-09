@@ -32,7 +32,7 @@ public sealed class SequenceIdSchemaDb(IDbConnectionSettings connectionSettings,
                 $"""
                 CREATE SEQUENCE IF NOT EXISTS public.{sequenceName}
                 START WITH 1
-                INCREMENT BY 100
+                INCREMENT BY {SequenceIdSettings.AllocationSize}
                 NO MINVALUE
                 NO MAXVALUE
                 CACHE 1;

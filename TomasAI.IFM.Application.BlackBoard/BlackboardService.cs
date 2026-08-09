@@ -14,7 +14,6 @@ public class BlackboardService : IBlackboardService
         IsArgumentNull.Check(redisCache);
         IsArgumentNull.Check(jsonSerializer);
 
-        Application = new ApplicationBlackboard(redisCache);
         EventSourcing = new EventSourcingBlackboard(redisCache, jsonSerializer);
         Fund = new FundBlackboard(redisCache, jsonSerializer);
         MarketData = new MarketDataBlackboard(redisCache, jsonSerializer);
@@ -27,7 +26,6 @@ public class BlackboardService : IBlackboardService
         Trade = new TradeBlackboard(redisCache, jsonSerializer);
     }
 
-    public IApplicationBlackboard Application { get; }
     public IEventSourcingBlackboard EventSourcing { get; }
     public IFundBlackboard Fund { get; }
     public IMarketDataBlackboard MarketData { get; }

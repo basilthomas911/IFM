@@ -226,18 +226,6 @@ internal class ReferenceDbCql
     AND tradeType = :tradeType;
     """;
 
-    public const string GetNextSeedId = """
-    select NextSeedId as "Value" 
-    from seed_id 
-    where SeedType = :seedType;
-    """;
-
-    public const string GetNextSeedIdV2 = """
-    SELECT NextSeedId AS "Value"
-    FROM seed_id_v2
-    WHERE SeedType = :seedType;
-    """;
-
     public const string GetScheduledJob = """
     SELECT jobId AS "JobId", jobName AS "JobName", jobSchedule AS "JobSchedule", jobScheduleDate AS "JobScheduleDate", jobScheduleInterval AS "JobScheduleInterval", taskName AS "TaskName", taskEnabled AS "TaskEnabled", createdOn AS "CreatedOn", createdBy AS "CreatedBy", updatedOn AS "UpdatedOn", updatedBy AS "UpdatedBy"
     FROM scheduled_job
@@ -330,21 +318,9 @@ internal class ReferenceDbCql
     AND reservationToken = :expectedReservationToken;
     """;
 
-    public const string InsertSeedIdV2IfNotExists = """
-    INSERT INTO seed_id_v2 (SeedType, NextSeedId)
-    VALUES (:seedType, :nextSeedId)
-    IF NOT EXISTS;
-    """;
-
     public const string InsertScheduledJobDays = """
     INSERT INTO scheduled_job_days (jobId, monday, tuesday, wednesday, thursday, friday, saturday, sunday)
     VALUES (:jobId, :monday, :tuesday, :wednesday, :thursday, :friday, :saturday, :sunday);
     """;
 
-    public const string UpdateNextSeedIdV2 = """
-    UPDATE seed_id_v2
-    SET NextSeedId = :nextSeedId
-    WHERE SeedType = :seedType
-    IF NextSeedId = :expectedSeedId;
-    """;
 }

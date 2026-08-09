@@ -23,6 +23,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
+using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -121,12 +122,12 @@ public sealed class MarketDataFeedBddFixture
 
     public TestableMarketDataFeedQueryActor CreateMarketDataFeedQueryActor(
         IMarketDataSnapshotApi? snapshotApi = null,
-        IBlackboardService? blackboard = null,
+        ISequenceIdGenerator? sequenceIdGenerator = null,
         IDbContextFactory? dbFactory = null,
         ILogger<MarketDataFeedQueryActor>? logger = null)
         => new(
             snapshotApi ?? Substitute.For<IMarketDataSnapshotApi>(),
-            blackboard ?? Substitute.For<IBlackboardService>(),
+            sequenceIdGenerator ?? Substitute.For<ISequenceIdGenerator>(),
             dbFactory ?? Substitute.For<IDbContextFactory>(),
             logger ?? Substitute.For<ILogger<MarketDataFeedQueryActor>>());
 }
@@ -153,10 +154,10 @@ public sealed class TestableMarketDataFeedCommandActor(
 
 public sealed class TestableMarketDataFeedQueryActor(
     IMarketDataSnapshotApi snapshotApi,
-    IBlackboardService blackboard,
+    ISequenceIdGenerator sequenceIdGenerator,
     IDbContextFactory dbFactory,
     ILogger<MarketDataFeedQueryActor> logger)
-    : MarketDataFeedQueryActor(snapshotApi, blackboard, dbFactory, logger)
+    : MarketDataFeedQueryActor(snapshotApi, sequenceIdGenerator, dbFactory, logger)
 {
     public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message) => ParseMessage(context, message);
     public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query) => ReceiveAsync(context, query);

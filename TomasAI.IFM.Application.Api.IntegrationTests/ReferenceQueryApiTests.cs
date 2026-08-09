@@ -133,7 +133,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory)
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var queryApi = new ReferenceQueryApi(queryServiceApi);
 
-        var response = await queryApi.GetNextSeedIdAsync("TestSeed");
+        var response = await queryApi.GetNextSeedIdAsync("FundId");
 
         response.Success.Should().BeTrue();
         response.Value.Should().BeAssignableTo<ScalarReadModel<int>>();
@@ -148,7 +148,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory)
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var queryApi = new ReferenceQueryApi(queryServiceApi);
 
-        var response = await queryApi.GetCurrentSeedIdAsync("TestSeed");
+        var response = await queryApi.GetCurrentSeedIdAsync("FundId");
 
         response.Success.Should().BeTrue();
         response.Value.Should().BeAssignableTo<ScalarReadModel<int>>();

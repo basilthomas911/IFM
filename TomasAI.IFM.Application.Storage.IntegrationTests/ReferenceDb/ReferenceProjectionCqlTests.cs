@@ -295,26 +295,6 @@ public sealed class ReferenceProjectionCqlTests
         result.IsConsistent.Should().BeFalse();
     }
 
-    [Fact]
-    public void SeedIdV2_UsesBigintAndCompareAndSetLwt()
-    {
-        var schema = Normalize(ReferenceSchemaCql.CreateSeedIdV2Table);
-        var initialize = Normalize(ReferenceDbCql.InsertSeedIdV2IfNotExists);
-        var update = Normalize(ReferenceDbCql.UpdateNextSeedIdV2);
-
-        schema.Should().Contain("nextseedid bigint");
-        schema.Should().NotContain("counter");
-        initialize.Should().Contain("if not exists");
-        update.Should().Contain("set nextseedid = :nextseedid");
-        update.Should().Contain("where seedtype = :seedtype if nextseedid = :expectedseedid");
-
-        new UpdateNextSeedIdV2(42, "ScheduledJobId", 41)
-            .Bind()
-            .Should().BeEquivalentTo(
-                new object[] { 42L, "ScheduledJobId", 41L },
-                options => options.WithStrictOrdering());
-    }
-
     static string Normalize(string cql)
         => Regex.Replace(cql, @"\s+", " ").Trim().ToLowerInvariant();
 }

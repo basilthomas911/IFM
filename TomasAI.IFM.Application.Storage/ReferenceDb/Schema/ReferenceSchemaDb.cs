@@ -20,9 +20,7 @@ public sealed class ReferenceSchemaDb(IDbConnectionSettings connectionSettings, 
         new("scheduled_job_days", ReferenceSchemaCql.CreateScheduledJobDaysTable, "DROP TABLE IF EXISTS scheduled_job_days;"),
         new("scheduled_job", ReferenceSchemaCql.CreateScheduledJobTable, "DROP TABLE IF EXISTS scheduled_job;"),
         new("scheduled_job_by_name_v3", ReferenceSchemaCql.CreateScheduledJobByNameV3Table, "DROP TABLE IF EXISTS scheduled_job_by_name_v3;"),
-        new("scheduled_job_write_ownership_v3", ReferenceSchemaCql.CreateScheduledJobWriteOwnershipV3Table, "DROP TABLE IF EXISTS scheduled_job_write_ownership_v3;"),
-        new("seed_id", ReferenceSchemaCql.CreateSeedIdTable, "DROP TABLE IF EXISTS seed_id;"),
-        new("seed_id_v2", ReferenceSchemaCql.CreateSeedIdV2Table, "DROP TABLE IF EXISTS seed_id_v2;")
+        new("scheduled_job_write_ownership_v3", ReferenceSchemaCql.CreateScheduledJobWriteOwnershipV3Table, "DROP TABLE IF EXISTS scheduled_job_write_ownership_v3;")
     ];
 
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;

@@ -834,20 +834,6 @@ internal static class MarketDataDbCql
         VALUES (:contractId, :valueDate, :tickTime, :tickId, :price, :size);
     """;
 
-    public const string UpdateNextFuturesTickId = """
-        UPDATE futures_tick_id_counter
-        SET nextTickId = nextTickId + 1
-        WHERE contractId = :contractId
-        AND valueDate = :valueDate;
-    """;
-
-    public const string GetNextFuturesTickId = """
-        SELECT nextTickId as "Value" 
-        FROM futures_tick_id_counter 
-        WHERE contractId = :contractId
-        AND valueDate = :valueDate;
-    """;
-
     public const string GetCurrentFuturesEodDataByDateRange = """
         SELECT 
             contractId AS "ContractId",

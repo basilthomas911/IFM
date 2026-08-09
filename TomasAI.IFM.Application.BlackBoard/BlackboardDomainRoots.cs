@@ -3,11 +3,6 @@ using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.Blackboard;
 
-public interface IApplicationBlackboard
-{
-    SequenceCounterCacheModel SequenceCounter { get; }
-}
-
 public interface IEventSourcingBlackboard
 {
     DomainEventsCacheModel DomainEvents { get; }
@@ -80,12 +75,6 @@ public interface ITradeBlackboard
     ForwardLossRatioMapCacheModel ForwardLossRatioMap { get; }
     StopLossLimitCacheModel StopLossLimit { get; }
     SignalProcessorCacheModel SignalProcessor { get; }
-}
-
-internal sealed class ApplicationBlackboard(IRedisCache redisCache)
-    : IApplicationBlackboard
-{
-    public SequenceCounterCacheModel SequenceCounter { get; } = new(redisCache);
 }
 
 internal sealed class EventSourcingBlackboard(

@@ -14,7 +14,6 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 public interface IMarketDataDbReadContext
 {
     Task<FuturesDataId?> GetFuturesDataId(string contractId, DateOnly valueDate);
-    Task<long> GetNextTickIdAsync(FuturesDataId e);
     Task<FuturesClosingPriceReadModel?> GetYesterdaysFuturesClosingPriceAsync(FuturesDataId id);
     Task<FuturesClosingPriceReadModel?> GetFuturesClosingPriceAsync(FuturesDataId e);
     Task<FuturesTickHLVDataReadModel?> GetFuturesTickHLVDataAsync(FuturesDataId e);

@@ -48,7 +48,6 @@ namespace TomasAI.IFM.Shared.Caching
         FuturesOpenPrice,
         VixFuturesOpenPrice,
         StreamingRequestId,
-        SequenceCounter,
         RiskFreeRate,
         FuturesRsiSignal,
         FuturesRsiDailySignal,
@@ -101,7 +100,6 @@ namespace TomasAI.IFM.Shared.Caching
             DataCacheName.FuturesOpenPrice => nameof(DataCacheName.FuturesOpenPrice),
             DataCacheName.VixFuturesOpenPrice => nameof(DataCacheName.VixFuturesOpenPrice),
             DataCacheName.StreamingRequestId => nameof(DataCacheName.StreamingRequestId),
-            DataCacheName.SequenceCounter => nameof(DataCacheName.SequenceCounter),
             DataCacheName.RiskFreeRate => nameof(DataCacheName.RiskFreeRate),
             _ => value.ToString()
         };

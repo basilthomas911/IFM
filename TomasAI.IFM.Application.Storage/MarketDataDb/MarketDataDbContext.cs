@@ -78,9 +78,6 @@ public partial class MarketDataDbContext(
     public IMarketDataDbReadContext DbReader => this;
     public IMarketDataDbWriteContext DbWriter => this;
 
-    static long MapToNextTickId<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => e.GetLong(0);
-
     static int MapToYearMonth<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => e.GetInt(0);
 
@@ -1730,23 +1727,6 @@ public partial class MarketDataDbContext(
             .Use(MarketDataDbCql.DeleteRateOfReturn)
             .SetParameters(new DeleteRateOfReturn(symbol, valueDate))
             .ExecuteCommandAsync();
-
-    /// <summary>
-    /// return next seed id by seed type
-    /// </summary>
-    /// <param name="e"></param>
-    /// <returns></returns>
-    public async Task<long> GetNextTickIdAsync(FuturesDataId e)
-    {
-        var db = _dbFactory.MarketDataDb;
-        await db.Use(MarketDataDbCql.UpdateNextFuturesTickId)
-            .SetParameters(new UpdateNextFuturesTickId(contractId: e.ContractId, valueDate: e.ValueDate))
-            .ExecuteCommandAsync();
-
-        return await db.Use(MarketDataDbCql.GetNextFuturesTickId)
-            .SetParameters(new GetNextFuturesTickId(contractId: e.ContractId, valueDate: e.ValueDate))
-            .ExecuteScalarAsync(MapToNextTickId!);
-    }
 
     /// <summary>
     /// Gets the futures closing price for a given FuturesClosingPriceId.

@@ -58,25 +58,11 @@ public class ReferenceQueryModel : BaseModel<ReferenceQueryModel>
         => await ExecuteAsync(() => _queryApi.GetNextSeedIdAsync("OrderId"), vm => onCompleted(vm.Value));
 
     /// <summary>
-    /// return current order id
-    /// </summary>
-    /// <param name="onCompleted"></param>
-    public async Task GetCurrentOrderIdAsync(Action<int> onCompleted)
-        => await ExecuteAsync(() => _queryApi.GetCurrentSeedIdAsync("OrderId"), vm => onCompleted(vm.Value));
-
-    /// <summary>
     /// return new trade id
     /// </summary>
     /// <param name="onCompleted"></param>
     public async Task NewTradeIdAsync(Action<int> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetNextSeedIdAsync("TradeId"), vm => onCompleted(vm.Value));
-
-    /// <summary>
-    /// return current trade id
-    /// </summary>
-    /// <param name="onCompleted"></param>
-    public async Task GetCurrentTradeIdAsync(Action<int> onCompleted)
-        => await ExecuteAsync(() => _queryApi.GetCurrentSeedIdAsync("TradeId"), vm => onCompleted(vm.Value));
 
     /// <summary>
     /// load marketdata definition types

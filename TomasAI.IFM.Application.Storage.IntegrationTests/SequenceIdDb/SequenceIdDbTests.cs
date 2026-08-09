@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using FluentAssertions;
@@ -66,5 +67,23 @@ public class SequenceIdDbTests : IClassFixture<SequenceIdFixture>
         var curSequenceId = await _testFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTickData_TickId);
         var nextSequenceId = await _testFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTickData_TickId);
         nextSequenceId.Should().Be(curSequenceId + 1);
+    }
+
+    [Fact]
+    public async Task MultipleGeneratorInstancesReserveDisjointPostgresRanges()
+    {
+        var firstGenerator = new PostgresSequenceIdGenerator(_testFixture.Db);
+        var secondGenerator = new PostgresSequenceIdGenerator(_testFixture.Db);
+        var sequenceName = SequenceName.FuturesItiTrendDeltaData_SequenceId;
+
+        var first = Enumerable.Range(0, 250)
+            .Select(async _ => await firstGenerator.GetSequenceIdAsync(sequenceName));
+        var second = Enumerable.Range(0, 250)
+            .Select(async _ => await secondGenerator.GetSequenceIdAsync(sequenceName));
+        var sequenceIds = await Task.WhenAll(first.Concat(second));
+
+        sequenceIds.Should().OnlyHaveUniqueItems();
+        (await firstGenerator.GetHighWatermarkAsync(sequenceName))
+            .Should().BeGreaterThanOrEqualTo(sequenceIds.Max());
     }
 }

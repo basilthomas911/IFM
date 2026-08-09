@@ -27,14 +27,41 @@ public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbCo
     static long MapToSequenceId(IObjectDataRecord o) => o.GetLong(0);
 
     /// <summary>
+    /// get the configured PostgreSQL sequence increment
+    /// </summary>
+    public async Task<long> GetSequenceAllocationSizeAsync(
+        SequenceName sequenceName,
+        CancellationToken cancellationToken = default)
+        => await _dbFactory.SequenceIdDb
+            .Use(SequenceIdDbSql.GetSequenceAllocationSize)
+            .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
+            .ExecuteScalarAsync(MapToSequenceId, cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <summary>
+    /// get the highest sequence id reserved by PostgreSQL
+    /// </summary>
+    public async Task<long> GetCurrentSequenceIdAsync(
+        SequenceName sequenceName,
+        CancellationToken cancellationToken = default)
+        => await _dbFactory.SequenceIdDb
+            .Use(SequenceIdDbSql.GetCurrentSequenceId)
+            .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
+            .ExecuteScalarAsync(MapToSequenceId, cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <summary>
     /// get next sequence id
     /// </summary>
     /// <param name="sequenceName"></param>
     /// <returns></returns>
-    public async Task<long> GetNextSequenceIdAsync(SequenceName sequenceName)
+    public async Task<long> GetNextSequenceIdAsync(
+        SequenceName sequenceName,
+        CancellationToken cancellationToken = default)
         => await _dbFactory.SequenceIdDb
                 .Use(SequenceIdDbSql.GetNextSequenceId)
                 .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
-                .ExecuteScalarAsync(MapToSequenceId);
+                .ExecuteScalarAsync(MapToSequenceId, cancellationToken)
+                .ConfigureAwait(false);
     
 }

@@ -358,7 +358,7 @@ Only `ExecuteAsync` and the reference-type `GetAsync<TResult>` overload are impl
 
 ## Operational characteristics and current limitations
 
-- **The futures-tick counter still uses an increment/read pair.** Concurrent callers can observe the same post-increment value because Cassandra counters do not atomically return their new value. Reference seed allocation no longer has this limitation: `seed_id_v2` uses compare-and-set LWT. Futures tick IDs still require a database-native sequence or regular-column LWT design if strict concurrent uniqueness is required.
+- **Application IDs use one PostgreSQL authority.** Tick, Reference, trade, fund, request, and quote identifiers are allocated through the named `ISequenceIdGenerator`; the former Scylla and Redis counters have been removed.
 - **Resolution assumes correct DI registration.** `DbContextResolver` and several factory casts suppress nullability; a missing or incompatible registration becomes a later null-reference failure rather than a descriptive resolution exception.
 - **Factory pool-map access is not synchronized.** Concurrent first access to the same pool type can race around the ordinary `Dictionary<Type, object>`.
 - **The pool is incomplete.** Two result overloads throw `NotImplementedException`, and only the Reference pool is exposed.

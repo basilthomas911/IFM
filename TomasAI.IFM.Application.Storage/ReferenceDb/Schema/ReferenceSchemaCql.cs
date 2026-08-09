@@ -134,17 +134,4 @@ internal static class ReferenceSchemaCql
     );
     """;
 
-    public const string CreateSeedIdTable = """
-    CREATE TABLE IF NOT EXISTS seed_id (
-    SeedType text PRIMARY KEY,
-    NextSeedId counter
-    );
-    """;
-
-    public const string CreateSeedIdV2Table = """
-    CREATE TABLE IF NOT EXISTS seed_id_v2 (
-    SeedType text PRIMARY KEY,
-    NextSeedId bigint
-    );
-    """;
 }

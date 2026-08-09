@@ -368,10 +368,6 @@ internal readonly record struct GetMinFuturesTickDataTickId(string contractId, D
 {
     public object Bind() => new object?[] { contractId, valueDate };
 }
-internal readonly record struct GetNextFuturesTickId(string contractId, DateOnly valueDate) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, valueDate };
-}
 internal readonly record struct GetVixFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate };
@@ -723,10 +719,6 @@ internal readonly record struct InsertYieldCurveRate(int id, DateOnly valueDate,
 internal readonly record struct UpdateFuturesEodData(string contractId, DateOnly valueDate, string symbol, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, int volume, double dailyPercentChange, double dailyStdDev, double dailyStdDevAmount, double upperBand, double mean, double lowerBand, string marketDirection, string marketVolatility, string priceDirection, string priceVolatility, double marketDirectionIndicator, int windowSize) : IBindValue
 {
     public object Bind() => new object?[] { openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize, contractId, valueDate, symbol };
-}
-internal readonly record struct UpdateNextFuturesTickId(string contractId, DateOnly valueDate) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, valueDate };
 }
 internal readonly record struct UpdateVixFuturesEodData(string contractId, DateOnly valueDate, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, int volume) : IBindValue
 {

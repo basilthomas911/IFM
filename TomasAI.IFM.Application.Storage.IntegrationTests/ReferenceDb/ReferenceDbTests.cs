@@ -17,6 +17,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Shared.Exceptions;
+using TomasAI.IFM.Framework.SequenceId;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
 {
@@ -47,7 +48,17 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
             var blackboardServce = new BlackboardService(redisCache, new SystemTextJsonSerializer());
             DbFactory = new DbContextFactory(dbResolver);
             var dbCache = new DbCache();
-            diContainer.Add(typeof(IObjectRepository<ReferenceDbContext>), new ReferenceDbContext(dbConn, DbFactory, logger));
+            var nextSequenceId = 0L;
+            var sequenceIdGenerator = Substitute.For<ISequenceIdGenerator>();
+            sequenceIdGenerator
+                .GetSequenceIdAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>())
+                .Returns(_ => new ValueTask<long>(Interlocked.Increment(ref nextSequenceId)));
+            sequenceIdGenerator
+                .GetHighWatermarkAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>())
+                .Returns(_ => new ValueTask<long>(Volatile.Read(ref nextSequenceId)));
+            diContainer.Add(
+                typeof(IObjectRepository<ReferenceDbContext>),
+                new ReferenceDbContext(dbConn, DbFactory, sequenceIdGenerator, logger));
             ReferenceDb = DbFactory.ReferenceDb as ReferenceDbContext;
         }
 
@@ -953,33 +964,6 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
             }
         }
 
-        [Fact]
-        [Trait("seed id lwt", "ReferenceDb")]
-        public async Task SeedIdV2_ConcurrentCallsReturnDistinctContiguousIds()
-        {
-            var db = _testFixture.DbFactory.ReferenceDb;
-            var dbReader = (IReferenceDbReadContext)db;
-            var seedType = $"seed-lwt-{Guid.NewGuid():N}";
-            await DeleteSeedIdV2Async(db, seedType);
-            await db.Use(ReferenceDbCql.InsertSeedIdV2IfNotExists)
-                .SetParameters(new InsertSeedIdV2IfNotExists(seedType, 1000))
-                .ExecuteCommandAsync();
-
-            try
-            {
-                var values = await Task.WhenAll(
-                    Enumerable.Range(0, 32).Select(_ => dbReader.GetNextSeedIdAsync(seedType)));
-
-                values.Should().OnlyHaveUniqueItems();
-                values.Should().BeEquivalentTo(Enumerable.Range(1001, 32));
-                (await dbReader.GetCurrentSeedIdAsync(seedType)).Should().Be(1032);
-            }
-            finally
-            {
-                await DeleteSeedIdV2Async(db, seedType);
-            }
-        }
-
         static Task InsertCanonicalEconomicCalendarAsync(IReferenceDbContext db, EconomicCalendarReadModel row)
             => db.Use(ReferenceDbCql.InsertEconomicCalendar)
                 .SetParameters(new InsertEconomicCalendar(
@@ -1053,14 +1037,6 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
             foreach (var jobName in names)
                 await DeleteScheduledJobProjectionAsync(db, jobName);
         }
-
-        static Task DeleteSeedIdV2Async(IReferenceDbContext db, string seedType)
-            => db.Use("""
-                DELETE FROM seed_id_v2
-                WHERE SeedType = :seedType;
-                """)
-                .SetParameters(new GetNextSeedIdV2(seedType))
-                .ExecuteCommandAsync();
 
     }
 }

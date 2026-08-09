@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Exceptions;
+using TomasAI.IFM.Framework.SequenceId;
 
 namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 
@@ -22,10 +23,12 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 public class ReferenceDbContext(
     IDbConnectionSettings connectionSettings, 
     IDbContextFactory dbFactory, 
+    ISequenceIdGenerator sequenceIdGenerator,
     ILogger<DbProvider> logger) 
     : ObjectDataRepository<ReferenceDbContext>(connectionSettings["ReferenceDbConnection"], logger), IReferenceDbContext
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
+    readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
     public const string ReferenceDbConnection = "ReferenceDbConnection";
     const string EconomicCalendarProjectionName = "economic_calendar_by_country_month_v2";
     const string ScheduledJobProjectionName = "scheduled_job_by_name_v3";
@@ -40,9 +43,6 @@ public class ReferenceDbContext(
     /// Gets the database context.
     /// </summary>
     public override ReferenceDbContext Database => this;
-
-    static SeedIdRow MapToNextSeedId(IObjectDataRecord e)
-       => new(e.GetLong(0));
 
     static bool MapToBoolean(IObjectDataRecord e)
         => e.GetBool(0);
@@ -269,49 +269,6 @@ public class ReferenceDbContext(
 
     static string GetEconomicCalendarProjectionScope(EconomicCalendarBucketKey bucket)
         => GetEconomicCalendarProjectionScope(bucket.CountryCode, bucket.MonthBucket);
-
-    async Task<long> EnsureSeedIdV2Async(string seedType)
-    {
-        var db = _dbFactory.ReferenceDb;
-        var current = await db.Use(ReferenceDbCql.GetNextSeedIdV2)
-            .SetParameters(new GetNextSeedIdV2(seedType))
-            .ExecuteSingleAsync(MapToNextSeedId!);
-        if (current is not null)
-            return current.Value;
-
-        var legacy = await db.Use(ReferenceDbCql.GetNextSeedId)
-            .SetParameters(new GetNextSeedId(seedType))
-            .ExecuteSingleAsync(MapToNextSeedId!);
-        await db.Use(ReferenceDbCql.InsertSeedIdV2IfNotExists)
-            .SetParameters(new InsertSeedIdV2IfNotExists(seedType, legacy?.Value ?? 0))
-            .ExecuteCommandAsync();
-        return (await db.Use(ReferenceDbCql.GetNextSeedIdV2)
-            .SetParameters(new GetNextSeedIdV2(seedType))
-            .ExecuteSingleAsync(MapToNextSeedId!))?.Value
-            ?? throw new StorageException($"ReferenceDb could not initialize the '{seedType}' seed.");
-    }
-
-    async Task<long> EnsureSeedIdV2Async(string seedType, CancellationToken cancellationToken)
-    {
-        var db = _dbFactory.ReferenceDb;
-        var current = await db.Use(ReferenceDbCql.GetNextSeedIdV2)
-            .SetParameters(new GetNextSeedIdV2(seedType))
-            .ExecuteSingleAsync(MapToNextSeedId!, cancellationToken);
-        if (current is not null)
-            return current.Value;
-
-        var legacy = await db.Use(ReferenceDbCql.GetNextSeedId)
-            .SetParameters(new GetNextSeedId(seedType))
-            .ExecuteSingleAsync(MapToNextSeedId!, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        await db.Use(ReferenceDbCql.InsertSeedIdV2IfNotExists)
-            .SetParameters(new InsertSeedIdV2IfNotExists(seedType, legacy?.Value ?? 0))
-            .ExecuteCommandAsync(CancellationToken.None);
-        return (await db.Use(ReferenceDbCql.GetNextSeedIdV2)
-            .SetParameters(new GetNextSeedIdV2(seedType))
-            .ExecuteSingleAsync(MapToNextSeedId!, CancellationToken.None))?.Value
-            ?? throw new StorageException($"ReferenceDb could not initialize the '{seedType}' seed.");
-    }
 
     static async Task<int?> GetScheduledJobProjectionIdAsync(
         IObjectRepository db,
@@ -1384,42 +1341,16 @@ public class ReferenceDbContext(
     /// <param name="seedType"></param>
     /// <returns></returns>
     public async Task<int> GetNextSeedIdAsync(string seedType)
-    {
-        var db = _dbFactory.ReferenceDb;
-        for (var attempt = 0; attempt < 64; attempt++)
-        {
-            var current = await EnsureSeedIdV2Async(seedType);
-            var next = checked(current + 1);
-            var applied = await db.Use(ReferenceDbCql.UpdateNextSeedIdV2)
-                .SetParameters(new UpdateNextSeedIdV2(next, seedType, current))
-                .ExecuteScalarAsync(MapToBoolean!);
-            if (applied)
-                return checked((int)next);
-            await Task.Yield();
-        }
-
-        throw new StorageException($"ReferenceDb could not reserve the next '{seedType}' seed after 64 compare-and-set attempts.");
-    }
+        => checked((int)await _sequenceIdGenerator
+            .GetSequenceIdAsync(SequenceNameExtensions.ParseSequenceName(seedType))
+            .ConfigureAwait(false));
 
     public async Task<int> GetNextSeedIdAsync(string seedType, CancellationToken cancellationToken)
-    {
-        var db = _dbFactory.ReferenceDb;
-        for (var attempt = 0; attempt < 64; attempt++)
-        {
-            var current = await EnsureSeedIdV2Async(seedType, cancellationToken);
-            var next = checked(current + 1);
-            cancellationToken.ThrowIfCancellationRequested();
-            var applied = await db.Use(ReferenceDbCql.UpdateNextSeedIdV2)
-                .SetParameters(new UpdateNextSeedIdV2(next, seedType, current))
-                .ExecuteScalarAsync(MapToBoolean!, CancellationToken.None);
-            if (applied)
-                return checked((int)next);
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.Yield();
-        }
-
-        throw new StorageException($"ReferenceDb could not reserve the next '{seedType}' seed after 64 compare-and-set attempts.");
-    }
+        => checked((int)await _sequenceIdGenerator
+            .GetSequenceIdAsync(
+                SequenceNameExtensions.ParseSequenceName(seedType),
+                cancellationToken)
+            .ConfigureAwait(false));
 
     /// <summary>
     /// return current seed id for selected seed type
@@ -1427,10 +1358,16 @@ public class ReferenceDbContext(
     /// <param name="seedType"></param>
     /// <returns></returns>
     public async Task<int> GetCurrentSeedIdAsync(string seedType)
-        => checked((int)await EnsureSeedIdV2Async(seedType));
+        => checked((int)await _sequenceIdGenerator
+            .GetHighWatermarkAsync(SequenceNameExtensions.ParseSequenceName(seedType))
+            .ConfigureAwait(false));
 
     public async Task<int> GetCurrentSeedIdAsync(string seedType, CancellationToken cancellationToken)
-        => checked((int)await EnsureSeedIdV2Async(seedType, cancellationToken));
+        => checked((int)await _sequenceIdGenerator
+            .GetHighWatermarkAsync(
+                SequenceNameExtensions.ParseSequenceName(seedType),
+                cancellationToken)
+            .ConfigureAwait(false));
 
     /// <summary>
     /// return list of economic calendar events for selected event date
@@ -2715,6 +2652,5 @@ internal readonly record struct EconomicCalendarProjectionKey(
     string Prior,
     DateTime CreatedOn,
     string CreatedBy);
-internal sealed record SeedIdRow(long Value);
 internal sealed record ScheduledJobIdRow(int Value);
 

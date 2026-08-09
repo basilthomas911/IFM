@@ -49,10 +49,10 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
     {
         _appRoot.GetModel<ReferenceQueryModel>().Execute(async model =>
         {
-            await model.GetCurrentTradeIdAsync(currentTradeId =>
+            await model.NewTradeIdAsync(tradeId =>
                 this.Post(() =>
                 {
-                    txtTradeId.Text = $"{currentTradeId + 1}";
+                    txtTradeId.Text = $"{tradeId}";
                     txtTradeState.Text = $"{TradeState.NewTrade}";
                     LoadTradeTypes();
                     var openingFundOrderTrade = _viewModel!.GetOpeningFundOrderTrade();

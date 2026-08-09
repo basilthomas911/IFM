@@ -1,35 +1,122 @@
-﻿namespace TomasAI.IFM.Framework.SequenceId.Postgres;
+using System.Collections.Concurrent;
+
+namespace TomasAI.IFM.Framework.SequenceId.Postgres;
 
 /// <summary>
-/// Provides functionality to generate unique sequence IDs using a PostgreSQL-backed sequence mechanism.
+/// Allocates unique identifiers from disjoint ranges reserved through PostgreSQL sequences.
 /// </summary>
-/// <remarks>This class retrieves and manages sequence IDs from a PostgreSQL database through the provided <see
-/// cref="ISequenceIdDbContext"/>. It maintains an internal cache of current and maximum sequence IDs for each sequence
-/// type to minimize database calls.</remarks>
-/// <param name="sequenceIdDb"></param>
-public class PostgresSequenceIdGenerator(ISequenceIdDbContext sequenceIdDb) : ISequenceIdGenerator
+/// <remarks>
+/// PostgreSQL is the system-wide authority. Each application instance reserves a range with
+/// one database call and serves that range through an atomic, lock-free fast path. A separate
+/// refill gate per sequence prevents duplicate range reservations inside an application instance.
+/// Gaps are expected when a process stops before consuming its active ranges.
+/// </remarks>
+public sealed class PostgresSequenceIdGenerator(ISequenceIdDbContext sequenceIdDb)
+    : ISequenceIdGenerator
 {
-    static readonly Dictionary<SequenceName, long> _curSequenceIdMap = [];
-    static readonly Dictionary<SequenceName, long> _maxSequenceIdMap = [];
-    readonly ISequenceIdDbContext _sequenceIdDb = sequenceIdDb;
+    readonly ISequenceIdDbContext _sequenceIdDb =
+        sequenceIdDb ?? throw new ArgumentNullException(nameof(sequenceIdDb));
+    readonly ConcurrentDictionary<SequenceName, SequenceState> _states = new();
 
-    /// <summary>
-    /// Get current sequence id
-    /// </summary>
-    /// <param name="sequenceIdType"></param>
-    /// <returns></returns>
-    public async Task<long> GetSequenceIdAsync(SequenceName sequenceIdType)
+    /// <inheritdoc />
+    public ValueTask<long> GetSequenceIdAsync(
+        SequenceName sequenceName,
+        CancellationToken cancellationToken = default)
     {
-        if (!_curSequenceIdMap.ContainsKey(sequenceIdType))
-            _curSequenceIdMap.Add(sequenceIdType, await _sequenceIdDb.GetNextSequenceIdAsync(sequenceIdType));
-        if (!_maxSequenceIdMap.ContainsKey(sequenceIdType))
-            _maxSequenceIdMap.Add(sequenceIdType, await _sequenceIdDb.GetNextSequenceIdAsync(sequenceIdType));
-        var curSequenceId = _curSequenceIdMap[sequenceIdType];
-        Interlocked.Increment(ref curSequenceId);
-        if (curSequenceId > _maxSequenceIdMap[sequenceIdType])
-            _maxSequenceIdMap[sequenceIdType] = await _sequenceIdDb.GetNextSequenceIdAsync(sequenceIdType);
-        _curSequenceIdMap[sequenceIdType] = curSequenceId;
-        return curSequenceId;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var state = _states.GetOrAdd(sequenceName, static _ => new SequenceState());
+        var block = Volatile.Read(ref state.ActiveBlock);
+        if (block is not null && block.TryGetNext(out var sequenceId))
+            return ValueTask.FromResult(sequenceId);
+
+        return RefillAndGetNextAsync(state, sequenceName, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async ValueTask<long> GetHighWatermarkAsync(
+        SequenceName sequenceName,
+        CancellationToken cancellationToken = default)
+        => await _sequenceIdDb
+            .GetCurrentSequenceIdAsync(sequenceName, cancellationToken)
+            .ConfigureAwait(false);
+
+    async ValueTask<long> RefillAndGetNextAsync(
+        SequenceState state,
+        SequenceName sequenceName,
+        CancellationToken cancellationToken)
+    {
+        await state.RefillGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // Another caller may have replenished the range while this caller waited.
+            var block = Volatile.Read(ref state.ActiveBlock);
+            if (block is not null && block.TryGetNext(out var sequenceId))
+                return sequenceId;
+
+            if (!state.AllocationSizeValidated)
+            {
+                var allocationSize = await _sequenceIdDb
+                    .GetSequenceAllocationSizeAsync(sequenceName, cancellationToken)
+                    .ConfigureAwait(false);
+                if (allocationSize != SequenceIdSettings.AllocationSize)
+                {
+                    throw new InvalidOperationException(
+                        $"PostgreSQL sequence '{sequenceName}' has increment {allocationSize}; " +
+                        $"the allocator requires {SequenceIdSettings.AllocationSize}.");
+                }
+
+                state.AllocationSizeValidated = true;
+            }
+
+            var rangeStart = await _sequenceIdDb
+                .GetNextSequenceIdAsync(sequenceName, cancellationToken)
+                .ConfigureAwait(false);
+            var rangeEnd = checked(rangeStart + (SequenceIdSettings.AllocationSize - 1L));
+            var nextBlock = new SequenceBlock(rangeStart, rangeEnd);
+            Volatile.Write(ref state.ActiveBlock, nextBlock);
+
+            if (!nextBlock.TryGetNext(out sequenceId))
+                throw new InvalidOperationException(
+                    $"PostgreSQL returned an invalid range start for sequence '{sequenceName}'.");
+
+            return sequenceId;
+        }
+        finally
+        {
+            state.RefillGate.Release();
+        }
+    }
+
+    sealed class SequenceState
+    {
+        internal readonly SemaphoreSlim RefillGate = new(1, 1);
+        internal SequenceBlock? ActiveBlock;
+        internal bool AllocationSizeValidated;
+    }
+
+    sealed class SequenceBlock(long rangeStart, long rangeEnd)
+    {
+        long _current = checked(rangeStart - 1L);
+
+        internal bool TryGetNext(out long sequenceId)
+        {
+            while (true)
+            {
+                var current = Volatile.Read(ref _current);
+                if (current >= rangeEnd)
+                {
+                    sequenceId = default;
+                    return false;
+                }
+
+                var next = current + 1L;
+                if (Interlocked.CompareExchange(ref _current, next, current) == current)
+                {
+                    sequenceId = next;
+                    return true;
+                }
+            }
+        }
+    }
 }

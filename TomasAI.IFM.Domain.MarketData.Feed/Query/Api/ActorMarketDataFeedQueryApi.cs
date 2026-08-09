@@ -1,4 +1,3 @@
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -20,17 +19,17 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Api;
 /// <remarks>
 /// Storage queries use <see cref="IDbContextFactory.MarketDataDb"/>; broker snapshot queries use
 /// <see cref="IMarketDataSnapshotApi"/> and are serialized by an internal semaphore; sequence identifiers
-/// are allocated through <see cref="IBlackboardService"/>. Every public method returns a typed service result
+/// are allocated through <see cref="ISequenceIdGenerator"/>. Every public method returns a typed service result
 /// with its query-specific error identifier. The implementation may be registered as a singleton.
 /// </remarks>
 public sealed class ActorMarketDataFeedQueryApi(
     IDbContextFactory dbFactory,
     IMarketDataSnapshotApi marketDataSnapshotApi,
-    IBlackboardService blackboardService) : IActorMarketDataFeedQueryApi
+    ISequenceIdGenerator sequenceIdGenerator) : IActorMarketDataFeedQueryApi
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     readonly IMarketDataSnapshotApi _marketDataSnapshotApi = IsArgumentNull.Set(marketDataSnapshotApi);
-    readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
+    readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
     readonly SemaphoreSlim _snapshotGate = new(1, 1);
 
     /// <summary>
@@ -533,20 +532,18 @@ public sealed class ActorMarketDataFeedQueryApi(
     /// Gets streaming request ID.
     /// </summary>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public Task<ServiceResult<ScalarValue<int>>> GetStreamingRequestIdAsync()
+    public async Task<ServiceResult<ScalarValue<int>>> GetStreamingRequestIdAsync()
     {
         try
         {
-            var result = new ScalarValue<int>(Convert.ToInt32(
-                _blackboardService.Application.SequenceCounter.Increment(
-                    SequenceName.StreamingRequest_RequestId)));
-            return Task.FromResult<ServiceResult<ScalarValue<int>>>(
-                new ServiceOk<ScalarValue<int>>(result));
+            var result = new ScalarValue<int>(checked((int)await _sequenceIdGenerator
+                .GetSequenceIdAsync(SequenceName.StreamingRequest_RequestId)
+                .ConfigureAwait(false)));
+            return new ServiceOk<ScalarValue<int>>(result);
         }
         catch (Exception ex)
         {
-            return Task.FromResult<ServiceResult<ScalarValue<int>>>(
-                new ServiceFailed<ScalarValue<int>>(GetStreamingRequestIdQuery.ErrorId, ex.Message));
+            return new ServiceFailed<ScalarValue<int>>(GetStreamingRequestIdQuery.ErrorId, ex.Message);
         }
     }
 
@@ -554,20 +551,18 @@ public sealed class ActorMarketDataFeedQueryApi(
     /// Gets option quote ID.
     /// </summary>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public Task<ServiceResult<ScalarValue<int>>> GetOptionQuoteIdAsync()
+    public async Task<ServiceResult<ScalarValue<int>>> GetOptionQuoteIdAsync()
     {
         try
         {
-            var result = new ScalarValue<int>(Convert.ToInt32(
-                _blackboardService.Application.SequenceCounter.Increment(
-                    SequenceName.OptionQuote_QuoteId)));
-            return Task.FromResult<ServiceResult<ScalarValue<int>>>(
-                new ServiceOk<ScalarValue<int>>(result));
+            var result = new ScalarValue<int>(checked((int)await _sequenceIdGenerator
+                .GetSequenceIdAsync(SequenceName.OptionQuote_QuoteId)
+                .ConfigureAwait(false)));
+            return new ServiceOk<ScalarValue<int>>(result);
         }
         catch (Exception ex)
         {
-            return Task.FromResult<ServiceResult<ScalarValue<int>>>(
-                new ServiceFailed<ScalarValue<int>>(GetOptionQuoteIdQuery.ErrorId, ex.Message));
+            return new ServiceFailed<ScalarValue<int>>(GetOptionQuoteIdQuery.ErrorId, ex.Message);
         }
     }
 

@@ -7,7 +7,7 @@ using TomasAI.IFM.Domain.Reference.Shared.QueryParameters;
 namespace TomasAI.IFM.Domain.Reference.Shared.Queries;
 
 /// <summary>
-/// MessagePack-serializable query to retrieve the current seed ID for a specified seed type.
+/// MessagePack-serializable query to retrieve the PostgreSQL reserved high watermark for a specified seed type.
 /// </summary>
 /// <remarks>
 /// Follows the project's MessagePack pattern used by other view models/queries:
@@ -28,7 +28,7 @@ public class GetCurrentSeedIdQuery : IQuery<ScalarReadModel<int>>
     [IgnoreMember] public string QueryParams { get; set; }
 
     /// <summary>
-    /// The type of seed for which to retrieve the current identifier.
+    /// The type of seed for which to retrieve the reserved high watermark.
     /// </summary>
     [Key(2)]
     public string SeedType { get; set; }

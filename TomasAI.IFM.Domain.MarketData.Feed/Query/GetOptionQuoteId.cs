@@ -1,4 +1,3 @@
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -8,8 +7,11 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 public static class GetOptionQuoteId
 {
-    internal static ValueTask<ScalarValue<int>> GetOptionQuoteIdAsync(
-        this GetOptionQuoteIdQuery q, SequenceCounterCacheModel sequenceCounter)
-        => ValueTask.FromResult(new ScalarValue<int>(
-            Convert.ToInt32(sequenceCounter.Increment(SequenceName.OptionQuote_QuoteId))));
+    internal static async ValueTask<ScalarValue<int>> GetOptionQuoteIdAsync(
+        this GetOptionQuoteIdQuery q,
+        ISequenceIdGenerator sequenceIdGenerator,
+        CancellationToken cancellationToken = default)
+        => new(checked((int)await sequenceIdGenerator
+            .GetSequenceIdAsync(SequenceName.OptionQuote_QuoteId, cancellationToken)
+            .ConfigureAwait(false)));
 }

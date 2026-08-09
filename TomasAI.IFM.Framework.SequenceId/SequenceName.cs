@@ -20,7 +20,10 @@ public enum SequenceName
     FundTransaction_TransactionId,
     FuturesIntraDay_SequenceId,
     FuturesOptionTickPriceData_TickId,
-
+    Fund_FundId,
+    Trade_OrderId,
+    Trade_TradeId,
+    ScheduledJob_JobId,
 }
 
 public static class SequenceNameExtensions
@@ -44,6 +47,35 @@ public static class SequenceNameExtensions
         SequenceName.TradePlacementSignal_SequenceId => nameof(SequenceName.TradePlacementSignal_SequenceId),
         SequenceName.FundTransaction_TransactionId => nameof(SequenceName.FundTransaction_TransactionId),
         SequenceName.FuturesIntraDay_SequenceId => nameof(SequenceName.FuturesIntraDay_SequenceId),
+        SequenceName.FuturesOptionTickPriceData_TickId => nameof(SequenceName.FuturesOptionTickPriceData_TickId),
+        SequenceName.Fund_FundId => nameof(SequenceName.Fund_FundId),
+        SequenceName.Trade_OrderId => nameof(SequenceName.Trade_OrderId),
+        SequenceName.Trade_TradeId => nameof(SequenceName.Trade_TradeId),
+        SequenceName.ScheduledJob_JobId => nameof(SequenceName.ScheduledJob_JobId),
         _ => value.ToString()
     };
+
+    /// <summary>
+    /// Maps the legacy Reference API seed names to their strongly typed PostgreSQL sequences.
+    /// Exact <see cref="SequenceName"/> values are also accepted for forward compatibility.
+    /// </summary>
+    public static SequenceName ParseSequenceName(string seedType)
+    {
+        if (string.IsNullOrWhiteSpace(seedType))
+            throw new ArgumentException("A sequence name is required.", nameof(seedType));
+
+        return seedType switch
+        {
+            "FundId" => SequenceName.Fund_FundId,
+            "OrderId" => SequenceName.Trade_OrderId,
+            "TradeId" => SequenceName.Trade_TradeId,
+            "ScheduledJobId" => SequenceName.ScheduledJob_JobId,
+            _ when Enum.TryParse<SequenceName>(seedType, ignoreCase: false, out var sequenceName)
+                => sequenceName,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(seedType),
+                seedType,
+                "The seed type is not a registered PostgreSQL sequence.")
+        };
+    }
 }

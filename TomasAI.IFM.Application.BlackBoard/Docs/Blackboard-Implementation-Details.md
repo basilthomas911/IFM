@@ -4,7 +4,7 @@
 
 `TomasAI.IFM.Application.Blackboard` is the application's typed, Redis-backed shared-state facade. It groups cache models by owning domain, centralizes Redis key construction and payload serialization, and provides a small number of cache-aside and coordination abstractions used by actors, storage contexts, projectors, and hosted services.
 
-The Blackboard is primarily a cache, but not every value is safely disposable without runtime impact. It also contains atomic sequence counters, event-projector progress, and live market-data correlation state. Clearing Redis can therefore reset identifiers or disrupt in-flight processing even when durable domain data remains elsewhere.
+The Blackboard is primarily a cache, but not every value is safely disposable without runtime impact. It also contains event-projector progress and live market-data correlation state. Clearing Redis can therefore disrupt in-flight processing even when durable domain data remains elsewhere.
 
 This document describes the current implementation in the repository. It supersedes the existing [`README.md`](../README.md) where that file still describes obsolete flat forwarding properties.
 
@@ -88,7 +88,6 @@ The actor integration-test host mirrors this registration. Other integration fix
 ```csharp
 public interface IBlackboardService
 {
-    IApplicationBlackboard Application { get; }
     IEventSourcingBlackboard EventSourcing { get; }
     IFundBlackboard Fund { get; }
     IMarketDataBlackboard MarketData { get; }
@@ -105,7 +104,6 @@ There are 40 exposed model properties backed by 39 distinct instances. `MarketDa
 The old flat model properties no longer exist. Callers must enter through a domain root:
 
 ```csharp
-blackboard.Application.SequenceCounter
 blackboard.EventSourcing.EventProjectorState
 blackboard.MarketDataFeed.FuturesEodData
 blackboard.MarketDataAnalytics.FuturesRsiSignal
@@ -115,12 +113,6 @@ blackboard.Trade.OptionTrade
 ## Domain model catalog
 
 The key patterns below show the suffix appended to the model's namespace. Exact punctuation and whitespace are compatibility-sensitive because values may already exist in Redis.
-
-### Application
-
-| Property/model | Operations and miss behavior | Redis identity |
-| --- | --- | --- |
-| `Application.SequenceCounter` / [`SequenceCounterCacheModel`](../SequenceCounterCacheModel.cs) | `Get<TEnum>` returns `0` on miss; `Increment<TEnum>` performs atomic Redis `INCR` and returns the new value. | `SequenceCounter:<enum-value>` |
 
 ### Event sourcing
 
@@ -226,7 +218,6 @@ Most object and collection models use the injected `IJsonSerializer`. Production
 
 Exceptions to the normal JSON path include:
 
-- `SequenceCounterCacheModel`: raw Redis integer.
 - `RiskFreeRateCacheModel`: interpolated `double` string.
 - `FuturesOpenPriceCacheModel` and `VixFuturesOpenPriceCacheModel`: interpolated `decimal` string.
 - `VixFuturesContractIdCacheModel`: raw contract-ID string.
@@ -272,7 +263,7 @@ Build typed key
 
 Although the public method may be asynchronous, Redis operations surrounding the callback are synchronous. These calls run on the actor, event-handler, storage, or request thread that invoked the model.
 
-General cache-aside models do not coalesce concurrent misses. Multiple callers can invoke the same database/API loader and race to write the key; the last write wins. `SequenceCounterCacheModel.Increment` is the only general atomic operation because it delegates to Redis `INCR`.
+General cache-aside models do not coalesce concurrent misses. Multiple callers can invoke the same database/API loader and race to write the key; the last write wins.
 
 There are no general compare-and-set operations, Redis transactions, distributed locks, cancellation tokens, timeouts, retries, circuit breakers, logging, metrics, or cache health reporting in this project.
 
@@ -337,7 +328,7 @@ The market-data-feed actors are the largest Blackboard consumers. Constructor-in
 - Accumulate option quote maps and quote data during streaming.
 - Cache risk-free rates for option calculations.
 
-Feed query APIs also use `Application.SequenceCounter` to allocate streaming request IDs and quote IDs atomically. RSI event handlers write the two analytics RSI cache models.
+Feed query APIs allocate streaming request IDs and quote IDs through the PostgreSQL-backed `ISequenceIdGenerator`, outside Blackboard. RSI event handlers write the two analytics RSI cache models.
 
 ### Trade and fund workflows
 
@@ -402,7 +393,6 @@ The dedicated .NET 10 xUnit project contains 164 `[Fact]` tests across nine file
 | Complex async models | 20 | [`ComplexAsyncModelTests.cs`](../../TomasAI.IFM.Application.Blackboard.UnitTests/ComplexAsyncModelTests.cs) |
 | Databento cache and decorator | 14 | [`DatabentoContractMappingCacheTests.cs`](../../TomasAI.IFM.Application.Blackboard.UnitTests/DatabentoContractMappingCacheTests.cs) |
 | Get/set/remove models | 14 | [`GetSetRemoveModelTests.cs`](../../TomasAI.IFM.Application.Blackboard.UnitTests/GetSetRemoveModelTests.cs) |
-| Sequence counter | 7 | [`SequenceCounterModelTests.cs`](../../TomasAI.IFM.Application.Blackboard.UnitTests/SequenceCounterModelTests.cs) |
 | Simple get/set models | 34 | [`SimpleGetSetModelTests.cs`](../../TomasAI.IFM.Application.Blackboard.UnitTests/SimpleGetSetModelTests.cs) |
 | Special and sentinel models | 24 | [`SpecialModelTests.cs`](../../TomasAI.IFM.Application.Blackboard.UnitTests/SpecialModelTests.cs) |
 

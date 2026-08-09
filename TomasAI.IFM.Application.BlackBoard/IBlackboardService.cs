@@ -2,7 +2,6 @@ namespace TomasAI.IFM.Application.Blackboard;
 
 public interface IBlackboardService
 {
-    IApplicationBlackboard Application { get; }
     IEventSourcingBlackboard EventSourcing { get; }
     IFundBlackboard Fund { get; }
     IMarketDataBlackboard MarketData { get; }

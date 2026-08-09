@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.Reference.Query;
 public static class GetCurrentSeedId
 {
     /// <summary>
-    /// Handles the GetCurrentSeedIdQuery by retrieving the current seed ID for the specified seed type from the reference database and replying with the result.
+    /// Retrieves the highest ID range currently reserved in PostgreSQL for the specified seed type.
     /// </summary>
     /// <param name="q">The query for retrieving the current seed ID.</param>
     /// <param name="context">The query actor context.</param>

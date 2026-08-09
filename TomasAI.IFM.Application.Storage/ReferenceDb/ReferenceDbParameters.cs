@@ -112,14 +112,6 @@ internal readonly record struct GetMDIForwardLossRatios(string trendDirection, s
 {
     public object Bind() => new object?[] { trendDirection, tradeType };
 }
-internal readonly record struct GetNextSeedId(string seedType) : IBindValue
-{
-    public object Bind() => new object?[] { seedType };
-}
-internal readonly record struct GetNextSeedIdV2(string seedType) : IBindValue
-{
-    public object Bind() => new object?[] { seedType };
-}
 internal readonly record struct GetScheduledJobDays(int jobId) : IBindValue
 {
     public object Bind() => new object?[] { jobId };
@@ -191,15 +183,7 @@ internal readonly record struct RotateScheduledJobNameV3Reservation(
         expectedReservationToken
     };
 }
-internal readonly record struct InsertSeedIdV2IfNotExists(string seedType, long nextSeedId) : IBindValue
-{
-    public object Bind() => new object?[] { seedType, nextSeedId };
-}
 internal readonly record struct InsertScheduledJobDays(int jobId, bool monday, bool tuesday, bool wednesday, bool thursday, bool friday, bool saturday, bool sunday) : IBindValue
 {
     public object Bind() => new object?[] { jobId, monday, tuesday, wednesday, thursday, friday, saturday, sunday };
-}
-internal readonly record struct UpdateNextSeedIdV2(long nextSeedId, string seedType, long expectedSeedId) : IBindValue
-{
-    public object Bind() => new object?[] { nextSeedId, seedType, expectedSeedId };
 }

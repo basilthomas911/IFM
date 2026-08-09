@@ -16,7 +16,7 @@ silently.
 | --- | --- |
 | Fund | Order-ID lookup, LWT-backed logical transaction identities, transaction timeline, status/day balance, and amount-oriented reads, with per-fund/month cutover state. |
 | Securities | Futures and futures-option contract reads partitioned by symbol, with global and per-symbol state. |
-| Reference | Economic calendars partitioned by country/month, scheduled jobs keyed by exact name, scope-specific readiness, and an LWT-backed seed allocator. |
+| Reference | Economic calendars partitioned by country/month, scheduled jobs keyed by exact name, and scope-specific readiness. |
 | MarketData | Tick-time and EOD month projections plus a VIX contract index, with scoped V3 state and backfill/cutover state. |
 
 ## Deployment sequence
@@ -25,10 +25,7 @@ silently.
 2. Apply all additive schema definitions. Do not drop or rename a canonical table.
 3. Deploy the dual-write/fallback-capable application version. Until a projection is reconciled and marked complete,
    reads continue to use the canonical path.
-4. Stop or drain every older application instance before the first call that initializes `seed_id_v2`. Old instances
-   allocate from the legacy counter while the new allocator uses LWT; allowing both allocators to run concurrently can
-   produce overlapping IDs.
-5. Run the idempotent backfills in this order:
+4. Run the idempotent backfills in this order:
 
    - `ReferenceDbContext.BackfillQueryProjectionsV2Async`
    - `SecuritiesDbContext.BackfillSymbolProjectionsAsync`
@@ -200,10 +197,6 @@ Rolling back the application binary is safe because canonical tables are retaine
 new projections. Leave projection tables in place during rollback; dropping them while any new binary is still running
 would turn a recoverable fallback into an application error.
 
-The `seed_id_v2` allocator is the exception to binary-only rollback. Once it has issued IDs, do not resume the legacy
-counter allocator without first advancing the legacy value beyond the maximum V2 value under an operator-controlled
-maintenance window.
-
 Projection tables may be removed only after all application versions that reference them have been retired and the
 rollback window has closed.
 
@@ -213,6 +206,6 @@ rollback window has closed.
 - Run Fund, Securities, Reference, and MarketData integration suites against the dedicated ScyllaDB test keyspace.
 - Verify a projection miss returns canonical data while its state is incomplete.
 - Verify a stale or mis-bucketed target row is removed by replay and detected by reconciliation.
-- Verify concurrent seed allocations are unique and monotonic.
+- Verify Reference IDs are allocated through the PostgreSQL sequence service.
 - Run the Framework.Storage ScyllaDB and PostgreSQL BenchmarkDotNet suites under the same host/database conditions used
   for the baseline comparison.

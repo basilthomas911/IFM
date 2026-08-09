@@ -101,7 +101,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
     public async Task GetNextSeedIdQuery_Ok()
     {
         // arrange...
-        var seedType = "IntegrationTestSeedId";
+        var seedType = "FundId";
 
          // act...
         var referenceApi = new ReferenceQueryApi(_actorProducer);
@@ -118,7 +118,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
     public async Task GetCurrentSeedIdQuery_Ok()
     {
         // arrange...
-        var seedType = "IntegrationTestCurrentSeedId";
+        var seedType = "OrderId";
 
         // act - get next seed id first...
         var referenceApi = new ReferenceQueryApi(_actorProducer);
@@ -133,11 +133,12 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory, Refe
         // act - get current seed id...
         var currentSeedIdResponse = await referenceApi.GetCurrentSeedIdAsync(seedType);
 
-        // assert - verify current seed id matches the previously generated seed id...
+        // The PostgreSQL allocator reserves ranges, so current is the durable high watermark.
         currentSeedIdResponse.Should().NotBeNull();
         currentSeedIdResponse.Success.Should().BeTrue();
         currentSeedIdResponse.Value.Should().NotBeNull();
-        currentSeedIdResponse.Value.Value.Should().Be(nextSeedIdResponse.Value.Value);
+        currentSeedIdResponse.Value.Value.Should().BeGreaterThanOrEqualTo(
+            nextSeedIdResponse.Value.Value);
     }
 
     [Fact]

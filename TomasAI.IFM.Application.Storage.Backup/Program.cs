@@ -35,7 +35,6 @@ internal static class Program
         "reference_projection_ownership_v3",
         "scheduled_job_by_name_v3",
         "scheduled_job_write_ownership_v3",
-        "seed_id_v2"
     ];
 
     static readonly string[] SecuritiesProjectionObjects =
@@ -155,7 +154,11 @@ internal static class Program
             options.ConnectionEnvironmentVariable);
         var repositories = new Dictionary<Type, object>();
         var factory = CreateFactory(repositories);
-        var context = new ReferenceDbContext(settings, factory, Logger);
+        var context = new ReferenceDbContext(
+            settings,
+            factory,
+            UnavailableSequenceIdGenerator.Instance,
+            Logger);
         repositories.Add(typeof(IObjectRepository<ReferenceDbContext>), context);
 
         if (options.ApplySchema)
@@ -413,16 +416,23 @@ internal static class Program
     {
         public static UnavailableSequenceIdGenerator Instance { get; } = new();
 
-        public Task<long> GetSequenceIdAsync(SequenceName sequenceIdType)
+        public ValueTask<long> GetSequenceIdAsync(
+            SequenceName sequenceName,
+            CancellationToken cancellationToken = default)
             => throw new NotSupportedException(
                 "The projection migration attempted to allocate a new sequence ID.");
+
+        public ValueTask<long> GetHighWatermarkAsync(
+            SequenceName sequenceName,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException(
+                "The projection migration attempted to read a sequence high watermark.");
     }
 
     sealed class UnavailableBlackboardService : IBlackboardService
     {
         public static UnavailableBlackboardService Instance { get; } = new();
 
-        public IApplicationBlackboard Application => Unavailable<IApplicationBlackboard>();
         public IEventSourcingBlackboard EventSourcing => Unavailable<IEventSourcingBlackboard>();
         public IFundBlackboard Fund => Unavailable<IFundBlackboard>();
         public IMarketDataBlackboard MarketData => Unavailable<IMarketDataBlackboard>();

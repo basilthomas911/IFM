@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -15,14 +15,14 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
 
 public class MarketDataFeedQueryActor(
     IMarketDataSnapshotApi marketDataSnapshotApi,
-    IBlackboardService blackboardService,
+    ISequenceIdGenerator sequenceIdGenerator,
     IDbContextFactory dbFactory,
     ILogger<MarketDataFeedQueryActor> logger)
     : BaseQueryActor<MarketDataFeedQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
 {
     public const string ActorName = "MarketDataFeedQuery";
     readonly MarketDataFeedQueryParameters _qryParameters = new(
-        marketDataSnapshotApi, blackboardService, dbFactory);
+        marketDataSnapshotApi, sequenceIdGenerator, dbFactory);
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -123,14 +123,14 @@ public class MarketDataFeedQueryActor(
         [typeof(GetOptionQuoteIdQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetOptionQuoteIdQuery)!;
-            var result = await query.GetOptionQuoteIdAsync(qryParams.BlackboardService.Application.SequenceCounter);
+            var result = await query.GetOptionQuoteIdAsync(qryParams.SequenceIdGenerator);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionQuoteIdQuery.Verb,
                 new ServiceResult<ScalarValue<int>>(result));
         },
         [typeof(GetStreamingRequestIdQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetStreamingRequestIdQuery)!;
-            var result = await query.GetStreamingRequestIdAsync(qryParams.BlackboardService.Application.SequenceCounter);
+            var result = await query.GetStreamingRequestIdAsync(qryParams.SequenceIdGenerator);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetStreamingRequestIdQuery.Verb,
                 new ServiceResult<ScalarValue<int>>(result));
         }

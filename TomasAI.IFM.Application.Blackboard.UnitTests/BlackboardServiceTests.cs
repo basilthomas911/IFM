@@ -47,8 +47,6 @@ public class BlackboardServiceTests
         var sut = new BlackboardService(_redisCache, _jsonSerializer);
 
         // Assert
-        sut.Application.SequenceCounter.Should().NotBeNull();
-
         sut.EventSourcing.DomainEvents.Should().NotBeNull();
         sut.EventSourcing.EventStreamId.Should().NotBeNull();
         sut.EventSourcing.EventNameId.Should().NotBeNull();
@@ -119,7 +117,6 @@ public class BlackboardServiceTests
 
         properties.Should().BeEquivalentTo(
         [
-            nameof(IBlackboardService.Application),
             nameof(IBlackboardService.EventSourcing),
             nameof(IBlackboardService.Fund),
             nameof(IBlackboardService.MarketData),

@@ -1594,33 +1594,6 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         retrievedData.CreatedBy.Should().Be(yesterdayClosingPrice.CreatedBy);
     }
 
-    public async Task GetNextTickIdAsync_Ok()
-    {
-        // Arrange: Create a sample FuturesDataId
-        var futuresDataId = new FuturesDataId("SampleContract", DateOnly.FromDateTime(DateTime.Today));
-
-        // Act: Retrieve the next tick ID from the database
-        var nextTickId = await TestFixture.DevDatabase.GetNextTickIdAsync(futuresDataId);
-
-        // Assert: Verify that the next tick ID is greater than zero
-        nextTickId.Should().BeGreaterThan(0);
-    }
-
-    public async Task GetNextTickIdAsync_IncrementsProperly()
-    {
-        // Arrange: Create a sample FuturesDataId
-        var futuresDataId = new FuturesDataId("SampleContract", DateOnly.FromDateTime(DateTime.Today));
-
-        // Act: Get the next tick ID multiple times
-        var tickId1 = await TestFixture.DevDatabase.GetNextTickIdAsync(futuresDataId);
-        var tickId2 = await TestFixture.DevDatabase.GetNextTickIdAsync(futuresDataId);
-        var tickId3 = await TestFixture.DevDatabase.GetNextTickIdAsync(futuresDataId);
-
-        // Assert: Verify that each subsequent tick ID increments by 1
-        tickId2.Should().Be(tickId1 + 1);
-        tickId3.Should().Be(tickId2 + 1);
-    }
-
     [Fact]
     public async Task GetFuturesTickHLVDataAsync_ShouldReturnCorrectData()
     {

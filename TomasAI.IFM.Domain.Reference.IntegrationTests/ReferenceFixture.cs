@@ -29,8 +29,8 @@ public class ReferenceFixture : IDisposable
 
     public ReferenceFixture()
     {
-        SetDbFactory();
         SetSeqIdDatabase();
+        SetDbFactory();
         SetEventSourceDatabase();
     }
 
@@ -49,7 +49,9 @@ public class ReferenceFixture : IDisposable
         var blackboardServce = new BlackboardService(redisCache, new SystemTextJsonSerializer());
         DbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<ReferenceDbContext>), new ReferenceDbContext(dbConn, DbFactory, logger));
+        diContainer.Add(
+            typeof(IObjectRepository<ReferenceDbContext>),
+            new ReferenceDbContext(dbConn, DbFactory, SequenceIdGenerator, logger));
         ReferenceDb = (DbFactory.ReferenceDb as ReferenceDbContext)!;
 
     }

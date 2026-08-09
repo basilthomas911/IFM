@@ -2,6 +2,16 @@
 
 public interface ISequenceIdDbContext
 {
-    Task<long> GetNextSequenceIdAsync(SequenceName sequenceIdType);
+    Task<long> GetSequenceAllocationSizeAsync(
+        SequenceName sequenceName,
+        CancellationToken cancellationToken = default);
+
+    Task<long> GetCurrentSequenceIdAsync(
+        SequenceName sequenceName,
+        CancellationToken cancellationToken = default);
+
+    Task<long> GetNextSequenceIdAsync(
+        SequenceName sequenceName,
+        CancellationToken cancellationToken = default);
 }
 

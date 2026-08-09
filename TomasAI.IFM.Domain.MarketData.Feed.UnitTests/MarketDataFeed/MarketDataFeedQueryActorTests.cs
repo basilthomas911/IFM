@@ -17,6 +17,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Query;
 using TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
+using TomasAI.IFM.Framework.SequenceId;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed;
 
@@ -33,10 +34,10 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
     {
         public TestableMarketDataFeedQueryActor(
             IMarketDataSnapshotApi marketDataSnapshotApi,
-            IBlackboardService blackboardService,
+            ISequenceIdGenerator sequenceIdGenerator,
             IDbContextFactory dbFactory,
             ILogger<MarketDataFeedQueryActor> logger)
-            : base(marketDataSnapshotApi, blackboardService, dbFactory, logger)
+            : base(marketDataSnapshotApi, sequenceIdGenerator, dbFactory, logger)
         {
         }
 
