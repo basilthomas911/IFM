@@ -308,11 +308,19 @@ public readonly record struct LogicalProcessorLocation(
 
 public sealed record FeedCpuAffinityOptions
 {
+    public bool PinFeedThreads { get; init; } = true;
     public CpuAffinityMode Mode { get; init; } =
         CpuAffinityMode.AutoPerformanceCores;
     public LogicalProcessorLocation? NativeProducer { get; init; }
     public LogicalProcessorLocation? ManagedDrain { get; init; }
     public bool RequirePerformanceCore { get; init; } = true;
+    public bool AllowAffinityFallback { get; init; } = true;
+}
+
+public sealed record FeedProcessorResidencyOptions
+{
+    public bool EnableTracking { get; init; }
+    public int ForcedMigrationIntervalRecords { get; init; }
 }
 
 public sealed record FeedThreadPriorityOptions
@@ -401,6 +409,7 @@ public sealed record DatabentoFeedOptions
     public int ManagedChannelRecordCapacity { get; init; } = 8_192;
     public int ManagedBatchRecordCapacity { get; init; } = 512;
     public FeedCpuAffinityOptions CpuAffinity { get; init; } = new();
+    public FeedProcessorResidencyOptions ProcessorResidency { get; init; } = new();
     public FeedThreadPriorityOptions ThreadPriority { get; init; } = new();
     public FeedRingBackpressureOptions RingBackpressure { get; init; } = new();
     public FeedMemoryOptions Memory { get; init; } = new();
@@ -596,7 +605,7 @@ The latest-price query runs synchronously on the caller's thread inside native c
 
 ### 7.1 CPU affinity policy
 
-The V1 default is `CpuAffinityMode.AutoPerformanceCores`. A process-wide placement coordinator resolves affinity when a feed starts and assigns different logical processors to the ticker producer, ticker drain, option-chain producer, and option-chain drain. The temporary latest-price query is not pinned.
+`PinFeedThreads` is the operational affinity switch and defaults to `true`. When enabled, the V1 default is `CpuAffinityMode.AutoPerformanceCores`: a process-wide placement coordinator resolves affinity when a feed starts and assigns different logical processors to the ticker producer, ticker drain, option-chain producer, and option-chain drain. When disabled, both dedicated feed threads remain under normal OS scheduling and the placement, performance-core, and core-isolation requirements are bypassed without changing the saved placement policy. The temporary latest-price query is not pinned.
 
 Automatic placement follows these rules:
 
@@ -605,8 +614,9 @@ Automatic placement follows these rules:
 3. On an Intel hybrid processor, admit only logical processors identified as Intel Core type `0x40`; exclude Intel Atom/E-core type `0x20`, including low-power E-cores.
 4. Prefer one logical processor from each distinct physical P-core before using a P-core SMT sibling.
 5. Allocate unique logical processors across all active long-lived Databento producer and drain threads.
-6. If the required P-core placements cannot be identified or allocated, fail feed startup with a typed affinity error. Never silently fall back to E-cores when `RequirePerformanceCore` is true.
-7. On a multi-node system, keep each feed's producer and drain assignments on the same NUMA node selected by the policy in Section 9.1.2. Distinct feeds may use different nodes after same-feed locality is satisfied.
+6. When P/E classification is unavailable, use distinct-core affinity without P-core filtering when `AllowAffinityFallback` is true (the default). If classification identifies a hybrid processor, never fall back to a known E-core; insufficient available P-cores fail startup.
+7. Set `AllowAffinityFallback` to false on a host that must fail startup unless performance-core classification can be verified.
+8. On a multi-node system, keep each feed's producer and drain assignments on the same NUMA node selected by the policy in Section 9.1.2. Distinct feeds may use different nodes after same-feed locality is satisfied.
 
 Windows implementation:
 
@@ -614,17 +624,17 @@ Windows implementation:
 - Use `EfficiencyClass`, where higher values represent faster and less energy-efficient processors, as the OS topology preference.
 - Use `Group`, `LogicalProcessorIndex`, and `CoreIndex` to preserve processor-group and physical-core identity.
 - On Intel hybrid processors, confirm candidates with CPUID leaf `0x1A`, where core type `0x40` is a P-core and `0x20` is an E-core.
-- Pin each thread with `SetThreadSelectedCpuSets` and verify the selected CPU set after assignment.
+- Pin each thread with `SetThreadGroupAffinity` and verify the resulting group and single-processor mask with `GetThreadGroupAffinity`.
 
 Linux implementation:
 
-- Enumerate online CPUs and physical-core sibling topology from the OS.
+- Enumerate the process-allowed CPUs with `sched_getaffinity`, and obtain package, physical-core and NUMA topology from Linux sysfs.
 - On Intel hybrid processors, temporarily bind the topology probe to each candidate and use CPUID leaf `0x1A` to classify P-cores and E-cores.
-- Pin the final native producer or managed drain thread with `sched_setaffinity`.
+- Pin the final native producer with `pthread_setaffinity_np` and the managed drain with `sched_setaffinity`; verify both using the corresponding affinity getter.
 
-`Explicit` mode accepts processor-group/index pairs for the two feed threads. When `RequirePerformanceCore` is true, explicit selections are topology-validated and E-core selections are rejected. If explicit processors are on different NUMA nodes while `RequireNumaLocality` is true, configuration is rejected before either thread starts. `Unpinned` is available for diagnostics and unsupported environments but is not the production default. The managed drain thread calls a small native affinity helper from inside that dedicated thread so Windows and Linux use the same topology and pinning implementation.
+`Explicit` mode accepts processor-group/index pairs for the two feed threads. When `RequirePerformanceCore` is true and classification is available, explicit E-core selections are rejected. When classification is unavailable, `AllowAffinityFallback` controls whether ordinary distinct-core affinity is accepted. If explicit processors are on different NUMA nodes while `RequireNumaLocality` is true, configuration is rejected before either thread starts. `Unpinned` remains available for compatibility and diagnostics, while `PinFeedThreads = false` is the preferred operational switch because the configured placement policy can be retained for later re-enablement.
 
-Health and startup logs record the configured affinity mode, resolved processor group/index, physical core, SMT sibling position, NUMA node, efficiency class where available, detected Intel core type, and observed processor after pinning.
+Health records whether performance-core or fallback affinity was selected, the resolved processor group/index for both endpoints, the observed processor after pinning, and whether native and managed read-back verification succeeded. Optional processor-residency diagnostics also report full-run sample counts, unique processors, migrations, and samples outside the primary assignment for each endpoint. Tracking is disabled by default to keep processor queries out of the production hot path. `ForcedMigrationIntervalRecords` is restricted to tracked synthetic benchmarks; it alternates each endpoint between verified primary and alternate physical cores to validate the detector and is not a production scheduling policy.
 
 ### 7.2 Thread priority policy
 
@@ -2034,7 +2044,8 @@ deferred runtime acceptance evidence tracked in `Phase6_Implementation.md`.
 - automatic placement uses distinct physical cores before P-core SMT siblings;
 - Intel hybrid automatic placement selects only CPUID core type `0x40` and never type `0x20`;
 - Windows CPU-set processor-group and efficiency-class handling;
-- explicit E-core selection is rejected when `RequirePerformanceCore` is true;
+- explicit E-core selection is rejected when `RequirePerformanceCore` is true and classification is available;
+- unavailable P/E classification uses ordinary affinity by default and fails when `AllowAffinityFallback` is false;
 - insufficient or unclassifiable P-core capacity fails startup rather than falling back silently;
 - observed producer and drain processor locations match their resolved assignments;
 - process-worker isolation reserves four logical P-core processors, excludes them from the ordinary worker set, and leaves each explicit feed assignment usable;

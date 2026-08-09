@@ -270,4 +270,21 @@ public sealed record FeedHealthSnapshot(
     public int PoolFreeBatchCount { get; init; }
     public ulong DrainPassLimitHitCount { get; init; }
     public TimeSpan MaximumChannelFullWait { get; init; }
+    public FeedProcessorSelectionKind ProcessorSelection { get; init; }
+    public LogicalProcessorLocation? ResolvedNativeProducer { get; init; }
+    public LogicalProcessorLocation? AlternateNativeProducer { get; init; }
+    public LogicalProcessorLocation? ObservedNativeProducer { get; init; }
+    public LogicalProcessorLocation? ResolvedManagedDrain { get; init; }
+    public LogicalProcessorLocation? AlternateManagedDrain { get; init; }
+    public LogicalProcessorLocation? ObservedManagedDrain { get; init; }
+    public bool NativeProducerAffinityVerified { get; init; }
+    public bool ManagedDrainAffinityVerified { get; init; }
+    public ulong NativeProducerProcessorSamples { get; init; }
+    public ulong NativeProducerProcessorMigrations { get; init; }
+    public uint NativeProducerUniqueProcessors { get; init; }
+    public ulong NativeProducerOffAssignmentSamples { get; init; }
+    public ulong ManagedDrainProcessorSamples { get; init; }
+    public ulong ManagedDrainProcessorMigrations { get; init; }
+    public uint ManagedDrainUniqueProcessors { get; init; }
+    public ulong ManagedDrainOffAssignmentSamples { get; init; }
 }

@@ -99,7 +99,8 @@ typedef enum dbf_config_flags {
     DBF_CONFIG_REQUIRE_LOCKED_MEMORY = 2,
     DBF_CONFIG_REQUIRE_BASE_PAGE_POLICY = 4,
     DBF_CONFIG_REQUIRE_PRIORITY = 8,
-    DBF_CONFIG_REQUIRE_NUMA_LOCALITY = 16
+    DBF_CONFIG_REQUIRE_NUMA_LOCALITY = 16,
+    DBF_CONFIG_TRACK_PROCESSOR_RESIDENCY = 32
 } dbf_config_flags;
 
 typedef enum dbf_contract_query_kind {
@@ -226,7 +227,13 @@ typedef struct dbf_feed_config_v1 {
     uint32_t dataset_offset;
     uint32_t dataset_length;
     uint64_t synthetic_start_sequence;
-    uint64_t reserved[5];
+    uint32_t forced_migration_interval_records;
+    uint16_t producer_alternate_processor_group;
+    uint16_t producer_alternate_logical_processor;
+    uint16_t drain_alternate_processor_group;
+    uint16_t drain_alternate_logical_processor;
+    uint32_t reserved32;
+    uint64_t reserved[3];
 } dbf_feed_config_v1;
 
 typedef struct dbf_ticker_subscription_v1 {
@@ -306,7 +313,13 @@ typedef struct dbf_stats_v1 {
     uint64_t ring_full_episodes;
     uint64_t ring_overruns;
     uint64_t allocated_read_buffer_records;
-    uint64_t reserved[4];
+    uint16_t observed_producer_processor_group;
+    uint16_t observed_producer_logical_processor;
+    uint32_t producer_affinity_verified;
+    uint64_t producer_processor_sample_count;
+    uint64_t producer_processor_migration_count;
+    uint32_t producer_off_assignment_count;
+    uint32_t producer_unique_processor_count;
 } dbf_stats_v1;
 
 typedef struct dbf_utf8_slice_v1 {

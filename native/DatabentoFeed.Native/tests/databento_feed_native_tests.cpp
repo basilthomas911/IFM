@@ -10,10 +10,18 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string_view>
 #include <thread>
 #include <vector>
+
+#if defined(_WIN32)
+#define NOMINMAX
+#include <Windows.h>
+#else
+#include <sched.h>
+#endif
 
 #if defined(DBF_ENABLE_LIVE)
 #include "databento_live_normalization.hpp"
@@ -50,9 +58,17 @@ void require(dbf_status actual, dbf_status expected = DBF_OK) {
 }
 
 dbf_feed_t* create_subscribed_feed(std::uint32_t record_count,
-                                   std::uint64_t ring_bytes = 1u << 20) {
+                                   std::uint64_t ring_bytes = 1u << 20,
+                                   std::uint16_t processor_group = 0,
+                                   std::uint16_t logical_processor = 0xffffu,
+                                   bool track_processor_residency = false) {
     constexpr std::string_view dataset = "SYNTHETIC";
     auto config = make_config(record_count, ring_bytes);
+    config.producer_processor_group = processor_group;
+    config.producer_logical_processor = logical_processor;
+    if (track_processor_residency) {
+        config.flags |= DBF_CONFIG_TRACK_PROCESSOR_RESIDENCY;
+    }
     dbf_feed_t* feed{};
     require(dbf_feed_create(
         &config,
@@ -80,6 +96,49 @@ dbf_feed_t* create_subscribed_feed(std::uint32_t record_count,
         static_cast<std::uint32_t>(symbols.size()),
         1'000));
     return feed;
+}
+
+void test_native_producer_affinity_is_verified() {
+    std::uint16_t processor_group{};
+    std::uint16_t logical_processor{};
+#if defined(_WIN32)
+    PROCESSOR_NUMBER processor{};
+    GetCurrentProcessorNumberEx(&processor);
+    processor_group = processor.Group;
+    logical_processor = processor.Number;
+#else
+    const auto processor = sched_getcpu();
+    assert(processor >= 0 && processor <= std::numeric_limits<std::uint16_t>::max());
+    logical_processor = static_cast<std::uint16_t>(processor);
+#endif
+
+    auto* feed = create_subscribed_feed(
+        1, 1u << 20, processor_group, logical_processor, true);
+    dbf_market_record64* buffer{};
+    require(dbf_feed_allocate_read_buffer64(feed, 8, &buffer));
+    require(dbf_feed_start(feed, 2'000));
+
+    dbf_stats_v1 stats{};
+    stats.struct_size = sizeof(stats);
+    stats.abi_version = DBF_ABI_VERSION;
+    require(dbf_feed_get_stats(feed, &stats));
+    assert(stats.producer_affinity_verified == 1);
+    assert(stats.observed_producer_processor_group == processor_group);
+    assert(stats.observed_producer_logical_processor == logical_processor);
+
+    require(dbf_feed_set_consumer_ready(feed, 2'000));
+    dbf_wait_result_v1 wait{};
+    wait.struct_size = sizeof(wait);
+    wait.abi_version = DBF_ABI_VERSION;
+    require(dbf_feed_wait(feed, 2'000, &wait));
+    require(dbf_feed_get_stats(feed, &stats));
+    assert(stats.producer_processor_sample_count == 1);
+    assert(stats.producer_processor_migration_count == 0);
+    assert(stats.producer_unique_processor_count == 1);
+    assert(stats.producer_off_assignment_count == 0);
+    require(dbf_feed_stop(feed, 2'000));
+    require(dbf_feed_free_read_buffer64(feed, buffer));
+    require(dbf_feed_destroy(feed));
 }
 
 void test_layouts() {
@@ -462,6 +521,8 @@ int main() {
     test_option_chain_subscription_preserves_resolved_mappings();
     std::cout << "test_lifecycle_and_order" << std::endl;
     test_lifecycle_and_order();
+    std::cout << "test_native_producer_affinity_is_verified" << std::endl;
+    test_native_producer_affinity_is_verified();
     std::cout << "test_registered_buffer_ownership" << std::endl;
     test_registered_buffer_ownership();
     std::cout << "test_ring_overrun_faults_without_overwrite" << std::endl;

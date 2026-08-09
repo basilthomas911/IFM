@@ -116,6 +116,16 @@ internal static class FeedOptionsValidator
             throw new ArgumentException(
                 "Strict core isolation requires worker CPU-set exclusion.");
         }
+        if (options.ProcessorResidency.ForcedMigrationIntervalRecords < 0
+            || options.ProcessorResidency.ForcedMigrationIntervalRecords > 0
+            && (!options.ProcessorResidency.EnableTracking
+                || options.DataSource != FeedDataSourceMode.Synthetic
+                || !options.CpuAffinity.PinFeedThreads
+                || options.CpuAffinity.Mode != CpuAffinityMode.AutoPerformanceCores))
+        {
+            throw new ArgumentException(
+                "Forced processor migration requires tracked synthetic data and automatic affinity.");
+        }
         if (options.DataSource == FeedDataSourceMode.Synthetic
             && (options.Synthetic.RecordCount <= 0
                 || options.Synthetic.RecordsPerSecond < 0
@@ -138,6 +148,7 @@ internal static class FeedOptionsValidator
             GarbageCollection = options.GarbageCollection with { },
             Numa = options.Numa with { },
             CoreIsolation = options.CoreIsolation with { },
+            ProcessorResidency = options.ProcessorResidency with { },
             TransportHealth = options.TransportHealth with { },
             Synthetic = options.Synthetic with { }
         };

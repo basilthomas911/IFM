@@ -26,7 +26,10 @@ Phases 1 and 2 are implemented against the licence-free synthetic producer. Live
 - Full backpressure, one outstanding consumer lease and deterministic lease return.
 - Monotonic public timeouts and bounded stop/join handling.
 - Process-wide GC latency coordinator.
-- Automatic/explicit affinity, stable process CPU reservations, Windows worker CPU-set exclusion and thread-priority configuration.
+- Automatic/explicit affinity with Intel hybrid CPUID classification, Windows efficiency-class fallback, Linux allowed-CPU/physical-core/NUMA discovery, and ordinary distinct-core affinity fallback when P/E classification is unavailable.
+- Default-on `PinFeedThreads` operational switch so the dedicated native producer and managed drain can be returned to normal OS scheduling without discarding their configured placement policy.
+- Native producer and managed drain affinity read-back verification on Windows and Linux, with resolved/observed processor placement exposed in health snapshots.
+- Opt-in full-duration processor-residency diagnostics, plus a synthetic-only forced-migration verification mode; both remain disabled on the production hot path by default.
 - Health snapshots covering native ring, managed batches, channel pressure, pool misses and post-warm-up drain allocations.
 - Deterministic synthetic ordering, ABI, lifecycle, option-chain, backpressure, completion and configuration tests.
 
@@ -40,6 +43,16 @@ dotnet test ./TomasAI.IFM.Framework.MarketData.DataBento.UnitTests/TomasAI.IFM.F
 ```
 
 The unit-test project automatically invokes the offline native build on Windows. Linux uses the CMake commands documented in `native/DatabentoFeed.Native/README.md`, followed by the same `dotnet test` command.
+
+The affinity throughput and placement diagnostic is run in a fresh process for each mode so process-lifetime reservations cannot affect later samples:
+
+```powershell
+dotnet run --project ./TomasAI.IFM.Framework.MarketData.DataBento.Benchmarks -c Release -- --unpinned --records=20000000
+dotnet run --project ./TomasAI.IFM.Framework.MarketData.DataBento.Benchmarks -c Release -- --pinned --records=20000000
+dotnet run --project ./TomasAI.IFM.Framework.MarketData.DataBento.Benchmarks -c Release -- --forced-migration --records=20000000
+```
+
+All three modes enable per-record residency tracking. Pinned mode fails unless both threads remain on exactly one assigned processor for their full run. Forced mode selects a randomized interval per process, alternates each thread between two distinct physical cores, and fails unless the observed migration count is exact.
 
 ## Implemented in Phase 3
 

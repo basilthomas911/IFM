@@ -2,6 +2,7 @@
 #include "latest_price_session_guard.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -229,10 +230,114 @@ struct dbf_feed {
     std::atomic<std::uint64_t> heartbeat_messages{};
     std::atomic<std::uint64_t> slow_reader_warnings{};
     std::atomic<std::uint64_t> last_message_monotonic_ns{};
+    std::atomic<std::uint32_t> observed_producer_location{0xffffffffu};
+    std::atomic<std::uint32_t> producer_affinity_verified{};
+    std::atomic<std::uint32_t> last_producer_location{0xffffffffu};
+    std::atomic<std::uint64_t> producer_processor_sample_count{};
+    std::atomic<std::uint64_t> producer_processor_migration_count{};
+    std::atomic<std::uint32_t> producer_off_assignment_count{};
+    std::atomic<std::uint32_t> producer_unique_processor_count{};
+    std::array<std::atomic<std::uint64_t>, 64> producer_observed_processors{};
+    bool producer_using_alternate{};
 
     std::mutex error_mutex;
     std::string last_error;
 };
+
+std::uint32_t current_processor_location() noexcept {
+#if defined(_WIN32)
+    PROCESSOR_NUMBER processor{};
+    GetCurrentProcessorNumberEx(&processor);
+    return (static_cast<std::uint32_t>(processor.Group) << 16u)
+           | processor.Number;
+#else
+    const auto processor = sched_getcpu();
+    return processor < 0 || processor > std::numeric_limits<std::uint16_t>::max()
+               ? 0xffffffffu
+               : static_cast<std::uint32_t>(processor);
+#endif
+}
+
+void record_producer_processor_residency(dbf_feed* feed) noexcept {
+    if ((feed->config.flags & DBF_CONFIG_TRACK_PROCESSOR_RESIDENCY) == 0) {
+        return;
+    }
+    const auto location = current_processor_location();
+    if (location == 0xffffffffu) {
+        return;
+    }
+    auto first = 0xffffffffu;
+    feed->observed_producer_location.compare_exchange_strong(
+        first, location, std::memory_order_release, std::memory_order_relaxed);
+    const auto previous = feed->last_producer_location.exchange(
+        location, std::memory_order_relaxed);
+    if (previous != 0xffffffffu && previous != location) {
+        feed->producer_processor_migration_count.fetch_add(
+            1, std::memory_order_relaxed);
+    }
+    const auto group = location >> 16u;
+    const auto logical_processor = location & 0xffffu;
+    const auto processor_id = group * 64u + logical_processor;
+    const auto word_index = processor_id / 64u;
+    if (word_index < feed->producer_observed_processors.size()) {
+        const auto mask = 1ull << (processor_id % 64u);
+        const auto previous_mask = feed->producer_observed_processors[word_index].fetch_or(
+            mask, std::memory_order_relaxed);
+        if ((previous_mask & mask) == 0) {
+            feed->producer_unique_processor_count.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+    if (feed->config.producer_logical_processor != unpinned_processor) {
+        const auto assigned =
+            (static_cast<std::uint32_t>(feed->config.producer_processor_group) << 16u)
+            | feed->config.producer_logical_processor;
+        if (location != assigned) {
+            feed->producer_off_assignment_count.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+    feed->producer_processor_sample_count.fetch_add(1, std::memory_order_relaxed);
+}
+
+bool apply_producer_forced_migration_if_required(dbf_feed* feed) noexcept {
+    const auto interval = feed->config.forced_migration_interval_records;
+    const auto produced = feed->records_produced.load(std::memory_order_relaxed);
+    if (interval == 0 || produced == 0 || produced % interval != 0) {
+        return true;
+    }
+    feed->producer_using_alternate = !feed->producer_using_alternate;
+    const auto group = feed->producer_using_alternate
+                           ? feed->config.producer_alternate_processor_group
+                           : feed->config.producer_processor_group;
+    const auto logical_processor = feed->producer_using_alternate
+                                       ? feed->config.producer_alternate_logical_processor
+                                       : feed->config.producer_logical_processor;
+#if defined(_WIN32)
+    GROUP_AFFINITY affinity{};
+    affinity.Group = group;
+    affinity.Mask = 1ull << (logical_processor % 64u);
+    GROUP_AFFINITY observed{};
+    if (SetThreadGroupAffinity(GetCurrentThread(), &affinity, nullptr) == FALSE
+        || GetThreadGroupAffinity(GetCurrentThread(), &observed) == FALSE
+        || observed.Group != affinity.Group
+        || observed.Mask != affinity.Mask) {
+#else
+    if (group != 0) {
+        return false;
+    }
+    cpu_set_t affinity;
+    CPU_ZERO(&affinity);
+    CPU_SET(logical_processor, &affinity);
+    cpu_set_t observed;
+    CPU_ZERO(&observed);
+    if (pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity) != 0
+        || pthread_getaffinity_np(pthread_self(), sizeof(observed), &observed) != 0
+        || CPU_COUNT(&observed) != 1
+        || CPU_ISSET(logical_processor, &observed) == 0) {
+#endif
+        return false;
+    }
+    return true;
+}
 
 struct contract_result_entry {
     dbf_contract_detail_v1 detail{};
@@ -564,7 +669,9 @@ std::uint32_t select_record_kind(std::uint32_t kinds, std::uint64_t sequence) no
     if ((kinds & DBF_MARKET_DATA_MBO) != 0) {
         enabled[count++] = DBF_RECORD_MBO;
     }
-    return count == 0 ? DBF_RECORD_QUOTE : enabled[sequence % count];
+    return count == 0
+               ? static_cast<std::uint32_t>(DBF_RECORD_QUOTE)
+               : enabled[sequence % count];
 }
 
 dbf_market_record64 make_synthetic_record(const mapping_entry& mapping,
@@ -606,6 +713,13 @@ dbf_market_record64 make_synthetic_record(const mapping_entry& mapping,
 }
 
 bool publish_record(dbf_feed* feed, const dbf_market_record64& record) noexcept {
+    if (!apply_producer_forced_migration_if_required(feed)) {
+        set_error(feed, DBF_AFFINITY_CONFIGURATION_FAILED,
+                  "Native producer forced migration failed");
+        feed->state.store(DBF_STATE_FAULTED, std::memory_order_release);
+        notify_signal(feed);
+        return false;
+    }
     auto head = feed->head.value.load(std::memory_order_relaxed);
     auto tail = feed->tail.value.load(std::memory_order_acquire);
     if (head - tail == feed->ring_capacity) {
@@ -643,6 +757,7 @@ bool publish_record(dbf_feed* feed, const dbf_market_record64& record) noexcept 
     const auto used = head + 1 - tail;
     update_high_water(feed, used);
     feed->records_produced.fetch_add(1, std::memory_order_relaxed);
+    record_producer_processor_residency(feed);
     if (was_empty) {
         notify_signal(feed);
     }
@@ -658,7 +773,21 @@ void apply_producer_thread_settings(dbf_feed* feed) noexcept {
         if (SetThreadGroupAffinity(GetCurrentThread(), &affinity, nullptr) == FALSE) {
             set_error(feed, DBF_AFFINITY_CONFIGURATION_FAILED,
                       "Unable to apply native producer affinity");
+            return;
         }
+        GROUP_AFFINITY observed{};
+        if (GetThreadGroupAffinity(GetCurrentThread(), &observed) == FALSE
+            || observed.Group != affinity.Group
+            || observed.Mask != affinity.Mask) {
+            set_error(feed, DBF_AFFINITY_CONFIGURATION_FAILED,
+                      "Native producer affinity verification failed");
+            return;
+        }
+        feed->observed_producer_location.store(
+            (static_cast<std::uint32_t>(observed.Group) << 16u)
+                | feed->config.producer_logical_processor,
+            std::memory_order_release);
+        feed->producer_affinity_verified.store(1u, std::memory_order_release);
     }
     int priority = THREAD_PRIORITY_NORMAL;
     if (feed->config.producer_priority == 1) {
@@ -686,6 +815,19 @@ void apply_producer_thread_settings(dbf_feed* feed) noexcept {
                       "Unable to apply Linux native producer affinity");
             return;
         }
+        cpu_set_t observed;
+        CPU_ZERO(&observed);
+        if (pthread_getaffinity_np(pthread_self(), sizeof(observed), &observed) != 0
+            || CPU_COUNT(&observed) != 1
+            || CPU_ISSET(feed->config.producer_logical_processor, &observed) == 0) {
+            set_error(feed, DBF_AFFINITY_CONFIGURATION_FAILED,
+                      "Linux native producer affinity verification failed");
+            return;
+        }
+        feed->observed_producer_location.store(
+            feed->config.producer_logical_processor,
+            std::memory_order_release);
+        feed->producer_affinity_verified.store(1u, std::memory_order_release);
     }
     int nice_value = 0;
     if (feed->config.producer_priority == 1) {
@@ -1343,17 +1485,27 @@ dbf_status DBF_CALL dbf_feed_create(const dbf_feed_config_v1* config,
         || !valid_struct(config->struct_size, sizeof(dbf_feed_config_v1), config->abi_version)) {
         return DBF_ABI_MISMATCH;
     }
-    if (config->reserved16 != 0
+    if (config->reserved16 != 0 || config->reserved32 != 0
         || std::any_of(std::begin(config->reserved), std::end(config->reserved),
                        [](std::uint64_t value) { return value != 0; })
         || config->flags > (DBF_CONFIG_LOCK_RING_MEMORY
                             | DBF_CONFIG_REQUIRE_LOCKED_MEMORY
-                            | DBF_CONFIG_REQUIRE_BASE_PAGE_POLICY
-                            | DBF_CONFIG_REQUIRE_PRIORITY
-                            | DBF_CONFIG_REQUIRE_NUMA_LOCALITY)
+                             | DBF_CONFIG_REQUIRE_BASE_PAGE_POLICY
+                             | DBF_CONFIG_REQUIRE_PRIORITY
+                             | DBF_CONFIG_REQUIRE_NUMA_LOCALITY
+                             | DBF_CONFIG_TRACK_PROCESSOR_RESIDENCY)
         || config->producer_priority < 0 || config->producer_priority > 2
         || config->drain_priority < 0 || config->drain_priority > 2
         || config->ring_full_timeout_us == 0) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    if (config->forced_migration_interval_records != 0
+        && ((config->flags & DBF_CONFIG_TRACK_PROCESSOR_RESIDENCY) == 0
+            || config->data_source != DBF_DATA_SOURCE_SYNTHETIC
+            || config->producer_logical_processor == unpinned_processor
+            || config->producer_alternate_logical_processor == unpinned_processor
+            || config->drain_logical_processor == unpinned_processor
+            || config->drain_alternate_logical_processor == unpinned_processor)) {
         return DBF_INVALID_ARGUMENT;
     }
     if (config->data_source != DBF_DATA_SOURCE_SYNTHETIC
@@ -1834,7 +1986,22 @@ dbf_status DBF_CALL dbf_feed_get_stats(dbf_feed_t* feed, dbf_stats_v1* stats) {
     stats->ring_full_episodes = feed->ring_full_episodes.load(std::memory_order_relaxed);
     stats->ring_overruns = feed->ring_overruns.load(std::memory_order_relaxed);
     stats->allocated_read_buffer_records = feed->read_buffer_capacity;
-    std::fill(std::begin(stats->reserved), std::end(stats->reserved), 0);
+    const auto producer_location = feed->observed_producer_location.load(
+        std::memory_order_acquire);
+    stats->observed_producer_processor_group = static_cast<std::uint16_t>(
+        producer_location >> 16u);
+    stats->observed_producer_logical_processor = static_cast<std::uint16_t>(
+        producer_location & 0xffffu);
+    stats->producer_affinity_verified = feed->producer_affinity_verified.load(
+        std::memory_order_acquire);
+    stats->producer_processor_sample_count =
+        feed->producer_processor_sample_count.load(std::memory_order_relaxed);
+    stats->producer_processor_migration_count =
+        feed->producer_processor_migration_count.load(std::memory_order_relaxed);
+    stats->producer_off_assignment_count =
+        feed->producer_off_assignment_count.load(std::memory_order_relaxed);
+    stats->producer_unique_processor_count =
+        feed->producer_unique_processor_count.load(std::memory_order_relaxed);
     return DBF_OK;
 }
 

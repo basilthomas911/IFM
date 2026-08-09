@@ -152,13 +152,15 @@ public sealed class FeedLifecycleTests
             Mode = NumaLocalityMode.Disabled
         };
 
-        using (ProcessCoreIsolationCoordinator.Acquire(affinity, isolation, numa))
+        using (ProcessCoreIsolationCoordinator.Acquire(
+                   affinity, isolation, numa, new FeedProcessorResidencyOptions()))
         {
         }
         using var reacquired = ProcessCoreIsolationCoordinator.Acquire(
             affinity,
             isolation,
-            numa);
+            numa,
+            new FeedProcessorResidencyOptions());
     }
 
     private static int DrainCount(ISynchronousBatchReader<MarketDataBatch64> reader)

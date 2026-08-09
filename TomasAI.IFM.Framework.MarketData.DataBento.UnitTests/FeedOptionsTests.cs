@@ -15,7 +15,8 @@ public sealed class FeedOptionsTests
         Assert.Equal(512, options.ManagedBatchRecordCapacity);
         Assert.Equal(512, options.Drain.NativeReadRecordCapacity);
         Assert.Equal(8_192, options.Drain.MaxRecordsPerDrainPass);
-        Assert.Equal(CpuAffinityMode.Unpinned, options.CpuAffinity.Mode);
+        Assert.False(options.CpuAffinity.PinFeedThreads);
+        Assert.Equal(CpuAffinityMode.AutoPerformanceCores, options.CpuAffinity.Mode);
         Assert.False(options.Memory.LockRingMemory);
         Assert.Equal(NumaLocalityMode.Disabled, options.Numa.Mode);
     }
@@ -29,6 +30,36 @@ public sealed class FeedOptionsTests
 
         using var feed = new DatabentoFeedFactory().CreateTickerFeed(options);
         Assert.NotNull(feed);
+        Assert.True(options.CpuAffinity.PinFeedThreads);
+        Assert.True(options.CpuAffinity.RequirePerformanceCore);
+        Assert.True(options.CpuAffinity.AllowAffinityFallback);
+    }
+
+    [Fact]
+    public void PinFeedThreadsDefaultsToTrue()
+    {
+        Assert.True(new FeedCpuAffinityOptions().PinFeedThreads);
+    }
+
+    [Fact]
+    public void DisabledPinningOverridesPlacementAndStrictIsolation()
+    {
+        using var placement = ProcessCoreIsolationCoordinator.Acquire(
+            new FeedCpuAffinityOptions
+            {
+                PinFeedThreads = false
+            },
+            new FeedCoreIsolationOptions
+            {
+                Mode = FeedCoreIsolationMode.ExcludeFromProcessWorkers,
+                RequireCoreIsolation = true
+            },
+            new FeedNumaOptions(),
+            new FeedProcessorResidencyOptions());
+
+        Assert.Null(placement.NativeProducer);
+        Assert.Null(placement.ManagedDrain);
+        Assert.Equal(FeedProcessorSelectionKind.Unpinned, placement.SelectionKind);
     }
 
     [Fact]
@@ -72,5 +103,50 @@ public sealed class FeedOptionsTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             new DatabentoFeedFactory().CreateTickerFeed(options));
+    }
+
+    [Fact]
+    public void ForcedMigrationRequiresResidencyTracking()
+    {
+        var options = DatabentoFeedOptions.ForProfile(
+            FeedDeploymentProfile.SyntheticCi,
+            "SYNTHETIC") with
+        {
+            CpuAffinity = new FeedCpuAffinityOptions
+            {
+                Mode = CpuAffinityMode.AutoPerformanceCores,
+                RequirePerformanceCore = false
+            },
+            ProcessorResidency = new FeedProcessorResidencyOptions
+            {
+                ForcedMigrationIntervalRecords = 100
+            }
+        };
+
+        Assert.Throws<ArgumentException>(() =>
+            new DatabentoFeedFactory().CreateTickerFeed(options));
+    }
+
+    [Fact]
+    public void TrackedSyntheticFeedAcceptsForcedMigrationBenchmarkConfiguration()
+    {
+        var options = DatabentoFeedOptions.ForProfile(
+            FeedDeploymentProfile.SyntheticCi,
+            "SYNTHETIC") with
+        {
+            CpuAffinity = new FeedCpuAffinityOptions
+            {
+                Mode = CpuAffinityMode.AutoPerformanceCores,
+                RequirePerformanceCore = false
+            },
+            ProcessorResidency = new FeedProcessorResidencyOptions
+            {
+                EnableTracking = true,
+                ForcedMigrationIntervalRecords = 100
+            }
+        };
+
+        using var feed = new DatabentoFeedFactory().CreateTickerFeed(options);
+        Assert.NotNull(feed);
     }
 }

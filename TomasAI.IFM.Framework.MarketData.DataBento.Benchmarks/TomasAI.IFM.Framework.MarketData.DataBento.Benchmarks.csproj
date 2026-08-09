@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Framework.MarketData.DataBento\TomasAI.IFM.Framework.MarketData.DataBento.csproj" />
+  </ItemGroup>
+
+  <Target Name="BuildDatabentoSyntheticNative"
+          BeforeTargets="Build"
+          Condition="'$(OS)' == 'Windows_NT' and '$(DesignTimeBuild)' != 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\build-native.ps1&quot; -Configuration $(Configuration)" />
+    <ItemGroup>
+      <DatabentoNativeRuntimeDll Include="$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\out\build\$(Configuration)\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DatabentoNativeRuntimeDll)" DestinationFolder="$(OutDir)runtimes\win-x64\native" />
+  </Target>
+
+</Project>

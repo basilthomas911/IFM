@@ -231,7 +231,13 @@ internal unsafe struct NativeFeedConfig
     public uint DatasetOffset;
     public uint DatasetLength;
     public ulong SyntheticStartSequence;
-    public fixed ulong Reserved[5];
+    public uint ForcedMigrationIntervalRecords;
+    public ushort ProducerAlternateProcessorGroup;
+    public ushort ProducerAlternateLogicalProcessor;
+    public ushort DrainAlternateProcessorGroup;
+    public ushort DrainAlternateLogicalProcessor;
+    public uint Reserved32;
+    public fixed ulong Reserved[3];
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8, Size = 32)]
@@ -325,7 +331,13 @@ internal unsafe struct NativeFeedStats
     public ulong RingFullEpisodes;
     public ulong RingOverruns;
     public ulong AllocatedReadBufferRecords;
-    public fixed ulong Reserved[4];
+    public ushort ObservedProducerProcessorGroup;
+    public ushort ObservedProducerLogicalProcessor;
+    public uint ProducerAffinityVerified;
+    public ulong ProducerProcessorSampleCount;
+    public ulong ProducerProcessorMigrationCount;
+    public uint ProducerOffAssignmentCount;
+    public uint ProducerUniqueProcessorCount;
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8, Size = 8)]

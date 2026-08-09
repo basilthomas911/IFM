@@ -23,6 +23,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private readonly ManualResetEventSlim _drainAllocated = new(false);
     private readonly ManualResetEventSlim _drainStart = new(false);
     private readonly SemaphoreSlim _multiplexedReady = new(0);
+    private readonly ulong[]? _managedObservedProcessors;
     private TickerSubscription[]? _subscriptions;
     private OptionContractSelection[]? _optionContracts;
     private MarketDataKinds _optionDataKinds;
@@ -44,12 +45,27 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private long _batchesPublished;
     private long _drainAllocatedBytes;
     private long _drainPassLimitHitCount;
+    private long _observedManagedDrain = -1;
+    private long _managedLastProcessor = -1;
+    private long _managedProcessorSampleCount;
+    private long _managedProcessorMigrationCount;
+    private long _managedOffAssignmentCount;
+    private int _managedUniqueProcessorCount;
+    private FeedProcessorSelectionKind _processorSelection;
+    private LogicalProcessorLocation? _resolvedNativeProducer;
+    private LogicalProcessorLocation? _resolvedManagedDrain;
+    private LogicalProcessorLocation? _nativeProducerAlternate;
+    private LogicalProcessorLocation? _managedDrainAlternate;
+    private bool _managedDrainUsingAlternate;
     private string? _platformWarning;
 
     internal SyntheticTickerFeed(DatabentoFeedOptions options, bool singleChannel = false)
     {
         _options = options;
         _singleChannel = singleChannel;
+        _managedObservedProcessors = options.ProcessorResidency.EnableTracking
+            ? new ulong[64]
+            : null;
     }
 
     public void Subscribe(
@@ -164,7 +180,13 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             _placementLease = ProcessCoreIsolationCoordinator.Acquire(
                 _options.CpuAffinity,
                 _options.CoreIsolation,
-                _options.Numa);
+                _options.Numa,
+                _options.ProcessorResidency);
+            _processorSelection = _placementLease.SelectionKind;
+            _resolvedNativeProducer = _placementLease.NativeProducer;
+            _resolvedManagedDrain = _placementLease.ManagedDrain;
+            _nativeProducerAlternate = _placementLease.NativeProducerAlternate;
+            _managedDrainAlternate = _placementLease.ManagedDrainAlternate;
             _handle = CreateAndSubscribeNative(deadline);
             _drainThread = new Thread(DrainThreadMain)
             {
@@ -377,7 +399,35 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             PoolFreeBatchCount = poolFree,
             DrainPassLimitHitCount = unchecked((ulong)Interlocked.Read(
                 ref _drainPassLimitHitCount)),
-            MaximumChannelFullWait = maximumChannelFullWait
+            MaximumChannelFullWait = maximumChannelFullWait,
+            ProcessorSelection = _processorSelection,
+            ResolvedNativeProducer = _resolvedNativeProducer,
+            AlternateNativeProducer = _nativeProducerAlternate,
+            ObservedNativeProducer = native.ProducerAffinityVerified != 0
+                                     || native.ProducerProcessorSampleCount != 0
+                ? new LogicalProcessorLocation(
+                    native.ObservedProducerProcessorGroup,
+                    native.ObservedProducerLogicalProcessor)
+                : null,
+            ResolvedManagedDrain = _resolvedManagedDrain,
+            AlternateManagedDrain = _managedDrainAlternate,
+            ObservedManagedDrain = DecodeProcessorLocation(
+                Interlocked.Read(ref _observedManagedDrain)),
+            NativeProducerAffinityVerified = native.ProducerAffinityVerified != 0,
+            ManagedDrainAffinityVerified = _resolvedManagedDrain is not null
+                                            && Interlocked.Read(ref _observedManagedDrain) >= 0,
+            NativeProducerProcessorSamples = native.ProducerProcessorSampleCount,
+            NativeProducerProcessorMigrations = native.ProducerProcessorMigrationCount,
+            NativeProducerUniqueProcessors = native.ProducerUniqueProcessorCount,
+            NativeProducerOffAssignmentSamples = native.ProducerOffAssignmentCount,
+            ManagedDrainProcessorSamples = unchecked((ulong)Interlocked.Read(
+                ref _managedProcessorSampleCount)),
+            ManagedDrainProcessorMigrations = unchecked((ulong)Interlocked.Read(
+                ref _managedProcessorMigrationCount)),
+            ManagedDrainUniqueProcessors = unchecked((uint)Volatile.Read(
+                ref _managedUniqueProcessorCount)),
+            ManagedDrainOffAssignmentSamples = unchecked((ulong)Interlocked.Read(
+                ref _managedOffAssignmentCount))
         };
     }
 
@@ -431,7 +481,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             Flags = BuildNativeFlags(
                 _options.Memory,
                 _options.ThreadPriority,
-                _options.Numa),
+                _options.Numa,
+                _options.ProcessorResidency),
             ProducerProcessorGroup = _placementLease!.NativeProducer?.ProcessorGroup ?? 0,
             ProducerLogicalProcessor = _placementLease.NativeProducer?.LogicalProcessorIndex
                                        ?? NativeConstants.UnpinnedProcessor,
@@ -444,7 +495,19 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 ? ushort.MaxValue
                 : _options.Numa.Node ?? _placementLease.NumaNode ?? ushort.MaxValue,
             DatasetLength = checked((uint)dataset.Length),
-            SyntheticStartSequence = _options.Synthetic.StartSequence
+            SyntheticStartSequence = _options.Synthetic.StartSequence,
+            ForcedMigrationIntervalRecords = checked((uint)
+                _options.ProcessorResidency.ForcedMigrationIntervalRecords),
+            ProducerAlternateProcessorGroup =
+                _placementLease.NativeProducerAlternate?.ProcessorGroup ?? 0,
+            ProducerAlternateLogicalProcessor =
+                _placementLease.NativeProducerAlternate?.LogicalProcessorIndex
+                ?? NativeConstants.UnpinnedProcessor,
+            DrainAlternateProcessorGroup =
+                _placementLease.ManagedDrainAlternate?.ProcessorGroup ?? 0,
+            DrainAlternateLogicalProcessor =
+                _placementLease.ManagedDrainAlternate?.LogicalProcessorIndex
+                ?? NativeConstants.UnpinnedProcessor
         };
         nint rawHandle;
         fixed (byte* datasetPointer = dataset)
@@ -735,6 +798,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                     "Native batch read");
                 for (var index = 0u; index < batch.RecordsRead; index++)
                 {
+                    RecordManagedProcessorResidency();
                     RouteRecord(_readBuffer[index]);
                 }
                 if (allocationBaseline < 0 && batch.RecordsRead != 0)
@@ -839,7 +903,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         {
             if (_placementLease?.ManagedDrain is { } location)
             {
-                WindowsThreadAffinity.Apply(location);
+                RecordObservedManagedDrain(WindowsThreadAffinity.Apply(location));
             }
             try
             {
@@ -856,9 +920,13 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         {
             try
             {
-                LinuxThreadConfiguration.Apply(
+                var observed = LinuxThreadConfiguration.Apply(
                     _placementLease?.ManagedDrain,
                     _options.ThreadPriority.ManagedDrain);
+                if (observed is { } location)
+                {
+                    RecordObservedManagedDrain(location);
+                }
             }
             catch (Exception exception) when (!_options.ThreadPriority.RequireConfiguredPriority)
             {
@@ -883,10 +951,88 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         _ => throw new ArgumentOutOfRangeException(nameof(priority))
     };
 
+    private void RecordObservedManagedDrain(LogicalProcessorLocation location)
+    {
+        var packed = ((long)location.ProcessorGroup << 32)
+                     | location.LogicalProcessorIndex;
+        Interlocked.Exchange(ref _observedManagedDrain, packed);
+    }
+
+    private void RecordManagedProcessorResidency()
+    {
+        if (_managedObservedProcessors is null)
+        {
+            return;
+        }
+        ApplyManagedForcedMigrationIfRequired();
+        var location = CurrentProcessor.Get();
+        var packed = ((long)location.ProcessorGroup << 32)
+                     | location.LogicalProcessorIndex;
+        Interlocked.CompareExchange(ref _observedManagedDrain, packed, -1);
+        var previous = _managedLastProcessor;
+        if (previous >= 0 && previous != packed)
+        {
+            _managedProcessorMigrationCount++;
+        }
+        _managedLastProcessor = packed;
+        var processorId = location.ProcessorGroup * 64 + location.LogicalProcessorIndex;
+        var wordIndex = processorId / 64;
+        if (wordIndex < _managedObservedProcessors.Length)
+        {
+            var mask = 1UL << (processorId % 64);
+            if ((_managedObservedProcessors[wordIndex] & mask) == 0)
+            {
+                _managedObservedProcessors[wordIndex] |= mask;
+                _managedUniqueProcessorCount++;
+            }
+        }
+        if (_resolvedManagedDrain is { } assigned && assigned != location)
+        {
+            _managedOffAssignmentCount++;
+        }
+        _managedProcessorSampleCount++;
+    }
+
+    private void ApplyManagedForcedMigrationIfRequired()
+    {
+        var interval = _options.ProcessorResidency.ForcedMigrationIntervalRecords;
+        if (interval <= 0
+            || _managedProcessorSampleCount == 0
+            || _managedProcessorSampleCount % interval != 0)
+        {
+            return;
+        }
+        _managedDrainUsingAlternate = !_managedDrainUsingAlternate;
+        var target = _managedDrainUsingAlternate
+            ? _managedDrainAlternate
+            : _resolvedManagedDrain;
+        if (target is not { } location)
+        {
+            throw new InvalidOperationException(
+                "Managed forced migration has no resolved processor target.");
+        }
+        if (OperatingSystem.IsWindows())
+        {
+            WindowsThreadAffinity.Apply(location);
+        }
+        else
+        {
+            LinuxThreadConfiguration.ApplyAffinity(location);
+        }
+    }
+
+    private static LogicalProcessorLocation? DecodeProcessorLocation(long packed) =>
+        packed < 0
+            ? null
+            : new LogicalProcessorLocation(
+                checked((ushort)(packed >> 32)),
+                checked((ushort)(packed & ushort.MaxValue)));
+
     private static uint BuildNativeFlags(
         FeedMemoryOptions memory,
         FeedThreadPriorityOptions priority,
-        FeedNumaOptions numa)
+        FeedNumaOptions numa,
+        FeedProcessorResidencyOptions processorResidency)
     {
         uint flags = 0;
         if (memory.LockRingMemory)
@@ -908,6 +1054,10 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         if (numa.RequireNumaLocality)
         {
             flags |= 16;
+        }
+        if (processorResidency.EnableTracking)
+        {
+            flags |= 32;
         }
         return flags;
     }

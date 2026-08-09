@@ -13,6 +13,23 @@ public sealed record FeedQualificationObservation
     public long OutOfOrderRecords { get; init; }
     public TimeSpan Duration { get; init; }
     public long HandleCountDelta { get; init; }
+    public FeedProcessorSelectionKind ProcessorSelection { get; init; }
+    public LogicalProcessorLocation? ResolvedNativeProducer { get; init; }
+    public LogicalProcessorLocation? AlternateNativeProducer { get; init; }
+    public LogicalProcessorLocation? ObservedNativeProducer { get; init; }
+    public LogicalProcessorLocation? ResolvedManagedDrain { get; init; }
+    public LogicalProcessorLocation? AlternateManagedDrain { get; init; }
+    public LogicalProcessorLocation? ObservedManagedDrain { get; init; }
+    public bool NativeProducerAffinityVerified { get; init; }
+    public bool ManagedDrainAffinityVerified { get; init; }
+    public ulong NativeProducerProcessorSamples { get; init; }
+    public ulong NativeProducerProcessorMigrations { get; init; }
+    public uint NativeProducerUniqueProcessors { get; init; }
+    public ulong NativeProducerOffAssignmentSamples { get; init; }
+    public ulong ManagedDrainProcessorSamples { get; init; }
+    public ulong ManagedDrainProcessorMigrations { get; init; }
+    public uint ManagedDrainUniqueProcessors { get; init; }
+    public ulong ManagedDrainOffAssignmentSamples { get; init; }
 }
 
 public sealed record FeedQualificationBaseline(
@@ -211,7 +228,24 @@ public static class DatabentoSyntheticQualificationProbe
                 LostRecords = lost,
                 OutOfOrderRecords = outOfOrder,
                 Duration = duration,
-                HandleCountDelta = process.HandleCount - initialHandleCount
+                HandleCountDelta = process.HandleCount - initialHandleCount,
+                ProcessorSelection = health.ProcessorSelection,
+                ResolvedNativeProducer = health.ResolvedNativeProducer,
+                AlternateNativeProducer = health.AlternateNativeProducer,
+                ObservedNativeProducer = health.ObservedNativeProducer,
+                ResolvedManagedDrain = health.ResolvedManagedDrain,
+                AlternateManagedDrain = health.AlternateManagedDrain,
+                ObservedManagedDrain = health.ObservedManagedDrain,
+                NativeProducerAffinityVerified = health.NativeProducerAffinityVerified,
+                ManagedDrainAffinityVerified = health.ManagedDrainAffinityVerified,
+                NativeProducerProcessorSamples = health.NativeProducerProcessorSamples,
+                NativeProducerProcessorMigrations = health.NativeProducerProcessorMigrations,
+                NativeProducerUniqueProcessors = health.NativeProducerUniqueProcessors,
+                NativeProducerOffAssignmentSamples = health.NativeProducerOffAssignmentSamples,
+                ManagedDrainProcessorSamples = health.ManagedDrainProcessorSamples,
+                ManagedDrainProcessorMigrations = health.ManagedDrainProcessorMigrations,
+                ManagedDrainUniqueProcessors = health.ManagedDrainUniqueProcessors,
+                ManagedDrainOffAssignmentSamples = health.ManagedDrainOffAssignmentSamples
             };
         }
         finally

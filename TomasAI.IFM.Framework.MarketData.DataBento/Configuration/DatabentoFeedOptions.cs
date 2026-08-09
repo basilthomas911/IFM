@@ -21,6 +21,13 @@ public enum CpuAffinityMode : byte
     Unpinned = 3
 }
 
+public enum FeedProcessorSelectionKind : byte
+{
+    Unpinned = 0,
+    PerformanceCore = 1,
+    AffinityFallback = 2
+}
+
 public enum FeedThreadPriority : byte
 {
     Normal = 0,
@@ -47,10 +54,12 @@ public readonly record struct LogicalProcessorLocation(
 
 public sealed record FeedCpuAffinityOptions
 {
+    public bool PinFeedThreads { get; init; } = true;
     public CpuAffinityMode Mode { get; init; } = CpuAffinityMode.AutoPerformanceCores;
     public LogicalProcessorLocation? NativeProducer { get; init; }
     public LogicalProcessorLocation? ManagedDrain { get; init; }
     public bool RequirePerformanceCore { get; init; } = true;
+    public bool AllowAffinityFallback { get; init; } = true;
 }
 
 public sealed record FeedThreadPriorityOptions
@@ -99,6 +108,12 @@ public sealed record FeedCoreIsolationOptions
     public bool RequireCoreIsolation { get; init; }
 }
 
+public sealed record FeedProcessorResidencyOptions
+{
+    public bool EnableTracking { get; init; }
+    public int ForcedMigrationIntervalRecords { get; init; }
+}
+
 public sealed record FeedTransportHealthOptions
 {
     public TimeSpan HeartbeatInterval { get; init; } = TimeSpan.FromSeconds(5);
@@ -134,6 +149,7 @@ public sealed record DatabentoFeedOptions
     public FeedGcOptions GarbageCollection { get; init; } = new();
     public FeedNumaOptions Numa { get; init; } = new();
     public FeedCoreIsolationOptions CoreIsolation { get; init; } = new();
+    public FeedProcessorResidencyOptions ProcessorResidency { get; init; } = new();
     public FeedTransportHealthOptions TransportHealth { get; init; } = new();
     public SyntheticFeedOptions Synthetic { get; init; } = new();
 
@@ -195,7 +211,7 @@ public sealed record DatabentoFeedOptions
                 DataSource = FeedDataSourceMode.Synthetic,
                 CpuAffinity = new FeedCpuAffinityOptions
                 {
-                    Mode = CpuAffinityMode.Unpinned,
+                    PinFeedThreads = false,
                     RequirePerformanceCore = false
                 },
                 ThreadPriority = new FeedThreadPriorityOptions(),
