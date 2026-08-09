@@ -14,12 +14,7 @@ namespace TomasAI.IFM.Framework.Storage.UnitTests.Csv;
 
 public class CsvDataReaderTests
 {
-    static IStringReader CreateMockReader(params string[] lines)
-    {
-        var mock = Substitute.For<IStringReader>();
-        mock.ReadLinesAsync().Returns(ToAsyncEnumerable(lines));
-        return mock;
-    }
+    static IEnumerable<string> CreateMockReader(params string[] lines) => lines;
 
     static async IAsyncEnumerable<string> ToAsyncEnumerable(
         string[] items,

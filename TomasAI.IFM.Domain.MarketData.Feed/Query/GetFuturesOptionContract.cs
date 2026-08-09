@@ -30,7 +30,7 @@ public static class GetFuturesOptionContract
         try
         {
             streamId = marketDataSnapshotApi.StreamIds.Add(contractId);
-            marketDataSnapshotApi.Start();
+            await marketDataSnapshotApi.StartAsync().ConfigureAwait(false);
             futuresOptionContract = (await marketDataSnapshotApi.GetFuturesOptionContractAsync(
                 streamId, queryForContract))!;
         }

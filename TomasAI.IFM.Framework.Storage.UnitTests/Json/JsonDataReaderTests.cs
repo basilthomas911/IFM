@@ -11,12 +11,7 @@ namespace TomasAI.IFM.Framework.Storage.UnitTests.Json;
 
 public class JsonDataReaderTests
 {
-    static IStringReader CreateMockReader(string json)
-    {
-        var mock = Substitute.For<IStringReader>();
-        mock.ReadToEndAsync().Returns(Task.FromResult(json));
-        return mock;
-    }
+    static string CreateMockReader(string json) => json;
 
     static JsonDataReader<CsvJsonTestEntity> CreateReaderWithData()
     {

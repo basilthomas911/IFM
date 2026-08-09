@@ -19,7 +19,10 @@ namespace TomasAI.IFM.Framework.MarketData.MarketDataApi;
 public interface IMarketDataApi
 {
 
-    void Start(Guid commandId, Action<Guid, int, string>? errorMessageHandler=null);
+    Task StartAsync(
+        Guid commandId,
+        Func<Guid, int, string, Task>? errorMessageHandler = null,
+        CancellationToken cancellationToken = default);
     void Stop(Guid commandId);
 
     Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(

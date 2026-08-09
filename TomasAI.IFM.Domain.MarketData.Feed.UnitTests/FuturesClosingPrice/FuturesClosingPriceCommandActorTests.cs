@@ -358,13 +358,10 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new Exception("Database connection failed")));
 
-        // Act
-        Action act = () => actor.InvokeParseMessage(context, natsMsg);
+        var parsed = actor.InvokeParseMessage(context, natsMsg);
+        Func<Task> act = () => actor.InvokeOnValidateAsync(context, parsed.Subject.ThreadId, parsed).AsTask();
 
-        // Assert - should throw because database insert is synchronously awaited
-        act.Should().Throw<Exception>().WithMessage("Database connection failed");
-
-        await Task.CompletedTask;
+        await act.Should().ThrowAsync<Exception>().WithMessage("Database connection failed");
     }
 
     #endregion

@@ -145,7 +145,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
     }
 
     [Fact]
-    public void ParseMessage_CommandLogFails_PropagatesFailure()
+    public async Task ParseMessage_CommandLogFails_PropagatesFailure()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
@@ -153,10 +153,12 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var actor = _fixture.CreateActor(
             dbEventSource, Substitute.For<ILogger<FuturesBarDataCommandActor>>());
 
-        Action act = () => actor.InvokeParseMessage(
-            Substitute.For<ICommandActorContext>(), CreateMessage(CreateInsertCommand()));
+        var context = Substitute.For<ICommandActorContext>();
+        var command = actor.InvokeParseMessage(context, CreateMessage(CreateInsertCommand()));
+        Func<Task> act = () => actor.InvokeOnValidateAsync(
+            context, command.Subject.ThreadId, command).AsTask();
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("log unavailable");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("log unavailable");
     }
 
     [Theory]

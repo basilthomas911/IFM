@@ -25,8 +25,11 @@ public class OptionTradeCommandActorTests : IClassFixture<TradeFixture>
         _fixture = fixture;
     }
 
-    public class TestableOptionTradeCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<OptionTradeCommandActor> logger)
-        : OptionTradeCommandActor(dbEventSource, logger)
+    public class TestableOptionTradeCommandActor(
+        IEventSourceActorDbContext dbEventSource,
+        IDbContextFactory dbFactory,
+        ILogger<OptionTradeCommandActor> logger)
+        : OptionTradeCommandActor(dbEventSource, dbFactory, logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

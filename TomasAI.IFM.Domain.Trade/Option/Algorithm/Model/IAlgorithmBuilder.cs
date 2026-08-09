@@ -10,6 +10,6 @@ namespace TomasAI.IFM.Domain.Trade.Option.Algorithm.Model;
 
 public interface IAlgorithmBuilder
 {
-    LongIronCondorAlgorithm BuildLongIronCondorAlgorithm(DateOnly valueDate, IOptionTradeCollection optionTrades, FuturesEodDataV2ReadModel futuresEodData, FuturesTradeSignalV2ReadModel futuresTradeSignal);
-    ShortIronCondorAlgorithm BuildShortIronCondorAlgorithm(DateOnly valueDate, IOptionTradeCollection optionTrades, FuturesEodDataV2ReadModel futuresEodData, FuturesTradeSignalV2ReadModel futuresTradeSignal);
+    ValueTask<LongIronCondorAlgorithm> BuildLongIronCondorAlgorithmAsync(DateOnly valueDate, IOptionTradeCollection optionTrades, FuturesEodDataV2ReadModel futuresEodData, FuturesTradeSignalV2ReadModel futuresTradeSignal);
+    ValueTask<ShortIronCondorAlgorithm> BuildShortIronCondorAlgorithmAsync(DateOnly valueDate, IOptionTradeCollection optionTrades, FuturesEodDataV2ReadModel futuresEodData, FuturesTradeSignalV2ReadModel futuresTradeSignal);
 }

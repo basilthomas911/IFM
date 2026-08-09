@@ -29,7 +29,7 @@ public class ReferenceLookupActorService(IActorService actorService,  IBlackboar
             .ToFrozenDictionary(StringComparer.Ordinal);
     readonly IActorService _actorService = IsArgumentNull.Set( actorService);
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
-    readonly object _refreshGate = new();
+    readonly SemaphoreSlim _refreshGate = new(1, 1);
     FrozenDictionary<string, FrozenSet<string>>? _lookupIndex;
     long _expiresAt;
     long _observedGeneration = -1;
@@ -69,6 +69,51 @@ public class ReferenceLookupActorService(IActorService actorService,  IBlackboar
     /// <returns><see langword="true"/> if the symbol short code exists; otherwise, <see langword="false"/>.</returns>
     public bool SymbolExists(string shortCode) => Exists("Symbol", shortCode);
 
+    public async ValueTask EnsureLoadedAsync(CancellationToken cancellationToken = default)
+    {
+        var now = Environment.TickCount64;
+        var generation = ReferenceLookupCacheGeneration.Current;
+        var lookupIndex = Volatile.Read(ref _lookupIndex);
+        if (lookupIndex is not null
+            && generation == Volatile.Read(ref _observedGeneration)
+            && now < Volatile.Read(ref _expiresAt))
+            return;
+
+        await _refreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            now = Environment.TickCount64;
+            generation = ReferenceLookupCacheGeneration.Current;
+            lookupIndex = _lookupIndex;
+            if (lookupIndex is not null
+                && generation == _observedGeneration
+                && now < _expiresAt)
+                return;
+
+            var lookupTypeMap = _blackboardService.Reference.ReferenceLookup.Get();
+            if (lookupTypeMap is null)
+            {
+                var serviceResult = await _actorService.RequestAsync<LookupTypeCollection, GetLookupTypesQuery>(
+                    new GetLookupTypesQuery
+                    {
+                        Subject = new ActorSubject(ActorType.Query, GetLookupTypesQuery.Actor, GetLookupTypesQuery.Verb, ActorEntityId.Default.Format()),
+                        EntityId = ActorEntityId.Default
+                    }, cancellationToken).ConfigureAwait(false);
+                lookupTypeMap = serviceResult?.Value is { } values
+                    ? CreateLookupTypeMap(values)
+                    : [];
+                if (lookupTypeMap.Count > 0)
+                    _blackboardService.Reference.ReferenceLookup.Set(lookupTypeMap);
+            }
+
+            Publish(lookupTypeMap, generation, now);
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
+
     /// <summary>
     /// Retrieves the lookup type map from the blackboard cache, populating it from the actor service if not already cached.
     /// </summary>
@@ -77,80 +122,55 @@ public class ReferenceLookupActorService(IActorService actorService,  IBlackboar
     {
         if (shortCode is null)
             return false;
-        var lookupIndex = GetLookupIndex();
+        var lookupIndex = Volatile.Read(ref _lookupIndex);
+        if (lookupIndex is null)
+        {
+            var lookupTypeMap = _blackboardService.Reference.ReferenceLookup.Get();
+            if (lookupTypeMap is null)
+                return false;
+            lookupIndex = Publish(lookupTypeMap, ReferenceLookupCacheGeneration.Current, Environment.TickCount64);
+        }
         return lookupIndex.TryGetValue(lookupTypeName, out var shortCodes)
             && shortCodes.Contains(shortCode);
     }
 
-    FrozenDictionary<string, FrozenSet<string>> GetLookupIndex()
+    FrozenDictionary<string, FrozenSet<string>> Publish(
+        Dictionary<string, List<string>> lookupTypeMap,
+        long generation,
+        long now)
     {
-        var now = Environment.TickCount64;
-        var generation = ReferenceLookupCacheGeneration.Current;
-        var lookupIndex = Volatile.Read(ref _lookupIndex);
-        if (lookupIndex is not null
-            && generation == Volatile.Read(ref _observedGeneration)
-            && now < Volatile.Read(ref _expiresAt))
-            return lookupIndex;
+        var lookupIndex = Freeze(lookupTypeMap);
+        Volatile.Write(ref _lookupIndex, lookupIndex);
+        Volatile.Write(ref _observedGeneration, generation);
+        Volatile.Write(ref _expiresAt, now + LocalCacheLifetimeMilliseconds);
+        return lookupIndex;
+    }
 
-        lock (_refreshGate)
+    static Dictionary<string, List<string>> CreateLookupTypeMap(LookupTypeCollection values)
+    {
+        var map = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var value in values)
         {
-            now = Environment.TickCount64;
-            generation = ReferenceLookupCacheGeneration.Current;
-            lookupIndex = _lookupIndex;
-            if (lookupIndex is not null
-                && generation == _observedGeneration
-                && now < _expiresAt)
-                return lookupIndex;
-
-            var lookupTypeMap = _blackboardService.Reference.ReferenceLookup.Get();
-            if (lookupTypeMap is null)
+            if (!map.TryGetValue(value.LookupTypeName, out var shortCodes))
             {
-                var serviceResult = _actorService.RequestAsync<LookupTypeCollection, GetLookupTypesQuery>(
-                    new GetLookupTypesQuery
-                    {
-                        Subject = new ActorSubject(ActorType.Query, GetLookupTypesQuery.Actor, GetLookupTypesQuery.Verb, ActorEntityId.Default.Format()),
-                        EntityId = ActorEntityId.Default
-                    }).GetAwaiter().GetResult();
-                lookupTypeMap = serviceResult?.Value is { } values
-                    ? CreateLookupTypeMap(values)
-                    : [];
-                if (lookupTypeMap.Count > 0)
-                    _blackboardService.Reference.ReferenceLookup.Set(lookupTypeMap);
+                shortCodes = [];
+                map.Add(value.LookupTypeName, shortCodes);
             }
-
-            lookupIndex = Freeze(lookupTypeMap);
-            Volatile.Write(ref _lookupIndex, lookupIndex);
-            Volatile.Write(ref _observedGeneration, generation);
-            Volatile.Write(ref _expiresAt, now + LocalCacheLifetimeMilliseconds);
-            return lookupIndex;
+            shortCodes.Add(value.ShortCode);
         }
+        return map;
+    }
 
-        static Dictionary<string, List<string>> CreateLookupTypeMap(LookupTypeCollection values)
+    static FrozenDictionary<string, FrozenSet<string>> Freeze(Dictionary<string, List<string>> map)
+    {
+        if (map.Count == 0)
+            return EmptyLookupIndex;
+
+        var index = new Dictionary<string, FrozenSet<string>>(map.Count, StringComparer.Ordinal);
+        foreach (var pair in map)
         {
-            var map = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-            foreach (var value in values)
-            {
-                if (!map.TryGetValue(value.LookupTypeName, out var shortCodes))
-                {
-                    shortCodes = [];
-                    map.Add(value.LookupTypeName, shortCodes);
-                }
-                shortCodes.Add(value.ShortCode);
-            }
-            return map;
+            index[pair.Key] = pair.Value.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
         }
-
-        static FrozenDictionary<string, FrozenSet<string>> Freeze(Dictionary<string, List<string>> map)
-        {
-            if (map.Count == 0)
-                return EmptyLookupIndex;
-
-            var index = new Dictionary<string, FrozenSet<string>>(map.Count, StringComparer.Ordinal);
-            foreach (var pair in map)
-            {
-                index[pair.Key] = pair.Value.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
-            }
-            return index.ToFrozenDictionary(StringComparer.Ordinal);
-        }
+        return index.ToFrozenDictionary(StringComparer.Ordinal);
     }
 }

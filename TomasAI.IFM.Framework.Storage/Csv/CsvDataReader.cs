@@ -26,7 +26,7 @@ public class CsvDataReader<TData> : ICsvDataReader
     Dictionary<string, int> _nameIndex;
     Dictionary<Type, Func<int, object>> _valueMap;
 
-    public CsvDataReader(IStringReader stringReader, bool containsHeader = true)
+    public CsvDataReader(IEnumerable<string> sourceRows, bool containsHeader = true)
     {
         _propertyInfo = [.. typeof(TData).GetProperties()];
         _propertyIndex = [];
@@ -59,61 +59,59 @@ public class CsvDataReader<TData> : ICsvDataReader
         };
 
         _rows = [];
-        /*
-        var rowData = stringReader.ReadToEndAsync().Result;
-        if (!string.IsNullOrEmpty(rowData))
-            SplitRowData();
-        */
-        SplitRowData();
+        SplitRowData(sourceRows);
         _cursor = 0;
         return;
 
-        void SplitRowData()
+        void SplitRowData(IEnumerable<string> rows)
         {
             var headerFlag = containsHeader;
             //var rows = rowData.Split([ "\r\n"], StringSplitOptions.RemoveEmptyEntries);
             string[] headerCols = [];
 
-            var readLinesTask = stringReader.ReadLinesAsync().GetAsyncEnumerator();
-            try
+            foreach (var row in rows)
             {
-                while (readLinesTask.MoveNextAsync().AsTask().Result)
+                try
                 {
-                    var row = readLinesTask.Current;
-                    try
+                    if (headerFlag)
                     {
-                        if (headerFlag)
+                        headerCols = row.Split([","], StringSplitOptions.TrimEntries);
+                        headerFlag = false;
+                        _nameIndex = [];
+                        for (var i = 0; i < headerCols.Length; i++)
                         {
-                            headerCols = row.Split([","], StringSplitOptions.TrimEntries);
-                            headerFlag = false;
-                            _nameIndex = [];
-                            for (var i = 0; i < headerCols.Length; i++)
+                            var colName = headerCols[i].Replace("\"","");
+                            if (!_nameIndex.ContainsKey(colName.ToLowerInvariant()))
                             {
-                                var colName = headerCols[i].Replace("\"","");
-                                if (!_nameIndex.ContainsKey(colName.ToLowerInvariant()))
-                                {
-                                    _nameIndex.Add(colName.ToLowerInvariant(), i);
-                                }
+                                _nameIndex.Add(colName.ToLowerInvariant(), i);
                             }
-                            continue;
                         }
-                        var cols = new string[headerCols.Length];
-                        var colEntries = row.Split([","], StringSplitOptions.TrimEntries);
-                        for (var j = 0; j < headerCols.Length; j++)
-                        {
-                            cols[j] = j < colEntries.Length ? colEntries[j].Replace("\"", "") : string.Empty;
-                        }
-                        _rows.Add(cols);
+                        continue;
                     }
-                    catch { }
+                    var cols = new string[headerCols.Length];
+                    var colEntries = row.Split([","], StringSplitOptions.TrimEntries);
+                    for (var j = 0; j < headerCols.Length; j++)
+                    {
+                        cols[j] = j < colEntries.Length ? colEntries[j].Replace("\"", "") : string.Empty;
+                    }
+                    _rows.Add(cols);
                 }
-            }
-            finally
-            {
-                readLinesTask.DisposeAsync().AsTask().Wait();
+                catch { }
             }
         }
 
+    }
+
+    public static async Task<CsvDataReader<TData>> CreateAsync(
+        IStringReader stringReader,
+        bool containsHeader = true,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(stringReader);
+        var rows = new List<string>();
+        await foreach (var row in stringReader.ReadLinesAsync(cancellationToken).ConfigureAwait(false))
+            rows.Add(row);
+        return new CsvDataReader<TData>(rows, containsHeader);
     }
 
     public object this[int i] => GetValue(i);

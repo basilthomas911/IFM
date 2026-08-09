@@ -17,7 +17,6 @@ public interface IMarketDataDbReadContext
     Task<long> GetNextTickIdAsync(FuturesDataId e);
     Task<FuturesClosingPriceReadModel?> GetYesterdaysFuturesClosingPriceAsync(FuturesDataId id);
     Task<FuturesClosingPriceReadModel?> GetFuturesClosingPriceAsync(FuturesDataId e);
-    FuturesClosingPriceReadModel? GetFuturesClosingPrice(FuturesDataId e);
     Task<FuturesTickHLVDataReadModel?> GetFuturesTickHLVDataAsync(FuturesDataId e);
     Task<FuturesTickDataId?> GetLastFuturesTickDataIdAsync(string contractId, DateOnly valueDate);
     Task<FuturesTickDataV2ReadModel?> GetFuturesTickDataAsync(FuturesTickDataId futuresTickDataId);

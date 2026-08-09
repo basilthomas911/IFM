@@ -24,9 +24,6 @@ internal sealed class CommandAuditTracker(IEventSourceActorDbContext dbEventSour
             DateTime.UtcNow,
             JsonConvert.SerializeObject(command));
 
-        if (auditTask.IsCompleted)
-            auditTask.GetAwaiter().GetResult();
-
         if (!_pending.TryAdd(command, auditTask))
             throw new InvalidOperationException($"Command audit {command.CommandId} is already pending for this command instance.");
     }

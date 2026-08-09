@@ -60,8 +60,8 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
         });
         var domainEvent = CreateEvent("duplicate");
 
-        queue.Enqueue(resources.ProjectorName, domainEvent);
-        queue.Enqueue(resources.ProjectorName, domainEvent);
+        await queue.EnqueueAsync(resources.ProjectorName, domainEvent);
+        await queue.EnqueueAsync(resources.ProjectorName, domainEvent);
 
         await processed.Task.WaitAsync(TestTimeout);
         await Task.Delay(250);
@@ -88,7 +88,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
             return Task.CompletedTask;
         });
 
-        queue.Enqueue(resources.ProjectorName, CreateEvent("handoff"));
+        await queue.EnqueueAsync(resources.ProjectorName, CreateEvent("handoff"));
 
         await completed.Task.WaitAsync(TestTimeout);
         calls.Should().Be(3);

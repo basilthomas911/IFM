@@ -1525,13 +1525,6 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             .ExecuteQueryAsync(MapToFundOrder, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
-    /// return all fund orders
-    /// </summary>
-    /// <returns></returns>
-    public ICollection<FundOrderReadModel> GetFundOrders()
-        => GetFundOrdersAsync().Result;
-
-    /// <summary>
     /// return all fund order trades 
     /// </summary>
     /// <returns></returns>
@@ -1558,13 +1551,6 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             .Use(FundDbCql.GetFundOrderTrade)
             .SetParameters(new GetFundOrderTrade(fundId, orderId, tradeId))
             .ExecuteSingleAsync(MapToFundOrderTrade!);
-
-    /// <summary>
-    /// return all fund order trades
-    /// </summary>
-    /// <returns></returns>
-    public ICollection<FundOrderTradeReadModel> GetFundOrderTrades()
-        => GetFundOrderTradesAsync().Result;
 
     /// <summary>
     /// return fund transaction 

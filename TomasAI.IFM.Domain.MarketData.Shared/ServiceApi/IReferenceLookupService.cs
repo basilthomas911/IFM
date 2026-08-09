@@ -6,6 +6,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 
 public interface IReferenceLookupService
 {
+    ValueTask EnsureLoadedAsync(CancellationToken cancellationToken = default);
     bool CurrencyExists(string shortCode);
     bool ExchangeExists(string shortCode);
     bool MultiplierExists(string shortCode);

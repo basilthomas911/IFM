@@ -21,10 +21,6 @@ internal sealed class CommandAuditTracker(IEventSourceActorDbContext dbEventSour
         ArgumentNullException.ThrowIfNull(command);
         var auditTask = CreateAuditTask(command);
 
-        // Surface an already-completed failure without blocking the actor on incomplete storage I/O.
-        if (auditTask.IsCompleted)
-            auditTask.GetAwaiter().GetResult();
-
         if (!_pending.TryAdd(command, auditTask))
             throw new InvalidOperationException($"Command audit {command.CommandId} is already pending.");
     }

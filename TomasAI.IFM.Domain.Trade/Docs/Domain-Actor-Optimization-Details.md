@@ -82,5 +82,5 @@ dotnet run -c Release --project TomasAI.IFM.Domain.Trade.Benchmarks -- --filter 
 ## Deferred work
 
 - Trade query/read-model cancellation is complete across actors, handlers, the direct API, and concrete storage. Required post-commit denormalization retains the shared durable-outcome boundary.
-- Before reactivating legacy `AlgorithmBuilder` registrations, remove its `.Result` calls and repair its cache lifetime/ownership.
+- The legacy `AlgorithmBuilder` now awaits all remote inputs before constructing synchronous in-memory rule delegates; its dependency-injection registration remains disabled pending functional completion.
 - Paper-trading telemetry should guide any later verb-dispatch or other microoptimization; dictionary dispatch remains appropriate for this pass.

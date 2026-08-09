@@ -350,7 +350,7 @@ The API Server's `IAlgorithmBuilder` registration is currently commented out, so
 
 ### Reference data
 
-`ReferenceLookupActorService` reads one cached lookup dictionary. On a miss it performs an actor query, builds the dictionary, and caches it. The current implementation blocks on the actor query with `.Result` during this miss path.
+`ReferenceLookupActorService` asynchronously preloads one cached lookup dictionary before validation. On a miss it awaits the actor query, builds a frozen dictionary, and caches it; synchronous existence predicates only inspect that in-memory snapshot.
 
 ### Models without production call sites found
 

@@ -95,13 +95,13 @@ namespace TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers
                         _eventQueueTimer.AutoReset = true;
                         _eventQueueTimer.Start();
 
-                        _futuresTickPriceEventQueue = new(e => _marketDataFeedEventProducer.PostEventAsync(e).Wait());
+                        _futuresTickPriceEventQueue = new(e => _marketDataFeedEventProducer.PostEventAsync(e));
                         _futuresTickPriceEventQueue.Start();
 
-                        _futuresOptionTickPriceEventQueue = new(e => _marketDataFeedEventProducer.PostEventAsync(e).Wait());
+                        _futuresOptionTickPriceEventQueue = new(e => _marketDataFeedEventProducer.PostEventAsync(e));
                         _futuresOptionTickPriceEventQueue.Start();
 
-                        _futuresOptionQuoteEventQueue = new(e => _marketDataFeedEventProducer.PostEventAsync(e).Wait());
+                        _futuresOptionQuoteEventQueue = new(e => _marketDataFeedEventProducer.PostEventAsync(e));
                         _futuresOptionQuoteEventQueue.Start();
                         _ibStarted = true;
                     }

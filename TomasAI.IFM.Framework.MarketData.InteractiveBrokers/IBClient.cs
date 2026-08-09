@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Framework.MarketData.InteractiveBrokers.Messages;
+using TomasAI.IFM.Shared.EventQueue;
 
 namespace TomasAI.IFM.Framework.MarketData.InteractiveBrokers
 {
@@ -24,6 +25,8 @@ namespace TomasAI.IFM.Framework.MarketData.InteractiveBrokers
         static Dictionary<int, long>? _lastOptionTickTime = new();
         static Dictionary<int, Action<int, int, string, Exception?>>? _errorHandlers = new();
         static IMarketDataFeedEventProducer? _marketDataFeedEventProducer;
+        ConcurrentEventQueue<FuturesTickBidAskEvent>? _futuresTickEventQueue;
+        ConcurrentEventQueue<FuturesOptionTickBidAskEvent>? _futuresOptionTickEventQueue;
 
         // public properties...
         public EClientSocket? ClientSocket => _clientSocket;
@@ -56,6 +59,10 @@ namespace TomasAI.IFM.Framework.MarketData.InteractiveBrokers
                     // start ib message reader task...
                     _msgReader = new IBMessageReader(_clientSocket, _readerSignal);
                     _msgReader.Start();
+                    _futuresTickEventQueue = new ConcurrentEventQueue<FuturesTickBidAskEvent>(
+                        e => _marketDataFeedEventProducer!.PostEventAsync(e)).Start();
+                    _futuresOptionTickEventQueue = new ConcurrentEventQueue<FuturesOptionTickBidAskEvent>(
+                        e => _marketDataFeedEventProducer!.PostEventAsync(e)).Start();
                     _ibStarted = true;
                 }
             }
@@ -79,6 +86,10 @@ namespace TomasAI.IFM.Framework.MarketData.InteractiveBrokers
                 catch { }
             }
             _msgReader = null;
+            _futuresTickEventQueue?.Stop();
+            _futuresTickEventQueue = null;
+            _futuresOptionTickEventQueue?.Stop();
+            _futuresOptionTickEventQueue = null;
 
             // close connection to TWS...
             if (_clientSocket != null)
@@ -626,7 +637,7 @@ namespace TomasAI.IFM.Framework.MarketData.InteractiveBrokers
                         RequestId = reqId,
                         TickBidAskData = new FuturesTickBidAskReadModel(reqId, DateTime.Now, time, price, size)
                     };
-                    _marketDataFeedEventProducer?.PostEventAsync(futuresTickPriceData).Wait();
+                    _futuresTickEventQueue?.EnqueueAndSignal(futuresTickPriceData);
                 }
             }
             catch (Exception ex)
@@ -649,7 +660,7 @@ namespace TomasAI.IFM.Framework.MarketData.InteractiveBrokers
                         RequestId = reqId,
                         TickBidAskData = new FuturesOptionTickBidAskReadModel(DateTime.Now, time, tickBidAskMsg.TickBidAskData.BidPrice, tickBidAskMsg.TickBidAskData.AskPrice, tickBidAskMsg.TickBidAskData.BidSize, tickBidAskMsg.TickBidAskData.AskSize)
                     };
-                    _marketDataFeedEventProducer?.PostEventAsync(futuresOptionTickPriceData).Wait();
+                    _futuresOptionTickEventQueue?.EnqueueAndSignal(futuresOptionTickPriceData);
                 }
             }
             catch (Exception ex)

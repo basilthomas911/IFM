@@ -25,7 +25,7 @@ public class MarketDataFeedResetUIEventConsumer(INatsEventListenerOptions option
         [new ActorMailboxId(ActorType.Event, MarketDataFeedResetStreamingEvent.Actor)] = [MarketDataFeedResetStreamingEvent.Verb]
     };
 
-    public async ValueTask StartAsync(Action<MarketDataFeedResetStreamingEvent> eventAction)
+    public async ValueTask StartAsync(Func<MarketDataFeedResetStreamingEvent, ValueTask> eventAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
 
@@ -33,24 +33,22 @@ public class MarketDataFeedResetUIEventConsumer(INatsEventListenerOptions option
         {
             try
             {
-                _ = eventVerb switch
+                await (eventVerb switch
                 {
                     _ when eventVerb == MarketDataFeedResetStreamingEvent.Verb 
                         => HandleEvent(eventMsg.AsEvent<MarketDataFeedResetStreamingEvent>()!, eventAction),
-                    _ => default!
-                };
-                await ValueTask.CompletedTask;
+                    _ => ValueTask.CompletedTask
+                }).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
             }
 
-            IEvent HandleEvent(MarketDataFeedResetStreamingEvent e, Action<MarketDataFeedResetStreamingEvent> eventAction)
-            {
-                eventAction?.Invoke(e);
-                return e;
-            }
+            static ValueTask HandleEvent(
+                MarketDataFeedResetStreamingEvent e,
+                Func<MarketDataFeedResetStreamingEvent, ValueTask> eventAction)
+                => eventAction(e);
         }
        
     }

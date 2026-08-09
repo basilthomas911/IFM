@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Framework.Storage.Json
         private Dictionary<string, int> _propertyIndex;
         private Dictionary<Type, Func<int, object>> _valueMap;
 
-        public JsonDataReader(IStringReader stringReader)
+        public JsonDataReader(string jsonData)
         {
             _propertyInfo = [.. typeof(TData).GetProperties()];
             _propertyIndex = [];
@@ -52,7 +52,6 @@ namespace TomasAI.IFM.Framework.Storage.Json
             };
 
             _rows = [];
-            var jsonData = stringReader.ReadToEndAsync().Result;
             if (!string.IsNullOrWhiteSpace(jsonData))
                 SplitRowData(jsonData);
             _cursor = -1;
@@ -76,6 +75,15 @@ namespace TomasAI.IFM.Framework.Storage.Json
                 }
             }
 
+        }
+
+        public static async Task<JsonDataReader<TData>> CreateAsync(
+            IStringReader stringReader,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(stringReader);
+            var jsonData = await stringReader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            return new JsonDataReader<TData>(jsonData);
         }
 
         public object this[int i] => GetValue(i);

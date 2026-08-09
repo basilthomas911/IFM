@@ -12,12 +12,22 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
 {
     public class OptionPricerDeviceCollection : List<OptionPricerDeviceReadModel>, IOptionPricerDeviceCollection
     {
-        public OptionPricerDeviceCollection(IOptionPricerQueryApi optionPricerQuery)
+        public OptionPricerDeviceCollection(IEnumerable<OptionPricerDeviceReadModel> devices)
         {
-            var serviceResult = optionPricerQuery.GetOptionPricerDevicesAsync().Result;
+            AddRange(devices);
+        }
+
+        public static async Task<OptionPricerDeviceCollection> CreateAsync(
+            IOptionPricerQueryApi optionPricerQuery,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(optionPricerQuery);
+            var serviceResult = await optionPricerQuery.GetOptionPricerDevicesAsync()
+                .WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
             if (!serviceResult.Success || serviceResult.Value is null)
                 throw new InvalidOperationException("Unable to load Option Pricer Devices");
-            this.AddRange(serviceResult.Value.Devices);
+            return new OptionPricerDeviceCollection(serviceResult.Value.Devices);
         }
     }
 }

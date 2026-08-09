@@ -52,7 +52,7 @@ public sealed class TickAggregationCommandAuditTests
     }
 
     [Fact]
-    public void Reused_command_id_with_different_content_fails()
+    public async Task Reused_command_id_with_different_content_fails()
     {
         var command = Command();
         var db = Substitute.For<IEventSourceActorDbContext>();
@@ -66,7 +66,8 @@ public sealed class TickAggregationCommandAuditTests
             "different"));
         var audit = new TickAggregationCommandAuditTracker(db);
 
-        Assert.Throws<InvalidOperationException>(() => audit.Start(command));
+        audit.Start(command);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => audit.CompleteAsync(command).AsTask());
     }
 
     private static InsertFuturesTickTradeDataCommand Command()

@@ -1760,22 +1760,6 @@ public partial class MarketDataDbContext(
             .ExecuteSingleAsync(MapToFuturesClosingPrice!);
 
     /// <summary>
-    /// Retrieves the closing price information
-    /// </summary>
-    /// <remarks>This method performs a synchronous call to an asynchronous database operation. Ensure that
-    /// the provided <paramref name="e"/> contains valid identifiers to avoid unexpected results.</remarks>
-    /// <param name="e">An object that identifies the futures contract and the value date for which the closing price is requested. Must
-    /// contain valid contract and date values.</param>
-    /// <returns>A <see cref="FuturesClosingPriceReadModel"/> containing the closing price details for the specified contract and
-    /// date; or <see langword="null"/> if no data is found.</returns>
-    public FuturesClosingPriceReadModel? GetFuturesClosingPrice(FuturesDataId e)
-        => _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.GetFuturesClosingPrice)
-            .SetParameters(new GetFuturesClosingPrice(contractId: e.ContractId, valueDate: e.ValueDate))
-            .ExecuteSingleAsync(MapToFuturesClosingPrice!).Result;
-
-
-    /// <summary>
     /// Gets yesterday's futures closing price for a given FuturesClosingPriceId.
     /// </summary>
     /// <param name="id">The identifier of the futures closing price to retrieve.</param>
@@ -3149,7 +3133,15 @@ public partial class MarketDataDbContext(
     /// <returns></returns>
     public async Task InsertFuturesTradeSignalsAsync(ICollection<FuturesTradeSignalV2ReadModel> futuresTradeSignals)
     {
-        var ftsQuery = GenerateFuturesTradeSignalWithSequenceId(futuresTradeSignals).ToArray();
+        var ftsQuery = new FuturesTradeSignalV2ReadModel[futuresTradeSignals.Count];
+        var signalIndex = 0;
+        foreach (var signal in futuresTradeSignals)
+        {
+            var sequenceId = await _sequenceIdGenerator
+                .GetSequenceIdAsync(SequenceName.FuturesTradeSignal_SequenceId)
+                .ConfigureAwait(false);
+            ftsQuery[signalIndex++] = signal with { SequenceId = sequenceId };
+        }
         var db = _dbFactory.MarketDataDb;
         var insertSignals = db
            .Use(MarketDataDbCql.InsertFuturesTradeSignal)
@@ -3199,22 +3191,23 @@ public partial class MarketDataDbContext(
                 };
             }))
             .QueueCommand();
-        await db.ExecuteQueuedCommandsAsync([insertSignals, insertIndex]);
-
-        IEnumerable<FuturesTradeSignalV2ReadModel> GenerateFuturesTradeSignalWithSequenceId(ICollection<FuturesTradeSignalV2ReadModel> futuresTradeSignals)
-        {
-            foreach (var e in futuresTradeSignals)
-            {
-                var sequenceId = _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTradeSignal_SequenceId).Result;
-                yield return e with { SequenceId = sequenceId };
-            }
-        }
+        await db.ExecuteQueuedCommandsAsync([insertSignals, insertIndex]).ConfigureAwait(false);
     }
 
     public async Task<long> InsertFuturesTradeSignalsAsync(IEnumerable<FuturesTradeSignalV2ReadModel> futuresTradeSignals)
     {
-        var rowCount = 0l;
-        var ftsQuery = GenerateFuturesTradeSignalWithSequenceId(futuresTradeSignals).ToArray();
+        var signals = futuresTradeSignals as IReadOnlyCollection<FuturesTradeSignalV2ReadModel>
+            ?? futuresTradeSignals.ToArray();
+        var rowCount = signals.Count;
+        var ftsQuery = new FuturesTradeSignalV2ReadModel[rowCount];
+        var signalIndex = 0;
+        foreach (var signal in signals)
+        {
+            var sequenceId = await _sequenceIdGenerator
+                .GetSequenceIdAsync(SequenceName.FuturesTradeSignal_SequenceId)
+                .ConfigureAwait(false);
+            ftsQuery[signalIndex++] = signal with { SequenceId = sequenceId };
+        }
         var db = _dbFactory.MarketDataDb;
         var insertSignals = db
            .Use(MarketDataDbCql.InsertFuturesTradeSignal)
@@ -3264,18 +3257,8 @@ public partial class MarketDataDbContext(
                 };
             }))
             .QueueCommand();
-        await db.ExecuteQueuedCommandsAsync([insertSignals, insertIndex]);
+        await db.ExecuteQueuedCommandsAsync([insertSignals, insertIndex]).ConfigureAwait(false);
         return rowCount;
-
-        IEnumerable<FuturesTradeSignalV2ReadModel> GenerateFuturesTradeSignalWithSequenceId(IEnumerable<FuturesTradeSignalV2ReadModel> futuresTradeSignals)
-        {
-            foreach (var e in futuresTradeSignals)
-            {
-                rowCount++;
-                var sequenceId = _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTradeSignal_SequenceId).Result;
-                yield return e with { SequenceId = sequenceId };
-            }
-        }
     }
 
     /// <summary>

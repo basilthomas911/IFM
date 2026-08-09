@@ -199,14 +199,14 @@ public class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeed
     public async Task ReceiveAsync_StreamingStartFails_SendsFailureEvent()
     {
         var marketDataApi = Substitute.For<IMarketDataApi>();
-        marketDataApi.Start(Arg.Any<Action<int, string>>()).Returns(false);
+        marketDataApi.StartAsync(Arg.Any<Func<int, string, Task>>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
         var actor = CreateActor(marketDataApi: marketDataApi);
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateStreamingStartedEvent();
 
         await actor.InvokeReceiveAsync(context, @event);
 
-        marketDataApi.Received(1).Start(Arg.Any<Action<int, string>>());
+        await marketDataApi.Received(1).StartAsync(Arg.Any<Func<int, string, Task>>(), Arg.Any<CancellationToken>());
         await context.Received(1)
             .SendAsync<FuturesOptionTickDataStreamingStartedFailEvent, FuturesOptionTickEntityId>(
                 Arg.Is<FuturesOptionTickDataStreamingStartedFailEvent>(value =>

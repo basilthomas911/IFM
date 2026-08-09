@@ -147,6 +147,7 @@ public class FuturesOptionContractCommandActor(
         IsArgumentNull.Check(cmd);
         await _commandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
         var refLookupService = IsArgumentNull.Set(context.Container.Resolve<IReferenceLookupService>());
+        await refLookupService.EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");

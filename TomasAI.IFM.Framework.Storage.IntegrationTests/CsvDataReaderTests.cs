@@ -11,31 +11,31 @@ namespace TomasAI.IFM.Framework.Storage.IntegratedTests
     public class CsvDataReaderTests
     {
         [Fact(Skip = "Requires a licensed HTTP data feed connection.")]
-        public void CreateCsvDataReaderOk()
+        public async Task CreateCsvDataReaderOk()
         {
             var dataUri = new Uri(@"https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ");
             var sr = new HttpStringReader(dataUri);
-            var dr = new CsvDataReader<YieldCurveRateReadModel>(sr);
+            var dr = await CsvDataReader<YieldCurveRateReadModel>.CreateAsync(sr);
             (dr.FieldCount > 0).Should().BeTrue();
         }
 
         [Fact(Skip = "Requires a licensed HTTP data feed connection.")]
-        public void GetThisObjectByIndexOk()
+        public async Task GetThisObjectByIndexOk()
         {
             var dataUri = new Uri(@"https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ");
             var sr = new HttpStringReader(dataUri);
-            var dr = new CsvDataReader<YieldCurveRateReadModel>(sr);
+            var dr = await CsvDataReader<YieldCurveRateReadModel>.CreateAsync(sr);
             dr.Read().Should().BeTrue();
             var value = dr[0];
             value.Should().NotBeNull();
         }
 
         [Fact(Skip = "Requires a licensed HTTP data feed connection.")]
-        public void GetThisObjectByPropertyNameOk()
+        public async Task GetThisObjectByPropertyNameOk()
         {
             var dataUri = new Uri(@"https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ");
             var sr = new HttpStringReader(dataUri);
-            var dr = new CsvDataReader<YieldCurveRateReadModel>(sr);
+            var dr = await CsvDataReader<YieldCurveRateReadModel>.CreateAsync(sr);
             dr.Read().Should().BeTrue();
             var value = dr["ValueDate"];
             value.Should().NotBeNull();

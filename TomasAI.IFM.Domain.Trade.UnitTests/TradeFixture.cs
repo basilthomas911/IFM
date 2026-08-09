@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.Trade.Queries;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -30,20 +31,24 @@ public class TradeFixture : IDisposable
 
     public TestableOptionTradeCommandActor CreateActor(
         IEventSourceActorDbContext? dbEventSource = null,
+        IDbContextFactory? dbFactory = null,
         ILogger<OptionTradeCommandActor>? logger = null)
     {
         var db = dbEventSource ?? Substitute.For<IEventSourceActorDbContext>();
+        var factory = dbFactory ?? Substitute.For<IDbContextFactory>();
         var lg = logger ?? Substitute.For<ILogger<OptionTradeCommandActor>>();
-        return new TestableOptionTradeCommandActor(db, lg);
+        return new TestableOptionTradeCommandActor(db, factory, lg);
     }
 
     public TestableOptionTradeQueryActor CreateQueryActor(
         IDbContextFactory? dbFactory = null,
+        IBlackboardService? blackboardService = null,
         ILogger<OptionTradeQueryActor>? logger = null)
     {
         var db = dbFactory ?? Substitute.For<IDbContextFactory>();
+        var blackboard = blackboardService ?? Substitute.For<IBlackboardService>();
         var lg = logger ?? Substitute.For<ILogger<OptionTradeQueryActor>>();
-        return new TestableOptionTradeQueryActor(db, lg);
+        return new TestableOptionTradeQueryActor(db, blackboard, lg);
     }
 
 

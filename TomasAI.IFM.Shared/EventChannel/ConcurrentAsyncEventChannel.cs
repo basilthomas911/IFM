@@ -24,7 +24,7 @@ public class ConcurrentAsyncEventChannel<TData>
     readonly CancellationTokenSource _cancellationTokenSource = new();
     readonly ILogger<EventChannel>? _logger;
     Channel<TData>? _eventChannel;
-    Thread? _eventChannelThread;
+    Task? _processingTask;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ConcurrentAsyncEventChannel{TData}"/> class with the specified
@@ -62,8 +62,7 @@ public class ConcurrentAsyncEventChannel<TData>
         try
         {
             _eventChannel = Channel.CreateUnbounded<TData>(new UnboundedChannelOptions { SingleWriter = false, SingleReader = true });
-            _eventChannelThread = new Thread(ProcessMessagesFromEventChannel) { Priority = ThreadPriority.Highest, IsBackground = true };
-            _eventChannelThread.Start();
+            _processingTask = ProcessMessagesFromEventChannelAsync(_eventChannel, _cancellationTokenSource.Token);
             _logger?.LogInformationEvent("EventChannel - {ChannelName}", "ConcurrentAsyncEventChannel started successfully.", _channelName);
         }
         catch (Exception ex)
@@ -90,8 +89,6 @@ public class ConcurrentAsyncEventChannel<TData>
         catch { }
         finally
         {
-            _cancellationTokenSource.Dispose();
-            _eventChannelThread = null;
             _eventChannel = null;
         }
         _logger?.LogInformationEvent("EventChannel - {ChannelName}", "ConcurrentAsyncEventChannel stopped successfully.", _channelName);
@@ -117,28 +114,28 @@ public class ConcurrentAsyncEventChannel<TData>
     /// single-threaded context. If an exception occurs during message processing, it is logged, and  processing
     /// continues with the next message. The method stops processing when the event channel  becomes unavailable or the
     /// cancellation token is triggered.</remarks>
-    void ProcessMessagesFromEventChannel()
+    async Task ProcessMessagesFromEventChannelAsync(Channel<TData> eventChannel, CancellationToken cancellationToken)
     {
         try
         {
-            SingleThreadTaskScheduler.Run(async () =>
+            _logger?.LogInformationEvent("EventChannel - {ChannelName}", "Message processing started....", _channelName);
+            while (await eventChannel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                _logger?.LogInformationEvent("EventChannel - {ChannelName}", "Message processing started....", _channelName);
-                while (_eventChannel is not null && await _eventChannel!.Reader.WaitToReadAsync(_cancellationTokenSource.Token))
+                while (eventChannel.Reader.TryRead(out var message))
                 {
-                    while (_eventChannel is not null && _eventChannel.Reader.TryRead(out var message))
+                    try
                     {
-                        try
-                        {
-                            await _eventChannelAsyncMessageReader(message!);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger?.LogErrorEvent("EventChannel - {ChannelName}", ex, "Error processing message in event channel.", _channelName);
-                        }
+                        await _eventChannelAsyncMessageReader(message!).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogErrorEvent("EventChannel - {ChannelName}", ex, "Error processing message in event channel.", _channelName);
                     }
                 }
-            });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
@@ -146,6 +143,7 @@ public class ConcurrentAsyncEventChannel<TData>
         }
         finally
         {
+            _processingTask = null;
             _logger?.LogInformationEvent("EventChannel - {ChannelName}", "Message processing stopped.", _channelName);
         }
     }

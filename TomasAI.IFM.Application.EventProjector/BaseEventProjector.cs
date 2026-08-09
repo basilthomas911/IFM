@@ -136,7 +136,7 @@ public abstract class BaseEventProjector<TActor> (
                 domainEvent.EventId,
                 ProjectorName,
                 projectionState);
-            DurableReplayQueue.Enqueue(ProjectorName, domainEvent);
+            await DurableReplayQueue.EnqueueAsync(ProjectorName, domainEvent).ConfigureAwait(false);
         }
     }
 
@@ -219,7 +219,7 @@ public abstract class BaseEventProjector<TActor> (
                 eventLog.EventVersion,
                 ProjectorName,
                 currentState);
-            DurableReplayQueue.Enqueue(ProjectorName, domainEvent, cancellationToken);
+            await DurableReplayQueue.EnqueueAsync(ProjectorName, domainEvent, cancellationToken).ConfigureAwait(false);
         }
 
         if (eventLogs.Count > 0)

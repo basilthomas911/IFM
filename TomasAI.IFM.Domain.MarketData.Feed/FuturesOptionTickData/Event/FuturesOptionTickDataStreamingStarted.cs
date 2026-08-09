@@ -25,7 +25,8 @@ public static async ValueTask<bool> ExecuteAsync(
         var source = $"FuturesOptionTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
         try
         {
-            var started = p.MarketDataApi.Start(async (errorCode, errorMsg) => await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, errorCode, errorMsg));
+            var started = await p.MarketDataApi.StartAsync(
+                (errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, errorCode, errorMsg));
             if (started)
             {
                 var streamingRequestId = p.BlackboardService.MarketDataFeed.StreamingRequestId.Get(e.Contract.ContractId);

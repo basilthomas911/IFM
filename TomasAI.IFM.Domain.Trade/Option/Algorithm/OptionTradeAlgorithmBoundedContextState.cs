@@ -51,11 +51,11 @@ public class OptionTradeAlgorithmBoundedContextState(IAlgorithmBuilder algoBuild
     internal bool HasTradePlanChanged(TradePlanReadModel tp)
         => _tradePlan is null ? true : tp.AssetPrice != _tradePlan.AssetPrice;
 
-    internal LongIronCondorRuleEngine GetRuleEngine(ExecuteLongIronCondorAlgorithmCommand e)
-        => algoBuilder.BuildLongIronCondorAlgorithm(e.ValueDate, e.OptionTrades!, e.FuturesEodData!, e.FuturesTradeSignal!).Rule;
+    internal async ValueTask<LongIronCondorRuleEngine> GetRuleEngineAsync(ExecuteLongIronCondorAlgorithmCommand e)
+        => (await algoBuilder.BuildLongIronCondorAlgorithmAsync(e.ValueDate, e.OptionTrades!, e.FuturesEodData!, e.FuturesTradeSignal!).ConfigureAwait(false)).Rule;
 
-    internal ShortIronCondorRuleEngine GetRuleEngine(ExecuteShortIronCondorAlgorithmCommand e)
-        => algoBuilder.BuildShortIronCondorAlgorithm(e.ValueDate, e.OptionTrades!, e.FuturesEodData!, e.FuturesTradeSignal!).Rule;
+    internal async ValueTask<ShortIronCondorRuleEngine> GetRuleEngineAsync(ExecuteShortIronCondorAlgorithmCommand e)
+        => (await algoBuilder.BuildShortIronCondorAlgorithmAsync(e.ValueDate, e.OptionTrades!, e.FuturesEodData!, e.FuturesTradeSignal!).ConfigureAwait(false)).Rule;
 
     internal bool ApplyAlgorithmExecutedEvent(ICommand<TradeAlgorithmId> e, TradePlanReadModel tradePlan)
         => e switch

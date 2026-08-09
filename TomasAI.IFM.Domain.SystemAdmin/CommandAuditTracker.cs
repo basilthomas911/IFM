@@ -24,10 +24,6 @@ internal sealed class CommandAuditTracker(IEventSourceActorDbContext dbEventSour
             DateTime.UtcNow,
             JsonConvert.SerializeObject(command));
 
-        // Preserve immediate failures without blocking on incomplete storage I/O.
-        if (auditTask.IsCompleted)
-            auditTask.GetAwaiter().GetResult();
-
         if (!_pending.TryAdd(command, auditTask))
             throw new InvalidOperationException($"Command audit {command.CommandId} is already pending.");
     }

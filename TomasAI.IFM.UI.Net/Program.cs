@@ -34,9 +34,30 @@ namespace TomasAI.IFM.UI.Net
 #pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             var config = AppSetup();
             var mainForm = Startup.Configure(config).GetForm<IFMAppView>();
-            Task.Delay(TimeSpan.FromSeconds(10)).Wait(); // Wait for the app to initialize properly
-            WinForms.Application.Run(mainForm);
+            WinForms.Application.Run(new DelayedApplicationContext(mainForm, TimeSpan.FromSeconds(10)));
             Process.GetCurrentProcess().Kill();
+        }
+
+        sealed class DelayedApplicationContext : WinForms.ApplicationContext
+        {
+            readonly WinForms.Form _mainForm;
+            readonly WinForms.Timer _timer;
+
+            public DelayedApplicationContext(WinForms.Form mainForm, TimeSpan delay)
+            {
+                _mainForm = mainForm;
+                _timer = new WinForms.Timer { Interval = checked((int)delay.TotalMilliseconds) };
+                _timer.Tick += ShowMainForm;
+                _timer.Start();
+            }
+
+            void ShowMainForm(object? sender, EventArgs e)
+            {
+                _timer.Stop();
+                _timer.Dispose();
+                MainForm = _mainForm;
+                _mainForm.Show();
+            }
         }
 
         static IConfigurationRoot AppSetup()

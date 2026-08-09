@@ -34,7 +34,8 @@ public static class MarketDataFeedReset
         {
             p.MarketDataApi.Stop();
             await Task.Delay(TimeSpan.FromSeconds(2));
-            var started = p.MarketDataApi.Start(async (errorCode, errorMsg) => await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
+            var started = await p.MarketDataApi.StartAsync(
+                (errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
             if (started)
             {
                 await eventApi.MarketDataFeedResetCompleteAsync(e);

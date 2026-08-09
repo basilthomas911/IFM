@@ -17,7 +17,7 @@ sealed class ActorThreadV2(
     IActorSupervisor supervisor,
     ILogger logger,
     ActorReadyQueue readyQueue,
-    ActorThreadPoolMetricsState metricsState) : IActorThread, IAsyncDisposable, IDisposable
+    ActorThreadPoolMetricsState metricsState) : IActorThread, IAsyncDisposable
 {
     const int MaxBatchSize = 64;
     readonly ILogger _logger = IsArgumentNull.Set(logger);
@@ -238,6 +238,4 @@ sealed class ActorThreadV2(
         _cts.Dispose();
         GC.SuppressFinalize(this);
     }
-
-    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 }

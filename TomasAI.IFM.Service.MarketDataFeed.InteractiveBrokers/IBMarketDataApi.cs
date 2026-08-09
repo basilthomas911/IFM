@@ -12,6 +12,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Shared.EventQueue;
+using System.Collections.Concurrent;
 
 namespace TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers;
 
@@ -22,12 +24,13 @@ public class IBMarketDataSnapshotApi(IMarketDataSnapshotApiOptions snapshotOptio
 
 public class IBMarketDataApi : IMarketDataApi
 {
-    static Dictionary<string, string> _statusMsgMap = new();
+    static ConcurrentDictionary<string, byte> _statusMsgMap = new();
     IMarketDataApiOptions _options;
     IStatusConsoleWriter _statusConsoleWriter;
     IBClient _ibApi;
     Dictionary<DateTime, string> _errorMessages = new();
-    Action<int, string>? _errorMessageAction;
+    Func<int, string, Task>? _errorMessageHandler;
+    readonly ConcurrentEventQueue<(int ErrorCode, string ErrorMessage)> _statusQueue;
     IStreamIdCollection _streamIds = new StreamIdCollection();
 
     public IBMarketDataApi(IMarketDataApiOptions options, IStatusConsoleWriter statusConsoleWriter, IMarketDataFeedEventProducer marketDataFeedEventProducer)
@@ -35,6 +38,7 @@ public class IBMarketDataApi : IMarketDataApi
         _options = options;
         _statusConsoleWriter = statusConsoleWriter;
         _ibApi = new IBClient(marketDataFeedEventProducer);
+        _statusQueue = new ConcurrentEventQueue<(int ErrorCode, string ErrorMessage)>(WriteStatusConsoleAsync).Start();
         InitMarketDataApi();
     }
 
@@ -44,22 +48,24 @@ public class IBMarketDataApi : IMarketDataApi
     {
         _errorMessages = new Dictionary<DateTime, string>();
         _streamIds = new StreamIdCollection();
-        _statusMsgMap = new Dictionary<string, string>();
+        _statusMsgMap = new ConcurrentDictionary<string, byte>();
     }
 
     /// <summary>
     /// start interactive brokers client
     /// </summary>
-    public bool Start(Action<int, string>? errorMessageAction = null)
+    public async Task<bool> StartAsync(
+        Func<int, string, Task>? errorMessageHandler = null,
+        CancellationToken cancellationToken = default)
     {
         if (_ibApi.Started)
             return true;
         InitMarketDataApi();
-        _errorMessageAction = errorMessageAction;
+        _errorMessageHandler = errorMessageHandler;
         for (var retryCount = 0; retryCount < 3; retryCount++)
         {
             _ibApi.Start(_options.Host, _options.Port, _options.ClientId);
-            Task.Delay(TimeSpan.FromSeconds(2)).Wait();
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
             if (_ibApi.Started)
                 return true;
         }
@@ -501,12 +507,19 @@ public class IBMarketDataApi : IMarketDataApi
 
     void WriteStatusConsole(int errorCode, string errorMsg)
     {
-        if (_statusMsgMap.ContainsKey(errorMsg)) return;
-        _statusMsgMap.Add(errorMsg, errorMsg);
-        if (_errorMessageAction is not null)
-            _errorMessageAction(errorCode, errorMsg);
+        if (_statusMsgMap.TryAdd(errorMsg, 0))
+            _statusQueue.EnqueueAndSignal((errorCode, errorMsg));
+    }
+
+    Task WriteStatusConsoleAsync((int ErrorCode, string ErrorMessage) status)
+    {
+        if (_errorMessageHandler is not null)
+            return _errorMessageHandler(status.ErrorCode, status.ErrorMessage);
         else
-            _statusConsoleWriter.WriteConsoleAsync(LogSourceType.TWSMarketDataApi, errorCode, errorMsg).Wait();
+            return _statusConsoleWriter.WriteConsoleAsync(
+                LogSourceType.TWSMarketDataApi,
+                status.ErrorCode,
+                status.ErrorMessage);
     }
 
     public void StartStreamingFuturesOptionQuoteData(int optionRequestId, FuturesOptionContractReadModel contract)

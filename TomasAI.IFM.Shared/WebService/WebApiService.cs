@@ -73,27 +73,6 @@ namespace TomasAI.IFM.Shared.WebService
         }
 
         /// <summary>
-        /// return data from resource @ getUri
-        /// </summary>
-        /// <typeparam name="TData"></typeparam>
-        /// <param name="getUri"></param>
-        /// <returns>resource data</returns>
-        /// <remarks>
-        /// e.g. api/investor/1234
-        /// </remarks>
-        public TOut Get<TOut>(string getUri)
-        {
-            return WebServiceCall<TOut>(client =>
-            {
-                var response = client.GetAsync(getUri).Result;
-                response.EnsureSuccessStatusCode();
-                return response.IsSuccessStatusCode ?
-                   response.Content.ReadAsAsync<TOut>().Result :
-                   default(TOut);
-            });
-        }
-
-        /// <summary>
         /// post data to resource @ postUri
         /// </summary>
         /// <typeparam name="TIn"></typeparam>
@@ -110,29 +89,6 @@ namespace TomasAI.IFM.Shared.WebService
             });
 
         
-
-        /// <summary>
-        /// post data to resource @ postUri
-        /// </summary>
-        /// <typeparam name="TIn"></typeparam>
-        /// <param name="postUri"></param>
-        /// <param name="postBody"></param>
-        /// <returns></returns>
-        public TOut Post<TIn, TOut>(string postUri, TIn postBody)
-        {
-            var result = default(TOut);
-            using (var client = new HttpClient())
-            {
-                client.BaseAddress = BaseUri;
-                client.DefaultRequestHeaders.Accept.Clear();
-                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                var response = client.PostAsJsonAsync<TIn>(postUri, postBody).Result;
-                response.EnsureSuccessStatusCode();
-                if (response.IsSuccessStatusCode)
-                    result = response.Content.ReadAsAsync<TOut>().Result;
-            }
-            return result;
-        } 
 
         /// <summary>
         /// modify resource @ putUri with updated data
@@ -153,26 +109,6 @@ namespace TomasAI.IFM.Shared.WebService
                 response.EnsureSuccessStatusCode();
                 if (response.IsSuccessStatusCode)
                     result = await response.Content.ReadAsAsync<TOut>();
-            }
-            return result;
-        }
-
-        /// <summary>
-        /// make web service call 
-        /// </summary>
-        /// <typeparam name="TResult"></typeparam>
-        /// <param name="serviceFunc"></param>
-        /// <returns></returns>
-        private TResult WebServiceCall<TResult>(Func<HttpClient, TResult> serviceFunc)
-        {
-            var result = default(TResult);
-            using (var client = new HttpClient())
-            {
-                client.BaseAddress = BaseUri;
-                client.Timeout = TimeSpan.FromSeconds(60);
-                client.DefaultRequestHeaders.Accept.Clear();
-                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                result = serviceFunc(client);
             }
             return result;
         }

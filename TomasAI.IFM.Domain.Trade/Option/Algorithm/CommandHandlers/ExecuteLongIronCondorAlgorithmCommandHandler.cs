@@ -11,7 +11,10 @@ public class ExecuteLongIronCondorAlgorithmCommandHandler
 {
    
     public bool Execute(ExecuteLongIronCondorAlgorithmCommand e, OptionTradeAlgorithmBoundedContextState state)
-        => ExecuteLongIronCondorAlgorithm(e, state);
+        => throw new InvalidOperationException("The option algorithm handler requires ExecuteAsync.");
+
+    public ValueTask<bool> ExecuteAsync(ExecuteLongIronCondorAlgorithmCommand e, OptionTradeAlgorithmBoundedContextState state)
+        => ExecuteLongIronCondorAlgorithmAsync(e, state);
 
     /// <summary>
     /// Executes the Long Iron Condor trading algorithm based on the specified command and the current state of the
@@ -27,9 +30,9 @@ public class ExecuteLongIronCondorAlgorithmCommandHandler
     /// changes.</param>
     /// <returns><see langword="true"/> if the trade plan was updated and the corresponding event was successfully applied to the
     /// state; otherwise, <see langword="false"/>.</returns>
-    static bool ExecuteLongIronCondorAlgorithm(ExecuteLongIronCondorAlgorithmCommand e, OptionTradeAlgorithmBoundedContextState state)
+    static async ValueTask<bool> ExecuteLongIronCondorAlgorithmAsync(ExecuteLongIronCondorAlgorithmCommand e, OptionTradeAlgorithmBoundedContextState state)
     {
-        var rule = state.GetRuleEngine(e);
+        var rule = await state.GetRuleEngineAsync(e).ConfigureAwait(false);
         var tradePlan = e switch
         {
             _ when rule.Match(ActionSubType.RaiseTrailingStopLimit) => rule.Execute(ActionSubType.RaiseTrailingStopLimit),

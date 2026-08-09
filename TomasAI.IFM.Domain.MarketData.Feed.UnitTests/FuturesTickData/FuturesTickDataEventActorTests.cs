@@ -190,7 +190,7 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
         var api = Substitute.For<IMarketDataApi>();
         var streamIds = Substitute.For<IStreamIdCollection>();
         api.StreamIds.Returns(streamIds);
-        api.Start(Arg.Any<Action<int, string>>()).Returns(true);
+        api.StartAsync(Arg.Any<Func<int, string, Task>>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
         streamIds.Add(SampleData.EsContract.ContractId).Returns(42);
         var (blackboard, redis) = CreateBlackboard();
         var actor = CreateActor(marketDataApi: api, blackboard: blackboard);
@@ -199,7 +199,7 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
 
         await actor.InvokeReceiveAsync(context, @event);
 
-        api.Received(1).Start(Arg.Any<Action<int, string>>());
+        await api.Received(1).StartAsync(Arg.Any<Func<int, string, Task>>(), Arg.Any<CancellationToken>());
         api.Received(1).StartStreamingFuturesTickData(42, SampleData.ValueDate, SampleData.EsContract);
         redis.Received(1).Set(
             Arg.Is<string>(key => key.EndsWith(":42")), Arg.Any<string>());
@@ -212,7 +212,7 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
     public async Task ReceiveAsync_StreamingStartFailure_PublishesFailureWithoutLeakingException()
     {
         var api = Substitute.For<IMarketDataApi>();
-        api.Start(Arg.Any<Action<int, string>>()).Returns(false);
+        api.StartAsync(Arg.Any<Func<int, string, Task>>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
         var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateStreamingStartedEvent();

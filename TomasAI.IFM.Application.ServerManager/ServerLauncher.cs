@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Application.ServerManager
         static object _lock = new object();
         Process? _process;
 
-        public ServerLauncher(string workingDirectory, string exeName, string exeArguments, Action<DataReceivedEventArgs> onDataReceived, int startUpDelay = 0)
+        public ServerLauncher(string workingDirectory, string exeName, string exeArguments, Action<DataReceivedEventArgs> onDataReceived)
         {
             Task.Run(() => {
                 try
@@ -45,8 +45,6 @@ namespace TomasAI.IFM.Application.ServerManager
                     _process = null;
                 }
             });
-            if (startUpDelay != 0)
-                Task.Delay(TimeSpan.FromSeconds(startUpDelay)).Wait();
         }
 
         public void Dispose()

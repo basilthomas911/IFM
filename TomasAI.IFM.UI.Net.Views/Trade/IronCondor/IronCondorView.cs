@@ -458,7 +458,6 @@ public partial class IronCondorView : UserControl, IFormControl
             DisplayPercentLoss(maxLoss);
         }
         ddlLiveFeed.Enabled = _viewModel.ValueDate.HasValue;
-        Task.Delay(100).Wait();
         return;
 
         double ToDoublePercent(string percentText)

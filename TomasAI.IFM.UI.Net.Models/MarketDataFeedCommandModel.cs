@@ -190,7 +190,7 @@ public class MarketDataFeedCommandModel(
     /// start listening for market data feed reset event
     /// </summary>
     /// <param name="listenerAction"></param>
-    public async Task StartMarketDataFeedResetListenerAsync(Action<MarketDataFeedResetStreamingEvent> listenerAction) 
+    public async Task StartMarketDataFeedResetListenerAsync(Func<MarketDataFeedResetStreamingEvent, ValueTask> listenerAction)
         => await ExecuteValueTaskAsync( () => _marketDataFeedResetEventConsumer.StartAsync(listenerAction) );
 
     /// <summary>

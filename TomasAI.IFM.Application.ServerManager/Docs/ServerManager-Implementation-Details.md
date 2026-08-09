@@ -185,7 +185,7 @@ Telemetry process
 | Event | `ServerManager:Event:WorkingDirectory`, `ServerManager:Event:ExeName` | `Event` |
 | Predictive Model | `ServerManager:PredictiveModel:WorkingDirectory`, `ServerManager:PredictiveModel:ExeName` | `Query` |
 
-All three are launched with an empty argument string. The five-second gap is implemented with blocking `Task.Delay(...).Wait()` on the calling thread; the `ServerLauncher.startUpDelay` constructor option is not used here.
+All three are launched with an empty argument string. The five-second gap is awaited without blocking the UI thread, and the unused `ServerLauncher.startUpDelay` constructor option has been removed.
 
 ## Child-process implementation
 

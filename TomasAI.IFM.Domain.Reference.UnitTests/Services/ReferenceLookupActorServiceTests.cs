@@ -15,14 +15,15 @@ namespace TomasAI.IFM.Domain.Reference.UnitTests.Services;
 public sealed class ReferenceLookupActorServiceTests
 {
     [Fact]
-    public void RepeatedChecksUseOneColdLoadAndCaseInsensitiveFrozenIndex()
+    public async Task RepeatedChecksUseOneColdLoadAndCaseInsensitiveFrozenIndex()
     {
         var actorService = Substitute.For<IActorService>();
         var values = new LookupTypeCollection(
         [
             new LookupTypeReadModel("Currency", "USD", 0, string.Empty, DateTime.UtcNow, "test")
         ]);
-        actorService.RequestAsync<LookupTypeCollection, GetLookupTypesQuery>(Arg.Any<GetLookupTypesQuery>())
+        actorService.RequestAsync<LookupTypeCollection, GetLookupTypesQuery>(
+                Arg.Any<GetLookupTypesQuery>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<ServiceResult<LookupTypeCollection>>(
                 new ServiceOk<LookupTypeCollection>(values)));
         var redis = Substitute.For<IRedisCache>();
@@ -33,11 +34,13 @@ public sealed class ReferenceLookupActorServiceTests
             actorService,
             new BlackboardService(redis, serializer));
 
+        await service.EnsureLoadedAsync();
         service.CurrencyExists("usd").Should().BeTrue();
         service.CurrencyExists("USD").Should().BeTrue();
 
         actorService.Received(1)
-            .RequestAsync<LookupTypeCollection, GetLookupTypesQuery>(Arg.Any<GetLookupTypesQuery>());
+            .RequestAsync<LookupTypeCollection, GetLookupTypesQuery>(
+                Arg.Any<GetLookupTypesQuery>(), Arg.Any<CancellationToken>());
         redis.Received(1).Get("ReferenceLookup");
     }
 }

@@ -10,7 +10,9 @@ public interface IMarketDataApi
 {
     IStreamIdCollection StreamIds { get; }
 
-    bool Start(Action<int, string> errorMessageHandler=default!);
+    Task<bool> StartAsync(
+        Func<int, string, Task>? errorMessageHandler = null,
+        CancellationToken cancellationToken = default);
     void Stop();
 
     Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(

@@ -469,7 +469,11 @@ public class IFMAppViewModel
             model.OnError((_, errorMessage) => _errorMessage(errorMessage, "Enable MarketData Feed Reset Listener Error"));
             WriteStatusConsole("Starting Market Data Feed Reset Listener...");
             await Task.Delay(TimeSpan.FromSeconds(1));
-            await model.StartMarketDataFeedResetListenerAsync(e => EnableTradeLiveFeed());
+            await model.StartMarketDataFeedResetListenerAsync(e =>
+            {
+                EnableTradeLiveFeed();
+                return ValueTask.CompletedTask;
+            });
         });
 
     /// <summary>
@@ -488,17 +492,18 @@ public class IFMAppViewModel
     {
         _resetCancelled = false;
         _resetCanceller = new CancellationTokenSource();
-        Task.Factory.StartNew(() =>
+        var cancellationToken = _resetCanceller.Token;
+        _ = Task.Run(async () =>
         {
             try
             {
-                ResetLiveFeed();
+                await ResetLiveFeedAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
                 _resetCancelled = true;
             }
-        }, _resetCanceller.Token);
+        }, cancellationToken);
         return;
 
         /// <summary>
@@ -508,12 +513,12 @@ public class IFMAppViewModel
         /// only execute market data reset command outside of main trading hours
         /// </summary>
         /// <returns></returns>
-        void ResetLiveFeed()
+        async Task ResetLiveFeedAsync(CancellationToken cancellationToken)
         {
             var resetMaxTicks = 900; // reset after 15 minutes of no market feed asset price updates...
             while (!_resetCancelled)
             {
-                Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
                 _resetTicks++;
                 if (_resetTicks > resetMaxTicks)
                 {

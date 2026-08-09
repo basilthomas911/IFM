@@ -70,4 +70,27 @@ public abstract class BaseBoundedContext<TState>
         else
              ((dynamic)this).Execute((dynamic)command);
     }
+
+    public async ValueTask ExecuteAsync(ICommand command)
+    {
+        if (!_boundCtxCmdHndlrMap.TryGetValue(command.GetType().FullName!, out var mapEntry))
+        {
+            var boundCtxCmdHndlrType = _boundCtxCmdHndlrType.MakeGenericType(command.GetType(), _boundCtx.GetType());
+            var cmdHndlr = _boundCtxCommandResolver?.Resolve(boundCtxCmdHndlrType);
+            mapEntry = (boundCtxCmdHndlrType!, cmdHndlr!, boundCtxCmdHndlrType.GetMethod("Execute")!);
+            _boundCtxCmdHndlrMap.TryAdd(command.GetType().FullName!, mapEntry);
+        }
+
+        if (mapEntry.CmdHndlr is not null)
+        {
+            var executeAsync = mapEntry.CmdHndlrType.GetMethod("ExecuteAsync")
+                ?? throw new InvalidOperationException($"Async command handler not found for {command.GetType().FullName}.");
+            var pending = (ValueTask<bool>)executeAsync.Invoke(mapEntry.CmdHndlr, [command, _boundCtx])!;
+            await pending.ConfigureAwait(false);
+        }
+        else
+        {
+            await ((dynamic)this).ExecuteAsync((dynamic)command);
+        }
+    }
 }

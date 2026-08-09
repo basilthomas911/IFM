@@ -37,7 +37,6 @@ public class ObjectDataReaderContext : IObjectDataReaderContext
         cancellationToken.ThrowIfCancellationRequested();
         var httpReader = new HttpStringReader(_options.Uri);
         var content = await httpReader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-        var stringReader = new BufferedStringReader(content);
         var resultSet = default(ICollection<TResult>);
         return _options.DataReaderType switch
         {
@@ -48,16 +47,16 @@ public class ObjectDataReaderContext : IObjectDataReaderContext
 
         async ValueTask< ICollection<TResult>> GetCsvDataAsync()
         {
-            using var dataReader = new CsvDataReader<TResult>(stringReader);
+            using var dataReader = new CsvDataReader<TResult>(SplitLines(content));
             resultSet = ReadAll(dataReader, cancellationToken);
-            return await ValueTask.FromResult(resultSet);
+            return resultSet;
         }
 
         async ValueTask<ICollection<TResult>> GetJsonDataAsync()
         {
-            using var dataReader = new JsonDataReader<TResult>(stringReader);
+            using var dataReader = new JsonDataReader<TResult>(content);
             resultSet = ReadAll(dataReader, cancellationToken);
-            return await ValueTask.FromResult(resultSet);
+            return resultSet;
         }
 
         ICollection<TResult> ReadAll(
@@ -73,32 +72,8 @@ public class ObjectDataReaderContext : IObjectDataReaderContext
             }
             return results;
         }
-    }
 
-    sealed class BufferedStringReader(string content) : IStringReader
-    {
-        public Task<string> ReadToEndAsync()
-            => Task.FromResult(content);
-
-        public Task<string> ReadToEndAsync(CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(content);
-        }
-
-        public IAsyncEnumerable<string> ReadLinesAsync()
-            => ReadLinesAsync(CancellationToken.None);
-
-        public async IAsyncEnumerable<string> ReadLinesAsync(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            foreach (var line in content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return line;
-            }
-
-            await Task.CompletedTask;
-        }
+        static IEnumerable<string> SplitLines(string value)
+            => value.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
     }
 }

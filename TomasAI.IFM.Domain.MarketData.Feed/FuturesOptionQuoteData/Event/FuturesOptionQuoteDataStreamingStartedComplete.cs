@@ -19,7 +19,7 @@ public static class FuturesOptionQuoteDataStreamingStartedComplete
         var source = $"FuturesOptionQuoteDataStreamingStartedCompleteEvent for QuoteId: {e.QuoteId}";
         try
         {
-            p.MarketDataSnapshotApi.Start();
+            await p.MarketDataSnapshotApi.StartAsync().ConfigureAwait(false);
             foreach (var o in e.FuturesOptionQuotes)
             {
                 var optionContract = e.FuturesOptionContracts.Where(a => a.ContractId == o.ContractId).FirstOrDefault();

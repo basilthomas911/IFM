@@ -8,8 +8,8 @@ public class ConcurrentEventQueue<TData>
     readonly Func<TData,Task>? _eventAsyncQueueReader;
     readonly EventQueueReaderMode _readerMode;
     ConcurrentQueue<TData>? _eventQueue;
-    AutoResetEvent? _eventQueueResetEvent;
-    Thread? _eventQueueThread;
+    SemaphoreSlim? _eventQueueSignal;
+    Task? _processingTask;
     readonly CancellationTokenSource _cancellationTokenSource = new();
 
     /// <summary>
@@ -52,9 +52,8 @@ public class ConcurrentEventQueue<TData>
         try
         {
             _eventQueue = new ConcurrentQueue<TData>();
-            _eventQueueResetEvent = new AutoResetEvent(false);
-            _eventQueueThread = new Thread(() => ReadEventQueue(_cancellationTokenSource.Token)) { Priority = ThreadPriority.Highest, IsBackground = true };
-            _eventQueueThread.Start();
+            _eventQueueSignal = new SemaphoreSlim(0);
+            _processingTask = ReadEventQueueAsync(_cancellationTokenSource.Token);
         }
         catch { }
         return this;
@@ -72,15 +71,12 @@ public class ConcurrentEventQueue<TData>
         try
         {
             _cancellationTokenSource.Cancel();
-            _eventQueueResetEvent?.Set();
+            _eventQueueSignal?.Release();
         }
         catch { }
         finally
         {
-            _eventQueueThread = null;
-            _eventQueue = null;
-            _eventQueueResetEvent = null;
-            _cancellationTokenSource.Dispose();
+            _processingTask = null;
         }
         return this;
     }
@@ -100,7 +96,7 @@ public class ConcurrentEventQueue<TData>
     /// <remarks>This method sets the underlying event, if it is not null, to release any threads waiting on
     /// it. Ensure that the event has been properly initialized before calling this method.</remarks>
     public void Signal() 
-        => _eventQueueResetEvent?.Set();
+        => _eventQueueSignal?.Release();
 
     /// <summary>
     /// Adds an item to the queue and signals that the queue has been updated.
@@ -137,47 +133,27 @@ public class ConcurrentEventQueue<TData>
     /// is empty, the method waits for a signal before attempting to process items again. Exceptions occurring during 
     /// processing are caught and suppressed.</remarks>
     /// <param name="cancelToken">A <see cref="CancellationToken"/> used to signal the cancellation of the queue processing.</param>
-    void ReadEventQueue(CancellationToken cancelToken)
+    async Task ReadEventQueueAsync(CancellationToken cancelToken)
     {
         try
         {
-            do
+            while (!cancelToken.IsCancellationRequested)
             {
-                _eventQueueResetEvent?.WaitOne();
-                if (cancelToken.IsCancellationRequested)
-                    break;
-                do
+                var signal = _eventQueueSignal;
+                if (signal is null)
+                    return;
+                await signal.WaitAsync(cancelToken).ConfigureAwait(false);
+                while (_eventQueue is not null && _eventQueue.TryDequeue(out var queueItem))
                 {
-                    List<TData> queueItems = [];
-                    while (!IsEmpty)
-                        if (_eventQueue!.TryDequeue(out var queueItem))
-                            queueItems.Add(queueItem);
-                    if (queueItems.Count > 0)
-                    {
-                        _ = _readerMode switch {  
-                            EventQueueReaderMode.Sync => ForEach(queueItems), 
-                            EventQueueReaderMode.Async => ForEachAsync(queueItems), 
-                            _ => false 
-                        };
-                    }
-                } while (!IsEmpty);
-
-            } while (true);
+                    if (_readerMode == EventQueueReaderMode.Sync)
+                        _eventQueueReader?.Invoke(queueItem);
+                    else if (_eventAsyncQueueReader is not null)
+                        await _eventAsyncQueueReader(queueItem).ConfigureAwait(false);
+                }
+            }
         }
-        catch
+        catch (OperationCanceledException) when (cancelToken.IsCancellationRequested)
         {
-        }
-
-        bool ForEach(List<TData> queueItems)
-        {
-            queueItems.ForEach(queueItem => _eventQueueReader?.Invoke(queueItem));
-            return true;
-        }
-
-        bool ForEachAsync(List<TData> queueItems)
-        {
-            queueItems.ForEach(queueItem => _eventAsyncQueueReader?.Invoke(queueItem)?.Wait());
-            return true;
         }
     }
 }

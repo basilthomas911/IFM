@@ -2987,15 +2987,9 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<long> InsertTradePlansAsync(IEnumerable<TradePlanByIdReadModel> tradePlans)
     {
         var rowCount = 0L;
-        // Start both tasks
-        Task task1 = Task.Run( InsertTradePlans );
-        Task task2 = Task.Run( InsertTradePlanForwardLossRatio);
-
-        // Wait for both tasks to complete
-        Task.WaitAll(task1, task2);
-
-        // Await both tasks to finish (non-blocking)
-        await Task.WhenAll(task1, task2);
+        var insertTradePlansTask = InsertTradePlans();
+        var insertForwardLossRatiosTask = InsertTradePlanForwardLossRatio();
+        await Task.WhenAll(insertTradePlansTask, insertForwardLossRatiosTask).ConfigureAwait(false);
         return rowCount;
 
         async Task InsertTradePlans()

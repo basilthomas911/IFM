@@ -26,7 +26,7 @@ public class ServerLauncherContext : WinForms.ApplicationContext
         _notifyIcon.ContextMenuStrip = new WinForms.ContextMenuStrip();
         _notifyIcon.ContextMenuStrip.Items.Add("View Console", null, (sender, e) => ViewConsole(serverApp)).Name = "ViewConsole";
         _notifyIcon.ContextMenuStrip.Items.Add("Minimize Console", null, (sender, e) => MinimizeConsole(serverApp)).Name = "MinimizeConsole";
-        _notifyIcon.ContextMenuStrip.Items.Add("Reset", null, (sender, e) => ResetServers(serverApp)).Name = "Reset";
+        _notifyIcon.ContextMenuStrip.Items.Add("Reset", null, async (sender, e) => await ResetServersAsync(serverApp)).Name = "Reset";
         _notifyIcon.DoubleClick += (sender, e) => ViewConsole(serverApp);
         serverApp.Exit += (sender, e) => Exit(serverApp, _notifyIcon);
 
@@ -37,7 +37,7 @@ public class ServerLauncherContext : WinForms.ApplicationContext
         var console = serverApp.ServiceProvider.GetRequiredService<MainWindow>();
         console.Show();
 
-        StartServers(serverApp);
+        _ = StartServersAsync(serverApp);
     }
 
     void ViewConsole(App serverApp)
@@ -58,11 +58,11 @@ public class ServerLauncherContext : WinForms.ApplicationContext
 
     }
 
-    void ResetServers(App serverApp)
+    async Task ResetServersAsync(App serverApp)
     {
         //serverConsole.Clear();
         StopServers();
-        StartServers(serverApp);
+        await StartServersAsync(serverApp);
     }
 
     void Exit(App serverApp, WinForms.NotifyIcon notifyIcon)
@@ -74,7 +74,7 @@ public class ServerLauncherContext : WinForms.ApplicationContext
         serverApp.Shutdown();
     }
 
-    void StartServers(App serverApp)
+    async Task StartServersAsync(App serverApp)
     {
         var viewModel = serverApp.ServiceProvider.GetRequiredService<IMainWindowViewModel>();
         _telemetryServer = new ServerLauncher(
@@ -82,7 +82,7 @@ public class ServerLauncherContext : WinForms.ApplicationContext
             exeName: serverApp.Configuration.GetValue<string>("ServerManager:Telemetry:ExeName") ?? "",
             exeArguments: "",
             onDataReceived: e => viewModel.AddServerLog(ServerLogType.Telemetry, e.Data));
-        Task.Delay(TimeSpan.FromSeconds(5)).Wait();
+        await Task.Delay(TimeSpan.FromSeconds(5));
         _eventServer = new ServerLauncher(
             workingDirectory: serverApp.Configuration.GetValue<string>("ServerManager:Event:WorkingDirectory") ?? "",
             exeName: serverApp.Configuration.GetValue<string>("ServerManager:Event:ExeName") ?? "",

@@ -337,14 +337,15 @@ public sealed class ActorMarketDataFeedQueryApi(
             var longPutTask = db.GetLastFuturesOptionTickDataAsync(longPutOptionContractId, valueDate);
             var shortCallTask = db.GetLastFuturesOptionTickDataAsync(shortCallOptionContractId, valueDate);
             var longCallTask = db.GetLastFuturesOptionTickDataAsync(longCallOptionContractId, valueDate);
-            await Task.WhenAll(underlyingTask, shortPutTask, longPutTask, shortCallTask, longCallTask);
+            await Task.WhenAll(underlyingTask, shortPutTask, longPutTask, shortCallTask, longCallTask)
+                .ConfigureAwait(false);
 
             var result = new IronCondorMarketDataFeedReadModel(
-                Convert.ToDecimal(underlyingTask.Result?.Price ?? 0),
-                shortPutTask.Result!,
-                longPutTask.Result!,
-                shortCallTask.Result!,
-                longCallTask.Result!);
+                Convert.ToDecimal((await underlyingTask.ConfigureAwait(false))?.Price ?? 0),
+                (await shortPutTask.ConfigureAwait(false))!,
+                (await longPutTask.ConfigureAwait(false))!,
+                (await shortCallTask.ConfigureAwait(false))!,
+                (await longCallTask.ConfigureAwait(false))!);
             return new ServiceOk<IronCondorMarketDataFeedReadModel>(result);
         }
         catch (Exception ex)
@@ -371,12 +372,12 @@ public sealed class ActorMarketDataFeedQueryApi(
             var rangeTask = db.GetFuturesEodDataByDateRangeAsync(
                 contractId, valueDate.AddMonths(-2), valueDate.AddDays(-1));
             var normalCurveTask = db.GetNormalCurveTableAsync();
-            await Task.WhenAll(currentTask, rangeTask, normalCurveTask);
+            await Task.WhenAll(currentTask, rangeTask, normalCurveTask).ConfigureAwait(false);
 
             var result = new FuturesEodDataParametersReadModel(
-                currentTask.Result,
-                [.. rangeTask.Result],
-                normalCurveTask.Result);
+                await currentTask.ConfigureAwait(false),
+                [.. await rangeTask.ConfigureAwait(false)],
+                await normalCurveTask.ConfigureAwait(false));
             return new ServiceOk<FuturesEodDataParametersReadModel>(result);
         }
         catch (Exception ex)

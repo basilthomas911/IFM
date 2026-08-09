@@ -117,7 +117,7 @@ public sealed class FundEventProjectorTests
                 calls.Add("persist");
                 return Task.CompletedTask;
             });
-        durableReplayQueue.When(queue => queue.Enqueue(
+        durableReplayQueue.When(queue => queue.EnqueueAsync(
                 Arg.Any<string>(),
                 Arg.Any<IEvent>(),
                 Arg.Any<CancellationToken>()))
@@ -180,7 +180,7 @@ public sealed class FundEventProjectorTests
                 state.EventId == eventId
                 && state.ProjectorName == projector.ProjectorName),
             CancellationToken.None);
-        durableReplayQueue.Received(1).Enqueue(
+        await durableReplayQueue.Received(1).EnqueueAsync(
             projector.ProjectorName,
             Arg.Is<IEvent>(domainEvent => domainEvent.EventId == eventId),
             CancellationToken.None);
@@ -216,7 +216,7 @@ public sealed class FundEventProjectorTests
 
         await projector.StartAsync(Substitute.For<ICommandActorContext>());
 
-        durableReplayQueue.DidNotReceive().Enqueue(
+        await durableReplayQueue.DidNotReceive().EnqueueAsync(
             projector.ProjectorName,
             Arg.Any<IEvent>(),
             Arg.Any<CancellationToken>());

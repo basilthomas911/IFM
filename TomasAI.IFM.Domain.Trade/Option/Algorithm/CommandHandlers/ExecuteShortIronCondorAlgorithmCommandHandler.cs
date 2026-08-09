@@ -11,7 +11,10 @@ public class ExecuteShortIronCondorAlgorithmCommandHandler : BaseBoundedContextC
 {
     
     public bool Execute(ExecuteShortIronCondorAlgorithmCommand e, OptionTradeAlgorithmBoundedContextState state)
-        => ExecuteShortIronCondorAlgorithm(e, state);
+        => throw new InvalidOperationException("The option algorithm handler requires ExecuteAsync.");
+
+    public ValueTask<bool> ExecuteAsync(ExecuteShortIronCondorAlgorithmCommand e, OptionTradeAlgorithmBoundedContextState state)
+        => ExecuteShortIronCondorAlgorithmAsync(e, state);
 
     /// <summary>
     /// Executes the Short Iron Condor trading algorithm based on the specified command and the current state of the
@@ -26,9 +29,9 @@ public class ExecuteShortIronCondorAlgorithmCommandHandler : BaseBoundedContextC
     /// <param name="state">The bounded context state of the option trade algorithm, which provides the rule engine and manages state transitions.</param>
     /// <returns><see langword="true"/> if the trade plan has changed and the state was successfully updated; otherwise, <see
     /// langword="false"/>.</returns>
-    static bool ExecuteShortIronCondorAlgorithm(ExecuteShortIronCondorAlgorithmCommand e, OptionTradeAlgorithmBoundedContextState state)
+    static async ValueTask<bool> ExecuteShortIronCondorAlgorithmAsync(ExecuteShortIronCondorAlgorithmCommand e, OptionTradeAlgorithmBoundedContextState state)
     {
-        var rule = state.GetRuleEngine(e);
+        var rule = await state.GetRuleEngineAsync(e).ConfigureAwait(false);
         TradePlan tradePlan;
         try
         {

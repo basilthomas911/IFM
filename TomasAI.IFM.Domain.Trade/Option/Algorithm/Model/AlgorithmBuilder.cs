@@ -56,18 +56,23 @@ public class AlgorithmBuilder(
     /// <param name="futuresEodData"></param>
     /// <param name="futuresTradeSignal"></param>
     /// <returns></returns>
-    public LongIronCondorAlgorithm BuildLongIronCondorAlgorithm(DateOnly valueDate, IOptionTradeCollection optionTrades, FuturesEodDataV2ReadModel futuresEodData, FuturesTradeSignalV2ReadModel futuresTradeSignal)
+    public async ValueTask<LongIronCondorAlgorithm> BuildLongIronCondorAlgorithmAsync(DateOnly valueDate, IOptionTradeCollection optionTrades, FuturesEodDataV2ReadModel futuresEodData, FuturesTradeSignalV2ReadModel futuresTradeSignal)
     {
         var longIronCondorAlgo = new LongIronCondorAlgorithm(valueDate, optionTrades, futuresEodData, futuresTradeSignal, _blackboardService);
         var optionTradeId = new OptionTradeEntityId(longIronCondorAlgo.OrderId, longIronCondorAlgo.TradeId);
+        var lossProbability = await GetLossProbabilityAsync(longIronCondorAlgo, longIronCondorAlgo.ForwardLossRatio).ConfigureAwait(false);
+        var tradePrice = await GetIronCondorTradePriceAsync(longIronCondorAlgo.TradeId, longIronCondorAlgo.ValueDate).ConfigureAwait(false);
+        var fundBalance = await GetFundBalanceByOrderIdAsync(longIronCondorAlgo.OrderId).ConfigureAwait(false);
+        var forwardDelta = await GetForwardDeltaAsync(longIronCondorAlgo.ValueDate, longIronCondorAlgo.TradeType).ConfigureAwait(false);
+        var forwardLossLimitType = await GetForwardLossLimitTypeAsync(longIronCondorAlgo.OrderId, longIronCondorAlgo.TradeId, longIronCondorAlgo.TradeType, longIronCondorAlgo.ValueDate).ConfigureAwait(false);
         longIronCondorAlgo
-           .SetLossProbability(forwardLossRatio => GetLossProbability(longIronCondorAlgo, forwardLossRatio))
-           .SetTradePrice(() => GetIronCondorTradePrice(longIronCondorAlgo.TradeId, longIronCondorAlgo.ValueDate))
+           .SetLossProbability(_ => lossProbability)
+           .SetTradePrice(() => tradePrice)
            .SetStopLossLimit(() => GetStopLossLimit(optionTradeId))
            .SetSignalProcessor(() => GetSignalProcessor<LongIronCondorTradePlan>(optionTradeId))
-           .SetFundBalance(() => GetFundBalanceByOrderId(longIronCondorAlgo.OrderId))
-           .SetForwardDelta(GetForwardDelta)
-           .SetForwardLossLimitType(GetForwardLossLimitType);
+           .SetFundBalance(() => fundBalance)
+           .SetForwardDelta((_, _) => forwardDelta)
+           .SetForwardLossLimitType((_, _, _, _) => forwardLossLimitType);
         return longIronCondorAlgo;
     }
 
@@ -79,18 +84,23 @@ public class AlgorithmBuilder(
     /// <param name="futuresEodData"></param>
     /// <param name="futuresTradeSignal"></param>
     /// <returns></returns>
-    public ShortIronCondorAlgorithm BuildShortIronCondorAlgorithm(DateOnly valueDate, IOptionTradeCollection optionTrades, FuturesEodDataV2ReadModel futuresEodData, FuturesTradeSignalV2ReadModel futuresTradeSignal)
+    public async ValueTask<ShortIronCondorAlgorithm> BuildShortIronCondorAlgorithmAsync(DateOnly valueDate, IOptionTradeCollection optionTrades, FuturesEodDataV2ReadModel futuresEodData, FuturesTradeSignalV2ReadModel futuresTradeSignal)
     {
         var shortIronCondorAlgo = new ShortIronCondorAlgorithm(valueDate, optionTrades, futuresEodData, futuresTradeSignal, _blackboardService);
         var optionTradeId = new OptionTradeEntityId(shortIronCondorAlgo.OrderId, shortIronCondorAlgo.TradeId);
+        var lossProbability = await GetLossProbabilityAsync(shortIronCondorAlgo, shortIronCondorAlgo.ForwardLossRatio).ConfigureAwait(false);
+        var tradePrice = await GetIronCondorTradePriceAsync(shortIronCondorAlgo.TradeId, shortIronCondorAlgo.ValueDate).ConfigureAwait(false);
+        var fundBalance = await GetFundBalanceByOrderIdAsync(shortIronCondorAlgo.OrderId).ConfigureAwait(false);
+        var forwardDelta = await GetForwardDeltaAsync(shortIronCondorAlgo.ValueDate, shortIronCondorAlgo.TradeType).ConfigureAwait(false);
+        var forwardLossLimitType = await GetForwardLossLimitTypeAsync(shortIronCondorAlgo.OrderId, shortIronCondorAlgo.TradeId, shortIronCondorAlgo.TradeType, shortIronCondorAlgo.ValueDate).ConfigureAwait(false);
         shortIronCondorAlgo
-            .SetLossProbability(forwardLossRatio => GetLossProbability(shortIronCondorAlgo, forwardLossRatio))
-            .SetTradePrice(() => GetIronCondorTradePrice(shortIronCondorAlgo.TradeId, shortIronCondorAlgo.ValueDate))
+            .SetLossProbability(_ => lossProbability)
+            .SetTradePrice(() => tradePrice)
             .SetStopLossLimit(() => GetStopLossLimit(optionTradeId))
             .SetSignalProcessor(() => GetSignalProcessor<ShortIronCondorTradePlan>(optionTradeId))
-            .SetFundBalance(() => GetFundBalanceByOrderId(shortIronCondorAlgo.OrderId))
-            .SetForwardDelta(GetForwardDelta)
-           .SetForwardLossLimitType(GetForwardLossLimitType);
+            .SetFundBalance(() => fundBalance)
+            .SetForwardDelta((_, _) => forwardDelta)
+           .SetForwardLossLimitType((_, _, _, _) => forwardLossLimitType);
         return shortIronCondorAlgo;
     }
 
@@ -100,7 +110,7 @@ public class AlgorithmBuilder(
     /// <param name="tradePlan"></param>
     /// <param name="forwardLossRatio"></param>
     /// <returns></returns>
-    LossProbabilityDataModel GetLossProbability(TradePlan tradePlan, double forwardLossRatio)
+    async Task<LossProbabilityDataModel> GetLossProbabilityAsync(TradePlan tradePlan, double forwardLossRatio)
     {
         var lossProbability = new LossProbabilityDataModel(Value: 0.01, Threshold: 0m, ThresholdCount: 0);
         try
@@ -112,7 +122,7 @@ public class AlgorithmBuilder(
                 // get trade plan forward loss ratios for last 60 days...
                 var endDate = valueDate.AddDays(1);
                 var startDate = endDate.AddDays(-60);
-                var lossProbs = GetTradePlanForwardLossRatios(startDate, endDate);
+                var lossProbs = await GetTradePlanForwardLossRatiosAsync(startDate, endDate).ConfigureAwait(false);
                 value = lossProbs;
                 forwardLossRatioMap.Add(valueDate, value);
             }
@@ -127,7 +137,7 @@ public class AlgorithmBuilder(
             // return m-score from current trade plan forward loss ratio...
             var daysToExpiry = Convert.ToInt32(tradePlan.MaturityDate.DayNumber - tradePlan.ValueDate.DayNumber);
             var tradeType = tradePlan.PutSpreadAtRisk ? TradeType.PutCreditSpread : TradeType.CallCreditSpread;
-            var spreadDistribution = GetSpreadDistribution(tradePlan.TradeId, tradeType, TradeStatus.IntraDay, tradePlan.ValueDate, daysToExpiry);
+            var spreadDistribution = await GetSpreadDistributionAsync(tradePlan.TradeId, tradeType, TradeStatus.IntraDay, tradePlan.ValueDate, daysToExpiry).ConfigureAwait(false);
             if (spreadDistribution is not  null)
             {
                 lossProbability = new LossProbabilityDataModel(
@@ -145,19 +155,19 @@ public class AlgorithmBuilder(
         }
         return lossProbability;
 
-        List<TradePlanForwardLossRatioReadModel>  GetTradePlanForwardLossRatios(DateOnly startDate, DateOnly endDate)
+        async Task<List<TradePlanForwardLossRatioReadModel>> GetTradePlanForwardLossRatiosAsync(DateOnly startDate, DateOnly endDate)
         {
             var forwardLossRatios = new List<TradePlanForwardLossRatioReadModel>();
-            var serviceResult = _tradePlan_query_api.GetIronCondorTradePlanForwardLossRatiosAsync(startDate, endDate).Result;
+            var serviceResult = await _tradePlan_query_api.GetIronCondorTradePlanForwardLossRatiosAsync(startDate, endDate).ConfigureAwait(false);
             if (serviceResult.Success && serviceResult.Value != null)
                 forwardLossRatios.AddRange(serviceResult.Value);
             return forwardLossRatios;
         }
 
-        SpreadDistributionReadModel? GetSpreadDistribution(int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry)
+        async Task<SpreadDistributionReadModel?> GetSpreadDistributionAsync(int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry)
         {
             SpreadDistributionReadModel? spreadDistribution = default;
-            var serviceResult = _optionPricerQueryApi.GetSpreadDistributionAsync(tradeId, tradeType, tradeStatus, valueDate, daysToExpiry).Result;
+            var serviceResult = await _optionPricerQueryApi.GetSpreadDistributionAsync(tradeId, tradeType, tradeStatus, valueDate, daysToExpiry).ConfigureAwait(false);
             if (serviceResult.Success && serviceResult.Value != null)
                 spreadDistribution = serviceResult.Value;
             return spreadDistribution;
@@ -193,11 +203,11 @@ public class AlgorithmBuilder(
     /// <param name="tradeId"></param>
     /// <param name="valueDate"></param>
     /// <returns></returns>
-    TradePriceReadModel GetIronCondorTradePrice(int tradeId, DateOnly valueDate)
+    async Task<TradePriceReadModel> GetIronCondorTradePriceAsync(int tradeId, DateOnly valueDate)
     {
         try
         {
-            var serviceResult = _tradeQueryApi.GetIronCondorTradePriceAsync(tradeId, valueDate).Result;
+            var serviceResult = await _tradeQueryApi.GetIronCondorTradePriceAsync(tradeId, valueDate).ConfigureAwait(false);
             return (serviceResult.Success && serviceResult.Value is not null)
                 ? serviceResult.Value
                 : new TradePriceReadModel(tradeId, valueDate, 0.0m, 0.0m);
@@ -262,7 +272,7 @@ public class AlgorithmBuilder(
     /// </summary>
     /// <param name="orderId"></param>
     /// <returns></returns>
-    decimal GetFundBalanceByOrderId(int orderId)
+    async Task<decimal> GetFundBalanceByOrderIdAsync(int orderId)
     {
         var fundBalance = new FundBalanceReadModel(0m);
         try
@@ -270,10 +280,10 @@ public class AlgorithmBuilder(
             fundBalance = _blackboardService.Fund.FundBalance.Get(orderId);
             if (fundBalance is null)
             {
-                var fundId = GetFundIdFromOrderId(orderId);
+                var fundId = await GetFundIdFromOrderIdAsync(orderId).ConfigureAwait(false);
                 if (fundId > 0)
                 {
-                    var fundBalanceByFundId = GetFundBalance(fundId);
+                    var fundBalanceByFundId = await GetFundBalanceAsync(fundId).ConfigureAwait(false);
                     if (fundBalanceByFundId != 0m)
                     {
                         fundBalance = new FundBalanceReadModel(fundBalanceByFundId);
@@ -288,16 +298,16 @@ public class AlgorithmBuilder(
         }
         return fundBalance?.Value ?? 0m;
 
-        int GetFundIdFromOrderId(int orderId)
+        async Task<int> GetFundIdFromOrderIdAsync(int orderId)
         {
-            var serviceResult = _fundQueryApi.GetFundIdFromOrderIdAsync(orderId).Result;
+            var serviceResult = await _fundQueryApi.GetFundIdFromOrderIdAsync(orderId).ConfigureAwait(false);
             return serviceResult.Success
                 ? (serviceResult.Value?.Value ?? 0) : 0;
         }
 
-        decimal GetFundBalance(int fundId)
+        async Task<decimal> GetFundBalanceAsync(int fundId)
         {
-            var serviceResult = _fundQueryApi.GetFundBalanceAsync(fundId).Result;
+            var serviceResult = await _fundQueryApi.GetFundBalanceAsync(fundId).ConfigureAwait(false);
             return serviceResult.Success
                 ? (serviceResult.Value?.Value ?? 0m) : 0m;
         }
@@ -310,16 +320,16 @@ public class AlgorithmBuilder(
     /// <param name="valueDate"></param>
     /// <param name="tradeType"></param>
     /// <returns></returns>
-    double GetForwardDelta(DateOnly valueDate, TradeType tradeType)
+    async Task<double> GetForwardDeltaAsync(DateOnly valueDate, TradeType tradeType)
     {
         double forwardDelta = 0.0;
         try
         {
-            var riskPositionTypeVM =GetFuturesRiskPositionType(valueDate, tradeType);
+            var riskPositionTypeVM = await GetFuturesRiskPositionTypeAsync(valueDate, tradeType).ConfigureAwait(false);
             if (riskPositionTypeVM is not null)
             {
                 var riskPositionType = riskPositionTypeVM.RiskPositionType;
-                var forwardDeltaVM = GetIronCondorForwardDelta(valueDate, tradeType, riskPositionType);
+                var forwardDeltaVM = await GetIronCondorForwardDeltaAsync(valueDate, tradeType, riskPositionType).ConfigureAwait(false);
                 if (forwardDeltaVM is not null)
                     forwardDelta = forwardDeltaVM.ForwardDeltaValue;
             }
@@ -330,18 +340,18 @@ public class AlgorithmBuilder(
         }
         return forwardDelta;
 
-        RiskPositionTypeReadModel? GetFuturesRiskPositionType(DateOnly valueDate, TradeType tradeType)
+        async Task<RiskPositionTypeReadModel?> GetFuturesRiskPositionTypeAsync(DateOnly valueDate, TradeType tradeType)
         {
-            var serviceResult = _marketDataFeedQueryApi.GetFuturesRiskPositionTypeAsync(valueDate, tradeType).Result;
+            var serviceResult = await _marketDataFeedQueryApi.GetFuturesRiskPositionTypeAsync(valueDate, tradeType).ConfigureAwait(false);
             return serviceResult.Success && serviceResult.Value is not null
                 ? serviceResult.Value
                 : default;
         }
 
-        IronCondorForwardDeltaDataModel? GetIronCondorForwardDelta(DateOnly valueDate, TradeType tradeType, RiskPositionType riskPositionType)
+        async Task<IronCondorForwardDeltaDataModel?> GetIronCondorForwardDeltaAsync(DateOnly valueDate, TradeType tradeType, RiskPositionType riskPositionType)
         {
             FuturesContractV2ReadModel[] futuresContracts = default!;
-            var serviceResult = _marketDataQueryApi.GetCurrentlyTradedFuturesContractsAsync("ES").Result;
+            var serviceResult = await _marketDataQueryApi.GetCurrentlyTradedFuturesContractsAsync("ES").ConfigureAwait(false);
             if (serviceResult.Success && serviceResult.Value is not null)
             {
                 futuresContracts = serviceResult.Value;
@@ -350,7 +360,7 @@ public class AlgorithmBuilder(
                     var vixContractId = futuresContracts?.FirstOrDefault(x => x.Symbol == "VX" && x.CurrentlyTraded)?.ContractId;
                     if (vixContractId is not null)
                     {
-                        var serviceResult2 = _tradePlan_query_api.GetIronCondorForwardDeltaAsync(vixContractId, valueDate, tradeType, riskPositionType).Result;
+                        var serviceResult2 = await _tradePlan_query_api.GetIronCondorForwardDeltaAsync(vixContractId, valueDate, tradeType, riskPositionType).ConfigureAwait(false);
                         if (serviceResult2.Success && serviceResult2.Value is not null)
                             return serviceResult2.Value;
                     }
@@ -369,12 +379,12 @@ public class AlgorithmBuilder(
     /// <param name="tradeType"></param>
     /// <param name="valueDate"></param>
     /// <returns></returns>
-    ForwardLossLimitType GetForwardLossLimitType(int orderId, int tradeId, TradeType tradeType, DateOnly valueDate)
+    async Task<ForwardLossLimitType> GetForwardLossLimitTypeAsync(int orderId, int tradeId, TradeType tradeType, DateOnly valueDate)
     {
         var forwardLossLimitType = ForwardLossLimitType.LimitWarning;
         try
         {
-            var serviceResult = _tradePlan_query_api.GetForwardLossLimitTypeAsync(orderId, tradeId, valueDate, tradeType).Result;
+            var serviceResult = await _tradePlan_query_api.GetForwardLossLimitTypeAsync(orderId, tradeId, valueDate, tradeType).ConfigureAwait(false);
             if (serviceResult.Success)
                 forwardLossLimitType = serviceResult.Value?.LimitType ?? forwardLossLimitType;
         }

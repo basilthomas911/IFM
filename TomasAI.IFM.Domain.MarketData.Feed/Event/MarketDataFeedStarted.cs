@@ -35,7 +35,8 @@ public static class MarketDataFeedStarted
         var source = $"MarketDataFeedStartedEvent for EntityId: {e.EntityId}";
         try
         {
-            var started = p.MarketDataApi.Start(async (errorCode, errorMsg) => await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
+            var started = await p.MarketDataApi.StartAsync(
+                (errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
             if (started)
             {
                 await eventApi.SendMarketDataFeedStartedCompleteAsync(e);

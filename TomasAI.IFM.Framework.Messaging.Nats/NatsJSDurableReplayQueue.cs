@@ -39,7 +39,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats;
 /// when workers stop. Instances support concurrent use and maintain isolated state for each projector name.
 /// </para>
 /// </remarks>
-public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDisposable, IDisposable
+public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDisposable
 {
     const int DefaultMaxReplayAttempts = 3;
     static readonly TimeSpan DefaultReplayInterval = TimeSpan.FromSeconds(30);
@@ -183,7 +183,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     /// remains linked to those workers.
     /// </param>
     /// <remarks>
-    /// This synchronous method waits for JetStream to acknowledge the publication. It starts inactive
+    /// This asynchronous method awaits JetStream's publication acknowledgement. It starts inactive
     /// workers before publishing and stores the event's assembly-qualified runtime type in its durable
     /// envelope so that the event can be reconstructed when consumed.
     /// </remarks>
@@ -194,7 +194,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     /// <exception cref="InvalidOperationException">
     /// The event type cannot be represented in the durable envelope or the transport cannot initialize the queue.
     /// </exception>
-    public void Enqueue(
+    public async ValueTask EnqueueAsync(
         string eventProjectorName,
         IEvent domainEvent,
         CancellationToken cancellationToken = default)
@@ -204,11 +204,11 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         ArgumentNullException.ThrowIfNull(domainEvent);
 
         var state = GetState(eventProjectorName);
-        EnsureWorkersStartedAsync(eventProjectorName, state, cancellationToken).GetAwaiter().GetResult();
+        await EnsureWorkersStartedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
         var payload = Serialize(domainEvent, eventProjectorName);
         var messageId = CreateProcessMessageId(eventProjectorName, domainEvent);
-        _transport.PublishProcessAsync(eventProjectorName, payload, messageId, cancellationToken)
-            .AsTask().GetAwaiter().GetResult();
+        await _transport.PublishProcessAsync(eventProjectorName, payload, messageId, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -690,12 +690,6 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             state.Dispose();
         await _transport.DisposeAsync().ConfigureAwait(false);
     }
-
-    /// <summary>
-    /// Stops all workers and synchronously releases the underlying NATS transport.
-    /// </summary>
-    /// <remarks>This method blocks until asynchronous disposal completes and is safe to call more than once.</remarks>
-    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
     enum DurablePayloadFormat : byte
     {

@@ -13,11 +13,9 @@ public interface IFundDbReadContext
     Task<FundOrderReadModel?> GetFundOrderAsync(int fundId, int orderId);
     Task<ICollection<FundOrderReadModel>> GetFundOrdersAsync();
     Task<ICollection<FundOrderReadModel>> GetFundOrdersAsync(CancellationToken cancellationToken);
-    ICollection<FundOrderReadModel>GetFundOrders();
     Task<FundOrderTradeReadModel?> GetFundOrderTradeAsync(int fundId, int orderId, int tradeId);
     Task<ICollection<FundOrderTradeReadModel>> GetFundOrderTradesAsync();
     Task<ICollection<FundOrderTradeReadModel>> GetFundOrderTradesAsync(CancellationToken cancellationToken);
-    ICollection<FundOrderTradeReadModel> GetFundOrderTrades();
     Task<FundTransactionReadModel?> GetFundTransactionAsync(int fundId, DateOnly valueDate, int orderId, int tradeId, TradeType tradeType, FundTransactionType transactionType, DateTime transactionDate);
     Task<ICollection<FundTransactionReadModel>> GetFundTransactionsAsync(int fundId, DateOnly startDate, DateOnly endDate);
     Task<ICollection<FundTransactionReadModel>> GetFundTransactionsAsync(int fundId, DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken);

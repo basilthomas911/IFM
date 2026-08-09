@@ -129,11 +129,11 @@ public class IronCondorViewModel
 
     public void EnableMarketDataFeedResetListener()
         => _appRoot.GetModel<MarketDataFeedCommandModel>().Execute(async model =>
-            await model.StartMarketDataFeedResetListenerAsync(_ => {
+            await model.StartMarketDataFeedResetListenerAsync(async _ => {
                if (_liveFeedEnabled)
                {
                    DisableLiveFeed();
-                   Task.Delay(TimeSpan.FromSeconds(5)).Wait();
+                   await Task.Delay(TimeSpan.FromSeconds(5));
                    EnableLiveFeed();
                    DeleteOptionTradeSpreadBarData();
                }

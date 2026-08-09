@@ -4,6 +4,7 @@ using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.TradeDb;
+using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 using TomasAI.IFM.Domain.Trade.Option.Query;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -26,8 +27,11 @@ public class OptionTradeQueryActorTests : IClassFixture<TradeFixture>
         _fixture = fixture;
     }
 
-    public class TestableOptionTradeQueryActor(IDbContextFactory dbFactory, ILogger<OptionTradeQueryActor> logger)
-        : OptionTradeQueryActor(dbFactory, logger)
+    public class TestableOptionTradeQueryActor(
+        IDbContextFactory dbFactory,
+        IBlackboardService blackboardService,
+        ILogger<OptionTradeQueryActor> logger)
+        : OptionTradeQueryActor(dbFactory, blackboardService, logger)
     {
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

@@ -13,6 +13,8 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Framework.MarketData.MarketDataApi;
+using TomasAI.IFM.Shared.EventQueue;
+using System.Collections.Concurrent;
 
 namespace TomasAI.IFM.Framework.MarketData.InteractiveBrokers;
 
@@ -24,16 +26,18 @@ public class IBMarketDataSnapshotApi(MarketDataApi.IMarketDataSnapshotApiOptions
 public class IBMarketDataApi : MarketDataApi.IMarketDataApi
 {
     static Dictionary<string, FuturesTickDataV2ReadModel>? _stmFuturesTickDataMap;
-    static Dictionary<string, string>? _statusMsgMap;
+    static ConcurrentDictionary<string, byte>? _statusMsgMap;
     MarketDataApi.IMarketDataApiOptions _options;
     IStatusConsoleWriter _statusConsoleWriter;
     IBClient _ibApi;
-    Action<Guid, int, string>? _errorhandler;
+    Func<Guid, int, string, Task>? _errorHandler;
+    readonly ConcurrentEventQueue<(Guid CommandId, int ErrorCode, string ErrorMessage)> _statusQueue;
     public IBMarketDataApi(MarketDataApi.IMarketDataApiOptions options, IStatusConsoleWriter statusConsoleWriter, IMarketDataFeedEventProducer marketDataFeedEventProducer)
     {
         _options = options;
         _statusConsoleWriter = statusConsoleWriter;
         _ibApi = new IBClient(marketDataFeedEventProducer);
+        _statusQueue = new ConcurrentEventQueue<(Guid CommandId, int ErrorCode, string ErrorMessage)>(WriteStatusConsoleAsync).Start();
         InitMarketDataApi();
     }
 
@@ -46,14 +50,17 @@ public class IBMarketDataApi : MarketDataApi.IMarketDataApi
     /// <summary>
     /// start interactive brokers client
     /// </summary>
-    public void Start(Guid commandId, Action<Guid, int, string>? errorHandler)
+    public async Task StartAsync(
+        Guid commandId,
+        Func<Guid, int, string, Task>? errorHandler = null,
+        CancellationToken cancellationToken = default)
     {
         InitMarketDataApi();
-        _errorhandler = errorHandler;
+        _errorHandler = errorHandler;
         for (var retryCount = 0; retryCount < 3; retryCount++)
         {
             _ibApi.Start(_options.Host, _options.Port, _options.ClientId);
-            Task.Delay(TimeSpan.FromSeconds(2)).Wait();
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
             if (_ibApi.Started)
                 return;
         }
@@ -505,12 +512,18 @@ public class IBMarketDataApi : MarketDataApi.IMarketDataApi
     /// <param name="errorMsg"></param>
     private void WriteStatusConsole(Guid commandId, int errorCode, string errorMsg)
     {
-        if (_statusMsgMap?.ContainsKey(errorMsg) ?? false) 
-            return;
-        _statusMsgMap?.Add(errorMsg, errorMsg);
-        if (_errorhandler is not null)
-            _errorhandler(commandId, errorCode, errorMsg);
+        if (_statusMsgMap?.TryAdd(errorMsg, 0) ?? false)
+            _statusQueue.EnqueueAndSignal((commandId, errorCode, errorMsg));
+    }
+
+    Task WriteStatusConsoleAsync((Guid CommandId, int ErrorCode, string ErrorMessage) status)
+    {
+        if (_errorHandler is not null)
+            return _errorHandler(status.CommandId, status.ErrorCode, status.ErrorMessage);
         else
-            _statusConsoleWriter.WriteConsoleAsync(LogSourceType.TWSMarketDataApi, errorCode, errorMsg).Wait();
+            return _statusConsoleWriter.WriteConsoleAsync(
+                LogSourceType.TWSMarketDataApi,
+                status.ErrorCode,
+                status.ErrorMessage);
     }
 }

@@ -63,7 +63,7 @@ public class ActorMarketDataFeedQueryApiTests
 
         result.Success.Should().BeFalse();
         result.ErrorCode.Should().Be(GetFuturesOptionContractQuery.ErrorId);
-        snapshot.Received(1).Start();
+        await snapshot.Received(1).StartAsync(null, Arg.Any<CancellationToken>());
         snapshot.Received(1).Stop();
         streamIds.Received(1).Remove(17);
     }

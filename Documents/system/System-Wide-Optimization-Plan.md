@@ -428,7 +428,7 @@ Normal cached reads are lock-free, but the shared reference lookup interface ret
 
 ### Dormant Trade algorithm path
 
-The inactive `AlgorithmBuilder` contains synchronous `.Result` calls, ineffective cache ownership, and incomplete algorithms. Its dependency-injection registration remains disabled. Removing the waits and repairing cache lifetime are mandatory before reactivation, but inactive code is not a current runtime optimization priority.
+The inactive `AlgorithmBuilder` now awaits remote inputs before constructing its rule engine. Its dependency-injection registration remains disabled because cache ownership and the incomplete algorithms still require functional work before reactivation.
 
 ### Obsolete trade-plan API route
 

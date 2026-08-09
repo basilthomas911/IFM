@@ -39,7 +39,7 @@ public sealed class NatsJSDurableReplayQueueTests
             return Task.CompletedTask;
         });
 
-        queue.Enqueue("projector", SampleData.Event("success"));
+        await queue.EnqueueAsync("projector", SampleData.Event("success"));
 
         await EventuallyAsync(() => processed?.Value == "success");
         var state = transport.Queues["projector"];
@@ -60,7 +60,7 @@ public sealed class NatsJSDurableReplayQueueTests
             return Task.CompletedTask;
         });
 
-        queue.Enqueue("projector", SampleData.Event());
+        await queue.EnqueueAsync("projector", SampleData.Event());
 
         await EventuallyAsync(() => calls == 2);
         var state = transport.Queues["projector"];
@@ -84,7 +84,7 @@ public sealed class NatsJSDurableReplayQueueTests
         var state = transport.Queues["projector"];
         state.ReplayPublishFailuresRemaining = 1;
 
-        queue.Enqueue("projector", SampleData.Event());
+        await queue.EnqueueAsync("projector", SampleData.Event());
 
         await EventuallyAsync(() => calls == 3 && state.LastReplayMessage?.AckCount == 1);
         state.ProcessConsumerStarts.Should().Be(1);
@@ -112,7 +112,7 @@ public sealed class NatsJSDurableReplayQueueTests
         var state = transport.Queues["projector"];
         state.ProcessAckFailuresRemaining = 1;
 
-        queue.Enqueue("projector", SampleData.Event());
+        await queue.EnqueueAsync("projector", SampleData.Event());
 
         await EventuallyAsync(() => terminalCalls == 1
             && state.LastProcessMessage?.AckCount == 1
@@ -138,8 +138,8 @@ public sealed class NatsJSDurableReplayQueueTests
         });
         var domainEvent = SampleData.Event();
 
-        queue.Enqueue("projector", domainEvent);
-        queue.Enqueue("projector", domainEvent);
+        await queue.EnqueueAsync("projector", domainEvent);
+        await queue.EnqueueAsync("projector", domainEvent);
 
         await EventuallyAsync(() => calls == 1);
         await Task.Delay(50);
@@ -164,7 +164,7 @@ public sealed class NatsJSDurableReplayQueueTests
             return Task.CompletedTask;
         });
 
-        queue.Enqueue("projector", SampleData.Event());
+        await queue.EnqueueAsync("projector", SampleData.Event());
 
         await EventuallyAsync(() => calls == 3);
         var state = transport.Queues["projector"];
@@ -187,7 +187,7 @@ public sealed class NatsJSDurableReplayQueueTests
         });
         await queue.DequeueAsync("projector", _ => throw new InvalidOperationException("always fails"));
 
-        queue.Enqueue("projector", SampleData.Event());
+        await queue.EnqueueAsync("projector", SampleData.Event());
 
         await EventuallyAsync(() => terminalCalls == 1
             && transport.Queues["projector"].LastReplayMessage?.AckCount == 1);
@@ -208,8 +208,8 @@ public sealed class NatsJSDurableReplayQueueTests
         queue.SetMaxReplayAttemps("first", 2);
         queue.SetMaxReplayAttemps("second", 5);
 
-        queue.Enqueue("first", SampleData.Event("one"));
-        queue.Enqueue("second", SampleData.Event("two"));
+        await queue.EnqueueAsync("first", SampleData.Event("one"));
+        await queue.EnqueueAsync("second", SampleData.Event("two"));
 
         await EventuallyAsync(() => first.Count == 1 && second.Count == 1);
         first.Should().Equal("one");
@@ -239,7 +239,7 @@ public sealed class NatsJSDurableReplayQueueTests
         await EventuallyAsync(() => transport.Queues["projector"].ProcessConsumerStarts == 1);
         await Task.Delay(180);
 
-        queue.Enqueue("projector", SampleData.Event());
+        await queue.EnqueueAsync("projector", SampleData.Event());
 
         await EventuallyAsync(() => calls == 1);
         transport.Queues["projector"].ProcessConsumerStarts.Should().BeGreaterThan(1);
@@ -255,7 +255,7 @@ public sealed class NatsJSDurableReplayQueueTests
         await queue.DequeueAsync("projector", _ => { Interlocked.Increment(ref calls); return Task.CompletedTask; });
 
         await queue.StopAsync("projector");
-        queue.Enqueue("projector", SampleData.Event());
+        await queue.EnqueueAsync("projector", SampleData.Event());
 
         await EventuallyAsync(() => calls == 1);
         transport.Queues["projector"].ProcessConsumerStarts.Should().Be(2);

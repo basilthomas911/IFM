@@ -66,17 +66,17 @@ public class ObjectFileUriContext(Uri uri, IDataReaderOptions dataReaderOptions)
         async ValueTask<ICollection<TResult>> GetCsvDataAsync()
         {
             var stringReader = new FileStringReader(Uri);
-            using var dataReader = new CsvDataReader<TResult>(stringReader);
+            using var dataReader = await CsvDataReader<TResult>.CreateAsync(stringReader).ConfigureAwait(false);
             var resultSet = ReadAll(dataReader);
-            return await ValueTask.FromResult(resultSet);
+            return resultSet;
         }
 
         async ValueTask<ICollection<TResult>> GetJsonDataAsync()
         {
             var stringReader = new HttpStringReader(Uri);
-            using var dataReader = new JsonDataReader<TResult>(stringReader);
+            using var dataReader = await JsonDataReader<TResult>.CreateAsync(stringReader).ConfigureAwait(false);
             var resultSet = ReadAll(dataReader);
-            return await ValueTask.FromResult(resultSet);
+            return resultSet;
         }
 
         ICollection<TResult> ReadAll(IDataReader  dataReader)
@@ -143,21 +143,13 @@ public static class ObjectFileUriContextExtensions
             throw new ArgumentException("The provided context is not an instance of ObjectFileUriContext.", nameof(uriCtx));
         }
         var stringReader = new FileStringReader(uriCtx.Uri);
-        await reducer!.Invoke(GetResultSet());
-
-        IEnumerable<TResult> GetResultSet()
+        var resultSet = new List<TResult>();
+        await foreach (var row in stringReader.ReadLinesAsync().ConfigureAwait(false))
         {
-            
-            var readLinesTask = stringReader.ReadLinesAsync().GetAsyncEnumerator();
-            while (readLinesTask.MoveNextAsync().AsTask().Result)
-            {
-                var start = 0;
-                var row = readLinesTask.Current;
-                var result = mapper(row, start);
-                if (result is not null)
-                    yield return result;
-            }
-            readLinesTask.DisposeAsync().AsTask().Wait();
+            var result = mapper(row, 0);
+            if (result is not null)
+                resultSet.Add(result);
         }
+        await reducer(resultSet).ConfigureAwait(false);
     }
 }

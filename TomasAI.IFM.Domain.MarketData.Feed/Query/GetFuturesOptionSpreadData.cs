@@ -35,7 +35,7 @@ public static class GetFuturesOptionSpreadData
         FuturesOptionSpreadDataReadModel spreadData = default!;
         try
         {
-            marketDataSnapshotApi.Start();
+            await marketDataSnapshotApi.StartAsync().ConfigureAwait(false);
             var (shortContract, longContract) = await marketDataSnapshotApi.GetFuturesOptionSpreadAsync(
                 queryForShortOptionContract, queryForLongOptionContract);
             if (shortContract == null || longContract == null)

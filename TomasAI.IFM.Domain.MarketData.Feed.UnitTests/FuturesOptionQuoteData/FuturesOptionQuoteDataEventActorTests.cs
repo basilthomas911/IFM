@@ -206,7 +206,7 @@ public class FuturesOptionQuoteDataEventActorTests : IClassFixture<MarketDataFee
 
         await actor.InvokeReceiveAsync(Substitute.For<IEventActorContext>(), @event);
 
-        snapshotApi.Received(1).Start(Arg.Any<Action<int, string>>());
+        await snapshotApi.Received(1).StartAsync(null, Arg.Any<CancellationToken>());
         redis.Received(1).Set(
             Arg.Is<string>(key => key.EndsWith($":{SampleData.OptionQuoteStreamId}")), "quotes");
     }
@@ -215,8 +215,8 @@ public class FuturesOptionQuoteDataEventActorTests : IClassFixture<MarketDataFee
     public async Task ReceiveAsync_StreamingStartFailure_IsHandledInsideTheEventHandler()
     {
         var snapshotApi = Substitute.For<IMarketDataSnapshotApi>();
-        snapshotApi.When(value => value.Start(Arg.Any<Action<int, string>>()))
-            .Do(_ => throw new InvalidOperationException("snapshot start failed"));
+        snapshotApi.StartAsync(null, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<bool>(new InvalidOperationException("snapshot start failed")));
         var actor = CreateActor(snapshotApi: snapshotApi);
         var @event = CreateStreamingStartedCompleteEvent() with
         {

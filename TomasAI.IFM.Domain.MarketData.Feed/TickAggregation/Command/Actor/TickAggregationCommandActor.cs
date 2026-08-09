@@ -158,8 +158,6 @@ internal sealed class TickAggregationCommandAuditTracker(IEventSourceActorDbCont
     {
         ArgumentNullException.ThrowIfNull(command);
         var task = AuditAsync(command);
-        if (task.IsCompleted)
-            task.GetAwaiter().GetResult();
         if (!_pending.TryAdd(command.CommandId, task))
             throw new InvalidOperationException($"Command audit {command.CommandId} is already pending.");
     }
