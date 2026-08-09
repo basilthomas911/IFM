@@ -1,7 +1,7 @@
 # Aggregate Actor Backlog and Overload Control Implementation Plan
 
 **Work package:** SWO-02
-**Status:** Approved; Tranches A and B implemented, Tranche C awaiting transport-policy approval
+**Status:** Approved; Tranches A through D implemented locally, production activation awaiting capacity evidence
 **Priority:** P0
 **Created:** 2026-08-09
 **Last updated:** 2026-08-09
@@ -418,7 +418,7 @@ Expose sustained saturation through a dedicated health check. Never fail process
 
 **Review gate:** deterministic concurrency tests and microbenchmarks pass before transport rejection is enabled.
 
-**Implementation status (2026-08-09):** Complete in the working tree. The runtime uses atomic process and actor-type count/byte reservation, a structured admission result, non-waiting enforced mailbox slots, one reservation across retired-queue retry, and release on dequeue, failed publish, cancellation, exception, and stop drain. Explicit create/`TryAdd`/stop makes cold mailbox creation race-safe. Enforced accepted admission adds 57.38 ns over disabled operation with no reported allocation or lock contention; rejection paths range from 4.42 ns for a full global count budget to 91.94 ns for a full entity mailbox. Focused concurrency, high-cardinality, ownership, retirement, shutdown, and real-network NATS tests pass. Production remains `ObserveOnly`, and Tranche C transport responses are not implemented.
+**Implementation status (2026-08-09):** Complete. The runtime uses atomic process and actor-type count/byte reservation, a structured admission result, non-waiting enforced mailbox slots, one reservation across retired-queue retry, and release on dequeue, failed publish, cancellation, exception, and stop drain. Explicit create/`TryAdd`/stop makes cold mailbox creation race-safe. Enforced accepted admission adds 57.38 ns over disabled operation with no reported allocation or lock contention; rejection paths range from 4.42 ns for a full global count budget to 91.94 ns for a full entity mailbox. Focused concurrency, high-cardinality, ownership, retirement, shutdown, and real-network NATS tests pass.
 
 ### Tranche C: Transport behavior
 
@@ -431,6 +431,10 @@ Expose sustained saturation through a dedicated health check. Never fail process
 
 **Review gate:** real-network NATS integration tests prove reply, NAK, redelivery, and ownership behavior.
 
+**Implementation status (2026-08-09):** Complete in the working tree. Core command/query rejection returns the stable retryable `ServiceResult<object>` wire shape with error code `-429`; owned and legacy clients deserialize it as representative typed `ServiceResult<TResult>` values. Rejected messages are disposed exactly once even when reply publication fails. Required JetStream fan-out branches coordinate one final ACK or a configured delayed NAK, and redelivery is counted independently. Transport metrics cover overload reply outcomes, NAK outcomes, redelivery, and explicit optional drops.
+
+At Tranche C completion, the checked-in Core inventory classified Query as request/reply-only, Command and Supervisor fire-and-forget traffic as required non-durable, Event as a durable live copy, and Notify/UI as optional. This deliberately blocked `Enforce` until the required routes were migrated. Tranche D resolves that code-level blocker; production remains `ObserveOnly` until capacity values are approved from production-like evidence.
+
 ### Tranche D: Rollout and confirmation
 
 1. Deploy `ObserveOnly` with selected capacities.
@@ -440,6 +444,8 @@ Expose sustained saturation through a dedicated health check. Never fail process
 5. verify memory stays below the calculated bound and the backlog drains;
 6. run the full domain integration gate; and
 7. record results in `System-Wide-Optimization-Results.md` before marking SWO-02 Complete.
+
+**Implementation status (2026-08-09):** Local confirmation is complete. Production command sends now use request/reply and preserve typed transport failures, commandless exception notifications use the durable Event route, and the unused Supervisor consumer is no longer started. Enforced consumers reject unknown or required-non-durable classifications at startup. Release stress tests prove bounded mixed-traffic accounting and immediate hot-mailbox rejection, and real-network tests prove typed Core rejection plus delayed JetStream recovery. The complete solution and domain gates pass. Production remains `ObserveOnly`; deployment, paper-trading observation, measured memory inputs, selected capacities, and explicit activation approval remain external rollout work.
 
 ## 13. Test plan
 
@@ -612,3 +618,5 @@ The reviewer should explicitly approve or change:
 | 0.1 | 2026-08-09 | Created the review-ready SWO-02 implementation, test, benchmark, rollout, and rollback plan from the current actor and NATS runtime. |
 | 0.2 | 2026-08-09 | Recorded approved Tranche A implementation, benchmark outcome, capacity worksheet, and the still-blocked enforcement gate. |
 | 0.3 | 2026-08-09 | Recorded Tranche B atomic runtime enforcement, deterministic tests, microbenchmark gates, and the remaining Tranche C transport-policy boundary. |
+| 0.4 | 2026-08-09 | Recorded Tranche C typed overload replies, Core traffic classification, delayed JetStream NAK/redelivery, ownership tests, transport metrics, and the remaining Tranche D rollout gate. |
+| 0.5 | 2026-08-09 | Recorded Tranche D command-route migration, Supervisor removal, enforced stress and real-network confirmation, complete regression gates, and the remaining production capacity/activation evidence. |

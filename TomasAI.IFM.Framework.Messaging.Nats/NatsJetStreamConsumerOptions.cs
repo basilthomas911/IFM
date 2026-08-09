@@ -1,4 +1,5 @@
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
@@ -54,7 +55,7 @@ public class NatsJetStreamConsumerOptions : INatsJetStreamConsumerOptions
 
     public int GetThresholdMessages() => ThresholdMessages > 0 ? ThresholdMessages : DispatcherCapacity;
 
-    public void Validate()
+    public void Validate(ActorAdmissionOptions? admissionOptions = null)
     {
         if (string.IsNullOrWhiteSpace(Url))
             throw new InvalidOperationException($"{nameof(Url)} is required.");
@@ -70,5 +71,10 @@ public class NatsJetStreamConsumerOptions : INatsJetStreamConsumerOptions
             throw new InvalidOperationException($"{nameof(MaxMessages)} cannot exceed {nameof(MaxAckPending)}.");
         if (GetThresholdMessages() > GetMaxMessages())
             throw new InvalidOperationException($"{nameof(ThresholdMessages)} cannot exceed {nameof(MaxMessages)}.");
+        if (admissionOptions?.Mode == ActorAdmissionMode.Enforce && !UseOwnedEventPayloads)
+        {
+            throw new InvalidOperationException(
+                "Enforced actor admission requires owned JetStream event payloads for exact fan-out ownership.");
+        }
     }
 }

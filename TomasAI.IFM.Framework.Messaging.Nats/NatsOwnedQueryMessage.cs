@@ -40,6 +40,8 @@ public sealed class NatsOwnedQueryMessage : IActorMessage
     public int AdmissionSizeBytes
         => Volatile.Read(ref _released) == 0 ? _owner.Memory.Length : 0;
 
+    public bool CanReply => !string.IsNullOrEmpty(_replyTo);
+
     public ActorSubject ReplySubject { get; set; } = default!;
 
     internal bool IsPayloadReleased => Volatile.Read(ref _released) != 0;

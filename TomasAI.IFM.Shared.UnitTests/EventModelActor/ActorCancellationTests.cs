@@ -11,6 +11,8 @@ using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+using ActorCommandExceptionEvent = TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent;
 using Xunit;
 
 namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
@@ -27,12 +29,12 @@ public sealed class ActorCancellationTests
 
         var producer = new Mock<IActorProducer>();
         producer
-            .Setup(instance => instance.SendAsync<TestCommand, ActorEntityId>(
+            .Setup(instance => instance.RequestAsync<TestCommand, ActorEntityId, GuidResult>(
                 command.Subject,
                 command,
                 entityId,
                 cancellation.Token))
-            .Returns(ValueTask.FromCanceled(cancellation.Token));
+            .Returns(ValueTask.FromCanceled<ServiceResult<GuidResult>>(cancellation.Token));
 
         var supervisor = new Mock<IActorSupervisor>();
         supervisor
@@ -45,11 +47,55 @@ public sealed class ActorCancellationTests
             .AsTask();
 
         await operation.Should().ThrowAsync<OperationCanceledException>();
-        producer.Verify(instance => instance.SendAsync<TestCommand, ActorEntityId>(
+        producer.Verify(instance => instance.RequestAsync<TestCommand, ActorEntityId, GuidResult>(
             command.Subject,
             command,
             entityId,
             cancellation.Token), Times.Once);
+    }
+
+    [Fact]
+    public async Task ActorService_SendAsync_UsesRequestReplyAndPreservesOverloadFailure()
+    {
+        var entityId = new ActorEntityId("entity-overload");
+        var command = new TestCommand(entityId);
+        var producer = new Mock<IActorProducer>();
+        producer
+            .Setup(instance => instance.RequestAsync<TestCommand, ActorEntityId, GuidResult>(
+                command.Subject,
+                command,
+                entityId,
+                CancellationToken.None))
+            .ReturnsAsync(new ServiceResult<GuidResult>(-429, "temporarily unavailable"));
+        var supervisor = new Mock<IActorSupervisor>();
+        supervisor
+            .Setup(instance => instance.GetProducer(command.Subject.ActorId))
+            .Returns(producer.Object);
+
+        var result = await new ActorService(supervisor.Object).SendAsync(command, entityId);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(-429);
+        result.ErrorMessage.Should().Be("temporarily unavailable");
+        producer.Verify(instance => instance.SendAsync<TestCommand, ActorEntityId>(
+            It.IsAny<ActorSubject>(),
+            It.IsAny<TestCommand>(),
+            It.IsAny<ActorEntityId>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void CommandExceptionWithoutCommand_IsRoutedAsDurableEvent()
+    {
+        var errorEvent = new InvalidOperationException("test")
+            .GetCommandExceptionEvent<ActorCommandExceptionEvent, ActorEntityId>(
+                ErrorType.Command,
+                null!,
+                ActorEntityId.Default,
+                "ErrorActor",
+                ActorCommandExceptionEvent.CommandFail);
+
+        errorEvent.Subject.ActorType.Should().Be(ActorType.Event);
     }
 
     [Fact]

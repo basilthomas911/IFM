@@ -1,4 +1,5 @@
 using NATS.Client.JetStream;
+using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
@@ -18,7 +19,8 @@ internal sealed class EventFanoutDelivery
     internal EventFanoutDelivery(
         int destinationCount,
         Func<ValueTask> acknowledge,
-        Func<ValueTask> negativeAcknowledge)
+        Func<ValueTask> negativeAcknowledge,
+        TimeSpan negativeAcknowledgeDelay = default)
     {
         if (destinationCount <= 0)
             throw new ArgumentOutOfRangeException(
@@ -27,21 +29,46 @@ internal sealed class EventFanoutDelivery
         _remaining = destinationCount;
         _acknowledge = acknowledge;
         _negativeAcknowledge = negativeAcknowledge;
+        NegativeAcknowledgeDelay = negativeAcknowledgeDelay;
     }
 
     internal static EventFanoutDelivery Create<T>(
         INatsJSMsg<T> message,
-        int destinationCount)
+        int destinationCount,
+        TimeSpan negativeAcknowledgeDelay,
+        ActorType actorType)
         => new(
             destinationCount,
             () => message.AckAsync(cancellationToken: CancellationToken.None),
-            () => message.NakAsync(cancellationToken: CancellationToken.None));
+            () => NegativeAcknowledgeAsync(message, negativeAcknowledgeDelay, actorType),
+            negativeAcknowledgeDelay);
+
+    static async ValueTask NegativeAcknowledgeAsync<T>(
+        INatsJSMsg<T> message,
+        TimeSpan delay,
+        ActorType actorType)
+    {
+        try
+        {
+            await message.NakAsync(
+                delay: delay,
+                cancellationToken: CancellationToken.None).ConfigureAwait(false);
+            NatsMessagingMetrics.RecordOverloadNak(actorType, "succeeded");
+        }
+        catch
+        {
+            NatsMessagingMetrics.RecordOverloadNak(actorType, "failed");
+            throw;
+        }
+    }
 
     internal int Remaining => Math.Max(0, Volatile.Read(ref _remaining));
 
     internal int Failures => Volatile.Read(ref _failures);
 
     internal bool IsFinalized => Volatile.Read(ref _finalized) != 0;
+
+    internal TimeSpan NegativeAcknowledgeDelay { get; }
 
     internal async ValueTask CompleteHandoffAsync(bool succeeded)
     {

@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests;
 /// Integration tests for <see cref="NatsActorSpscRingBuffer"/> covering lifecycle, SPSC behavior,
 /// blocking and cancellation, unblocking semantics, concurrency, and disposal edge cases.
 /// </summary>
+[Collection(SpscRingBufferCollection.Name)]
 public class NatsActorSpscRingBufferTests
 {
  /// <summary>
@@ -197,7 +198,10 @@ public class NatsActorSpscRingBufferTests
  int produced =0;
  int consumed =0;
 
- var producer = Task.Run(() =>
+ // These are deliberately dedicated threads. The full integration suite also runs
+ // network consumers, so ThreadPool starvation must not turn this SPSC correctness
+ // test into a ten-second timing test.
+ var producer = Task.Factory.StartNew(() =>
  {
  try
  {
@@ -208,9 +212,9 @@ public class NatsActorSpscRingBufferTests
  }
  }
  catch (OperationCanceledException) { }
- }, cts.Token);
+ }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
- var consumer = Task.Run(() =>
+ var consumer = Task.Factory.StartNew(() =>
  {
  try
  {
@@ -221,7 +225,7 @@ public class NatsActorSpscRingBufferTests
  }
  }
  catch (OperationCanceledException) { }
- }, cts.Token);
+ }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
  await Task.WhenAll(producer, consumer);
  produced.Should().Be(total);
@@ -251,4 +255,10 @@ public class NatsActorSpscRingBufferTests
  Action act3 = () => buf.Stop();
  act3.Should().NotThrow();
  }
+}
+
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class SpscRingBufferCollection
+{
+ public const string Name = "SPSC ring-buffer integration tests";
 }

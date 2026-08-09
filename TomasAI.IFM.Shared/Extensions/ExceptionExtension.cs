@@ -101,7 +101,7 @@ public static class ExceptionExtension
     where TFailedEvent : IErrorEvent<TEntityId>
     {
         var e = Activator.CreateInstance<TFailedEvent>();
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(command is null ? ActorType.Supervisor : ActorType.Event, actor, verb, entityId.Format()));
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event, actor, verb, entityId.Format()));
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.CommandId), command?.CommandId ?? Guid.Empty);
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandName), command?.GetType().Name ?? $"{errorType}");
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorType), errorType);
@@ -129,7 +129,7 @@ where TEntityId : IActorEntityId
 where TFailedEvent : IErrorEvent<TEntityId>
     {
         var e = Activator.CreateInstance<TFailedEvent>();
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(command is null ? ActorType.Supervisor : ActorType.Event, actor, verb, entityId.Format()));
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event, actor, verb, entityId.Format()));
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.CommandId), command?.CommandId ?? Guid.Empty);
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandName), command?.GetType().Name ?? $"{errorType}");
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorType), errorType);

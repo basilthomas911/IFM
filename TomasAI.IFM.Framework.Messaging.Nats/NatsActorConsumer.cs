@@ -26,7 +26,8 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 public class NatsActorConsumer(
     INatsConsumerOptions options,
     ILogger logger,
-    NatsConnectionManager? connectionManager = null)
+    NatsConnectionManager? connectionManager = null,
+    ActorAdmissionOptions? admissionOptions = null)
     : IActorConsumer
 {
     readonly INatsConsumerOptions _options = IsArgumentNull.Set(options);
@@ -35,6 +36,7 @@ public class NatsActorConsumer(
     readonly string _serviceId = "NatsActorConsumer";
     readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
+    readonly ActorAdmissionOptions _admissionOptions = admissionOptions ?? new ActorAdmissionOptions();
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     IActorSupervisor _supervisor = default!;
     ActorType _actorType;
@@ -111,6 +113,7 @@ public class NatsActorConsumer(
             ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
             _supervisor = IsArgumentNull.Set(supervisor);
             _actorType = actorType;
+            ValidateEnforcedTrafficClass(actorType);
             _subscriptionSubject = string.Concat(_actorType.ToStringFast(), ".>");
             if (_nc is not null)
             {
@@ -196,6 +199,31 @@ public class NatsActorConsumer(
             : _options.SubscriptionCapacity > 0
                 ? _options.SubscriptionCapacity
                 : checked(GetDispatcherCapacity() * Math.Max(1, _options.DispatcherCount));
+
+    CoreNatsTrafficClass GetFireAndForgetTrafficClass(ActorType actorType)
+        => _options.FireAndForgetTraffic?.TryGetValue(actorType, out var trafficClass) == true
+            ? trafficClass
+            : CoreNatsTrafficClass.Unknown;
+
+    void ValidateEnforcedTrafficClass(ActorType actorType)
+    {
+        if (_admissionOptions.Mode != ActorAdmissionMode.Enforce)
+            return;
+
+        var trafficClass = GetFireAndForgetTrafficClass(actorType);
+        if (trafficClass is CoreNatsTrafficClass.Unknown or CoreNatsTrafficClass.RequiredNonDurable)
+        {
+            throw new InvalidOperationException(
+                $"Enforced Core NATS consumer {actorType} cannot start with traffic class {trafficClass}.");
+        }
+        if (actorType is ActorType.Command or ActorType.Query
+            && trafficClass != CoreNatsTrafficClass.RequestReplyOnly)
+        {
+            throw new InvalidOperationException(
+                $"Enforced Core NATS {actorType} traffic must be {CoreNatsTrafficClass.RequestReplyOnly}; "
+                + $"configured class is {trafficClass}.");
+        }
+    }
 
     async ValueTask StopCoreAsync()
     {
@@ -450,6 +478,7 @@ public class NatsActorConsumer(
             await foreach (var (msg, msgSubject) in reader.ReadAllAsync().ConfigureAwait(false))
             {
                 var transferred = false;
+                var settled = false;
                 try
                 {
                     var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
@@ -458,10 +487,19 @@ public class NatsActorConsumer(
                         msg,
                         msgSubject,
                         CancellationToken.None).ConfigureAwait(false);
-                    transferred = admission.Accepted;
                     if (!admission.Accepted)
-                        throw new InvalidOperationException(
-                            $"Mailbox rejected message for {msgSubject.ActorId}: {admission.Reason.ToStringFast()}.");
+                    {
+                        settled = true;
+                        await NatsTransportOverload.SettleCoreRejectionAsync(
+                            msg,
+                            _actorType,
+                            admission.Reason,
+                            _admissionOptions.OverloadErrorCode,
+                            GetFireAndForgetTrafficClass(_actorType),
+                            _logger).ConfigureAwait(false);
+                        continue;
+                    }
+                    transferred = true;
                 }
                 catch (Exception ex)
                 {
@@ -470,7 +508,7 @@ public class NatsActorConsumer(
                 }
                 finally
                 {
-                    if (!transferred)
+                    if (!transferred && !settled)
                         msg.Dispose();
                 }
             }

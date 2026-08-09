@@ -5,11 +5,11 @@
 **Created:** 2026-08-09
 **Last updated:** 2026-08-09
 **Baseline commit:** `32d025c8`
-**Current work package:** SWO-02 Tranche B, actor runtime enforcement
+**Current work package:** SWO-02 Tranche D, rollout and confirmation
 
 ## 1. Executive result
 
-SWO-01 has a production-capable OpenTelemetry/OTLP export path, low-cardinality actor and NATS instruments, detailed actor processing-stage timing, focused correctness tests, and a BenchmarkDotNet overhead measurement. SWO-02 Tranches A and B add aggregate actor admission contracts, observe-only evidence, and allocation-free runtime enforcement with exact capacity ownership. Production configuration remains `ObserveOnly` until capacity evidence and Tranche C transport policies are approved.
+SWO-01 has a production-capable OpenTelemetry/OTLP export path, low-cardinality actor and NATS instruments, detailed actor processing-stage timing, focused correctness tests, and a BenchmarkDotNet overhead measurement. SWO-02 Tranches A through D add aggregate actor admission contracts, observe-only evidence, allocation-free runtime enforcement, explicit Core overload results, durable JetStream redelivery, required route migration, and local enforced saturation confirmation. Production configuration remains `ObserveOnly` until production-like capacity evidence is recorded and approved.
 
 The code tranche is implemented and verified, but SWO-01 remains in **Measuring** status until a production-like collector and paper-trading run provide the required p95/p99 attribution and exporter/load evidence. This document distinguishes implemented evidence from work that still requires a live topology.
 
@@ -206,7 +206,7 @@ Tranche A adds:
 - configurable Core NATS dispatcher/subscription capacity and JetStream dispatcher/outstanding/refill capacity; and
 - a zero-retained-idle-queue lifecycle test and focused validation of options, accounting, payload ownership, and compatibility defaults.
 
-`Enforce` mode is now implemented by Tranche B at the actor-runtime boundary. The checked-in host configuration remains `ObserveOnly`; transport-specific command/query replies and durable-event rejection behavior belong to Tranche C and must be complete before production enforcement.
+`Enforce` mode is implemented at the actor-runtime boundary, and Tranches C/D complete the transport rejection contracts and required route migration. The checked-in host configuration remains `ObserveOnly` until production-like measurements support approved count, byte, payload, and mailbox limits.
 
 ### 7.2 Admission microbenchmark
 
@@ -293,6 +293,77 @@ The exact final domain TRX evidence is under `TestResults/SystemWideOptimization
 
 The full gate also verified two integration details that were corrected during the tranche: an event listener may legitimately start multiple mailbox-key subscriptions, and futures tick-date query parameters now preserve all seven .NET fractional-second digits. The latter has a deterministic BDD regression test and avoids silently truncating a `TimeOnly` value to milliseconds.
 
+### 7.8 Tranche C transport behavior
+
+Tranche C adds:
+
+- a stable, non-sensitive retryable overload response with error code `-429`;
+- a structurally compatible `ServiceResult<object>` failure whose null value deserializes as `ServiceResult<TResult>` without inspecting or deserializing the rejected request;
+- exact once-only rejected-message disposal even when the reply attempt fails;
+- explicit Core fire-and-forget classes: request/reply-only, durable live copy, optional, required non-durable, and unknown;
+- startup rejection in `Enforce` mode for unknown or required non-durable traffic;
+- one delayed JetStream NAK after any required fan-out branch rejects, with no ACK for that delivery;
+- separate overload reply, NAK, optional-drop, and redelivery metrics; and
+- enforced-mode validation requiring owned JetStream fan-out payloads and a positive NAK delay.
+
+At Tranche C completion, the repository audit recorded Command and Supervisor fire-and-forget paths as required non-durable, Query as request/reply-only, Event as a durable live copy, and Notify/UI as optional. The configuration was therefore intentionally ineligible for `Enforce`; Tranche D resolves those required routes while retaining the startup guard for unknown or newly introduced required-non-durable traffic.
+
+The Tranche B admission benchmark remains the applicable hot-path measurement because Tranche C does not change accepted mailbox admission. Transport rejection necessarily performs reply serialization/network I/O or a JetStream acknowledgement and is tested as an end-to-end contract rather than compared with the allocation-free admission threshold.
+
+### 7.9 Tranche C verification
+
+The final Tranche C Release gate passed in full:
+
+| Gate | Result |
+| --- | ---: |
+| Complete solution Release build | 0 warnings, 0 errors |
+| `TomasAI.IFM.Shared.UnitTests` | 82/82 passed |
+| `TomasAI.IFM.Framework.Messaging.Nats.UnitTests` | 52/52 passed |
+| `TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests` | 45/45 passed |
+| Ten domain integration projects | 193/193 passed |
+
+The real-network NATS gate covers typed command and query overload replies through both owned and legacy payload paths, plus a rejected JetStream branch that receives a configured delayed NAK and succeeds on redelivery after simulated admission recovery. Unit coverage verifies four representative generic result shapes, reply-failure disposal, optional-drop disposal, fan-out ACK/NAK finalization, shared-payload reference counts, and enforcement startup validation.
+
+The exact final domain TRX evidence is under `TestResults/SystemWideOptimizationTrancheCFinal/` and is intentionally not source-controlled.
+
+### 7.10 Tranche D route migration and enforced stress
+
+The production Command helper paths in `ActorService`, `UIActorService`, and `EventActorContext` now use Core request/reply instead of fire-and-forget publication. The helpers preserve transport failures such as retryable overload code `-429`; `EventActorContext` raises a `CommandException` when the command is not accepted. Commandless exception notifications are routed as durable Events. No production Supervisor actor exists, so the unused Supervisor Core consumer was removed from runtime startup. A manually started unknown or required-non-durable consumer still fails startup in `Enforce`.
+
+Checked-in development and production configurations now classify Command and Query as request/reply-only, Event as a durable live copy, and Notify/UI as optional. Both configurations deliberately remain `ObserveOnly` with zero unapproved limits.
+
+The Release local stress baseline produced:
+
+| Scenario | Evidence |
+| --- | --- |
+| Eight-worker mixed traffic | 400,000 reserve/releases in 0.156 s; approximately 2.56 million operations/s |
+| Process CPU during mixed traffic | 1.188 CPU-s over 0.156 wall-s; approximately 7.6 logical cores, or 23.8% of 32 visible processors |
+| Process memory during mixed traffic | 15,256 allocated bytes and 929,792-byte working-set increase including the harness; isolated BenchmarkDotNet admission remains 0 B/op |
+| Bounds and recovery | Peak eight concurrent reservations; configured limits never exceeded; message and byte accounting returned to zero |
+| Hot mailbox | 100,000 attempts at approximately 2.01 million attempts/s; exactly 64 accepted and 99,936 immediately rejected |
+
+These values demonstrate local mechanism capacity and accounting. They do not select production limits and are not a substitute for market-open, reconnect, replay, working-set, and GC measurements in the capacity worksheet.
+
+### 7.11 Tranche D verification
+
+The final Tranche D Release gate passed in full:
+
+| Gate | Result |
+| --- | ---: |
+| Enforced admission stress tests | 2/2 passed |
+| Real-network overload/recovery scenarios | 5/5 passed |
+| `TomasAI.IFM.Shared.UnitTests` | 86/86 passed |
+| `TomasAI.IFM.Framework.Messaging.Nats.UnitTests` | 56/56 passed |
+| `TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests` | 45/45 passed |
+| Complete solution Release build | 0 warnings, 0 errors |
+| Ten domain integration projects | 193/193 passed |
+
+The complete NATS run exposed a parallel-load-sensitive SPSC concurrency test: under competing integration work, its fixed ten-second cancellation expired before completing 10,000 operations, while isolated Release runs completed all operations in 22-23 ms. The test now uses dedicated producer/consumer threads and a non-parallel xUnit collection so unrelated integration activity cannot turn a ring-buffer correctness check into a host-scheduling test. Its timeout was not increased.
+
+Real-network Enforce coverage uses an actual admission controller and an oversized payload, proves typed `-429` command/query results through owned and legacy payload paths, and proves delayed JetStream redelivery after recovery. Existing reconnect, replay, ownership, shutdown, and accounting tests remain part of the complete NATS and actor-runtime gates.
+
+The exact final domain TRX evidence is under `TestResults/SystemWideOptimizationTrancheDFinal/` and is intentionally not source-controlled. SWO-02 remains in progress because production-like ObserveOnly/paper-trading measurements, capacity approval, and explicit production activation are still pending.
+
 ## 8. References
 
 - [OpenTelemetry .NET metrics documentation](https://opentelemetry.io/docs/languages/dotnet/metrics/)
@@ -310,3 +381,5 @@ The full gate also verified two integration details that were corrected during t
 | 0.1 | 2026-08-09 | Recorded SWO-01 implementation, benchmark, focused tests, complete domain integration gate, defect correction, and remaining production-like measurements. |
 | 0.2 | 2026-08-09 | Recorded SWO-02 Tranche A contracts, observe-only instrumentation, configurable capacity geometry, microbenchmark result, and pending production-like capacity evidence. |
 | 0.3 | 2026-08-09 | Recorded SWO-02 Tranche B atomic runtime enforcement, concurrency and lifecycle coverage, accepted/rejected benchmarks, complete Release verification, and pending transport activation. |
+| 0.4 | 2026-08-09 | Recorded SWO-02 Tranche C Core classification, typed overload replies, delayed JetStream redelivery, transport metrics, complete Release verification, and the remaining rollout gate. |
+| 0.5 | 2026-08-09 | Recorded SWO-02 Tranche D route migration, local enforced stress and CPU/allocation evidence, complete regression verification, and the remaining production capacity/activation gate. |

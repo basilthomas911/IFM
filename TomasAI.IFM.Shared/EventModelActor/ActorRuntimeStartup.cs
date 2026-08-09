@@ -12,7 +12,7 @@ public static class ActorRuntimeStartup
 {
     const string ServiceId = nameof(ActorRuntimeStartup);
     static readonly ActorType[] ConsumerTypes =
-        [ActorType.Command, ActorType.Query, ActorType.Supervisor];
+        [ActorType.Command, ActorType.Query];
     static readonly ActorType[] JetStreamConsumerTypes = [ActorType.Event];
 
     /// <summary>

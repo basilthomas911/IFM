@@ -231,11 +231,11 @@ public static class Startup
             var natsConsumerOptions = config
                 .GetSection(NatsConsumerOptions.SectionName)
                 .Get<NatsConsumerOptions>() ?? new NatsConsumerOptions();
-            natsConsumerOptions.Validate();
+            natsConsumerOptions.Validate(admissionOptions);
             var natsJetStreamConsumerOptions = config
                 .GetSection(NatsJetStreamConsumerOptions.SectionName)
                 .Get<NatsJetStreamConsumerOptions>() ?? new NatsJetStreamConsumerOptions();
-            natsJetStreamConsumerOptions.Validate();
+            natsJetStreamConsumerOptions.Validate(admissionOptions);
 
             services.AddSingleton(admissionOptions);
             services.AddSingleton<ActorAdmissionController>();

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
@@ -124,11 +125,18 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// <param name="command">The command instance to send, containing the subject and any relevant data for processing.</param>
     /// <param name="entityId">The identifier of the entity to which the command is directed. Used to route the command appropriately.</param>
     /// <returns>A ValueTask that represents the asynchronous operation of sending the command.</returns>
-    public ValueTask SendAsync<TCommand, TEntityId>(TCommand command, TEntityId entityId)
+    public async ValueTask SendAsync<TCommand, TEntityId>(TCommand command, TEntityId entityId)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
-        => (_producer ??= _supervisor.GetProducer(_actorId))
-            .SendAsync(command.Subject, command, entityId);
+    {
+        var result = await (_producer ??= _supervisor.GetProducer(_actorId))
+            .RequestAsync<TCommand, TEntityId, GuidResult>(
+                command.Subject,
+                command,
+                entityId).ConfigureAwait(false);
+        if (!result.Success)
+            throw new CommandException(result.ErrorCode, result.ErrorMessage);
+    }
 
     /// <summary>
     /// Adds an event router that facilitates message routing between two actor mailboxes.

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
@@ -41,13 +42,22 @@ public class NatsConsumerOptions : INatsConsumerOptions
     /// <inheritdoc />
     public bool UseOwnedQueryPayloads { get; set; } = true;
 
+    /// <inheritdoc />
+    public Dictionary<ActorType, CoreNatsTrafficClass> FireAndForgetTraffic { get; set; } = [];
+
     public int GetSubscriptionCapacity()
         => SubscriptionCapacity > 0
             ? SubscriptionCapacity
             : checked(DispatcherCapacity * DispatcherCount);
 
-    public void Validate()
+    public CoreNatsTrafficClass GetFireAndForgetTrafficClass(ActorType actorType)
+        => FireAndForgetTraffic.TryGetValue(actorType, out var trafficClass)
+            ? trafficClass
+            : CoreNatsTrafficClass.Unknown;
+
+    public void Validate(ActorAdmissionOptions? admissionOptions = null)
     {
+        FireAndForgetTraffic ??= [];
         if (string.IsNullOrWhiteSpace(Url))
             throw new InvalidOperationException($"{nameof(Url)} is required.");
         if (DispatcherCount <= 0)
@@ -57,5 +67,45 @@ public class NatsConsumerOptions : INatsConsumerOptions
         if (SubscriptionCapacity < 0)
             throw new InvalidOperationException($"{nameof(SubscriptionCapacity)} cannot be negative.");
         _ = GetSubscriptionCapacity();
+
+        foreach (var (actorType, trafficClass) in FireAndForgetTraffic)
+        {
+            if (!Enum.IsDefined(actorType))
+                throw new InvalidOperationException($"Unknown actor type '{actorType}' in Core NATS traffic classification.");
+            if (!Enum.IsDefined(trafficClass))
+                throw new InvalidOperationException($"Unknown Core NATS traffic class '{trafficClass}'.");
+            if (trafficClass == CoreNatsTrafficClass.DurableLiveCopy && actorType != ActorType.Event)
+            {
+                throw new InvalidOperationException(
+                    $"{CoreNatsTrafficClass.DurableLiveCopy} is valid only for {ActorType.Event} traffic.");
+            }
+        }
+
+        if (admissionOptions?.Mode != ActorAdmissionMode.Enforce)
+            return;
+
+        foreach (var actorType in new[] { ActorType.Command, ActorType.Query })
+        {
+            var trafficClass = GetFireAndForgetTrafficClass(actorType);
+            if (trafficClass == CoreNatsTrafficClass.Unknown)
+            {
+                throw new InvalidOperationException(
+                    $"Enforced actor admission requires an explicit Core NATS traffic classification for {actorType}.");
+            }
+            if (trafficClass == CoreNatsTrafficClass.RequiredNonDurable)
+            {
+                throw new InvalidOperationException(
+                    $"Enforced actor admission is blocked while {actorType} has required non-durable Core NATS traffic.");
+            }
+        }
+
+        foreach (var actorType in new[] { ActorType.Command, ActorType.Query })
+        {
+            if (GetFireAndForgetTrafficClass(actorType) != CoreNatsTrafficClass.RequestReplyOnly)
+            {
+                throw new InvalidOperationException(
+                    $"Core NATS {actorType} traffic must be classified as {CoreNatsTrafficClass.RequestReplyOnly}.");
+            }
+        }
     }
 }

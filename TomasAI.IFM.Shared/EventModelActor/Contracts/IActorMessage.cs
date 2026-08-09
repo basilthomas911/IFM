@@ -12,6 +12,12 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// which identifies  the actor or entity associated with the message.</remarks>
 public interface IActorMessage : IDisposable
 {
+    /// <summary>
+    /// Gets whether the transport supplied a reply subject that remains valid
+    /// after the request payload is released.
+    /// </summary>
+    bool CanReply => false;
+
     /// <summary>Serialized payload bytes charged to aggregate admission accounting.</summary>
     int AdmissionSizeBytes => 0;
 

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
+using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
@@ -44,6 +45,22 @@ internal static class NatsMessagingMetrics
         "ifm.nats.operation.failures",
         description: "NATS publish or request operations that failed.");
 
+    public static readonly Counter<long> OverloadReplies = Meter.CreateCounter<long>(
+        "ifm.nats.overload.replies",
+        description: "Core NATS overload reply attempts by actor type and outcome.");
+
+    public static readonly Counter<long> OverloadNaks = Meter.CreateCounter<long>(
+        "ifm.nats.overload.naks",
+        description: "JetStream overload negative acknowledgements by actor type and outcome.");
+
+    public static readonly Counter<long> OptionalDrops = Meter.CreateCounter<long>(
+        "ifm.nats.overload.optional_drops",
+        description: "Explicitly classified optional Core NATS messages dropped during overload.");
+
+    public static readonly Counter<long> JetStreamRedeliveries = Meter.CreateCounter<long>(
+        "ifm.nats.messages.redelivered",
+        description: "JetStream deliveries whose server delivery count is greater than one.");
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static long StartOperation()
         => OperationDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
@@ -62,4 +79,29 @@ internal static class NatsMessagingMetrics
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void RecordOperationFailure(string operation)
         => OperationFailures.Add(1, new KeyValuePair<string, object?>("operation", operation));
+
+    internal static void RecordOverloadReply(ActorType actorType, string outcome)
+        => OverloadReplies.Add(
+            1,
+            new KeyValuePair<string, object?>("actor.type", actorType.ToStringFast()),
+            new KeyValuePair<string, object?>("outcome", outcome));
+
+    internal static void RecordOverloadNak(ActorType actorType, string outcome)
+        => OverloadNaks.Add(
+            1,
+            new KeyValuePair<string, object?>("actor.type", actorType.ToStringFast()),
+            new KeyValuePair<string, object?>("outcome", outcome));
+
+    internal static void RecordOptionalDrop(
+        ActorType actorType,
+        CoreNatsTrafficClass trafficClass)
+        => OptionalDrops.Add(
+            1,
+            new KeyValuePair<string, object?>("actor.type", actorType.ToStringFast()),
+            new KeyValuePair<string, object?>("traffic.class", trafficClass.ToString()));
+
+    internal static void RecordJetStreamRedelivery(ActorType actorType)
+        => JetStreamRedeliveries.Add(
+            1,
+            new KeyValuePair<string, object?>("actor.type", actorType.ToStringFast()));
 }

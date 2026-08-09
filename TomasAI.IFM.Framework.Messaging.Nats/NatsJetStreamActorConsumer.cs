@@ -30,7 +30,8 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 public class NatsJetStreamActorConsumer(
     INatsJetStreamConsumerOptions options,
     ILogger logger,
-    NatsConnectionManager? connectionManager = null)
+    NatsConnectionManager? connectionManager = null,
+    ActorAdmissionOptions? admissionOptions = null)
     : IJSActorConsumer
 {
     readonly INatsJetStreamConsumerOptions _options = IsArgumentNull.Set(options);
@@ -39,6 +40,8 @@ public class NatsJetStreamActorConsumer(
     readonly string _serviceId = "NatsJetStreamActorConsumer";
     readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
+    readonly TimeSpan _negativeAcknowledgeDelay = TimeSpan.FromMilliseconds(
+        Math.Max(0, admissionOptions?.JetStreamNakDelayMilliseconds ?? 250));
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     IActorSupervisor _supervisor = default!;
     ActorType _actorType;
@@ -383,6 +386,8 @@ public class NatsJetStreamActorConsumer(
                     }
                     messagesRead++;
                     NatsMessagingMetrics.Received.Add(1);
+                    if (msg.Metadata?.NumDelivered > 1)
+                        NatsMessagingMetrics.RecordJetStreamRedelivery(_actorType);
                     if (_logger.IsEnabled(LogLevel.Debug))
                         _logger.LogDebug("NATS JetStream {ActorType} consumer received message for subject={Subject}", _actorType, msg.Subject);
 
@@ -465,6 +470,8 @@ public class NatsJetStreamActorConsumer(
                     ownerTransferred = true;
                     messagesRead++;
                     NatsMessagingMetrics.Received.Add(1);
+                    if (msg.Metadata?.NumDelivered > 1)
+                        NatsMessagingMetrics.RecordJetStreamRedelivery(_actorType);
 
                     var sourceSubject = msg.Subject.ToSubject();
                     var routes = _supervisor.GetEventRoutes(sourceSubject.ActorTypeId);
@@ -481,7 +488,11 @@ public class NatsJetStreamActorConsumer(
                         continue;
                     }
 
-                    var delivery = EventFanoutDelivery.Create(msg, destinations.Count);
+                    var delivery = EventFanoutDelivery.Create(
+                        msg,
+                        destinations.Count,
+                        _negativeAcknowledgeDelay,
+                        _actorType);
                     foreach (var destination in destinations)
                     {
                         await ScheduleOwnedBranchAsync(

@@ -24,6 +24,8 @@ public sealed class NatsActorMessage(NatsMsg<byte[]> natsMessage)
 
     public int AdmissionSizeBytes => NatsMessage.Data?.Length ?? 0;
 
+    public bool CanReply => !string.IsNullOrEmpty(NatsMessage.ReplyTo);
+
     public TCommand? AsCommand<TCommand>() where TCommand : class, ICommand
        => _dataSerializer.Deserialize<TCommand>(NatsMessage.Data!);
 

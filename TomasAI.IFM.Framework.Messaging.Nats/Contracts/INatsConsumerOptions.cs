@@ -1,4 +1,6 @@
 using System.Text.Json;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 
@@ -38,4 +40,10 @@ public interface INatsConsumerOptions
     /// through actor deserialization. Disable only for controlled A/B diagnostics.
     /// </summary>
     bool UseOwnedQueryPayloads { get; set; }
+
+    /// <summary>
+    /// Gets or sets the explicit loss/retry contract for messages without a
+    /// reply subject, keyed by actor type.
+    /// </summary>
+    Dictionary<ActorType, CoreNatsTrafficClass> FireAndForgetTraffic { get; set; }
 }

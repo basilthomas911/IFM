@@ -99,7 +99,7 @@ Databento is the primary market-data implementation. A future Interactive Broker
 | Order | Work package | Priority | Status | Primary outcome |
 | ---: | --- | --- | --- | --- |
 | 1 | Operational metrics export and stage timing | P0 | Measuring | Make system bottlenecks and regressions observable in paper trading. |
-| 2 | Aggregate actor backlog and overload control | P0 | Proposed | Bound total actor memory and provide explicit system-wide backpressure. |
+| 2 | Aggregate actor backlog and overload control | P0 | In progress | Bound total actor memory and provide explicit system-wide backpressure. |
 | 3 | Actor startup readiness gate | P0 | Proposed | Prevent intake before every actor-owned dependency is ready. |
 | 4 | Databento tick-price actor pipeline | P0 | Paused | Convert the proven feed into the production actor/event persistence path. |
 | 5 | ScyllaDB analytics query projections | P1 | Proposed | Remove remaining active `ALLOW FILTERING` signal reads. |
@@ -159,9 +159,9 @@ Implementation, benchmark, validation, dashboard guidance, and remaining evidenc
 ### SWO-02: Aggregate actor backlog and overload control
 
 **Priority:** P0  
-**Status:** In progress; Tranches A and B implemented, production remains ObserveOnly
+**Status:** In progress; Tranches A through D implemented locally, production remains ObserveOnly
 
-The detailed design, implementation tranches, overload contracts, test matrix, benchmark gates, rollout, and review decisions are defined in `Documents/system/Aggregate-Actor-Backlog-Overload-Control-Implementation-Plan.md`. Tranche A contracts, configuration, observe-only accounting, and the capacity worksheet are implemented. Tranche B adds allocation-free runtime enforcement and deterministic capacity ownership. Production enforcement and Tranche C transport behavior remain blocked pending measured limits and Core traffic classification.
+The detailed design, implementation tranches, overload contracts, test matrix, benchmark gates, rollout, and review decisions are defined in `Documents/system/Aggregate-Actor-Backlog-Overload-Control-Implementation-Plan.md`. Tranche A contracts, configuration, observe-only accounting, and the capacity worksheet are implemented. Tranche B adds allocation-free runtime enforcement and deterministic capacity ownership. Tranche C adds explicit Core request/reply failures, classified optional drops, delayed JetStream NAK/redelivery, and transport metrics. Tranche D migrates production Command sends to request/reply, removes the unused Supervisor consumer, and proves local enforced saturation and transport recovery. Production enforcement remains blocked pending production-like measurements, approved limits, and paper-trading rollout evidence.
 
 #### Objective
 
@@ -169,7 +169,7 @@ Bound total actor-runtime memory and make overload behavior explicit across many
 
 #### Current evidence
 
-Individual V2 entity queues previously had bounded slot accounting without a process-wide bound. Tranche B now supports atomic global and actor-type message/byte limits plus non-waiting per-entity enforcement while keeping the ready-mailbox channel physically unbounded and logically bounded by admitted non-empty mailboxes. Production remains in observe-only mode until the worksheet supplies approved capacities.
+Individual V2 entity queues previously had bounded slot accounting without a process-wide bound. Tranche B now supports atomic global and actor-type message/byte limits plus non-waiting per-entity enforcement while keeping the ready-mailbox channel physically unbounded and logically bounded by admitted non-empty mailboxes. Tranche C proves typed Core overload replies and delayed durable redelivery over a real NATS server. Tranche D removes the audited required-non-durable Command/Supervisor blocker and proves local limits remain bounded and drain to zero. Production remains in observe-only mode until the worksheet supplies approved capacities and a paper-trading run validates them.
 
 #### Design requirements
 
@@ -502,11 +502,11 @@ When specialized optimization work interrupts this plan:
 
 ### Current tranche
 
-**Work package:** SWO-02 Tranche B, actor runtime enforcement
-**State:** Implemented and verified in the working tree; production remains `ObserveOnly`
-**Implemented scope:** atomic global/type count and byte reservation, structured admission outcomes, non-waiting enforced mailbox slots, exact rollback/release, race-safe cold queue creation, retirement transfer, and structured production call sites
-**Validation recorded:** enforced accepted admission adds 57.38 ns over disabled operation with no reported per-operation allocation or lock contention; enforced rejection paths complete in 4.42-91.94 ns; focused and full-suite results are recorded in `System-Wide-Optimization-Results.md`
-**Next action:** collect and approve capacity evidence, classify Core traffic, and review Tranche C command/query replies and JetStream NAK behavior before transport enforcement
+**Work package:** SWO-02 Tranche D, rollout and confirmation
+**State:** Local implementation and confirmation complete; production remains `ObserveOnly`
+**Implemented scope:** production Command request/reply migration with transport-error preservation, durable routing for commandless exception events, removal of the unused Supervisor consumer, enforced startup guards, local mixed/hot saturation tests, real-network overload/recovery confirmation, and a starvation-resistant SPSC concurrency gate
+**Validation recorded:** 86/86 Shared unit tests, 56/56 NATS unit tests, 45/45 real-network NATS integration tests, a zero-warning solution build, and the complete 193/193 domain integration gate; details are recorded in `System-Wide-Optimization-Results.md`
+**Next action:** gather production-like ObserveOnly and paper-trading measurements, approve memory/count/byte limits, then explicitly authorize production `Enforce`
 
 This record is intentionally temporary and must be updated after the tranche is committed, revised, or abandoned.
 
@@ -525,6 +525,8 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 2026-08-09 | Keep SWO-01 in Measuring after code completion. | OTLP, instrumentation, tests, and the microbenchmark are complete, but paper-trading p95/p99 attribution still requires a production-like collector. |
 | 2026-08-09 | Implement SWO-02 Tranche A without enforcement. | Capacity values require production-like traffic and an approved memory budget; observe-only instrumentation gathers that evidence without changing admission behavior. |
 | 2026-08-09 | Implement Tranche B runtime enforcement without enabling it in production. | Runtime safety and performance can be proven with deterministic test limits while real capacities and transport-specific overload policies remain pending. |
+| 2026-08-09 | Implement Tranche C while keeping production in `ObserveOnly`. | Typed replies and durable redelivery can be proven now, but the audited required non-durable Command/Supervisor traffic must block enforcement until migrated. |
+| 2026-08-09 | Complete Tranche D locally without changing production mode. | Required Command/Supervisor routes are resolved and enforced behavior is verified, but capacity selection still requires production-like memory and traffic evidence. |
 
 ## 13. Revision history
 
@@ -535,6 +537,8 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 0.3 | 2026-08-09 | Added the detailed SWO-02 aggregate backlog and overload-control plan for review. |
 | 0.4 | 2026-08-09 | Recorded SWO-02 Tranche A contracts, observe-only accounting, configurable capacities, benchmark gate, and remaining capacity approval evidence. |
 | 0.5 | 2026-08-09 | Recorded SWO-02 Tranche B atomic enforcement, queue lifecycle safety, benchmark results, and the remaining transport-policy gate. |
+| 0.6 | 2026-08-09 | Recorded SWO-02 Tranche C Core classification, typed overload replies, delayed JetStream redelivery, transport metrics, and the remaining rollout gate. |
+| 0.7 | 2026-08-09 | Recorded SWO-02 Tranche D route migration, local saturation evidence, full regression confirmation, and the remaining production measurement and activation gate. |
 
 ## 14. Related documents
 

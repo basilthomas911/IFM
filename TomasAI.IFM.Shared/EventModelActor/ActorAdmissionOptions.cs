@@ -77,6 +77,16 @@ public sealed class ActorAdmissionOptions
             throw new InvalidOperationException(
                 "Enforced actor admission requires positive default actor-type message and byte limits.");
         }
+        if (JetStreamNakDelayMilliseconds <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Enforced actor admission requires a positive {nameof(JetStreamNakDelayMilliseconds)}.");
+        }
+        if (OverloadErrorCode == 0)
+        {
+            throw new InvalidOperationException(
+                $"Enforced actor admission requires a non-zero {nameof(OverloadErrorCode)}.");
+        }
 
         foreach (var actorType in new[]
                  {

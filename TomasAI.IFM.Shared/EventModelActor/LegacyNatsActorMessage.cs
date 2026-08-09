@@ -11,6 +11,8 @@ public sealed class LegacyNatsActorMessage(NatsMsg<byte[]> message) : IActorMess
 {
     public int AdmissionSizeBytes => message.Data?.Length ?? 0;
 
+    public bool CanReply => !string.IsNullOrEmpty(message.ReplyTo);
+
     public ActorSubject Subject { get; } = message.Subject.ToSubject();
 
     public ActorSubject ReplySubject { get; set; } = default!;

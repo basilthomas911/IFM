@@ -1,6 +1,6 @@
 # Actor Backlog Capacity Worksheet
 
-**Work package:** SWO-02 Tranche A
+**Work package:** SWO-02 Tranche D rollout inputs
 **Status:** Measurement template active; production enforcement values are not approved
 **Created:** 2026-08-09
 **Last updated:** 2026-08-09
@@ -69,6 +69,12 @@ Reproduce with:
 dotnet run --project TomasAI.IFM.Framework.Messaging.Nats.Benchmarks -c Release -- --filter "*ActorAdmissionBenchmarks*"
 ```
 
+### 3.3 Tranche D local enforced stress baseline
+
+A Release stress run used eight concurrent workers and 400,000 mixed Command, Query, Event, Notify, and UI reserve/release operations. It completed in 0.156 seconds at approximately 2.56 million operations per second. Process CPU time was 1.188 seconds, equivalent to about 7.6 logical cores during the measured interval or 23.8% of the 32 logical processors visible on this host. Total process allocations observed across the test interval were 15,256 bytes and working set increased by 929,792 bytes; both process-level observations include the test harness and should not replace the BenchmarkDotNet zero-allocation result or production-like retained-memory profiling. Peak simultaneous reservations were eight, configured bounds were never exceeded, and all message/byte counters returned to zero.
+
+A separate hot-mailbox run attempted 100,000 writes against a 64-message mailbox. It accepted exactly 64 and rejected 99,936 immediately at approximately 2.01 million attempts per second. Draining the accepted messages returned the mailbox and process admission counters to zero. These are local mechanism measurements, not production capacity inputs.
+
 ## 4. Measurements required from ObserveOnly
 
 Complete this table separately for normal flow, market open, reconnect, and JetStream replay.
@@ -99,6 +105,10 @@ The relevant Tranche A instruments are:
 - `ifm.actor.admission.would_reject`;
 - existing mailbox, ready-queue, queue-wait, handler, and runtime instruments; and
 - existing NATS receive, failure, and operation instruments.
+
+Tranche C also adds `ifm.nats.overload.replies`, `ifm.nats.overload.naks`,
+`ifm.nats.overload.optional_drops`, and `ifm.nats.messages.redelivered` for
+transport-policy confirmation.
 
 ## 5. Memory-budget inputs
 
@@ -156,16 +166,29 @@ Per-actor-type limits should be derived from observed traffic and failure conseq
 | Command message/byte limits | Pending | Requires Command burst evidence |
 | Query message/byte limits | Pending | Requires Query burst evidence |
 | Event message/byte limits | Pending | Requires market-open and replay evidence |
-| Notify message/byte limits | Pending | Requires traffic classification |
-| UI message/byte limits | Pending | Requires traffic classification |
+| Notify message/byte limits | Pending | Classified optional; requires traffic evidence |
+| UI message/byte limits | Pending | Classified optional; requires traffic evidence |
 | Per-entity mailbox limit | 8,192 compatibility value | Must be reduced or approved from hot-entity evidence |
 | Retained idle queues per actor | 1,024 compatibility value | Requires empty-queue footprint and actor-count evidence |
-| JetStream NAK delay | 250 ms candidate | Tranche C validation required |
-| Overload error code | `-429` candidate | Contract review required |
+| JetStream NAK delay | 250 ms candidate | Delayed NAK/redelivery contract validated; production tuning pending |
+| Overload error code | `-429` | Typed owned/legacy Core reply contract validated |
+
+### 7.1 Core traffic inventory
+
+| Actor type | Current classification | Enforcement consequence |
+| --- | --- | --- |
+| Query | Request/reply only | Retryable typed overload reply is permitted. |
+| Command | Request/reply only | Production send helpers wait for and preserve retryable transport failures. |
+| Supervisor | No active production consumer | The unused consumer is not started; a manually started unclassified consumer is rejected in `Enforce`. |
+| Event | Durable live copy | Optional Core copy may be dropped only because JetStream owns the durable delivery. |
+| Notify | Optional | Explicit measured drop is permitted. |
+| UI | Optional | Explicit measured drop is permitted. |
+
+Unknown traffic is always an enforcement startup error. The checked-in application configuration records this inventory explicitly; it is not inferred from an actor-type default.
 
 ## 8. Approval gate
 
-Tranche B must not enable enforcement until the reviewer approves:
+Production must not enable enforcement until the reviewer approves:
 
 1. the actor backlog memory budget;
 2. global message and byte limits;
@@ -173,7 +196,8 @@ Tranche B must not enable enforcement until the reviewer approves:
 4. actor-type count and byte limits;
 5. per-entity mailbox capacity;
 6. retained idle queue count; and
-7. the ObserveOnly evidence attached to this worksheet.
+7. the ObserveOnly evidence attached to this worksheet; and
+8. a final route audit confirming no required non-durable Core traffic was introduced after this worksheet.
 
 ## 9. Revision history
 
@@ -181,3 +205,5 @@ Tranche B must not enable enforcement until the reviewer approves:
 | --- | --- | --- |
 | 0.1 | 2026-08-09 | Recorded compatibility geometry, Tranche A admission benchmark, required ObserveOnly measurements, formulas, and pending enforcement values. |
 | 0.2 | 2026-08-09 | Added Tranche B accepted and rejected runtime-enforcement benchmarks while retaining the pending production capacity gate. |
+| 0.3 | 2026-08-09 | Added Tranche C transport metrics, validated reply/NAK settings, explicit Core traffic inventory, and the required non-durable enforcement blocker. |
+| 0.4 | 2026-08-09 | Recorded the Tranche D enforced stress baseline, Command request/reply migration, inactive Supervisor route, and the remaining production measurement and capacity-approval gate. |

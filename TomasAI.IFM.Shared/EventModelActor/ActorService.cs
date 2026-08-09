@@ -48,8 +48,12 @@ public class ActorService(IActorSupervisor supervisor)
         {
             IsArgumentNull.Check(command);
             var producer = _supervisor.GetProducer(command.Subject.ActorId);
-            await producer.SendAsync(command.Subject, command, entityId, cancellationToken).ConfigureAwait(false);
-            return new ServiceResult<Guid>(command.CommandId);
+            var actorResult = await producer.RequestAsync<TCommand, TEntityId, GuidResult>(
+                command.Subject,
+                command,
+                entityId,
+                cancellationToken).ConfigureAwait(false);
+            return ActorCommandResult.ToGuidResult<TCommand, TEntityId>(command, actorResult);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -134,14 +138,7 @@ public class ActorService(IActorSupervisor supervisor)
                 command,
                 command.EntityId,
                 cancellationToken).ConfigureAwait(false);
-            return new ServiceResult<Guid>
-            {
-                Success = actorResult.Success,
-                ErrorCode = command.ErrorCode,
-                ErrorMessage = actorResult.ErrorMessage,
-                ErrorEvent = actorResult.ErrorEvent,
-                Value = command.CommandId,
-            };
+            return ActorCommandResult.ToGuidResult<TCommand, TEntityId>(command, actorResult);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -197,8 +194,12 @@ public class UIActorService(IActorProducer producer)
         try
         {
             IsArgumentNull.Check(command);
-            await _producer.SendAsync(command.Subject, command, entityId, cancellationToken).ConfigureAwait(false);
-            return new ServiceResult<Guid>(command.CommandId);
+            var actorResult = await _producer.RequestAsync<TCommand, TEntityId, GuidResult>(
+                command.Subject,
+                command,
+                entityId,
+                cancellationToken).ConfigureAwait(false);
+            return ActorCommandResult.ToGuidResult<TCommand, TEntityId>(command, actorResult);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -281,7 +282,7 @@ public class UIActorService(IActorProducer producer)
                 command,
                 command.EntityId,
                 cancellationToken).ConfigureAwait(false);
-            return new ServiceResult<Guid>(command.CommandId);
+            return ActorCommandResult.ToGuidResult<TCommand, TEntityId>(command, actorResult);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -297,5 +298,22 @@ public class UIActorService(IActorProducer producer)
             };
         }
     }
+}
+
+static class ActorCommandResult
+{
+    internal static ServiceResult<Guid> ToGuidResult<TCommand, TEntityId>(
+        TCommand command,
+        ServiceResult<GuidResult> actorResult)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
+        => new()
+        {
+            Success = actorResult.Success,
+            ErrorCode = actorResult.ErrorCode,
+            ErrorMessage = actorResult.ErrorMessage,
+            ErrorEvent = actorResult.ErrorEvent,
+            Value = actorResult.Value?.Guid ?? command.CommandId
+        };
 }
 

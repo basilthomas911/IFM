@@ -103,6 +103,19 @@ public class NatsOwnedEventMessageTests
     }
 
     [Fact]
+    public void DeliveryCoordinator_RetainsConfiguredDelayedNak()
+    {
+        var delay = TimeSpan.FromMilliseconds(175);
+        var delivery = new EventFanoutDelivery(
+            1,
+            () => ValueTask.CompletedTask,
+            () => ValueTask.CompletedTask,
+            delay);
+
+        delivery.NegativeAcknowledgeDelay.Should().Be(delay);
+    }
+
+    [Fact]
     public void FanoutRoutes_DeduplicatesPrimaryAndPreservesEventIdentity()
     {
         var source = CreateEvent().Subject;
