@@ -161,6 +161,8 @@ Implementation, benchmark, validation, dashboard guidance, and remaining evidenc
 **Priority:** P0  
 **Status:** Proposed  
 
+The detailed design, implementation tranches, overload contracts, test matrix, benchmark gates, rollout, and review decisions are defined in `Documents/system/Aggregate-Actor-Backlog-Overload-Control-Implementation-Plan.md`. That document is currently a draft for review; implementation has not started.
+
 #### Objective
 
 Bound total actor-runtime memory and make overload behavior explicit across many active entity mailboxes.
@@ -528,11 +530,13 @@ This record is intentionally temporary and must be updated after the tranche is 
 | --- | --- | --- |
 | 0.1 | 2026-08-07 | Created the living system-wide optimization plan from the completed domain reviews and remaining infrastructure priorities. |
 | 0.2 | 2026-08-09 | Recorded SWO-01 implementation and measurement status, promoted the complete domain integration gate, and linked the optimization results record. |
+| 0.3 | 2026-08-09 | Added the detailed SWO-02 aggregate backlog and overload-control plan for review. |
 
 ## 14. Related documents
 
 - `docs/Solution-Wide-Graceful-Cancellation-Implementation-Details.md`
 - `Documents/system/System-Wide-Optimization-Results.md`
+- `Documents/system/Aggregate-Actor-Backlog-Overload-Control-Implementation-Plan.md`
 - `docs/Domain-MarketData-Actor-Optimization-Report-2026-08.md`
 - `TomasAI.IFM.Framework.Messaging.Nats/PERFORMANCE.md`
 - `TomasAI.IFM.Framework.Messaging.Nats.Benchmarks/RESULTS.md`
