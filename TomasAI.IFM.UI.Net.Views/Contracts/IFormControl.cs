@@ -11,6 +11,14 @@ namespace TomasAI.IFM.UI.Net.Contracts
         void Close();
     }
 
+    /// <summary>
+    /// Extends a form control with an awaited close operation for controls that own asynchronous resources.
+    /// </summary>
+    public interface IAsyncFormControl : IFormControl
+    {
+        ValueTask CloseAsync();
+    }
+
     public static class IControlExtension
     {
         public static void ShowErrorMessage(this Control view, string errorMsg, string caption)
@@ -35,6 +43,33 @@ namespace TomasAI.IFM.UI.Net.Contracts
                 view?.BeginInvoke((MethodInvoker)(() => viewAction?.Invoke()));
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Dispatches an action to the UI thread and completes after the action has executed.
+        /// </summary>
+        public static async ValueTask PostAsync(
+            this Control view,
+            Action viewAction,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(view);
+            ArgumentNullException.ThrowIfNull(viewAction);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (view.IsDisposed || view.Disposing)
+                return;
+
+            try
+            {
+                await view.InvokeAsync(viewAction, cancellationToken);
+            }
+            catch (InvalidOperationException) when (view.IsDisposed || view.Disposing)
+            {
+            }
+            catch (ObjectDisposedException) when (view.IsDisposed || view.Disposing)
+            {
+            }
         }
            
 

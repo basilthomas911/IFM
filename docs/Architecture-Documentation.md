@@ -405,6 +405,21 @@ ActorSubject = (ActorType, Name, Verb, EntityId)
 ????????????????????????????????????????????????????????????????????????
 ```
 
+### Realtime UI Delivery Semantics
+
+Realtime transport delivery and UI rendering have different throughput requirements. NATS listeners receive the source event stream, while UI-specific processors control how replaceable display state reaches the WinForms message pump.
+
+| Data category | Delivery policy | Reason |
+|---|---|---|
+| Quotes, prices, Greeks, and display-only profit and loss | Bounded latest-value channel | Intermediate values become obsolete when a newer value arrives. Coalescing prevents UI backlog. |
+| Multi-instrument quote grids | Latest value per instrument | A single global capacity-one channel could discard another instrument's most recent value. |
+| Charts | Aggregate into the required time or price bucket before rendering | Rendering every source tick is unnecessary, but the aggregate must incorporate every required tick. |
+| Orders, fills, alerts, audit records, and state transitions | Lossless FIFO or durable messaging | Every message has business meaning and must not be discarded. |
+
+`LatestValueAsyncChannel<T>` is the shared in-process primitive for a single replaceable display stream. It uses a bounded `System.Threading.Channels` channel with capacity one, multiple writers, one asynchronous reader, and `DropOldest` behavior. The processor has no dedicated OS thread, never blocks on asynchronous work, serializes callbacks, logs callback failures, and supports awaited cancellation and disposal.
+
+UI handlers must await dispatch to the UI thread. Merely scheduling work with `BeginInvoke` does not provide render backpressure and can move an unbounded backlog into the WinForms message queue. Each screen owns the lifetime of its processors and stops them when its listener or view closes.
+
 ---
 
 ## 6. Storage Architecture

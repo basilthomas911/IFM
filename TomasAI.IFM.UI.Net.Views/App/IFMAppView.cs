@@ -66,7 +66,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
             updateTradeSignal: futuresTradeSignal => this.Post(() => marketOutlookView1.RefreshView(futuresTradeSignal)),
             notifyTradePlacement: placeTrade => this.Post(() => marketOutlookView1.RefreshView(placeTrade)),
             updateMarketData: (symbol, futuresBarData) => this.Post(() => marketDataView1.RefreshView(symbol, futuresBarData)),
-            closeTradeBlotters: () => this.Post(() => CloseTradeBlotters())
+            closeTradeBlotters: () => this.Post(() => _ = CloseTradeBlottersAsync().AsTask())
         );
 
         _tradePlanStateMap = new Dictionary<ActionState, Color> {
@@ -161,10 +161,10 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
         statusConsoleView1.ResizeView(pnlStatusConsole);
     }
 
-    private void btnCloseOrder_Click(object sender, EventArgs e)
+    private async void btnCloseOrder_Click(object sender, EventArgs e)
     {
         if (_tradeBlotter != null)
-            ((IFormControl)_tradeBlotter).Close();
+            await CloseControlAsync((IFormControl)_tradeBlotter);
          var tabPage = tabTradeBlotter.SelectedTab!;
         tabPage.Controls.Clear();
         tabTradeBlotter.TabPages.Remove(tabPage);
@@ -186,20 +186,28 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
             }
     }
 
-    private void CloseTradeBlotters()
+    private async ValueTask CloseTradeBlottersAsync()
     {
         foreach (TabPage tabPage in tabTradeBlotter.TabPages)
         {
             foreach (Control control in tabPage.Controls)
             {
                 if (control is IFormControl)
-                    ((IFormControl)control).Close();
+                    await CloseControlAsync((IFormControl)control);
             }
             tabPage.Controls.Clear();
             tabTradeBlotter.TabPages.Remove(tabPage);
             if (tabTradeBlotter.TabPages.Count == 0)
                 btnCloseOrder.Visible = false;
         }
+    }
+
+    static async ValueTask CloseControlAsync(IFormControl control)
+    {
+        if (control is IAsyncFormControl asyncControl)
+            await asyncControl.CloseAsync();
+        else
+            control.Close();
     }
 
     private void gridStatusConsole_CellContentClick(object sender, DataGridViewCellEventArgs e)

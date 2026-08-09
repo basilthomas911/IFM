@@ -271,6 +271,14 @@ Event callbacks may execute on a messaging callback thread. A callback that upda
 
 There is no SignalR path in the current UI. Live event delivery uses NATS event listeners.
 
+### Realtime display coalescing
+
+High-frequency display state is passed through `LatestValueAsyncChannel<T>` before it is posted to WinForms. The channel has capacity one and uses latest-value semantics: while the UI is processing one value, a newer value replaces any pending value. This prevents a slow UI message pump from building an unbounded backlog during market volatility.
+
+The Iron Condor trade-position listener uses this channel with a 50-millisecond minimum processing interval. Its handler awaits the UI-thread update, so at most one render is active and incoming updates are coalesced until the view is ready. Disabling the live feed or closing the control asynchronously stops the processor and rejects subsequent writes.
+
+Latest-value delivery is appropriate for replaceable screen state such as quotes, prices, Greeks, and display-only profit and loss. It must not be used for orders, fills, alerts, audit records, or state transitions, because those messages require lossless FIFO delivery. A multi-instrument display must preserve the latest value per instrument rather than placing all instruments into one capacity-one channel.
+
 ### Status-console flow
 
 `StatusConsoleModel` combines `IStatusConsoleWriter` with `IStatusConsoleEventConsumer`. Views and view models can publish informational or error status messages through the writer and subscribe to `StatusConsoleLoggedEvent` updates through the consumer. The main application view model routes those updates to both the status-console control and the one-line status label.
@@ -294,9 +302,10 @@ There is no SignalR path in the current UI. Live event delivery uses NATS event 
 
 - `ShowErrorMessage` posts a message box with `BeginInvoke`;
 - `Post` posts an arbitrary action with `BeginInvoke`;
+- `PostAsync` posts an action and completes only after the UI thread has executed it, with cancellation and disposal handling;
 - `Draw` disables redraw with the Win32 `WM_SETREDRAW` message, executes a drawing action on the UI thread, reenables redraw, and refreshes the control.
 
-The main form consistently uses `Post` for callbacks received from `IFMAppViewModel`. Several specialized trade controls use `Control.Invoke` directly. New event-driven screen updates must follow the same UI-thread rule.
+The main form consistently uses `Post` for callbacks received from `IFMAppViewModel`. Awaitable realtime processors use `PostAsync` so their backpressure includes the actual render rather than only scheduling it. Several specialized trade controls use `Control.Invoke` directly. New event-driven screen updates must follow the same UI-thread rule.
 
 ## Error handling
 
@@ -323,7 +332,8 @@ Use the following sequence when adding a feature:
 7. Add a view model that owns screen state and exposes callbacks without referencing WinForms controls.
 8. Add a form implementing `IForm<TForm>` or a control implementing `IFormControl`. Forms are discovered automatically and registered as singletons.
 9. Marshal every asynchronous control update onto the UI thread.
-10. Stop listeners and release per-screen state when a form or control closes.
+10. Use `LatestValueAsyncChannel<T>` only for replaceable display state; use a lossless FIFO mechanism for business events.
+11. Stop listeners and asynchronously dispose per-screen processors when a form or control closes.
 
 When a singleton form is reopened, its load method must fully reset any state that should not survive the previous display.
 

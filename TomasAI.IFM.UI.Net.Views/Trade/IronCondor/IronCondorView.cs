@@ -14,7 +14,7 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
-public partial class IronCondorView : UserControl, IFormControl
+public partial class IronCondorView : UserControl, IAsyncFormControl
 {
     Control _parentControl;
     IronCondorViewModel _viewModel;
@@ -83,7 +83,12 @@ public partial class IronCondorView : UserControl, IFormControl
     /// associated data feeds are disabled.</remarks>
     void IFormControl.Close()
     {
-        _viewModel.DisableLiveFeed();
+        _ = ((IAsyncFormControl)this).CloseAsync().AsTask();
+    }
+
+    async ValueTask IAsyncFormControl.CloseAsync()
+    {
+        await _viewModel.DisableLiveFeedAsync();
         _viewModel.DisableMarketDataFeedResetListener();
     }
 
@@ -129,10 +134,10 @@ public partial class IronCondorView : UserControl, IFormControl
         _viewModel.OnTradeInfoLoaded = (tradeInfo) => this.Post(() => ShowTradeInfo(tradeInfo));
         _viewModel.OnTradeLimitsLoaded = (orderId, o) => this.Post(() => ShowTradeLimits(orderId, o));
         _viewModel.OnIronCondorTradePositionsLoaded = (key, ironCondorTradeData, tradeLimit, openingNetSpread, fundBalance) => this.Post(() => ShowIronCondorTradePosition(key, ironCondorTradeData, tradeLimit, openingNetSpread, fundBalance));
-        _viewModel.OnIronCondorSpreadPathsLoaded = (key, ironCondorTradeData, tradeLimit, openingNetSpread, fundBalance) => this.Post(() => {
-            ShowIronCondorTradePosition(key, ironCondorTradeData, tradeLimit, openingNetSpread, fundBalance);
-            _viewModel.TradePositionUpdated();
-        });
+        _viewModel.OnIronCondorSpreadPathsLoaded = (key, ironCondorTradeData, tradeLimit, openingNetSpread, fundBalance, cancellationToken)
+            => this.PostAsync(
+                () => ShowIronCondorTradePosition(key, ironCondorTradeData, tradeLimit, openingNetSpread, fundBalance),
+                cancellationToken);
 
         _viewModel.OnOptionTradeSpreadBarDataLoaded = optionTradeSpreadBarUIData => this.Post(() => {
             ShowOptionTradeSpreadBarData(optionTradeSpreadBarUIData);
@@ -685,7 +690,7 @@ public partial class IronCondorView : UserControl, IFormControl
     /// </summary>
     /// <param name="sender">The event sender.</param>
     /// <param name="e">The event arguments.</param>
-    void ddlLiveFeed_SelectedIndexChanged(object sender, EventArgs e)
+    async void ddlLiveFeed_SelectedIndexChanged(object sender, EventArgs e)
     {
         if (!ddlLiveFeed.Enabled) return;
         switch ($"{ddlLiveFeed.SelectedItem}")
@@ -696,7 +701,7 @@ public partial class IronCondorView : UserControl, IFormControl
                 break;
             case IronCondorViewModel.LiveFeedOff:
                 ddlLiveFeed.Font = new Font(ddlLiveFeed.Font, FontStyle.Regular);
-                _viewModel.DisableLiveFeed();
+                await _viewModel.DisableLiveFeedAsync();
                 break;
         }
     }
