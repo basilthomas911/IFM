@@ -40,7 +40,7 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, SignalTradePlacementCommand.Actor, SignalTradePlacementCommand.Verb, entityId.Format()),
                 ErrorCode = SignalTradePlacementCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -69,7 +69,7 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, StartTradePlacementCommand.Actor, StartTradePlacementCommand.Verb, tradePlacementId.Format()),
                 ErrorCode = StartTradePlacementCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -99,7 +99,7 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, StopTradePlacementCommand.Actor, StopTradePlacementCommand.Verb, tradePlacementId.Format()),
                 ErrorCode = StopTradePlacementCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {

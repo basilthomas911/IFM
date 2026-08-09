@@ -1,12 +1,12 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesAtrSignal;
@@ -14,8 +14,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesAtrSig
 public class FuturesAtrSignalQueryApiTests(WebApplicationFactory<Program> factory, MarketDataAnalyticsFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataAnalyticsFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     async Task SeedAtrSignalAsync()
@@ -36,9 +35,7 @@ public class FuturesAtrSignalQueryApiTests(WebApplicationFactory<Program> factor
         await SeedAtrSignalAsync();
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
+        var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
         var response = await analyticsApi.GetFuturesAtrSignalAsync(SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength);
 
         // assert...

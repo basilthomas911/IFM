@@ -35,7 +35,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, StartFuturesRsiSignalCommand.Actor, StartFuturesRsiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = StartFuturesRsiSignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -61,7 +61,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, StopFuturesRsiSignalCommand.Actor, StopFuturesRsiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = StopFuturesRsiSignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -120,7 +120,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         var commandId = Guid.NewGuid();
         try
         {
-            return await SendAsync(createCommand(commandId), entityId);
+            return await RequestCommandAsync(createCommand(commandId), entityId);
         }
         catch (Exception ex)
         {
@@ -150,7 +150,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiSignalCommand.Actor, GenerateFuturesRsiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesRsiSignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -181,7 +181,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiDailySignalCommand.Actor, GenerateFuturesRsiDailySignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesRsiDailySignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -210,14 +210,14 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = new FuturesTradeSignalEntityId(futuresEodData.ContractId ?? string.Empty, futuresEodData.ValueDate, TimeFrameType.Daily);
-            var cmd = new UpdateFuturesTradeSignalCommand(futuresEodData, futuresRsiSignal, futuresTdiSignal, futuresItiSignalData, vixFuturesPrice)
+            var cmd = new UpdateFuturesTradeSignalCommand(futuresEodData, futuresRsiSignal, futuresTdiSignal, futuresItiSignalData, vixFuturesPrice);
+            cmd = cmd with
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, UpdateFuturesTradeSignalCommand.Actor, UpdateFuturesTradeSignalCommand.Verb, entityId.Format()),
+                Subject = new ActorSubject(ActorType.Command, UpdateFuturesTradeSignalCommand.Actor, UpdateFuturesTradeSignalCommand.Verb, cmd.EntityId.Format()),
                 ErrorCode = UpdateFuturesTradeSignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd!, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -245,7 +245,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesTdiSignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd!, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -277,7 +277,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesItiSignalCommand.Actor, GenerateFuturesItiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesItiSignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -304,7 +304,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, SetFuturesItiSignalHoldTradeCommand.Actor, SetFuturesItiSignalHoldTradeCommand.Verb, entityId.Format()),
                 ErrorCode = SetFuturesItiSignalHoldTradeCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -331,7 +331,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ClearFuturesItiSignalHoldTradeCommand.Actor, ClearFuturesItiSignalHoldTradeCommand.Verb, entityId.Format()),
                 ErrorCode = ClearFuturesItiSignalHoldTradeCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -350,23 +350,25 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     public async Task<ServiceResult<Guid>> GenerateFuturesAtrSignalAsync(FuturesAtrSignalId futuresAtrSignalId, FuturesItiSignalV2ReadModel[] futuresItiSignals)
     {
         Guid cmdId = Guid.NewGuid();
-        ServiceResult<Guid> serviceResult = new();
-        /*
+        ServiceResult<Guid> serviceResult;
         try
         {
-            var cmd = new GenerateFuturesAtrSignalCommand(futuresAtrSignalId, futuresItiSignals)
+            var entityId = futuresAtrSignalId.ToEntityId();
+            var futuresPrice = futuresItiSignals.Length > 0
+                ? (decimal)futuresItiSignals[^1].IntrinsicPrice
+                : 0m;
+            var cmd = new GenerateFuturesAtrSignalCommand(futuresAtrSignalId, futuresPrice)
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrSignalCommand.Actor, GenerateFuturesAtrSignalCommand.Verb, cmd.EntityId.Format()),
+                Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrSignalCommand.Actor, GenerateFuturesAtrSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesAtrSignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
             serviceResult = OnError(ex, cmdId, GenerateFuturesAtrSignalCommand.ErrorId);
         }
-        */
         return serviceResult;
     }
 
@@ -390,7 +392,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrSignalCommand.Actor, GenerateFuturesAtrSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesAtrSignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -418,7 +420,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxSignalCommand.Actor, GenerateFuturesAdxSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesAdxSignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -446,7 +448,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesMacdSignalCommand.Actor, GenerateFuturesMacdSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesMacdSignalCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {

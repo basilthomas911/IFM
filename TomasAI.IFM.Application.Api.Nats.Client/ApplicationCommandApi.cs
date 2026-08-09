@@ -37,7 +37,7 @@ public class ApplicationCommandApi(IActorProducer actorProducer)
                 EntityId = entityId,
                 ErrorCode = StartApplicationCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -64,7 +64,7 @@ public class ApplicationCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ShutdownApplicationCommand.Actor, ShutdownApplicationCommand.Verb, entityId.Format()),
                 ErrorCode = ShutdownApplicationCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {

@@ -35,7 +35,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, CreateFundCommand.Actor, CreateFundCommand.Verb, entityId.Format()),
                 ErrorCode = CreateFundCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -63,7 +63,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddOrderToFundCommand.Actor, AddOrderToFundCommand.Verb, entityId.Format()),
                 ErrorCode = AddOrderToFundCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -90,7 +90,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveOrderFromFundCommand.Actor, RemoveOrderFromFundCommand.Verb, entityId.Format()),
                 ErrorCode = RemoveOrderFromFundCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -117,7 +117,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddTradeToFundOrderCommand.Actor, AddTradeToFundOrderCommand.Verb, entityId.Format()),
                 ErrorCode = AddTradeToFundOrderCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -144,7 +144,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveTradeFromFundOrderCommand.Actor, RemoveTradeFromFundOrderCommand.Verb, entityId.Format()),
                 ErrorCode = RemoveTradeFromFundOrderCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -171,7 +171,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, CloseFundOrderCommand.Actor, CloseFundOrderCommand.Verb, entityId.Format()),
                 ErrorCode = CloseFundOrderCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -200,7 +200,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ChangeFundOrderTradeStateCommand.Actor, ChangeFundOrderTradeStateCommand.Verb, entityId.Format()),
                 ErrorCode = ChangeFundOrderTradeStateCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -228,7 +228,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ChangeFundOrderTradeStateCommand.Actor, ChangeFundOrderTradeStateCommand.Verb, entityId.Format()),
                 ErrorCode = ChangeFundOrderTradeStateCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -256,7 +256,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFundMaxProfitCommand.Actor, GenerateFundMaxProfitCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFundMaxProfitCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -283,7 +283,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, CreateFundTransactionCommand.Actor, CreateFundTransactionCommand.Verb, entityId.Format()),
                 ErrorCode = CreateFundTransactionCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -312,7 +312,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, CreateFundTransactionsCommand.Actor, CreateFundTransactionsCommand.Verb, entityId.Format()),
                 ErrorCode = CreateFundTransactionsCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -341,7 +341,7 @@ public class FundCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ProcessEndOfDayFundTransactionCommand.Actor, ProcessEndOfDayFundTransactionCommand.Verb, entityId.Format()),
                 ErrorCode = ProcessEndOfDayFundTransactionCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {

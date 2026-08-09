@@ -43,7 +43,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, InsertSpreadDistributionCommand.Actor, InsertSpreadDistributionCommand.Verb, entityId.Format()),
                 ErrorCode = InsertSpreadDistributionCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -74,7 +74,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, DeleteSpreadDistributionCommand.Actor, DeleteSpreadDistributionCommand.Verb, entityId.Format()),
                 ErrorCode = DeleteSpreadDistributionCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -103,7 +103,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
             };
             var entityId = cmd.EntityId;
             cmd = cmd with { Subject = new ActorSubject(ActorType.Command, SubmitSpreadDistributionJobCommand.Actor, SubmitSpreadDistributionJobCommand.Verb, entityId.Format()) };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -135,7 +135,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, CompleteSpreadDistributionJobCommand.Actor, CompleteSpreadDistributionJobCommand.Verb, entityId.Format()),
                 ErrorCode = CompleteSpreadDistributionJobCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -169,7 +169,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, FailSpreadDistributionJobCommand.Actor, FailSpreadDistributionJobCommand.Verb, entityId.Format()),
                 ErrorCode = FailSpreadDistributionJobCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -196,7 +196,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ClearSpreadDistributionJobCommand.Actor, ClearSpreadDistributionJobCommand.Verb, entityId.Format()),
                 ErrorCode = ClearSpreadDistributionJobCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -223,7 +223,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, DeleteSpreadDistributionJobsInProgressCommand.Actor, DeleteSpreadDistributionJobsInProgressCommand.Verb, entityId.Format()),
                 ErrorCode = DeleteSpreadDistributionJobsInProgressCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {

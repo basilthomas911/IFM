@@ -40,7 +40,7 @@ public class FuturesOptionContractCommandState
     /// <param name="e"></param>
     bool On(FuturesOptionContractAddedEvent e)
     {
-        _model.Add(e.Contract.Id.ContractId);
+        _model.Add(e.Contract.ContractId);
         return true;
     }
 
@@ -70,7 +70,7 @@ public class FuturesOptionContractCommandState
     bool On(FuturesOptionContractChangedEvent e)
     {
         _model.Remove(e.OriginalContractId);
-        _model.Add(e.Contract.Id.ContractId);
+        _model.Add(e.Contract.ContractId);
         return true;
     }
 

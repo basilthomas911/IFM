@@ -1,13 +1,13 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -19,8 +19,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesMacdSi
 public class FuturesMacdSignalCommandApiTests(WebApplicationFactory<Program> factory, MarketDataAnalyticsFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataAnalyticsFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -59,9 +58,7 @@ public class FuturesMacdSignalCommandApiTests(WebApplicationFactory<Program> fac
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
+        var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
         var response = await marketDataAnalyticsApi.GenerateFuturesMacdSignalAsync(macdSignalId, futuresPrice);
 
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));

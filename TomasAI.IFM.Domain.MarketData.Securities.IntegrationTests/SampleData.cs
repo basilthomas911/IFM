@@ -1,6 +1,4 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 
@@ -10,6 +8,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 public static class SampleData
 {
     static readonly DateOnly _lastTradeDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3));
+    static readonly DateOnly _optionContractMonth = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3));
 
     public static FuturesContractV2ReadModel NewFuturesContract => new(
         contractId: "ES20251010",
@@ -38,29 +37,31 @@ public static class SampleData
     );
 
     public static FuturesOptionContractReadModel NewFuturesOptionContract => new(
-        contractId: "ES20251010C5000",
+        contractId: $"ES{_optionContractMonth:yyyyMMdd}C5000",
         description: "Test Futures Option Contract",
         symbol: "ES",
-        localSymbol: "EW1K6 C5000",
+        localSymbol: FuturesOptionContractReadModel.GetContractLocalSymbol(
+            FuturesOptionContractReadModel.GetLocalSymbol("ES", _optionContractMonth), "Call", 5000.0),
         securityType: "FOP",
         currency: "USD",
         exchange: "CME",
         multiplier: "50",
-        contractMonth: DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3)),
+        contractMonth: _optionContractMonth,
         strikePrice: 5000.0,
         optionType: "Call"
     );
 
     public static FuturesOptionContractReadModel ChangedFuturesOptionContract => new(
-        contractId: "ES20251010C5100",
+        contractId: $"ES{_optionContractMonth:yyyyMMdd}C5100",
         description: "Changed Test Futures Option Contract",
         symbol: "ES",
-        localSymbol: "EW1K6 C5100",
+        localSymbol: FuturesOptionContractReadModel.GetContractLocalSymbol(
+            FuturesOptionContractReadModel.GetLocalSymbol("ES", _optionContractMonth), "Call", 5100.0),
         securityType: "FOP",
         currency: "USD",
         exchange: "GLOBEX",
         multiplier: "50",
-        contractMonth: DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3)),
+        contractMonth: _optionContractMonth,
         strikePrice: 5100.0,
         optionType: "Call"
     );
@@ -68,41 +69,44 @@ public static class SampleData
     public static FuturesOptionContractReadModel[] NewFuturesOptionContracts =>
     [
         new(
-            contractId: "ES20251010C5200",
+            contractId: $"ES{_optionContractMonth:yyyyMMdd}C5200",
             description: "Test Futures Option Contract Call 1",
             symbol: "ES",
-            localSymbol: "EW1K6 C5200",
+            localSymbol: FuturesOptionContractReadModel.GetContractLocalSymbol(
+                FuturesOptionContractReadModel.GetLocalSymbol("ES", _optionContractMonth), "Call", 5200.0),
             securityType: "FOP",
             currency: "USD",
             exchange: "CME",
             multiplier: "50",
-            contractMonth: DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3)),
+            contractMonth: _optionContractMonth,
             strikePrice: 5200.0,
             optionType: "Call"
         ),
         new(
-            contractId: "ES20251010P4900",
+            contractId: $"ES{_optionContractMonth:yyyyMMdd}P4900",
             description: "Test Futures Option Contract Put 1",
             symbol: "ES",
-            localSymbol: "EW1K6 P4900",
+            localSymbol: FuturesOptionContractReadModel.GetContractLocalSymbol(
+                FuturesOptionContractReadModel.GetLocalSymbol("ES", _optionContractMonth), "Put", 4900.0),
             securityType: "FOP",
             currency: "USD",
             exchange: "CME",
             multiplier: "50",
-            contractMonth: DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3)),
+            contractMonth: _optionContractMonth,
             strikePrice: 4900.0,
             optionType: "Put"
         ),
         new(
-            contractId: "ES20251010C1800",
+            contractId: $"ES{_optionContractMonth:yyyyMMdd}C1800",
             description: "Test Futures Option Contract Call 2",
             symbol: "ES",
-            localSymbol: "EW1K6 C1800",
+            localSymbol: FuturesOptionContractReadModel.GetContractLocalSymbol(
+                FuturesOptionContractReadModel.GetLocalSymbol("ES", _optionContractMonth), "Call", 1800.0),
             securityType: "FOP",
             currency: "USD",
             exchange: "CME",
             multiplier: "50",
-            contractMonth: DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3)),
+            contractMonth: _optionContractMonth,
             strikePrice: 1800.0,
             optionType: "Call"
         )

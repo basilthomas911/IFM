@@ -36,7 +36,7 @@ public class SystemAdminCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, BackupDatabaseCommand.Actor, BackupDatabaseCommand.Verb, entityId.Format()),
                 ErrorCode = BackupDatabaseCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {

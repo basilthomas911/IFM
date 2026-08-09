@@ -39,7 +39,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddFuturesContractCommand.Actor, AddFuturesContractCommand.Verb, futuresContract.Id.Format()),
                 ErrorCode = AddFuturesContractCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd!, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -67,7 +67,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ChangeFuturesContractCommand.Actor, ChangeFuturesContractCommand.Verb, (futuresContract.Id ?? contractId).Format()),
                 ErrorCode = ChangeFuturesContractCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd!, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -95,7 +95,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveFuturesContractCommand.Actor, RemoveFuturesContractCommand.Verb, contractId.Format()),
                 ErrorCode = RemoveFuturesContractCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd!, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -123,7 +123,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, entityId.Format()),
                 ErrorCode = AddFuturesOptionContractCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -150,7 +150,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractsCommand.Actor, AddFuturesOptionContractsCommand.Verb, entityId.Format()),
                 ErrorCode = AddFuturesOptionContractsCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -179,7 +179,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ChangeFuturesOptionContractCommand.Actor, ChangeFuturesOptionContractCommand.Verb, entityId.Format()),
                 ErrorCode = ChangeFuturesOptionContractCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -208,7 +208,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveFuturesOptionContractCommand.Actor, RemoveFuturesOptionContractCommand.Verb, entityId.Format()),
                 ErrorCode = RemoveFuturesOptionContractCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -236,7 +236,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddYieldCurveRateCommand.Actor, AddYieldCurveRateCommand.Verb, entityId.Format()),
                 ErrorCode = AddYieldCurveRateCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -264,7 +264,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ChangeYieldCurveRateCommand.Actor, ChangeYieldCurveRateCommand.Verb, entityId.Format()),
                 ErrorCode = ChangeYieldCurveRateCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -292,7 +292,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveYieldCurveRateCommand.Actor, RemoveYieldCurveRateCommand.Verb, entityId.Format()),
                 ErrorCode = RemoveYieldCurveRateCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {
@@ -320,7 +320,7 @@ public class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ImportYieldCurveRatesCommand.Actor, ImportYieldCurveRatesCommand.Verb, entityId.Format()),
                 ErrorCode = ImportYieldCurveRatesCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd!, entityId);
+            serviceResult = await RequestCommandAsync(cmd!, entityId);
         }
         catch (Exception ex)
         {

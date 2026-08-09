@@ -75,15 +75,15 @@ public record FuturesOptionContractsAddedEvent : IEvent<FuturesOptionContractsEn
     /// Convert this denormalize event into a completed event which indicates successful handling.
     /// </summary>
     /// <typeparam name="TComplete">The complete event type to produce.</typeparam>
-    /// <typeparam name="TEntityId">The entity id type (must be <see cref="FuturesOptionContractEntityId"/>).</typeparam>
+    /// <typeparam name="TEntityId">The entity id type (must be <see cref="FuturesOptionContractsEntityId"/>).</typeparam>
     /// <returns>A completed event instance.</returns>
-    /// <exception cref="InvalidOperationException">If <typeparamref name="TEntityId"/> is not <see cref="FuturesOptionContractEntityId"/>.</exception>
+    /// <exception cref="InvalidOperationException">If <typeparamref name="TEntityId"/> is not <see cref="FuturesOptionContractsEntityId"/>.</exception>
     public ICompleteEvent<TEntityId> ToCompleteEvent<TComplete, TEntityId>()
         where TComplete : ICompleteEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
-        if (typeof(TEntityId) != typeof(FuturesOptionContractEntityId))
-            throw new InvalidOperationException($"ToCompletedEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(FuturesOptionContractEntityId).FullName}.");
+        if (typeof(TEntityId) != typeof(FuturesOptionContractsEntityId))
+            throw new InvalidOperationException($"ToCompletedEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(FuturesOptionContractsEntityId).FullName}.");
 
         var completed = new FuturesOptionContractsAddedCompleteEvent
         {

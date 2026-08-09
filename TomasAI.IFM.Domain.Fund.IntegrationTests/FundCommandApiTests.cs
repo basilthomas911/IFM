@@ -5,16 +5,16 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace TomasAI.IFM.Domain.Fund.IntegrationTests;
 
@@ -29,11 +29,13 @@ namespace TomasAI.IFM.Domain.Fund.IntegrationTests;
 /// <param name="factory">The web application factory used to create test HTTP clients for simulating API requests.</param>
 /// <param name="dbFixture">The database fixture that provides access to test database instances and utilities for fund-related data setup and
 /// cleanup.</param>
-public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDatabaseFixture dbFixture)
-    : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<FundDatabaseFixture>
+public class FundCommandApiTests(
+    WebApplicationFactory<Program> factory,
+    FundDatabaseFixture dbFixture)
+    : IClassFixture<WebApplicationFactory<Program>>,
+    IClassFixture<FundDatabaseFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
     static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(15);
 
@@ -146,9 +148,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
+
+        var fundApi = new FundCommandApi(_actorProducer);
         var response = await fundApi.CreateFundAsync(fund);
 
         await projectionFinished.Task.WaitAsync(EventTimeout);
@@ -214,9 +215,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
 
         // create fund first time...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
+        var fundApi = new FundCommandApi(_actorProducer);
+
         var response = await fundApi.CreateFundAsync(fund);
 
 
@@ -227,10 +227,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         await projectionTracker.WaitAsync(response.Value);
 
         // act... attempt to create the same fund again
-        commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        fundApi = new FundCommandApi(commandServiceApi);
-        response = await fundApi.CreateFundAsync(fund);
 
+        response = await fundApi.CreateFundAsync(fund);
 
         // assert... second creation should fail
         response.Should().NotBeNull();
@@ -263,9 +261,9 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         deletedFund.Should().BeNull();
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
+
+        var fundApi = new FundCommandApi(_actorProducer);
+
         var response = await fundApi.CreateFundAsync(fund);
 
 
@@ -355,11 +353,9 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
 
         // create fund...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
-        var response = await fundApi.CreateFundAsync(fund);
 
+        var fundApi = new FundCommandApi(_actorProducer);
+        var response = await fundApi.CreateFundAsync(fund);
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
@@ -379,10 +375,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         await projectionTracker.WaitAsync(response.Value);
 
         // act... attempt to add the same order again
-        commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        fundApi = new FundCommandApi(commandServiceApi);
         response = await fundApi.AddOrderToFundAsync(fundOrder);
-
 
         // assert... second order addition should fail
         response.Should().NotBeNull();
@@ -412,11 +405,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
 
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
+        var fundApi = new FundCommandApi(_actorProducer);
         var response = await fundApi.CreateFundAsync(fund);
-
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
@@ -518,11 +508,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
 
         // create fund...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
+        var fundApi = new FundCommandApi(_actorProducer);
         var response = await fundApi.CreateFundAsync(fund);
-
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
@@ -552,10 +539,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
         await projectionTracker.WaitAsync(response.Value);
 
         // act... attempt to add the same trade again
-        commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        fundApi = new FundCommandApi(commandServiceApi);
         response = await fundApi.AddTradeToFundOrderAsync(fundOrderTrade);
-
 
         // assert... second trade addition should fail
         response.Should().NotBeNull();
@@ -585,9 +569,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
 
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
+        var fundApi = new FundCommandApi(_actorProducer);
         var response = await fundApi.CreateFundAsync(fund);
 
         // assert fund creation succeeded...
@@ -708,11 +690,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
 
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
+        var fundApi = new FundCommandApi(_actorProducer);
         var response = await fundApi.CreateFundAsync(fund);
-
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
@@ -811,11 +790,8 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
 
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
+        var fundApi = new FundCommandApi(_actorProducer);
         var response = await fundApi.CreateFundAsync(fund);
-
 
         // assert fund creation succeeded...
         response.Should().NotBeNull();
@@ -930,9 +906,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
 
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
+        var fundApi = new FundCommandApi(_actorProducer);
         var response = await fundApi.CreateFundAsync(fund);
 
 
@@ -1043,9 +1017,7 @@ public class FundCommandApiTests(WebApplicationFactory<Program> factory, FundDat
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
 
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var fundApi = new FundCommandApi(commandServiceApi);
+        var fundApi = new FundCommandApi(_actorProducer);
         var response = await fundApi.CreateFundAsync(fund);
 
 

@@ -2,14 +2,14 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
@@ -26,8 +26,8 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program> factory, SecuritiesDatabaseFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<SecuritiesDatabaseFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(30);
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -38,18 +38,25 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         FuturesOptionContractAddedEvent futuresOptionContractAddedEvent = default!;
         FuturesOptionContractAddedCompleteEvent futuresOptionContractAddedCompleteEvent = default!;
         FuturesOptionContractAddedFailEvent futuresOptionContractAddedFailEvent = default!;
+        var addCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesOptionContractAddedEvent.Actor)] = [FuturesOptionContractAddedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesOptionContractAddedEvent.Actor)] =
+                [
+                    FuturesOptionContractAddedEvent.Verb,
+                    FuturesOptionContractAddedCompleteEvent.Verb,
+                    FuturesOptionContractAddedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
 
         var futuresOptionContract = SampleData.NewFuturesOptionContract;
-        var subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, futuresOptionContract.ContractId);
+        var entityId = new FuturesOptionContractEntityId(futuresOptionContract.ContractId, futuresOptionContract.ContractMonth.Year);
+        var subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, entityId.Format());
         dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
@@ -57,17 +64,15 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         await dbFixture.Db.DeleteFuturesOptionContractAsync(futuresOptionContract.ContractId);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataApi = new MarketDataCommandApi(commandServiceApi);
+        var marketDataApi = new MarketDataCommandApi(_actorProducer);
         var response = await marketDataApi.AddFuturesOptionContractAsync(futuresOptionContract, overwrite: false);
 
-        await Task.Delay(1000);
+        response.Should().NotBeNull();
+        response.Success.Should().BeTrue(response.ErrorMessage);
+        response.Value.Should().NotBe(Guid.Empty);
+        await addCompleted.Task.WaitAsync(EventTimeout);
 
         // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
         futuresOptionContractAddedEvent.Should().NotBeNull();
         futuresOptionContractAddedCompleteEvent.Should().NotBeNull();
         futuresOptionContractAddedFailEvent.Should().BeNull();
@@ -108,9 +113,11 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
                         break;
                     case FuturesOptionContractAddedCompleteEvent e:
                         futuresOptionContractAddedCompleteEvent = e;
+                        addCompleted.TrySetResult(true);
                         break;
                     case FuturesOptionContractAddedFailEvent e:
                         futuresOptionContractAddedFailEvent = e;
+                        addCompleted.TrySetResult(true);
                         break;
                 }
                 return @event;
@@ -126,41 +133,48 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         FuturesOptionContractsAddedEvent futuresOptionContractsAddedEvent = default!;
         FuturesOptionContractsAddedCompleteEvent futuresOptionContractsAddedCompleteEvent = default!;
         FuturesOptionContractsAddedFailEvent futuresOptionContractsAddedFailEvent = default!;
+        var addCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesOptionContractsAddedEvent.Actor)] = [FuturesOptionContractsAddedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesOptionContractsAddedEvent.Actor)] =
+                [
+                    FuturesOptionContractsAddedEvent.Verb,
+                    FuturesOptionContractsAddedCompleteEvent.Verb,
+                    FuturesOptionContractsAddedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
 
         var futuresOptionContracts = SampleData.NewFuturesOptionContracts;
         
-        // Clean up any existing data for all contracts
+        var year = futuresOptionContracts[0].ContractMonth.Year;
+        var entityId = new FuturesOptionContractsEntityId(year);
+        var subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractsCommand.Actor, AddFuturesOptionContractsCommand.Verb, entityId.Format());
+        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
+        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
+        if (eventStreamId > 0)
+            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
+
+        // Clean up any existing read-model data for all contracts
         foreach (var contract in futuresOptionContracts)
         {
-            var subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractsCommand.Actor, AddFuturesOptionContractsCommand.Verb, contract.ContractId);
-            dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
-            var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-            if (eventStreamId > 0)
-                await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
             await dbFixture.Db.DeleteFuturesOptionContractAsync(contract.ContractId);
         }
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataApi = new MarketDataCommandApi(commandServiceApi);
-        var response = await marketDataApi.AddFuturesOptionContractsAsync(DateTime.UtcNow.Year, futuresOptionContracts);
+        var marketDataApi = new MarketDataCommandApi(_actorProducer);
+        var response = await marketDataApi.AddFuturesOptionContractsAsync(year, futuresOptionContracts);
 
-        await Task.Delay(2000);
+        response.Should().NotBeNull();
+        response.Success.Should().BeTrue(response.ErrorMessage);
+        response.Value.Should().NotBe(Guid.Empty);
+        await addCompleted.Task.WaitAsync(EventTimeout);
 
         // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
         futuresOptionContractsAddedEvent.Should().NotBeNull();
         futuresOptionContractsAddedCompleteEvent.Should().NotBeNull();
         futuresOptionContractsAddedFailEvent.Should().BeNull();
@@ -205,9 +219,11 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
                         break;
                     case FuturesOptionContractsAddedCompleteEvent e:
                         futuresOptionContractsAddedCompleteEvent = e;
+                        addCompleted.TrySetResult(true);
                         break;
                     case FuturesOptionContractsAddedFailEvent e:
                         futuresOptionContractsAddedFailEvent = e;
+                        addCompleted.TrySetResult(true);
                         break;
                 }
                 return @event;
@@ -226,13 +242,22 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         FuturesOptionContractChangedEvent futuresOptionContractChangedEvent = default!;
         FuturesOptionContractChangedCompleteEvent futuresOptionContractChangedCompleteEvent = default!;
         FuturesOptionContractChangedFailEvent futuresOptionContractChangedFailEvent = default!;
+        var addCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var changeCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesOptionContractAddedEvent.Actor)] = [FuturesOptionContractAddedEvent.Verb],
-                [new ActorMailboxId(ActorType.Event, FuturesOptionContractChangedEvent.Actor)] = [FuturesOptionContractChangedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesOptionContractAddedEvent.Actor)] =
+                [
+                    FuturesOptionContractAddedEvent.Verb,
+                    FuturesOptionContractAddedCompleteEvent.Verb,
+                    FuturesOptionContractAddedFailEvent.Verb,
+                    FuturesOptionContractChangedEvent.Verb,
+                    FuturesOptionContractChangedCompleteEvent.Verb,
+                    FuturesOptionContractChangedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -241,7 +266,8 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         var changedContract = SampleData.ChangedFuturesOptionContract;
 
         // Clean up any existing data
-        var addSubject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, futuresOptionContract.ContractId);
+        var entityId = new FuturesOptionContractEntityId(futuresOptionContract.ContractId, futuresOptionContract.ContractMonth.Year);
+        var addSubject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, entityId.Format());
         dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
         var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
         if (addEventStreamId > 0)
@@ -249,17 +275,15 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         await dbFixture.Db.DeleteFuturesOptionContractAsync(futuresOptionContract.ContractId);
 
         // act - add futures option contract first...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataApi = new MarketDataCommandApi(commandServiceApi);
+        var marketDataApi = new MarketDataCommandApi(_actorProducer);
         var addResponse = await marketDataApi.AddFuturesOptionContractAsync(futuresOptionContract, overwrite: false);
 
-        await Task.Delay(1000);
+        addResponse.Should().NotBeNull();
+        addResponse.Success.Should().BeTrue(addResponse.ErrorMessage);
+        addResponse.Value.Should().NotBe(Guid.Empty);
+        await addCompleted.Task.WaitAsync(EventTimeout);
 
         // assert - verify add was successful...
-        addResponse.Should().NotBeNull();
-        addResponse.Success.Should().BeTrue();
-        addResponse.Value.Should().NotBe(Guid.Empty);
         futuresOptionContractAddedEvent.Should().NotBeNull();
         futuresOptionContractAddedCompleteEvent.Should().NotBeNull();
         futuresOptionContractAddedFailEvent.Should().BeNull();
@@ -273,12 +297,12 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         // act - change futures option contract...
         var changeResponse = await marketDataApi.ChangeFuturesOptionContractAsync(futuresOptionContract.ContractId, changedContract, overwrite: true);
 
-        await Task.Delay(1000);
+        changeResponse.Should().NotBeNull();
+        changeResponse.Success.Should().BeTrue(changeResponse.ErrorMessage);
+        changeResponse.Value.Should().NotBe(Guid.Empty);
+        await changeCompleted.Task.WaitAsync(EventTimeout);
 
         // assert - verify change was successful...
-        changeResponse.Should().NotBeNull();
-        changeResponse.Success.Should().BeTrue();
-        changeResponse.Value.Should().NotBe(Guid.Empty);
         futuresOptionContractChangedEvent.Should().NotBeNull();
         futuresOptionContractChangedCompleteEvent.Should().NotBeNull();
         futuresOptionContractChangedFailEvent.Should().BeNull();
@@ -322,18 +346,22 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
                         break;
                     case FuturesOptionContractAddedCompleteEvent e:
                         futuresOptionContractAddedCompleteEvent = e;
+                        addCompleted.TrySetResult(true);
                         break;
                     case FuturesOptionContractAddedFailEvent e:
                         futuresOptionContractAddedFailEvent = e;
+                        addCompleted.TrySetResult(true);
                         break;
                     case FuturesOptionContractChangedEvent e:
                         futuresOptionContractChangedEvent = e;
                         break;
                     case FuturesOptionContractChangedCompleteEvent e:
                         futuresOptionContractChangedCompleteEvent = e;
+                        changeCompleted.TrySetResult(true);
                         break;
                     case FuturesOptionContractChangedFailEvent e:
                         futuresOptionContractChangedFailEvent = e;
+                        changeCompleted.TrySetResult(true);
                         break;
                 }
                 return @event;
@@ -352,12 +380,22 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         FuturesOptionContractRemovedEvent futuresOptionContractRemovedEvent = default!;
         FuturesOptionContractRemovedCompleteEvent futuresOptionContractRemovedCompleteEvent = default!;
         FuturesOptionContractRemovedFailEvent futuresOptionContractRemovedFailEvent = default!;
+        var addCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var removeCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesOptionContractAddedEvent.Actor)] = [FuturesOptionContractAddedEvent.Verb, FuturesOptionContractRemovedEvent.Verb],
+                [new ActorMailboxId(ActorType.Event, FuturesOptionContractAddedEvent.Actor)] =
+                [
+                    FuturesOptionContractAddedEvent.Verb,
+                    FuturesOptionContractAddedCompleteEvent.Verb,
+                    FuturesOptionContractAddedFailEvent.Verb,
+                    FuturesOptionContractRemovedEvent.Verb,
+                    FuturesOptionContractRemovedCompleteEvent.Verb,
+                    FuturesOptionContractRemovedFailEvent.Verb
+                ],
             },
             EventHandlerAsync
         );
@@ -365,7 +403,8 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         var futuresOptionContract = SampleData.NewFuturesOptionContract;
 
         // Clean up any existing data
-        var addSubject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, futuresOptionContract.ContractId);
+        var entityId = new FuturesOptionContractEntityId(futuresOptionContract.ContractId, futuresOptionContract.ContractMonth.Year);
+        var addSubject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, entityId.Format());
         dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
         var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
         if (addEventStreamId > 0)
@@ -373,17 +412,15 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         await dbFixture.Db.DeleteFuturesOptionContractAsync(futuresOptionContract.ContractId);
 
         // act - add futures option contract first...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataApi = new MarketDataCommandApi(commandServiceApi);
+        var marketDataApi = new MarketDataCommandApi(_actorProducer);
         var addResponse = await marketDataApi.AddFuturesOptionContractAsync(futuresOptionContract, overwrite: false);
 
-        await Task.Delay(1000);
+        addResponse.Should().NotBeNull();
+        addResponse.Success.Should().BeTrue(addResponse.ErrorMessage);
+        addResponse.Value.Should().NotBe(Guid.Empty);
+        await addCompleted.Task.WaitAsync(EventTimeout);
 
         // assert - verify add was successful...
-        addResponse.Should().NotBeNull();
-        addResponse.Success.Should().BeTrue();
-        addResponse.Value.Should().NotBe(Guid.Empty);
         futuresOptionContractAddedEvent.Should().NotBeNull();
         futuresOptionContractAddedCompleteEvent.Should().NotBeNull();
         futuresOptionContractAddedFailEvent.Should().BeNull();
@@ -397,12 +434,12 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
         // act - remove futures option contract...
         var removeResponse = await marketDataApi.RemoveFuturesOptionContractAsync(futuresOptionContract.ContractId, overwrite: true);
 
-        await Task.Delay(5000);
+        removeResponse.Should().NotBeNull();
+        removeResponse.Success.Should().BeTrue(removeResponse.ErrorMessage);
+        removeResponse.Value.Should().NotBe(Guid.Empty);
+        await removeCompleted.Task.WaitAsync(EventTimeout);
 
         // assert - verify remove was successful...
-        removeResponse.Should().NotBeNull();
-        removeResponse.Success.Should().BeTrue();
-        removeResponse.Value.Should().NotBe(Guid.Empty);
         futuresOptionContractRemovedEvent.Should().NotBeNull();
         futuresOptionContractRemovedCompleteEvent.Should().NotBeNull();
         futuresOptionContractRemovedFailEvent.Should().BeNull();
@@ -435,18 +472,22 @@ public class FuturesOptionContractCommandApiTests(WebApplicationFactory<Program>
                         break;
                     case FuturesOptionContractAddedCompleteEvent e:
                         futuresOptionContractAddedCompleteEvent = e;
+                        addCompleted.TrySetResult(true);
                         break;
                     case FuturesOptionContractAddedFailEvent e:
                         futuresOptionContractAddedFailEvent = e;
+                        addCompleted.TrySetResult(true);
                         break;
                     case FuturesOptionContractRemovedEvent e:
                         futuresOptionContractRemovedEvent = e;
                         break;
                     case FuturesOptionContractRemovedCompleteEvent e:
                         futuresOptionContractRemovedCompleteEvent = e;
+                        removeCompleted.TrySetResult(true);
                         break;
                     case FuturesOptionContractRemovedFailEvent e:
                         futuresOptionContractRemovedFailEvent = e;
+                        removeCompleted.TrySetResult(true);
                         break;
                 }
                 return @event;

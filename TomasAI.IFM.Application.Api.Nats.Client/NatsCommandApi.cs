@@ -10,21 +10,22 @@ public class NatsCommandApi(IActorProducer actorProducer)
     readonly IActorProducer _actorProducer = IsArgumentNull.Set(actorProducer);
 
     /// <summary>
-    /// 
+    /// Sends a command to an actor and waits for its domain result.
     /// </summary>
-    /// <typeparam name="TCommand"></typeparam>
-    /// <typeparam name="TEntityId"></typeparam>
-    /// <param name="command"></param>
-    /// <param name="entityId"></param>
-    /// <returns></returns>
-    protected async ValueTask<ServiceResult<Guid>> SendAsync<TCommand, TEntityId>(TCommand command, TEntityId entityId)
+    protected async ValueTask<ServiceResult<Guid>> RequestCommandAsync<TCommand, TEntityId>(
+        TCommand command,
+        TEntityId entityId)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
-    { 
-        await _actorProducer.SendAsync(command.Subject, command!, entityId);
-        return  new ServiceResult<Guid>()
+    {
+        var actorResult = await _actorProducer
+            .RequestAsync<TCommand, TEntityId, GuidResult>(command.Subject, command, entityId);
+        return new ServiceResult<Guid>
         {
-            Success = true,
+            Success = actorResult.Success,
+            ErrorCode = command.ErrorCode,
+            ErrorMessage = actorResult.ErrorMessage,
+            ErrorEvent = actorResult.ErrorEvent,
             Value = command.CommandId
         };
     }

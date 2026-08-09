@@ -1,13 +1,13 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -20,8 +20,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesTdiSig
 public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> factory, MarketDataAnalyticsFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataAnalyticsFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -54,9 +53,7 @@ public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> fact
         if (eventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
 
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var analyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
+        var analyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
         var response = await analyticsApi.GenerateFuturesTdiSignalAsync(futuresTdiSignalId, CreateRsiSignals(valueDate));
 
         await Task.Delay(1000);

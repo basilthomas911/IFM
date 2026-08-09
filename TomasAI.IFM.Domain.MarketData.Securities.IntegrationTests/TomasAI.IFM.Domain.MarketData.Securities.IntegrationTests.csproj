@@ -34,7 +34,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\TomasAI.IFM.Application.Actor.Client\TomasAI.IFM.Application.Actor.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Application.Actor.IntegrationTests\TomasAI.IFM.Application.Actor.IntegrationTests.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Application.Api.Client\TomasAI.IFM.Application.Api.Client.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Application.Api.Nats.Client\TomasAI.IFM.Application.Api.Nats.Client.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Application.Blackboard\TomasAI.IFM.Application.Blackboard.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Securities\TomasAI.IFM.Domain.MarketData.Securities.csproj" />

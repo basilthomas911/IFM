@@ -1,12 +1,12 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -15,8 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesRsiSig
 public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factory, MarketDataAnalyticsFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataAnalyticsFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     static FuturesRsiSignalReadModel CreateRsiSignal(
@@ -77,9 +76,7 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
         await SeedRsiSignalsAsync();
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
+        var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
         var response = await analyticsApi.GetFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength);
 
         // assert...
@@ -98,9 +95,7 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
         await SeedRsiSignalsAsync();
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
+        var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
         var response = await analyticsApi.GetFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily, 14);
 
         // assert...
@@ -124,9 +119,7 @@ public class FuturesRsiSignalQueryApiTests(WebApplicationFactory<Program> factor
         var lookbackInterval = 5;
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
+        var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
         var response = await analyticsApi.GetFuturesTrendDirectionFromRSISignalAsync(
             SampleData.ContractId,
             SampleData.ValueDate,

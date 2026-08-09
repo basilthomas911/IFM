@@ -33,7 +33,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddEconomicCalendarCommand.Actor, AddEconomicCalendarCommand.Verb, entityId.Format()),
                 ErrorCode = AddEconomicCalendarCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -63,7 +63,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ChangeEconomicCalendarCommand.Actor, ChangeEconomicCalendarCommand.Verb, economicCalendarId.Format()),
                 ErrorCode = ChangeEconomicCalendarCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -91,7 +91,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveEconomicCalendarCommand.Actor, RemoveEconomicCalendarCommand.Verb, economicCalendarId.Format()),
                 ErrorCode = RemoveEconomicCalendarCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -120,7 +120,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ImportEconomicCalendarsCommand.Actor, ImportEconomicCalendarsCommand.Verb, entityId.Format()),
                 ErrorCode = ImportEconomicCalendarsCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -148,7 +148,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddLookupTypeCommand.Actor, AddLookupTypeCommand.Verb, entityId.Format()),
                 ErrorCode = AddLookupTypeCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -178,7 +178,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ChangeLookupTypeCommand.Actor, ChangeLookupTypeCommand.Verb, lookupTypeId.Format()),
                 ErrorCode = ChangeLookupTypeCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {
@@ -206,7 +206,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveLookupTypeCommand.Actor, RemoveLookupTypeCommand.Verb, lookupTypeId.Format()),
                 ErrorCode = RemoveLookupTypeCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {

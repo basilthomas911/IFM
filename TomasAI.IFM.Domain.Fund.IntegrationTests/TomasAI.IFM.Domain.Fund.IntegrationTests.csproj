@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -37,6 +37,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.Actor.IntegrationTests\TomasAI.IFM.Application.Actor.IntegrationTests.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Api.Client\TomasAI.IFM.Application.Api.Client.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Api.Nats.Client\TomasAI.IFM.Application.Api.Nats.Client.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Fund.Shared\TomasAI.IFM.Domain.Fund.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Fund\TomasAI.IFM.Domain.Fund.csproj" />

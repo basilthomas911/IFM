@@ -1,13 +1,13 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Fund.IntegrationTests;
@@ -15,8 +15,7 @@ namespace TomasAI.IFM.Domain.Fund.IntegrationTests;
 public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatabaseFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<FundDatabaseFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -32,9 +31,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var fundApi = new FundQueryApi(queryServiceApi);
+        var fundApi = new FundQueryApi(_actorProducer);
         var response = await fundApi.GetClosingFundBalanceAsync(fund.FundId, valueDate);
 
         // assert...
@@ -57,9 +54,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var fundApi = new FundQueryApi(queryServiceApi);
+        var fundApi = new FundQueryApi(_actorProducer);
         var response = await fundApi.GetOpeningFundBalanceAsync(fund.FundId, valueDate);
 
         // assert...
@@ -81,9 +76,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var fundApi = new FundQueryApi(queryServiceApi);
+        var fundApi = new FundQueryApi(_actorProducer);
         var response = await fundApi.GetFundBalanceAsync(fund.FundId);
 
         // assert...
@@ -102,9 +95,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         await dbFixture.FundDb.InsertFundAsync(fund);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var fundApi = new FundQueryApi(queryServiceApi);
+        var fundApi = new FundQueryApi(_actorProducer);
         var response = await fundApi.GetFundsAsync();
 
         // assert...
@@ -127,9 +118,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         await dbFixture.FundDb.InsertFundOrderAsync(fundOrder);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var fundApi = new FundQueryApi(queryServiceApi);
+        var fundApi = new FundQueryApi(_actorProducer);
         var response = await fundApi.GetFundOrdersAsync();
 
         // assert...
@@ -155,9 +144,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         await dbFixture.FundDb.InsertFundOrderTradeAsync(fundOrderTrade);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var fundApi = new FundQueryApi(queryServiceApi);
+        var fundApi = new FundQueryApi(_actorProducer);
         var response = await fundApi.GetFundOrderTradesAsync();
 
         // assert...
@@ -182,9 +169,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var fundApi = new FundQueryApi(queryServiceApi);
+        var fundApi = new FundQueryApi(_actorProducer);
         var response = await fundApi.GetFundPnlReportAsync(fund.FundId, startDate, endDate);
 
         // assert...
@@ -206,9 +191,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         await dbFixture.FundDb.InsertFundOrderAsync(fundOrder);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var fundApi = new FundQueryApi(queryServiceApi);
+        var fundApi = new FundQueryApi(_actorProducer);
         var response = await fundApi.GetFundIdFromOrderIdAsync(fundOrder.OrderId);
 
         // assert...
@@ -232,9 +215,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var fundApi = new FundQueryApi(queryServiceApi);
+        var fundApi = new FundQueryApi(_actorProducer);
         var response = await fundApi.GetFundWinLossRatioAsync(fund.FundId, startDate, endDate);
 
         // assert...
@@ -257,9 +238,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var fundApi = new FundQueryApi(queryServiceApi);
+        var fundApi = new FundQueryApi(_actorProducer);
         var response = await fundApi.GetFundDrawdownBalancesAsync(fund.FundId, startDate, endDate);
 
         // assert...

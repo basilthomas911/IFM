@@ -44,7 +44,7 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, UpdateTradePlanCommand.Actor, UpdateTradePlanCommand.Verb, entityId.Format()),
                 ErrorCode = UpdateTradePlanCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -88,7 +88,7 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, UpdateIronCondorTradePlanCommand.Actor, UpdateIronCondorTradePlanCommand.Verb, entityId.Format()),
                 ErrorCode = UpdateIronCondorTradePlanCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, entityId);
+            serviceResult = await RequestCommandAsync(cmd, entityId);
         }
         catch (Exception ex)
         {
@@ -115,7 +115,7 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, UpdateTradePlanForwardLossLimitCommand.Actor, UpdateTradePlanForwardLossLimitCommand.Verb, forwardLossLimit.EntityId.Format()),
                 ErrorCode = UpdateTradePlanForwardLossLimitCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, forwardLossLimit.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, forwardLossLimit.EntityId);
         }
         catch (Exception ex)
         {
@@ -141,7 +141,7 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ClearTradePlanForwardLossLimitCommand.Actor, ClearTradePlanForwardLossLimitCommand.Verb, entityId.Format()),
                 ErrorCode = ClearTradePlanForwardLossLimitCommand.ErrorId
             };
-            serviceResult = await SendAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
         }
         catch (Exception ex)
         {

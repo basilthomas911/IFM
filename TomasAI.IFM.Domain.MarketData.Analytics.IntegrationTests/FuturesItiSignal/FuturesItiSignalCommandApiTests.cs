@@ -1,14 +1,14 @@
 using System.Diagnostics;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -20,8 +20,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSig
 public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> factory, MarketDataAnalyticsFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataAnalyticsFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
@@ -46,8 +45,6 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         await dbFixture.MarketDataDb.DeleteFuturesItiSignalAsync(contractId, valueDate, SampleData.TimePeriod);
 
         // act...
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
 
         await eventListener.StartAsync(
            "TestEventListener",
@@ -63,7 +60,7 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
            EventHandlerAsync
        );
 
-        var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
+        var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
 
         var sw = Stopwatch.StartNew();
         var response = await marketDataAnalyticsApi.GenerateFuturesItiSignalAsync(
@@ -168,9 +165,7 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
 
         await dbFixture.MarketDataDb.DeleteFuturesItiSignalAsync(contractId, valueDate, SampleData.TimePeriod);
 
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
+        var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
 
         var generateResponse = await marketDataAnalyticsApi.GenerateFuturesItiSignalAsync(
             contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp,
@@ -282,9 +277,7 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
 
         await dbFixture.MarketDataDb.DeleteFuturesItiSignalAsync(contractId, valueDate, SampleData.TimePeriod);
 
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(commandServiceApi);
+        var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
 
         var itiSignalId = new FuturesItiSignalId(contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp);
 

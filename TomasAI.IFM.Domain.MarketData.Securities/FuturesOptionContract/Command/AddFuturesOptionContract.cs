@@ -18,7 +18,7 @@ public static class AddFuturesOptionContract
     public static bool Execute(this AddFuturesOptionContractCommand e, FuturesOptionContractCommandState state)
         => e switch
         {
-            _ when state.FuturesOptionContractExists(e.Contract.Id.ContractId, e.Overwrite) => throw new AddFuturesOptionContractException(e.FuturesOptionContractExistsErrorMsg()),
+            _ when state.FuturesOptionContractExists(e.Contract.ContractId, e.Overwrite) => throw new AddFuturesOptionContractException(e.FuturesOptionContractExistsErrorMsg()),
             _ => state.Update(e.CreateFuturesOptionContractAddedEvent(), e)
         };
 

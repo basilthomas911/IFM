@@ -1,9 +1,9 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -12,8 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesTdiSig
 public class FuturesTdiSignalQueryApiTests(WebApplicationFactory<Program> factory, MarketDataAnalyticsFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataAnalyticsFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 
     [Fact]
     public async Task GetFuturesTdiSignal_Ok()
@@ -30,9 +29,7 @@ public class FuturesTdiSignalQueryApiTests(WebApplicationFactory<Program> factor
 
         await dbFixture.MarketDataDb.InsertFuturesTdiSignalAsync(expectedSignal);
 
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
+        var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
         var response = await analyticsApi.GetFuturesTdiSignalAsync(expectedSignal.ContractId, expectedSignal.ValueDate);
 
         response.Should().NotBeNull();

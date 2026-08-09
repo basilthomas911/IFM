@@ -1,9 +1,9 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
-using TomasAI.IFM.Application.Api.Client;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -12,8 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesTradeS
 public class FuturesTradeSignalQueryApiTests(WebApplicationFactory<Program> factory, MarketDataAnalyticsFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataAnalyticsFixture>
 {
-    readonly HttpClientTestFactory _httpClientFactory = new(factory);
-    readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
+    readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 
     [Fact]
     public async Task GetFuturesTradeSignal_Ok()
@@ -24,9 +23,7 @@ public class FuturesTradeSignalQueryApiTests(WebApplicationFactory<Program> fact
         await dbFixture.MarketDataDb.InsertFuturesTradeSignalAsync(CreateTradeSignalViewModel(contractId, valueDate, 1));
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
+        var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
         var response = await analyticsApi.GetFuturesTradeSignalAsync(contractId, valueDate);
 
         // assert...
@@ -46,9 +43,7 @@ public class FuturesTradeSignalQueryApiTests(WebApplicationFactory<Program> fact
         await dbFixture.MarketDataDb.InsertFuturesTradeSignalAsync(CreateTradeSignalViewModel(contractId, valueDate, 2));
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
+        var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
         var response = await analyticsApi.GetLastFuturesTradeSignalAsync();
 
         // assert...
@@ -68,9 +63,7 @@ public class FuturesTradeSignalQueryApiTests(WebApplicationFactory<Program> fact
         await dbFixture.MarketDataDb.InsertFuturesTradeSignalAsync(CreateTradeSignalViewModel(contractId, valueDate, 3));
 
         // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var analyticsApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
+        var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
         var response = await analyticsApi.GetFuturesTradeSignalIdsAsync(valueDate);
 
         // assert...
