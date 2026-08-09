@@ -130,7 +130,7 @@ public record FuturesTickDataStreamingStoppedEvent : IEvent<FuturesTickDataStrea
 [MessagePackObject(AllowPrivate = true)]
 public record FuturesTickDataStreamingStoppedCompleteEvent : ICompleteEvent<FuturesTickDataStreamingId>
 {
-    [IgnoreMember] public const string Actor = "FuturesTickDataCommand";
+    [IgnoreMember] public const string Actor = "FuturesTickDataEvent";
     [IgnoreMember] public const string Verb = "StreamingStoppedComplete";
 
     [Key(0)] public ActorSubject Subject { get; init; }
@@ -183,7 +183,7 @@ public record FuturesTickDataStreamingStoppedCompleteEvent : ICompleteEvent<Futu
 [MessagePackObject(AllowPrivate = true)]
 public record FuturesTickDataStreamingStoppedFailEvent : IErrorEvent<FuturesTickDataStreamingId>
 {
-    [IgnoreMember] public const string Actor = "FuturesTickDataCommand";
+    [IgnoreMember] public const string Actor = "FuturesTickDataEvent";
     [IgnoreMember] public const string Verb = "StreamingStoppedFail";
 
     [Key(0)] public ActorSubject Subject { get; init; }

@@ -33,17 +33,23 @@ public class FuturesClosingPriceCommandApiTests(WebApplicationFactory<Program> f
         FuturesClosingPriceInsertedEvent futuresClosingPriceInsertedEvent = default!;
         FuturesClosingPriceInsertedCompleteEvent futuresClosingPriceInsertedCompleteEvent = default!;
         FuturesClosingPriceInsertedFailEvent futuresClosingPriceInsertedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesClosingPriceInsertedEvent.Actor)] = [FuturesClosingPriceInsertedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesClosingPriceInsertedEvent.Actor)] =
+                [
+                    FuturesClosingPriceInsertedEvent.Verb,
+                    FuturesClosingPriceInsertedCompleteEvent.Verb,
+                    FuturesClosingPriceInsertedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
 
-        var contractId = SampleData.FuturesContractId;
+        var contractId = $"ES{Guid.NewGuid():N}";
         var valueDate = SampleData.ValueDate;
         var closingPrice = 5450.25m;
         var futuresDataId = FuturesDataId.Create(contractId, valueDate);
@@ -56,11 +62,11 @@ public class FuturesClosingPriceCommandApiTests(WebApplicationFactory<Program> f
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.InsertFuturesClosingPriceAsync(futuresDataId, closingPrice);
 
-        await Task.Delay(1000);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         futuresClosingPriceInsertedEvent.Should().NotBeNull();
         futuresClosingPriceInsertedCompleteEvent.Should().NotBeNull();
@@ -72,6 +78,7 @@ public class FuturesClosingPriceCommandApiTests(WebApplicationFactory<Program> f
         insertedClosingPrice.ValueDate.Should().Be(valueDate);
         insertedClosingPrice.ClosingPrice.Should().Be(closingPrice);
 
+        await dbFixture.MarketDataDb.DeleteFuturesClosingPriceAsync(contractId, valueDate);
         await eventListener.StopAsync();
 
         async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
@@ -90,9 +97,15 @@ public class FuturesClosingPriceCommandApiTests(WebApplicationFactory<Program> f
                 if (@event is FuturesClosingPriceInsertedEvent inserted)
                     futuresClosingPriceInsertedEvent = inserted;
                 if (@event is FuturesClosingPriceInsertedCompleteEvent insertedComplete)
+                {
                     futuresClosingPriceInsertedCompleteEvent = insertedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesClosingPriceInsertedFailEvent insertedFail)
+                {
                     futuresClosingPriceInsertedFailEvent = insertedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }

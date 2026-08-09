@@ -42,6 +42,7 @@ public class MarketDataFeedStateRepository(
             _ when command is TurnTradeLiveFeedOffCommand => await LoadStateFromSnapshotAsync<MarketDataFeedCommandState, TradeLiveFeedAddedEvent>(command),
             _ when command is AddTradeLiveFeedCommand => await LoadStateFromSnapshotAsync<MarketDataFeedCommandState, TradeLiveFeedAddedEvent>(command),
             _ when command is RemoveTradeLiveFeedCommand => await LoadStateFromSnapshotAsync<MarketDataFeedCommandState, TradeLiveFeedAddedEvent>(command),
+            _ when command is HaltTradeLiveFeedCommand => await LoadStateFromSnapshotAsync<MarketDataFeedCommandState, TradeLiveFeedAddedEvent>(command),
             _ => await LoadStateFromSnapshotAsync<MarketDataFeedCommandState, MarketDataFeedStartedEvent>(command)
         };
 
@@ -76,6 +77,7 @@ public class MarketDataFeedStateRepository(
                 MarketDataFeedResetEvent e => await PostEventAsync<MarketDataFeedResetEvent, MarketDataFeedId>(context, e),
                 TradeLiveFeedAddedEvent e => await PostEventAsync<TradeLiveFeedAddedEvent, TradeLiveFeedId>(context, e),
                 TradeLiveFeedRemovedEvent e => await PostEventAsync<TradeLiveFeedRemovedEvent, TradeLiveFeedId>(context, e),
+                TradeLiveFeedHaltedEvent e => await PostEventAsync<TradeLiveFeedHaltedEvent, MarketDataFeedId>(context, e),
                 TradeLiveFeedTurnedOnEvent e => await UpdateReadModelAsync<TradeLiveFeedTurnedOnEvent, TradeLiveFeedTurnedOnCompleteEvent, TradeLiveFeedAddedFailEvent, TradeLiveFeedId>(
                     context, e, async () => await db.InsertTradeLiveFeedAsync(new (e.OrderId, e.TradeId, TradeLiveFeedStateType.On))),
                 TradeLiveFeedTurnedOffEvent e => await UpdateReadModelAsync<TradeLiveFeedTurnedOffEvent, TradeLiveFeedTurnedOffCompleteEvent, TradeLiveFeedTurnedOffFailEvent, TradeLiveFeedId>(

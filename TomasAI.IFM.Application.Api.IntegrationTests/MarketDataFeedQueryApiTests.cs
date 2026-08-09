@@ -142,7 +142,7 @@ public class MarketDataFeedQueryApiTests(WebApplicationFactory<Program> factory)
         var response = await queryApi.GetLastFuturesBarDataAsync("ES20251010", "ES", new DateOnly(2025, 10, 10));
 
         response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<FuturesBarDataReadModel[]>();
+        response.Value.Should().BeAssignableTo<FuturesBarDataReadModel>();
     }
 
     /// <summary>

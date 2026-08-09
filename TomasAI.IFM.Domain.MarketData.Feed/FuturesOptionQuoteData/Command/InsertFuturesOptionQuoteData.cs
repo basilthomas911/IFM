@@ -32,9 +32,9 @@ public static class InsertFuturesOptionQuoteData
         optionQuoteData = e switch
         {
             _ when e.QuoteData.QuoteType == QuoteType.Price && e.QuoteData.Side == QuoteSide.Ask => optionQuoteData with { AskPrice = Convert.ToDecimal(e.QuoteData.Price) },
-            _ when e.QuoteData.QuoteType == QuoteType.Size && e.QuoteData.Side == QuoteSide.Ask => optionQuoteData with { AskPrice = e.QuoteData.Size },
+            _ when e.QuoteData.QuoteType == QuoteType.Size && e.QuoteData.Side == QuoteSide.Ask => optionQuoteData with { AskSize = e.QuoteData.Size },
             _ when e.QuoteData.QuoteType == QuoteType.Price && e.QuoteData.Side == QuoteSide.Bid => optionQuoteData with { BidPrice = Convert.ToDecimal(e.QuoteData.Price) },
-            _ when e.QuoteData.QuoteType == QuoteType.Size && e.QuoteData.Side == QuoteSide.Bid => optionQuoteData with { BidPrice = e.QuoteData.Size },
+            _ when e.QuoteData.QuoteType == QuoteType.Size && e.QuoteData.Side == QuoteSide.Bid => optionQuoteData with { BidSize = e.QuoteData.Size },
             _ => optionQuoteData
         };
         state.SetFuturesOptionQuoteData(optionQuote.Id, optionQuoteData);

@@ -204,7 +204,7 @@ public record FuturesTickDataStreamingStartedCompleteEvent : ICompleteEvent<Futu
 [MessagePackObject(AllowPrivate = true)]
 public record FuturesTickDataStreamingStartedFailEvent : IErrorEvent<FuturesTickDataStreamingId>
 {
-    [IgnoreMember] public const string Actor = "FuturesTickDataCommand";
+    [IgnoreMember] public const string Actor = "FuturesTickDataEvent";
     [IgnoreMember] public const string Verb = "StreamingStartedFail";
 
     [Key(0)] public ActorSubject Subject { get; init; }

@@ -73,11 +73,12 @@ public sealed class FundTransactionStateRepository(
             };
         }
 
+        async ValueTask InsertFundTransactionsAsync(ICollection<FundTransactionReadModel> fundTransactions)
+            => await db.InsertFundTransactionsAsync(fundTransactions);
+
         async ValueTask InsertFundTransactionAsync(FundTransactionReadModel fundTransaction)
             => await db.InsertFundTransactionAsync(fundTransaction);
 
-        async ValueTask InsertFundTransactionsAsync(ICollection<FundTransactionReadModel> fundTransactions)
-            => await db.InsertFundTransactionsAsync(fundTransactions);
     }
 
 }

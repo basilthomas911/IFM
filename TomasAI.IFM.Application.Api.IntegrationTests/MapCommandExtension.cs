@@ -71,6 +71,7 @@ public static class MapCommandExtension
         app.MapPost(MarketDataFeedUriPath.TurnTradeLiveFeedOff, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromDisableTradeLiveFeedAsync(resp));
         app.MapPost(MarketDataFeedUriPath.AddTradeLiveFeed, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromAddTradeLiveFeedAsync(resp));
         app.MapPost(MarketDataFeedUriPath.RemoveTradeLiveFeed, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromRemoveTradeLiveFeedAsync(resp));
+        app.MapPost(MarketDataFeedUriPath.HaltTradeLiveFeed, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromHaltTradeLiveFeedAsync(resp));
         app.MapPost(MarketDataFeedUriPath.DeleteStreamingRequestId, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromDeleteStreamingRequestIdAsync(resp));
         app.MapPost(MarketDataFeedUriPath.StartFuturesOptionTickDataStreaming, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromStartFuturesOptionTickDataStreamingAsync(resp));
         app.MapPost(MarketDataFeedUriPath.StopFuturesOptionTickDataStreaming, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromStopFuturesOptionTickDataStreamingAsync(resp));

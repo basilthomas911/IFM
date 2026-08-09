@@ -68,9 +68,8 @@ public static class MarketDataFeedQueryApiResult
         });
 
     public static Task FromGetLastFuturesBarDataAsync(HttpResponse resp)
-        => resp.SetResult(new[] {
-            new FuturesBarDataReadModel("ES20251010", "ES", new System.DateOnly(2025,10,10), DateTime.SpecifyKind(new System.DateTime(2025,10,10,9,31,0), DateTimeKind.Utc), BarRateType.Minute, 4501.00m, 0.6, -0.4)
-        });
+        => resp.SetResult(
+            new FuturesBarDataReadModel("ES20251010", "ES", new System.DateOnly(2025,10,10), DateTime.SpecifyKind(new System.DateTime(2025,10,10,9,31,0), DateTimeKind.Utc), BarRateType.Minute, 4501.00m, 0.6, -0.4));
 
     public static Task FromGetIronCondorMarketDataFeedAsync(HttpResponse resp)
         => resp.SetResult(new IronCondorMarketDataFeedReadModel(

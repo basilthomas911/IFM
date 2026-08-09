@@ -123,7 +123,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_TheCompleteFeedLifecycle_When_CommandsAreReceived_Then_EventsAccumulateInOrder()
     {
         var actor = _fixture.CreateMarketDataFeedCommandActor();
-        var commands = new[] { "Start", "Reset", "Stop", "Add", "TurnOn", "Remove" }
+        var commands = new[] { "Start", "Reset", "Stop", "Add", "Remove", "TurnOn", "Remove" }
             .Select(kind => CreateCommand(kind)).ToArray();
         var state = new MarketDataFeedCommandState { Id = commands[0].Subject.ThreadId };
 
@@ -132,7 +132,8 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
 
         state.Events.Select(value => value.GetType()).Should().ContainInOrder(
             typeof(MarketDataFeedStartedEvent), typeof(MarketDataFeedResetEvent), typeof(MarketDataFeedStoppedEvent),
-            typeof(TradeLiveFeedAddedEvent), typeof(TradeLiveFeedTurnedOnEvent), typeof(TradeLiveFeedRemovedEvent));
+            typeof(TradeLiveFeedAddedEvent), typeof(TradeLiveFeedRemovedEvent),
+            typeof(TradeLiveFeedTurnedOnEvent), typeof(TradeLiveFeedRemovedEvent));
     }
 
     [Fact]

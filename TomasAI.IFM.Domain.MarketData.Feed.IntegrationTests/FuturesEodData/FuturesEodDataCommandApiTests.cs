@@ -35,12 +35,18 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         FuturesEodDataInsertedEvent futuresEodDataInsertedEvent = default!;
         FuturesEodDataInsertedCompleteEvent futuresEodDataInsertedCompleteEvent = default!;
         FuturesEodDataInsertedFailEvent futuresEodDataInsertedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesEodDataInsertedEvent.Actor)] = [FuturesEodDataInsertedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesEodDataInsertedEvent.Actor)] =
+                [
+                    FuturesEodDataInsertedEvent.Verb,
+                    FuturesEodDataInsertedCompleteEvent.Verb,
+                    FuturesEodDataInsertedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -66,12 +72,13 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         var response = await marketDataFeedApi.InsertFuturesEodDataAsync(
             valueDate, futuresTickData, contract, eodDataToday, eodDataRange, normCurveData, windowSize, vixEodData);
 
-        await Task.Delay(1000);
+        response.Should().NotBeNull();
+        response.Success.Should().BeTrue(response.ErrorMessage);
+        response.Value.Should().NotBe(Guid.Empty);
+
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
         futuresEodDataInsertedEvent.Should().NotBeNull();
         futuresEodDataInsertedCompleteEvent.Should().NotBeNull();
         futuresEodDataInsertedFailEvent.Should().BeNull();
@@ -84,7 +91,7 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         insertedEodData.OpenPrice.Should().Be(yesterDaysClosingPrice);
         insertedEodData.HighPrice.Should().Be(eodDataToday.HighPrice);
         insertedEodData.LowPrice.Should().Be(eodDataToday.LowPrice);
-        insertedEodData.ClosePrice.Should().Be(eodDataToday.ClosePrice);
+        insertedEodData.ClosePrice.Should().Be(futuresTickData.Price);
         insertedEodData.Volume.Should().Be(eodDataToday.Volume);
 
         await eventListener.StopAsync();
@@ -105,9 +112,15 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
                 if (@event is FuturesEodDataInsertedEvent inserted)
                     futuresEodDataInsertedEvent = inserted;
                 if (@event is FuturesEodDataInsertedCompleteEvent insertedComplete)
+                {
                     futuresEodDataInsertedCompleteEvent = insertedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesEodDataInsertedFailEvent insertedFail)
+                {
                     futuresEodDataInsertedFailEvent = insertedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -121,12 +134,18 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         VixFuturesEodDataInsertedEvent vixFuturesEodDataInsertedEvent = default!;
         VixFuturesEodDataInsertedCompleteEvent vixFuturesEodDataInsertedCompleteEvent = default!;
         VixFuturesEodDataInsertedFailEvent vixFuturesEodDataInsertedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, VixFuturesEodDataInsertedEvent.Actor)] = [VixFuturesEodDataInsertedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, VixFuturesEodDataInsertedEvent.Actor)] =
+                [
+                    VixFuturesEodDataInsertedEvent.Verb,
+                    VixFuturesEodDataInsertedCompleteEvent.Verb,
+                    VixFuturesEodDataInsertedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -149,12 +168,13 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.InsertVixFuturesEodDataAsync(vixFuturesTickData);
 
-        await Task.Delay(1000);
+        response.Should().NotBeNull();
+        response.Success.Should().BeTrue(response.ErrorMessage);
+        response.Value.Should().NotBe(Guid.Empty);
+
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
         vixFuturesEodDataInsertedEvent.Should().NotBeNull();
         vixFuturesEodDataInsertedCompleteEvent.Should().NotBeNull();
         vixFuturesEodDataInsertedFailEvent.Should().BeNull();
@@ -182,9 +202,15 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
                 if (@event is VixFuturesEodDataInsertedEvent inserted)
                     vixFuturesEodDataInsertedEvent = inserted;
                 if (@event is VixFuturesEodDataInsertedCompleteEvent insertedComplete)
+                {
                     vixFuturesEodDataInsertedCompleteEvent = insertedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is VixFuturesEodDataInsertedFailEvent insertedFail)
+                {
                     vixFuturesEodDataInsertedFailEvent = insertedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }

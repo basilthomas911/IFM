@@ -56,8 +56,16 @@ public class FuturesBarDataStateRepository(
         {
             _ = domainEvent switch
             {
-                FuturesBarDataStreamingStartedEvent e => await PostEventAsync<FuturesBarDataStreamingStartedEvent, FuturesBarDataStreamingId>(context, e),
-                FuturesBarDataStreamingStoppedEvent e => await PostEventAsync<FuturesBarDataStreamingStoppedEvent, FuturesBarDataStreamingId>(context, e),
+                FuturesBarDataStreamingStartedEvent e => await UpdateReadModelAsync<
+                    FuturesBarDataStreamingStartedEvent,
+                    FuturesBarDataStreamingStartedCompleteEvent,
+                    FuturesBarDataStreamingStartedFailEvent,
+                    FuturesBarDataStreamingId>(context, e, static () => ValueTask.CompletedTask),
+                FuturesBarDataStreamingStoppedEvent e => await UpdateReadModelAsync<
+                    FuturesBarDataStreamingStoppedEvent,
+                    FuturesBarDataStreamingStoppedCompleteEvent,
+                    FuturesBarDataStreamingStoppedFailEvent,
+                    FuturesBarDataStreamingId>(context, e, static () => ValueTask.CompletedTask),
                 FuturesBarDataInsertedEvent e => await UpdateReadModelAsync<FuturesBarDataInsertedEvent, FuturesBarDataInsertedCompleteEvent, FuturesBarDataInsertedFailEvent, FuturesBarDataId>(
                     context, e, async () => await InsertFuturesBarDataAsync(db, e.FuturesBarData)),
                 FuturesBarDataDeletedEvent e => await UpdateReadModelAsync<FuturesBarDataDeletedEvent, FuturesBarDataDeletedCompleteEvent, FuturesBarDataDeletedFailEvent, FuturesBarDataId>(

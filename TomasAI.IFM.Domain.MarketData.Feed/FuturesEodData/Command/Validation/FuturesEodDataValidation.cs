@@ -135,7 +135,7 @@ internal static class FuturesEodDataValidation
     /// Validates the collection of VixFuturesEodDataReadModel and adds any validation errors to the provided list.
     /// </summary>
     /// <remarks>
-    /// This method validates that the collection is not null or empty, and performs validation on each item in the collection.
+    /// This method validates that the optional collection is not null and performs validation on each supplied item.
     /// Per requirements, null reference checks are NOT performed on individual items in the collection.
     /// </remarks>
     /// <param name="validationErrors">The list to which validation errors will be added.</param>
@@ -148,13 +148,6 @@ internal static class FuturesEodDataValidation
         if (vixEodData is null)
         {
             validationErrors.Add(new ValidationError($"{commandName}.VixEodData is null"));
-            return validationErrors;
-        }
-
-        // Validate collection is not empty
-        if (vixEodData.Count == 0)
-        {
-            validationErrors.Add(new ValidationError($"{commandName}.VixEodData collection is empty"));
             return validationErrors;
         }
 

@@ -61,13 +61,21 @@ public class MarketDataFeedCommandState
     /// trade live feed added
     /// </summary>
     /// <param name="e"></param>
-    bool On(TradeLiveFeedAddedEvent e) => true;
+    bool On(TradeLiveFeedAddedEvent e)
+    {
+        tradeLiveFeedState = TradeLiveFeedStateType.On;
+        return true;
+    }
 
     /// <summary>
     /// trade live feed removed
     /// </summary>
     /// <param name="e"></param>
-    bool On(TradeLiveFeedRemovedEvent e) => true;
+    bool On(TradeLiveFeedRemovedEvent e)
+    {
+        tradeLiveFeedState = TradeLiveFeedStateType.Off;
+        return true;
+    }
 
     /// <summary>
     /// trade live feed halted

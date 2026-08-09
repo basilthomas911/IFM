@@ -466,7 +466,7 @@ internal readonly record struct InsertFuturesOptionQuote(int quoteId, string con
 }
 internal readonly record struct InsertFuturesOptionQuoteData(int quoteId, string contractId, int requestId, long sequenceId, decimal bidPrice, int bidSize, decimal askPrice, int askSize) : IBindValue
 {
-    public object Bind() => new object?[] { quoteId, contractId, requestId, bidPrice, bidSize, askPrice, askSize };
+    public object Bind() => new object?[] { quoteId, contractId, requestId, sequenceId, bidPrice, bidSize, askPrice, askSize };
 }
 internal readonly record struct InsertFuturesOptionTickData(string contractId, DateOnly valueDate, long tickId, TimeOnly tickTime, double optionPrice, double bidPrice, double askPrice, int bidSize, int askSize, double impliedVolatility, double underlyingPrice, double delta, double gamma, double vega, double theta, double rho) : IBindValue
 {

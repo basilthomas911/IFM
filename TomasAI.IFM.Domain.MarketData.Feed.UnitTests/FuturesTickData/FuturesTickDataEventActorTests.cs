@@ -247,7 +247,7 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
     }
 
     [Fact]
-    public async Task ReceiveAsync_StreamingStopReturnsFalse_DoesNotPublishCompletion()
+    public async Task ReceiveAsync_StreamingStopReturnsFalse_PublishesFailure()
     {
         var api = Substitute.For<IMarketDataApi>();
         var streamIds = Substitute.For<IStreamIdCollection>();
@@ -261,6 +261,9 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
 
         await context.DidNotReceive().SendAsync<FuturesTickDataStreamingStoppedCompleteEvent, FuturesTickDataStreamingId>(
             Arg.Any<FuturesTickDataStreamingStoppedCompleteEvent>());
+        await context.Received(1).SendAsync<FuturesTickDataStreamingStoppedFailEvent, FuturesTickDataStreamingId>(
+            Arg.Is<FuturesTickDataStreamingStoppedFailEvent>(value =>
+                value.ErrorMessage == $"Market data API failed to stop streaming futures contract {SampleData.EsContract.ContractId}."));
         streamIds.DidNotReceive().Remove(Arg.Any<int>());
     }
 

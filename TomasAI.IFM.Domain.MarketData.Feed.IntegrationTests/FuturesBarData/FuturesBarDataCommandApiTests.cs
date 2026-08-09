@@ -30,12 +30,18 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
         FuturesBarDataInsertedEvent futuresBarDataInsertedEvent = default!;
         FuturesBarDataInsertedCompleteEvent futuresBarDataInsertedCompleteEvent = default!;
         FuturesBarDataInsertedFailEvent futuresBarDataInsertedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesBarDataInsertedEvent.Actor)] = [FuturesBarDataInsertedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesBarDataInsertedEvent.Actor)] =
+                [
+                    FuturesBarDataInsertedEvent.Verb,
+                    FuturesBarDataInsertedCompleteEvent.Verb,
+                    FuturesBarDataInsertedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -49,7 +55,7 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.InsertFuturesBarDataAsync(futuresBarData);
 
-        await Task.Delay(1000);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -89,9 +95,15 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
                 if (@event is FuturesBarDataInsertedEvent inserted)
                     futuresBarDataInsertedEvent = inserted;
                 if (@event is FuturesBarDataInsertedCompleteEvent insertedComplete)
+                {
                     futuresBarDataInsertedCompleteEvent = insertedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesBarDataInsertedFailEvent insertedFail)
+                {
                     futuresBarDataInsertedFailEvent = insertedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -105,12 +117,18 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
         FuturesBarDataStreamingStartedEvent futuresBarDataStreamingStartedEvent = default!;
         FuturesBarDataStreamingStartedCompleteEvent futuresBarDataStreamingStartedCompleteEvent = default!;
         FuturesBarDataStreamingStartedFailEvent futuresBarDataStreamingStartedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesBarDataStreamingStartedEvent.Actor)] = [FuturesBarDataStreamingStartedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesBarDataStreamingStartedEvent.Actor)] =
+                [
+                    FuturesBarDataStreamingStartedEvent.Verb,
+                    FuturesBarDataStreamingStartedCompleteEvent.Verb,
+                    FuturesBarDataStreamingStartedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -124,7 +142,7 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.StartFuturesBarDataStreamingAsync(futuresContracts, valueDate);
 
-        await Task.Delay(1000);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -156,9 +174,15 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
                 if (@event is FuturesBarDataStreamingStartedEvent started)
                     futuresBarDataStreamingStartedEvent = started;
                 if (@event is FuturesBarDataStreamingStartedCompleteEvent startedComplete)
+                {
                     futuresBarDataStreamingStartedCompleteEvent = startedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesBarDataStreamingStartedFailEvent startedFail)
+                {
                     futuresBarDataStreamingStartedFailEvent = startedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -172,22 +196,12 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
         FuturesBarDataDeletedEvent futuresBarDataDeletedEvent = default!;
         FuturesBarDataDeletedCompleteEvent futuresBarDataDeletedCompleteEvent = default!;
         FuturesBarDataDeletedFailEvent futuresBarDataDeletedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        // insert futures bar data via command api...
+        // Insert directly because this test exercises only the delete command.
         var futuresBarData = SampleData.FuturesBarData;
         await dbFixture.MarketDataDb.DeleteFuturesBarDataAsync(futuresBarData.Id);
-
-        _httpClientFactory.CreateClient();
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
-        var insertResponse = await marketDataFeedApi.InsertFuturesBarDataAsync(futuresBarData);
-
-        await Task.Delay(1000);
-
-        // assert insert succeeded...
-        insertResponse.Should().NotBeNull();
-        insertResponse.Success.Should().BeTrue();
-        insertResponse.Value.Should().NotBe(Guid.Empty);
+        await dbFixture.MarketDataDb.InsertFuturesBarDataAsync(futuresBarData);
 
         // verify bar data exists before delete...
         var existingBarData = await dbFixture.MarketDataDb.GetFuturesBarDataAsync(
@@ -199,7 +213,12 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesBarDataDeletedEvent.Actor)] = [FuturesBarDataDeletedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesBarDataDeletedEvent.Actor)] =
+                [
+                    FuturesBarDataDeletedEvent.Verb,
+                    FuturesBarDataDeletedCompleteEvent.Verb,
+                    FuturesBarDataDeletedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -207,9 +226,12 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
         var futuresBarDataId = futuresBarData.Id;
 
         // act...
+        _httpClientFactory.CreateClient();
+        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
+        var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.DeleteFuturesBarDataAsync(futuresBarDataId);
 
-        await Task.Delay(1000);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -242,9 +264,15 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
                 if (@event is FuturesBarDataDeletedEvent deleted)
                     futuresBarDataDeletedEvent = deleted;
                 if (@event is FuturesBarDataDeletedCompleteEvent deletedComplete)
+                {
                     futuresBarDataDeletedCompleteEvent = deletedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesBarDataDeletedFailEvent deletedFail)
+                {
                     futuresBarDataDeletedFailEvent = deletedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -258,12 +286,18 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
         FuturesBarDataStreamingStoppedEvent futuresBarDataStreamingStoppedEvent = default!;
         FuturesBarDataStreamingStoppedCompleteEvent futuresBarDataStreamingStoppedCompleteEvent = default!;
         FuturesBarDataStreamingStoppedFailEvent futuresBarDataStreamingStoppedFailEvent = default!;
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesBarDataStreamingStoppedEvent.Actor)] = [FuturesBarDataStreamingStoppedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesBarDataStreamingStoppedEvent.Actor)] =
+                [
+                    FuturesBarDataStreamingStoppedEvent.Verb,
+                    FuturesBarDataStreamingStoppedCompleteEvent.Verb,
+                    FuturesBarDataStreamingStoppedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -276,7 +310,7 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.StopFuturesBarDataStreamingAsync(valueDate);
 
-        await Task.Delay(1000);
+        await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -304,9 +338,15 @@ public class FuturesBarDataCommandApiTests(WebApplicationFactory<Program> factor
                 if (@event is FuturesBarDataStreamingStoppedEvent stopped)
                     futuresBarDataStreamingStoppedEvent = stopped;
                 if (@event is FuturesBarDataStreamingStoppedCompleteEvent stoppedComplete)
+                {
                     futuresBarDataStreamingStoppedCompleteEvent = stoppedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesBarDataStreamingStoppedFailEvent stoppedFail)
+                {
                     futuresBarDataStreamingStoppedFailEvent = stoppedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }

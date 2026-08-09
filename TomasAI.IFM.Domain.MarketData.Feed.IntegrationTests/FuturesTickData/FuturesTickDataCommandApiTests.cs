@@ -1,5 +1,4 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
@@ -32,12 +31,19 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
         FuturesTickDataInsertedEvent futuresTickDataInsertedEvent = default!;
         FuturesTickDataInsertedCompleteEvent futuresTickDataInsertedCompleteEvent = default!;
         FuturesTickDataInsertedFailEvent futuresTickDataInsertedFailEvent = default!;
+        var domainEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
-            "TestEventListener",
+            $"{nameof(InsertFuturesTickData_Ok)}-{Guid.NewGuid():N}",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesTickDataInsertedEvent.Actor)] = [FuturesTickDataInsertedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesTickDataInsertedEvent.Actor)] =
+                [
+                    FuturesTickDataInsertedEvent.Verb,
+                    FuturesTickDataInsertedCompleteEvent.Verb,
+                    FuturesTickDataInsertedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
@@ -64,15 +70,16 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.InsertFuturesTickDataAsync(contract, tickData);
 
-        await Task.Delay(1000);
+        response.Should().NotBeNull();
+        response.Success.Should().BeTrue(response.ErrorMessage);
+        response.Value.Should().NotBe(Guid.Empty);
+
+        await Task.WhenAll(domainEventReceived.Task, terminalEventReceived.Task).WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
         futuresTickDataInsertedEvent.Should().NotBeNull();
+        futuresTickDataInsertedFailEvent.Should().BeNull(futuresTickDataInsertedFailEvent?.ErrorMessage);
         futuresTickDataInsertedCompleteEvent.Should().NotBeNull();
-        futuresTickDataInsertedFailEvent.Should().BeNull();
 
         futuresTickDataInsertedEvent.Contract.ContractId.Should().Be(contract.ContractId);
         futuresTickDataInsertedEvent.TickData.ContractId.Should().Be(tickData.ContractId);
@@ -107,11 +114,20 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is FuturesTickDataInsertedEvent inserted)
+                {
                     futuresTickDataInsertedEvent = inserted;
+                    domainEventReceived.TrySetResult();
+                }
                 if (@event is FuturesTickDataInsertedCompleteEvent insertedComplete)
+                {
                     futuresTickDataInsertedCompleteEvent = insertedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesTickDataInsertedFailEvent insertedFail)
+                {
                     futuresTickDataInsertedFailEvent = insertedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -125,18 +141,25 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
         FuturesTickDataStreamingStartedEvent futuresTickDataStreamingStartedEvent = default!;
         FuturesTickDataStreamingStartedCompleteEvent futuresTickDataStreamingStartedCompleteEvent = default!;
         FuturesTickDataStreamingStartedFailEvent futuresTickDataStreamingStartedFailEvent = default!;
+        var domainEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
-            "TestEventListener",
+            $"{nameof(StartFuturesTickDataStreaming_Ok)}-{Guid.NewGuid():N}",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesTickDataStreamingStartedEvent.Actor)] = [FuturesTickDataStreamingStartedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesTickDataStreamingStartedEvent.Actor)] =
+                [
+                    FuturesTickDataStreamingStartedEvent.Verb,
+                    FuturesTickDataStreamingStartedCompleteEvent.Verb,
+                    FuturesTickDataStreamingStartedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
 
         var contract = SampleData.FuturesContract;
-        var valueDate = SampleData.ValueDate;
+        var valueDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-Random.Shared.Next(1, 10_000));
 
         // act...
         _httpClientFactory.CreateClient();
@@ -144,15 +167,17 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.StartFuturesTickDataStreamingAsync(contract, valueDate, false);
 
-        await Task.Delay(1000);
+        response.Should().NotBeNull();
+        response.Success.Should().BeTrue(response.ErrorMessage);
+        response.Value.Should().NotBe(Guid.Empty);
+
+        await Task.WhenAll(domainEventReceived.Task, terminalEventReceived.Task).WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
         futuresTickDataStreamingStartedEvent.Should().NotBeNull();
-        futuresTickDataStreamingStartedCompleteEvent.Should().NotBeNull();
-        futuresTickDataStreamingStartedFailEvent.Should().BeNull();
+        futuresTickDataStreamingStartedCompleteEvent.Should().BeNull();
+        futuresTickDataStreamingStartedFailEvent.Should().NotBeNull();
+        futuresTickDataStreamingStartedFailEvent.ErrorMessage.Should().Be("Market data API failed to start for unknown reasons.");
 
         futuresTickDataStreamingStartedEvent.Contract.ContractId.Should().Be(contract.ContractId);
         futuresTickDataStreamingStartedEvent.ValueDate.Should().Be(valueDate);
@@ -173,11 +198,20 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is FuturesTickDataStreamingStartedEvent started)
+                {
                     futuresTickDataStreamingStartedEvent = started;
+                    domainEventReceived.TrySetResult();
+                }
                 if (@event is FuturesTickDataStreamingStartedCompleteEvent startedComplete)
+                {
                     futuresTickDataStreamingStartedCompleteEvent = startedComplete;
+                    terminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesTickDataStreamingStartedFailEvent startedFail)
+                {
                     futuresTickDataStreamingStartedFailEvent = startedFail;
+                    terminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }
@@ -188,42 +222,64 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
     {
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
+        FuturesTickDataStreamingStartedCompleteEvent futuresTickDataStreamingStartedCompleteEvent = default!;
+        FuturesTickDataStreamingStartedFailEvent futuresTickDataStreamingStartedFailEvent = default!;
         FuturesTickDataStreamingStoppedEvent futuresTickDataStreamingStoppedEvent = default!;
         FuturesTickDataStreamingStoppedCompleteEvent futuresTickDataStreamingStoppedCompleteEvent = default!;
         FuturesTickDataStreamingStoppedFailEvent futuresTickDataStreamingStoppedFailEvent = default!;
+        var startTerminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopDomainEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopTerminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
-            "TestEventListener",
+            $"{nameof(StopFuturesTickDataStreaming_Ok)}-{Guid.NewGuid():N}",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesTickDataStreamingStoppedEvent.Actor)] = [FuturesTickDataStreamingStoppedEvent.Verb]
+                [new ActorMailboxId(ActorType.Event, FuturesTickDataStreamingStoppedEvent.Actor)] =
+                [
+                    FuturesTickDataStreamingStartedCompleteEvent.Verb,
+                    FuturesTickDataStreamingStartedFailEvent.Verb,
+                    FuturesTickDataStreamingStoppedEvent.Verb,
+                    FuturesTickDataStreamingStoppedCompleteEvent.Verb,
+                    FuturesTickDataStreamingStoppedFailEvent.Verb
+                ]
             },
             EventHandlerAsync
         );
 
         var contract = SampleData.FuturesContract;
-        var valueDate = SampleData.ValueDate;
+        var valueDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-Random.Shared.Next(1, 10_000));
 
         // start streaming first...
         _httpClientFactory.CreateClient();
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
-        await marketDataFeedApi.StartFuturesTickDataStreamingAsync(contract, valueDate, false);
+        var startResponse = await marketDataFeedApi.StartFuturesTickDataStreamingAsync(contract, valueDate, false);
 
-        await Task.Delay(1000);
+        startResponse.Should().NotBeNull();
+        startResponse.Success.Should().BeTrue(startResponse.ErrorMessage);
+        startResponse.Value.Should().NotBe(Guid.Empty);
+
+        await startTerminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        futuresTickDataStreamingStartedCompleteEvent.Should().BeNull();
+        futuresTickDataStreamingStartedFailEvent.Should().NotBeNull();
+        futuresTickDataStreamingStartedFailEvent.ErrorMessage.Should().Be("Market data API failed to start for unknown reasons.");
 
         // act... stop streaming
         var response = await marketDataFeedApi.StopFuturesTickDataStreamingAsync(contract.ContractId, valueDate);
 
-        await Task.Delay(1000);
+        response.Should().NotBeNull();
+        response.Success.Should().BeTrue(response.ErrorMessage);
+        response.Value.Should().NotBe(Guid.Empty);
+
+        await stopDomainEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await stopTerminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
         futuresTickDataStreamingStoppedEvent.Should().NotBeNull();
-        futuresTickDataStreamingStoppedCompleteEvent.Should().NotBeNull();
-        futuresTickDataStreamingStoppedFailEvent.Should().BeNull();
+        futuresTickDataStreamingStoppedCompleteEvent.Should().BeNull();
+        futuresTickDataStreamingStoppedFailEvent.Should().NotBeNull();
+        futuresTickDataStreamingStoppedFailEvent.ErrorMessage.Should().Be($"Stream ID not found for futures contract {contract.ContractId}.");
 
         futuresTickDataStreamingStoppedEvent.ContractId.Should().Be(contract.ContractId);
 
@@ -233,6 +289,8 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
         {
             IEvent receivedEvent = eventVerb switch
             {
+                _ when eventVerb == FuturesTickDataStreamingStartedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTickDataStreamingStartedCompleteEvent>()!),
+                _ when eventVerb == FuturesTickDataStreamingStartedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTickDataStreamingStartedFailEvent>()!),
                 _ when eventVerb == FuturesTickDataStreamingStoppedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTickDataStreamingStoppedEvent>()!),
                 _ when eventVerb == FuturesTickDataStreamingStoppedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTickDataStreamingStoppedCompleteEvent>()!),
                 _ when eventVerb == FuturesTickDataStreamingStoppedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTickDataStreamingStoppedFailEvent>()!),
@@ -242,12 +300,31 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
 
             IEvent SetEvent(IEvent @event)
             {
+                if (@event is FuturesTickDataStreamingStartedCompleteEvent startedComplete)
+                {
+                    futuresTickDataStreamingStartedCompleteEvent = startedComplete;
+                    startTerminalEventReceived.TrySetResult();
+                }
+                if (@event is FuturesTickDataStreamingStartedFailEvent startedFail)
+                {
+                    futuresTickDataStreamingStartedFailEvent = startedFail;
+                    startTerminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesTickDataStreamingStoppedEvent stopped)
+                {
                     futuresTickDataStreamingStoppedEvent = stopped;
+                    stopDomainEventReceived.TrySetResult();
+                }
                 if (@event is FuturesTickDataStreamingStoppedCompleteEvent stoppedComplete)
+                {
                     futuresTickDataStreamingStoppedCompleteEvent = stoppedComplete;
+                    stopTerminalEventReceived.TrySetResult();
+                }
                 if (@event is FuturesTickDataStreamingStoppedFailEvent stoppedFail)
+                {
                     futuresTickDataStreamingStoppedFailEvent = stoppedFail;
+                    stopTerminalEventReceived.TrySetResult();
+                }
                 return @event;
             }
         }

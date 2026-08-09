@@ -53,6 +53,9 @@ public static class MarketDataFeedCommandApiResult
     public static Task FromRemoveTradeLiveFeedAsync(HttpResponse resp)
         => resp.SetResult();
 
+    public static Task FromHaltTradeLiveFeedAsync(HttpResponse resp)
+        => resp.SetResult();
+
     public static Task FromRemoveTradeLiveFeedsAsync(HttpResponse resp)
         => resp.SetResult();
 
