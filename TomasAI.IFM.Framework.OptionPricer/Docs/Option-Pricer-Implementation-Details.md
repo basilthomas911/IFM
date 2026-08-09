@@ -4,6 +4,8 @@
 
 `TomasAI.IFM.Framework.OptionPricer` provides the in-process quantitative implementation used by the Option Pricer domain. Its current implementation is a managed Black-76 model for European options on futures, batch pricing and Greeks, implied-volatility inversion, credit-spread assembly, and a MAD-based iron-condor loss-risk estimate.
 
+The approved plan to make Black76 the sole IFM option model and remove QLNet is documented in [QLNet to Black76 Migration and Implementation Plan](QLNet-to-Black76-Migration-Plan.md). That document is the implementation specification; this document continues to describe the code that exists today until the migration is completed.
+
 The project targets .NET 10, enables nullable reference types, implicit usings, and unsafe blocks, and references Shared, Domain OptionPricer Shared, and Domain Trade Shared.
 
 ## Root-to-leaf directory inventory
