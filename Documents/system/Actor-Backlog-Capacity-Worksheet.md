@@ -104,6 +104,10 @@ The relevant Tranche A instruments are:
 - `ifm.actor.admission.bytes_in_use`;
 - `ifm.actor.admission.payload.size`;
 - `ifm.actor.admission.would_reject`;
+- `ifm.actor.worker.capacity`;
+- `ifm.actor.worker.busy`;
+- `ifm.actor.worker.available`;
+- `ifm.actor.worker.utilization`;
 - existing mailbox, ready-queue, queue-wait, handler, and runtime instruments; and
 - existing NATS receive, failure, and operation instruments.
 

@@ -123,6 +123,7 @@ sealed class ActorThreadV2(
             _state = ActorThreadState.WaitingForMessage;
             await foreach (var threadId in _readyQueue.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
+                ActorRuntimeMetrics.RecordWorkerBusy();
                 try
                 {
                     await ProcessMailboxAsync(threadId, cancellationToken).ConfigureAwait(false);
@@ -132,6 +133,10 @@ sealed class ActorThreadV2(
                     _logger.LogErrorEvent(threadId.ToString(), exception,
                         "Actor worker recovered from a mailbox infrastructure failure.");
                     _state = ActorThreadState.WaitingForMessage;
+                }
+                finally
+                {
+                    ActorRuntimeMetrics.RecordWorkerAvailable();
                 }
             }
         }

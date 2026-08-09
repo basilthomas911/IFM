@@ -51,6 +51,10 @@ Telemetry__Metrics__OtlpProtocol=grpc
 | `ifm.actor.mailbox.depth` | Up/down counter | `actor.type` | Current queued message count. |
 | `ifm.actor.mailbox.active` | Up/down counter | `actor.type` | Current active entity-mailbox count. |
 | `ifm.actor.ready_queue.depth` | Up/down counter | `actor.type` | Scheduled mailboxes waiting for a worker. |
+| `ifm.actor.worker.capacity` | Observable gauge | none | Configured logical actor-worker concurrency ceiling across active actor pools. |
+| `ifm.actor.worker.busy` | Observable gauge | none | Workers currently owning a mailbox batch, including time awaiting an asynchronous actor handler. |
+| `ifm.actor.worker.available` | Observable gauge | none | Capacity not currently occupied by a mailbox batch. |
+| `ifm.actor.worker.utilization` | Observable gauge, percent | none | `busy / capacity × 100`; zero when no actor pool is active. |
 | `ifm.actor.mailbox.enqueue_wait.duration` | Histogram, ms | `actor.type` | Time waiting for mailbox capacity. |
 | `ifm.actor.mailbox.queue_wait.duration` | Histogram, ms | `actor.type` | Accepted-message age when dequeued. |
 | `ifm.actor.handler.duration` | Histogram, ms | `actor.type` | End-to-end actor handler execution. |
@@ -60,6 +64,8 @@ Telemetry__Metrics__OtlpProtocol=grpc
 The bounded `stage` values are `validation`, `replay`, `execution`, `persistence`, `reply`, `publication`, and `denormalization`.
 
 Mailbox timestamps are stored in a value-type queue envelope. The clock is read only when the corresponding histogram is enabled. The active-mailbox gauge is protected against unstarted-dispose and concurrent stop/retire paths, preventing negative or duplicate lifecycle measurements.
+
+Worker instruments measure logical actor concurrency slots, not operating-system or .NET ThreadPool threads. A worker is busy from the moment it dequeues a scheduled mailbox until it releases or reschedules that mailbox, including any time its `HandleMessageAsync` call is asynchronously suspended. Capacity is registered when `ActorThreadPoolV2` initializes and removed after its workers finish disposal. Available capacity and utilization are derived from the same process-wide capacity and busy counters, use no entity or worker identifiers, and therefore preserve the low-cardinality contract. Because these are observable gauges, very short saturation bursts between exporter collection intervals may be visible through queue-wait histograms without appearing as a 100% utilization sample.
 
 ### 2.3 NATS instruments
 
@@ -158,7 +164,7 @@ The calculation is now isolated in a deterministic internal method and covers Sa
 The initial dashboard should show these panels by bounded actor type and operation:
 
 1. accepted, processed, failed, and canceled message rates;
-2. mailbox depth, active mailbox count, and ready-queue depth;
+2. mailbox depth, active mailbox count, ready-queue depth, worker capacity, busy/available workers, and worker utilization;
 3. p50/p95/p99 enqueue wait, queue wait, handler duration, and stage duration;
 4. stage-failure rate;
 5. NATS publish/request latency and operation failures;
@@ -177,6 +183,8 @@ For a paper-trading capture:
 7. attach dashboard exports or stable queries to this document before changing SWO-01 to Complete.
 
 Alert thresholds should be derived from the first representative paper-trading distribution. Until then, alert on sustained non-zero failure rates, monotonically growing mailbox/ready-queue depth, failure to drain after a burst, and runtime resource saturation rather than inventing latency thresholds without evidence.
+
+For worker saturation, graph `ifm.actor.worker.busy` and `ifm.actor.worker.available` against `ifm.actor.worker.capacity`, with `ifm.actor.worker.utilization` as the summary percentage. Sustained utilization near 100% is not by itself a fault: treat it as actor-pool saturation only when ready-queue depth or queue-wait percentiles also remain elevated. Compare that condition with `System.Runtime` ThreadPool, CPU, allocation, and GC metrics to distinguish an intentional logical concurrency ceiling from general process or ThreadPool starvation.
 
 ## 6. Remaining SWO-01 evidence and gaps
 
@@ -423,3 +431,4 @@ Every hot-path case reports 0 B/op. The final immutable-ring/drain and schedulin
 | 0.7 | 2026-08-09 | Recorded the optimized atomic-ticket/single-consumer MPSC ring, isolated persistent-producer benchmarks, and its improved throughput while retaining the production rollout gate. |
 | 0.8 | 2026-08-09 | Recorded the striped-topology SPSC mailbox, transition-only backpressure, 8,192/65,536 capacity benchmarks, and the unchanged Channel/8,192 production defaults. |
 | 0.9 | 2026-08-09 | Marked SPSC as the recommended production implementation while retaining Channel as the checked-in selection until paper-trading or initial-production validation. |
+| 1.0 | 2026-08-09 | Added process-wide actor-worker capacity, busy, available, and utilization gauges with logical-slot semantics, lifecycle accounting, focused tests, and Grafana correlation guidance. |

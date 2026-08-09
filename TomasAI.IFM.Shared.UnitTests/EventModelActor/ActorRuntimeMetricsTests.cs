@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Linq;
@@ -13,6 +14,48 @@ namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
 
 public sealed class ActorRuntimeMetricsTests
 {
+    [Fact]
+    public void WorkerGauges_ReportCapacityAvailabilityAndUtilization()
+    {
+        var measurements = new ConcurrentDictionary<string, double>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == ActorRuntimeMetrics.MeterName
+                && instrument.Name.StartsWith("ifm.actor.worker.", StringComparison.Ordinal))
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, value, _, _) =>
+            measurements[instrument.Name] = value);
+        listener.SetMeasurementEventCallback<double>((instrument, value, _, _) =>
+            measurements[instrument.Name] = value);
+        listener.Start();
+
+        ActorRuntimeMetrics.RegisterWorkerPool(4);
+        ActorRuntimeMetrics.RecordWorkerBusy();
+        try
+        {
+            listener.RecordObservableInstruments();
+
+            measurements["ifm.actor.worker.capacity"].Should().BeGreaterThanOrEqualTo(4);
+            measurements["ifm.actor.worker.busy"].Should().BeGreaterThanOrEqualTo(1);
+            measurements["ifm.actor.worker.available"].Should().Be(
+                measurements["ifm.actor.worker.capacity"]
+                - measurements["ifm.actor.worker.busy"]);
+            measurements["ifm.actor.worker.utilization"].Should().BeApproximately(
+                measurements["ifm.actor.worker.busy"] * 100
+                / measurements["ifm.actor.worker.capacity"],
+                0.000_001);
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordWorkerAvailable();
+            ActorRuntimeMetrics.UnregisterWorkerPool(4);
+        }
+    }
+
     [Fact]
     public void MailboxLifecycleMetric_IsBalancedAcrossDisposePaths()
     {

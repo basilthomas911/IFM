@@ -35,6 +35,7 @@ public sealed class ActorThreadPoolV2(
             workers[index] = worker;
         }
         Volatile.Write(ref _workers, workers);
+        ActorRuntimeMetrics.RegisterWorkerPool(workers.Length);
         return this;
     }
 
@@ -87,6 +88,8 @@ public sealed class ActorThreadPoolV2(
         foreach (var worker in workers)
             await worker.DisposeAsync().ConfigureAwait(false);
 
+        if (workers.Length != 0)
+            ActorRuntimeMetrics.UnregisterWorkerPool(workers.Length);
         Volatile.Write(ref _workers, []);
         GC.SuppressFinalize(this);
     }

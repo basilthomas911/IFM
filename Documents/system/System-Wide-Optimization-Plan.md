@@ -125,7 +125,7 @@ Expose low-overhead runtime evidence that identifies the real limiting stage dur
 #### Current evidence
 
 - NATS counters cover publishing, receiving, dispatch failures, duplicate suppression, listener-only events, operation latency, and operation failures.
-- Actor instruments cover lifecycle outcomes, mailbox and ready-queue depth, active mailboxes, queue/handler timing, normal outcomes, and bounded processing stages.
+- Actor instruments cover lifecycle outcomes, mailbox and ready-queue depth, active mailboxes, logical worker capacity/busy/available/utilization, queue/handler timing, normal outcomes, and bounded processing stages.
 - The API server registers an OpenTelemetry metrics pipeline with a production OTLP exporter and .NET runtime/host meters.
 - The dormant actor mailbox measurement path reports no per-operation allocation; an active listener adds approximately 124.671 ns per measured mailbox operation on the 2026-08-09 benchmark host.
 - The full domain integration gate passes 193 of 193 tests.
@@ -545,6 +545,7 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 0.9 | 2026-08-09 | Recorded the optimized MPSC implementation and isolated-process benchmark evidence supporting a future production trial. |
 | 0.10 | 2026-08-09 | Recorded the topology-aligned SPSC mailbox, capacity comparison, and production rollout requirements. |
 | 0.11 | 2026-08-09 | Marked SPSC as the recommended production implementation while retaining Channel as the active selection until paper-trading or initial-production validation. |
+| 0.12 | 2026-08-09 | Added direct logical actor-worker capacity, occupancy, availability, and utilization observability for the paper-trading saturation dashboard. |
 
 ## 14. Related documents
 

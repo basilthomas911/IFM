@@ -51,6 +51,30 @@ internal static class ActorRuntimeMetrics
         "{mailbox}",
         "Current scheduled mailboxes waiting for an actor worker.");
 
+    static readonly ObservableGauge<long> WorkerCapacity = Meter.CreateObservableGauge(
+        "ifm.actor.worker.capacity",
+        ObserveWorkerCapacity,
+        "{worker}",
+        "Configured logical actor-worker concurrency capacity.");
+
+    static readonly ObservableGauge<long> WorkerBusy = Meter.CreateObservableGauge(
+        "ifm.actor.worker.busy",
+        ObserveWorkerBusy,
+        "{worker}",
+        "Logical actor workers currently owning a mailbox batch, including asynchronous handler waits.");
+
+    static readonly ObservableGauge<long> WorkerAvailable = Meter.CreateObservableGauge(
+        "ifm.actor.worker.available",
+        ObserveWorkerAvailable,
+        "{worker}",
+        "Logical actor workers currently available to take a scheduled mailbox.");
+
+    static readonly ObservableGauge<double> WorkerUtilization = Meter.CreateObservableGauge(
+        "ifm.actor.worker.utilization",
+        ObserveWorkerUtilization,
+        "%",
+        "Percentage of configured logical actor workers currently owning a mailbox batch.");
+
     internal static readonly Histogram<double> EnqueueWaitDuration = Meter.CreateHistogram<double>(
         "ifm.actor.mailbox.enqueue_wait.duration",
         "ms",
@@ -97,6 +121,9 @@ internal static class ActorRuntimeMetrics
         "ifm.actor.admission.payload.size",
         "By",
         "Serialized actor message payload size observed at mailbox admission.");
+
+    static long _workerCapacity;
+    static long _workerBusy;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static long StartEnqueueWait()
@@ -165,6 +192,30 @@ internal static class ActorRuntimeMetrics
         => ReadyQueueDepth.Add(-1, ActorTypeTag(actorType));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void RegisterWorkerPool(int workerCount)
+    {
+        if (workerCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(workerCount));
+        Interlocked.Add(ref _workerCapacity, workerCount);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void UnregisterWorkerPool(int workerCount)
+    {
+        if (workerCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(workerCount));
+        Interlocked.Add(ref _workerCapacity, -workerCount);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void RecordWorkerBusy()
+        => Interlocked.Increment(ref _workerBusy);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void RecordWorkerAvailable()
+        => Interlocked.Decrement(ref _workerBusy);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void RecordStage(long startedTimestamp, string stage, ActorType actorType)
     {
         if (startedTimestamp == 0)
@@ -224,4 +275,23 @@ internal static class ActorRuntimeMetrics
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static KeyValuePair<string, object?> ActorTypeTag(ActorType actorType)
         => new("actor.type", actorType.ToStringFast());
+
+    static long ObserveWorkerCapacity() => Math.Max(0, Interlocked.Read(ref _workerCapacity));
+
+    static long ObserveWorkerBusy() => Math.Max(0, Interlocked.Read(ref _workerBusy));
+
+    static long ObserveWorkerAvailable()
+    {
+        var capacity = ObserveWorkerCapacity();
+        var busy = ObserveWorkerBusy();
+        return Math.Max(0, capacity - busy);
+    }
+
+    static double ObserveWorkerUtilization()
+    {
+        var capacity = ObserveWorkerCapacity();
+        return capacity == 0
+            ? 0
+            : Math.Min(100, ObserveWorkerBusy() * 100d / capacity);
+    }
 }
