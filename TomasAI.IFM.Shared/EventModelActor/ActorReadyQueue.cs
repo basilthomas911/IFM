@@ -17,10 +17,23 @@ sealed class ActorReadyQueue
     public bool IsCompleted => Volatile.Read(ref _completed) != 0;
 
     public bool Schedule(ActorThreadId threadId)
-        => !IsCompleted && _channel.Writer.TryWrite(threadId);
+    {
+        if (IsCompleted || !_channel.Writer.TryWrite(threadId))
+            return false;
 
-    public IAsyncEnumerable<ActorThreadId> ReadAllAsync(CancellationToken cancellationToken)
-        => _channel.Reader.ReadAllAsync(cancellationToken);
+        ActorRuntimeMetrics.RecordReadyScheduled(threadId.ActorType);
+        return true;
+    }
+
+    public async IAsyncEnumerable<ActorThreadId> ReadAllAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var threadId in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        {
+            ActorRuntimeMetrics.RecordReadyDequeued(threadId.ActorType);
+            yield return threadId;
+        }
+    }
 
     public void Complete()
     {

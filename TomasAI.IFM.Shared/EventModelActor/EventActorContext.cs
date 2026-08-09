@@ -94,9 +94,22 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
-        var actorId = @event.Subject.ActorId;
-        await (_jsProducer ??= _supervisor.GetJSProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
-        await (_producer ??= _supervisor.GetProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
+        var started = ActorRuntimeMetrics.StartStage();
+        try
+        {
+            var actorId = @event.Subject.ActorId;
+            await (_jsProducer ??= _supervisor.GetJSProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
+            await (_producer ??= _supervisor.GetProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
+        }
+        catch
+        {
+            ActorRuntimeMetrics.RecordStageFailure(ActorRuntimeMetrics.PublicationStage, ActorType.Event);
+            throw;
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordStage(started, ActorRuntimeMetrics.PublicationStage, ActorType.Event);
+        }
     }
 
     /// <summary>

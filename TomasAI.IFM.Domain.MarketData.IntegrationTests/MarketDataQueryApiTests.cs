@@ -113,12 +113,12 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
         response.Success.Should().BeTrue();
         if (today.DayOfWeek == DayOfWeek.Saturday)
         {
-            // if today is Saturday, the value date should be the next Monday
+            // The futures market is closed on Saturday, so there is no active value date.
             response.Value.Should().BeNull();
         }
         else if (today.DayOfWeek == DayOfWeek.Sunday && today.TimeOfDay < TimeSpan.FromHours(18))
         {
-            // if today is Sunday before 6 PM, the value date should be the previous Friday
+            // The futures market remains closed until Sunday at 6 PM.
             response.Value.Should().BeNull();
         }
         else

@@ -153,6 +153,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         ICommand command = default!;
         int errorCode = 9998;
         ServiceResult<GuidResult> result;
+        var activeStage = ActorRuntimeMetrics.ValidationStage;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -171,26 +172,63 @@ public abstract class BaseEventSourceCommandActor<TActor>(
 
             /// check if the message is a command and validate it...
             cancellationToken.ThrowIfCancellationRequested();
-            if (cancellationToken.CanBeCanceled)
-                await OnValidateAsync(_context!, threadId, command, cancellationToken);
-            else
-                await OnValidateAsync(_context!, threadId, command);
+            activeStage = ActorRuntimeMetrics.ValidationStage;
+            var stageStarted = ActorRuntimeMetrics.StartStage();
+            try
+            {
+                if (cancellationToken.CanBeCanceled)
+                    await OnValidateAsync(_context!, threadId, command, cancellationToken);
+                else
+                    await OnValidateAsync(_context!, threadId, command);
+            }
+            finally
+            {
+                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+            }
 
             /// load the current state, process the message, and save the updated state...
             cancellationToken.ThrowIfCancellationRequested();
-            var state = cancellationToken.CanBeCanceled
-                ? await OnLoadStateAsync(_context!, threadId, command, cancellationToken)
-                : await OnLoadStateAsync(_context!, threadId, command);
+            activeStage = ActorRuntimeMetrics.ReplayStage;
+            stageStarted = ActorRuntimeMetrics.StartStage();
+            IActorState state;
+            try
+            {
+                state = cancellationToken.CanBeCanceled
+                    ? await OnLoadStateAsync(_context!, threadId, command, cancellationToken)
+                    : await OnLoadStateAsync(_context!, threadId, command);
+            }
+            finally
+            {
+                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+            }
             state?.Id = threadId;
 
             /// process the message...
             cancellationToken.ThrowIfCancellationRequested();
-            result = cancellationToken.CanBeCanceled
-                ? await ReceiveAsync(_context!, state!, command, cancellationToken)
-                : await ReceiveAsync(_context!, state!, command);
+            activeStage = ActorRuntimeMetrics.ExecutionStage;
+            stageStarted = ActorRuntimeMetrics.StartStage();
+            try
+            {
+                result = cancellationToken.CanBeCanceled
+                    ? await ReceiveAsync(_context!, state!, command, cancellationToken)
+                    : await ReceiveAsync(_context!, state!, command);
+            }
+            finally
+            {
+                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+            }
 
             /// save the updated state...
-            await OnSaveStateAsync(_context!, threadId, state!, command);
+            activeStage = ActorRuntimeMetrics.PersistenceStage;
+            stageStarted = ActorRuntimeMetrics.StartStage();
+            try
+            {
+                await OnSaveStateAsync(_context!, threadId, state!, command);
+            }
+            finally
+            {
+                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -198,11 +236,26 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         }
         catch (Exception ex)
         {
+            ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Command);
             result = await OnExceptionAsync(_context!, threadId, command, ex);
         }
 
         /// reply with the result...
-        await message.ReplyAsync(result);
+        activeStage = ActorRuntimeMetrics.ReplyStage;
+        var replyStarted = ActorRuntimeMetrics.StartStage();
+        try
+        {
+            await message.ReplyAsync(result);
+        }
+        catch
+        {
+            ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Command);
+            throw;
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordStage(replyStarted, activeStage, ActorType.Command);
+        }
     }
 
     // Explicit interface implementations forwarding to protected hooks

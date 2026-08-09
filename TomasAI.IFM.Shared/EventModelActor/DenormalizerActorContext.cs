@@ -41,10 +41,27 @@ public class DenormalizerActorContext(IActorSupervisor supervisor, ActorMailboxI
     /// </summary>
     /// <param name="@event">The event to send to the actor.</param>
     /// <returns>A <see cref="ValueTask"/> that completes when the send operation has been initiated.</returns>
-    public ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
+    public async ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
-        => (_producer ??= _supervisor.GetProducer(_actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
+    {
+        var started = ActorRuntimeMetrics.StartStage();
+        try
+        {
+            await (_producer ??= _supervisor.GetProducer(_actorId))
+                .SendAsync<TEvent, TEntityId>(@event.Subject, @event)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            ActorRuntimeMetrics.RecordStageFailure(ActorRuntimeMetrics.PublicationStage, ActorType.Event);
+            throw;
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordStage(started, ActorRuntimeMetrics.PublicationStage, ActorType.Event);
+        }
+    }
 
     /// <summary>
     /// Sends a query to the associated actor and retrieves the result asynchronously.

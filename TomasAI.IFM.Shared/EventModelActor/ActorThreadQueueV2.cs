@@ -23,12 +23,13 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
 
     readonly object _startLock = new();
     readonly SemaphoreSlim _slots;
-    Channel<IActorMessage>? _channel;
+    Channel<QueuedActorMessage>? _channel;
     ActorThreadId _id;
     int _lifecycle;
     int _scheduled;
     int _writers;
     int _count;
+    int _mailboxMetricActive;
 
     public ActorThreadQueueV2(int capacity = DefaultCapacity, int spinEnqueue = 32, int spinDequeue = 32)
     {
@@ -60,11 +61,12 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
 
         while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            while (reader.TryRead(out var message))
+            while (reader.TryRead(out var queued))
             {
                 Interlocked.Decrement(ref _count);
                 _slots.Release();
-                yield return message;
+                ActorRuntimeMetrics.RecordDequeued(queued.EnqueuedTimestamp, _id.ActorType);
+                yield return queued.Message;
             }
         }
     }
@@ -90,13 +92,16 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
 
         try
         {
+            var enqueueStarted = ActorRuntimeMetrics.StartEnqueueWait();
             _slots.Wait(cancellationToken);
-            if (!_channel!.Writer.TryWrite(message))
+            ActorRuntimeMetrics.RecordEnqueueWait(enqueueStarted, _id.ActorType);
+            if (!_channel!.Writer.TryWrite(new QueuedActorMessage(message, ActorRuntimeMetrics.StartQueueWait())))
             {
                 _slots.Release();
                 throw new ChannelClosedException();
             }
             Interlocked.Increment(ref _count);
+            ActorRuntimeMetrics.RecordAccepted(_id.ActorType);
             return true;
         }
         finally
@@ -126,21 +131,24 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
 
         try
         {
+            var enqueueStarted = ActorRuntimeMetrics.StartEnqueueWait();
             var pending = _slots.WaitAsync(cancellationToken);
             if (pending.IsCompletedSuccessfully)
             {
-                if (!_channel!.Writer.TryWrite(message))
+                ActorRuntimeMetrics.RecordEnqueueWait(enqueueStarted, _id.ActorType);
+                if (!_channel!.Writer.TryWrite(new QueuedActorMessage(message, ActorRuntimeMetrics.StartQueueWait())))
                 {
                     _slots.Release();
                     Interlocked.Decrement(ref _writers);
                     return ValueTask.FromException<bool>(new ChannelClosedException());
                 }
                 Interlocked.Increment(ref _count);
+                ActorRuntimeMetrics.RecordAccepted(_id.ActorType);
                 Interlocked.Decrement(ref _writers);
                 return ValueTask.FromResult(true);
             }
 
-            return AwaitSlotAndWrite(pending, message);
+            return AwaitSlotAndWrite(pending, message, enqueueStarted);
         }
         catch
         {
@@ -149,17 +157,19 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         }
     }
 
-    async ValueTask<bool> AwaitSlotAndWrite(Task waitForSlot, IActorMessage message)
+    async ValueTask<bool> AwaitSlotAndWrite(Task waitForSlot, IActorMessage message, long enqueueStarted)
     {
         try
         {
             await waitForSlot.ConfigureAwait(false);
-            if (!_channel!.Writer.TryWrite(message))
+            ActorRuntimeMetrics.RecordEnqueueWait(enqueueStarted, _id.ActorType);
+            if (!_channel!.Writer.TryWrite(new QueuedActorMessage(message, ActorRuntimeMetrics.StartQueueWait())))
             {
                 _slots.Release();
                 throw new ChannelClosedException();
             }
             Interlocked.Increment(ref _count);
+            ActorRuntimeMetrics.RecordAccepted(_id.ActorType);
             return true;
         }
         finally
@@ -198,12 +208,17 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         return false;
     }
 
-    bool TryReadCore(ChannelReader<IActorMessage> reader, out IActorMessage? message)
+    bool TryReadCore(ChannelReader<QueuedActorMessage> reader, out IActorMessage? message)
     {
-        if (!reader.TryRead(out message))
+        if (!reader.TryRead(out var queued))
+        {
+            message = null;
             return false;
+        }
         Interlocked.Decrement(ref _count);
         _slots.Release();
+        ActorRuntimeMetrics.RecordDequeued(queued.EnqueuedTimestamp, _id.ActorType);
+        message = queued.Message;
         return true;
     }
 
@@ -240,6 +255,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         }
 
         Volatile.Write(ref _lifecycle, Retired);
+        RecordMailboxStopped();
         return true;
     }
 
@@ -255,13 +271,15 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
             if (_lifecycle == Retired)
                 throw new ObjectDisposedException(nameof(ActorThreadQueueV2));
 
-            _channel = Channel.CreateUnbounded<IActorMessage>(new UnboundedChannelOptions
+            _channel = Channel.CreateUnbounded<QueuedActorMessage>(new UnboundedChannelOptions
             {
                 SingleReader = true,
                 SingleWriter = false,
                 AllowSynchronousContinuations = false
             });
             Volatile.Write(ref _lifecycle, Active);
+            if (Interlocked.Exchange(ref _mailboxMetricActive, 1) == 0)
+                ActorRuntimeMetrics.RecordMailboxStarted(_id.ActorType);
         }
     }
 
@@ -271,6 +289,8 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         if (previous == Retired)
             return;
 
+        RecordMailboxStopped();
+
         var channel = _channel;
         channel?.Writer.TryComplete();
         if (channel is not null)
@@ -279,11 +299,20 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
             {
                 Interlocked.Decrement(ref _count);
                 _slots.Release();
-                pending.Dispose();
+                ActorRuntimeMetrics.RecordDequeued(pending.EnqueuedTimestamp, _id.ActorType);
+                pending.Message.Dispose();
             }
         }
         _channel = null;
     }
 
     public void Dispose() => Stop();
+
+    void RecordMailboxStopped()
+    {
+        if (Interlocked.Exchange(ref _mailboxMetricActive, 0) != 0)
+            ActorRuntimeMetrics.RecordMailboxStopped(_id.ActorType);
+    }
+
+    readonly record struct QueuedActorMessage(IActorMessage Message, long EnqueuedTimestamp);
 }

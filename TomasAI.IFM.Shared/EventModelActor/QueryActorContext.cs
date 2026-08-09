@@ -47,9 +47,22 @@ public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
-        var actorId = @event.Subject.ActorId;
-        await (_jsProducer ??= _supervisor.GetJSProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
-        await (_producer ??= _supervisor.GetProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
+        var started = ActorRuntimeMetrics.StartStage();
+        try
+        {
+            var actorId = @event.Subject.ActorId;
+            await (_jsProducer ??= _supervisor.GetJSProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
+            await (_producer ??= _supervisor.GetProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
+        }
+        catch
+        {
+            ActorRuntimeMetrics.RecordStageFailure(ActorRuntimeMetrics.PublicationStage, ActorType.Query);
+            throw;
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordStage(started, ActorRuntimeMetrics.PublicationStage, ActorType.Query);
+        }
     }
 
     /// <summary>
@@ -96,11 +109,24 @@ public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     public async ValueTask ReplyAsync<TResult>(ActorThreadId threadId, string verb, ServiceResult<TResult> replyResult)
     {
-        var msgInfo = TakeMessageInfo(threadId, verb)
-            ?? throw new InvalidOperationException(
-                $"Query reply context not found for thread {threadId} and verb {verb}.");
-        var message = msgInfo.Message
-            ?? new LegacyNatsActorMessage(msgInfo.ActorMessage);
-        await message.ReplyAsync(replyResult).ConfigureAwait(false);
+        var started = ActorRuntimeMetrics.StartStage();
+        try
+        {
+            var msgInfo = TakeMessageInfo(threadId, verb)
+                ?? throw new InvalidOperationException(
+                    $"Query reply context not found for thread {threadId} and verb {verb}.");
+            var message = msgInfo.Message
+                ?? new LegacyNatsActorMessage(msgInfo.ActorMessage);
+            await message.ReplyAsync(replyResult).ConfigureAwait(false);
+        }
+        catch
+        {
+            ActorRuntimeMetrics.RecordStageFailure(ActorRuntimeMetrics.ReplyStage, ActorType.Query);
+            throw;
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordStage(started, ActorRuntimeMetrics.ReplyStage, ActorType.Query);
+        }
     }
 }

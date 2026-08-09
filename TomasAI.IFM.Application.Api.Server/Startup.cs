@@ -56,6 +56,7 @@ using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Storage.Azure;
+using TomasAI.IFM.Framework.Telemetry.Metrics;
 using TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers;
 using TomasAI.IFM.TradePlan;
 using TomasAI.IFM.TradePlan.HostedService;
@@ -183,6 +184,7 @@ public static class Startup
         {
             // add web app services...
             logger.LogInformationEvent("ApiServer", "register base services...");
+            services.AddIfmMetrics(config, "TomasAI.IFM.Application.Api.Server");
             services.AddOpenApiDocument();
 
             // Register HazelcastCache as the IDistributedCache implementation

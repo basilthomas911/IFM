@@ -51,13 +51,26 @@ public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId ac
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
-        var actorId = @event.Subject.ActorId;
-        await (_jsProducer ??= _supervisor.GetJSProducer(actorId))
-            .SendAsync<TEvent, TEntityId>(@event.Subject, @event, cancellationToken)
-            .ConfigureAwait(false);
-        await (_producer ??= _supervisor.GetProducer(actorId))
-            .SendAsync<TEvent, TEntityId>(@event.Subject, @event, cancellationToken)
-            .ConfigureAwait(false);
+        var started = ActorRuntimeMetrics.StartStage();
+        try
+        {
+            var actorId = @event.Subject.ActorId;
+            await (_jsProducer ??= _supervisor.GetJSProducer(actorId))
+                .SendAsync<TEvent, TEntityId>(@event.Subject, @event, cancellationToken)
+                .ConfigureAwait(false);
+            await (_producer ??= _supervisor.GetProducer(actorId))
+                .SendAsync<TEvent, TEntityId>(@event.Subject, @event, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            ActorRuntimeMetrics.RecordStageFailure(ActorRuntimeMetrics.PublicationStage, ActorType.Command);
+            throw;
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordStage(started, ActorRuntimeMetrics.PublicationStage, ActorType.Command);
+        }
     }
 
     /// <summary>

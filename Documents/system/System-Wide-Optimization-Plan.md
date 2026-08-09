@@ -3,7 +3,7 @@
 **Document type:** Living optimization specification and execution plan  
 **Status:** Active; execution may be paused for specialized optimization work  
 **Created:** 2026-08-07  
-**Last updated:** 2026-08-07  
+**Last updated:** 2026-08-09
 **Owner:** IFM engineering  
 
 ## 1. Purpose
@@ -29,7 +29,7 @@ The root domain-actor optimization passes are substantially complete for:
 
 The shared actor runtime, NATS messaging, application storage, event-source replay, and solution-wide graceful cancellation have also received structural optimization passes. Current work has moved beyond dictionary-versus-switch and async-wrapper micro-optimizations. The remaining high-value work is concentrated in production observability, aggregate backpressure, runtime readiness, the Databento data plane, query-shaped storage, projection recovery, bounded reconstruction, and a small number of measured allocation hot spots.
 
-Fund integration tests remain the primary integration gate for changes to shared actor-runtime behavior until the other integration suites are made consistently reliable. This does not replace component-specific tests, benchmarks, Databento qualification, or production-like performance testing.
+All ten domain integration projects now form the shared actor-runtime integration gate. The 2026-08-09 SWO-01 confirmation passed 193 of 193 tests. This does not replace component-specific tests, benchmarks, Databento qualification, or production-like performance testing.
 
 ## 3. Binding architectural principles
 
@@ -98,7 +98,7 @@ Databento is the primary market-data implementation. A future Interactive Broker
 
 | Order | Work package | Priority | Status | Primary outcome |
 | ---: | --- | --- | --- | --- |
-| 1 | Operational metrics export and stage timing | P0 | In progress | Make system bottlenecks and regressions observable in paper trading. |
+| 1 | Operational metrics export and stage timing | P0 | Measuring | Make system bottlenecks and regressions observable in paper trading. |
 | 2 | Aggregate actor backlog and overload control | P0 | Proposed | Bound total actor memory and provide explicit system-wide backpressure. |
 | 3 | Actor startup readiness gate | P0 | Proposed | Prevent intake before every actor-owned dependency is ready. |
 | 4 | Databento tick-price actor pipeline | P0 | Paused | Convert the proven feed into the production actor/event persistence path. |
@@ -116,7 +116,7 @@ The order is advisory. Specialized work may temporarily supersede it. When that 
 ### SWO-01: Operational metrics export and stage timing
 
 **Priority:** P0  
-**Status:** In progress  
+**Status:** Measuring
 
 #### Objective
 
@@ -124,10 +124,12 @@ Expose low-overhead runtime evidence that identifies the real limiting stage dur
 
 #### Current evidence
 
-- NATS counters exist for publishing, receiving, dispatch failures, duplicate suppression, and listener-only events.
-- Actor lifecycle instruments exist or are being completed for startup/shutdown duration and outcomes, cleanup failures, cancellations, and drained messages.
-- There is no configured application metrics exporter in the current telemetry project.
-- Domain optimization reports repeatedly defer further micro-optimization until mailbox, storage, NATS, allocation, and latency measurements are available.
+- NATS counters cover publishing, receiving, dispatch failures, duplicate suppression, listener-only events, operation latency, and operation failures.
+- Actor instruments cover lifecycle outcomes, mailbox and ready-queue depth, active mailboxes, queue/handler timing, normal outcomes, and bounded processing stages.
+- The API server registers an OpenTelemetry metrics pipeline with a production OTLP exporter and .NET runtime/host meters.
+- The dormant actor mailbox measurement path reports no per-operation allocation; an active listener adds approximately 124.671 ns per measured mailbox operation on the 2026-08-09 benchmark host.
+- The full domain integration gate passes 193 of 193 tests.
+- Production-like collector visibility and paper-trading p95/p99 attribution remain outstanding.
 
 #### Deliverables
 
@@ -151,6 +153,8 @@ Expose low-overhead runtime evidence that identifies the real limiting stage dur
 - Normal message processing adds no per-message heap allocation when no listener is attached.
 - Enabled instrumentation overhead is benchmarked and remains within an agreed threshold.
 - A paper-trading run can attribute p95/p99 latency to queueing, actor execution, messaging, or storage.
+
+Implementation, benchmark, validation, dashboard guidance, and remaining evidence are recorded in `Documents/system/System-Wide-Optimization-Results.md`.
 
 ### SWO-02: Aggregate actor backlog and overload control
 
@@ -394,7 +398,7 @@ Make optimization results repeatable and prevent regressions across actor, stora
 
 1. Keep focused BenchmarkDotNet suites for deterministic CPU, allocation, dispatch, replay, and buffer hot paths.
 2. Run database benchmarks against the same topology and durability settings used for the comparison baseline.
-3. Retain Fund integration tests as the shared actor-runtime gate until broader suites are repaired.
+3. Run all ten domain integration projects as the shared actor-runtime gate.
 4. Replace placeholder Application BDD/integration tests with real startup, shutdown, routing, persistence, and rollback cases.
 5. Repair infrastructure-dependent domain integration suites so environmental failure is distinguishable from regression.
 6. Complete Databento qualification evidence:
@@ -496,11 +500,11 @@ When specialized optimization work interrupts this plan:
 
 ### Current tranche
 
-**Work package:** SWO-01, actor lifecycle metrics  
-**State:** Implementation present in the working tree at the time this plan was created  
-**Implemented scope:** Startup/shutdown duration and outcomes, cleanup-stage failures, canceled lifecycle waits, and accepted messages drained after intake stops  
-**Validation recorded:** Release solution build, shared actor tests, and the non-manual Fund integration suite  
-**Next action:** Review and commit this tranche when requested, then design host-level metric export and normal-operation mailbox/handler measurements  
+**Work package:** SWO-01, operational metrics export and stage timing
+**State:** Measuring; implementation and local validation are complete in the working tree
+**Implemented scope:** OTLP host export, actor mailbox/outcome/timing metrics, bounded command/query/event stages, NATS operation latency/failures, runtime and ASP.NET Core meters, correctness tests, and an overhead benchmark
+**Validation recorded:** Release solution build succeeds with 0 warnings/errors; focused tests pass 148 of 148; the complete domain integration gate passes 193 of 193; enabled instrumentation adds approximately 124.671 ns per measured mailbox operation with no reported per-operation allocation
+**Next action:** Run the production-like collector and paper-trading capture, add provider-specific storage evidence where runtime meters are insufficient, and record p95/p99 attribution in the results document
 
 This record is intentionally temporary and must be updated after the tranche is committed, revised, or abandoned.
 
@@ -515,16 +519,20 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 2026-08-07 | Keep immutable event histories unbounded. | Reconstruction and query cost will be bounded through snapshots and projections instead of event deletion. |
 | 2026-08-07 | Defer dispatch jump tables and similar micro-optimizations. | Existing measurements do not justify their complexity. |
 | 2026-08-07 | Use Fund integration tests as the current shared-runtime gate. | Other integrated suites are not yet uniformly reliable, but specialized validation remains required. |
+| 2026-08-09 | Promote all ten domain integration projects to the shared-runtime gate. | The repaired suites pass 193 of 193 tests in one sequential Release confirmation run. |
+| 2026-08-09 | Keep SWO-01 in Measuring after code completion. | OTLP, instrumentation, tests, and the microbenchmark are complete, but paper-trading p95/p99 attribution still requires a production-like collector. |
 
 ## 13. Revision history
 
 | Version | Date | Summary |
 | --- | --- | --- |
 | 0.1 | 2026-08-07 | Created the living system-wide optimization plan from the completed domain reviews and remaining infrastructure priorities. |
+| 0.2 | 2026-08-09 | Recorded SWO-01 implementation and measurement status, promoted the complete domain integration gate, and linked the optimization results record. |
 
 ## 14. Related documents
 
 - `docs/Solution-Wide-Graceful-Cancellation-Implementation-Details.md`
+- `Documents/system/System-Wide-Optimization-Results.md`
 - `docs/Domain-MarketData-Actor-Optimization-Report-2026-08.md`
 - `TomasAI.IFM.Framework.Messaging.Nats/PERFORMANCE.md`
 - `TomasAI.IFM.Framework.Messaging.Nats.Benchmarks/RESULTS.md`

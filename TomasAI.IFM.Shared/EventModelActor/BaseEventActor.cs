@@ -121,6 +121,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
     {
         IEvent @event = default! ;
+        var activeStage = ActorRuntimeMetrics.ValidationStage;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -147,11 +148,29 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
 
             /// Check if the message is a command and validate it
             cancellationToken.ThrowIfCancellationRequested();
-            await OnValidateAsync(_context!, threadId, @event, cancellationToken).ConfigureAwait(false);
+            activeStage = ActorRuntimeMetrics.ValidationStage;
+            var stageStarted = ActorRuntimeMetrics.StartStage();
+            try
+            {
+                await OnValidateAsync(_context!, threadId, @event, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Event);
+            }
 
             // Process message
             cancellationToken.ThrowIfCancellationRequested();
-            await ReceiveAsync(_context!, @event, cancellationToken).ConfigureAwait(false);
+            activeStage = ActorRuntimeMetrics.ExecutionStage;
+            stageStarted = ActorRuntimeMetrics.StartStage();
+            try
+            {
+                await ReceiveAsync(_context!, @event, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Event);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -159,6 +178,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
         }
         catch (Exception ex)
         {
+            ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Event);
             await OnExceptionAsync(_context!, threadId, @event, ex);
         }
     }

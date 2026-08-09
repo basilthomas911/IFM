@@ -8,6 +8,7 @@ public static class GetValueDate
 {
     /// Handles a <see cref="GetValueDateQuery"/> by calculating the current value date based on the current date and time.
     /// The value date is determined according to the following rules:
+    /// - If today is Saturday, or Sunday before 18:00, no active futures value date is returned.
     /// - If today is Sunday and the time is 18:00 or later, the value date is Monday (tomorrow).
     /// - If today is Monday-Thursday and the time is 18:00 or later, the value date is the next day. If the time is 17:00 or earlier, the value date is today.
     /// - If today is Friday and the time is 17:00 or earlier, the value date is today. If the time is after 17:00, the value date remains today (no change).
@@ -20,7 +21,18 @@ public static class GetValueDate
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var today = DateTime.Now;
+        return ValueTask.FromResult(CalculateValueDate(DateTime.Now)!);
+    }
+
+    internal static ScalarReadModel<DateOnly>? CalculateValueDate(DateTime today)
+    {
+        if (today.DayOfWeek == DayOfWeek.Saturday
+            || (today.DayOfWeek == DayOfWeek.Sunday
+                && today.TimeOfDay < TimeSpan.FromHours(18)))
+        {
+            return null;
+        }
+
         var valueDate = new ScalarReadModel<DateOnly>(DateOnly.FromDateTime(today));
         switch (today.DayOfWeek)
         {
@@ -42,6 +54,6 @@ public static class GetValueDate
                     valueDate = new ScalarReadModel<DateOnly>(new DateOnly(today.Year, today.Month, today.Day));
                 break;
         }
-        return ValueTask.FromResult(valueDate!);
+        return valueDate;
     }
 }

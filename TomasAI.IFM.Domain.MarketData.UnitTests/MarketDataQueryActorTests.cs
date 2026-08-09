@@ -405,7 +405,6 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
 
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
-
         // Act
         await actor.InvokeReceiveAsync(context, query);
 
@@ -447,7 +446,6 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
 
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
-
         // Act
         await actor.InvokeReceiveAsync(context, query);
 
@@ -520,6 +518,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
 
         var context = Substitute.For<IQueryActorContext>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
+        var expected = GetValueDate.CalculateValueDate(DateTime.Now);
 
         // Act
         await actor.InvokeReceiveAsync(context, query);
@@ -529,8 +528,9 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
                Arg.Is<ActorThreadId>(id => id == query.Subject.ThreadId),
                Arg.Is<string>(v => v == GetValueDateQuery.Verb),
                Arg.Is<ServiceResult<ScalarReadModel<DateOnly>>>(r => r.Success
-                && r.Value != null
-                && r.Value.Value >= DateOnly.FromDateTime(DateTime.UtcNow))
+                && (expected == null
+                    ? r.Value == null
+                    : r.Value != null && r.Value.Value == expected.Value))
            );
     }
 

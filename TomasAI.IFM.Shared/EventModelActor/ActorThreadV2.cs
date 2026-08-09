@@ -166,16 +166,20 @@ sealed class ActorThreadV2(
                        && !cancellationToken.IsCancellationRequested
                        && scheduled.TryRead(out var message))
                 {
+                    var handlerStarted = ActorRuntimeMetrics.StartHandler();
                     try
                     {
                         _state = ActorThreadState.ProcessingMessage;
                         await actor.HandleMessageAsync(message!, threadId, cancellationToken).ConfigureAwait(false);
+                        ActorRuntimeMetrics.RecordProcessed(threadId.ActorType);
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {
+                        ActorRuntimeMetrics.RecordCanceled(threadId.ActorType);
                     }
                     catch (Exception exception)
                     {
+                        ActorRuntimeMetrics.RecordFailed(threadId.ActorType);
                         _logger.LogErrorEvent(threadId.ToString(), exception,
                             "Error processing a message in the actor mailbox.");
                     }
@@ -183,6 +187,7 @@ sealed class ActorThreadV2(
                     {
                         message?.Dispose();
                         _metricsState.RecordMessageCompleted();
+                        ActorRuntimeMetrics.RecordHandler(handlerStarted, threadId.ActorType);
                     }
 
                     processed++;

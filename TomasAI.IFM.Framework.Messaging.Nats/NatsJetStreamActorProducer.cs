@@ -180,13 +180,26 @@ public class NatsJetStreamActorProducer(
 
     async ValueTask PublishAsync<T>(string subject, T message, CancellationToken cancellationToken)
     {
-        var acknowledgement = await _js.PublishAsync(
-            subject,
-            message,
-            serializer: NatsMessagePackSerializer<T>.Default,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        acknowledgement.EnsureSuccess();
-        NatsMessagingMetrics.Published.Add(1);
+        var started = NatsMessagingMetrics.StartOperation();
+        try
+        {
+            var acknowledgement = await _js.PublishAsync(
+                subject,
+                message,
+                serializer: NatsMessagePackSerializer<T>.Default,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            acknowledgement.EnsureSuccess();
+            NatsMessagingMetrics.Published.Add(1);
+        }
+        catch
+        {
+            NatsMessagingMetrics.RecordOperationFailure(NatsMessagingMetrics.JetStreamPublishOperation);
+            throw;
+        }
+        finally
+        {
+            NatsMessagingMetrics.RecordOperation(started, NatsMessagingMetrics.JetStreamPublishOperation);
+        }
     }
    
 }

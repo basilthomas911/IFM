@@ -249,6 +249,7 @@ public class NatsActorProducer(
         where TResult : class
     {
         ServiceResult<TResult> result;
+        var started = NatsMessagingMetrics.StartOperation();
         try
         {
             IsArgumentNull.Check(subject);
@@ -272,8 +273,13 @@ public class NatsActorProducer(
         }
         catch (Exception ex)
         {
+            NatsMessagingMetrics.RecordOperationFailure(NatsMessagingMetrics.CoreRequestOperation);
             _logger.LogError(ex, "Failed to request query to subject {Subject}", subject);
             throw;
+        }
+        finally
+        {
+            NatsMessagingMetrics.RecordOperation(started, NatsMessagingMetrics.CoreRequestOperation);
         }
         return result!;
     }
@@ -332,24 +338,50 @@ public class NatsActorProducer(
 
     async ValueTask PublishAsync<T>(string subject, T message, CancellationToken cancellationToken = default)
     {
-        await _nc!.PublishAsync(
-            subject,
-            message,
-            serializer: NatsMessagePackSerializer<T>.Default,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        NatsMessagingMetrics.Published.Add(1);
+        var started = NatsMessagingMetrics.StartOperation();
+        try
+        {
+            await _nc!.PublishAsync(
+                subject,
+                message,
+                serializer: NatsMessagePackSerializer<T>.Default,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            NatsMessagingMetrics.Published.Add(1);
+        }
+        catch
+        {
+            NatsMessagingMetrics.RecordOperationFailure(NatsMessagingMetrics.CorePublishOperation);
+            throw;
+        }
+        finally
+        {
+            NatsMessagingMetrics.RecordOperation(started, NatsMessagingMetrics.CorePublishOperation);
+        }
     }
 
     async ValueTask<byte[]> RequestAsync<T>(string subject, T message, CancellationToken cancellationToken = default)
     {
-        var data = (await _nc!.RequestAsync(
-            subject,
-            message,
-            requestSerializer: NatsMessagePackSerializer<T>.Default,
-            replySerializer: _messageSerializer,
-            cancellationToken: cancellationToken).ConfigureAwait(false)).Data!;
-        NatsMessagingMetrics.Published.Add(1);
-        return data;
+        var started = NatsMessagingMetrics.StartOperation();
+        try
+        {
+            var data = (await _nc!.RequestAsync(
+                subject,
+                message,
+                requestSerializer: NatsMessagePackSerializer<T>.Default,
+                replySerializer: _messageSerializer,
+                cancellationToken: cancellationToken).ConfigureAwait(false)).Data!;
+            NatsMessagingMetrics.Published.Add(1);
+            return data;
+        }
+        catch
+        {
+            NatsMessagingMetrics.RecordOperationFailure(NatsMessagingMetrics.CoreRequestOperation);
+            throw;
+        }
+        finally
+        {
+            NatsMessagingMetrics.RecordOperation(started, NatsMessagingMetrics.CoreRequestOperation);
+        }
     }
 }
 

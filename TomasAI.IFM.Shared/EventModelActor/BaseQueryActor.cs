@@ -143,6 +143,7 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     {
         IQuery query = default!;
         var verb = message.Subject.Verb;
+        var activeStage = ActorRuntimeMetrics.ValidationStage;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -158,17 +159,35 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
 
             /// check if the message is a command and validate it
             cancellationToken.ThrowIfCancellationRequested();
-            if (cancellationToken.CanBeCanceled)
-                await OnValidateAsync(_context!, query, cancellationToken).ConfigureAwait(false);
-            else
-                await OnValidateAsync(_context!, query).ConfigureAwait(false);
+            activeStage = ActorRuntimeMetrics.ValidationStage;
+            var stageStarted = ActorRuntimeMetrics.StartStage();
+            try
+            {
+                if (cancellationToken.CanBeCanceled)
+                    await OnValidateAsync(_context!, query, cancellationToken).ConfigureAwait(false);
+                else
+                    await OnValidateAsync(_context!, query).ConfigureAwait(false);
+            }
+            finally
+            {
+                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Query);
+            }
 
             /// process the message
             cancellationToken.ThrowIfCancellationRequested();
-            if (cancellationToken.CanBeCanceled)
-                await ReceiveAsync(_context!, query, cancellationToken).ConfigureAwait(false);
-            else
-                await ReceiveAsync(_context!, query).ConfigureAwait(false);
+            activeStage = ActorRuntimeMetrics.ExecutionStage;
+            stageStarted = ActorRuntimeMetrics.StartStage();
+            try
+            {
+                if (cancellationToken.CanBeCanceled)
+                    await ReceiveAsync(_context!, query, cancellationToken).ConfigureAwait(false);
+                else
+                    await ReceiveAsync(_context!, query).ConfigureAwait(false);
+            }
+            finally
+            {
+                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Query);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -176,6 +195,7 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
         }
         catch (Exception ex)
         {
+            ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Query);
             await OnExceptionAsync(_context!, threadId, query, verb, ex);
         }
         finally

@@ -143,6 +143,7 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
     {
         IEvent @event = default!;
+        var stageStarted = ActorRuntimeMetrics.StartStage();
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -158,7 +159,15 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
         }
         catch (Exception ex)
         {
+            ActorRuntimeMetrics.RecordStageFailure(ActorRuntimeMetrics.DenormalizationStage, ActorType.Event);
             await OnExceptionAsync(_context!, threadId, @event, ex);
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordStage(
+                stageStarted,
+                ActorRuntimeMetrics.DenormalizationStage,
+                ActorType.Event);
         }
     }
 
