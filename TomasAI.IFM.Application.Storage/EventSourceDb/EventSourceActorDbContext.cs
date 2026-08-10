@@ -132,6 +132,49 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             createdTimestamp: o.GetDateTime(8),
             updatedTimestamp: o.GetDateTime(9));
 
+    internal static EventProjectorExecutionStateReadModel MapToEventProjectorExecutionState(
+        IObjectDataRecord o)
+        => MapToEventProjectorExecutionState(o, 0);
+
+    static EventProjectorExecutionStateReadModel MapToEventProjectorExecutionState(
+        IObjectDataRecord o,
+        int offset)
+        => new(
+            EventId: o.GetLong(offset),
+            ActorName: o.GetString(offset + 1),
+            ProjectorName: o.GetString(offset + 2),
+            IsReplay: o.GetBool(offset + 3),
+            AttemptNumber: o.GetInt(offset + 4),
+            Outcome: o.GetEnum<EventProjectorOutcomeType>(offset + 5),
+            Stage: o.GetEnum<EventProjectorStageType>(offset + 6),
+            ErrorMessage: o.GetString(offset + 7),
+            CreatedTimestamp: o.GetDateTime(offset + 8),
+            UpdatedTimestamp: o.GetDateTime(offset + 9),
+            EventStreamId: o.GetLong(offset + 10),
+            SourceEventName: o.GetString(offset + 11),
+            Revision: o.GetLong(offset + 12),
+            ExecutionToken: o.IsNull(offset + 13) ? null : o.GetGuid(offset + 13),
+            LeaseExpiresAtUtc: o.IsNull(offset + 14) ? null : o.GetDateTime(offset + 14),
+            RetryCount: o.GetInt(offset + 15),
+            NextAttemptAtUtc: o.IsNull(offset + 16) ? null : o.GetDateTime(offset + 16),
+            LastErrorAtUtc: o.IsNull(offset + 17) ? null : o.GetDateTime(offset + 17),
+            BlockedReason: o.GetString(offset + 18),
+            LastCompletedStage: o.GetEnum<EventProjectorStageType>(offset + 19),
+            UpdatedAtUtc: o.GetDateTime(offset + 20));
+
+    internal static EventProjectorRecoveryItemReadModel MapToEventProjectorRecoveryItem(
+        IObjectDataRecord o)
+        => new(
+            EventLog: new EventLogReadModel(
+                EventStreamId: o.GetLong(0),
+                EventName: o.GetString(1),
+                EventTypeName: o.GetString(2),
+                EventVersion: o.GetLong(3),
+                EventData: o.GetString(4),
+                CommandId: o.GetGuid(5),
+                EventTimestamp: o.GetString(6)),
+            State: MapToEventProjectorExecutionState(o, 7));
+
     /// <summary>
     /// Maps the specified object map reader to an <see cref="EventStreamReadModel"/> instance.
     /// </summary>
@@ -365,6 +408,212 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             .SetParameters(new GetEventProjectorState(eventId, projectorName))
             .ExecuteSingleAsync<EventProjectorStateReadModel>(MapToEventProjectorState, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> TryCreateEventProjectorExecutionStateAsync(
+        EventProjectorExecutionStateReadModel state,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ValidateProjectorIdentity(state.EventId, state.ProjectorName);
+        if (state.EventStreamId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(state), "A persisted event stream ID must be positive.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(state.ActorName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(state.SourceEventName);
+        var createdTimestamp = RequireUtc(
+            state.CreatedTimestamp == default ? DateTime.UtcNow : state.CreatedTimestamp,
+            nameof(state.CreatedTimestamp));
+        var updatedAtUtc = RequireUtc(
+            state.UpdatedAtUtc == default ? createdTimestamp : state.UpdatedAtUtc,
+            nameof(state.UpdatedAtUtc));
+
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TryCreateEventProjectorExecutionState)
+            .SetParameters(new TryCreateEventProjectorExecutionState(
+                state.EventId,
+                state.ActorName,
+                state.ProjectorName,
+                state.IsReplay,
+                state.AttemptNumber,
+                $"{state.Outcome}",
+                $"{state.Stage}",
+                state.ErrorMessage ?? string.Empty,
+                $"{createdTimestamp:o}",
+                $"{updatedAtUtc:o}",
+                state.EventStreamId,
+                state.SourceEventName,
+                updatedAtUtc))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
+                MapToEventProjectorExecutionState,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> GetEventProjectorExecutionStateAsync(
+        long eventId,
+        string projectorName,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateProjectorIdentity(eventId, projectorName);
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.GetEventProjectorExecutionState)
+            .SetParameters(new GetEventProjectorState(eventId, projectorName))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
+                MapToEventProjectorExecutionState,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> TryClaimEventProjectorExecutionAsync(
+        long eventId,
+        string projectorName,
+        Guid executionToken,
+        DateTime nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateProjectorIdentity(eventId, projectorName);
+        ValidateExecutionToken(executionToken);
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        var leaseExpiresAtUtc = GetLeaseExpiry(nowUtc, leaseDuration);
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TryClaimEventProjectorExecution)
+            .SetParameters(new TryClaimEventProjectorExecution(
+                eventId,
+                projectorName,
+                executionToken,
+                leaseExpiresAtUtc,
+                nowUtc,
+                $"{nowUtc:o}"))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
+                MapToEventProjectorExecutionState,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> TryRenewEventProjectorExecutionAsync(
+        long eventId,
+        string projectorName,
+        Guid executionToken,
+        long expectedRevision,
+        DateTime nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateProjectorIdentity(eventId, projectorName);
+        ValidateExecutionToken(executionToken);
+        if (expectedRevision < 0)
+            throw new ArgumentOutOfRangeException(nameof(expectedRevision));
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        var leaseExpiresAtUtc = GetLeaseExpiry(nowUtc, leaseDuration);
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TryRenewEventProjectorExecution)
+            .SetParameters(new TryRenewEventProjectorExecution(
+                eventId,
+                projectorName,
+                executionToken,
+                expectedRevision,
+                nowUtc,
+                leaseExpiresAtUtc,
+                $"{nowUtc:o}"))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
+                MapToEventProjectorExecutionState,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> TryTransitionEventProjectorExecutionAsync(
+        EventProjectorStateTransition transition,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateTransition(transition, terminal: false);
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TryTransitionEventProjectorExecution)
+            .SetParameters(new TryTransitionEventProjectorExecution(
+                transition.EventId,
+                transition.ProjectorName,
+                transition.ExecutionToken,
+                transition.ExpectedRevision,
+                $"{transition.ExpectedStage}",
+                nowUtc,
+                $"{transition.NextStage}",
+                $"{transition.Outcome}",
+                $"{transition.LastCompletedStage}",
+                transition.RetryCount,
+                ValidateOptionalUtc(transition.NextAttemptAtUtc, nameof(transition.NextAttemptAtUtc)),
+                ValidateOptionalUtc(transition.LastErrorAtUtc, nameof(transition.LastErrorAtUtc)),
+                transition.ErrorMessage ?? string.Empty,
+                transition.BlockedReason ?? string.Empty,
+                nowUtc,
+                $"{nowUtc:o}"))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
+                MapToEventProjectorExecutionState,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> TryTerminalizeEventProjectorExecutionAsync(
+        EventProjectorStateTransition transition,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateTransition(transition, terminal: true);
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TryTerminalizeEventProjectorExecution)
+            .SetParameters(new TryTerminalizeEventProjectorExecution(
+                transition.EventId,
+                transition.ProjectorName,
+                transition.ExecutionToken,
+                transition.ExpectedRevision,
+                $"{transition.ExpectedStage}",
+                nowUtc,
+                $"{transition.Outcome}",
+                $"{transition.LastCompletedStage}",
+                transition.RetryCount,
+                ValidateOptionalUtc(transition.LastErrorAtUtc, nameof(transition.LastErrorAtUtc)),
+                transition.ErrorMessage ?? string.Empty,
+                transition.BlockedReason ?? string.Empty,
+                nowUtc,
+                $"{nowUtc:o}"))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
+                MapToEventProjectorExecutionState,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<EventProjectorRecoveryItemReadModel>> GetEventProjectorRecoveryPageAsync(
+        string projectorName,
+        IReadOnlyCollection<string> eventNames,
+        long afterEventId,
+        DateTime nowUtc,
+        int batchSize,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
+        ArgumentNullException.ThrowIfNull(eventNames);
+        if (eventNames.Count == 0)
+            return [];
+        if (afterEventId < 0)
+            throw new ArgumentOutOfRangeException(nameof(afterEventId));
+        if (batchSize is < 1 or > 2_048)
+            throw new ArgumentOutOfRangeException(nameof(batchSize));
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+
+        return [.. await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.GetEventProjectorRecoveryPage)
+            .SetParameters(new GetEventProjectorRecoveryPage(
+                projectorName,
+                string.Join(',', eventNames),
+                afterEventId,
+                nowUtc,
+                batchSize))
+            .ExecuteQueryAsync<EventProjectorRecoveryItemReadModel>(
+                MapToEventProjectorRecoveryItem,
+                cancellationToken)
+            .ConfigureAwait(false)];
     }
 
     /// <summary>
@@ -923,5 +1172,65 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         where TState : IActorState<TState>
         where TSnapshot : IEvent
            => await GetEventsFromSnapshotAsync<TSnapshot>(eventStreamId);
+
+    static void ValidateProjectorIdentity(long eventId, string projectorName)
+    {
+        if (eventId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(eventId), eventId, "The event id must be positive.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
+    }
+
+    static void ValidateExecutionToken(Guid executionToken)
+    {
+        if (executionToken == Guid.Empty)
+            throw new ArgumentException("The execution token cannot be empty.", nameof(executionToken));
+    }
+
+    static DateTime RequireUtc(DateTime value, string parameterName)
+    {
+        if (value.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("The timestamp must use DateTimeKind.Utc.", parameterName);
+        return value;
+    }
+
+    static DateTime? ValidateOptionalUtc(DateTime? value, string parameterName)
+        => value.HasValue ? RequireUtc(value.Value, parameterName) : null;
+
+    static DateTime GetLeaseExpiry(DateTime nowUtc, TimeSpan leaseDuration)
+    {
+        RequireUtc(nowUtc, nameof(nowUtc));
+        if (leaseDuration <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(leaseDuration), leaseDuration, "The lease duration must be positive.");
+        return nowUtc.Add(leaseDuration);
+    }
+
+    static void ValidateTransition(EventProjectorStateTransition transition, bool terminal)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        ValidateProjectorIdentity(transition.EventId, transition.ProjectorName);
+        ValidateExecutionToken(transition.ExecutionToken);
+        if (transition.ExpectedRevision < 0)
+            throw new ArgumentOutOfRangeException(nameof(transition.ExpectedRevision));
+        if (transition.ExpectedStage == EventProjectorStageType.Completed)
+            throw new ArgumentOutOfRangeException(nameof(transition.ExpectedStage), "A completed execution cannot transition again.");
+        if (transition.RetryCount < 0)
+            throw new ArgumentOutOfRangeException(nameof(transition.RetryCount));
+
+        ValidateOptionalUtc(transition.NextAttemptAtUtc, nameof(transition.NextAttemptAtUtc));
+        ValidateOptionalUtc(transition.LastErrorAtUtc, nameof(transition.LastErrorAtUtc));
+
+        if (terminal)
+        {
+            if (transition.Outcome is EventProjectorOutcomeType.Processing or EventProjectorOutcomeType.Retrying)
+                throw new ArgumentOutOfRangeException(nameof(transition.Outcome), "A terminal transition requires a terminal outcome.");
+        }
+        else
+        {
+            if (transition.NextStage == EventProjectorStageType.Completed)
+                throw new ArgumentOutOfRangeException(nameof(transition.NextStage), "Use terminalization to complete an execution.");
+            if (transition.Outcome is not (EventProjectorOutcomeType.Processing or EventProjectorOutcomeType.Retrying))
+                throw new ArgumentOutOfRangeException(nameof(transition.Outcome), "A non-terminal transition requires an active outcome.");
+        }
+    }
 
 }

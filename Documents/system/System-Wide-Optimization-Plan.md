@@ -103,7 +103,7 @@ Databento is the primary market-data implementation. A future Interactive Broker
 | 3 | Actor startup readiness gate | P0 | Complete | Prevent intake before every actor-owned dependency is ready. |
 | 4 | Databento tick-price actor pipeline | P0 | Paused | Convert the proven feed into the production actor/event persistence path. |
 | 5 | ScyllaDB analytics query projections | P1 | Complete | Removed the remaining active `ALLOW FILTERING` signal reads. |
-| 6 | Event-projector recovery and idempotency | P1 | Proposed | Reduce duplicate side effects and make replay backlog predictable. |
+| 6 | Event-projector recovery and idempotency | P1 | Tranche A complete | Reduce duplicate side effects and make replay backlog predictable. |
 | 7 | Fund compact snapshots | P1 | Proposed | Keep immutable history while bounding Fund reconstruction cost. |
 | 8 | OptionPricer QLNet allocation isolation | P1 | Proposed | Reduce the measured large allocation graph and global lock pressure. |
 | 9 | Event-context cancellation completion | P2 | Proposed | Gracefully stop cancellable event-initiated work without violating commit boundaries. |
@@ -293,7 +293,7 @@ integration tests. Detailed measurements and validation are recorded in `System-
 ### SWO-06: Event-projector recovery and idempotency
 
 **Priority:** P1  
-**Status:** Proposed  
+**Status:** Tranche A complete; runtime activation pending
 
 #### Objective
 
@@ -302,6 +302,11 @@ Make projector recovery efficient and ensure retry behavior cannot create uncont
 #### Current evidence
 
 The projector workflow provides at-least-once side-effect delivery. A process failure after an external action and before its next checkpoint can repeat publication or projection. Stream-aware stale-event supersession is intentionally deferred, and the maximum-attempt path does not currently publish the typed failure event.
+
+The detailed repository-grounded tranche plan is maintained in
+`TomasAI.IFM.Application.EventProjector/Docs/EventProjector-Recovery-Idempotency-Implementation-Plan.md`. It records
+the additional verified risks in unconditional state upserts, worker startup during recovery, unbounded recovery
+materialization/state N+1 reads, and the per-execution replacement of a projector-wide generic terminal callback.
 
 #### Design requirements
 
@@ -513,11 +518,11 @@ When specialized optimization work interrupts this plan:
 
 ### Current tranche
 
-**Work package:** SWO-05 ScyllaDB analytics query projections
-**State:** Complete
-**Implemented scope:** bounded futures ITI day/month/trend-mode projections, maintained writes and exact deletes, month inventory, canonical fallback, idempotent backfill/reconciliation/readiness, operator migration support, zero application-storage `ALLOW FILTERING`, and a real-Scylla before/after benchmark
-**Validation recorded:** 16/16 CQL/binding/projection policy tests, 58/58 real-Scylla MarketData storage tests, 25/25 Market Data Analytics integration tests, a zero-warning serial Release solution build, and the complete ten-domain sequential Release gate at 193/193; detailed traces and benchmark percentiles are recorded in `System-Wide-Optimization-Results.md`
-**Next action:** SWO-04 remains paused pending its recorded Databento schema/design decisions; the next independently actionable package is SWO-06 event-projector recovery and idempotency
+**Work package:** SWO-06 event-projector recovery and idempotency
+**State:** Tranche A contracts, additive schema, fenced persistence APIs, tests, and baseline complete
+**Planned scope:** stable projection/stage-effect identities, fenced conditional state transitions, bounded keyset recovery, explicit queue preparation/start lifecycle, Fund target idempotency contracts, transactional publication outbox, typed terminal failures, same-stream ordering, metrics, benchmarks, and staged activation
+**Audit recorded:** the current workflow is durable at-least-once but can repeat every side effect after a crash; state upserts are unfenced, queue workers can start during recovery, recovery materializes the full backlog and reloads state per event, and the projector-wide maximum-attempt callback is replaced by each generic event execution
+**Next action:** implement Tranche B queue lifecycle separation and fenced projector execution without enabling production activation; retain the current runtime path until its crash-point and regression gates pass
 
 This record is intentionally temporary and must be updated after the tranche is committed, revised, or abandoned.
 
@@ -561,6 +566,8 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 0.12 | 2026-08-09 | Added direct logical actor-worker capacity, occupancy, availability, and utilization observability for the paper-trading saturation dashboard. |
 | 0.13 | 2026-08-09 | Completed SWO-03 with actor-first initialization, host readiness publication, rollback-safe failure behavior, and deterministic lifecycle verification. |
 | 0.14 | 2026-08-09 | Completed SWO-05 with bounded ITI projections, real-Scylla trace and benchmark evidence, migration documentation, and the complete regression gate. |
+| 0.15 | 2026-08-09 | Added the repository-grounded SWO-06 recovery/idempotency plan, five gated tranches, crash matrix, performance budgets, and review decisions. |
+| 0.16 | 2026-08-09 | Completed SWO-06 Tranche A contracts, additive PostgreSQL state/outbox schema, fenced conditional storage APIs, keyset recovery query, contention tests, and current-recovery baseline. |
 
 ## 14. Related documents
 
@@ -574,6 +581,7 @@ This record is intentionally temporary and must be updated after the tranche is 
 - `TomasAI.IFM.Framework.Storage/Docs/Storage-Performance-Top-10.md`
 - `TomasAI.IFM.Application.Storage/Docs/Scylla-Allow-Filtering-Migration.md`
 - `TomasAI.IFM.Application.Storage.Benchmarks/RESULTS.md`
+- `TomasAI.IFM.Application.EventProjector/Docs/EventProjector-Recovery-Idempotency-Implementation-Plan.md`
 - `TomasAI.IFM.Framework.MarketData.DataBento/Docs/Databento_Market_Data_Specification_v1.1.md`
 - `TomasAI.IFM.Framework.MarketData.DataBento/Docs/Phase6_Implementation.md`
 - `TomasAI.IFM.Framework.MarketData.DataBento/Docs/Tick_Price_Event_Pipeline_Specification_v0.1.md`

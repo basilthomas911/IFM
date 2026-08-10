@@ -44,6 +44,54 @@ public sealed class EventProjectorStatePersistenceTests
     }
 
     [Fact]
+    public void MapToEventProjectorExecutionState_maps_lease_revision_and_retry_metadata()
+    {
+        var created = new DateTime(2026, 8, 9, 12, 0, 0, DateTimeKind.Utc);
+        var token = Guid.NewGuid();
+        var lease = created.AddMinutes(2);
+        var retryAt = created.AddMinutes(3);
+        var reader = Substitute.For<IObjectDataRecord>();
+        reader.GetLong(0).Returns(101L);
+        reader.GetString(1).Returns("FundCommandActor");
+        reader.GetString(2).Returns("FundEventProjector");
+        reader.GetBool(3).Returns(true);
+        reader.GetInt(4).Returns(2);
+        reader.GetEnum<EventProjectorOutcomeType>(5).Returns(EventProjectorOutcomeType.Retrying);
+        reader.GetEnum<EventProjectorStageType>(6).Returns(EventProjectorStageType.ApplyProjection);
+        reader.GetString(7).Returns("retry");
+        reader.GetDateTime(8).Returns(created);
+        reader.GetDateTime(9).Returns(created.AddMinutes(1));
+        reader.GetLong(10).Returns(44L);
+        reader.GetString(11).Returns("FundCreatedEvent");
+        reader.GetLong(12).Returns(7L);
+        reader.IsNull(13).Returns(false);
+        reader.GetGuid(13).Returns(token);
+        reader.IsNull(14).Returns(false);
+        reader.GetDateTime(14).Returns(lease);
+        reader.GetInt(15).Returns(1);
+        reader.IsNull(16).Returns(false);
+        reader.GetDateTime(16).Returns(retryAt);
+        reader.IsNull(17).Returns(true);
+        reader.GetString(18).Returns("waiting");
+        reader.GetEnum<EventProjectorStageType>(19).Returns(EventProjectorStageType.PublishProcessingEvent);
+        reader.GetDateTime(20).Returns(created.AddMinutes(1));
+
+        var state = EventSourceActorDbContext.MapToEventProjectorExecutionState(reader);
+
+        state.EventId.Should().Be(101L);
+        state.EventStreamId.Should().Be(44L);
+        state.SourceEventName.Should().Be("FundCreatedEvent");
+        state.Revision.Should().Be(7L);
+        state.ExecutionToken.Should().Be(token);
+        state.LeaseExpiresAtUtc.Should().Be(lease);
+        state.RetryCount.Should().Be(1);
+        state.NextAttemptAtUtc.Should().Be(retryAt);
+        state.LastErrorAtUtc.Should().BeNull();
+        state.BlockedReason.Should().Be("waiting");
+        state.LastCompletedStage.Should().Be(EventProjectorStageType.PublishProcessingEvent);
+    }
+
+    [Fact]
     public void Projector_state_schema_uses_event_and_projector_as_composite_key()
     {
         EventSourceSchemaSql.CreateEventProjectorState.Should()
@@ -60,5 +108,27 @@ public sealed class EventProjectorStatePersistenceTests
         EventSourceDbSql.GetEventNameId.Should()
             .Contain("e.eventName = $1")
             .And.Contain("e.eventTypeName = $2");
+        EventSourceSchemaSql.CreateEventProjectorStateReliabilityV2.Should()
+            .Contain("Revision bigint NOT NULL DEFAULT 0")
+            .And.Contain("ExecutionToken uuid")
+            .And.Contain("LeaseExpiresAtUtc timestamptz")
+            .And.Contain("ix_event_projector_state_pending_v2")
+            .And.Contain("ix_event_projector_state_stream_pending_v2");
+        EventSourceSchemaSql.CreateEventProjectorOutboxV2.Should()
+            .Contain("PRIMARY KEY (ProjectorName, EventId, EffectKind)")
+            .And.Contain("MessageId varchar(128) NOT NULL")
+            .And.Contain("UNIQUE (MessageId)")
+            .And.Contain("ix_event_projector_outbox_pending");
+        EventSourceDbSql.TryClaimEventProjectorExecution.Should()
+            .Contain("Revision = Revision + 1")
+            .And.Contain("LeaseExpiresAtUtc <= $5");
+        EventSourceDbSql.TryTransitionEventProjectorExecution.Should()
+            .Contain("ExecutionToken = $3")
+            .And.Contain("Revision = $4")
+            .And.Contain("Stage = $5");
+        EventSourceDbSql.GetEventProjectorRecoveryPage.Should()
+            .Contain("eps.EventId > $3")
+            .And.Contain("ORDER BY eps.EventId")
+            .And.Contain("LIMIT $5");
     }
 }

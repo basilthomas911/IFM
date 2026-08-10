@@ -1,4 +1,5 @@
 using StackExchange.Redis;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -41,6 +42,43 @@ public interface IEventSourceActorDbContext
         long eventId,
         string projectorName,
         CancellationToken cancellationToken);
+    Task<EventProjectorExecutionStateReadModel?> TryCreateEventProjectorExecutionStateAsync(
+        EventProjectorExecutionStateReadModel state,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorExecutionStateReadModel?> GetEventProjectorExecutionStateAsync(
+        long eventId,
+        string projectorName,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorExecutionStateReadModel?> TryClaimEventProjectorExecutionAsync(
+        long eventId,
+        string projectorName,
+        Guid executionToken,
+        DateTime nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorExecutionStateReadModel?> TryRenewEventProjectorExecutionAsync(
+        long eventId,
+        string projectorName,
+        Guid executionToken,
+        long expectedRevision,
+        DateTime nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorExecutionStateReadModel?> TryTransitionEventProjectorExecutionAsync(
+        EventProjectorStateTransition transition,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorExecutionStateReadModel?> TryTerminalizeEventProjectorExecutionAsync(
+        EventProjectorStateTransition transition,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<EventProjectorRecoveryItemReadModel>> GetEventProjectorRecoveryPageAsync(
+        string projectorName,
+        IReadOnlyCollection<string> eventNames,
+        long afterEventId,
+        DateTime nowUtc,
+        int batchSize,
+        CancellationToken cancellationToken = default);
     Task<ICollection<EventLogReadModel>> GetUncompletedEventProjectorEventsAsync(
         string projectorName,
         IReadOnlyCollection<string> eventNames);

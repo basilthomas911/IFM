@@ -17,6 +17,8 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventProjector;
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.Storage;
@@ -208,6 +210,179 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         (await fixture.ActorEventDb.GetCommandLogAsync(command.CommandId)).Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task Projector_claim_transition_and_terminalization_reject_stale_owners()
+    {
+        var stream = NewStream();
+        var sourceEvent = RangeEvent();
+        var saved = await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([sourceEvent]));
+        var persisted = saved.Single();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"ReliabilityProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+        var initialState = NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc);
+        var createAttempts = Enumerable.Range(0, 8)
+            .Select(_ => fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(initialState))
+            .ToArray();
+        var creates = await Task.WhenAll(createAttempts);
+        creates.Where(state => state is not null).Should().ContainSingle();
+        var claimAttempts = Enumerable.Range(0, 16)
+            .Select(_ => fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+                persisted.EventId,
+                projectorName,
+                Guid.NewGuid(),
+                nowUtc,
+                TimeSpan.FromMinutes(2)))
+            .ToArray();
+        var claims = await Task.WhenAll(claimAttempts);
+        claims.Where(state => state is not null).Should().ContainSingle();
+        var claimed = claims.Single(state => state is not null)!;
+        claimed.Revision.Should().Be(1);
+
+        var transition = new EventProjectorStateTransition(
+            persisted.EventId,
+            projectorName,
+            claimed.ExecutionToken!.Value,
+            claimed.Revision,
+            EventProjectorStageType.ValidateSourceEvent,
+            EventProjectorStageType.ApplyProjection,
+            EventProjectorOutcomeType.Processing,
+            EventProjectorStageType.ValidateSourceEvent);
+        var transitioned = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(transition, nowUtc);
+        var staleTransition = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(transition, nowUtc);
+
+        transitioned.Should().NotBeNull();
+        transitioned!.Revision.Should().Be(2);
+        staleTransition.Should().BeNull();
+
+        var renewed = await fixture.ActorEventDb.TryRenewEventProjectorExecutionAsync(
+            persisted.EventId,
+            projectorName,
+            claimed.ExecutionToken.Value,
+            transitioned.Revision,
+            nowUtc.AddSeconds(1),
+            TimeSpan.FromMinutes(2));
+        renewed.Should().NotBeNull();
+        renewed!.Revision.Should().Be(3);
+
+        var terminal = await fixture.ActorEventDb.TryTerminalizeEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                persisted.EventId,
+                projectorName,
+                claimed.ExecutionToken.Value,
+                renewed.Revision,
+                EventProjectorStageType.ApplyProjection,
+                EventProjectorStageType.Completed,
+                EventProjectorOutcomeType.Completed,
+                EventProjectorStageType.PersistCompletion),
+            nowUtc.AddSeconds(2));
+
+        terminal.Should().NotBeNull();
+        terminal!.Stage.Should().Be(EventProjectorStageType.Completed);
+        terminal.Outcome.Should().Be(EventProjectorOutcomeType.Completed);
+        terminal.ExecutionToken.Should().BeNull();
+        terminal.LeaseExpiresAtUtc.Should().BeNull();
+        (await fixture.ActorEventDb.TryRenewEventProjectorExecutionAsync(
+            persisted.EventId,
+            projectorName,
+            claimed.ExecutionToken.Value,
+            renewed.Revision,
+            nowUtc.AddSeconds(3),
+            TimeSpan.FromMinutes(2))).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Projector_expired_lease_can_be_taken_over_and_fences_the_previous_owner()
+    {
+        var stream = NewStream();
+        var saved = await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent()]));
+        var persisted = saved.Single();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"LeaseTakeoverProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+        (await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+            NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc))).Should().NotBeNull();
+
+        var firstToken = Guid.NewGuid();
+        var firstOwner = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            persisted.EventId,
+            projectorName,
+            firstToken,
+            nowUtc,
+            TimeSpan.FromSeconds(10));
+        var secondToken = Guid.NewGuid();
+        var secondOwner = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            persisted.EventId,
+            projectorName,
+            secondToken,
+            nowUtc.AddSeconds(11),
+            TimeSpan.FromMinutes(2));
+
+        firstOwner.Should().NotBeNull();
+        secondOwner.Should().NotBeNull();
+        secondOwner!.ExecutionToken.Should().Be(secondToken);
+        secondOwner.Revision.Should().Be(firstOwner!.Revision + 1);
+
+        var staleOwnerTransition = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                persisted.EventId,
+                projectorName,
+                firstToken,
+                firstOwner.Revision,
+                EventProjectorStageType.ValidateSourceEvent,
+                EventProjectorStageType.ApplyProjection,
+                EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.ValidateSourceEvent),
+            nowUtc.AddSeconds(11));
+        staleOwnerTransition.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Projector_recovery_page_uses_bounded_event_id_keyset_without_duplicates()
+    {
+        var stream = NewStream();
+        var sourceEvents = new IEvent[] { RangeEvent(), RangeEvent(), RangeEvent() };
+        var saved = await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection(sourceEvents));
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"RecoveryProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+        foreach (var sourceEvent in saved)
+        {
+            (await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+                NewExecutionState(sourceEvent.EventId, streamId, projectorName, nowUtc))).Should().NotBeNull();
+        }
+
+        var firstPage = await fixture.ActorEventDb.GetEventProjectorRecoveryPageAsync(
+            projectorName,
+            [nameof(FuturesRsiSignalGeneratedEvent)],
+            0,
+            nowUtc,
+            2);
+        var secondPage = await fixture.ActorEventDb.GetEventProjectorRecoveryPageAsync(
+            projectorName,
+            [nameof(FuturesRsiSignalGeneratedEvent)],
+            firstPage[^1].State.EventId,
+            nowUtc,
+            2);
+
+        firstPage.Should().HaveCount(2);
+        secondPage.Should().ContainSingle();
+        firstPage.Concat(secondPage).Select(item => item.State.EventId)
+            .Should().BeInAscendingOrder().And.OnlyHaveUniqueItems();
+        firstPage.Concat(secondPage).Should().OnlyContain(item =>
+            item.EventLog.EventStreamId == item.State.EventStreamId
+            && item.EventLog.EventName == item.State.SourceEventName);
+    }
+
     async Task<List<EventStreamReadModel>> LoadAsync(string stream, int lastNRange)
     {
         var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
@@ -265,6 +440,34 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
 
     static FuturesRsiSignalEntityId EntityId()
         => new("ESU6", new DateOnly(2026, 8, 5), TimeFrameType.Daily, 14);
+
+    static EventProjectorExecutionStateReadModel NewExecutionState(
+        long eventId,
+        long eventStreamId,
+        string projectorName,
+        DateTime nowUtc)
+        => new(
+            EventId: eventId,
+            ActorName: "ReliabilityTestActor",
+            ProjectorName: projectorName,
+            IsReplay: true,
+            AttemptNumber: 0,
+            Outcome: EventProjectorOutcomeType.Processing,
+            Stage: EventProjectorStageType.ValidateSourceEvent,
+            ErrorMessage: string.Empty,
+            CreatedTimestamp: nowUtc,
+            UpdatedTimestamp: nowUtc,
+            EventStreamId: eventStreamId,
+            SourceEventName: nameof(FuturesRsiSignalGeneratedEvent),
+            Revision: 0,
+            ExecutionToken: null,
+            LeaseExpiresAtUtc: null,
+            RetryCount: 0,
+            NextAttemptAtUtc: null,
+            LastErrorAtUtc: null,
+            BlockedReason: string.Empty,
+            LastCompletedStage: EventProjectorStageType.None,
+            UpdatedAtUtc: nowUtc);
 
     sealed class TestActorState : IActorState<TestActorState>
     {

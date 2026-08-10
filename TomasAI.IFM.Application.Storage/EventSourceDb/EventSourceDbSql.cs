@@ -312,6 +312,170 @@ ORDER BY el.eventVersion ASC;
         WHERE EventId = $1 AND ProjectorName = $2;
     """;
 
+    const string EventProjectorExecutionStateColumns = """
+            EventId as "EventId",
+            ActorName as "ActorName",
+            ProjectorName as "ProjectorName",
+            IsReplay as "IsReplay",
+            AttemptNumber as "AttemptNumber",
+            Outcome as "Outcome",
+            Stage as "Stage",
+            ErrorMessage as "ErrorMessage",
+            CreatedTimestamp as "CreatedTimestamp",
+            UpdatedTimestamp as "UpdatedTimestamp",
+            EventStreamId as "EventStreamId",
+            SourceEventName as "SourceEventName",
+            Revision as "Revision",
+            ExecutionToken as "ExecutionToken",
+            LeaseExpiresAtUtc as "LeaseExpiresAtUtc",
+            RetryCount as "RetryCount",
+            NextAttemptAtUtc as "NextAttemptAtUtc",
+            LastErrorAtUtc as "LastErrorAtUtc",
+            BlockedReason as "BlockedReason",
+            LastCompletedStage as "LastCompletedStage",
+            UpdatedAtUtc as "UpdatedAtUtc"
+        """;
+
+    public const string TryCreateEventProjectorExecutionState = """
+        INSERT INTO event_projector_state (
+            EventId, ActorName, ProjectorName, IsReplay, AttemptNumber,
+            Outcome, Stage, ErrorMessage, CreatedTimestamp, UpdatedTimestamp,
+            EventStreamId, SourceEventName, UpdatedAtUtc
+        ) VALUES (
+            $1, $2, $3, $4, $5,
+            $6, $7, $8, $9, $10,
+            $11, $12, $13
+        )
+        ON CONFLICT (EventId, ProjectorName) DO NOTHING
+        RETURNING
+        """ + EventProjectorExecutionStateColumns + ";";
+
+    public const string GetEventProjectorExecutionState = """
+        SELECT
+        """ + EventProjectorExecutionStateColumns + """
+        FROM event_projector_state
+        WHERE EventId = $1 AND ProjectorName = $2;
+        """;
+
+    public const string TryClaimEventProjectorExecution = """
+        UPDATE event_projector_state
+        SET ExecutionToken = $3,
+            LeaseExpiresAtUtc = $4,
+            Revision = Revision + 1,
+            UpdatedAtUtc = $5,
+            UpdatedTimestamp = $6
+        WHERE EventId = $1
+          AND ProjectorName = $2
+          AND Outcome IN ('Processing', 'Retrying')
+          AND (ExecutionToken IS NULL OR LeaseExpiresAtUtc IS NULL OR LeaseExpiresAtUtc <= $5)
+        RETURNING
+        """ + EventProjectorExecutionStateColumns + ";";
+
+    public const string TryRenewEventProjectorExecution = """
+        UPDATE event_projector_state
+        SET LeaseExpiresAtUtc = $6,
+            Revision = Revision + 1,
+            UpdatedAtUtc = $5,
+            UpdatedTimestamp = $7
+        WHERE EventId = $1
+          AND ProjectorName = $2
+          AND ExecutionToken = $3
+          AND Revision = $4
+          AND LeaseExpiresAtUtc > $5
+          AND Outcome IN ('Processing', 'Retrying')
+        RETURNING
+        """ + EventProjectorExecutionStateColumns + ";";
+
+    public const string TryTransitionEventProjectorExecution = """
+        UPDATE event_projector_state
+        SET Stage = $7,
+            Outcome = $8,
+            LastCompletedStage = $9,
+            RetryCount = $10,
+            NextAttemptAtUtc = $11,
+            LastErrorAtUtc = $12,
+            ErrorMessage = $13,
+            BlockedReason = $14,
+            Revision = Revision + 1,
+            UpdatedAtUtc = $15,
+            UpdatedTimestamp = $16
+        WHERE EventId = $1
+          AND ProjectorName = $2
+          AND ExecutionToken = $3
+          AND Revision = $4
+          AND Stage = $5
+          AND LeaseExpiresAtUtc > $6
+          AND Outcome IN ('Processing', 'Retrying')
+        RETURNING
+        """ + EventProjectorExecutionStateColumns + ";";
+
+    public const string TryTerminalizeEventProjectorExecution = """
+        UPDATE event_projector_state
+        SET Stage = 'Completed',
+            Outcome = $7,
+            LastCompletedStage = $8,
+            RetryCount = $9,
+            NextAttemptAtUtc = NULL,
+            LastErrorAtUtc = $10,
+            ErrorMessage = $11,
+            BlockedReason = $12,
+            ExecutionToken = NULL,
+            LeaseExpiresAtUtc = NULL,
+            Revision = Revision + 1,
+            UpdatedAtUtc = $13,
+            UpdatedTimestamp = $14
+        WHERE EventId = $1
+          AND ProjectorName = $2
+          AND ExecutionToken = $3
+          AND Revision = $4
+          AND Stage = $5
+          AND LeaseExpiresAtUtc > $6
+          AND Outcome IN ('Processing', 'Retrying')
+        RETURNING
+        """ + EventProjectorExecutionStateColumns + ";";
+
+    public const string GetEventProjectorRecoveryPage = """
+        SELECT
+            el.EventStreamId as "EventStreamId",
+            en.EventName as "EventName",
+            en.EventTypeName as "EventTypeName",
+            el.EventVersion as "EventVersion",
+            el.EventData as "EventData",
+            el.CommandId as "CommandId",
+            el.EventTimestamp as "EventTimestamp",
+            eps.EventId as "EventId",
+            eps.ActorName as "ActorName",
+            eps.ProjectorName as "ProjectorName",
+            eps.IsReplay as "IsReplay",
+            eps.AttemptNumber as "AttemptNumber",
+            eps.Outcome as "Outcome",
+            eps.Stage as "Stage",
+            eps.ErrorMessage as "ErrorMessage",
+            eps.CreatedTimestamp as "CreatedTimestamp",
+            eps.UpdatedTimestamp as "UpdatedTimestamp",
+            eps.EventStreamId as "StateEventStreamId",
+            eps.SourceEventName as "SourceEventName",
+            eps.Revision as "Revision",
+            eps.ExecutionToken as "ExecutionToken",
+            eps.LeaseExpiresAtUtc as "LeaseExpiresAtUtc",
+            eps.RetryCount as "RetryCount",
+            eps.NextAttemptAtUtc as "NextAttemptAtUtc",
+            eps.LastErrorAtUtc as "LastErrorAtUtc",
+            eps.BlockedReason as "BlockedReason",
+            eps.LastCompletedStage as "LastCompletedStage",
+            eps.UpdatedAtUtc as "UpdatedAtUtc"
+        FROM event_projector_state eps
+        JOIN event_log el ON el.EventVersion = eps.EventId
+        JOIN event_name_id en ON en.EventNameId = el.EventNameId
+        WHERE eps.ProjectorName = $1
+          AND en.EventName = ANY(string_to_array($2, ','))
+          AND eps.Outcome IN ('Processing', 'Retrying')
+          AND eps.EventId > $3
+          AND (eps.NextAttemptAtUtc IS NULL OR eps.NextAttemptAtUtc <= $4)
+        ORDER BY eps.EventId
+        LIMIT $5;
+        """;
+
     public const string TryInsertCommandLog = """
         WITH inserted AS (
             INSERT INTO command_log (

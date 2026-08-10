@@ -1,4 +1,4 @@
-ccessfull# Event Projector Implementation Details
+# Event Projector Implementation Details
 
 ## Purpose
 
@@ -80,6 +80,7 @@ TomasAI.IFM.Application.EventProjector/       Project root
 | `Contracts/IEventProjector.cs` | Defines the projector identity, lifecycle, intake, processing, infrastructure, cache, actor context, and logging contract. |
 | `TomasAI.IFM.Application.EventProjector.csproj` | Targets .NET 10 with nullable reference types and implicit usings enabled, and declares the project dependencies. |
 | `Docs/EventProjector-Implementation-Details.md` | This implementation and folder reference. |
+| `Docs/EventProjector-Recovery-Idempotency-Implementation-Plan.md` | SWO-06 review plan for fenced execution, bounded recovery, target idempotency, transactional publication outbox, terminal failures, metrics, and rollout. |
 
 ## Project dependencies
 
@@ -127,11 +128,16 @@ The implementation also works with `IBlackboardService` to cache active `EventPr
 The owning command actor calls `StartAsync` once during its lifecycle:
 
 1. Store and validate the actor `ICommandActorContext`.
-2. Register `ProcessQueuedDomainEventAsync` as the durable queue handler for `ProjectorName`.
-3. Query and enqueue recoverable event-log entries through `RecoverUncompletedEventsAsync`.
-4. Start the durable queue worker with a 30-second replay interval.
+2. Call `DequeueAsync` to register `ProcessQueuedDomainEventAsync` for `ProjectorName`. The current queue implementation
+   also starts its process and replay workers during this call.
+3. Query and enqueue recoverable event-log entries through `RecoverUncompletedEventsAsync`. Because `EnqueueAsync` also
+   ensures workers are started, recovered events can be consumed while this scan is still running.
+4. Call `StartAsync` with a 30-second replay interval, updating queue configuration and ensuring workers remain active.
 
-Handler registration happens before recovery and worker startup, so recovered messages cannot be consumed before a handler exists. Accessing `Context` before startup throws `InvalidOperationException`.
+A handler exists before a recovered message can be consumed, but worker execution is not currently held until recovery
+inventory completes. SWO-06 plans to separate prepare/register, recovery publication, and worker start explicitly; see
+`EventProjector-Recovery-Idempotency-Implementation-Plan.md`. Accessing `Context` before startup throws
+`InvalidOperationException`.
 
 ### Shutdown
 
@@ -282,4 +288,3 @@ Behavior is exercised outside this project by:
 - `TomasAI.IFM.Domain.Fund.UnitTests/FundEventProjectorTests.cs` for base projector behavior;
 - `TomasAI.IFM.Domain.Fund.IntegrationTests/FundEventProjectionIntegrationTests.cs` for integrated projection flows; and
 - `TomasAI.IFM.Application.Storage.IntegrationTests/EventSourceDb/EventProjectorStatePersistenceTests.cs` for projector-state persistence.
-

@@ -125,3 +125,149 @@ internal readonly record struct GetUncompletedEventProjectorEvents(string projec
 {
     public object Bind() => Values(Text(projectorName), Text(eventNames));
 }
+internal readonly record struct TryCreateEventProjectorExecutionState(
+    long eventId,
+    string actorName,
+    string projectorName,
+    bool isReplay,
+    int attemptNumber,
+    string outcome,
+    string stage,
+    string errorMessage,
+    string createdTimestamp,
+    string updatedTimestamp,
+    long eventStreamId,
+    string sourceEventName,
+    DateTime updatedAtUtc) : IBindValue
+{
+    public object Bind() => Values(
+        Bigint(eventId),
+        Text(actorName),
+        Text(projectorName),
+        Boolean(isReplay),
+        Integer(attemptNumber),
+        Text(outcome),
+        Text(stage),
+        Text(errorMessage),
+        Text(createdTimestamp),
+        Text(updatedTimestamp),
+        Bigint(eventStreamId),
+        Text(sourceEventName),
+        TimestampTz(updatedAtUtc));
+}
+internal readonly record struct TryClaimEventProjectorExecution(
+    long eventId,
+    string projectorName,
+    Guid executionToken,
+    DateTime leaseExpiresAtUtc,
+    DateTime nowUtc,
+    string updatedTimestamp) : IBindValue
+{
+    public object Bind() => Values(
+        Bigint(eventId),
+        Text(projectorName),
+        Uuid(executionToken),
+        TimestampTz(leaseExpiresAtUtc),
+        TimestampTz(nowUtc),
+        Text(updatedTimestamp));
+}
+internal readonly record struct TryRenewEventProjectorExecution(
+    long eventId,
+    string projectorName,
+    Guid executionToken,
+    long expectedRevision,
+    DateTime nowUtc,
+    DateTime leaseExpiresAtUtc,
+    string updatedTimestamp) : IBindValue
+{
+    public object Bind() => Values(
+        Bigint(eventId),
+        Text(projectorName),
+        Uuid(executionToken),
+        Bigint(expectedRevision),
+        TimestampTz(nowUtc),
+        TimestampTz(leaseExpiresAtUtc),
+        Text(updatedTimestamp));
+}
+internal readonly record struct TryTransitionEventProjectorExecution(
+    long eventId,
+    string projectorName,
+    Guid executionToken,
+    long expectedRevision,
+    string expectedStage,
+    DateTime nowUtc,
+    string nextStage,
+    string outcome,
+    string lastCompletedStage,
+    int retryCount,
+    DateTime? nextAttemptAtUtc,
+    DateTime? lastErrorAtUtc,
+    string errorMessage,
+    string blockedReason,
+    DateTime updatedAtUtc,
+    string updatedTimestamp) : IBindValue
+{
+    public object Bind() => Values(
+        Bigint(eventId),
+        Text(projectorName),
+        Uuid(executionToken),
+        Bigint(expectedRevision),
+        Text(expectedStage),
+        TimestampTz(nowUtc),
+        Text(nextStage),
+        Text(outcome),
+        Text(lastCompletedStage),
+        Integer(retryCount),
+        TimestampTz(nextAttemptAtUtc),
+        TimestampTz(lastErrorAtUtc),
+        Text(errorMessage),
+        Text(blockedReason),
+        TimestampTz(updatedAtUtc),
+        Text(updatedTimestamp));
+}
+internal readonly record struct TryTerminalizeEventProjectorExecution(
+    long eventId,
+    string projectorName,
+    Guid executionToken,
+    long expectedRevision,
+    string expectedStage,
+    DateTime nowUtc,
+    string outcome,
+    string lastCompletedStage,
+    int retryCount,
+    DateTime? lastErrorAtUtc,
+    string errorMessage,
+    string blockedReason,
+    DateTime updatedAtUtc,
+    string updatedTimestamp) : IBindValue
+{
+    public object Bind() => Values(
+        Bigint(eventId),
+        Text(projectorName),
+        Uuid(executionToken),
+        Bigint(expectedRevision),
+        Text(expectedStage),
+        TimestampTz(nowUtc),
+        Text(outcome),
+        Text(lastCompletedStage),
+        Integer(retryCount),
+        TimestampTz(lastErrorAtUtc),
+        Text(errorMessage),
+        Text(blockedReason),
+        TimestampTz(updatedAtUtc),
+        Text(updatedTimestamp));
+}
+internal readonly record struct GetEventProjectorRecoveryPage(
+    string projectorName,
+    string eventNames,
+    long afterEventId,
+    DateTime nowUtc,
+    int batchSize) : IBindValue
+{
+    public object Bind() => Values(
+        Text(projectorName),
+        Text(eventNames),
+        Bigint(afterEventId),
+        TimestampTz(nowUtc),
+        Integer(batchSize));
+}

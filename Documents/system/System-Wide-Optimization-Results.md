@@ -488,6 +488,60 @@ Final verification:
 | Market Data Feed integration tests | 44/44 passed |
 | Ten domain integration projects, sequential Release run | 193/193 passed |
 
+### 7.16 SWO-06 Event-projector reliability Tranche A
+
+Tranche A establishes the durable contracts and storage boundary without activating a new production projector path.
+Stable effect identities now derive from projector, immutable source event ID, and effect kind. Projection descriptors
+must declare their target idempotency strategy, execution contexts bind that strategy and effect identity to one fenced
+execution token, and reliability options bound recovery pages, stream concurrency, replay attempts/delay, claim leases,
+and outbox batches.
+
+The additive PostgreSQL schema extends `event_projector_state` with source stream/name, revision, execution token,
+lease, retry scheduling, failure, completed-stage, and UTC update metadata. It also stages a transactional publication
+outbox keyed by `(ProjectorName, EventId, EffectKind)` with a unique deterministic message ID. New storage APIs use
+compare-and-set token/revision/stage predicates for claim, renewal, transition, and terminalization. Recovery is exposed
+as a joined, bounded event-ID keyset page, eliminating the need for a second state lookup when the later runtime path is
+activated. Existing projector runtime behavior is unchanged in this tranche.
+
+Real PostgreSQL tests prove:
+
+- eight simultaneous initial inserts create exactly one state row;
+- sixteen simultaneous claim attempts create exactly one active owner;
+- an expired lease can be taken over and the previous token is fenced;
+- repeated stale transitions and renewals return no state mutation;
+- terminalization clears token/lease and prevents further ownership; and
+- two bounded keyset pages return three joined event/state rows in order without duplicates.
+
+The baseline benchmark retains the current full-set materialization, per-event JSON deserialization, state N+1 call
+shape, state write call, and queue call. Fake storage and queue operations complete synchronously, so these numbers are
+a CPU/allocation lower bound and deliberately exclude PostgreSQL/NATS latency. BenchmarkDotNet 0.15.8 ran on .NET
+10.0.10 with Concurrent Workstation GC on the AMD Ryzen Threadripper 1950X host.
+
+| Pending events | Current mean | Allocated per recovery | Approx. allocation/event |
+| ---: | ---: | ---: | ---: |
+| 1,000 | 52.44 ms | 6.49 MB | 6.64 KB |
+| 10,000 | 109.56 ms | 64.85 MB | 6.64 KB |
+| 100,000 | 1,002.74 ms | 648.53 MB | 6.64 KB |
+
+The 1,000-event result has a short-iteration warning and wide confidence interval; the 100,000-event result is stable
+at 1.003 seconds with 7.0 ms standard deviation. The important baseline finding is linear retained-work allocation:
+the current synthetic lower bound allocates roughly 649 MB at 100,000 pending events before any real database or NATS
+cost. Tranche B/C comparison must demonstrate memory bounded by page size and configured lanes, no state N+1 query,
+and no same-stream overlap.
+
+Focused verification:
+
+| Gate | Result |
+| --- | ---: |
+| Reliability identity/options/descriptor/context tests | 5/5 passed |
+| PostgreSQL timestamp-with-time-zone parameter tests | 3/3 passed |
+| Projector state/schema policy tests | 3/3 passed |
+| Complete real-PostgreSQL EventSource snapshot/reliability class | 13/13 passed |
+| Complete Fund unit tests | 191/191 passed |
+| Complete Framework.Storage unit tests | 391/391 passed |
+| Complete solution Release build | 0 warnings, 0 errors |
+| Recovery baseline sizes | 3/3 completed |
+
 ## 8. References
 
 - [OpenTelemetry .NET metrics documentation](https://opentelemetry.io/docs/languages/dotnet/metrics/)
@@ -515,3 +569,4 @@ Final verification:
 | 1.1 | 2026-08-09 | Recorded SWO-03 actor-first startup ordering, readiness health publication, rollback/shutdown semantics, and deterministic verification. |
 | 1.2 | 2026-08-09 | Recorded the in-progress SWO-05 bounded ITI projections, real-Scylla before/after benchmark, and focused reconciliation/read/write validation. |
 | 1.3 | 2026-08-09 | Completed SWO-05 with Scylla trace evidence, final benchmark percentiles and allocation tradeoff, deterministic integration-test isolation, and the complete validation gate. |
+| 1.4 | 2026-08-09 | Recorded SWO-06 Tranche A reliability contracts, additive state/outbox schema, fenced storage concurrency evidence, bounded recovery API, and 1k/10k/100k current-path baseline. |
