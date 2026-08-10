@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Fund.Command.EventProjector;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
@@ -38,6 +39,11 @@ public sealed class FundEventProjectorTests
         await projector.StartAsync(context);
 
         projector.Context.Should().BeSameAs(context);
+        projector.Readiness.IsReady.Should().BeTrue();
+        await durableReplayQueue.Received(1).PrepareAsync(
+            projector.ProjectorName,
+            TimeSpan.FromSeconds(30),
+            CancellationToken.None);
         await durableReplayQueue.Received(1).DequeueAsync(
             projector.ProjectorName,
             Arg.Any<Func<IEvent, Task>>(),
@@ -63,6 +69,10 @@ public sealed class FundEventProjectorTests
 
         await projector.StartAsync(Substitute.For<ICommandActorContext>(), cancellation.Token);
 
+        await durableReplayQueue.Received(1).PrepareAsync(
+            projector.ProjectorName,
+            TimeSpan.FromSeconds(30),
+            cancellation.Token);
         await durableReplayQueue.Received(1).DequeueAsync(
             projector.ProjectorName,
             Arg.Any<Func<IEvent, Task>>(),
@@ -99,6 +109,13 @@ public sealed class FundEventProjectorTests
             .AsTask();
 
         await start.Should().ThrowAsync<OperationCanceledException>();
+        projector.Readiness.IsReady.Should().BeFalse();
+        projector.Readiness.FailureReason.Should().NotBeEmpty();
+        Action context = () => _ = projector.Context;
+        context.Should().Throw<InvalidOperationException>();
+        await durableReplayQueue.Received(1).StopAsync(
+            projector.ProjectorName,
+            CancellationToken.None);
         await durableReplayQueue.DidNotReceive().StartAsync(
             projector.ProjectorName,
             Arg.Any<TimeSpan>(),
@@ -225,16 +242,146 @@ public sealed class FundEventProjectorTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Bounded_recovery_uses_joined_keyset_page_and_publishes_readiness_after_start()
+    {
+        var durableReplayQueue = Substitute.For<IDurableReplayQueue>();
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        dbEventSource.GetEventProjectorRecoveryPageAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<long>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<EventProjectorRecoveryItemReadModel>());
+        var projector = CreateProjector(
+            durableReplayQueue,
+            dbEventSource,
+            CreateBlackboard(),
+            new EventProjectorReliabilityOptions { BoundedRecoveryEnabled = true });
+
+        await projector.StartAsync(Substitute.For<ICommandActorContext>());
+
+        projector.Readiness.IsReady.Should().BeTrue();
+        projector.Readiness.RecoveryEventsDiscovered.Should().Be(0);
+        await dbEventSource.Received(1).GetEventProjectorRecoveryPageAsync(
+            projector.ProjectorName,
+            Arg.Any<IReadOnlyCollection<string>>(),
+            0,
+            Arg.Any<DateTime>(),
+            256,
+            CancellationToken.None);
+        await dbEventSource.DidNotReceive().GetUncompletedEventProjectorEventsAsync(
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyCollection<string>>(),
+            Arg.Any<CancellationToken>());
+        await durableReplayQueue.Received(1).StartAsync(
+            projector.ProjectorName,
+            TimeSpan.FromSeconds(30),
+            CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Bounded_recovery_failure_rolls_back_workers_and_keeps_readiness_false()
+    {
+        const long eventId = 904L;
+        var durableReplayQueue = Substitute.For<IDurableReplayQueue>();
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        var item = RecoveryItem(eventId, 44L);
+        dbEventSource.GetEventProjectorRecoveryPageAsync(
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<long>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns([item]);
+        dbEventSource.TryClaimEventProjectorExecutionAsync(
+                eventId,
+                Arg.Any<string>(),
+                Arg.Any<Guid>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => item.State with
+            {
+                Revision = 1,
+                ExecutionToken = call.ArgAt<Guid>(2),
+                LeaseExpiresAtUtc = DateTime.UtcNow.AddMinutes(2)
+            });
+        durableReplayQueue.EnqueueAsync(
+                Arg.Any<string>(),
+                Arg.Any<IEvent>(),
+                Arg.Any<CancellationToken>())
+            .Returns<ValueTask>(_ => throw new InvalidOperationException("publish failed"));
+        var projector = CreateProjector(
+            durableReplayQueue,
+            dbEventSource,
+            CreateBlackboard(),
+            new EventProjectorReliabilityOptions { BoundedRecoveryEnabled = true });
+
+        var start = () => projector.StartAsync(Substitute.For<ICommandActorContext>()).AsTask();
+
+        await start.Should().ThrowAsync<InvalidOperationException>().WithMessage("publish failed");
+        projector.Readiness.IsReady.Should().BeFalse();
+        projector.Readiness.FailureReason.Should().Be("publish failed");
+        await durableReplayQueue.Received(1).StopAsync(projector.ProjectorName, CancellationToken.None);
+        await durableReplayQueue.DidNotReceive().StartAsync(
+            projector.ProjectorName,
+            Arg.Any<TimeSpan>(),
+            Arg.Any<CancellationToken>());
+    }
+
     static FundEventProjector CreateProjector(
         IDurableReplayQueue durableReplayQueue,
         IEventSourceActorDbContext? dbEventSource = null,
-        IBlackboardService? blackboardService = null) =>
+        IBlackboardService? blackboardService = null,
+        EventProjectorReliabilityOptions? reliabilityOptions = null) =>
         new(
             Substitute.For<IDbContextFactory>(),
             durableReplayQueue,
             dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
             blackboardService ?? Substitute.For<IBlackboardService>(),
-            Substitute.For<ILogger<FundEventProjector>>());
+            Substitute.For<ILogger<FundEventProjector>>(),
+            reliabilityOptions);
+
+    static EventProjectorRecoveryItemReadModel RecoveryItem(long eventId, long streamId)
+    {
+        var nowUtc = DateTime.UtcNow;
+        var sourceEvent = new FundCreatedEvent { NewFund = SampleData.Fund };
+        return new EventProjectorRecoveryItemReadModel(
+            new EventLogReadModel(
+                streamId,
+                nameof(FundCreatedEvent),
+                typeof(FundCreatedEvent).AssemblyQualifiedName!,
+                eventId,
+                Newtonsoft.Json.JsonConvert.SerializeObject(sourceEvent),
+                Guid.NewGuid(),
+                $"{nowUtc:o}"),
+            new EventProjectorExecutionStateReadModel(
+                eventId,
+                "FundCommandActor",
+                "FundEventProjector",
+                true,
+                0,
+                TomasAI.IFM.Shared.EventProjector.EventProjectorOutcomeType.Processing,
+                TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.PublishProcessingEvent,
+                string.Empty,
+                nowUtc,
+                nowUtc,
+                streamId,
+                nameof(FundCreatedEvent),
+                0,
+                null,
+                null,
+                0,
+                null,
+                null,
+                string.Empty,
+                TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.None,
+                nowUtc));
+    }
 
     static IBlackboardService CreateBlackboard()
     {

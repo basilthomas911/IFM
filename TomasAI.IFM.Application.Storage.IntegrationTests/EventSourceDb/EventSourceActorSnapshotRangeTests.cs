@@ -344,6 +344,39 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
     }
 
     [Fact]
+    public async Task Legacy_projector_upsert_populates_additive_stream_identity_for_bounded_recovery()
+    {
+        var stream = NewStream();
+        var saved = await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent()]));
+        var persisted = saved.Single();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"LegacyCompatibilityProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+
+        await fixture.ActorEventDb.InsertEventProjectorStateAsync(new EventProjectorStateReadModel(
+            persisted.EventId,
+            "LegacyActor",
+            projectorName,
+            false,
+            0,
+            EventProjectorOutcomeType.Processing,
+            EventProjectorStageType.PublishProcessingEvent,
+            createdTimestamp: nowUtc,
+            updatedTimestamp: nowUtc));
+
+        var execution = await fixture.ActorEventDb.GetEventProjectorExecutionStateAsync(
+            persisted.EventId,
+            projectorName);
+        execution.Should().NotBeNull();
+        execution!.EventStreamId.Should().Be(streamId);
+        execution.SourceEventName.Should().Be(nameof(FuturesRsiSignalGeneratedEvent));
+        execution.Revision.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Projector_recovery_page_uses_bounded_event_id_keyset_without_duplicates()
     {
         var stream = NewStream();

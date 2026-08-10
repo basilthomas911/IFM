@@ -5,6 +5,12 @@ namespace TomasAI.IFM.Application.EventProjector;
 /// </summary>
 public sealed record EventProjectorReliabilityOptions
 {
+    public const string SectionName = "EventProjectorReliability";
+
+    /// <summary>
+    /// Enables the SWO-06 bounded joined-state recovery path. It remains disabled until its rollout gate is approved.
+    /// </summary>
+    public bool BoundedRecoveryEnabled { get; init; }
     public int RecoveryBatchSize { get; init; } = 256;
     public int RecoveryStreamConcurrency { get; init; } = Math.Min(Environment.ProcessorCount, 8);
     public int MaximumReplayAttempts { get; init; } = 3;

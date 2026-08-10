@@ -5,11 +5,13 @@
 Tranche A was completed on 2026-08-09. The repository now contains the reliability options, stable effect identity,
 explicit projection idempotency/result/context/descriptor contracts, readiness snapshot contract, additive PostgreSQL
 execution-state and outbox schema, fenced create/claim/renew/transition/terminal APIs, joined keyset recovery page, and
-deterministic storage contention tests. The current projector runtime has not been switched to these contracts.
+deterministic storage contention tests.
 
-The captured current-path CPU/allocation lower bound is 52.44 ms/6.49 MB at 1,000 events, 109.56 ms/64.85 MB at
-10,000 events, and 1,002.74 ms/648.53 MB at 100,000 events. PostgreSQL and NATS latency are intentionally excluded.
-Tranche B is the next implementation gate.
+Tranche B was completed on 2026-08-10. Queue preparation and handler registration no longer start workers; recovery
+publication finishes before an explicit worker start and readiness transition. The optional joined-keyset coordinator
+bounds inventory to one page, preserves per-stream order, uses conditional claims, and is disabled by default pending
+Tranche C. At 100,000 synthetic events it measured 317.05 ms versus 1,020.38 ms for the current path. PostgreSQL and
+NATS latency are intentionally excluded. Tranche C is the next implementation gate.
 
 ## Status and scope
 
@@ -39,12 +41,11 @@ The repository audit established the following facts:
 4. `event_projector_state` uses an unconditional upsert. It has no revision, execution owner, fencing token, or compare-
    and-set transition, so two deliveries can both execute the same active stage and a stale worker can overwrite newer
    state.
-5. `NatsJSDurableReplayQueue.DequeueAsync` registers the handler and starts workers. `EnqueueAsync` also starts workers.
-   Consequently, `BaseEventProjector.StartAsync` can consume while startup recovery is still scanning and enqueueing,
-   despite its current comments describing registration-before-start behavior.
-6. Startup recovery materializes every eligible event into one `ICollection`, reloads each state individually, and
-   enqueues sequentially. Memory, query time, state-read round trips, and startup duration grow with the complete
-   backlog.
+5. Before Tranche B, `DequeueAsync` and `EnqueueAsync` started workers, so startup recovery could be consumed while its
+   inventory was still being published. Tranche B corrected this lifecycle; explicit `StartAsync` is now the only
+   transition that initially opens consumption or reopens it after stop.
+6. The default legacy recovery path still materializes every eligible event, reloads each state, and enqueues
+   sequentially. The Tranche B joined-keyset alternative removes that behavior but remains disabled until Tranche C.
 7. The process and replay workers can run concurrently. JetStream message de-duplication suppresses duplicate publishes
    only within its configured duplicate window; it is not a permanent business-effect idempotency guarantee.
 8. `EventProjectorBuilder.RunAsync` replaces the projector-wide maximum-attempt callback for every event execution.
@@ -191,9 +192,9 @@ Split durable-queue preparation from worker execution. The target lifecycle is:
 7. start process/replay/outbox workers; and
 8. publish projector readiness.
 
-`DequeueAsync` and `EnqueueAsync` currently violate this separation by starting workers. Introduce explicit prepare,
-publish, and start APIs, then retain the old methods only as compatibility wrappers until every caller is migrated.
-Startup cancellation must leave readiness false, stop any partially started workers, and preserve all durable rows.
+Tranche B implements this separation through `PrepareAsync`, registration-only `DequeueAsync`, publish-without-start
+`EnqueueAsync`, and explicit `StartAsync`. Startup cancellation leaves readiness false, stops any partially started
+workers, and preserves all durable rows.
 
 ### Bounded recovery and stream ordering
 
@@ -209,9 +210,10 @@ the current state N+1 read. Proposed initial configuration, subject to baseline 
 | Claim lease | 2 minutes | longer than measured p99 stage time plus safety margin |
 | Outbox batch size | 256 | 1-2,048 |
 
-Concurrency is across streams, never within one stream. A stable stream hash assigns work to a bounded set of logical
-lanes, preserving source version order without creating one task or semaphore per aggregate. Process and replay
-deliveries both enter the same ordering/claim path.
+Concurrency is across streams, never within one stream. The Tranche B coordinator groups only the current bounded page
+and schedules those stream groups through `RecoveryStreamConcurrency` logical slots. Each page completes before the
+keyset cursor advances, preserving source order across page boundaries without retaining per-aggregate synchronization
+objects. Tranche C will route process and replay deliveries through the same ordering/claim path.
 
 The default supersession policy is `NeverSupersede`. An event may be marked `Superseded` only when a projector-specific
 policy proves from immutable source versions and event semantics that the newer event fully replaces the older effect.
@@ -264,6 +266,10 @@ Gate: schema rollback compatibility, storage integration tests, zero production 
 6. Add 0/1/partial/multi-page/100,000-event recovery tests, cancellation tests, and multiple-instance claim tests.
 
 Gate: bounded memory, no worker consumption before the recovery handoff, and no source-stream reordering.
+
+Completed 2026-08-10. Unit and real-NATS tests prove publish-before-start and stop/restart semantics; bounded recovery
+tests cover empty, one, partial, multi-page, cancellation, and claim contention; the 100,000-event benchmark exercises
+the full synthetic recovery shape. Production activation remains off through `BoundedRecoveryEnabled = false`.
 
 ### Tranche C: Fenced execution and Fund target idempotency
 
@@ -394,5 +400,5 @@ The following decisions were accepted before Tranche A implementation:
    workers are ready.
 6. Implement SWO-06 in the five tranches above, with a review/activation gate after each tranche.
 
-Tranche B may now implement queue lifecycle separation and the fenced execution path, but production activation stays
-disabled until its crash-point, ordering, shutdown, and regression gates pass.
+Tranche C may now unify process and replay deliveries behind fenced stage execution and Fund target idempotency.
+Production activation remains disabled until that tranche's crash-after-write and regression gates pass.

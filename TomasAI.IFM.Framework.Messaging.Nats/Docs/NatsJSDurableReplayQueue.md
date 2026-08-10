@@ -80,7 +80,7 @@ Because normalization is lossy, different logical names can map to the same NATS
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | Maximum replay deliveries | `3` | A replay message is terminally handled on its third replay delivery. |
-| Replay interval | `30 seconds` | Used when workers are started before `StartAsync` supplies a different interval. |
+| Replay interval | `30 seconds` | Retained default until `PrepareAsync` or `StartAsync` supplies a different interval. |
 | Worker idle timeout | `2 minutes` | A process or replay worker stops after this period without a consumed message. |
 
 Replay backoff is generated once for every allowed replay delivery. For zero-based attempt index `n`, the delay is:
@@ -163,33 +163,33 @@ No NATS connection is opened until a queue action calls `EnsureQueueAsync`. The 
 
 ### `DequeueAsync`
 
-`DequeueAsync(eventProjectorName, processMessageFunc, cancellationToken)` registers the callback used to process both new and replayed events.
+`DequeueAsync(eventProjectorName, processMessageFunc, cancellationToken)` registers the callback used to process both new and replayed events. It performs no NATS I/O and never starts workers.
 
 ```mermaid
 sequenceDiagram
     participant Caller
     participant Queue as NatsJSDurableReplayQueue
     participant State as ProjectorQueueState
-    participant Transport
 
     Caller->>Queue: DequeueAsync(name, handler, token)
     Queue->>Queue: Validate name, handler, disposal state
     Queue->>State: Get or create state
     Queue->>State: Replace ProcessMessage handler
-    Queue->>Transport: EnsureQueueAsync(...)
-    Transport-->>Queue: Resources and consumers ready
-    Queue->>Queue: Start inactive process worker
-    Queue->>Queue: Start inactive replay worker
-    Queue-->>Caller: Initialization complete
+    Queue-->>Caller: Registration complete
 ```
 
 Important semantics:
 
-- The method registers a handler and starts workers; it does not wait for or return a message.
+- The method only registers a handler; it does not wait for or return a message.
 - A later call for the same projector replaces the handler.
-- The handler is assigned before workers start, preventing those newly started workers from observing a missing handler.
-- The cancellation token is linked to any workers created by the call, so canceling it later also stops those workers.
-- If no custom interval has been set through `StartAsync`, queue initialization uses the 30-second default.
+- Cancellation is checked at registration time and is not linked to future workers.
+
+### `PrepareAsync`
+
+`PrepareAsync(eventProjectorName, replayInterval, cancellationToken)` creates or updates the two streams and durable
+consumers while leaving both workers stopped. Configuration is serialized by the projector lifecycle gate and cached;
+an unchanged configuration does not repeat resource preparation. This is the recovery publication phase's readiness
+boundary: messages can be durably published without being consumed.
 
 ### `StartAsync`
 
@@ -199,19 +199,21 @@ Important semantics:
 2. Require a nonblank projector name.
 3. Require a replay interval greater than zero.
 4. Get or create the projector state.
-5. Store the new replay interval in that state.
-6. Acquire the projector lifecycle gate.
+5. Acquire the projector lifecycle gate.
+6. Store the new replay interval in that state.
 7. Generate NATS resource names and replay backoff settings.
 8. Ask the transport to create or update the streams and consumers.
 9. Start a process worker if none exists or the previous worker completed.
 10. Start a replay worker if none exists or the previous worker completed.
 11. Release the lifecycle gate and return.
 
-`StartAsync` does not register a handler. If existing messages can be delivered, call `DequeueAsync` first so the shared handler is present. Calling `StartAsync` repeatedly is safe; an active worker is not duplicated.
+`StartAsync` does not register a handler and fails if one is absent. Call `DequeueAsync` first. Calling `StartAsync`
+repeatedly is safe; active workers are not duplicated. A startup failure cancels and disposes any partially created
+workers, and the caller must not publish readiness.
 
-### `Enqueue`
+### `EnqueueAsync`
 
-`Enqueue(eventProjectorName, domainEvent, cancellationToken)` synchronously publishes an event to the projector's process subject.
+`EnqueueAsync(eventProjectorName, domainEvent, cancellationToken)` asynchronously publishes an event to the projector's process subject.
 
 ```mermaid
 sequenceDiagram
@@ -223,7 +225,6 @@ sequenceDiagram
     Caller->>Queue: Enqueue(name, event, token)
     Queue->>Queue: Validate arguments and disposal state
     Queue->>Transport: EnsureQueueAsync(...)
-    Queue->>Queue: Start inactive workers
     Queue->>Queue: Serialize DurableEventEnvelope
     Queue->>Queue: Derive stable process message ID
     Queue->>Transport: PublishProcessAsync(name, payload, messageId, token)
@@ -233,9 +234,11 @@ sequenceDiagram
     Queue-->>Caller: Return
 ```
 
-The operation is synchronous because it waits on asynchronous initialization and publication with `GetAwaiter().GetResult()`. Return from `Enqueue` means JetStream acknowledged the publish; it does not mean the event handler has run. The process message ID is derived from projector name plus positive `EventId`, falling back to the event `Id`, so repeated publication of the same event can be suppressed by JetStream during the stream's duplicate window.
+Completion means JetStream acknowledged the publish; it does not mean the event handler has run. The process message ID is derived from projector name plus positive `EventId`, falling back to the event `Id`, so repeated publication of the same event can be suppressed by JetStream during the stream's duplicate window.
 
-If this action starts inactive workers, its cancellation token remains linked to their lifetime. Callers should normally register a handler before enqueueing.
+Before the first explicit `StartAsync`, enqueue prepares resources and publishes while workers remain stopped. After
+workers have been explicitly started, enqueue restarts workers that retired because of the idle timeout. `StopAsync`
+disables that automatic restart until another explicit `StartAsync`.
 
 ### `StopAsync`
 
@@ -250,7 +253,8 @@ If this action starts inactive workers, its cancellation token remains linked to
 7. Clear the task and cancellation-source references.
 8. Release the lifecycle gate.
 
-The operation does not delete JetStream streams or consumers and does not remove projector state. `StartAsync`, `DequeueAsync`, or `Enqueue` can restart the workers later.
+The operation does not delete JetStream streams or consumers and does not remove projector state. Only a later
+`StartAsync` re-enables workers; handler registration and enqueueing alone leave them stopped.
 
 The supplied cancellation token controls only the wait to acquire the lifecycle gate. Once the gate is acquired, the method waits for the workers without that caller token.
 
@@ -421,7 +425,7 @@ Process and replay workers have independent cancellation sources and independent
 3. Completing message handling resets it again.
 4. If the timeout expires, the worker's consume operation is canceled.
 5. The expected cancellation is swallowed and the worker task completes.
-6. A later `StartAsync`, `DequeueAsync`, or `Enqueue` sees the completed task and creates a new worker and cancellation source.
+6. If workers remain enabled, a later `EnqueueAsync` sees the completed task and creates a new worker and cancellation source. After `StopAsync`, an explicit `StartAsync` is required.
 
 The timeout remains active while the handler is executing. A handler that runs longer than the idle timeout can leave the token canceled before the subsequent ACK, NAK, or replay publication.
 
@@ -466,6 +470,11 @@ public async ValueTask StartAsync(
 {
     _context = IsArgumentNull.Set(context);
 
+    await DurableReplayQueue.PrepareAsync(
+        ProjectorName,
+        TimeSpan.FromSeconds(30),
+        cancellationToken);
+
     await DurableReplayQueue.DequeueAsync(
         ProjectorName,
         ProcessQueuedDomainEventAsync,
@@ -483,7 +492,7 @@ public async ValueTask StopAsync(CancellationToken cancellationToken = default)
     => await DurableReplayQueue.StopAsync(ProjectorName, cancellationToken);
 ```
 
-The owning command actor should pass its runtime context to the projector's `StartAsync` from its startup lifecycle and call `StopAsync` from its shutdown lifecycle. The context is created by the actor supervisor and is therefore supplied at lifecycle time rather than injected into the projector constructor. Handler registration deliberately precedes queue startup so recovered messages cannot be consumed before a handler is available.
+The owning command actor should pass its runtime context to the projector's `StartAsync` from its startup lifecycle and call `StopAsync` from its shutdown lifecycle. The context is created by the actor supervisor and is therefore supplied at lifecycle time rather than injected into the projector constructor. Preparation and handler registration deliberately precede recovery publication; worker startup follows recovery, so no recovered message can be consumed before the inventory handoff is complete.
 
 `DomainEventsProjectionAsync` is then limited to its data-plane responsibilities:
 
@@ -492,7 +501,7 @@ The owning command actor should pass its runtime context to the projector's `Sta
 3. Cache the same state in the blackboard for active processing.
 4. Enqueue each event to the already-configured projector queue.
 
-It does not register the handler or call the durable queue's `StartAsync` for every event batch. If workers later stop after their idle timeout, `Enqueue` automatically restarts them using the retained handler and settings.
+It does not register the handler or call the durable queue's `StartAsync` for every event batch. If explicitly enabled workers later stop after their idle timeout, `EnqueueAsync` automatically restarts them using the retained handler and settings.
 
 ## Event-log recovery and durable projector state
 

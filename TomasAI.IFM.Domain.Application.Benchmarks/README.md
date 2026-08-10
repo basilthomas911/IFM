@@ -10,11 +10,14 @@ The suite compares the pre-optimization implementations reconstructed from commi
 
 See [RESULTS.md](RESULTS.md) for the captured measurements and interpretation.
 
-Run the SWO-06 current event-projector recovery CPU/allocation baseline independently:
+Run the SWO-06 current-versus-bounded event-projector recovery CPU/allocation comparison independently:
 
 ```powershell
 dotnet run --project TomasAI.IFM.Domain.Application.Benchmarks -c Release -- --filter '*EventProjectorRecoveryBaselineBenchmarks*'
 ```
 
-This baseline uses synchronous fake storage/queue completions and therefore excludes PostgreSQL and NATS latency. It
-retains the current full-set materialization, JSON deserialization, state N+1 call shape, state write, and enqueue call.
+Both paths use synchronous fake storage/queue completions and therefore exclude PostgreSQL and NATS latency. The
+baseline retains full-set materialization, JSON deserialization, the state N+1 call shape, state write, and enqueue.
+The bounded comparison uses 256-row joined keyset pages, eight cross-stream lanes, conditional claims, same-stream
+ordering, deserialization, and enqueue. MemoryDiagnoser reports cumulative allocation, not peak retained recovery
+inventory; the implementation bounds live inventory to one page plus its active stream groups.

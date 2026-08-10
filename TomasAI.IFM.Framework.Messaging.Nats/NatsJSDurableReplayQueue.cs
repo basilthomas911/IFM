@@ -33,10 +33,11 @@ namespace TomasAI.IFM.Framework.Messaging.Nats;
 /// if that action fails.
 /// </para>
 /// <para>
-/// Calling <see cref="DequeueAsync"/> registers the handler used by both workers. Callers should therefore
-/// register a handler before enqueueing events. Workers stop after two minutes of inactivity by default and
-/// are restarted on the next start, dequeue, or enqueue operation. Configuration and delegates are retained
-/// when workers stop. Instances support concurrent use and maintain isolated state for each projector name.
+/// Calling <see cref="DequeueAsync"/> registers the handler used by both workers without starting them.
+/// <see cref="PrepareAsync"/> creates the durable resources, and <see cref="EnqueueAsync"/> can publish while
+/// workers remain stopped. After an explicit <see cref="StartAsync"/> call, enqueueing restarts workers that
+/// retired after the idle timeout. Configuration and delegates are retained when workers stop. Instances
+/// support concurrent use and maintain isolated state for each projector name.
 /// </para>
 /// </remarks>
 public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDisposable
@@ -83,6 +84,32 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     }
 
     /// <summary>
+    /// Creates or updates a projector's durable resources without starting message consumers.
+    /// </summary>
+    public async Task PrepareAsync(
+        string eventProjectorName,
+        TimeSpan replayInterval,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateProjectorName(eventProjectorName);
+        if (replayInterval <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(replayInterval));
+
+        var state = GetState(eventProjectorName);
+        await state.LifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            state.ReplayInterval = replayInterval;
+            await EnsurePreparedLockedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            state.LifecycleGate.Release();
+        }
+    }
+
+    /// <summary>
     /// Creates or updates the JetStream resources for a projector and starts its process and replay workers.
     /// </summary>
     /// <param name="eventProjectorName">
@@ -117,8 +144,32 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             throw new ArgumentOutOfRangeException(nameof(replayInterval));
 
         var state = GetState(eventProjectorName);
-        state.ReplayInterval = replayInterval;
-        await EnsureWorkersStartedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
+        await state.LifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            state.ReplayInterval = replayInterval;
+            if (state.ProcessMessage is null)
+                throw new InvalidOperationException($"No process handler is registered for projector '{eventProjectorName}'.");
+            await EnsurePreparedLockedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
+            StartWorkersLocked(eventProjectorName, state);
+            ThrowIfWorkerFaulted(state.ProcessWorker);
+            ThrowIfWorkerFaulted(state.ReplayWorker);
+            state.WorkersEnabled = true;
+        }
+        catch
+        {
+            state.WorkersEnabled = false;
+            state.ProcessCancellation?.Cancel();
+            state.ReplayCancellation?.Cancel();
+            await AwaitStoppedAsync(state.ProcessWorker).ConfigureAwait(false);
+            await AwaitStoppedAsync(state.ReplayWorker).ConfigureAwait(false);
+            state.DisposeWorkers();
+            throw;
+        }
+        finally
+        {
+            state.LifecycleGate.Release();
+        }
     }
 
     /// <summary>
@@ -154,6 +205,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         {
             if (Volatile.Read(ref _disposed) != 0)
                 return;
+            state.WorkersEnabled = false;
             state.ProcessCancellation?.Cancel();
             state.ReplayCancellation?.Cancel();
             await AwaitStoppedAsync(state.ProcessWorker).ConfigureAwait(false);
@@ -204,32 +256,34 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         ArgumentNullException.ThrowIfNull(domainEvent);
 
         var state = GetState(eventProjectorName);
-        await EnsureWorkersStartedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
+        await EnsurePreparedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
         var payload = Serialize(domainEvent, eventProjectorName);
         var messageId = CreateProcessMessageId(eventProjectorName, domainEvent);
         await _transport.PublishProcessAsync(eventProjectorName, payload, messageId, cancellationToken)
             .ConfigureAwait(false);
+        if (Volatile.Read(ref state.WorkersEnabled))
+            await EnsureWorkersStartedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Registers the event handler for a projector and starts its process and replay workers.
+    /// Registers the event handler for a projector without preparing resources or starting workers.
     /// </summary>
     /// <param name="eventProjectorName">The logical name of the projector that owns the handler.</param>
     /// <param name="processMessageFunc">
     /// The asynchronous handler invoked for both newly queued events and replay deliveries.
     /// </param>
     /// <param name="cancellationToken">
-    /// A token that cancels queue initialization and the workers started by this call.
+    /// A token that cancels handler registration before it completes.
     /// </param>
     /// <returns>
-    /// A task that completes after the handler is registered and workers are started; it does not wait for a message.
+    /// A task that completes after the handler is registered; it does not wait for a message.
     /// </returns>
     /// <remarks>A subsequent call for the same projector replaces the previously registered handler.</remarks>
     /// <exception cref="ArgumentException"><paramref name="eventProjectorName"/> is empty or whitespace.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="processMessageFunc"/> is <see langword="null"/>.</exception>
     /// <exception cref="ObjectDisposedException">The queue has been disposed.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is canceled.</exception>
-    public async Task DequeueAsync(
+    public Task DequeueAsync(
         string eventProjectorName,
         Func<IEvent, Task> processMessageFunc,
         CancellationToken cancellationToken = default)
@@ -237,10 +291,11 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         ThrowIfDisposed();
         ValidateProjectorName(eventProjectorName);
         ArgumentNullException.ThrowIfNull(processMessageFunc);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var state = GetState(eventProjectorName);
         state.ProcessMessage = processMessageFunc;
-        await EnsureWorkersStartedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -317,6 +372,22 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         return Volatile.Read(ref GetState(eventProjectorName).MaxReplayAttempts);
     }
 
+    async Task EnsurePreparedAsync(
+        string eventProjectorName,
+        ProjectorQueueState state,
+        CancellationToken cancellationToken)
+    {
+        await state.LifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await EnsurePreparedLockedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            state.LifecycleGate.Release();
+        }
+    }
+
     async Task EnsureWorkersStartedAsync(
         string eventProjectorName,
         ProjectorQueueState state,
@@ -325,29 +396,59 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         await state.LifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var settings = CreateSettings(eventProjectorName, state.ReplayInterval, state.MaxReplayAttempts);
-            await _transport.EnsureQueueAsync(eventProjectorName, settings, cancellationToken).ConfigureAwait(false);
-
-            if (state.ProcessWorker is null || state.ProcessWorker.IsCompleted)
-            {
-                state.ProcessCancellation?.Dispose();
-                state.ProcessCancellation = new CancellationTokenSource();
-                state.ProcessCancellation.CancelAfter(_idleTimeout);
-                state.ProcessWorker = RunProcessWorkerAsync(eventProjectorName, state, state.ProcessCancellation);
-            }
-
-            if (state.ReplayWorker is null || state.ReplayWorker.IsCompleted)
-            {
-                state.ReplayCancellation?.Dispose();
-                state.ReplayCancellation = new CancellationTokenSource();
-                state.ReplayCancellation.CancelAfter(_idleTimeout);
-                state.ReplayWorker = RunReplayWorkerAsync(eventProjectorName, state, state.ReplayCancellation);
-            }
+            if (!state.WorkersEnabled)
+                return;
+            if (state.ProcessMessage is null)
+                throw new InvalidOperationException($"No process handler is registered for projector '{eventProjectorName}'.");
+            await EnsurePreparedLockedAsync(eventProjectorName, state, cancellationToken).ConfigureAwait(false);
+            StartWorkersLocked(eventProjectorName, state);
         }
         finally
         {
             state.LifecycleGate.Release();
         }
+    }
+
+    async Task EnsurePreparedLockedAsync(
+        string eventProjectorName,
+        ProjectorQueueState state,
+        CancellationToken cancellationToken)
+    {
+        if (state.IsPrepared
+            && state.PreparedReplayInterval == state.ReplayInterval
+            && state.PreparedMaxReplayAttempts == state.MaxReplayAttempts)
+            return;
+
+        var settings = CreateSettings(eventProjectorName, state.ReplayInterval, state.MaxReplayAttempts);
+        await _transport.EnsureQueueAsync(eventProjectorName, settings, cancellationToken).ConfigureAwait(false);
+        state.PreparedReplayInterval = state.ReplayInterval;
+        state.PreparedMaxReplayAttempts = state.MaxReplayAttempts;
+        state.IsPrepared = true;
+    }
+
+    void StartWorkersLocked(string eventProjectorName, ProjectorQueueState state)
+    {
+        if (state.ProcessWorker is null || state.ProcessWorker.IsCompleted)
+        {
+            state.ProcessCancellation?.Dispose();
+            state.ProcessCancellation = new CancellationTokenSource();
+            state.ProcessCancellation.CancelAfter(_idleTimeout);
+            state.ProcessWorker = RunProcessWorkerAsync(eventProjectorName, state, state.ProcessCancellation);
+        }
+
+        if (state.ReplayWorker is null || state.ReplayWorker.IsCompleted)
+        {
+            state.ReplayCancellation?.Dispose();
+            state.ReplayCancellation = new CancellationTokenSource();
+            state.ReplayCancellation.CancelAfter(_idleTimeout);
+            state.ReplayWorker = RunReplayWorkerAsync(eventProjectorName, state, state.ReplayCancellation);
+        }
+    }
+
+    static void ThrowIfWorkerFaulted(Task? worker)
+    {
+        if (worker?.IsFaulted == true)
+            worker.GetAwaiter().GetResult();
     }
 
     async Task RunProcessWorkerAsync(
@@ -722,6 +823,10 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         public Func<IEvent, Task>? MaxAttemptsReached;
         public int MaxReplayAttempts = DefaultMaxReplayAttempts;
         public TimeSpan ReplayInterval = DefaultReplayInterval;
+        public TimeSpan PreparedReplayInterval;
+        public int PreparedMaxReplayAttempts;
+        public bool IsPrepared;
+        public bool WorkersEnabled;
         public CancellationTokenSource? ProcessCancellation;
         public CancellationTokenSource? ReplayCancellation;
         public Task? ProcessWorker;

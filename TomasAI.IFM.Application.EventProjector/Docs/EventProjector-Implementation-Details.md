@@ -75,6 +75,9 @@ TomasAI.IFM.Application.EventProjector/       Project root
 | File | Responsibility |
 | --- | --- |
 | `BaseEventProjector.cs` | Implements projector startup, shutdown, durable intake, queued-event dispatch, startup recovery, terminal-state filtering, actor publication support, and exception-state recording. |
+| `EventProjectorRecoveryCoordinator.cs` | Executes optional bounded joined-keyset recovery with fenced claims, per-stream ordering, and configured cross-stream concurrency. |
+| `EventProjectorRecoveryResult.cs` | Reports discovered, queued, claim-conflict, and terminal-failure counts for one recovery pass. |
+| `EventProjectorReliabilityOptions.cs` | Configures the default-off bounded path, batch size, stream concurrency, claim lease, retry, and outbox limits. |
 | `EventProjectorBuilder.cs` | Configures the four workflow actions and executes the persisted projection state machine. |
 | `EventProjectorState.cs` | Defines a stream-oriented projector checkpoint record. It is not currently used by `BaseEventProjector` or `EventProjectorBuilder`, which use `EventProjectorStateReadModel` from the Shared project. |
 | `Contracts/IEventProjector.cs` | Defines the projector identity, lifecycle, intake, processing, infrastructure, cache, actor context, and logging contract. |
@@ -107,6 +110,7 @@ The implementation also works with `IBlackboardService` to cache active `EventPr
 2. **Lifecycle**
    - `StartAsync(context, cancellationToken)`
    - `StopAsync(cancellationToken)`
+   - `Readiness`
 3. **Data plane**
    - `DomainEventsProjectionAsync(domainEvents)`
    - `ProcessDomainEventAsync(domainEvent)`
@@ -128,20 +132,23 @@ The implementation also works with `IBlackboardService` to cache active `EventPr
 The owning command actor calls `StartAsync` once during its lifecycle:
 
 1. Store and validate the actor `ICommandActorContext`.
-2. Call `DequeueAsync` to register `ProcessQueuedDomainEventAsync` for `ProjectorName`. The current queue implementation
-   also starts its process and replay workers during this call.
-3. Query and enqueue recoverable event-log entries through `RecoverUncompletedEventsAsync`. Because `EnqueueAsync` also
-   ensures workers are started, recovered events can be consumed while this scan is still running.
-4. Call `StartAsync` with a 30-second replay interval, updating queue configuration and ensuring workers remain active.
+2. Set projector readiness false.
+3. Call queue `PrepareAsync` to create durable resources without opening message consumption.
+4. Call `DequeueAsync` to register `ProcessQueuedDomainEventAsync`; registration performs no NATS I/O and starts no worker.
+5. Inventory and durably enqueue all eligible recovery work. The default path retains legacy full-set recovery. When
+   `BoundedRecoveryEnabled` is true, the coordinator uses joined event/state keyset pages and fenced claims.
+6. Call queue `StartAsync` with a 30-second replay interval.
+7. Publish projector readiness only after the recovery handoff and both worker starts succeed.
 
-A handler exists before a recovered message can be consumed, but worker execution is not currently held until recovery
-inventory completes. SWO-06 plans to separate prepare/register, recovery publication, and worker start explicitly; see
-`EventProjector-Recovery-Idempotency-Implementation-Plan.md`. Accessing `Context` before startup throws
-`InvalidOperationException`.
+Preparation, registration, recovery publication, and consumption are therefore distinct phases. Any failure invokes
+non-cancelable queue rollback, clears the actor context, retains readiness false with the failure reason, and rethrows.
+Accessing `Context` before a successful startup throws `InvalidOperationException`.
 
 ### Shutdown
 
-`StopAsync` stops the durable worker registered for `ProjectorName`. The projector retains its context, queue configuration, and handler registration so the same instance can be started again.
+`StopAsync` first clears readiness and then stops both durable workers registered for `ProjectorName`. The queue retains
+its configuration and handler registration, but enqueueing after stop cannot reopen consumption; a later explicit
+projector start is required.
 
 ## Event intake and durable dispatch
 
@@ -234,7 +241,8 @@ The public `RunAsync` overload accepts `Func<TEvent, Task>`. Its wrapper returns
 
 ## Startup recovery
 
-`RecoverUncompletedEventsAsync` performs recovery before the queue worker starts:
+The legacy `RecoverUncompletedEventsAsync` path remains the production default and performs recovery before the queue
+worker starts:
 
 1. Convert `ProjectedEventTypes` to distinct CLR type names.
 2. Query event-log entries eligible for recovery for this `ProjectorName` and those event names.
@@ -248,6 +256,21 @@ The public `RunAsync` overload accepts `Func<TEvent, Task>`. Its wrapper returns
 Recovery is projector-specific: multiple projectors can independently checkpoint the same source event because both persistence and cache lookup include `ProjectorName`.
 
 The cancellation token is checked between recovered entries and is also passed to queue enqueueing.
+
+When `EventProjectorReliabilityOptions.BoundedRecoveryEnabled` is true, `EventProjectorRecoveryCoordinator` replaces
+that scan with the Tranche B path:
+
+1. Request at most `RecoveryBatchSize` joined event/state rows using an event-ID keyset cursor.
+2. Hold only the current page in recovery inventory.
+3. Group the page by `EventStreamId`; preserve ascending `EventId` order within every stream.
+4. Process independent streams with `RecoveryStreamConcurrency` lanes while never overlapping work for one stream.
+5. Conditionally claim each row using a new execution token and `ClaimLease`.
+6. Treat a failed claim as ownership by another instance and do not enqueue it.
+7. Terminalize an unknown source-event type; otherwise cache the claimed state and durably enqueue the event.
+8. Await the entire page before advancing the keyset cursor, which preserves same-stream order across page boundaries.
+
+This path removes the state N+1 read and full-backlog materialization. It is deliberately disabled by default until
+later SWO-06 tranches unify fenced stage execution, target idempotency, and transactional publication.
 
 ## Terminal-state rules
 

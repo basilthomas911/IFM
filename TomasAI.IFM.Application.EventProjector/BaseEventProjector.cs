@@ -30,17 +30,37 @@ public abstract class BaseEventProjector<TActor> (
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource,
     IBlackboardService blackboardService,
-    ILogger logger): IEventProjector<TActor>
+    ILogger logger,
+    EventProjectorReliabilityOptions? reliabilityOptions = null): IEventProjector<TActor>, IEventProjectorReadiness
     where TActor : ICommandActor<TActor>
 {
-    static readonly TimeSpan DefaultReplayInterval = TimeSpan.FromSeconds(30);
+    readonly EventProjectorReliabilityOptions _reliabilityOptions =
+        (reliabilityOptions ?? new EventProjectorReliabilityOptions()).Validate();
     ICommandActorContext? _context;
+    EventProjectorReadinessSnapshot _readiness = new(
+        string.Empty,
+        false,
+        0,
+        0,
+        DateTimeOffset.MinValue);
 
     public abstract string ActorName { get; }
     public abstract string ProjectorName { get; }
     public abstract string DurableProcessQueueName { get; }
     public abstract string DurableReplayQueueName { get; }
     public abstract IReadOnlyCollection<Type> ProjectedEventTypes { get; }
+
+    public EventProjectorReadinessSnapshot Readiness => Volatile.Read(ref _readiness) with
+    {
+        ProjectorName = ProjectorName
+    };
+
+    public EventProjectorReadinessSnapshot GetSnapshot(string projectorName)
+    {
+        if (!string.Equals(projectorName, ProjectorName, StringComparison.Ordinal))
+            throw new ArgumentException($"Projector '{projectorName}' is not owned by this readiness source.", nameof(projectorName));
+        return Readiness;
+    }
 
      /// <inheritdoc />
     public abstract ValueTask ProcessDomainEventAsync(IEvent domainEvent);
@@ -93,12 +113,44 @@ public abstract class BaseEventProjector<TActor> (
         CancellationToken cancellationToken = default)
     {
         _context = IsArgumentNull.Set(context);
-        await DurableReplayQueue.DequeueAsync(
-            ProjectorName,
-            ProcessQueuedDomainEventAsync,
-            cancellationToken);
-        await RecoverUncompletedEventsAsync(cancellationToken);
-        await DurableReplayQueue.StartAsync(ProjectorName, DefaultReplayInterval, cancellationToken);
+        SetReadiness(false, 0, 0);
+        try
+        {
+            await DurableReplayQueue.PrepareAsync(
+                ProjectorName,
+                _reliabilityOptions.InitialReplayDelay,
+                cancellationToken).ConfigureAwait(false);
+            await DurableReplayQueue.DequeueAsync(
+                ProjectorName,
+                ProcessQueuedDomainEventAsync,
+                cancellationToken).ConfigureAwait(false);
+            var recovery = _reliabilityOptions.BoundedRecoveryEnabled
+                ? await CreateRecoveryCoordinator().RecoverAsync(
+                    ActorName,
+                    ProjectorName,
+                    ProjectedEventTypes,
+                    cancellationToken).ConfigureAwait(false)
+                : await RecoverUncompletedEventsAsync(cancellationToken).ConfigureAwait(false);
+            await DurableReplayQueue.StartAsync(
+                ProjectorName,
+                _reliabilityOptions.InitialReplayDelay,
+                cancellationToken).ConfigureAwait(false);
+            SetReadiness(true, recovery.Discovered, recovery.Queued);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                await DurableReplayQueue.StopAsync(ProjectorName, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception stopException)
+            {
+                Logger.LogWarning(stopException, "Unable to roll back projector queue startup for {ProjectorName}.", ProjectorName);
+            }
+            _context = null;
+            SetReadiness(false, 0, 0, ex.Message);
+            throw;
+        }
     }
 
     /// <summary>
@@ -111,7 +163,10 @@ public abstract class BaseEventProjector<TActor> (
     /// <see cref="StartAsync(ICommandActorContext, CancellationToken)"/> to restart the projector.
     /// </remarks>
     public async ValueTask StopAsync(CancellationToken cancellationToken = default)
-        => await DurableReplayQueue.StopAsync(ProjectorName, cancellationToken);
+    {
+        SetReadiness(false, Readiness.RecoveryEventsDiscovered, Readiness.RecoveryEventsQueued);
+        await DurableReplayQueue.StopAsync(ProjectorName, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Publishes a collection of domain events to the projector's durable process queue.
@@ -163,7 +218,7 @@ public abstract class BaseEventProjector<TActor> (
         await ProcessDomainEventAsync(domainEvent);
     }
 
-    async ValueTask RecoverUncompletedEventsAsync(CancellationToken cancellationToken)
+    async ValueTask<EventProjectorRecoveryResult> RecoverUncompletedEventsAsync(CancellationToken cancellationToken)
     {
         var eventNames = ProjectedEventTypes
             .Select(eventType => eventType.Name)
@@ -174,6 +229,8 @@ public abstract class BaseEventProjector<TActor> (
             eventNames,
             cancellationToken) ?? [];
 
+        long queued = 0;
+        long terminalFailures = 0;
         foreach (var eventLog in eventLogs)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -189,6 +246,7 @@ public abstract class BaseEventProjector<TActor> (
                 await DbEventSource.InsertEventProjectorStateAsync(
                     failedState,
                     cancellationToken);
+                terminalFailures++;
                 Logger.LogError(
                     "Unable to recover event {EventId} ({EventName}) for projector {ProjectorName}.",
                     eventLog.EventVersion,
@@ -220,6 +278,7 @@ public abstract class BaseEventProjector<TActor> (
                 ProjectorName,
                 currentState);
             await DurableReplayQueue.EnqueueAsync(ProjectorName, domainEvent, cancellationToken).ConfigureAwait(false);
+            queued++;
         }
 
         if (eventLogs.Count > 0)
@@ -229,7 +288,29 @@ public abstract class BaseEventProjector<TActor> (
                 eventLogs.Count,
                 ProjectorName);
         }
+        return new EventProjectorRecoveryResult(eventLogs.Count, queued, 0, terminalFailures);
     }
+
+    EventProjectorRecoveryCoordinator CreateRecoveryCoordinator()
+        => new(
+            DbEventSource,
+            DurableReplayQueue,
+            BlackboardService,
+            _reliabilityOptions,
+            Logger);
+
+    void SetReadiness(
+        bool isReady,
+        long recoveryEventsDiscovered,
+        long recoveryEventsQueued,
+        string failureReason = "")
+        => Volatile.Write(ref _readiness, new EventProjectorReadinessSnapshot(
+            ProjectorName,
+            isReady,
+            recoveryEventsDiscovered,
+            recoveryEventsQueued,
+            DateTimeOffset.UtcNow,
+            failureReason));
 
     EventProjectorStateReadModel CreateInitialState(long eventId)
     {

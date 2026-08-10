@@ -30,12 +30,12 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StartAsync_configures_process_consumer_for_unlimited_redelivery()
+    public async Task PrepareAsync_configures_process_consumer_without_starting_workers()
     {
         var resources = CreateResources();
         await using var queue = CreateQueue();
 
-        await queue.StartAsync(resources.ProjectorName, ReplayInterval);
+        await queue.PrepareAsync(resources.ProjectorName, ReplayInterval);
 
         var consumer = await _jetStream.GetConsumerAsync(
             resources.ProcessStream,
@@ -45,19 +45,47 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Enqueue_same_event_twice_is_stored_and_processed_once()
+    public async Task Publish_before_start_remains_pending_until_workers_are_explicitly_started()
     {
         var resources = CreateResources();
         await using var queue = CreateQueue();
         var processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
-        await queue.StartAsync(resources.ProjectorName, ReplayInterval);
+        await queue.PrepareAsync(resources.ProjectorName, ReplayInterval);
         await queue.DequeueAsync(resources.ProjectorName, _ =>
         {
             Interlocked.Increment(ref calls);
             processed.TrySetResult();
             return Task.CompletedTask;
         });
+
+        await queue.EnqueueAsync(resources.ProjectorName, CreateEvent("staged"));
+        await Task.Delay(250);
+
+        calls.Should().Be(0);
+        var processStream = await _jetStream.GetStreamAsync(resources.ProcessStream);
+        processStream.Info.State.Messages.Should().Be(1);
+
+        await queue.StartAsync(resources.ProjectorName, ReplayInterval);
+
+        await processed.Task.WaitAsync(TestTimeout);
+        calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Enqueue_same_event_twice_is_stored_and_processed_once()
+    {
+        var resources = CreateResources();
+        await using var queue = CreateQueue();
+        var processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        await queue.DequeueAsync(resources.ProjectorName, _ =>
+        {
+            Interlocked.Increment(ref calls);
+            processed.TrySetResult();
+            return Task.CompletedTask;
+        });
+        await queue.StartAsync(resources.ProjectorName, ReplayInterval);
         var domainEvent = CreateEvent("duplicate");
 
         await queue.EnqueueAsync(resources.ProjectorName, domainEvent);
@@ -79,7 +107,6 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
         await using var queue = new NatsJSDurableReplayQueue(transport, TimeSpan.FromMinutes(1));
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
-        await queue.StartAsync(resources.ProjectorName, ReplayInterval);
         await queue.DequeueAsync(resources.ProjectorName, _ =>
         {
             if (Interlocked.Increment(ref calls) <= 2)
@@ -87,6 +114,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
             completed.TrySetResult();
             return Task.CompletedTask;
         });
+        await queue.StartAsync(resources.ProjectorName, ReplayInterval);
 
         await queue.EnqueueAsync(resources.ProjectorName, CreateEvent("handoff"));
 
@@ -126,6 +154,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
             received.TrySetResult((IntegrationEvent)domainEventValue);
             return Task.CompletedTask;
         });
+        await queue.StartAsync(resources.ProjectorName, ReplayInterval);
 
         var recovered = await received.Task.WaitAsync(TestTimeout);
         recovered.Id.Should().Be(domainEvent.Id);

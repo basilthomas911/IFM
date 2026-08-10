@@ -601,8 +601,12 @@ public const string UpdateEventLog = """
             Stage,
             ErrorMessage,
             CreatedTimestamp,
-            UpdatedTimestamp
-        ) VALUES (
+            UpdatedTimestamp,
+            EventStreamId,
+            SourceEventName,
+            UpdatedAtUtc
+        )
+        SELECT
             $1,
             $2,
             $3,
@@ -612,8 +616,13 @@ public const string UpdateEventLog = """
             $7,
             $8,
             $9,
-            $10
-        )
+            $10,
+            el.EventStreamId,
+            en.EventName,
+            CURRENT_TIMESTAMP
+        FROM event_log el
+        JOIN event_name_id en ON en.EventNameId = el.EventNameId
+        WHERE el.EventVersion = $1
         ON CONFLICT (EventId, ProjectorName) DO UPDATE SET
             ActorName = EXCLUDED.ActorName,
             IsReplay = EXCLUDED.IsReplay,
@@ -621,7 +630,13 @@ public const string UpdateEventLog = """
             Outcome = EXCLUDED.Outcome,
             Stage = EXCLUDED.Stage,
             ErrorMessage = EXCLUDED.ErrorMessage,
-            UpdatedTimestamp = EXCLUDED.UpdatedTimestamp;
+            UpdatedTimestamp = EXCLUDED.UpdatedTimestamp,
+            EventStreamId = COALESCE(event_projector_state.EventStreamId, EXCLUDED.EventStreamId),
+            SourceEventName = CASE
+                WHEN event_projector_state.SourceEventName = '' THEN EXCLUDED.SourceEventName
+                ELSE event_projector_state.SourceEventName
+            END,
+            UpdatedAtUtc = CURRENT_TIMESTAMP;
     """;
 
     /// <summary>

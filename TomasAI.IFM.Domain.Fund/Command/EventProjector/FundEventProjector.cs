@@ -15,8 +15,9 @@ public class FundEventProjector(
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource,
     IBlackboardService blackboardService,
-    ILogger<FundEventProjector> logger) : BaseEventProjector<FundCommandActor>(
-       durableReplayQueue, dbEventSource, blackboardService, logger)
+    ILogger<FundEventProjector> logger,
+    EventProjectorReliabilityOptions? reliabilityOptions = null) : BaseEventProjector<FundCommandActor>(
+       durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
 {
     static readonly Type[] _projectedEventTypes =
     [

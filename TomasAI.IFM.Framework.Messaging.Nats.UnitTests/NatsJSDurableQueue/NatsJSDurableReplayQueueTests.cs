@@ -9,12 +9,12 @@ public sealed class NatsJSDurableReplayQueueTests
     static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(3);
 
     [Fact]
-    public async Task StartAsync_creates_deterministic_process_and_replay_configuration()
+    public async Task PrepareAsync_creates_deterministic_configuration_without_starting_workers()
     {
         var transport = new FakeNatsJSDurableQueueTransport();
         await using var queue = CreateQueue(transport);
 
-        await queue.StartAsync("Fund.Projector", TimeSpan.FromSeconds(10));
+        await queue.PrepareAsync("Fund.Projector", TimeSpan.FromSeconds(10));
 
         var settings = transport.Queues["Fund.Projector"].Settings;
         settings.Names.ProcessStream.Should().Be("IFM_Fund_Projector_PROCESS");
@@ -25,6 +25,34 @@ public sealed class NatsJSDurableReplayQueueTests
         settings.Names.ReplayConsumer.Should().Be("Fund_Projector-replay-worker");
         settings.MaxReplayAttempts.Should().Be(3);
         settings.Backoff.Should().Equal(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(40));
+        transport.Queues["Fund.Projector"].ProcessConsumerStarts.Should().Be(0);
+        transport.Queues["Fund.Projector"].ReplayConsumerStarts.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Enqueue_before_start_is_durable_but_not_consumed_until_explicit_start()
+    {
+        var transport = new FakeNatsJSDurableQueueTransport();
+        await using var queue = CreateQueue(transport);
+        var calls = 0;
+        await queue.PrepareAsync("projector", TimeSpan.FromSeconds(30));
+        await queue.DequeueAsync("projector", _ =>
+        {
+            Interlocked.Increment(ref calls);
+            return Task.CompletedTask;
+        });
+
+        await queue.EnqueueAsync("projector", SampleData.Event("staged"));
+        await Task.Delay(50);
+
+        calls.Should().Be(0);
+        transport.Queues["projector"].ProcessPublishCount.Should().Be(1);
+        transport.Queues["projector"].ProcessConsumerStarts.Should().Be(0);
+        transport.Queues["projector"].ReplayConsumerStarts.Should().Be(0);
+
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
+
+        await EventuallyAsync(() => calls == 1);
     }
 
     [Fact]
@@ -38,6 +66,7 @@ public sealed class NatsJSDurableReplayQueueTests
             processed = (SampleEvent)domainEvent;
             return Task.CompletedTask;
         });
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
 
         await queue.EnqueueAsync("projector", SampleData.Event("success"));
 
@@ -59,6 +88,7 @@ public sealed class NatsJSDurableReplayQueueTests
                 throw new InvalidOperationException("process failed");
             return Task.CompletedTask;
         });
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
 
         await queue.EnqueueAsync("projector", SampleData.Event());
 
@@ -81,6 +111,7 @@ public sealed class NatsJSDurableReplayQueueTests
                 throw new InvalidOperationException("process failed");
             return Task.CompletedTask;
         });
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
         var state = transport.Queues["projector"];
         state.ReplayPublishFailuresRemaining = 1;
 
@@ -109,6 +140,7 @@ public sealed class NatsJSDurableReplayQueueTests
             return Task.CompletedTask;
         });
         await queue.DequeueAsync("projector", _ => throw new InvalidOperationException("projection failed"));
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
         var state = transport.Queues["projector"];
         state.ProcessAckFailuresRemaining = 1;
 
@@ -136,6 +168,7 @@ public sealed class NatsJSDurableReplayQueueTests
             Interlocked.Increment(ref calls);
             return Task.CompletedTask;
         });
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
         var domainEvent = SampleData.Event();
 
         await queue.EnqueueAsync("projector", domainEvent);
@@ -163,6 +196,7 @@ public sealed class NatsJSDurableReplayQueueTests
                 throw new InvalidOperationException("retry");
             return Task.CompletedTask;
         });
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
 
         await queue.EnqueueAsync("projector", SampleData.Event());
 
@@ -186,6 +220,7 @@ public sealed class NatsJSDurableReplayQueueTests
             return Task.CompletedTask;
         });
         await queue.DequeueAsync("projector", _ => throw new InvalidOperationException("always fails"));
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
 
         await queue.EnqueueAsync("projector", SampleData.Event());
 
@@ -205,6 +240,8 @@ public sealed class NatsJSDurableReplayQueueTests
         var second = new List<string>();
         await queue.DequeueAsync("first", e => { first.Add(((SampleEvent)e).Value); return Task.CompletedTask; });
         await queue.DequeueAsync("second", e => { second.Add(((SampleEvent)e).Value); return Task.CompletedTask; });
+        await queue.StartAsync("first", TimeSpan.FromSeconds(30));
+        await queue.StartAsync("second", TimeSpan.FromSeconds(30));
         queue.SetMaxReplayAttemps("first", 2);
         queue.SetMaxReplayAttemps("second", 5);
 
@@ -236,6 +273,7 @@ public sealed class NatsJSDurableReplayQueueTests
         await using var queue = CreateQueue(transport, TimeSpan.FromMilliseconds(80));
         var calls = 0;
         await queue.DequeueAsync("projector", _ => { Interlocked.Increment(ref calls); return Task.CompletedTask; });
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
         await EventuallyAsync(() => transport.Queues["projector"].ProcessConsumerStarts == 1);
         await Task.Delay(180);
 
@@ -247,15 +285,21 @@ public sealed class NatsJSDurableReplayQueueTests
     }
 
     [Fact]
-    public async Task StopAsync_cancels_workers_and_enqueue_starts_them_again()
+    public async Task StopAsync_disables_consumption_until_explicit_restart()
     {
         var transport = new FakeNatsJSDurableQueueTransport();
         await using var queue = CreateQueue(transport);
         var calls = 0;
         await queue.DequeueAsync("projector", _ => { Interlocked.Increment(ref calls); return Task.CompletedTask; });
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
 
         await queue.StopAsync("projector");
         await queue.EnqueueAsync("projector", SampleData.Event());
+
+        await Task.Delay(50);
+        calls.Should().Be(0);
+        transport.Queues["projector"].ProcessConsumerStarts.Should().Be(1);
+        await queue.StartAsync("projector", TimeSpan.FromSeconds(30));
 
         await EventuallyAsync(() => calls == 1);
         transport.Queues["projector"].ProcessConsumerStarts.Should().Be(2);

@@ -21,6 +21,11 @@ public interface IEventProjector
     public IReadOnlyCollection<Type> ProjectedEventTypes { get; }
 
     /// <summary>
+    /// Gets the latest startup/recovery readiness snapshot for this projector.
+    /// </summary>
+    public EventProjectorReadinessSnapshot Readiness { get; }
+
+    /// <summary>
     /// Starts the projector's durable process and replay queue workers.
     /// </summary>
     /// <param name="context">The runtime context created for the command actor that owns the projector.</param>

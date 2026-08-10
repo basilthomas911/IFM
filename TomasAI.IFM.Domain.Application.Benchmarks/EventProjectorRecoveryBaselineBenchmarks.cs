@@ -21,6 +21,7 @@ public class EventProjectorRecoveryBaselineBenchmarks
     const string ProjectorName = "ApplicationEventProjector";
     EventLogReadModel[] _eventLogs = null!;
     Dictionary<long, EventProjectorStateReadModel> _states = null!;
+    EventProjectorRecoveryItemReadModel[] _recoveryItems = null!;
     int _enqueued;
 
     [Params(1_000, 10_000, 100_000)]
@@ -42,6 +43,7 @@ public class EventProjectorRecoveryBaselineBenchmarks
         var eventType = typeof(ApplicationStartupEvent).AssemblyQualifiedName!;
         var eventData = sourceEvent.ToEventData();
         _eventLogs = new EventLogReadModel[PendingEvents];
+        _recoveryItems = new EventProjectorRecoveryItemReadModel[PendingEvents];
         _states = new Dictionary<long, EventProjectorStateReadModel>(PendingEvents);
 
         for (var index = 0; index < PendingEvents; index++)
@@ -63,6 +65,30 @@ public class EventProjectorRecoveryBaselineBenchmarks
                 attemptNumber: 1,
                 EventProjectorOutcomeType.Retrying,
                 EventProjectorStageType.ApplyProjection));
+            _recoveryItems[index] = new EventProjectorRecoveryItemReadModel(
+                _eventLogs[index],
+                new EventProjectorExecutionStateReadModel(
+                    eventId,
+                    ApplicationStartupEvent.Actor,
+                    ProjectorName,
+                    true,
+                    1,
+                    EventProjectorOutcomeType.Retrying,
+                    EventProjectorStageType.ApplyProjection,
+                    string.Empty,
+                    sourceEvent.CreatedOn,
+                    sourceEvent.CreatedOn,
+                    _eventLogs[index].EventStreamId,
+                    nameof(ApplicationStartupEvent),
+                    0,
+                    null,
+                    null,
+                    0,
+                    null,
+                    null,
+                    string.Empty,
+                    EventProjectorStageType.PublishProcessingEvent,
+                    sourceEvent.CreatedOn));
         }
     }
 
@@ -87,10 +113,48 @@ public class EventProjectorRecoveryBaselineBenchmarks
         return _enqueued;
     }
 
+    [Benchmark]
+    public async Task<int> BoundedJoinedKeysetRecovery()
+    {
+        const int batchSize = 256;
+        for (var offset = 0; offset < _recoveryItems.Length; offset += batchSize)
+        {
+            var count = Math.Min(batchSize, _recoveryItems.Length - offset);
+            var page = new EventProjectorRecoveryItemReadModel[count];
+            Array.Copy(_recoveryItems, offset, page, 0, count);
+            var streamGroups = page
+                .GroupBy(item => item.State.EventStreamId)
+                .Select(group => group.ToArray())
+                .ToArray();
+            await Parallel.ForEachAsync(
+                streamGroups,
+                new ParallelOptions { MaxDegreeOfParallelism = 8 },
+                async (stream, cancellationToken) =>
+                {
+                    foreach (var item in stream)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var claimed = await ClaimJoinedStateAsync(item.State);
+                        if (claimed is null)
+                            continue;
+                        var domainEvent = item.EventLog.ToDomainEvent();
+                        _ = domainEvent;
+                        Interlocked.Increment(ref _enqueued);
+                    }
+                });
+        }
+
+        return _enqueued;
+    }
+
     ValueTask<EventProjectorStateReadModel?> GetStateAsync(long eventId)
         => ValueTask.FromResult(_states.GetValueOrDefault(eventId));
 
     static ValueTask PersistStateAsync(EventProjectorStateReadModel _) => ValueTask.CompletedTask;
+
+    static ValueTask<EventProjectorExecutionStateReadModel?> ClaimJoinedStateAsync(
+        EventProjectorExecutionStateReadModel state)
+        => ValueTask.FromResult<EventProjectorExecutionStateReadModel?>(state);
 
     ValueTask EnqueueAsync(IEvent _)
     {

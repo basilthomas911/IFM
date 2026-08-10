@@ -14,6 +14,7 @@ using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
@@ -492,6 +493,10 @@ public static class Startup
             // register open generic handlers...
             logger.LogInformationEvent("ApiServer", "register open generic handlers...");
             _siContainer.RegisterSingleton<IDataCacheService, DataCacheService>();
+            var projectorReliabilityOptions = app.Configuration
+                .GetSection(EventProjectorReliabilityOptions.SectionName)
+                .Get<EventProjectorReliabilityOptions>() ?? new EventProjectorReliabilityOptions();
+            _siContainer.RegisterInstance(projectorReliabilityOptions.Validate());
 
             // register all open generics...
             var domainAssemblies = new List<Assembly>();

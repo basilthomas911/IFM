@@ -524,10 +524,10 @@ a CPU/allocation lower bound and deliberately exclude PostgreSQL/NATS latency. B
 | 100,000 | 1,002.74 ms | 648.53 MB | 6.64 KB |
 
 The 1,000-event result has a short-iteration warning and wide confidence interval; the 100,000-event result is stable
-at 1.003 seconds with 7.0 ms standard deviation. The important baseline finding is linear retained-work allocation:
-the current synthetic lower bound allocates roughly 649 MB at 100,000 pending events before any real database or NATS
-cost. Tranche B/C comparison must demonstrate memory bounded by page size and configured lanes, no state N+1 query,
-and no same-stream overlap.
+at 1.003 seconds with 7.0 ms standard deviation. The important baseline finding is linear cumulative allocation: the
+current synthetic lower bound allocates roughly 649 MB at 100,000 pending events before any real database or NATS
+cost. MemoryDiagnoser did not measure peak retained inventory. Tranche B/C comparison must demonstrate inventory
+bounded by page size and configured lanes, no state N+1 query, and no same-stream overlap.
 
 Focused verification:
 
@@ -541,6 +541,60 @@ Focused verification:
 | Complete Framework.Storage unit tests | 391/391 passed |
 | Complete solution Release build | 0 warnings, 0 errors |
 | Recovery baseline sizes | 3/3 completed |
+
+### 7.17 SWO-06 Event-projector reliability Tranche B
+
+Tranche B separates durable queue preparation, handler registration, recovery publication, and worker startup. Queue
+preparation creates or updates JetStream resources without opening consumers; handler registration performs no NATS
+I/O; and enqueueing before the first explicit start durably publishes while workers remain stopped. After a successful
+start, enqueueing can restart workers retired by the two-minute idle timeout. `StopAsync` disables that restart until a
+new explicit start. Partial startup faults cancel and dispose both workers.
+
+`BaseEventProjector` now keeps readiness false through preparation, handler registration, and recovery handoff. It
+publishes a ready snapshot only after both workers start. Cancellation or failure performs non-cancelable queue
+rollback, clears the actor context, retains readiness false, records the failure reason, and rethrows. Both production
+and integration composition roots bind `EventProjectorReliability` explicitly; `BoundedRecoveryEnabled` is checked in
+as `false`.
+
+The optional bounded coordinator reads joined event/state rows in event-ID keyset pages, eliminating the recovery
+state N+1 read. It holds only the current page, processes independent streams with configured concurrency, preserves
+ascending order within each stream across page boundaries, and conditionally claims each event before publication.
+Claim contention is skipped rather than duplicated. Unknown event types are terminalized as blocked failures. The
+legacy SQL upsert now supplies the additive stream identity required by the Tranche A schema, preserving rollback and
+default-path compatibility.
+
+BenchmarkDotNet 0.15.8 ran on .NET 10.0.10 with Concurrent Workstation GC on the AMD Ryzen Threadripper 1950X host.
+Both paths use synchronous fake storage and queue operations, so PostgreSQL and NATS latency are excluded. The bounded
+path uses 256-row pages and eight stream lanes.
+
+| Pending events | Current full-set/N+1 | Bounded joined keyset | Mean ratio | Current allocation | Bounded allocation |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1,000 | 54.39 ms | 12.29 ms | 0.23 | 6.49 MB | 6.65 MB |
+| 10,000 | 109.94 ms | 143.12 ms | 1.31 | 64.85 MB | 66.59 MB |
+| 100,000 | 1,020.38 ms | 317.05 ms | 0.31 | 648.53 MB | 666.96 MB |
+
+At 100,000 events the synthetic bounded path is approximately 68.9% faster. The 10,000-event bounded measurement has
+high variance (32.37 ms standard deviation and a wide confidence interval), so it is insufficient evidence of a
+stable regression. MemoryDiagnoser reports cumulative allocation, not peak retained inventory: both paths deserialize
+every event and cumulative allocation remains linear, with about 2.8% overhead for page grouping and lane scheduling
+at 100,000. The implementation's recovery inventory is nevertheless bounded to one 256-row page plus its active
+stream groups instead of retaining the complete backlog. Real PostgreSQL/NATS measurements remain a rollout gate.
+
+Final verification:
+
+| Gate | Result |
+| --- | ---: |
+| Bounded recovery/readiness focused Fund tests | 15/15 passed |
+| Complete Fund unit tests | 199/199 passed |
+| Durable queue lifecycle unit tests | 16/16 passed |
+| Real-NATS durable queue lifecycle tests | 5/5 passed |
+| Real-PostgreSQL claim/keyset/legacy-compatibility tests | 4/4 passed |
+| Complete Fund integration tests | 26/26 passed |
+| Current/bounded benchmark cases | 6/6 completed |
+| Complete solution Release build | 0 warnings, 0 errors |
+
+The complete ten-domain integration confirmation remains reserved for the final SWO-06 activation gate. Tranche B is
+complete but not production-active; Tranche C fenced execution and Fund target idempotency are next.
 
 ## 8. References
 
@@ -570,3 +624,4 @@ Focused verification:
 | 1.2 | 2026-08-09 | Recorded the in-progress SWO-05 bounded ITI projections, real-Scylla before/after benchmark, and focused reconciliation/read/write validation. |
 | 1.3 | 2026-08-09 | Completed SWO-05 with Scylla trace evidence, final benchmark percentiles and allocation tradeoff, deterministic integration-test isolation, and the complete validation gate. |
 | 1.4 | 2026-08-09 | Recorded SWO-06 Tranche A reliability contracts, additive state/outbox schema, fenced storage concurrency evidence, bounded recovery API, and 1k/10k/100k current-path baseline. |
+| 1.5 | 2026-08-10 | Recorded SWO-06 Tranche B lifecycle separation, default-off bounded recovery, readiness rollback, compatibility correction, benchmark comparison, and focused/full Fund verification. |
