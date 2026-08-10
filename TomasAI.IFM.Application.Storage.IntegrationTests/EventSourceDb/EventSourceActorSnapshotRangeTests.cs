@@ -344,6 +344,58 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
     }
 
     [Fact]
+    public async Task Projector_claim_blocks_later_same_stream_event_until_predecessor_is_terminal()
+    {
+        var stream = NewStream();
+        var saved = (await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent(), RangeEvent()])))
+            .OrderBy(item => item.EventId)
+            .ToArray();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"OrderedProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+        foreach (var sourceEvent in saved)
+        {
+            (await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+                NewExecutionState(sourceEvent.EventId, streamId, projectorName, nowUtc))).Should().NotBeNull();
+        }
+        var initialSnapshot = await fixture.ActorEventDb.GetEventProjectorOperationalSnapshotAsync(
+            projectorName, nowUtc);
+        initialSnapshot.PendingCount.Should().Be(2);
+        initialSnapshot.OutboxPendingCount.Should().Be(0);
+
+        (await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            saved[1].EventId, projectorName, Guid.NewGuid(), nowUtc, TimeSpan.FromMinutes(2)))
+            .Should().BeNull();
+        (await fixture.ActorEventDb.HasEarlierUnresolvedEventProjectorExecutionAsync(
+            saved[1].EventId, projectorName)).Should().BeTrue();
+
+        var firstToken = Guid.NewGuid();
+        var first = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            saved[0].EventId, projectorName, firstToken, nowUtc, TimeSpan.FromMinutes(2));
+        first.Should().NotBeNull();
+        (await fixture.ActorEventDb.TryTerminalizeEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                first!.EventId,
+                projectorName,
+                firstToken,
+                first.Revision,
+                first.Stage,
+                EventProjectorStageType.Completed,
+                EventProjectorOutcomeType.Completed,
+                first.Stage),
+            nowUtc.AddSeconds(1))).Should().NotBeNull();
+
+        (await fixture.ActorEventDb.HasEarlierUnresolvedEventProjectorExecutionAsync(
+            saved[1].EventId, projectorName)).Should().BeFalse();
+        (await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            saved[1].EventId, projectorName, Guid.NewGuid(), nowUtc.AddSeconds(1), TimeSpan.FromMinutes(2)))
+            .Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task Projector_release_makes_a_failed_stage_immediately_claimable_by_a_new_owner()
     {
         var stream = NewStream();

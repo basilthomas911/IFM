@@ -5,7 +5,7 @@
 **Created:** 2026-08-09
 **Last updated:** 2026-08-10
 **Baseline commit:** `32d025c8`
-**Current work package:** SWO-06 Tranche D complete; Tranche E next
+**Current work package:** SWO-06 Tranches A-E implemented; production-like activation evidence pending
 
 ## 1. Executive result
 
@@ -698,6 +698,73 @@ runner cap. This is recorded as shared-database fixture contamination, not Tranc
 application configurations. Tranche E ordering, observability, performance benchmarks, dashboards, and staged rollout
 are next.
 
+### 7.20 SWO-06 Event-projector reliability Tranche E
+
+The PostgreSQL claim now enforces durable projector/stream order: an event cannot be claimed while an earlier event in
+the same stream has an outcome other than completed, already-completed, or superseded. This condition applies to both
+process and replay deliveries and is backed by the existing projector/stream/event partial index. Fund retains
+`NeverSupersede`, so a failed, cancelled, blocked, or otherwise unresolved predecessor intentionally stops that Fund
+stream until retry or an explicit operator skip resolves it.
+
+Ordering and transient claim deferrals are represented by typed delivery-deferred exceptions. Process and replay
+workers negatively acknowledge them with bounded delay rather than treating them as application failures. The replay
+consumer permits transport redelivery while the application continues to enforce the configured maximum only for
+genuine processing failures. A concurrent duplicate holding a valid lease is acknowledged because its owner already
+owns durable progress; an expired or otherwise unclaimable row remains eligible for redelivery.
+
+The meter `TomasAI.IFM.Application.EventProjector` is registered with the shared OTLP pipeline. Low-cardinality
+instruments cover event outcomes, stage/recovery/startup/outbox durations, recovery batch size, readiness, logical
+worker occupancy, and durable PostgreSQL gauges for pending/blocked/terminal-failed/expired-lease and outbox
+pending/retrying/oldest-age state. A separately controlled sampler obtains the complete operational snapshot in one
+query. No metric contains event, stream, command, aggregate, entity, or exception identifiers.
+
+BenchmarkDotNet measurements used .NET 10 Release on the same Windows host. The telemetry benchmark records a batch of
+256 stage completions:
+
+| Path | Mean per 256 stages | Approximate mean per stage | Allocated |
+| --- | ---: | ---: | ---: |
+| Meter dormant | 226.410 ns | 0.884 ns | 0 B |
+| Meter observed | 14.9913 us | 58.56 ns | 0 B |
+| Incremental observed cost | 14.7649 us | 57.68 ns | 0 B |
+
+The CPU-only outbox serialization/deserialization benchmark measured 1.4163 ms per 256 messages, or approximately
+5.532 us/message (about 180,750 messages/second), allocating 546,744 bytes per batch (2,136 bytes/message). Enabling the
+metrics listener measured 1.4408 ms with the same allocation. These numbers intentionally exclude PostgreSQL, NATS,
+network, acknowledgement, and target-consumer latency and are not an end-to-end throughput claim.
+
+The synthetic recovery comparison was rerun with the current and joined-keyset implementations:
+
+| Pending events | Current path | Bounded path | Bounded latency change |
+| ---: | ---: | ---: | ---: |
+| 1,000 | 50.33 ms | 11.90 ms | 76.4% lower |
+| 10,000 | 117.22 ms | 141.54 ms | 20.7% higher; inconclusive due to 42.6 ms standard deviation |
+| 100,000 | 1,040.23 ms | 291.27 ms | 72.0% lower |
+
+The 100,000-event bounded result is 8.1% faster than the Tranche B measurement of 317.05 ms; the baseline is 1.9%
+slower than its prior 1,020.38 ms, consistent with normal run-to-run variance. The fixture constructs/deserializes the
+entire synthetic source set and therefore reports total allocations of approximately 6.5/65/652 MB for the baseline
+and 6.7/67/670 MB for the bounded comparison. Those fixture allocations do not model the live coordinator's bounded
+one-page inventory. PostgreSQL and NATS latency are excluded, so real readiness, round-trip, percentile, and peak-live-
+memory objectives remain part of the production-like canary.
+
+Final verification:
+
+| Gate | Result |
+| --- | ---: |
+| Complete NATS messaging unit suite | 58/58 passed |
+| Complete Fund projector/unit suite | 208/208 passed |
+| Focused real-PostgreSQL storage coverage | 7/7 passed |
+| Complete Fund integration suite | 29/29 passed |
+| Live same-stream process/replay ordering case | 1/1 passed |
+| Sequential Release domain integration tests | 196/196 passed |
+| Complete solution Release build | 0 warnings, 0 errors |
+
+`BoundedRecoveryEnabled`, `FencedExecutionEnabled`, `TransactionalOutboxEnabled`, and
+`BacklogMetricsPollingEnabled` remain `false` in both checked-in application configurations. Tranche E completes the
+implementation gate, not the operational activation gate. Observe-only OTLP and backlog sampling should be enabled
+first; fenced execution plus bounded recovery should then be canaried before the publication outbox is enabled. The
+full procedure and Grafana contract are in the projector implementation document.
+
 ## 8. References
 
 - [OpenTelemetry .NET metrics documentation](https://opentelemetry.io/docs/languages/dotnet/metrics/)
@@ -729,3 +796,4 @@ are next.
 | 1.5 | 2026-08-10 | Recorded SWO-06 Tranche B lifecycle separation, default-off bounded recovery, readiness rollback, compatibility correction, benchmark comparison, and focused/full Fund verification. |
 | 1.6 | 2026-08-10 | Recorded SWO-06 Tranche C immutable descriptors, unified fenced execution, claim release, all-eight Fund repeat-apply proof, fail-closed unknown handling, cleanup, and complete regression gate. |
 | 1.7 | 2026-08-10 | Recorded SWO-06 Tranche D atomic publication outbox, leased bounded dispatch, deterministic consumer IDs, typed terminal failure, operator controls, fault injection, and complete domain regression gate. |
+| 1.8 | 2026-08-10 | Recorded SWO-06 Tranche E durable same-stream ordering, OTLP metrics and operational sampling, benchmark evidence and limitations, staged rollout, and the 196-test domain regression gate. |

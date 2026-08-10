@@ -727,6 +727,11 @@ public sealed class FundEventProjectorTests
         try
         {
             maximumAttempts.Should().NotBeNull();
+            state = state with { RetryCount = 2 };
+            Func<Task> prematureTerminalization = () => maximumAttempts!(domainEvent);
+            (await prematureTerminalization.Should().ThrowAsync<EventProjectorDeliveryDeferredException>())
+                .Which.Reason.Should().Be("failure-budget-not-exhausted");
+            state = state with { RetryCount = 3 };
             await maximumAttempts!(domainEvent);
         }
         finally

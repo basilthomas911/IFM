@@ -23,6 +23,8 @@ public sealed record EventProjectorReliabilityOptions
     /// remains disabled until Tranche D rollout evidence is approved.
     /// </summary>
     public bool TransactionalOutboxEnabled { get; init; }
+    /// <summary>Enables periodic PostgreSQL sampling for durable backlog gauges.</summary>
+    public bool BacklogMetricsPollingEnabled { get; init; }
     public int RecoveryBatchSize { get; init; } = 256;
     public int RecoveryStreamConcurrency { get; init; } = Math.Min(Environment.ProcessorCount, 8);
     public int MaximumReplayAttempts { get; init; } = 3;
@@ -32,6 +34,7 @@ public sealed record EventProjectorReliabilityOptions
     public int MaximumOutboxAttempts { get; init; } = 20;
     public TimeSpan OutboxPollingInterval { get; init; } = TimeSpan.FromMilliseconds(250);
     public TimeSpan OutboxDispatchLeaseDuration { get; init; } = TimeSpan.FromMinutes(2);
+    public TimeSpan MetricsPollingInterval { get; init; } = TimeSpan.FromSeconds(5);
 
     public EventProjectorReliabilityOptions Validate()
     {
@@ -50,6 +53,8 @@ public sealed record EventProjectorReliabilityOptions
             throw new ArgumentOutOfRangeException(nameof(OutboxPollingInterval));
         if (OutboxDispatchLeaseDuration <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(OutboxDispatchLeaseDuration));
+        if (MetricsPollingInterval < TimeSpan.FromSeconds(1) || MetricsPollingInterval > TimeSpan.FromMinutes(5))
+            throw new ArgumentOutOfRangeException(nameof(MetricsPollingInterval));
         return this;
     }
 

@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Framework.Messaging.Nats;
@@ -473,6 +474,15 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                 {
                     throw;
                 }
+                catch (EventProjectorDeliveryDeferredException)
+                {
+                    // Stream ordering is durable flow control, not a failed projection attempt. Keep the original
+                    // process message on the unlimited-delivery consumer until its predecessor is resolved.
+                    await RequestRedeliveryAsync(message, state.ReplayInterval, idleCancellation.Token)
+                        .ConfigureAwait(false);
+                    ResetIdleTimeout(idleCancellation);
+                    continue;
+                }
                 catch (Exception ex)
                 {
                     await MoveToReplayOrRequestRedeliveryAsync(
@@ -584,6 +594,14 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                 {
                     throw;
                 }
+                catch (EventProjectorDeliveryDeferredException)
+                {
+                    // Ordering deferrals do not consume the application replay-attempt budget. The replay consumer
+                    // has unlimited server delivery; the application terminalizes only genuine processing failures.
+                    await message.NakAsync(
+                        GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
+                        idleCancellation.Token).ConfigureAwait(false);
+                }
                 catch
                 {
                     if (message.DeliveryCount >= (ulong)Volatile.Read(ref state.MaxReplayAttempts))
@@ -593,15 +611,25 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                         {
                             if (maxAttemptsReached is not null)
                                 await maxAttemptsReached(domainEvent).ConfigureAwait(false);
+                            await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
                         }
-                        finally
+                        catch (EventProjectorDeliveryDeferredException)
+                        {
+                            await message.NakAsync(
+                                GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
+                                idleCancellation.Token).ConfigureAwait(false);
+                        }
+                        catch
                         {
                             await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
+                            throw;
                         }
                     }
                     else
                     {
-                        await message.NakAsync(state.ReplayInterval, idleCancellation.Token).ConfigureAwait(false);
+                        await message.NakAsync(
+                            GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
+                            idleCancellation.Token).ConfigureAwait(false);
                     }
                 }
                 ResetIdleTimeout(idleCancellation);
@@ -643,6 +671,14 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                 TimeSpan.FromMinutes(2).Ticks)))
             .ToArray();
         return new NatsJSDurableQueueSettings(names, replayInterval, maxReplayAttempts, backoff);
+    }
+
+    static TimeSpan GetReplayDelay(TimeSpan initialDelay, ulong deliveryCount)
+    {
+        var exponent = Math.Clamp((int)Math.Min(deliveryCount - 1, 6), 0, 6);
+        return TimeSpan.FromTicks(Math.Min(
+            initialDelay.Ticks * (1L << exponent),
+            TimeSpan.FromMinutes(2).Ticks));
     }
 
     static byte[] Serialize(IEvent domainEvent, string eventProjectorName)

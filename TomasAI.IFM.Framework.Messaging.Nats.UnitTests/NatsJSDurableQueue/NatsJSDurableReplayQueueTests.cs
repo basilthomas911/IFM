@@ -1,5 +1,6 @@
 using FluentAssertions;
 using TomasAI.IFM.Framework.Messaging.Nats;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests.NatsJSDurableQueue;
@@ -97,6 +98,29 @@ public sealed class NatsJSDurableReplayQueueTests
         state.ReplayPublishCount.Should().Be(1);
         state.LastProcessMessage!.AckCount.Should().Be(1);
         state.LastReplayMessage!.AckCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Stream_order_deferral_naks_process_without_consuming_replay_attempts()
+    {
+        var transport = new FakeNatsJSDurableQueueTransport();
+        await using var queue = CreateQueue(transport);
+        var calls = 0;
+        await queue.DequeueAsync("projector", domainEvent =>
+        {
+            if (Interlocked.Increment(ref calls) < 3)
+                throw new EventProjectorStreamOrderDeferredException("projector", domainEvent.EventId);
+            return Task.CompletedTask;
+        });
+        await queue.StartAsync("projector", TimeSpan.FromMilliseconds(1));
+
+        await queue.EnqueueAsync("projector", SampleData.Event("ordered"));
+
+        await EventuallyAsync(() => calls == 3);
+        var state = transport.Queues["projector"];
+        state.ReplayPublishCount.Should().Be(0);
+        state.LastProcessMessage!.NakCount.Should().Be(2);
+        state.LastProcessMessage.AckCount.Should().Be(1);
     }
 
     [Fact]

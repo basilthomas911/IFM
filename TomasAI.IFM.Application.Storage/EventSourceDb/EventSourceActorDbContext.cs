@@ -193,6 +193,18 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             DispatchToken: o.GetGuid(12),
             DispatchLeaseExpiresAtUtc: o.GetDateTime(13));
 
+    internal static EventProjectorOperationalSnapshotReadModel MapToEventProjectorOperationalSnapshot(
+        IObjectDataRecord o)
+        => new(
+            PendingCount: o.GetLong(0),
+            OldestPendingAtUtc: o.IsNull(1) ? null : o.GetDateTime(1),
+            BlockedCount: o.GetLong(2),
+            TerminalFailedCount: o.GetLong(3),
+            ExpiredLeaseCount: o.GetLong(4),
+            OutboxPendingCount: o.GetLong(5),
+            OldestOutboxPendingAtUtc: o.IsNull(6) ? null : o.GetDateTime(6),
+            OutboxRetryCount: o.GetLong(7));
+
     /// <summary>
     /// Maps the specified object map reader to an <see cref="EventStreamReadModel"/> instance.
     /// </summary>
@@ -496,6 +508,19 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             .ConfigureAwait(false);
     }
 
+    public async Task<bool> HasEarlierUnresolvedEventProjectorExecutionAsync(
+        long eventId,
+        string projectorName,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateProjectorIdentity(eventId, projectorName);
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.HasEarlierUnresolvedEventProjectorExecution)
+            .SetParameters(new GetEventProjectorState(eventId, projectorName))
+            .ExecuteScalarAsync(static value => value.GetBool(0), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public async Task<EventProjectorExecutionStateReadModel?> TryRenewEventProjectorExecutionAsync(
         long eventId,
         string projectorName,
@@ -792,6 +817,23 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             .ExecuteQueryAsync<EventProjectorExecutionStateReadModel>(
                 MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false)];
+    }
+
+    public async Task<EventProjectorOperationalSnapshotReadModel> GetEventProjectorOperationalSnapshotAsync(
+        string projectorName,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.GetEventProjectorOperationalSnapshot)
+            .SetParameters(new GetEventProjectorOperationalSnapshot(projectorName, nowUtc))
+            .ExecuteSingleAsync<EventProjectorOperationalSnapshotReadModel>(
+                MapToEventProjectorOperationalSnapshot,
+                cancellationToken)
+            .ConfigureAwait(false)
+            ?? new EventProjectorOperationalSnapshotReadModel(0, null, 0, 0, 0, 0, null, 0);
     }
 
     public async Task<EventProjectorExecutionStateReadModel?> TryRetryEventProjectorExecutionAsync(

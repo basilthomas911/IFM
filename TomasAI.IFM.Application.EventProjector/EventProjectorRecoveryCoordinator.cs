@@ -60,6 +60,7 @@ public sealed class EventProjectorRecoveryCoordinator(
             if (page.Count == 0)
                 break;
 
+            var batchStarted = EventProjectorMetrics.GetRecoveryTimestamp();
             discovered += page.Count;
             afterEventId = page[^1].State.EventId;
             var streamGroups = page
@@ -129,11 +130,20 @@ public sealed class EventProjectorRecoveryCoordinator(
                         Interlocked.Increment(ref queued);
                     }
                 }).ConfigureAwait(false);
+            EventProjectorMetrics.RecordRecoveryBatch(projectorName, page.Count, batchStarted);
 
             if (page.Count < _options.RecoveryBatchSize)
                 break;
         }
 
+        if (discovered > 0)
+            EventProjectorMetrics.RecordEvent(projectorName, "discovered", "recovery");
+        if (queued > 0)
+            EventProjectorMetrics.RecordEvent(projectorName, "queued", "recovery");
+        if (claimConflicts > 0)
+            EventProjectorMetrics.RecordEvent(projectorName, "claim-conflict", "recovery");
+        if (terminalFailures > 0)
+            EventProjectorMetrics.RecordEvent(projectorName, "terminal-failed", "recovery");
         return new EventProjectorRecoveryResult(discovered, queued, claimConflicts, terminalFailures);
     }
 

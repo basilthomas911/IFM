@@ -171,6 +171,12 @@ internal readonly record struct TryClaimEventProjectorExecution(
         TimestampTz(nowUtc),
         Text(updatedTimestamp));
 }
+internal readonly record struct GetEventProjectorOperationalSnapshot(
+    string projectorName,
+    DateTime nowUtc) : IBindValue
+{
+    public object Bind() => Values(Text(projectorName), TimestampTz(nowUtc));
+}
 internal readonly record struct TryRenewEventProjectorExecution(
     long eventId,
     string projectorName,

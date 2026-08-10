@@ -58,6 +58,10 @@ public interface IEventSourceActorDbContext
         DateTime nowUtc,
         TimeSpan leaseDuration,
         CancellationToken cancellationToken = default);
+    Task<bool> HasEarlierUnresolvedEventProjectorExecutionAsync(
+        long eventId,
+        string projectorName,
+        CancellationToken cancellationToken = default);
     Task<EventProjectorExecutionStateReadModel?> TryRenewEventProjectorExecutionAsync(
         long eventId,
         string projectorName,
@@ -111,6 +115,10 @@ public interface IEventSourceActorDbContext
         EventProjectorOperationalStatus status,
         long afterEventId,
         int batchSize,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorOperationalSnapshotReadModel> GetEventProjectorOperationalSnapshotAsync(
+        string projectorName,
+        DateTime nowUtc,
         CancellationToken cancellationToken = default);
     Task<EventProjectorExecutionStateReadModel?> TryRetryEventProjectorExecutionAsync(
         long eventId,

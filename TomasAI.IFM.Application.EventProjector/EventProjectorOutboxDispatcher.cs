@@ -114,6 +114,8 @@ internal sealed class EventProjectorOutboxDispatcher(
 
     async Task DispatchAsync(EventProjectorOutboxReadModel message, CancellationToken cancellationToken)
     {
+        var startedTimestamp = EventProjectorMetrics.GetOutboxTimestamp();
+        EventProjectorMetrics.WorkerBusy(_projectorName);
         try
         {
             var domainEvent = EventProjectorOutboxSerializer.Deserialize(message.EventTypeName, message.EventPayload);
@@ -127,7 +129,10 @@ internal sealed class EventProjectorOutboxDispatcher(
                 _logger.LogWarning(
                     "Projector outbox delivery marker lost its lease for {MessageId}; safe re-publication may occur.",
                     message.MessageId);
+                EventProjectorMetrics.RecordOutboxPublish(_projectorName, "marker-conflict", startedTimestamp);
             }
+            else
+                EventProjectorMetrics.RecordOutboxPublish(_projectorName, "published", startedTimestamp);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -151,6 +156,12 @@ internal sealed class EventProjectorOutboxDispatcher(
                 message.MessageId,
                 message.AttemptCount,
                 terminal);
+            EventProjectorMetrics.RecordOutboxPublish(
+                _projectorName, terminal ? "terminal-failed" : "retried", startedTimestamp);
+        }
+        finally
+        {
+            EventProjectorMetrics.WorkerAvailable(_projectorName);
         }
     }
 

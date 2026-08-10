@@ -14,6 +14,8 @@ Run the SWO-06 current-versus-bounded event-projector recovery CPU/allocation co
 
 ```powershell
 dotnet run --project TomasAI.IFM.Domain.Application.Benchmarks -c Release -- --filter '*EventProjectorRecoveryBaselineBenchmarks*'
+
+dotnet run --project TomasAI.IFM.Domain.Application.Benchmarks -c Release -- --filter '*EventProjectorTrancheEBenchmarks*'
 ```
 
 Both paths use synchronous fake storage/queue completions and therefore exclude PostgreSQL and NATS latency. The

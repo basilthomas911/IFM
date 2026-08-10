@@ -43,6 +43,7 @@ public abstract class BaseEventProjector<TActor> (
     FrozenDictionary<Type, EventProjectionDescriptor>? _descriptorMap;
     EventProjectorExecutionEngine? _executionEngine;
     EventProjectorOutboxDispatcher? _outboxDispatcher;
+    EventProjectorMetricsObserver? _metricsObserver;
     static readonly ConcurrentDictionary<Type, Func<ICommandActorContext, IEvent, CancellationToken, ValueTask>>
         EventPublishers = new();
     ICommandActorContext? _context;
@@ -134,8 +135,12 @@ public abstract class BaseEventProjector<TActor> (
         _context = IsArgumentNull.Set(context);
         _ = GetDescriptorMap();
         SetReadiness(false, 0, 0);
+        var startupStarted = EventProjectorMetrics.GetStartupTimestamp();
         try
         {
+            EventProjectorMetrics.RegisterProjector(
+                ProjectorName,
+                workerCapacity: _reliabilityOptions.TransactionalOutboxEnabled ? 3 : 2);
             DurableReplayQueue.SetMaxReplayAttemps(
                 ProjectorName,
                 _reliabilityOptions.MaximumReplayAttempts);
@@ -159,14 +164,28 @@ public abstract class BaseEventProjector<TActor> (
                 : await RecoverUncompletedEventsAsync(cancellationToken).ConfigureAwait(false);
             if (_reliabilityOptions.TransactionalOutboxEnabled)
                 await OutboxDispatcher.StartAsync(cancellationToken).ConfigureAwait(false);
+            if (_reliabilityOptions.BacklogMetricsPollingEnabled)
+                await MetricsObserver.StartAsync(cancellationToken).ConfigureAwait(false);
             await DurableReplayQueue.StartAsync(
                 ProjectorName,
                 _reliabilityOptions.InitialReplayDelay,
                 cancellationToken).ConfigureAwait(false);
             SetReadiness(true, recovery.Discovered, recovery.Queued);
+            EventProjectorMetrics.RecordStartup(ProjectorName, "ready", startupStarted);
         }
         catch (Exception ex)
         {
+            if (_metricsObserver is not null)
+            {
+                try
+                {
+                    await _metricsObserver.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception stopException)
+                {
+                    Logger.LogWarning(stopException, "Unable to roll back projector metrics startup for {ProjectorName}.", ProjectorName);
+                }
+            }
             if (_outboxDispatcher is not null)
             {
                 try
@@ -187,7 +206,9 @@ public abstract class BaseEventProjector<TActor> (
                 Logger.LogWarning(stopException, "Unable to roll back projector queue startup for {ProjectorName}.", ProjectorName);
             }
             _context = null;
+            EventProjectorMetrics.UnregisterProjector(ProjectorName);
             SetReadiness(false, 0, 0, ex.Message);
+            EventProjectorMetrics.RecordStartup(ProjectorName, "failed", startupStarted);
             throw;
         }
     }
@@ -206,7 +227,10 @@ public abstract class BaseEventProjector<TActor> (
         SetReadiness(false, Readiness.RecoveryEventsDiscovered, Readiness.RecoveryEventsQueued);
         if (_outboxDispatcher is not null)
             await _outboxDispatcher.StopAsync(cancellationToken).ConfigureAwait(false);
+        if (_metricsObserver is not null)
+            await _metricsObserver.StopAsync(cancellationToken).ConfigureAwait(false);
         await DurableReplayQueue.StopAsync(ProjectorName, cancellationToken).ConfigureAwait(false);
+        EventProjectorMetrics.UnregisterProjector(ProjectorName);
     }
 
     /// <summary>
@@ -596,6 +620,22 @@ public abstract class BaseEventProjector<TActor> (
         }
     }
 
+    EventProjectorMetricsObserver MetricsObserver
+    {
+        get
+        {
+            var observer = Volatile.Read(ref _metricsObserver);
+            if (observer is not null)
+                return observer;
+            var created = new EventProjectorMetricsObserver(
+                DbEventSource,
+                _reliabilityOptions,
+                ProjectorName,
+                Logger);
+            return Interlocked.CompareExchange(ref _metricsObserver, created, null) ?? created;
+        }
+    }
+
     void SignalOutbox()
     {
         if (_reliabilityOptions.TransactionalOutboxEnabled)
@@ -678,13 +718,16 @@ public abstract class BaseEventProjector<TActor> (
         long recoveryEventsDiscovered,
         long recoveryEventsQueued,
         string failureReason = "")
-        => Volatile.Write(ref _readiness, new EventProjectorReadinessSnapshot(
+    {
+        Volatile.Write(ref _readiness, new EventProjectorReadinessSnapshot(
             ProjectorName,
             isReady,
             recoveryEventsDiscovered,
             recoveryEventsQueued,
             DateTimeOffset.UtcNow,
             failureReason));
+        EventProjectorMetrics.SetReadiness(ProjectorName, isReady);
+    }
 
     EventProjectorStateReadModel CreateInitialState(long eventId)
     {

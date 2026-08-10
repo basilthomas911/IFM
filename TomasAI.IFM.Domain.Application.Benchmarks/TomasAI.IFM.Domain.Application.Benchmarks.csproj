@@ -10,6 +10,7 @@
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.EventProjector\TomasAI.IFM.Application.EventProjector.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Application\TomasAI.IFM.Domain.Application.Actor.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Application.Shared\TomasAI.IFM.Domain.Application.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Shared.Domain\TomasAI.IFM.Shared.Domain.csproj" />

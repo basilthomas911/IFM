@@ -3,7 +3,7 @@
 ## Purpose and current status
 
 `TomasAI.IFM.Application.EventProjector` projects committed event-sourced domain events into target read stores through
-a durable NATS JetStream queue. SWO-06 Tranches A-D are implemented:
+a durable NATS JetStream queue. SWO-06 Tranches A-E are implemented:
 
 - additive PostgreSQL execution state and compare-and-set fencing;
 - bounded, joined-keyset startup recovery;
@@ -13,10 +13,12 @@ a durable NATS JetStream queue. SWO-06 Tranches A-D are implemented:
 - fail-closed handling for unregistered and unknown source events;
 - atomic PostgreSQL publication outbox transitions and leased bounded dispatch;
 - typed maximum-attempt failure publication; and
-- bounded operator pages plus retry-exact and skip-with-reason actions.
+- bounded operator pages plus retry-exact and skip-with-reason actions;
+- durable same-projector/same-stream execution ordering across process and replay delivery; and
+- low-cardinality OpenTelemetry instruments plus an optional PostgreSQL operational snapshot sampler.
 
-`BoundedRecoveryEnabled`, `FencedExecutionEnabled`, and `TransactionalOutboxEnabled` remain `false` in production
-configuration until the rollout gate is approved.
+`BoundedRecoveryEnabled`, `FencedExecutionEnabled`, `TransactionalOutboxEnabled`, and
+`BacklogMetricsPollingEnabled` remain `false` in production configuration until the rollout gate is approved.
 
 ## Source map
 
@@ -27,6 +29,8 @@ configuration until the rollout gate is approved.
 | `EventProjectorOutboxDispatcher.cs` | Claims bounded outbox batches with `SKIP LOCKED`, publishes typed events, and records delivery or bounded retry. |
 | `EventProjectorOutboxSerializer.cs` | Serializes concrete MessagePack payloads and assigns deterministic consumer-visible event IDs from stage-effect identities. |
 | `EventProjectorRecoveryCoordinator.cs` | Pages recoverable event/state rows, preserves same-stream ordering, and enqueues stable recovery candidates with bounded cross-stream concurrency. |
+| `EventProjectorMetrics.cs` | Defines allocation-free-when-dormant counters/histograms and process-local observable projector gauges. |
+| `EventProjectorMetricsObserver.cs` | Optionally samples the durable PostgreSQL operational snapshot at a bounded interval. |
 | `EventProjectorReliabilityOptions.cs` | Contains activation switches and bounded recovery/retry/lease settings. |
 | `Contracts/EventProjectionDescriptor.cs` | Defines one immutable source type, target operation, idempotency strategy, and completion/failure factories. |
 | `Contracts/IEventProjector.cs` | Exposes projector identity, descriptors, lifecycle, readiness, data-plane entry points, and infrastructure dependencies. |
@@ -133,6 +137,26 @@ Immediate release is essential. Without it, a 30-second redelivery could exhaust
 two-minute lease still prevents every retry from claiming the state. A stale owner cannot release, transition, or
 terminalize after another owner changes the token or revision.
 
+## Same-stream execution ordering
+
+The fenced claim is the authoritative ordering boundary. Its PostgreSQL predicate rejects an event while an earlier
+`EventId` for the same `(ProjectorName, EventStreamId)` remains unresolved. Completed, already-completed, and explicitly
+superseded predecessors do not block; failed, cancelled, blocked, retrying, leased, or otherwise nonterminal
+predecessors do. This applies identically to process and replay workers and uses the projector/stream/event partial
+index rather than a process-local lock.
+
+On a rejected claim, the engine reloads durable state. An unresolved predecessor throws
+`EventProjectorStreamOrderDeferredException`; another valid owner for the same event records a claim conflict and lets
+the duplicate delivery acknowledge; other transient claim conditions throw `EventProjectorDeliveryDeferredException`.
+The NATS process and replay workers negatively acknowledge deferred deliveries with bounded delay. Deferrals do not
+consume the application processing-failure budget: the maximum-attempt callback cross-checks the durable
+`RetryCount` before terminalizing. Genuine failures still terminalize at the configured maximum.
+
+The initialization contract remains important: supported live events persist their initial projector state before
+queue publication, and bounded recovery enumerates persisted state joined to its event. A missing earlier state is not
+interpreted as a successful projection. Fund keeps `NeverSupersede`; an unresolved predecessor therefore blocks later
+Fund events until retry succeeds or an operator deliberately skips it with a recorded reason.
+
 ## Transactional publication outbox
 
 With `TransactionalOutboxEnabled = true`, the engine serializes processing, completion, and failure publications and
@@ -178,27 +202,87 @@ Current application settings:
   "EventProjectorReliability": {
     "BoundedRecoveryEnabled": false,
     "FencedExecutionEnabled": false,
-    "TransactionalOutboxEnabled": false
+    "TransactionalOutboxEnabled": false,
+    "BacklogMetricsPollingEnabled": false,
+    "MetricsPollingInterval": "00:00:05"
   }
 }
 ```
 
-Activation requires draining projector workers, enabling bounded recovery and fenced execution on one canary, and
-verifying PostgreSQL state, ScyllaDB Fund rows, JetStream lag/redelivery, blocked rows, and claim conflicts before
-expanding. Never run legacy and fenced workers concurrently for the same persisted projector identity.
+`MetricsPollingInterval` must be between one second and five minutes. Polling is an independent operational switch;
+the event counters and histograms are available whenever the host OTLP meter pipeline is enabled.
 
-## Tranche D verification
+## OpenTelemetry and Grafana contract
+
+The shared telemetry pipeline registers meter `TomasAI.IFM.Application.EventProjector`. The canonical instruments are:
+
+| Instrument | Type | Purpose |
+| --- | --- | --- |
+| `ifm.event_projector.events` | Counter | Outcomes such as accepted, claimed, applied, already-applied, retried, superseded, blocked, terminal-failed, completed, recovery queued/conflict, and outbox published/retried. |
+| `ifm.event_projector.stage.duration` | Histogram, ms | Stage duration by projector, bounded stage, and outcome. |
+| `ifm.event_projector.recovery.batch.duration` | Histogram, ms | One bounded recovery-page duration. |
+| `ifm.event_projector.recovery.batch.size` | Histogram, events | Events discovered in one recovery page. |
+| `ifm.event_projector.startup.duration` | Histogram, ms | Projector startup/recovery-to-readiness duration and outcome. |
+| `ifm.event_projector.outbox.publish.duration` | Histogram, ms | Outbox publication attempt duration and outcome. |
+| `ifm.event_projector.backlog.pending` | Gauge, events | Durable nonterminal state count. |
+| `ifm.event_projector.backlog.oldest.age` | Gauge, seconds | Age of the oldest durable nonterminal state. |
+| `ifm.event_projector.backlog.blocked` | Gauge, events | Durable states requiring resolution. |
+| `ifm.event_projector.backlog.terminal_failed` | Gauge, events | Terminal failed states. |
+| `ifm.event_projector.lease.expired` | Gauge, leases | Expired execution leases awaiting recovery. |
+| `ifm.event_projector.outbox.pending` | Gauge, messages | Unpublished outbox rows. |
+| `ifm.event_projector.outbox.oldest.age` | Gauge, seconds | Age of the oldest unpublished outbox row. |
+| `ifm.event_projector.outbox.retrying` | Gauge, messages | Outbox rows currently retrying. |
+| `ifm.event_projector.worker.busy` | Gauge, workers | Projector logical workers currently executing. |
+| `ifm.event_projector.worker.utilization` | Gauge, percent | Busy logical workers divided by registered capacity. |
+| `ifm.event_projector.ready` | Gauge | One when the projector is ready, otherwise zero. |
+
+Only the bounded `projector`, `stage`, `outcome`, and `operation` dimensions are emitted. IDs and exception text stay in
+structured logs/traces. A Grafana dashboard should graph event rates by outcome; p50/p95/p99 stage/startup/outbox
+histograms; pending/blocked/failed counts and oldest ages; expired leases and claim conflicts; worker utilization and
+readiness; and NATS consumer lag/redelivery beside the PostgreSQL backlog.
+
+For Prometheus-compatible backends, example queries after the backend's normal dot-to-underscore translation are:
+
+```promql
+rate(ifm_event_projector_events_total{outcome="terminal-failed"}[5m])
+histogram_quantile(0.99, sum by (le, projector, stage) (rate(ifm_event_projector_stage_duration_milliseconds_bucket[5m])))
+max by (projector) (ifm_event_projector_backlog_oldest_age_seconds)
+```
+
+Exporter/backend suffix rules vary, so validate the actual translated names before importing a dashboard. Alerts
+should fire when readiness is zero after startup, blocked or terminal-failed counts are nonzero, backlog/outbox oldest
+age exceeds the operating objective, expired leases repeat, or retry/claim-conflict rates remain elevated. Warning and
+critical age thresholds must be selected from paper-trading service-level objectives, not hard-coded from synthetic
+benchmarks.
+
+## Staged activation and rollback
+
+1. Deploy the additive schema, meter, and queue compatibility with all reliability/polling switches off.
+2. Enable the host OTLP exporter and then `BacklogMetricsPollingEnabled` on one instance; reconcile gauges with bounded
+   operator queries and establish normal stage, backlog, retry, and worker-utilization ranges.
+3. Close projector readiness, drain legacy workers, and enable `BoundedRecoveryEnabled` plus
+   `FencedExecutionEnabled` on one canary. Never run legacy and fenced workers for the same projector identity.
+4. Verify PostgreSQL state, Fund ScyllaDB projections, process/replay lag, same-stream deferrals, expired leases,
+   blocked rows, and readiness before expanding.
+5. Drain the canary again and enable `TransactionalOutboxEnabled` separately. Verify pending/oldest/retrying gauges and
+   deterministic completion/failure delivery before expanding.
+6. To roll back, close readiness/intake, stop and drain projector workers, verify no active leases, restore the prior
+   switch set or binary, and preserve all additive state/outbox rows and queue resources for reconciliation.
+
+Paper-trading on the intended PostgreSQL/ScyllaDB/NATS/OTLP topology remains the production activation gate.
+
+## Tranche E verification
 
 The verification gate covers:
 
-- atomic state/outbox persistence and leased competing claims against real PostgreSQL;
-- publish failure followed by retry with the identical payload/event identity;
-- publish success followed by a lost delivery marker and safe identical re-publication;
-- stable typed completion and maximum-attempt failure conversion;
-- bounded pending/failed/blocked pages, exact-stage retry, and skip-with-reason state;
-- real PostgreSQL, NATS JetStream queue, ScyllaDB target, and outbox completion delivery;
-- all eight Fund target idempotency contracts from Tranche C; and
-- legacy/fenced/outbox configuration compatibility while all activation flags remain off.
+- real PostgreSQL same-stream claim blocking and operational snapshot classification;
+- a live process/replay Fund flow where the later event remains deferred until its predecessor completes;
+- NATS deferral redelivery without consuming the replay application-failure budget;
+- meter/outcome and polling-option contract tests;
+- recovery, stage-instrumentation, and outbox CPU/allocation benchmarks;
+- the complete NATS unit suite (58/58), Fund unit suite (208/208), and Fund integration suite (29/29);
+- all ten domain integration projects sequentially in Release (196/196); and
+- the complete solution Release build with zero warnings and zero errors.
 
 Relevant suites are:
 
@@ -208,8 +292,8 @@ Relevant suites are:
 - `TomasAI.IFM.Application.Storage.IntegrationTests/EventSourceDb/EventProjectorStatePersistenceTests.cs`; and
 - `TomasAI.IFM.Domain.Fund.IntegrationTests/FundEventProjectionIntegrationTests.cs`.
 
-## Next tranche
+## Remaining operational gate
 
-Tranche E adds cross-page same-stream execution ordering, projector OpenTelemetry instruments and Grafana guidance,
-recovery/steady-state/outbox benchmarks, and the staged canary rollout procedure. No production activation is implied
-by Tranche D completion.
+SWO-06 implementation Tranches A-E are complete. Activation remains explicitly separate: collect observe-only data,
+run the canary sequence above under paper-trading load, set topology-specific objectives/alerts, exercise rollback, and
+approve each independent switch. No production activation is implied by Tranche E completion.

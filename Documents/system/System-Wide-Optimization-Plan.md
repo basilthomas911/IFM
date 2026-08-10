@@ -3,7 +3,7 @@
 **Document type:** Living optimization specification and execution plan  
 **Status:** Active; execution may be paused for specialized optimization work  
 **Created:** 2026-08-07  
-**Last updated:** 2026-08-09
+**Last updated:** 2026-08-10
 **Owner:** IFM engineering  
 
 ## 1. Purpose
@@ -29,7 +29,7 @@ The root domain-actor optimization passes are substantially complete for:
 
 The shared actor runtime, NATS messaging, application storage, event-source replay, and solution-wide graceful cancellation have also received structural optimization passes. Current work has moved beyond dictionary-versus-switch and async-wrapper micro-optimizations. The remaining high-value work is concentrated in production observability, aggregate backpressure, runtime readiness, the Databento data plane, query-shaped storage, projection recovery, bounded reconstruction, and a small number of measured allocation hot spots.
 
-All ten domain integration projects now form the shared actor-runtime integration gate. The 2026-08-10 SWO-06 Tranche D confirmation passed 195 of 195 tests. This does not replace component-specific tests, benchmarks, Databento qualification, or production-like performance testing.
+All ten domain integration projects now form the shared actor-runtime integration gate. The 2026-08-10 SWO-06 Tranche E confirmation passed 196 of 196 tests. This does not replace component-specific tests, benchmarks, Databento qualification, or production-like performance testing.
 
 ## 3. Binding architectural principles
 
@@ -103,7 +103,7 @@ Databento is the primary market-data implementation. A future Interactive Broker
 | 3 | Actor startup readiness gate | P0 | Complete | Prevent intake before every actor-owned dependency is ready. |
 | 4 | Databento tick-price actor pipeline | P0 | Paused | Convert the proven feed into the production actor/event persistence path. |
 | 5 | ScyllaDB analytics query projections | P1 | Complete | Removed the remaining active `ALLOW FILTERING` signal reads. |
-| 6 | Event-projector recovery and idempotency | P1 | Tranche D complete; activation off | Reduce duplicate side effects and make replay backlog predictable. |
+| 6 | Event-projector recovery and idempotency | P1 | Tranches A-E complete; activation off | Reduce duplicate side effects and make replay backlog predictable. |
 | 7 | Fund compact snapshots | P1 | Proposed | Keep immutable history while bounding Fund reconstruction cost. |
 | 8 | OptionPricer QLNet allocation isolation | P1 | Proposed | Reduce the measured large allocation graph and global lock pressure. |
 | 9 | Event-context cancellation completion | P2 | Proposed | Gracefully stop cancellable event-initiated work without violating commit boundaries. |
@@ -293,7 +293,7 @@ integration tests. Detailed measurements and validation are recorded in `System-
 ### SWO-06: Event-projector recovery and idempotency
 
 **Priority:** P1  
-**Status:** Tranche D complete; bounded recovery, fenced execution, and transactional outbox activation disabled pending later rollout gate
+**Status:** Tranches A-E implemented and verified; bounded recovery, fenced execution, transactional outbox, and backlog polling remain disabled pending production-like rollout approval
 
 #### Objective
 
@@ -303,9 +303,11 @@ Make projector recovery efficient and ensure retry behavior cannot create uncont
 
 The projector workflow provides durable at-least-once side-effect delivery. Tranche C absorbs repeated Fund target
 writes through proven natural-key operations and fences every worker checkpoint. Tranche D atomically stages typed
-processing/completion/failure payloads with state transitions, dispatches bounded leased outbox batches with stable
-consumer-visible IDs, and publishes the registered typed failure at maximum attempts. Stream-wide execution ordering,
-projector metrics, benchmarks, dashboards, and staged activation remain in Tranche E.
+processing/completion/failure payloads with state transitions and dispatches bounded leased outbox batches with stable
+consumer-visible IDs. Tranche E prevents a later event in one projector/stream from claiming while an earlier event is
+unresolved, keeps ordering deferrals outside the application failure budget, adds the OTLP projector meter and durable
+backlog snapshot, records recovery/steady-state/outbox benchmarks, and documents the canary/rollback procedure. Fund
+retains `NeverSupersede`. Production activation still requires paper-trading evidence on the intended topology.
 
 The detailed repository-grounded tranche plan is maintained in
 `TomasAI.IFM.Application.EventProjector/Docs/EventProjector-Recovery-Idempotency-Implementation-Plan.md`. It records
@@ -523,10 +525,10 @@ When specialized optimization work interrupts this plan:
 ### Current tranche
 
 **Work package:** SWO-06 event-projector recovery and idempotency
-**State:** Tranches A-D complete; immutable descriptors, bounded recovery, fenced execution, claim release, Fund target idempotency, transactional publication outbox, typed terminal failure, and operator actions verified; production activation off
+**State:** Tranches A-E complete; same-stream execution ordering, immutable descriptors, bounded recovery, fenced execution, claim release, Fund target idempotency, transactional publication outbox, typed terminal failure, operator actions, telemetry, benchmarks, and rollout documentation verified; production activation off
 **Planned scope:** stable projection/stage-effect identities, fenced conditional state transitions, bounded keyset recovery, explicit queue preparation/start lifecycle, Fund target idempotency contracts, transactional publication outbox, typed terminal failures, same-stream ordering, metrics, benchmarks, and staged activation
 **Audit recorded:** the current workflow is durable at-least-once but can repeat every side effect after a crash; state upserts are unfenced, queue workers can start during recovery, recovery materializes the full backlog and reloads state per event, and the projector-wide maximum-attempt callback is replaced by each generic event execution
-**Next action:** review and implement Tranche E same-stream execution ordering, observability, benchmark, and staged-rollout evidence without enabling production activation
+**Next action:** retain all SWO-06 activation flags off until a production-like collector/paper-trading canary validates backlog age, stage latency, worker utilization, recovery, outbox, and rollback behavior; resume implementation with SWO-07 bounded aggregate reconstruction
 
 This record is intentionally temporary and must be updated after the tranche is committed, revised, or abandoned.
 
@@ -553,6 +555,8 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 2026-08-09 | Complete SWO-05 with bounded month-based ITI projections while retaining canonical ITI data for fallback and rollback. | Real-Scylla tracing shows one projected row read instead of 4,096 or 32,768 canonical rows, with 88.64% and 98.27% lower measured mean latency; scoped readiness and reconciliation preserve correctness during migration. |
 | 2026-08-10 | Complete SWO-06 Tranche B while leaving bounded recovery disabled by default. | Lifecycle separation, bounded joined-keyset recovery, claims, per-stream ordering, readiness rollback, and benchmark evidence are ready, but production activation must wait for Tranche C fenced execution and target idempotency. |
 | 2026-08-10 | Complete SWO-06 Tranche C while leaving bounded recovery and fenced execution disabled by default. | Immutable dispatch, worker-time fencing, explicit claim release, and repeat-safe Fund targets now close the target-write/checkpoint window; publication atomicity remains Tranche D work. |
+| 2026-08-10 | Complete SWO-06 Tranche D while leaving transactional publication disabled by default. | State/outbox transitions, leased bounded dispatch, typed terminal failure, and operator controls close the remaining publication/checkpoint gap without authorizing production activation. |
+| 2026-08-10 | Complete SWO-06 Tranche E while leaving all reliability and backlog-polling switches disabled by default. | Durable same-stream ordering, low-cardinality telemetry, benchmark evidence, dashboards, and rollback instructions are complete; topology-specific capacity and latency evidence still belongs to the paper-trading activation gate. |
 
 ## 13. Revision history
 
@@ -576,6 +580,8 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 0.16 | 2026-08-09 | Completed SWO-06 Tranche A contracts, additive PostgreSQL state/outbox schema, fenced conditional storage APIs, keyset recovery query, contention tests, and current-recovery baseline. |
 | 0.17 | 2026-08-10 | Completed SWO-06 Tranche B queue lifecycle separation, default-off bounded joined-keyset recovery, readiness rollback, ordering/contention tests, and 1k/10k/100k comparison benchmarks. |
 | 0.18 | 2026-08-10 | Completed SWO-06 Tranche C immutable descriptors, unified fenced execution, explicit claim release, eight Fund idempotency proofs, fail-closed unknown handling, and compatibility cleanup. |
+| 0.19 | 2026-08-10 | Completed SWO-06 Tranche D atomic publication outbox, leased bounded dispatch, typed terminal failure, operator controls, fault injection, and complete regression confirmation. |
+| 0.20 | 2026-08-10 | Completed SWO-06 Tranche E same-stream ordering, projector OTLP metrics, durable operational sampling, benchmarks, rollout guidance, and the 196-test domain gate while retaining flags-off activation. |
 
 ## 14. Related documents
 

@@ -160,6 +160,73 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
     }
 
     [Fact]
+    public async Task Process_and_replay_workers_preserve_same_stream_order_until_predecessor_completes()
+    {
+        var context = new RecordingCommandActorContext();
+        var queue = new NatsJSDurableReplayQueue(CreateNatsOptions());
+        await using var queueScope = queue;
+        var projector = new OrderingGatedFundEventProjector(
+            database.DbFactory,
+            queue,
+            database.ActorEventSourceDb,
+            database.BlackboardService,
+            Substitute.For<ILogger<FundEventProjector>>(),
+            new EventProjectorReliabilityOptions
+            {
+                BoundedRecoveryEnabled = true,
+                FencedExecutionEnabled = true,
+                InitialReplayDelay = TimeSpan.FromSeconds(1)
+            });
+        var stream = $"fund-ordering-{Guid.NewGuid():N}";
+        _eventStreams.Add(stream);
+        var firstFund = CreateProjectionFund("first");
+        var secondFund = CreateProjectionFund("second");
+        _fundIds.Add(firstFund.FundId);
+        _fundIds.Add(secondFund.FundId);
+        await database.FundDb.DeleteFundAsync(firstFund.FundId);
+        await database.FundDb.DeleteFundAsync(secondFund.FundId);
+        var commandId = Guid.NewGuid();
+        var saved = (await database.ActorEventSourceDb.SaveEventsAsync(
+            stream,
+            commandId,
+            new DomainEventCollection([
+                CreateFundEvent(firstFund, commandId, stream),
+                CreateFundEvent(secondFund, commandId, stream)
+            ])))
+            .OrderBy(domainEvent => domainEvent.EventId)
+            .ToArray();
+        projector.FirstEventId = saved[0].EventId;
+        await projector.StartAsync(context);
+
+        try
+        {
+            await projector.DomainEventsProjectionAsync(new DomainEventCollection(saved));
+            await projector.FirstReplayWaiting.Task.WaitAsync(TestTimeout);
+            await projector.SecondAttempted.Task.WaitAsync(TestTimeout);
+
+            (await database.ActorEventSourceDb.HasEarlierUnresolvedEventProjectorExecutionAsync(
+                saved[1].EventId, projector.ProjectorName)).Should().BeTrue();
+            (await database.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(
+                saved[1].EventId, projector.ProjectorName))!.ExecutionToken.Should().BeNull();
+
+            projector.ReleaseFirstReplay();
+            var firstCompleted = await WaitForCompletedStateAsync(saved[0].EventId, projector.ProjectorName);
+            firstCompleted.Outcome.Should().Be(
+                EventProjectorOutcomeType.Completed,
+                $"{firstCompleted.ErrorMessage} Runtime errors: {string.Join(" | ", projector.RuntimeErrors.Select(error => error.ToString()))}");
+            (await WaitForCompletedStateAsync(saved[1].EventId, projector.ProjectorName)).Outcome
+                .Should().Be(EventProjectorOutcomeType.Completed);
+            (await WaitForFundAsync(firstFund.FundId)).Name.Should().Be(firstFund.Name);
+            (await WaitForFundAsync(secondFund.FundId)).Name.Should().Be(secondFund.Name);
+        }
+        finally
+        {
+            projector.ReleaseFirstReplay();
+            await projector.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task StartAsync_recovers_explicit_processing_event_from_event_log_and_completes_projection()
     {
         var context = new RecordingCommandActorContext();
@@ -379,6 +446,36 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
         return (fund, command, state);
     }
 
+    static FundReadModel CreateProjectionFund(string suffix)
+    {
+        var fundId = Random.Shared.Next(2_300_001, 2_900_000);
+        return new FundReadModel(
+            fundId,
+            $"Ordered Projection Fund {suffix} {fundId}",
+            "SWO-06 Tranche E stream ordering",
+            100_000m,
+            false,
+            DateTime.UtcNow,
+            "integration-test");
+    }
+
+    static FundCreatedEvent CreateFundEvent(FundReadModel fund, Guid commandId, string stream)
+        => new()
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FundCreatedEvent.Actor.Replace("Event", "Denormalizer", StringComparison.Ordinal),
+                FundCreatedEvent.Verb,
+                fund.FundId.ToString()),
+            EntityId = new FundId(fund.FundId),
+            Id = Guid.NewGuid(),
+            CommandId = commandId,
+            AggregateId = stream,
+            EventSource = nameof(FundEventProjectionIntegrationTests),
+            ReceivedOn = DateTime.UtcNow,
+            NewFund = fund
+        };
+
     async Task<EventProjectorStateReadModel> WaitForCompletedStateAsync(long eventId, string projectorName)
     {
         var expires = DateTime.UtcNow + TestTimeout;
@@ -481,6 +578,56 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
         }
 
         public void ReleaseProcessing() => _release.TrySetResult();
+    }
+
+    sealed class OrderingGatedFundEventProjector(
+        IDbContextFactory dbFactory,
+        IDurableReplayQueue durableReplayQueue,
+        IEventSourceActorDbContext dbEventSource,
+        IBlackboardService blackboardService,
+        ILogger<FundEventProjector> logger,
+        EventProjectorReliabilityOptions reliabilityOptions)
+        : FundEventProjector(
+            dbFactory,
+            durableReplayQueue,
+            dbEventSource,
+            blackboardService,
+            logger,
+            reliabilityOptions)
+    {
+        readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int _firstDeliveries;
+
+        public long FirstEventId { get; set; }
+        public TaskCompletionSource FirstReplayWaiting { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource SecondAttempted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public ConcurrentQueue<Exception> RuntimeErrors { get; } = new();
+
+        public override async ValueTask ProcessDomainEventAsync(IEvent domainEvent)
+        {
+            if (domainEvent.EventId == FirstEventId)
+            {
+                if (Interlocked.Increment(ref _firstDeliveries) == 1)
+                    throw new InvalidOperationException("Injected first-delivery failure to exercise replay ordering.");
+                FirstReplayWaiting.TrySetResult();
+                await _release.Task;
+            }
+            else
+            {
+                SecondAttempted.TrySetResult();
+            }
+            try
+            {
+                await base.ProcessDomainEventAsync(domainEvent);
+            }
+            catch (Exception ex)
+            {
+                RuntimeErrors.Enqueue(ex);
+                throw;
+            }
+        }
+
+        public void ReleaseFirstReplay() => _release.TrySetResult();
     }
 
     sealed class RecordingCommandActorContext : ICommandActorContext

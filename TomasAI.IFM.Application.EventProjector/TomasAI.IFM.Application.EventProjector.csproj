@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.Fund.UnitTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.Application.Benchmarks" />
   </ItemGroup>
 
 </Project>

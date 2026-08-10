@@ -24,7 +24,13 @@ PostgreSQL outbox atomically; a bounded leased dispatcher retries with determini
 Maximum-attempt handling stages the descriptor's typed failure event before returning, conversion faults fail closed,
 and bounded operator APIs expose pending/failed/blocked pages, exact-stage retry, and skip-with-reason. Real
 PostgreSQL, NATS JetStream, ScyllaDB, and all ten domain integration projects passed. All three activation switches
-remain off. Tranche E is the next implementation gate.
+remain off.
+
+Tranche E was completed on 2026-08-10. The fenced PostgreSQL claim now prevents a later same-stream event from
+executing while an earlier state is unresolved across both process and replay delivery. Typed ordering deferrals are
+negatively acknowledged without consuming the application failure budget. The projector meter, optional durable
+operational sampler, Grafana/alert contract, benchmark evidence, staged canary procedure, and rollback procedure are
+documented. All four activation/polling switches remain off pending production-like paper-trading approval.
 
 ## Status and scope
 
@@ -338,6 +344,14 @@ activation remains off through `TransactionalOutboxEnabled = false`.
 
 Gate: acceptance criteria, performance budgets, dashboards, operator procedure, and full regression suite are complete.
 
+Completed 2026-08-10. Real PostgreSQL proves later same-stream claims remain blocked; a live PostgreSQL + NATS +
+ScyllaDB Fund test gates the predecessor in replay and confirms the later process delivery cannot apply first. The OTLP
+meter and one-query operational snapshot cover execution, recovery, backlog, lease, outbox, readiness, and logical
+worker state with bounded tags. BenchmarkDotNet records allocation-free stage telemetry, the CPU-only outbox envelope,
+and a same-host recovery comparison. NATS unit tests passed 58/58, Fund unit tests 208/208, Fund integration tests
+29/29, all ten domain integration projects 196/196, and the complete Release build has zero warnings/errors. Completion
+does not authorize activation.
+
 ## Benchmark and performance gates
 
 Create `TomasAI.IFM.Application.EventProjector.Benchmarks` or place the benchmark in the closest existing application
@@ -377,7 +391,7 @@ Initial budgets for review:
 | Projector unit | Every stage transition and every crash point, terminal short-circuit, unknown type, null/throwing conversion, cache loss. |
 | Fund target | Repeat each of eight operations, conflicting duplicate payload, delete retry, update retry, no new generated IDs. |
 | Integrated Fund | Real PostgreSQL + ScyllaDB + NATS restart/replay, maximum attempts and typed failure, same-stream order. |
-| System | Complete Release build and the established 193-test ten-domain sequential integration gate. |
+| System | Complete Release build and the established ten-domain sequential integration gate (196 tests at Tranche E). |
 
 ## Metrics and operational views
 
@@ -426,5 +440,6 @@ The following decisions were accepted before Tranche A implementation:
    workers are ready.
 6. Implement SWO-06 in the five tranches above, with a review/activation gate after each tranche.
 
-Tranche D may now add transactional state-plus-publication outbox behavior and typed terminal failures. Production
-activation remains disabled until the later rollout gate passes.
+Tranches A-E are implemented. Production activation remains disabled until observe-only telemetry and backlog sampling,
+the fenced/bounded canary, the independent outbox canary, topology-specific performance objectives, and rollback are
+validated under paper-trading load.

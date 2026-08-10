@@ -362,18 +362,40 @@ ORDER BY el.eventVersion ASC;
         """;
 
     public const string TryClaimEventProjectorExecution = """
-        UPDATE event_projector_state
+        UPDATE event_projector_state current_state
         SET ExecutionToken = $3,
             LeaseExpiresAtUtc = $4,
             Revision = Revision + 1,
             UpdatedAtUtc = $5,
             UpdatedTimestamp = $6
-        WHERE EventId = $1
-          AND ProjectorName = $2
-          AND Outcome IN ('Processing', 'Retrying')
-          AND (ExecutionToken IS NULL OR LeaseExpiresAtUtc IS NULL OR LeaseExpiresAtUtc <= $5)
+        WHERE current_state.EventId = $1
+          AND current_state.ProjectorName = $2
+          AND current_state.Outcome IN ('Processing', 'Retrying')
+          AND (current_state.ExecutionToken IS NULL OR current_state.LeaseExpiresAtUtc IS NULL OR current_state.LeaseExpiresAtUtc <= $5)
+          AND NOT EXISTS (
+              SELECT 1
+              FROM event_projector_state earlier
+              WHERE earlier.ProjectorName = current_state.ProjectorName
+                AND earlier.EventStreamId = current_state.EventStreamId
+                AND earlier.EventId < current_state.EventId
+                AND earlier.Outcome NOT IN ('Completed', 'AlreadyCompleted', 'Superseded')
+          )
         RETURNING
         """ + EventProjectorExecutionStateColumns + ";";
+
+    public const string HasEarlierUnresolvedEventProjectorExecution = """
+        SELECT EXISTS (
+            SELECT 1
+            FROM event_projector_state current_state
+            JOIN event_projector_state earlier
+              ON earlier.ProjectorName = current_state.ProjectorName
+             AND earlier.EventStreamId = current_state.EventStreamId
+             AND earlier.EventId < current_state.EventId
+            WHERE current_state.EventId = $1
+              AND current_state.ProjectorName = $2
+              AND earlier.Outcome NOT IN ('Completed', 'AlreadyCompleted', 'Superseded')
+        );
+        """;
 
     public const string TryRenewEventProjectorExecution = """
         UPDATE event_projector_state
@@ -620,6 +642,32 @@ ORDER BY el.eventVersion ASC;
           )
         ORDER BY EventId
         LIMIT $4;
+        """;
+
+    public const string GetEventProjectorOperationalSnapshot = """
+        SELECT
+            COUNT(*) FILTER (WHERE Outcome IN ('Processing', 'Retrying')) AS "PendingCount",
+            MIN(UpdatedAtUtc) FILTER (WHERE Outcome IN ('Processing', 'Retrying')) AS "OldestPendingAtUtc",
+            COUNT(*) FILTER (WHERE BlockedReason <> '') AS "BlockedCount",
+            COUNT(*) FILTER (WHERE Outcome = 'Failed') AS "TerminalFailedCount",
+            COUNT(*) FILTER (
+                WHERE Outcome IN ('Processing', 'Retrying')
+                  AND ExecutionToken IS NOT NULL
+                  AND LeaseExpiresAtUtc <= $2) AS "ExpiredLeaseCount",
+            (SELECT COUNT(*)
+             FROM event_projector_outbox outbox
+             WHERE outbox.ProjectorName = $1
+               AND outbox.Status IN ('Pending', 'Retrying', 'Publishing')) AS "OutboxPendingCount",
+            (SELECT MIN(outbox.CreatedAtUtc)
+             FROM event_projector_outbox outbox
+             WHERE outbox.ProjectorName = $1
+               AND outbox.Status IN ('Pending', 'Retrying', 'Publishing')) AS "OldestOutboxPendingAtUtc",
+            (SELECT COUNT(*)
+             FROM event_projector_outbox outbox
+             WHERE outbox.ProjectorName = $1
+               AND outbox.Status = 'Retrying') AS "OutboxRetryCount"
+        FROM event_projector_state
+        WHERE ProjectorName = $1;
         """;
 
     public const string TryRetryEventProjectorExecution = """

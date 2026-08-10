@@ -11,6 +11,7 @@ public static class IfmMetricsServiceCollectionExtensions
 {
     const string ActorMeterName = "TomasAI.IFM.Shared.EventModelActor";
     const string NatsMeterName = "TomasAI.IFM.Framework.Messaging.Nats";
+    const string EventProjectorMeterName = "TomasAI.IFM.Application.EventProjector";
 
     /// <summary>
     /// Adds IFM, .NET runtime, ASP.NET Core, Kestrel, and HTTP client metrics when
@@ -44,6 +45,7 @@ public static class IfmMetricsServiceCollectionExtensions
                 metrics
                     .AddMeter(ActorMeterName)
                     .AddMeter(NatsMeterName)
+                    .AddMeter(EventProjectorMeterName)
                     .AddMeter("System.Runtime")
                     .AddMeter("Microsoft.AspNetCore.Hosting")
                     .AddMeter("Microsoft.AspNetCore.Server.Kestrel")

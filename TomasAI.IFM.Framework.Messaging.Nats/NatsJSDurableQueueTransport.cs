@@ -30,8 +30,8 @@ internal sealed record NatsJSDurableQueueNames(
 /// </summary>
 /// <param name="Names">The names of the streams, subjects, and durable consumers.</param>
 /// <param name="ReplayInterval">The acknowledgement wait and initial replay delay.</param>
-/// <param name="MaxReplayAttempts">The maximum number of replay message deliveries.</param>
-/// <param name="Backoff">The server-side redelivery delays, ordered by delivery attempt.</param>
+/// <param name="MaxReplayAttempts">The application-owned maximum number of genuine replay failures.</param>
+/// <param name="Backoff">The application redelivery delays, ordered by delivery attempt.</param>
 internal sealed record NatsJSDurableQueueSettings(
     NatsJSDurableQueueNames Names,
     TimeSpan ReplayInterval,
@@ -118,9 +118,9 @@ internal interface INatsJSDurableQueueTransport : IAsyncDisposable
 /// The connection is established lazily on the first call to <see cref="EnsureQueueAsync"/> and is shared
 /// by every projector managed by this instance. Queue initialization is serialized, while lookups and message
 /// operations are safe for concurrent use across projector names. Process consumers use explicit acknowledgements
-/// and unlimited redelivery so a process-to-replay handoff failure cannot strand an event. Replay consumers use
-/// explicit acknowledgements, the configured delivery limit, and
-/// server-side backoff. Disposing this type closes the client but leaves server-side resources intact.
+/// and unlimited redelivery so a process-to-replay handoff failure cannot strand an event. Replay consumers also use
+/// unlimited server delivery; the queue applies the configured application failure limit so same-stream ordering
+/// deferrals do not exhaust the failure budget. Disposing this type closes the client but leaves server-side resources intact.
 /// </remarks>
 /// <exception cref="ArgumentNullException"><paramref name="options"/> is <see langword="null"/>.</exception>
 internal sealed class NatsJSDurableQueueTransport(
@@ -199,9 +199,8 @@ internal sealed class NatsJSDurableQueueTransport(
                     AckPolicy = ConsumerConfigAckPolicy.Explicit,
                     DeliverPolicy = ConsumerConfigDeliverPolicy.All,
                     AckWait = settings.ReplayInterval,
-                    MaxDeliver = settings.MaxReplayAttempts,
-                    MaxAckPending = 4096,
-                    Backoff = settings.Backoff.ToList()
+                    MaxDeliver = -1,
+                    MaxAckPending = 4096
                 },
                 cancellationToken).ConfigureAwait(false);
 
