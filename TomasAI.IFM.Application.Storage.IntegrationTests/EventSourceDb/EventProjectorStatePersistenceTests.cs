@@ -126,8 +126,15 @@ public sealed class EventProjectorStatePersistenceTests
             .Contain("ExecutionToken = $3")
             .And.Contain("Revision = $4")
             .And.Contain("Stage = $5");
+        EventSourceDbSql.TryReleaseEventProjectorExecution.Should()
+            .Contain("ExecutionToken = NULL")
+            .And.Contain("LeaseExpiresAtUtc = NULL")
+            .And.Contain("Outcome = 'Retrying'")
+            .And.Contain("Revision = $4")
+            .And.Contain("Stage = $5");
         EventSourceDbSql.GetEventProjectorRecoveryPage.Should()
             .Contain("eps.EventId > $3")
+            .And.Contain("eps.LeaseExpiresAtUtc <= $4")
             .And.Contain("ORDER BY eps.EventId")
             .And.Contain("LIMIT $5");
     }

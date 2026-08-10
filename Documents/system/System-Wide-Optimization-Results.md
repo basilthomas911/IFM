@@ -3,9 +3,9 @@
 **Document type:** Living implementation and measurement record
 **Status:** Active
 **Created:** 2026-08-09
-**Last updated:** 2026-08-09
+**Last updated:** 2026-08-10
 **Baseline commit:** `32d025c8`
-**Current work package:** SWO-03 actor startup readiness gate complete
+**Current work package:** SWO-06 Tranche C complete; Tranche D next
 
 ## 1. Executive result
 
@@ -557,9 +557,10 @@ and integration composition roots bind `EventProjectorReliability` explicitly; `
 as `false`.
 
 The optional bounded coordinator reads joined event/state rows in event-ID keyset pages, eliminating the recovery
-state N+1 read. It holds only the current page, processes independent streams with configured concurrency, preserves
-ascending order within each stream across page boundaries, and conditionally claims each event before publication.
-Claim contention is skipped rather than duplicated. Unknown event types are terminalized as blocked failures. The
+state N+1 read. It holds only the current page, processes independent streams with configured concurrency, and
+preserves ascending order within each stream across page boundaries. Tranche B originally claimed before publication;
+Tranche C moved normal claims to the unified queue worker and relies on stable JetStream message IDs to de-duplicate
+concurrent recovery publication. Unknown event types are terminalized as blocked failures. The
 legacy SQL upsert now supplies the additive stream identity required by the Tranche A schema, preserving rollback and
 default-path compatibility.
 
@@ -593,8 +594,58 @@ Final verification:
 | Current/bounded benchmark cases | 6/6 completed |
 | Complete solution Release build | 0 warnings, 0 errors |
 
-The complete ten-domain integration confirmation remains reserved for the final SWO-06 activation gate. Tranche B is
-complete but not production-active; Tranche C fenced execution and Fund target idempotency are next.
+The complete domain integration confirmation remains reserved for every final SWO-06 tranche/activation gate. Tranche
+B is complete but not production-active.
+
+### 7.18 SWO-06 Event-projector reliability Tranche C
+
+Tranche C replaces the mutable per-call `EventProjectorBuilder` with one frozen descriptor table per projector. Startup
+validates that the descriptor types exactly match `ProjectedEventTypes`, registers maximum-attempt handling once, and
+uses a cached type-to-descriptor dispatch map. `FundEventProjector` declares all eight operations as
+`NaturalKeyMutation` and returns the explicit `EventProjectionApplyResult` contract.
+
+`EventProjectorExecutionEngine` now owns process and replay execution. It conditionally claims a PostgreSQL state row
+with a unique execution token and lease, applies one external stage, and advances only through token/revision/stage
+compare-and-set transitions. A failure conditionally releases the same fence, clears its token/lease, records bounded
+retry metadata, and rethrows. This avoids exhausting 30-second queue redeliveries behind a two-minute abandoned lease.
+Unregistered types terminalize with `unregistered-source-event`; unknown recovered payloads retain
+`unknown-source-event` manual-resolution state.
+
+Live fenced initialization now inserts projector state from a join to `event_log` and `event_name_id`. The persisted
+event ID supplies stream ID and source name atomically, so execution does not assume the serialized event contains an
+`AggregateId` and adds no stream lookup. Bounded recovery excludes active unexpired leases and publishes normal work
+without taking ownership; the single queue worker path owns execution claims. Concurrent recovery publications use the
+queue's stable NATS message ID for JetStream de-duplication.
+
+The Fund target audit found no ID generation, increment, append-under-new-key, or external call. The three upserts,
+two deletes, two deterministic updates, and one no-op are repeat safe by natural key. A real-ScyllaDB integration test
+applies every descriptor twice and verifies identical final state, including repeated delete absence. No target receipt
+table is required for the current Fund scope.
+
+The crash-after-write unit fault applies the Fund target write, deliberately rejects its next checkpoint, verifies
+claim release, reapplies the same target write, and reaches one terminal completion. Real PostgreSQL storage coverage
+proves a released stage is immediately claimable and stale owner revisions remain fenced. A live integration flow runs
+with bounded recovery and fenced execution enabled through real PostgreSQL, NATS JetStream, and ScyllaDB.
+
+Compatibility remains explicit. Immutable descriptors also drive the default legacy checkpoint path, while
+`BoundedRecoveryEnabled` and `FencedExecutionEnabled` both remain `false` in checked-in application settings. Unused
+parallel projector state, timing, retry-action, empty-result, and mutable-builder types were removed after a complete
+reference audit.
+
+Final verification:
+
+| Gate | Result |
+| --- | ---: |
+| Complete Fund projector/unit suite | 202/202 passed |
+| Projector-focused real PostgreSQL storage tests | 8/8 passed |
+| Fenced/legacy projector real PostgreSQL + NATS + ScyllaDB tests | 3/3 passed |
+| Complete Fund integration suite | 27/27 passed |
+| Sequential Release domain integration tests | 193/193 passed |
+| Application.Actor integration project | No discoverable tests (composition-only project) |
+| Complete solution Release build | 0 warnings, 0 errors |
+
+Tranche C is complete but not production-active. Tranche D transactional publication outbox and typed terminal failure
+delivery are next.
 
 ## 8. References
 
@@ -625,3 +676,4 @@ complete but not production-active; Tranche C fenced execution and Fund target i
 | 1.3 | 2026-08-09 | Completed SWO-05 with Scylla trace evidence, final benchmark percentiles and allocation tradeoff, deterministic integration-test isolation, and the complete validation gate. |
 | 1.4 | 2026-08-09 | Recorded SWO-06 Tranche A reliability contracts, additive state/outbox schema, fenced storage concurrency evidence, bounded recovery API, and 1k/10k/100k current-path baseline. |
 | 1.5 | 2026-08-10 | Recorded SWO-06 Tranche B lifecycle separation, default-off bounded recovery, readiness rollback, compatibility correction, benchmark comparison, and focused/full Fund verification. |
+| 1.6 | 2026-08-10 | Recorded SWO-06 Tranche C immutable descriptors, unified fenced execution, claim release, all-eight Fund repeat-apply proof, fail-closed unknown handling, cleanup, and complete regression gate. |

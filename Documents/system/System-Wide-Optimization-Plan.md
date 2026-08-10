@@ -103,7 +103,7 @@ Databento is the primary market-data implementation. A future Interactive Broker
 | 3 | Actor startup readiness gate | P0 | Complete | Prevent intake before every actor-owned dependency is ready. |
 | 4 | Databento tick-price actor pipeline | P0 | Paused | Convert the proven feed into the production actor/event persistence path. |
 | 5 | ScyllaDB analytics query projections | P1 | Complete | Removed the remaining active `ALLOW FILTERING` signal reads. |
-| 6 | Event-projector recovery and idempotency | P1 | Tranche B complete; activation off | Reduce duplicate side effects and make replay backlog predictable. |
+| 6 | Event-projector recovery and idempotency | P1 | Tranche C complete; activation off | Reduce duplicate side effects and make replay backlog predictable. |
 | 7 | Fund compact snapshots | P1 | Proposed | Keep immutable history while bounding Fund reconstruction cost. |
 | 8 | OptionPricer QLNet allocation isolation | P1 | Proposed | Reduce the measured large allocation graph and global lock pressure. |
 | 9 | Event-context cancellation completion | P2 | Proposed | Gracefully stop cancellable event-initiated work without violating commit boundaries. |
@@ -293,7 +293,7 @@ integration tests. Detailed measurements and validation are recorded in `System-
 ### SWO-06: Event-projector recovery and idempotency
 
 **Priority:** P1  
-**Status:** Tranche B complete; bounded recovery activation disabled pending Tranche C
+**Status:** Tranche C complete; bounded recovery and fenced execution activation disabled pending later rollout gate
 
 #### Objective
 
@@ -301,7 +301,10 @@ Make projector recovery efficient and ensure retry behavior cannot create uncont
 
 #### Current evidence
 
-The projector workflow provides at-least-once side-effect delivery. A process failure after an external action and before its next checkpoint can repeat publication or projection. Stream-aware stale-event supersession is intentionally deferred, and the maximum-attempt path does not currently publish the typed failure event.
+The projector workflow provides at-least-once side-effect delivery. Tranche C now absorbs a repeated Fund target write
+through proven natural-key operations and fences every worker checkpoint. Processing/completion/failure publication is
+still at-least-once until Tranche D adds the transactional outbox. Stream-aware stale-event supersession remains
+intentionally deferred, and the maximum-attempt path does not yet publish the typed failure event.
 
 The detailed repository-grounded tranche plan is maintained in
 `TomasAI.IFM.Application.EventProjector/Docs/EventProjector-Recovery-Idempotency-Implementation-Plan.md`. It records
@@ -519,10 +522,10 @@ When specialized optimization work interrupts this plan:
 ### Current tranche
 
 **Work package:** SWO-06 event-projector recovery and idempotency
-**State:** Tranche A contracts, additive schema, fenced persistence APIs, tests, and baseline complete
+**State:** Tranches A-C complete; immutable descriptors, bounded recovery, fenced execution, claim release, and Fund target idempotency verified; production activation off
 **Planned scope:** stable projection/stage-effect identities, fenced conditional state transitions, bounded keyset recovery, explicit queue preparation/start lifecycle, Fund target idempotency contracts, transactional publication outbox, typed terminal failures, same-stream ordering, metrics, benchmarks, and staged activation
 **Audit recorded:** the current workflow is durable at-least-once but can repeat every side effect after a crash; state upserts are unfenced, queue workers can start during recovery, recovery materializes the full backlog and reloads state per event, and the projector-wide maximum-attempt callback is replaced by each generic event execution
-**Next action:** implement Tranche C unified fenced process/replay execution and Fund target idempotency without enabling production activation
+**Next action:** review and implement Tranche D transactional publication outbox and typed terminal failures without enabling production activation
 
 This record is intentionally temporary and must be updated after the tranche is committed, revised, or abandoned.
 
@@ -548,6 +551,7 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 2026-08-09 | Use actor-first startup and open Core/JetStream consumers only after every actor is initialized. | Actor startup has no dependency on external consumer intake; holding intake closed prevents premature request handling and lets JetStream retain durable events until the runtime is safe. |
 | 2026-08-09 | Complete SWO-05 with bounded month-based ITI projections while retaining canonical ITI data for fallback and rollback. | Real-Scylla tracing shows one projected row read instead of 4,096 or 32,768 canonical rows, with 88.64% and 98.27% lower measured mean latency; scoped readiness and reconciliation preserve correctness during migration. |
 | 2026-08-10 | Complete SWO-06 Tranche B while leaving bounded recovery disabled by default. | Lifecycle separation, bounded joined-keyset recovery, claims, per-stream ordering, readiness rollback, and benchmark evidence are ready, but production activation must wait for Tranche C fenced execution and target idempotency. |
+| 2026-08-10 | Complete SWO-06 Tranche C while leaving bounded recovery and fenced execution disabled by default. | Immutable dispatch, worker-time fencing, explicit claim release, and repeat-safe Fund targets now close the target-write/checkpoint window; publication atomicity remains Tranche D work. |
 
 ## 13. Revision history
 
@@ -570,6 +574,7 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 0.15 | 2026-08-09 | Added the repository-grounded SWO-06 recovery/idempotency plan, five gated tranches, crash matrix, performance budgets, and review decisions. |
 | 0.16 | 2026-08-09 | Completed SWO-06 Tranche A contracts, additive PostgreSQL state/outbox schema, fenced conditional storage APIs, keyset recovery query, contention tests, and current-recovery baseline. |
 | 0.17 | 2026-08-10 | Completed SWO-06 Tranche B queue lifecycle separation, default-off bounded joined-keyset recovery, readiness rollback, ordering/contention tests, and 1k/10k/100k comparison benchmarks. |
+| 0.18 | 2026-08-10 | Completed SWO-06 Tranche C immutable descriptors, unified fenced execution, explicit claim release, eight Fund idempotency proofs, fail-closed unknown handling, and compatibility cleanup. |
 
 ## 14. Related documents
 

@@ -135,7 +135,7 @@ public sealed class EventProjectorRecoveryCoordinatorTests
     }
 
     [Fact]
-    public async Task Concurrent_recovery_instances_enqueue_each_event_once_after_claim_contention()
+    public async Task Concurrent_recovery_instances_publish_stable_duplicate_candidates_for_transport_deduplication()
     {
         var items = new[] { Item(10, 11), Item(11, 22), Item(12, 11), Item(13, 22) };
         var db = CreatePagedDatabase(items, batchSize: 4, enforceSingleClaim: true);
@@ -154,9 +154,9 @@ public sealed class EventProjectorRecoveryCoordinatorTests
             first.RecoverAsync("FundCommandActor", "FundEventProjector", [typeof(FundCreatedEvent)]),
             second.RecoverAsync("FundCommandActor", "FundEventProjector", [typeof(FundCreatedEvent)]));
 
-        enqueued.Should().Be(4);
-        results.Sum(result => result.Queued).Should().Be(4);
-        results.Sum(result => result.ClaimConflicts).Should().Be(4);
+        enqueued.Should().Be(8);
+        results.Sum(result => result.Queued).Should().Be(8);
+        results.Sum(result => result.ClaimConflicts).Should().Be(0);
     }
 
     [Fact]

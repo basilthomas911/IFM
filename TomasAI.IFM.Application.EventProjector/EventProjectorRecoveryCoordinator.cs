@@ -78,24 +78,23 @@ public sealed class EventProjectorRecoveryCoordinator(
                     foreach (var item in stream)
                     {
                         token.ThrowIfCancellationRequested();
-                        var executionToken = Guid.NewGuid();
-                        var nowUtc = DateTime.UtcNow;
-                        var claimed = await _eventSource.TryClaimEventProjectorExecutionAsync(
-                            item.State.EventId,
-                            projectorName,
-                            executionToken,
-                            nowUtc,
-                            _options.ClaimLeaseDuration,
-                            token).ConfigureAwait(false);
-                        if (claimed is null)
-                        {
-                            Interlocked.Increment(ref claimConflicts);
-                            continue;
-                        }
-
                         var domainEvent = item.EventLog.ToDomainEvent();
                         if (domainEvent is UnknownEvent)
                         {
+                            var executionToken = Guid.NewGuid();
+                            var nowUtc = DateTime.UtcNow;
+                            var claimed = await _eventSource.TryClaimEventProjectorExecutionAsync(
+                                item.State.EventId,
+                                projectorName,
+                                executionToken,
+                                nowUtc,
+                                _options.ClaimLeaseDuration,
+                                token).ConfigureAwait(false);
+                            if (claimed is null)
+                            {
+                                Interlocked.Increment(ref claimConflicts);
+                                continue;
+                            }
                             var terminal = await _eventSource.TryTerminalizeEventProjectorExecutionAsync(
                                 new EventProjectorStateTransition(
                                     claimed.EventId,
@@ -123,9 +122,9 @@ public sealed class EventProjectorRecoveryCoordinator(
                         }
 
                         _blackboard.EventSourcing.EventProjectorState.Set(
-                            claimed.EventId,
+                            item.State.EventId,
                             projectorName,
-                            ToLegacyState(claimed));
+                            ToLegacyState(item.State));
                         await _durableQueue.EnqueueAsync(projectorName, domainEvent, token).ConfigureAwait(false);
                         Interlocked.Increment(ref queued);
                     }

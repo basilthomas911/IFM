@@ -32,7 +32,6 @@ public interface IEventSourceActorDbContext
     Task UpdateCommandLogAsync(Guid commandId, DateTime updateTimestamp, CommandStatus commandStatus);
     Task UpdateCommandLogAsync(Guid commandId, DateTime updateTimestamp, CommandStatus commandStatus, CancellationToken cancellationToken);
 
-    Task InsertEventProjectorResultAsync(EventProjectorResultReadModel eventProjectorResult);
     Task InsertEventProjectorStateAsync(EventProjectorStateReadModel eventProjectorState);
     Task InsertEventProjectorStateAsync(
         EventProjectorStateReadModel eventProjectorState,
@@ -63,6 +62,10 @@ public interface IEventSourceActorDbContext
         long expectedRevision,
         DateTime nowUtc,
         TimeSpan leaseDuration,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorExecutionStateReadModel?> TryReleaseEventProjectorExecutionAsync(
+        EventProjectorStateTransition transition,
+        DateTime nowUtc,
         CancellationToken cancellationToken = default);
     Task<EventProjectorExecutionStateReadModel?> TryTransitionEventProjectorExecutionAsync(
         EventProjectorStateTransition transition,

@@ -1,12 +1,15 @@
 ﻿using Microsoft.Extensions.Logging;
+using System.Collections.Immutable;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Command.Actor;
+using TomasAI.IFM.Shared.EventProjector;
 
 namespace TomasAI.IFM.Domain.Fund.Command.EventProjector;
 
@@ -19,7 +22,7 @@ public class FundEventProjector(
     EventProjectorReliabilityOptions? reliabilityOptions = null) : BaseEventProjector<FundCommandActor>(
        durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
 {
-    static readonly Type[] _projectedEventTypes =
+    static readonly ImmutableArray<Type> _projectedEventTypes =
     [
         typeof(FundCreatedEvent),
         typeof(OrderAddedToFundEvent),
@@ -30,51 +33,57 @@ public class FundEventProjector(
         typeof(FundOrderClosedEvent),
         typeof(FundMaxProfitGeneratedEvent)
     ];
-
-    EventProjectorBuilder ProjectionBuilder => CreateProjectionBuilder();
+    readonly ImmutableArray<EventProjectionDescriptor> _projectionDescriptors =
+    [
+        Describe<FundCreatedEvent, FundCreatedCompleteEvent, FundCreatedFailEvent>(
+            e => dbFactory.FundDb.InsertFundAsync(e.NewFund)),
+        Describe<OrderAddedToFundEvent, OrderAddedToFundCompleteEvent, OrderAddedToFundFailEvent>(
+            e => dbFactory.FundDb.InsertFundOrderAsync(e.FundOrder)),
+        Describe<TradeAddedToFundOrderEvent, TradeAddedToFundOrderCompleteEvent, TradeAddedToFundOrderFailEvent>(
+            e => dbFactory.FundDb.InsertFundOrderTradeAsync(e.FundOrderTrade)),
+        Describe<OrderRemovedFromFundEvent, OrderRemovedFromFundCompleteEvent, OrderRemovedFromFundFailEvent>(
+            e => dbFactory.FundDb.DeleteFundOrderAsync(e.FundOrderId.FundId, e.FundOrderId.OrderId)),
+        Describe<TradeRemovedFromFundOrderEvent, TradeRemovedFromFundOrderCompleteEvent, TradeRemovedFromFundOrderFailEvent>(
+            e => dbFactory.FundDb.DeleteFundOrderTradeAsync(
+                e.FundOrderTradeId.FundId,
+                e.FundOrderTradeId.OrderId,
+                e.FundOrderTradeId.TradeId)),
+        Describe<FundOrderTradeStateChangedEvent, FundOrderTradeStateChangedCompleteEvent, FundOrderTradeStateChangedFailEvent>(
+            e => dbFactory.FundDb.UpdateFundOrderTradeStateAsync(
+                e.FundOrderTradeId.FundId,
+                e.FundOrderTradeId.OrderId,
+                e.FundOrderTradeId.TradeId,
+                e.TradeState,
+                e.UpdatedOn,
+                e.UpdatedBy)),
+        Describe<FundOrderClosedEvent, FundOrderClosedCompleteEvent, FundOrderClosedFailEvent>(
+            e => dbFactory.FundDb.UpdateFundOrderStatusAsync(
+                e.FundOrderId.FundId,
+                e.FundOrderId.OrderId,
+                OrderStatus.Closed)),
+        Describe<FundMaxProfitGeneratedEvent, FundMaxProfitGeneratedCompleteEvent, FundMaxProfitGeneratedFailEvent>(
+            static _ => Task.CompletedTask)
+    ];
 
     public override string ActorName => $"{typeof(FundCommandActor).Name}";
     public override string ProjectorName => $"{typeof(FundEventProjector).Name}";
     public override string DurableProcessQueueName => $"{ActorName}.{ProjectorName}.ProcessQueue";
     public override string DurableReplayQueueName => $"{ActorName}.{ProjectorName}.ReplayQueue";
     public override IReadOnlyCollection<Type> ProjectedEventTypes => _projectedEventTypes;
+    public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _projectionDescriptors;
 
-    /// <summary>
-    /// Processes the domain event and projects it to the database.
-    /// </summary>
-    /// <param name="domainEvent"></param>
-    /// <returns></returns>
-    public override async ValueTask ProcessDomainEventAsync(IEvent domainEvent)
-    {
-        try
-        {
-            var db = dbFactory.FundDb;
-            Logger.LogInformation("{ProcessQueue}: processing event projection for: {EventName}", DurableProcessQueueName, domainEvent.GetType().Name);
-            _ = domainEvent switch
+    static EventProjectionDescriptor Describe<TEvent, TComplete, TFail>(Func<TEvent, Task> applyAsync)
+        where TEvent : class, IEvent<FundId>
+        where TComplete : class, ICompleteEvent<FundId>
+        where TFail : class, IErrorEvent<FundId>
+        => new(
+            typeof(TEvent),
+            EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            async (domainEvent, _) =>
             {
-                FundCreatedEvent e => await ProjectionBuilder.RunAsync<FundCreatedEvent, FundCreatedCompleteEvent, FundCreatedFailEvent, FundId>(
-                     e, o => db.InsertFundAsync(o.NewFund)),
-                OrderAddedToFundEvent e => await ProjectionBuilder.RunAsync<OrderAddedToFundEvent, OrderAddedToFundCompleteEvent, OrderAddedToFundFailEvent, FundId>(
-                     e, o => db.InsertFundOrderAsync(o.FundOrder)),
-                TradeAddedToFundOrderEvent e => await ProjectionBuilder.RunAsync<TradeAddedToFundOrderEvent, TradeAddedToFundOrderCompleteEvent, TradeAddedToFundOrderFailEvent, FundId>(
-                     e, o => db.InsertFundOrderTradeAsync(o.FundOrderTrade)),
-                OrderRemovedFromFundEvent e => await ProjectionBuilder.RunAsync<OrderRemovedFromFundEvent, OrderRemovedFromFundCompleteEvent, OrderRemovedFromFundFailEvent, FundId>(
-                    e, o => db.DeleteFundOrderAsync(o.FundOrderId.FundId, o.FundOrderId.OrderId)),
-                TradeRemovedFromFundOrderEvent e => await ProjectionBuilder.RunAsync<TradeRemovedFromFundOrderEvent, TradeRemovedFromFundOrderCompleteEvent, TradeRemovedFromFundOrderFailEvent, FundId>(
-                    e, o => db.DeleteFundOrderTradeAsync(o.FundOrderTradeId.FundId, o.FundOrderTradeId.OrderId, o.FundOrderTradeId.TradeId)),
-                FundOrderTradeStateChangedEvent e => await ProjectionBuilder.RunAsync<FundOrderTradeStateChangedEvent, FundOrderTradeStateChangedCompleteEvent, FundOrderTradeStateChangedFailEvent, FundId>(
-                    e, o => db.UpdateFundOrderTradeStateAsync(o.FundOrderTradeId.FundId, o.FundOrderTradeId.OrderId, o.FundOrderTradeId.TradeId, o.TradeState, o.UpdatedOn, o.UpdatedBy)),
-                FundOrderClosedEvent e => await ProjectionBuilder.RunAsync<FundOrderClosedEvent, FundOrderClosedCompleteEvent, FundOrderClosedFailEvent, FundId>(
-                    e, o => db.UpdateFundOrderStatusAsync(o.FundOrderId.FundId, o.FundOrderId.OrderId, OrderStatus.Closed)),
-                FundMaxProfitGeneratedEvent e => await ProjectionBuilder.RunAsync<FundMaxProfitGeneratedEvent, FundMaxProfitGeneratedCompleteEvent, FundMaxProfitGeneratedFailEvent, FundId>(
-                    e, _ => Task.CompletedTask),
-                _ => false
-            };
-        }
-        catch(Exception ex)
-        {
-            Logger.LogError(ex, "{ProcessQueue}: error processing event projection for: {EventName}", DurableProcessQueueName, domainEvent.GetType().Name);
-            throw;
-        }
-    }
+                await applyAsync((TEvent)domainEvent).ConfigureAwait(false);
+                return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
+            },
+            domainEvent => ((TEvent)domainEvent).ToCompleteEvent<TComplete, FundId>(),
+            (domainEvent, exception) => ((TEvent)domainEvent).ToFailEvent<TFail, FundId>(exception));
 }

@@ -341,11 +341,14 @@ ORDER BY el.eventVersion ASC;
             EventId, ActorName, ProjectorName, IsReplay, AttemptNumber,
             Outcome, Stage, ErrorMessage, CreatedTimestamp, UpdatedTimestamp,
             EventStreamId, SourceEventName, UpdatedAtUtc
-        ) VALUES (
+        )
+        SELECT
             $1, $2, $3, $4, $5,
             $6, $7, $8, $9, $10,
-            $11, $12, $13
-        )
+            el.EventStreamId, en.EventName, $11
+        FROM event_log el
+        JOIN event_name_id en ON en.EventNameId = el.EventNameId
+        WHERE el.EventVersion = $1
         ON CONFLICT (EventId, ProjectorName) DO NOTHING
         RETURNING
         """ + EventProjectorExecutionStateColumns + ";";
@@ -382,6 +385,28 @@ ORDER BY el.eventVersion ASC;
           AND ExecutionToken = $3
           AND Revision = $4
           AND LeaseExpiresAtUtc > $5
+          AND Outcome IN ('Processing', 'Retrying')
+        RETURNING
+        """ + EventProjectorExecutionStateColumns + ";";
+
+    public const string TryReleaseEventProjectorExecution = """
+        UPDATE event_projector_state
+        SET ExecutionToken = NULL,
+            LeaseExpiresAtUtc = NULL,
+            Outcome = 'Retrying',
+            RetryCount = $7,
+            NextAttemptAtUtc = $8,
+            LastErrorAtUtc = $9,
+            ErrorMessage = $10,
+            Revision = Revision + 1,
+            UpdatedAtUtc = $11,
+            UpdatedTimestamp = $12
+        WHERE EventId = $1
+          AND ProjectorName = $2
+          AND ExecutionToken = $3
+          AND Revision = $4
+          AND Stage = $5
+          AND LeaseExpiresAtUtc > $6
           AND Outcome IN ('Processing', 'Retrying')
         RETURNING
         """ + EventProjectorExecutionStateColumns + ";";
@@ -472,6 +497,7 @@ ORDER BY el.eventVersion ASC;
           AND eps.Outcome IN ('Processing', 'Retrying')
           AND eps.EventId > $3
           AND (eps.NextAttemptAtUtc IS NULL OR eps.NextAttemptAtUtc <= $4)
+          AND (eps.ExecutionToken IS NULL OR eps.LeaseExpiresAtUtc IS NULL OR eps.LeaseExpiresAtUtc <= $4)
         ORDER BY eps.EventId
         LIMIT $5;
         """;

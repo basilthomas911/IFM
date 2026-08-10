@@ -11,6 +11,12 @@ public sealed record EventProjectorReliabilityOptions
     /// Enables the SWO-06 bounded joined-state recovery path. It remains disabled until its rollout gate is approved.
     /// </summary>
     public bool BoundedRecoveryEnabled { get; init; }
+
+    /// <summary>
+    /// Enables immutable descriptor dispatch and fenced stage execution. This remains an independent rollout switch
+    /// so the descriptor conversion can ship without activating the new durable execution protocol.
+    /// </summary>
+    public bool FencedExecutionEnabled { get; init; }
     public int RecoveryBatchSize { get; init; } = 256;
     public int RecoveryStreamConcurrency { get; init; } = Math.Min(Environment.ProcessorCount, 8);
     public int MaximumReplayAttempts { get; init; } = 3;

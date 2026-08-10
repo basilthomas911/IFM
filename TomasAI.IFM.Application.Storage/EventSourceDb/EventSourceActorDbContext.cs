@@ -337,27 +337,6 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 commandData))
             .ExecuteScalarAsync(static value => value.GetBool(0));
 
-    /// <summary>
-    /// Asynchronously inserts a log entry for the result of an event projector into the event source database.
-    /// </summary>
-    /// <param name="log"></param>
-    /// <returns></returns>
-    /// <exception cref="NotImplementedException"></exception>
-    public async Task InsertEventProjectorResultAsync(EventProjectorResultReadModel log)
-        => throw new NotImplementedException();
-    /*
-    => await _dbFactory.ActorEventSourceDb
-            .Use(EventSourceDbSql.InsertEventProjectorResultLog)
-            .SetParameters(new InsertEventProjectorResultLog(
-                eventId: log.EventId,
-                eventVersion: log.EventVersion,
-                projectorName: log.ProjectorName,
-                result: $"{log.Result}"
-            ))
-            .ExecuteCommandAsync();
-    }
-    */
-
     public async Task InsertEventProjectorStateAsync(EventProjectorStateReadModel state)
         => await InsertEventProjectorStateAsync(state, CancellationToken.None).ConfigureAwait(false);
 
@@ -416,10 +395,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     {
         ArgumentNullException.ThrowIfNull(state);
         ValidateProjectorIdentity(state.EventId, state.ProjectorName);
-        if (state.EventStreamId <= 0)
-            throw new ArgumentOutOfRangeException(nameof(state), "A persisted event stream ID must be positive.");
         ArgumentException.ThrowIfNullOrWhiteSpace(state.ActorName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(state.SourceEventName);
         var createdTimestamp = RequireUtc(
             state.CreatedTimestamp == default ? DateTime.UtcNow : state.CreatedTimestamp,
             nameof(state.CreatedTimestamp));
@@ -440,8 +416,6 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 state.ErrorMessage ?? string.Empty,
                 $"{createdTimestamp:o}",
                 $"{updatedAtUtc:o}",
-                state.EventStreamId,
-                state.SourceEventName,
                 updatedAtUtc))
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
                 MapToEventProjectorExecutionState,
@@ -515,6 +489,38 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 expectedRevision,
                 nowUtc,
                 leaseExpiresAtUtc,
+                $"{nowUtc:o}"))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
+                MapToEventProjectorExecutionState,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> TryReleaseEventProjectorExecutionAsync(
+        EventProjectorStateTransition transition,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateTransition(transition, terminal: false);
+        if (transition.Outcome != EventProjectorOutcomeType.Retrying)
+            throw new ArgumentOutOfRangeException(nameof(transition), "A released execution must be retryable.");
+        if (!transition.NextAttemptAtUtc.HasValue || !transition.LastErrorAtUtc.HasValue)
+            throw new ArgumentException("A released execution requires retry and error timestamps.", nameof(transition));
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TryReleaseEventProjectorExecution)
+            .SetParameters(new TryReleaseEventProjectorExecution(
+                transition.EventId,
+                transition.ProjectorName,
+                transition.ExecutionToken,
+                transition.ExpectedRevision,
+                $"{transition.ExpectedStage}",
+                nowUtc,
+                transition.RetryCount,
+                transition.NextAttemptAtUtc.Value,
+                transition.LastErrorAtUtc.Value,
+                transition.ErrorMessage ?? string.Empty,
+                nowUtc,
                 $"{nowUtc:o}"))
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
                 MapToEventProjectorExecutionState,

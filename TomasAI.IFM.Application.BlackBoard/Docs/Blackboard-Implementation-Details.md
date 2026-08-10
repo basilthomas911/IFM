@@ -315,7 +315,10 @@ This decorator is covered by unit tests but is not registered in API Server DI a
 ### Event sourcing and projection
 
 - [`EventSourceActorDbContext`](../../TomasAI.IFM.Application.Storage/EventSourceDb/EventSourceActorDbContext.cs) uses `EventStreamId` and `EventNameId` as cache-aside lookups around event-source storage.
-- [`BaseEventProjector`](../../TomasAI.IFM.Application.EventProjector/BaseEventProjector.cs) and `EventProjectorBuilder` use `EventProjectorState`, isolated by projector name and event ID, while queueing, replaying, completing, or clearing projection work.
+- [`BaseEventProjector`](../../TomasAI.IFM.Application.EventProjector/BaseEventProjector.cs) uses Blackboard
+  `EventProjectorState`, isolated by projector name and event ID, only for legacy checkpoint compatibility and recovery
+  handoff. Fenced execution reads and conditionally updates PostgreSQL state directly; the mutable
+  `EventProjectorBuilder` has been removed.
 - No production `DomainEvents` call site was found during the audit.
 
 ### Market-data feed and analytics

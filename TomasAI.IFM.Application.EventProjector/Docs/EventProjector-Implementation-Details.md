@@ -1,313 +1,186 @@
 # Event Projector Implementation Details
 
-## Purpose
+## Purpose and current status
 
-`TomasAI.IFM.Application.EventProjector` provides the reusable application-layer workflow for projecting persisted domain events into read-side or integration-side state. It combines:
+`TomasAI.IFM.Application.EventProjector` projects committed event-sourced domain events into target read stores through
+a durable NATS JetStream queue. SWO-06 Tranches A-C are implemented:
 
-- a durable queue for asynchronous delivery and retry;
-- a persisted, per-event/per-projector checkpoint;
-- a Blackboard cache of active checkpoints;
-- a resumable projection state machine; and
-- actor-context publication of processing, completion, and failure events.
+- additive PostgreSQL execution state and compare-and-set fencing;
+- bounded, joined-keyset startup recovery;
+- immutable projector descriptors;
+- one claim/stage path for process and replay delivery;
+- explicit target idempotency contracts; and
+- fail-closed handling for unregistered and unknown source events.
 
-Concrete projectors inherit `BaseEventProjector<TActor>`, declare the event types they support, and route each event to `EventProjectorBuilder.RunAsync` with the projection operation that updates the target store.
+The transactional publication outbox is reserved for Tranche D. Both `BoundedRecoveryEnabled` and
+`FencedExecutionEnabled` remain `false` in production configuration until the rollout gate is approved.
 
-## Project folder map
-
-The following tree documents every directory currently present beneath the project root, from the root to each leaf. `bin` and `obj` are generated build trees; their contents can change with build configuration, target framework, SDK, and runtime assets.
-
-```text
-TomasAI.IFM.Application.EventProjector/       Project root
-├── Contracts/                                Public projector interfaces
-├── Docs/                                     Maintained project documentation
-├── bin/                                      Generated build output
-│   ├── Debug/
-│   │   └── net10.0/
-│   │       └── runtimes/
-│   │           └── win-x64/
-│   │               └── native/               Debug native runtime dependencies
-│   └── Release/
-│       └── net10.0/
-│           └── runtimes/
-│               └── win-x64/
-│                   └── native/               Release native runtime dependencies
-└── obj/                                      Generated intermediate build state
-    ├── Debug/
-    │   └── net10.0/
-    │       ├── ref/                          Debug reference assembly
-    │       └── refint/                       Debug internal reference assembly
-    └── Release/
-        └── net10.0/
-            ├── ref/                          Release reference assembly
-            └── refint/                       Release internal reference assembly
-```
-
-### Folder responsibilities
-
-| Folder | Kind | Responsibility |
-| --- | --- | --- |
-| `TomasAI.IFM.Application.EventProjector/` | Source | Owns the base projector, execution builder, state definition, project file, and its child folders. |
-| `Contracts/` | Source leaf | Defines `IEventProjector` and the actor-specific marker interface `IEventProjector<TActor>`. |
-| `Docs/` | Documentation leaf | Contains this implementation and project-structure reference. |
-| `bin/` | Generated | Root of compiled output. Do not edit or commit its contents. |
-| `bin/Debug/` | Generated | Debug-configuration output. |
-| `bin/Debug/net10.0/` | Generated | Debug assemblies, symbols, dependency metadata, and runtime assets for .NET 10. |
-| `bin/Debug/net10.0/runtimes/` | Generated | Runtime-specific Debug assets. |
-| `bin/Debug/net10.0/runtimes/win-x64/` | Generated | Windows x64 Debug assets. |
-| `bin/Debug/net10.0/runtimes/win-x64/native/` | Generated leaf | Native Windows x64 libraries copied from transitive dependencies. |
-| `bin/Release/` | Generated | Release-configuration output. |
-| `bin/Release/net10.0/` | Generated | Release assemblies, symbols, dependency metadata, and runtime assets for .NET 10. |
-| `bin/Release/net10.0/runtimes/` | Generated | Runtime-specific Release assets. |
-| `bin/Release/net10.0/runtimes/win-x64/` | Generated | Windows x64 Release assets. |
-| `bin/Release/net10.0/runtimes/win-x64/native/` | Generated leaf | Native Windows x64 libraries copied from transitive dependencies. |
-| `obj/` | Generated | Root of NuGet restore data and compiler/MSBuild intermediates. Do not edit or commit its contents. |
-| `obj/Debug/` | Generated | Debug compiler/MSBuild intermediates. |
-| `obj/Debug/net10.0/` | Generated | .NET 10 Debug generated sources, caches, assemblies, and reference folders. |
-| `obj/Debug/net10.0/ref/` | Generated leaf | Debug reference assembly consumed by other projects at compile time. |
-| `obj/Debug/net10.0/refint/` | Generated leaf | Debug internal reference assembly used during compilation. |
-| `obj/Release/` | Generated | Release compiler/MSBuild intermediates. |
-| `obj/Release/net10.0/` | Generated | .NET 10 Release generated sources, caches, assemblies, and reference folders. |
-| `obj/Release/net10.0/ref/` | Generated leaf | Release reference assembly consumed by other projects at compile time. |
-| `obj/Release/net10.0/refint/` | Generated leaf | Release internal reference assembly used during compilation. |
-
-## Source-file inventory
+## Source map
 
 | File | Responsibility |
 | --- | --- |
-| `BaseEventProjector.cs` | Implements projector startup, shutdown, durable intake, queued-event dispatch, startup recovery, terminal-state filtering, actor publication support, and exception-state recording. |
-| `EventProjectorRecoveryCoordinator.cs` | Executes optional bounded joined-keyset recovery with fenced claims, per-stream ordering, and configured cross-stream concurrency. |
-| `EventProjectorRecoveryResult.cs` | Reports discovered, queued, claim-conflict, and terminal-failure counts for one recovery pass. |
-| `EventProjectorReliabilityOptions.cs` | Configures the default-off bounded path, batch size, stream concurrency, claim lease, retry, and outbox limits. |
-| `EventProjectorBuilder.cs` | Configures the four workflow actions and executes the persisted projection state machine. |
-| `EventProjectorState.cs` | Defines a stream-oriented projector checkpoint record. It is not currently used by `BaseEventProjector` or `EventProjectorBuilder`, which use `EventProjectorStateReadModel` from the Shared project. |
-| `Contracts/IEventProjector.cs` | Defines the projector identity, lifecycle, intake, processing, infrastructure, cache, actor context, and logging contract. |
-| `TomasAI.IFM.Application.EventProjector.csproj` | Targets .NET 10 with nullable reference types and implicit usings enabled, and declares the project dependencies. |
-| `Docs/EventProjector-Implementation-Details.md` | This implementation and folder reference. |
-| `Docs/EventProjector-Recovery-Idempotency-Implementation-Plan.md` | SWO-06 review plan for fenced execution, bounded recovery, target idempotency, transactional publication outbox, terminal failures, metrics, and rollout. |
+| `BaseEventProjector.cs` | Validates descriptors, owns lifecycle and readiness, initializes durable intake, selects legacy or fenced execution, and publishes typed actor events. |
+| `EventProjectorExecutionEngine.cs` | Claims a leased execution, applies fenced stage transitions, releases failed claims for retry, terminalizes failures, and creates explicit target-operation contexts. |
+| `EventProjectorRecoveryCoordinator.cs` | Pages recoverable event/state rows, preserves same-stream ordering, and enqueues stable recovery candidates with bounded cross-stream concurrency. |
+| `EventProjectorReliabilityOptions.cs` | Contains activation switches and bounded recovery/retry/lease settings. |
+| `Contracts/EventProjectionDescriptor.cs` | Defines one immutable source type, target operation, idempotency strategy, and completion/failure factories. |
+| `Contracts/IEventProjector.cs` | Exposes projector identity, descriptors, lifecycle, readiness, data-plane entry points, and infrastructure dependencies. |
 
-## Project dependencies
+The removed `EventProjectorBuilder` must not be reintroduced. It stored mutable delegates and replaced the maximum-
+attempt handler during each event call, making concurrent dispatch dependent on call order. Descriptors are now created
+once by the concrete projector and frozen into a type-keyed dispatch table by the base class.
 
-The project directly references:
+## Immutable descriptor contract
 
-| Project | Role in this implementation |
-| --- | --- |
-| `TomasAI.IFM.Application.Storage` | Supplies `IEventSourceActorDbContext`, including persisted projector state and event-log recovery queries. |
-| `TomasAI.IFM.Framework.Messaging.NatsJetStream` | Supplies the durable replay-queue implementation through the `TomasAI.IFM.Framework.Messaging.Nats` assembly/namespace. |
-| `TomasAI.IFM.Shared` | Supplies event contracts, actor abstractions, queue contracts, projector enums/read models, conversion helpers, and event-sourcing types. |
+Every supported source event has exactly one `EventProjectionDescriptor` containing:
 
-The implementation also works with `IBlackboardService` to cache active `EventProjectorStateReadModel` values. Cache entries are isolated by projector and event using a key equivalent to `EventProjectorState:{projectorName}:{eventId}`.
+- its concrete source CLR type;
+- one declared `EventProjectionIdempotencyStrategy`;
+- a target operation accepting `ProjectionExecutionContext`;
+- a completion-event factory;
+- a failure-event factory; and
+- the processing-publication policy.
 
-## Public contract
+Startup rejects an empty table, duplicate source types, or any mismatch between `ProjectionDescriptors` and
+`ProjectedEventTypes`. A target operation returns `Applied`, `AlreadyApplied`, `Superseded`, or `Failed`. An
+`Unspecified` idempotency strategy is invalid.
 
-`IEventProjector` exposes four groups of members:
+`ProjectionExecutionContext` carries the durable projector name, event ID, event-stream ID, execution token,
+deterministic target-effect identity, strategy, and cancellation token. The effect identity is stable across retries;
+the execution token is deliberately unique to one claim.
 
-1. **Identity and routing**
-   - `ActorName`
-   - `ProjectorName`
-   - `DurableProcessQueueName`
-   - `DurableReplayQueueName`
-   - `ProjectedEventTypes`
-2. **Lifecycle**
-   - `StartAsync(context, cancellationToken)`
-   - `StopAsync(cancellationToken)`
-   - `Readiness`
-3. **Data plane**
-   - `DomainEventsProjectionAsync(domainEvents)`
-   - `ProcessDomainEventAsync(domainEvent)`
-4. **Infrastructure**
-   - `DbEventSource`
-   - `DurableReplayQueue`
-   - `BlackboardService`
-   - `Context`
-   - `Logger`
+## Fund projector contract
 
-`IEventProjector<TActor>` adds the constraint that the projector belongs to an `ICommandActor<TActor>` without adding more members.
+`FundEventProjector` owns eight immutable descriptors. All use `NaturalKeyMutation`:
 
-`DurableProcessQueueName` and `DurableReplayQueueName` are required identity properties and are available to derived projectors for logging or integration naming. The current base implementation calls `IDurableReplayQueue` with `ProjectorName` as its registration key; it does not pass either queue-name property to that abstraction.
+| Source event | Target mutation | Repeat-apply basis |
+| --- | --- | --- |
+| `FundCreatedEvent` | Upsert `fund` by `FundId` | Same key and complete deterministic payload. |
+| `OrderAddedToFundEvent` | Upsert `fund_order` by `(FundId, OrderId)` | Same key/payload; permanent order ownership prevents identity reuse. |
+| `TradeAddedToFundOrderEvent` | Upsert `fund_order_trade` by `(FundId, OrderId, TradeId)` | Same key and complete deterministic payload. |
+| `OrderRemovedFromFundEvent` | Delete `fund_order` by key | A repeated delete leaves the same absent state. |
+| `TradeRemovedFromFundOrderEvent` | Delete `fund_order_trade` by key | A repeated delete leaves the same absent state. |
+| `FundOrderTradeStateChangedEvent` | Set state/audit fields by key | Repeating the same values leaves identical state. |
+| `FundOrderClosedEvent` | Set order status to `Closed` | Repeating the same status leaves identical state. |
+| `FundMaxProfitGeneratedEvent` | No target write | The no-op is intrinsically repeat safe. |
 
-## Runtime lifecycle
+No Fund operation allocates a business ID, increments a value, appends under a new key, or calls an external target.
+Therefore Tranche C does not add a ScyllaDB receipt table. A future operation with any of those behaviors must use
+`TargetReceipt` or a proven conditional/commutative contract before registration.
 
-### Startup
+## Startup lifecycle
 
-The owning command actor calls `StartAsync` once during its lifecycle:
+`StartAsync` performs these phases in order:
 
-1. Store and validate the actor `ICommandActorContext`.
-2. Set projector readiness false.
-3. Call queue `PrepareAsync` to create durable resources without opening message consumption.
-4. Call `DequeueAsync` to register `ProcessQueuedDomainEventAsync`; registration performs no NATS I/O and starts no worker.
-5. Inventory and durably enqueue all eligible recovery work. The default path retains legacy full-set recovery. When
-   `BoundedRecoveryEnabled` is true, the coordinator uses joined event/state keyset pages and fenced claims.
-6. Call queue `StartAsync` with a 30-second replay interval.
-7. Publish projector readiness only after the recovery handoff and both worker starts succeed.
+1. validate and freeze descriptors;
+2. set the queue maximum attempts and register one stable terminal callback;
+3. prepare JetStream resources without starting consumption;
+4. register the single process/replay handler;
+5. inventory and enqueue recovery candidates;
+6. start process and replay workers; and
+7. publish readiness.
 
-Preparation, registration, recovery publication, and consumption are therefore distinct phases. Any failure invokes
-non-cancelable queue rollback, clears the actor context, retains readiness false with the failure reason, and rethrows.
-Accessing `Context` before a successful startup throws `InvalidOperationException`.
+Any startup failure stops partially started workers, clears the actor context, leaves readiness false, records the
+failure reason, and rethrows.
 
-### Shutdown
+When bounded recovery is enabled, recovery reads one joined event/state keyset page at a time. It excludes active
+unexpired leases, groups a page by event stream, maintains ascending event ID within a stream, and processes only
+independent streams concurrently. Normal events are enqueued without a recovery-time claim; the queue worker owns the
+single claim path. Multiple projector instances may attempt to publish the same recovery candidate, but the durable
+queue uses a stable NATS message ID so JetStream de-duplicates the publication. An event that cannot be deserialized is
+claimed and terminalized with `BlockedReason = unknown-source-event` because it cannot enter typed dispatch.
 
-`StopAsync` first clears readiness and then stops both durable workers registered for `ProjectorName`. The queue retains
-its configuration and handler registration, but enqueueing after stop cannot reopen consumption; a later explicit
-projector start is required.
+## Fenced intake and execution
 
-## Event intake and durable dispatch
+With `FencedExecutionEnabled = true`, live intake conditionally creates execution state before queue publication. The
+insert joins `event_log` and `event_name_id` by persisted event ID, deriving `EventStreamId` and `SourceEventName`
+atomically. It does not depend on the serialized event carrying `AggregateId`, and it does not add a stream lookup.
 
-`DomainEventsProjectionAsync` handles each event in order:
+Process and replay deliveries both call the same execution engine:
 
-1. Create an initial `EventProjectorStateReadModel`:
-   - `IsReplay = false`
-   - `AttemptNumber = 0`
-   - `Stage = PublishProcessingEvent`
-   - `Outcome = Processing`
-2. Persist the state through `InsertEventProjectorStateAsync`.
-3. Cache the state in the Blackboard under `(EventId, ProjectorName)`.
-4. Enqueue the domain event under `ProjectorName`.
+1. load or conditionally create `(EventId, ProjectorName)` state;
+2. short-circuit a terminal state;
+3. claim with a random execution token and bounded lease;
+4. perform the current stage's external operation;
+5. advance only through a token/revision/stage compare-and-set; and
+6. terminalize by clearing the token and lease.
 
-Persisting the recovery marker before enqueueing closes the failure window in which the source event has committed but queue publication fails. A later startup can recover the event from the event log because its nonterminal projector state already exists.
-
-When a queued event is delivered, `ProcessQueuedDomainEventAsync` loads its state from the Blackboard first and then the database. If neither contains a state, it creates and persists one. Terminal entries are acknowledged without reapplying the projection; nonterminal entries are cached and delegated to the derived `ProcessDomainEventAsync` implementation.
-
-## Projection workflow
-
-A derived projector normally creates a fresh builder and calls:
-
-```csharp
-await CreateProjectionBuilder()
-    .RunAsync<TEvent, TComplete, TFail, TEntityId>(
-        sourceEvent,
-        e => targetStore.ApplyAsync(e));
-```
-
-`RunAsync` configures four actions:
-
-| Action | Behavior |
-| --- | --- |
-| Processing-event action | Validates that `CommandId` is populated and, unless `postProjectionEvent` is `false`, publishes the source event through the actor context after normalizing its subject. |
-| Projection action | Invokes the supplied `Func<TEvent, Task>` and converts normal completion into a successful `ServiceResult`. |
-| Completed-event action | Converts the source event to `TComplete` and publishes it through the actor context when conversion succeeds. |
-| Failed-event action | Converts the source event and error into `TFail` and publishes it through the actor context when conversion succeeds. |
-
-The builder then loads the existing persisted state and resumes at its current stage.
+The normal state path is:
 
 ```text
-PublishProcessingEvent
-        │ publish source/processing event (optional)
-        ▼
-ApplyProjection
-        │
-        ├── successful result ──► PublishCompletedEvent ──► Completed / Completed
-        │
-        └── failed result ──────► PublishFailedEvent ─────► Completed / Failed
-
-Any thrown exception
-        └── persist current stage with Retrying, then rethrow to the durable queue
+PublishProcessingEvent -> ApplyProjection -> PublishCompletedEvent -> Completed
+                                      |
+                                      +-> PublishFailedEvent -> Completed / Failed
 ```
 
-### State transitions
+`ValidateSourceEvent` and `PersistCompletion` remain accepted resume stages for compatible durable rows. Fund uses
+`NeverSupersede` semantics: its handlers never return `Superseded`.
 
-| Current stage | Operation | Next stage | Outcome after transition | Cache behavior |
-| --- | --- | --- | --- | --- |
-| `PublishProcessingEvent` | Optionally publish the processing/source event. | `ApplyProjection` | Unchanged | Persist and update cache. |
-| `ApplyProjection` | Apply the supplied target-store operation. | `PublishCompletedEvent` on success | `Processing` | Persist and update cache. |
-| `ApplyProjection` | Receive an unsuccessful `ServiceResult`. | `PublishFailedEvent` | `Retrying` with error text | Persist and update cache. |
-| `PublishCompletedEvent` | Publish the typed completion event. | `Completed` | `Completed` | Persist and clear cache. |
-| `PublishFailedEvent` | Publish the typed failure event. | `Completed` | `Failed` | Persist and clear cache. |
-| Any active stage | Catch a thrown exception. | Current stage is retained. | `Retrying` with exception message | Persist, update cache, and rethrow. |
+If an operation throws or a checkpoint loses its fence, the engine conditionally releases the claim at the same stage:
 
-The shared stage enum also defines `None`, `ValidateSourceEvent`, and `PersistCompletion`, but the current builder does not enter or handle those stages. Loading one of them as an active stage causes `InvalidOperationException`, which is persisted as a retrying failure and rethrown.
+- token and lease are cleared;
+- outcome becomes `Retrying`;
+- retry count and bounded exponential next-attempt time are recorded; and
+- the exception is rethrown to JetStream.
 
-## Delivery, retry, and idempotency semantics
+Immediate release is essential. Without it, a 30-second redelivery could exhaust its delivery count while a stale
+two-minute lease still prevents every retry from claiming the state. A stale owner cannot release, transition, or
+terminalize after another owner changes the token or revision.
 
-The workflow provides **at-least-once** side-effect delivery. At each stage, the external action runs before the next stage is persisted. A process failure between those two operations causes the same stage to run again. Consequently:
+## Unknown and terminal behavior
 
-- processing events may be published more than once;
-- the projection operation may be applied more than once;
-- completion or failure events may be published more than once; and
-- target-store writes and downstream event consumers must be idempotent, normally using the source event identity or an equivalent unique key.
+An unregistered runtime type is never treated as successful. If durable execution state exists, it is terminalized as
+`Failed` with `BlockedReason = unregistered-source-event`. Failed failure-event conversion uses
+`failed-event-conversion`. Maximum delivery exhaustion uses `maximum-attempts-reached`. These states preserve the source
+event/state for later operator resolution.
 
-If an action throws, the builder records `Outcome = Retrying`, retains the current stage, stores the exception message, and rethrows. The durable queue owns retry scheduling and attempt accounting.
+A state is terminal when its stage is `Completed` or its outcome is `Completed`, `Failed`, `Cancelled`, `Superseded`,
+or `AlreadyCompleted`.
 
-Each `RunAsync` call registers a maximum-attempt callback. When the queue declares attempts exhausted, the callback:
+## Compatibility path and activation
 
-1. loads the current state from cache or storage, or creates a replay fallback state;
-2. sets `Stage = Completed` and `Outcome = Failed`;
-3. records a maximum-attempt error message;
-4. persists the terminal state; and
-5. clears the Blackboard entry.
+When `FencedExecutionEnabled` is false, immutable descriptors still replace the mutable builder, but the base class
+updates the legacy `EventProjectorStateReadModel` through the existing upsert/cache flow. This permits descriptor
+deployment without mixing legacy and fenced workers.
 
-The maximum-attempt callback does not publish the typed `TFail` event.
+Current application settings:
 
-The public `RunAsync` overload accepts `Func<TEvent, Task>`. Its wrapper returns success whenever that task completes and represents failure by a thrown exception. Therefore the explicit unsuccessful-`ServiceResult` branch and `PublishFailedEvent` stage are present in the internal state machine but are not directly reachable through this public overload unless another processing-action API is introduced.
+```json
+{
+  "EventProjectorReliability": {
+    "BoundedRecoveryEnabled": false,
+    "FencedExecutionEnabled": false
+  }
+}
+```
 
-## Startup recovery
+Activation requires draining projector workers, enabling bounded recovery and fenced execution on one canary, and
+verifying PostgreSQL state, ScyllaDB Fund rows, JetStream lag/redelivery, blocked rows, and claim conflicts before
+expanding. Never run legacy and fenced workers concurrently for the same persisted projector identity.
 
-The legacy `RecoverUncompletedEventsAsync` path remains the production default and performs recovery before the queue
-worker starts:
+## Tranche C verification
 
-1. Convert `ProjectedEventTypes` to distinct CLR type names.
-2. Query event-log entries eligible for recovery for this `ProjectorName` and those event names.
-3. Deserialize each log entry.
-4. If deserialization yields `UnknownEvent`, persist a terminal failed state and log an error.
-5. Otherwise load the explicit projector state for `(event version, projector name)`.
-6. Skip an entry with no explicit state, logging a warning. This prevents a projector from claiming historical events that were never marked for it.
-7. Skip terminal states.
-8. Re-persist and cache each nonterminal state, then enqueue the reconstructed event.
+The verification gate covers:
 
-Recovery is projector-specific: multiple projectors can independently checkpoint the same source event because both persistence and cache lookup include `ProjectorName`.
+- descriptor uniqueness and explicit strategy for all eight Fund events;
+- crash after target write but before checkpoint, followed by safe repeat application;
+- unregistered-event manual-resolution terminalization;
+- conditional release and immediate takeover by a new owner;
+- stale token/revision rejection;
+- repeat application of all eight operations against real ScyllaDB;
+- fenced live projection through real PostgreSQL, NATS JetStream, and ScyllaDB; and
+- legacy projection/recovery compatibility while activation flags remain off.
 
-The cancellation token is checked between recovered entries and is also passed to queue enqueueing.
+Relevant suites are:
 
-When `EventProjectorReliabilityOptions.BoundedRecoveryEnabled` is true, `EventProjectorRecoveryCoordinator` replaces
-that scan with the Tranche B path:
+- `TomasAI.IFM.Domain.Fund.UnitTests/FundEventProjectorTests.cs`;
+- `TomasAI.IFM.Domain.Fund.UnitTests/EventProjectorRecoveryCoordinatorTests.cs`;
+- `TomasAI.IFM.Application.Storage.IntegrationTests/EventSourceDb/EventSourceActorSnapshotRangeTests.cs`;
+- `TomasAI.IFM.Application.Storage.IntegrationTests/EventSourceDb/EventProjectorStatePersistenceTests.cs`; and
+- `TomasAI.IFM.Domain.Fund.IntegrationTests/FundEventProjectionIntegrationTests.cs`.
 
-1. Request at most `RecoveryBatchSize` joined event/state rows using an event-ID keyset cursor.
-2. Hold only the current page in recovery inventory.
-3. Group the page by `EventStreamId`; preserve ascending `EventId` order within every stream.
-4. Process independent streams with `RecoveryStreamConcurrency` lanes while never overlapping work for one stream.
-5. Conditionally claim each row using a new execution token and `ClaimLease`.
-6. Treat a failed claim as ownership by another instance and do not enqueue it.
-7. Terminalize an unknown source-event type; otherwise cache the claimed state and durably enqueue the event.
-8. Await the entire page before advancing the keyset cursor, which preserves same-stream order across page boundaries.
+## Next tranche
 
-This path removes the state N+1 read and full-backlog materialization. It is deliberately disabled by default until
-later SWO-06 tranches unify fenced stage execution, target idempotency, and transactional publication.
-
-## Terminal-state rules
-
-The base class treats an event as terminal when either:
-
-- `Stage == Completed`; or
-- `Outcome` is `Completed`, `Failed`, `Cancelled`, `Superseded`, or `AlreadyCompleted`.
-
-`Processing` and `Retrying` remain eligible for dispatch or startup recovery.
-
-## Extension pattern
-
-A concrete projector must:
-
-1. Inherit `BaseEventProjector<TActor>`.
-2. Provide actor, projector, and queue names.
-3. Return every supported source event type in `ProjectedEventTypes`; startup recovery depends on this list.
-4. Implement `ProcessDomainEventAsync` and dispatch supported runtime event types.
-5. For each supported event, create a fresh `EventProjectorBuilder` and call `RunAsync` with its completion type, failure type, entity-id type, and idempotent projection operation.
-6. Allow processing exceptions to propagate so the durable queue can retry them.
-
-The repository's `FundEventProjector` is the reference implementation: it switches over supported fund events and maps each one to a database insert, update, delete, or no-op projection.
-
-## Operational cautions
-
-- Start the projector before accepting event batches; builder event publication requires `Context`.
-- Keep `ProjectedEventTypes` synchronized with the derived dispatch switch, or startup recovery will omit supported events.
-- Use a new builder per projection. Builder delegates are mutable and only initialize when null unless explicitly overwritten; sharing one builder across unrelated event types can retain actions from a prior run.
-- Treat `ProjectorName` as stable persisted identity. Renaming it creates a new checkpoint/cache namespace and prevents the renamed projector from finding old state under the previous name.
-- Make projection writes and downstream event handlers idempotent because state advances only after side effects complete.
-- Ensure event conversion metadata supports `ToCompleteEvent` and `ToFailEvent`; a null conversion silently suppresses the corresponding publication.
-- Do not use `EventProjectorState` as though it were the active checkpoint without an explicit migration. The running implementation persists `EventProjectorStateReadModel`, keyed by numeric event ID and projector name.
-
-## Verification locations
-
-Behavior is exercised outside this project by:
-
-- `TomasAI.IFM.Domain.Fund.UnitTests/FundEventProjectorTests.cs` for base projector behavior;
-- `TomasAI.IFM.Domain.Fund.IntegrationTests/FundEventProjectionIntegrationTests.cs` for integrated projection flows; and
-- `TomasAI.IFM.Application.Storage.IntegrationTests/EventSourceDb/EventProjectorStatePersistenceTests.cs` for projector-state persistence.
+Tranche D adds atomic PostgreSQL state-plus-outbox persistence, bounded outbox dispatch, deterministic publication IDs,
+typed terminal failure publication, and operator retry/skip queries. Until that tranche is complete, processing and
+completion/failure publications remain at-least-once and their consumers must remain idempotent.

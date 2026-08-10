@@ -136,8 +136,6 @@ internal readonly record struct TryCreateEventProjectorExecutionState(
     string errorMessage,
     string createdTimestamp,
     string updatedTimestamp,
-    long eventStreamId,
-    string sourceEventName,
     DateTime updatedAtUtc) : IBindValue
 {
     public object Bind() => Values(
@@ -151,8 +149,6 @@ internal readonly record struct TryCreateEventProjectorExecutionState(
         Text(errorMessage),
         Text(createdTimestamp),
         Text(updatedTimestamp),
-        Bigint(eventStreamId),
-        Text(sourceEventName),
         TimestampTz(updatedAtUtc));
 }
 internal readonly record struct TryClaimEventProjectorExecution(
@@ -187,6 +183,34 @@ internal readonly record struct TryRenewEventProjectorExecution(
         Bigint(expectedRevision),
         TimestampTz(nowUtc),
         TimestampTz(leaseExpiresAtUtc),
+        Text(updatedTimestamp));
+}
+internal readonly record struct TryReleaseEventProjectorExecution(
+    long eventId,
+    string projectorName,
+    Guid executionToken,
+    long expectedRevision,
+    string expectedStage,
+    DateTime nowUtc,
+    int retryCount,
+    DateTime nextAttemptAtUtc,
+    DateTime lastErrorAtUtc,
+    string errorMessage,
+    DateTime updatedAtUtc,
+    string updatedTimestamp) : IBindValue
+{
+    public object Bind() => Values(
+        Bigint(eventId),
+        Text(projectorName),
+        Uuid(executionToken),
+        Bigint(expectedRevision),
+        Text(expectedStage),
+        TimestampTz(nowUtc),
+        Integer(retryCount),
+        TimestampTz(nextAttemptAtUtc),
+        TimestampTz(lastErrorAtUtc),
+        Text(errorMessage),
+        TimestampTz(updatedAtUtc),
         Text(updatedTimestamp));
 }
 internal readonly record struct TryTransitionEventProjectorExecution(

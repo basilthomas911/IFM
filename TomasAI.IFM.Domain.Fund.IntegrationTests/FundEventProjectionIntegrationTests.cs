@@ -5,6 +5,7 @@ using NATS.Client.JetStream;
 using NATS.Net;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Fund.Command;
@@ -15,6 +16,7 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -64,7 +66,12 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
             queue,
             database.ActorEventSourceDb,
             database.BlackboardService,
-            Substitute.For<ILogger<FundEventProjector>>());
+            Substitute.For<ILogger<FundEventProjector>>(),
+            new EventProjectorReliabilityOptions
+            {
+                BoundedRecoveryEnabled = true,
+                FencedExecutionEnabled = true
+            });
         var repository = CreateRepository(projector);
         var (fund, command, state) = CreateFundState();
         Track(fund.FundId, command.StreamId);
@@ -150,6 +157,132 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
         finally
         {
             await projector.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Fund_projection_descriptors_are_repeat_apply_safe_for_all_eight_operations()
+    {
+        var projector = CreateProjector(Substitute.For<IDurableReplayQueue>());
+        projector.ProjectionDescriptors.Should().HaveCount(8)
+            .And.OnlyContain(descriptor =>
+                descriptor.IdempotencyStrategy == EventProjectionIdempotencyStrategy.NaturalKeyMutation);
+
+        var fundId = Random.Shared.Next(2_000_001, 2_100_000);
+        var orderId = Random.Shared.Next(2_100_001, 2_200_000);
+        var tradeId = Random.Shared.Next(2_200_001, 2_300_000);
+        var now = DateTime.UtcNow;
+        var fund = new FundReadModel(
+            fundId,
+            $"Repeat-safe fund {fundId}",
+            "SWO-06 Tranche C",
+            250_000m,
+            false,
+            now,
+            "integration-test");
+        var order = new FundOrderReadModel(
+            fundId,
+            orderId,
+            now,
+            TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open,
+            "ES",
+            DateOnly.FromDateTime(now),
+            DateOnly.FromDateTime(now.AddMonths(3)),
+            "repeat-safe",
+            now,
+            "integration-test",
+            null,
+            string.Empty);
+        var trade = new FundOrderTradeReadModel(
+            fundId,
+            orderId,
+            tradeId,
+            TradeType.LongCall,
+            DateOnly.FromDateTime(now),
+            DateOnly.FromDateTime(now.AddMonths(3)),
+            TradeState.TradeToOpen,
+            TradeAction.Buy,
+            "repeat-safe",
+            true,
+            "ES",
+            now,
+            "integration-test",
+            null,
+            string.Empty);
+        var fundOrderId = new FundOrderId(fundId, orderId);
+        var fundOrderTradeId = new FundOrderTradeId(fundId, orderId, tradeId);
+        IEvent[] events =
+        [
+            new FundCreatedEvent { NewFund = fund },
+            new OrderAddedToFundEvent { FundOrder = order },
+            new TradeAddedToFundOrderEvent { FundOrderTrade = trade },
+            new FundOrderTradeStateChangedEvent
+            {
+                FundOrderTradeId = fundOrderTradeId,
+                TradeState = TradeState.OrderCompleted,
+                UpdatedOn = now.AddMinutes(1),
+                UpdatedBy = "integration-test"
+            },
+            new FundOrderClosedEvent { FundOrderId = fundOrderId },
+            new FundMaxProfitGeneratedEvent
+            {
+                FundOrder = order,
+                FundMaxProfit = new FundMaxProfitReadModel(fundOrderId, 100m, 0.10)
+            },
+            new TradeRemovedFromFundOrderEvent { FundOrderTradeId = fundOrderTradeId },
+            new OrderRemovedFromFundEvent { FundOrderId = fundOrderId }
+        ];
+
+        for (var index = 0; index < events.Length; index++)
+            EventInitHelper.SetProperty(events[index], nameof(IEvent.EventId), index + 1L);
+
+        try
+        {
+            foreach (var domainEvent in events.Take(6))
+                await ApplyTwiceAsync(projector, domainEvent);
+
+            var persistedFund = await database.FundDb.GetFundAsync(fundId);
+            persistedFund.Should().NotBeNull();
+            persistedFund!.Name.Should().Be(fund.Name);
+            persistedFund.Description.Should().Be(fund.Description);
+            persistedFund.Balance.Should().Be(fund.Balance);
+            persistedFund.IsProduction.Should().Be(fund.IsProduction);
+            (await database.FundDb.GetFundOrderAsync(fundId, orderId))!.OrderStatus.Should()
+                .Be(TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Closed);
+            (await database.FundDb.GetFundOrderTradeAsync(fundId, orderId, tradeId))!.TradeState
+                .Should().Be(TradeState.OrderCompleted);
+
+            await ApplyTwiceAsync(projector, events[6]);
+            (await database.FundDb.GetFundOrderTradeAsync(fundId, orderId, tradeId)).Should().BeNull();
+            await ApplyTwiceAsync(projector, events[7]);
+            (await database.FundDb.GetFundOrderAsync(fundId, orderId)).Should().BeNull();
+            (await database.FundDb.GetFundAsync(fundId)).Should().NotBeNull();
+        }
+        finally
+        {
+            await database.FundDb.DeleteFundOrderTradeAsync(fundId, orderId, tradeId);
+            await database.FundDb.DeleteFundOrderAsync(fundId, orderId);
+            await database.FundDb.DeleteFundAsync(fundId);
+        }
+
+        static async Task ApplyTwiceAsync(FundEventProjector projector, IEvent domainEvent)
+        {
+            var descriptor = projector.ProjectionDescriptors.Single(candidate =>
+                candidate.SourceEventType == domainEvent.GetType());
+            var context = new ProjectionExecutionContext(
+                projector.ProjectorName,
+                domainEvent.EventId,
+                1,
+                new EventProjectorEffectIdentity(
+                    projector.ProjectorName,
+                    domainEvent.EventId,
+                    EventProjectorEffectKind.TargetProjection),
+                Guid.NewGuid(),
+                descriptor.IdempotencyStrategy,
+                CancellationToken.None);
+
+            (await descriptor.ApplyAsync(domainEvent, context)).Outcome.Should().Be(EventProjectionApplyOutcome.Applied);
+            (await descriptor.ApplyAsync(domainEvent, context)).Outcome.Should().Be(EventProjectionApplyOutcome.Applied);
         }
     }
 
@@ -269,8 +402,15 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
         IDurableReplayQueue durableReplayQueue,
         IEventSourceActorDbContext dbEventSource,
         IBlackboardService blackboardService,
-        ILogger<FundEventProjector> logger)
-        : FundEventProjector(dbFactory, durableReplayQueue, dbEventSource, blackboardService, logger)
+        ILogger<FundEventProjector> logger,
+        EventProjectorReliabilityOptions? reliabilityOptions = null)
+        : FundEventProjector(
+            dbFactory,
+            durableReplayQueue,
+            dbEventSource,
+            blackboardService,
+            logger,
+            reliabilityOptions)
     {
         readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ProcessingStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -9,9 +9,15 @@ deterministic storage contention tests.
 
 Tranche B was completed on 2026-08-10. Queue preparation and handler registration no longer start workers; recovery
 publication finishes before an explicit worker start and readiness transition. The optional joined-keyset coordinator
-bounds inventory to one page, preserves per-stream order, uses conditional claims, and is disabled by default pending
-Tranche C. At 100,000 synthetic events it measured 317.05 ms versus 1,020.38 ms for the current path. PostgreSQL and
-NATS latency are intentionally excluded. Tranche C is the next implementation gate.
+bounds inventory to one page, preserves per-stream order, and is disabled by default pending rollout approval. At
+100,000 synthetic events it measured 317.05 ms versus 1,020.38 ms for the current path. PostgreSQL and NATS latency are
+intentionally excluded.
+
+Tranche C was completed on 2026-08-10. Immutable descriptors replaced the mutable builder, process and replay now share
+one worker-time claim/fencing path, all eight Fund operations declare and prove natural-key repeat safety, failed claims
+are explicitly released for retry, and unknown/unregistered types fail closed. Real PostgreSQL, NATS JetStream, and
+ScyllaDB tests passed. Production activation remains off through independent bounded-recovery and fenced-execution
+switches. Tranche D is the next implementation gate.
 
 ## Status and scope
 
@@ -284,6 +290,13 @@ the full synthetic recovery shape. Production activation remains off through `Bo
 
 Gate: crash-after-target-write tests show identical durable Fund state and no duplicate business identities.
 
+Completed 2026-08-10. The checkpoint-loss fault test applies the target mutation, rejects the stale checkpoint,
+releases ownership, repeats the same mutation, and reaches one terminal state. Real ScyllaDB repeat-apply coverage
+executes all eight Fund descriptors twice and proves identical final keys/state. The live fenced integration flow uses
+real PostgreSQL, NATS JetStream, and ScyllaDB. Unused parallel state, timing, retry-action, empty-result, and mutable
+builder types were removed after a repository-wide reference audit. `FencedExecutionEnabled` remains false in the
+application configuration pending rollout approval.
+
 ### Tranche D: Transactional outbox and terminal failures
 
 1. Persist publication payloads and state transitions atomically in PostgreSQL.
@@ -400,5 +413,5 @@ The following decisions were accepted before Tranche A implementation:
    workers are ready.
 6. Implement SWO-06 in the five tranches above, with a review/activation gate after each tranche.
 
-Tranche C may now unify process and replay deliveries behind fenced stage execution and Fund target idempotency.
-Production activation remains disabled until that tranche's crash-after-write and regression gates pass.
+Tranche D may now add transactional state-plus-publication outbox behavior and typed terminal failures. Production
+activation remains disabled until the later rollout gate passes.

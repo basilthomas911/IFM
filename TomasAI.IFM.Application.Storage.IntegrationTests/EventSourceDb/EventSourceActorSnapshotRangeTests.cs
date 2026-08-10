@@ -344,6 +344,65 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
     }
 
     [Fact]
+    public async Task Projector_release_makes_a_failed_stage_immediately_claimable_by_a_new_owner()
+    {
+        var stream = NewStream();
+        var saved = await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent()]));
+        var persisted = saved.Single();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"ReleaseProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+        (await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+            NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc))).Should().NotBeNull();
+
+        var firstToken = Guid.NewGuid();
+        var firstOwner = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            persisted.EventId,
+            projectorName,
+            firstToken,
+            nowUtc,
+            TimeSpan.FromMinutes(2));
+        firstOwner.Should().NotBeNull();
+        var retryAtUtc = nowUtc.AddSeconds(30);
+        var released = await fixture.ActorEventDb.TryReleaseEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                persisted.EventId,
+                projectorName,
+                firstToken,
+                firstOwner!.Revision,
+                firstOwner.Stage,
+                firstOwner.Stage,
+                EventProjectorOutcomeType.Retrying,
+                firstOwner.LastCompletedStage,
+                1,
+                retryAtUtc,
+                nowUtc.AddSeconds(1),
+                "injected target failure"),
+            nowUtc.AddSeconds(1));
+
+        released.Should().NotBeNull();
+        released!.ExecutionToken.Should().BeNull();
+        released.LeaseExpiresAtUtc.Should().BeNull();
+        released.Outcome.Should().Be(EventProjectorOutcomeType.Retrying);
+        released.RetryCount.Should().Be(1);
+        released.NextAttemptAtUtc.Should().BeCloseTo(retryAtUtc, TimeSpan.FromMilliseconds(1));
+
+        var secondToken = Guid.NewGuid();
+        var secondOwner = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            persisted.EventId,
+            projectorName,
+            secondToken,
+            nowUtc.AddSeconds(2),
+            TimeSpan.FromMinutes(2));
+        secondOwner.Should().NotBeNull();
+        secondOwner!.ExecutionToken.Should().Be(secondToken);
+        secondOwner.Revision.Should().Be(released.Revision + 1);
+    }
+
+    [Fact]
     public async Task Legacy_projector_upsert_populates_additive_stream_identity_for_bounded_recovery()
     {
         var stream = NewStream();

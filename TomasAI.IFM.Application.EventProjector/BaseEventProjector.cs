@@ -1,4 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Collections.Frozen;
+using System.Reflection;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -36,6 +39,11 @@ public abstract class BaseEventProjector<TActor> (
 {
     readonly EventProjectorReliabilityOptions _reliabilityOptions =
         (reliabilityOptions ?? new EventProjectorReliabilityOptions()).Validate();
+    readonly object _descriptorLock = new();
+    FrozenDictionary<Type, EventProjectionDescriptor>? _descriptorMap;
+    EventProjectorExecutionEngine? _executionEngine;
+    static readonly ConcurrentDictionary<Type, Func<ICommandActorContext, IEvent, CancellationToken, ValueTask>>
+        EventPublishers = new();
     ICommandActorContext? _context;
     EventProjectorReadinessSnapshot _readiness = new(
         string.Empty,
@@ -49,6 +57,7 @@ public abstract class BaseEventProjector<TActor> (
     public abstract string DurableProcessQueueName { get; }
     public abstract string DurableReplayQueueName { get; }
     public abstract IReadOnlyCollection<Type> ProjectedEventTypes { get; }
+    public abstract IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; }
 
     public EventProjectorReadinessSnapshot Readiness => Volatile.Read(ref _readiness) with
     {
@@ -62,8 +71,24 @@ public abstract class BaseEventProjector<TActor> (
         return Readiness;
     }
 
-     /// <inheritdoc />
-    public abstract ValueTask ProcessDomainEventAsync(IEvent domainEvent);
+    /// <inheritdoc />
+    public virtual async ValueTask ProcessDomainEventAsync(IEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        if (!GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
+        {
+            if (_reliabilityOptions.FencedExecutionEnabled)
+                await ExecutionEngine.TerminalizeUnregisteredAsync(domainEvent).ConfigureAwait(false);
+            else
+                await TerminalizeLegacyUnregisteredAsync(domainEvent).ConfigureAwait(false);
+            return;
+        }
+
+        if (_reliabilityOptions.FencedExecutionEnabled)
+            await ExecutionEngine.ExecuteAsync(domainEvent, descriptor).ConfigureAwait(false);
+        else
+            await ExecuteLegacyDescriptorAsync(domainEvent, descriptor).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Gets the database context for event sourcing operations.
@@ -90,13 +115,6 @@ public abstract class BaseEventProjector<TActor> (
     public ILogger Logger { get; init; }  = IsArgumentNull.Set(logger);
 
     /// <summary>
-    /// Creates a new instance of the <see cref="EventProjectorBuilder"/> class for configuring event projections.
-    /// </summary>
-    /// <returns></returns>
-    protected EventProjectorBuilder CreateProjectionBuilder() 
-        => new (this);
-
-    /// <summary>
     /// Registers the projector's event handler and starts its durable process and replay queue workers.
     /// </summary>
     /// <param name="context">The runtime context created for the command actor that owns this projector.</param>
@@ -113,9 +131,16 @@ public abstract class BaseEventProjector<TActor> (
         CancellationToken cancellationToken = default)
     {
         _context = IsArgumentNull.Set(context);
+        _ = GetDescriptorMap();
         SetReadiness(false, 0, 0);
         try
         {
+            DurableReplayQueue.SetMaxReplayAttemps(
+                ProjectorName,
+                _reliabilityOptions.MaximumReplayAttempts);
+            DurableReplayQueue.SetMaxAttemptsReachedAction(
+                ProjectorName,
+                HandleMaximumAttemptsAsync);
             await DurableReplayQueue.PrepareAsync(
                 ProjectorName,
                 _reliabilityOptions.InitialReplayDelay,
@@ -182,6 +207,22 @@ public abstract class BaseEventProjector<TActor> (
     {
         foreach (var domainEvent in domainEvents)
         {
+            if (!GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
+                throw new InvalidOperationException(
+                    $"Event type '{domainEvent.GetType().FullName}' is not registered by projector '{ProjectorName}'.");
+
+            if (_reliabilityOptions.FencedExecutionEnabled)
+            {
+                var state = await ExecutionEngine.InitializeAsync(
+                    domainEvent,
+                    descriptor,
+                    isReplay: false).ConfigureAwait(false);
+                if (IsTerminal(state))
+                    continue;
+                await DurableReplayQueue.EnqueueAsync(ProjectorName, domainEvent).ConfigureAwait(false);
+                continue;
+            }
+
             var projectionState = CreateInitialState(domainEvent.EventId);
 
             // Persist the recoverable marker before publishing. If publication fails after the event-log
@@ -197,6 +238,12 @@ public abstract class BaseEventProjector<TActor> (
 
     async Task ProcessQueuedDomainEventAsync(IEvent domainEvent)
     {
+        if (_reliabilityOptions.FencedExecutionEnabled)
+        {
+            await ProcessDomainEventAsync(domainEvent).ConfigureAwait(false);
+            return;
+        }
+
         var currentState = BlackboardService.EventSourcing.EventProjectorState.Get(
             domainEvent.EventId,
             ProjectorName)
@@ -216,6 +263,168 @@ public abstract class BaseEventProjector<TActor> (
             ProjectorName,
             currentState);
         await ProcessDomainEventAsync(domainEvent);
+    }
+
+    async ValueTask ExecuteLegacyDescriptorAsync(
+        IEvent domainEvent,
+        EventProjectionDescriptor descriptor)
+    {
+        var currentState = BlackboardService.EventSourcing.EventProjectorState.Get(
+                domainEvent.EventId,
+                ProjectorName)
+            ?? await DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)
+            ?? throw new InvalidOperationException(
+                $"Projection state was not initialized for event {domainEvent.EventId} and projector '{ProjectorName}'.");
+        BlackboardService.EventSourcing.EventProjectorState.Set(
+            domainEvent.EventId,
+            ProjectorName,
+            currentState);
+
+        try
+        {
+            while (!IsTerminal(currentState))
+            {
+                switch (currentState.Stage)
+                {
+                    case EventProjectorStageType.PublishProcessingEvent:
+                        if (descriptor.PublishProcessingEvent)
+                            await PublishProjectionEventAsync(domainEvent, CancellationToken.None).ConfigureAwait(false);
+                        currentState = currentState with
+                        {
+                            Stage = EventProjectorStageType.ApplyProjection,
+                            UpdatedTimestamp = DateTime.UtcNow
+                        };
+                        await PersistLegacyStateAsync(currentState).ConfigureAwait(false);
+                        break;
+
+                    case EventProjectorStageType.ApplyProjection:
+                        var executionState = await DbEventSource.GetEventProjectorExecutionStateAsync(
+                            domainEvent.EventId,
+                            ProjectorName).ConfigureAwait(false);
+                        var eventStreamId = executionState?.EventStreamId ?? 0;
+                        if (eventStreamId <= 0 && !string.IsNullOrWhiteSpace(domainEvent.AggregateId))
+                            eventStreamId = await DbEventSource.GetEventStreamIdAsync(domainEvent.AggregateId).ConfigureAwait(false);
+                        if (eventStreamId <= 0)
+                            throw new InvalidOperationException($"Event stream identity is missing for event {domainEvent.EventId}.");
+
+                        var applyResult = await descriptor.ApplyAsync(
+                            domainEvent,
+                            new ProjectionExecutionContext(
+                                ProjectorName,
+                                domainEvent.EventId,
+                                eventStreamId,
+                                new EventProjectorEffectIdentity(
+                                    ProjectorName,
+                                    domainEvent.EventId,
+                                    EventProjectorEffectKind.TargetProjection),
+                                Guid.NewGuid(),
+                                descriptor.IdempotencyStrategy,
+                                CancellationToken.None)).ConfigureAwait(false);
+                        currentState = currentState with
+                        {
+                            Stage = applyResult.Success
+                                ? EventProjectorStageType.PublishCompletedEvent
+                                : EventProjectorStageType.PublishFailedEvent,
+                            Outcome = applyResult.Success
+                                ? EventProjectorOutcomeType.Processing
+                                : EventProjectorOutcomeType.Retrying,
+                            ErrorMessage = applyResult.ErrorMessage,
+                            UpdatedTimestamp = DateTime.UtcNow
+                        };
+                        await PersistLegacyStateAsync(currentState).ConfigureAwait(false);
+                        break;
+
+                    case EventProjectorStageType.PublishCompletedEvent:
+                        var completedEvent = descriptor.CompletedEventFactory(domainEvent)
+                            ?? throw new InvalidOperationException(
+                                $"The completion-event factory returned null for {domainEvent.GetType().Name}.");
+                        await PublishProjectionEventAsync(completedEvent, CancellationToken.None).ConfigureAwait(false);
+                        currentState = currentState with
+                        {
+                            Stage = EventProjectorStageType.Completed,
+                            Outcome = EventProjectorOutcomeType.Completed,
+                            UpdatedTimestamp = DateTime.UtcNow
+                        };
+                        await PersistLegacyStateAsync(currentState, clearCache: true).ConfigureAwait(false);
+                        break;
+
+                    case EventProjectorStageType.PublishFailedEvent:
+                        var failedEvent = descriptor.FailedEventFactory(
+                            domainEvent,
+                            new InvalidOperationException(currentState.ErrorMessage));
+                        if (failedEvent is not null)
+                            await PublishProjectionEventAsync(failedEvent, CancellationToken.None).ConfigureAwait(false);
+                        currentState = currentState with
+                        {
+                            Stage = EventProjectorStageType.Completed,
+                            Outcome = EventProjectorOutcomeType.Failed,
+                            UpdatedTimestamp = DateTime.UtcNow
+                        };
+                        await PersistLegacyStateAsync(currentState, clearCache: true).ConfigureAwait(false);
+                        break;
+
+                    default:
+                        throw new InvalidOperationException(
+                            $"Invalid stage {currentState.Stage} for event {domainEvent.EventId}.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            currentState = currentState with
+            {
+                Outcome = EventProjectorOutcomeType.Retrying,
+                ErrorMessage = ex.Message,
+                UpdatedTimestamp = DateTime.UtcNow
+            };
+            await PersistLegacyStateAsync(currentState).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    async Task PersistLegacyStateAsync(EventProjectorStateReadModel state, bool clearCache = false)
+    {
+        await DbEventSource.InsertEventProjectorStateAsync(state).ConfigureAwait(false);
+        if (clearCache)
+            BlackboardService.EventSourcing.EventProjectorState.Clear(state.EventId, ProjectorName);
+        else
+            BlackboardService.EventSourcing.EventProjectorState.Set(state.EventId, ProjectorName, state);
+    }
+
+    async ValueTask TerminalizeLegacyUnregisteredAsync(IEvent domainEvent)
+    {
+        var state = BlackboardService.EventSourcing.EventProjectorState.Get(domainEvent.EventId, ProjectorName)
+            ?? await DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)
+            ?? CreateInitialState(domainEvent.EventId);
+        state = state with
+        {
+            Stage = EventProjectorStageType.Completed,
+            Outcome = EventProjectorOutcomeType.Failed,
+            ErrorMessage = $"Event type '{domainEvent.GetType().FullName}' is not registered by projector '{ProjectorName}'.",
+            UpdatedTimestamp = DateTime.UtcNow
+        };
+        await PersistLegacyStateAsync(state, clearCache: true).ConfigureAwait(false);
+    }
+
+    async Task HandleMaximumAttemptsAsync(IEvent domainEvent)
+    {
+        if (_reliabilityOptions.FencedExecutionEnabled)
+        {
+            await ExecutionEngine.HandleMaximumAttemptsAsync(domainEvent).ConfigureAwait(false);
+            return;
+        }
+
+        var state = BlackboardService.EventSourcing.EventProjectorState.Get(domainEvent.EventId, ProjectorName)
+            ?? await DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)
+            ?? CreateInitialState(domainEvent.EventId);
+        state = state with
+        {
+            Stage = EventProjectorStageType.Completed,
+            Outcome = EventProjectorOutcomeType.Failed,
+            ErrorMessage = $"Maximum {_reliabilityOptions.MaximumReplayAttempts} attempts reached for event {domainEvent.EventId} of type {domainEvent.GetType().Name}.",
+            UpdatedTimestamp = DateTime.UtcNow
+        };
+        await PersistLegacyStateAsync(state, clearCache: true).ConfigureAwait(false);
     }
 
     async ValueTask<EventProjectorRecoveryResult> RecoverUncompletedEventsAsync(CancellationToken cancellationToken)
@@ -299,6 +508,95 @@ public abstract class BaseEventProjector<TActor> (
             _reliabilityOptions,
             Logger);
 
+    EventProjectorExecutionEngine ExecutionEngine
+    {
+        get
+        {
+            var engine = Volatile.Read(ref _executionEngine);
+            if (engine is not null)
+                return engine;
+            var created = new EventProjectorExecutionEngine(
+                DbEventSource,
+                _reliabilityOptions,
+                ActorName,
+                ProjectorName,
+                PublishProjectionEventAsync,
+                Logger);
+            return Interlocked.CompareExchange(ref _executionEngine, created, null) ?? created;
+        }
+    }
+
+    FrozenDictionary<Type, EventProjectionDescriptor> GetDescriptorMap()
+    {
+        var current = Volatile.Read(ref _descriptorMap);
+        if (current is not null)
+            return current;
+
+        lock (_descriptorLock)
+        {
+            current = _descriptorMap;
+            if (current is not null)
+                return current;
+
+            var descriptors = ProjectionDescriptors?.ToArray()
+                ?? throw new InvalidOperationException($"Projector '{ProjectorName}' returned null descriptors.");
+            if (descriptors.Length == 0)
+                throw new InvalidOperationException($"Projector '{ProjectorName}' has no projection descriptors.");
+            var duplicate = descriptors
+                .GroupBy(descriptor => descriptor.SourceEventType)
+                .FirstOrDefault(group => group.Count() > 1);
+            if (duplicate is not null)
+                throw new InvalidOperationException(
+                    $"Projector '{ProjectorName}' registers '{duplicate.Key.FullName}' more than once.");
+
+            var advertisedTypes = ProjectedEventTypes.ToHashSet();
+            var descriptorTypes = descriptors.Select(descriptor => descriptor.SourceEventType).ToHashSet();
+            if (!advertisedTypes.SetEquals(descriptorTypes))
+                throw new InvalidOperationException(
+                    $"Projector '{ProjectorName}' event types do not match its immutable descriptors.");
+
+            current = descriptors.ToFrozenDictionary(descriptor => descriptor.SourceEventType);
+            Volatile.Write(ref _descriptorMap, current);
+            return current;
+        }
+    }
+
+    async ValueTask PublishProjectionEventAsync(IEvent domainEvent, CancellationToken cancellationToken)
+    {
+        domainEvent.CheckForEmptyCommandId();
+        EventInitHelper.SetProperty(
+            domainEvent,
+            nameof(IEvent.Subject),
+            new ActorSubject(
+                ActorType.Event,
+                domainEvent.Subject.Name.Replace("Denormalizer", "Event", StringComparison.Ordinal),
+                domainEvent.Subject.Verb,
+                domainEvent.Subject.EntityId));
+        var publisher = EventPublishers.GetOrAdd(domainEvent.GetType(), CreateEventPublisher);
+        await publisher(Context, domainEvent, cancellationToken).ConfigureAwait(false);
+    }
+
+    static Func<ICommandActorContext, IEvent, CancellationToken, ValueTask> CreateEventPublisher(Type eventType)
+    {
+        var eventInterface = eventType.GetInterfaces().SingleOrDefault(type =>
+            type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEvent<>))
+            ?? throw new InvalidOperationException($"Event type '{eventType.FullName}' has no typed IEvent contract.");
+        var entityIdType = eventInterface.GetGenericArguments()[0];
+        var method = typeof(BaseEventProjector<TActor>)
+            .GetMethod(nameof(PublishTypedEventAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(eventType, entityIdType);
+        return (Func<ICommandActorContext, IEvent, CancellationToken, ValueTask>)method.CreateDelegate(
+            typeof(Func<ICommandActorContext, IEvent, CancellationToken, ValueTask>));
+    }
+
+    static ValueTask PublishTypedEventAsync<TEvent, TEntityId>(
+        ICommandActorContext context,
+        IEvent domainEvent,
+        CancellationToken cancellationToken)
+        where TEvent : class, IEvent<TEntityId>
+        where TEntityId : IActorEntityId
+        => context.SendAsync<TEvent, TEntityId>((TEvent)domainEvent, cancellationToken);
+
     void SetReadiness(
         bool isReady,
         long recoveryEventsDiscovered,
@@ -335,48 +633,12 @@ public abstract class BaseEventProjector<TActor> (
                 or EventProjectorOutcomeType.Superseded
                 or EventProjectorOutcomeType.AlreadyCompleted;
 
-    /// <summary>
-    /// Posts an event to the command actor context for processing.
-    /// </summary>
-    /// <typeparam name="TEvent"></typeparam>
-    /// <typeparam name="TEntityId"></typeparam>
-    /// <param name="e"></param>
-    /// <returns></returns>
-    protected async ValueTask<bool> PostEventAsync<TEvent, TEntityId>(TEvent e)
-        where TEvent : class, IEvent<TEntityId>
-        where TEntityId : IActorEntityId
-    {
-        e.CheckForEmptyCommandId();
-        EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event,
-            e.Subject.Name.Replace("Denormalizer", "Event"),
-            e.Subject.Verb,
-            e.EntityId.Format()));
-        await Context.SendAsync<TEvent, TEntityId>(e);
-        return true;
-    }
+    static bool IsTerminal(EventProjectorExecutionStateReadModel state)
+        => state.Stage == EventProjectorStageType.Completed
+            || state.Outcome is EventProjectorOutcomeType.Completed
+                or EventProjectorOutcomeType.Failed
+                or EventProjectorOutcomeType.Cancelled
+                or EventProjectorOutcomeType.Superseded
+                or EventProjectorOutcomeType.AlreadyCompleted;
 
-    /// <summary>
-    /// Logs an exception that occurred during event projection and updates the event projector state accordingly.
-    /// </summary>
-    /// <param name="ex"></param>
-    /// <param name="domainEvent"></param>
-    /// <returns></returns>
-    protected async Task LogExceptionAsync(Exception ex, IEvent domainEvent)
-    {
-        var currentState = BlackboardService.EventSourcing.EventProjectorState.Get(
-            domainEvent.EventId,
-            ProjectorName)
-            ?? await DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)
-            ?? CreateInitialState(domainEvent.EventId);
-        currentState = currentState with
-        {
-            Outcome = EventProjectorOutcomeType.Failed,
-            ErrorMessage = ex.Message
-        };
-        BlackboardService.EventSourcing.EventProjectorState.Set(
-            domainEvent.EventId,
-            ProjectorName,
-            currentState);
-        await DbEventSource.InsertEventProjectorStateAsync(currentState);
-    }
 }

@@ -21,6 +21,11 @@ public interface IEventProjector
     public IReadOnlyCollection<Type> ProjectedEventTypes { get; }
 
     /// <summary>
+    /// Gets the immutable source-event operation contracts used by the projector worker.
+    /// </summary>
+    public IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; }
+
+    /// <summary>
     /// Gets the latest startup/recovery readiness snapshot for this projector.
     /// </summary>
     public EventProjectorReadinessSnapshot Readiness { get; }

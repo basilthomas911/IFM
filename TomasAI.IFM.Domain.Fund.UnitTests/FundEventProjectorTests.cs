@@ -4,13 +4,16 @@ using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Domain.Fund.Command.EventProjector;
+using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
@@ -333,13 +336,236 @@ public sealed class FundEventProjectorTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public void Projection_descriptors_are_complete_unique_and_explicitly_idempotent()
+    {
+        var projector = CreateProjector(Substitute.For<IDurableReplayQueue>());
+
+        projector.ProjectionDescriptors.Should().HaveCount(8);
+        projector.ProjectionDescriptors.Select(descriptor => descriptor.SourceEventType)
+            .Should().OnlyHaveUniqueItems()
+            .And.BeEquivalentTo(projector.ProjectedEventTypes);
+        projector.ProjectionDescriptors.Should().OnlyContain(descriptor =>
+            descriptor.IdempotencyStrategy == EventProjectionIdempotencyStrategy.NaturalKeyMutation);
+    }
+
+    [Fact]
+    public async Task Fenced_execution_terminalizes_unregistered_event_for_manual_resolution()
+    {
+        const long eventId = 949;
+        var eventSource = Substitute.For<IEventSourceActorDbContext>();
+        var projector = CreateProjector(
+            Substitute.For<IDurableReplayQueue>(),
+            eventSource,
+            CreateBlackboard(),
+            new EventProjectorReliabilityOptions { FencedExecutionEnabled = true });
+        var state = RecoveryItem(eventId, 76).State;
+        eventSource.GetEventProjectorExecutionStateAsync(
+                eventId,
+                projector.ProjectorName,
+                Arg.Any<CancellationToken>())
+            .Returns(state);
+        eventSource.TryClaimEventProjectorExecutionAsync(
+                eventId,
+                projector.ProjectorName,
+                Arg.Any<Guid>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => state with
+            {
+                ExecutionToken = call.ArgAt<Guid>(2),
+                LeaseExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+                Revision = 1
+            });
+        eventSource.TryTerminalizeEventProjectorExecutionAsync(
+                Arg.Any<EventProjectorStateTransition>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => state with
+            {
+                Stage = EventProjectorStageType.Completed,
+                Outcome = EventProjectorOutcomeType.Failed,
+                BlockedReason = call.ArgAt<EventProjectorStateTransition>(0).BlockedReason
+            });
+        var unknown = new UnknownEvent { EventId = eventId };
+
+        await projector.ProcessDomainEventAsync(unknown);
+
+        await eventSource.Received(1).TryTerminalizeEventProjectorExecutionAsync(
+            Arg.Is<EventProjectorStateTransition>(transition =>
+                transition.Outcome == EventProjectorOutcomeType.Failed
+                && transition.BlockedReason == "unregistered-source-event"),
+            Arg.Any<DateTime>(),
+            CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Fenced_execution_reapplies_target_after_checkpoint_loss_and_finishes_once()
+    {
+        var queue = Substitute.For<IDurableReplayQueue>();
+        var eventSource = Substitute.For<IEventSourceActorDbContext>();
+        var fundDb = Substitute.For<IFundDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.FundDb.Returns(fundDb);
+        var context = Substitute.For<ICommandActorContext>();
+        var projector = CreateProjector(
+            queue,
+            eventSource,
+            CreateBlackboard(),
+            new EventProjectorReliabilityOptions
+            {
+                FencedExecutionEnabled = true,
+                InitialReplayDelay = TimeSpan.FromMilliseconds(1)
+            },
+            dbFactory);
+        var nowUtc = DateTime.UtcNow;
+        var fund = SampleData.Fund;
+        var domainEvent = new FundCreatedEvent
+        {
+            Subject = new ActorSubject(ActorType.Event, FundCreatedEvent.Actor, FundCreatedEvent.Verb, "1"),
+            EntityId = new FundId(1),
+            EventId = 950,
+            CommandId = Guid.NewGuid(),
+            AggregateId = "Event.FundCommandActor.1",
+            NewFund = fund
+        };
+        var state = new EventProjectorExecutionStateReadModel(
+            domainEvent.EventId,
+            projector.ActorName,
+            projector.ProjectorName,
+            false,
+            0,
+            EventProjectorOutcomeType.Processing,
+            EventProjectorStageType.ApplyProjection,
+            string.Empty,
+            nowUtc,
+            nowUtc,
+            77,
+            nameof(FundCreatedEvent),
+            0,
+            null,
+            null,
+            0,
+            null,
+            null,
+            string.Empty,
+            EventProjectorStageType.PublishProcessingEvent,
+            nowUtc);
+        var loseFirstCheckpoint = true;
+        eventSource.GetEventProjectorExecutionStateAsync(
+                domainEvent.EventId,
+                projector.ProjectorName,
+                Arg.Any<CancellationToken>())
+            .Returns(_ => state);
+        eventSource.TryClaimEventProjectorExecutionAsync(
+                domainEvent.EventId,
+                projector.ProjectorName,
+                Arg.Any<Guid>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (state.ExecutionToken.HasValue)
+                    return null;
+                state = state with
+                {
+                    ExecutionToken = call.ArgAt<Guid>(2),
+                    LeaseExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+                    Revision = state.Revision + 1,
+                    Outcome = EventProjectorOutcomeType.Processing
+                };
+                return state;
+            });
+        eventSource.TryTransitionEventProjectorExecutionAsync(
+                Arg.Any<EventProjectorStateTransition>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var transition = call.ArgAt<EventProjectorStateTransition>(0);
+                if (loseFirstCheckpoint)
+                {
+                    loseFirstCheckpoint = false;
+                    return null;
+                }
+                state = state with
+                {
+                    Stage = transition.NextStage,
+                    Outcome = transition.Outcome,
+                    LastCompletedStage = transition.LastCompletedStage,
+                    ErrorMessage = transition.ErrorMessage,
+                    Revision = state.Revision + 1
+                };
+                return state;
+            });
+        eventSource.TryReleaseEventProjectorExecutionAsync(
+                Arg.Any<EventProjectorStateTransition>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var transition = call.ArgAt<EventProjectorStateTransition>(0);
+                state = state with
+                {
+                    ExecutionToken = null,
+                    LeaseExpiresAtUtc = null,
+                    Outcome = EventProjectorOutcomeType.Retrying,
+                    RetryCount = transition.RetryCount,
+                    NextAttemptAtUtc = transition.NextAttemptAtUtc,
+                    LastErrorAtUtc = transition.LastErrorAtUtc,
+                    ErrorMessage = transition.ErrorMessage,
+                    Revision = state.Revision + 1
+                };
+                return state;
+            });
+        eventSource.TryTerminalizeEventProjectorExecutionAsync(
+                Arg.Any<EventProjectorStateTransition>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var transition = call.ArgAt<EventProjectorStateTransition>(0);
+                state = state with
+                {
+                    Stage = EventProjectorStageType.Completed,
+                    Outcome = transition.Outcome,
+                    LastCompletedStage = transition.LastCompletedStage,
+                    ExecutionToken = null,
+                    LeaseExpiresAtUtc = null,
+                    Revision = state.Revision + 1
+                };
+                return state;
+            });
+
+        await projector.StartAsync(context);
+        var firstAttempt = () => projector.ProcessDomainEventAsync(domainEvent).AsTask();
+
+        await firstAttempt.Should().ThrowAsync<InvalidOperationException>().WithMessage("*fence was lost*");
+        await projector.ProcessDomainEventAsync(domainEvent);
+
+        await fundDb.Received(2).InsertFundAsync(fund);
+        await eventSource.Received(1).TryReleaseEventProjectorExecutionAsync(
+            Arg.Any<EventProjectorStateTransition>(),
+            Arg.Any<DateTime>(),
+            CancellationToken.None);
+        state.Stage.Should().Be(EventProjectorStageType.Completed);
+        state.Outcome.Should().Be(EventProjectorOutcomeType.Completed);
+        state.ExecutionToken.Should().BeNull();
+        await context.Received(1).SendAsync<FundCreatedCompleteEvent, FundId>(
+            Arg.Any<FundCreatedCompleteEvent>(),
+            CancellationToken.None);
+    }
+
     static FundEventProjector CreateProjector(
         IDurableReplayQueue durableReplayQueue,
         IEventSourceActorDbContext? dbEventSource = null,
         IBlackboardService? blackboardService = null,
-        EventProjectorReliabilityOptions? reliabilityOptions = null) =>
+        EventProjectorReliabilityOptions? reliabilityOptions = null,
+        IDbContextFactory? dbFactory = null) =>
         new(
-            Substitute.For<IDbContextFactory>(),
+            dbFactory ?? Substitute.For<IDbContextFactory>(),
             durableReplayQueue,
             dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
             blackboardService ?? Substitute.For<IBlackboardService>(),
