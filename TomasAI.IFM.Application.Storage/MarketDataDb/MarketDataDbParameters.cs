@@ -30,6 +30,18 @@ internal readonly record struct DeleteFuturesItiSignal(string contractId, DateOn
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod };
 }
+internal readonly record struct DeleteFuturesItiSignalByContractDayV2(string contractId, DateOnly valueDate, string intrinsicTimeMode, long sequenceId, string timePeriod, string intrinsicTimeTrend, int intrinsicTimeGroupId) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, valueDate, intrinsicTimeMode, sequenceId, timePeriod, intrinsicTimeTrend, intrinsicTimeGroupId };
+}
+internal readonly record struct DeleteFuturesItiSignalByContractMonthV2(string contractId, int yearMonth, DateOnly valueDate, long sequenceId, string timePeriod, string intrinsicTimeMode, string intrinsicTimeTrend, int intrinsicTimeGroupId) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, yearMonth, valueDate, sequenceId, timePeriod, intrinsicTimeMode, intrinsicTimeTrend, intrinsicTimeGroupId };
+}
+internal readonly record struct DeleteFuturesItiSignalByTrendModeMonthV2(string contractId, string intrinsicTimeTrend, string intrinsicTimeMode, int yearMonth, DateOnly valueDate, long sequenceId, string timePeriod, int intrinsicTimeGroupId) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth, valueDate, sequenceId, timePeriod, intrinsicTimeGroupId };
+}
 internal readonly record struct DeleteFuturesItiTrendClassData(string symbol, DateOnly startDate, DateOnly endDate) : IBindValue
 {
     public object Bind() => new object?[] { symbol, startDate, endDate };
@@ -128,49 +140,9 @@ internal readonly record struct GetFuturesIntraDayData(string contractId, DateOn
 {
     public object Bind() => new object?[] { contractId, valueDate };
 }
-internal readonly record struct GetFuturesItiSignalAverageInfo(string contractId, DateOnly valueDate, long maxSequenceId, string intrinsicTimeTrend, List<string> intrinsicTimeModes) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, valueDate, intrinsicTimeTrend, intrinsicTimeModes, maxSequenceId };
-}
-internal readonly record struct GetFuturesItiSignalAvgPredictedDelta(List<string> contractIds, DateOnly startDate, DateOnly endDate, string intrinsicTimeTrend, List<string> intrinsicTimeModes) : IBindValue
-{
-    public object Bind() => new object?[] { contractIds, startDate, endDate, intrinsicTimeTrend, intrinsicTimeModes };
-}
-internal readonly record struct GetFuturesItiSignalMaxTimeGroupId(string contractId, DateOnly maxValueDate, List<string> intrinsicTimeModes, string intrinsicTimeTrend) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, maxValueDate, intrinsicTimeModes, intrinsicTimeTrend };
-}
-internal readonly record struct GetFuturesItiSignalMaxTrendSequenceId(string contractId, DateOnly maxTrendValueDate, string intrinsicTimeTrend, string intrinsicTimeMode) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, maxTrendValueDate, intrinsicTimeTrend, intrinsicTimeMode };
-}
-internal readonly record struct GetFuturesItiSignalMaxTrendValueDate(string contractId, DateOnly valueDate, string intrinsicTimeTrend) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, valueDate, intrinsicTimeTrend };
-}
-internal readonly record struct GetFuturesItiSignalMaxValueDateByTrend(string contractId, DateOnly valueDate, List<string> intrinsicTimeModes, string intrinsicTimeTrend) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, valueDate, intrinsicTimeModes, intrinsicTimeTrend };
-}
-internal readonly record struct GetFuturesItiSignalMDI(string contractId, DateOnly maxValueDate, List<string> intrinsicTimeModes, string intrinsicTimeTrend) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, maxValueDate, intrinsicTimeModes };
-}
-internal readonly record struct GetFuturesItiSignalMDIByTrend(string contractId, DateOnly maxValueDate, List<string> intrinsicTimeModes, string intrinsicTimeTrend, int intrinsicTimeGroupId) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, maxValueDate, intrinsicTimeModes, intrinsicTimeTrend };
-}
 internal readonly record struct GetFuturesItiSignals(string contractId, DateOnly valueDate, string timePeriod) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod };
-}
-internal readonly record struct GetFuturesItiSignalsByDateRange(List<string> contractIds, DateOnly startDate, DateOnly endDate) : IBindValue
-{
-    public object Bind() => new object?[] { contractIds, startDate, endDate };
-}
-internal readonly record struct GetFuturesItiSignalTrendDataByDateRange(List<string> contractIds, DateOnly startDate, DateOnly endDate, List<string> intrinsicTimeModes) : IBindValue
-{
-    public object Bind() => new object?[] { contractIds, startDate, endDate };
 }
 internal readonly record struct GetFuturesItiTrendClassData(string symbol, DateOnly startDate, DateOnly endDate) : IBindValue
 {
@@ -196,10 +168,6 @@ internal readonly record struct GetFuturesItiTrendDeltaModelMaxValueDate(string 
 {
     public object Bind() => new object?[] { symbol, valueDate };
 }
-internal readonly record struct GetFuturesItiTrendDirectionChangedSignals(string contractId, DateOnly valueDate) : IBindValue
-{
-    public object Bind() => new object?[] { contractId, valueDate };
-}
 internal readonly record struct GetFuturesOptionTickData(string contractId, DateOnly valueDate, long tickId) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, tickId };
@@ -212,6 +180,34 @@ internal readonly record struct GetFuturesOptionTickPriceData(string contractId,
 internal readonly record struct GetFuturesRsiSignalsForTrend(string contractId, string timePeriod, int periodLength, DateOnly valueDate, TimeOnly startTime, TimeOnly endTime) : IBindValue
 {
     public object Bind() => new object?[] { contractId, timePeriod, periodLength, valueDate, startTime, endTime };
+}
+internal readonly record struct GetFuturesItiSignalsCanonicalByContract(string contractId) : IBindValue
+{
+    public object Bind() => new object?[] { contractId };
+}
+internal readonly record struct GetFuturesItiSignalsCanonicalByContractDay(string contractId, DateOnly valueDate) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, valueDate };
+}
+internal readonly record struct GetFuturesItiSignalsByContractMonthV2(string contractId, int yearMonth, DateOnly startDate, DateOnly endDate) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, yearMonth, startDate, endDate };
+}
+internal readonly record struct GetFuturesItiSignalsByContractDayModeV2(string contractId, DateOnly valueDate, string intrinsicTimeMode) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, valueDate, intrinsicTimeMode };
+}
+internal readonly record struct GetFuturesItiSignalsByContractDayModeAfterSequenceV2(string contractId, DateOnly valueDate, string intrinsicTimeMode, long sequenceId) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, valueDate, intrinsicTimeMode, sequenceId };
+}
+internal readonly record struct GetLastFuturesItiSignalByTrendModeMonthV2(string contractId, string intrinsicTimeTrend, string intrinsicTimeMode, int yearMonth, DateOnly valueDate) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth, valueDate };
+}
+internal readonly record struct GetFuturesItiSignalsByTrendModeMonthV2(string contractId, string intrinsicTimeTrend, string intrinsicTimeMode, int yearMonth, DateOnly startDate, DateOnly endDate) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth, startDate, endDate };
 }
 internal readonly record struct GetFuturesTickData(string contractId, DateOnly valueDate, long tickId) : IBindValue
 {
@@ -435,6 +431,10 @@ internal readonly record struct InsertFuturesItiSignal(string contractId, DateOn
 internal readonly record struct InsertFuturesItiSignalIndex(DateOnly valueDate, string contractId) : IBindValue
 {
     public object Bind() => new object?[] { valueDate, contractId };
+}
+internal readonly record struct InsertFuturesItiSignalByContractMonthV2(int yearMonth, string contractId, DateOnly valueDate, string timePeriod, long sequenceId, DateTime intrinsicTime, int intrinsicTimeGroupId, double intrinsicTimeLength, double intrinsicPrice, string intrinsicTimeTrend, string intrinsicTimeMode, double trendPrice, double trendExtreme, double trendReversal, double trendDelta, double targetDelta, double lambda, int tradingDays, double threshold, double upTrendTrigger, double downTrendTrigger, string tradeState) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, yearMonth, valueDate, timePeriod, sequenceId, intrinsicTime, intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice, intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme, trendReversal, trendDelta, targetDelta, lambda, tradingDays, threshold, upTrendTrigger, downTrendTrigger, tradeState };
 }
 internal readonly record struct InsertFuturesItiTrendClassData(string symbol, DateOnly valueDate, DateTime timestamp, long sequenceId, float trendClass, float trendDirection, float trendDirectionMode, float trendDelta, float futuresRSI) : IBindValue
 {

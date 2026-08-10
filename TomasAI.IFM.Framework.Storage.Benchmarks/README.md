@@ -5,6 +5,10 @@ production path. `PostgresBulkWriteBenchmarks` compares the former sequential pr
 `NpgsqlBatch` chunks. Each benchmark creates one table in its dedicated test database and reserves negative partition
 IDs. All benchmark rows are removed after the run.
 
+`ScyllaItiQueryProjectionBenchmarks` is the SWO-05 real-provider before/after gate. It creates isolated canonical and
+query-projection tables, seeds identical deterministic ITI keys, and compares the legacy `ALLOW FILTERING`
+trend/mode maximum-sequence lookup with direct projection routing. It never reads or writes application tables.
+
 ```powershell
 $env:DOTNET_ENVIRONMENT = 'Test'
 $env:IFM_SCYLLA_TEST_CONNECTION = 'Contact Points=localhost;Port=9042;Default Keyspace=fund_test_db'
@@ -14,6 +18,20 @@ dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- `
   --filter '*ScyllaBulkWriteBenchmarks*' `
   --artifacts .test-results/benchmarks-scylla
 ```
+
+Run the SWO-05 query comparison against the same dedicated keyspace:
+
+```powershell
+dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- `
+  --filter '*ScyllaItiQueryProjectionBenchmarks*' `
+  --artifacts .test-results/benchmarks-swo05-iti
+```
+
+The generated `ScyllaItiQueryProjectionComparison.md` reports mean, p50, p95, and p99 workload latency from 100
+measured single-query samples with outlier removal disabled, derived
+queries/second, allocated bytes, and percentage changes at 4,096 and 32,768 canonical rows. The production migration
+must rerun this exact benchmark on the same host and keyspace after the application projections are implemented; the
+benchmark legacy CQL remains isolated here and is not an allowed application-storage exception.
 
 The Scylla test keyspace replication must match the test cluster. The example above is normally run against one
 local Scylla node, so `fund_test_db` must use replication factor 1. Do not lower a multi-node staging or production

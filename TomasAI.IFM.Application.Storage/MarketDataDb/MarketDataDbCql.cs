@@ -1237,36 +1237,6 @@ internal static class MarketDataDbCql
         AND timePeriod = :timePeriod;
     """;
 
-    public const string GetFuturesItiSignalsByDateRange = """
-        SELECT 
-            contractId AS "ContractId",
-            valueDate AS "ValueDate",
-            timePeriod AS "TimePeriod",
-            sequenceId AS "SequenceId",
-            intrinsicTime AS "IntrinsicTime",
-            intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
-            intrinsicTimeLength AS "IntrinsicTimeLength",
-            intrinsicPrice AS "IntrinsicPrice",
-            intrinsicTimeTrend AS "IntrinsicTimeTrend",
-            intrinsicTimeMode AS "IntrinsicTimeMode",
-            trendPrice AS "TrendPrice",
-            trendExtreme AS "TrendExtreme",
-            trendReversal AS "TrendReversal",
-            trendDelta AS "TrendDelta",
-            targetDelta AS "TargetDelta",
-            lambda AS "Lambda",
-            tradingDays AS "TradingDays",
-            threshold AS "Threshold",
-            upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger",
-            tradeState AS "TradeState"
-        FROM futures_iti_signal
-        WHERE contractId IN :contractIds 
-        AND valueDate >= :startDate
-        AND valueDate <= :endDate
-        ALLOW FILTERING;
-    """;
-
     public const string GetFuturesItiSignalsByDateRangeIndex = """
         SELECT 
             valueDate AS "ValueDate",
@@ -1278,153 +1248,6 @@ internal static class MarketDataDbCql
     public const string InsertFuturesItiSignalIndex = """
         INSERT INTO futures_iti_signal_index (valueDate, contractId)
         VALUES (:valueDate, :contractId);
-    """;
-
-    public const string GetFuturesItiSignalMaxTrendValueDate = """
-        SELECT max(ValueDate) AS "Value"
-        FROM futures_iti_signal
-        WHERE ContractId = :contractId
-        AND ValueDate <=  :valueDate
-        AND IntrinsicTimeTrend = :intrinsicTimeTrend
-        ALLOW FILTERING;
-    """;
-
-    public const string GetFuturesItiAvgTrendMDI = """
-        SELECT avg(FuturesMDI) AS "Value"
-        FROM futures_iti_signal
-        WHERE ContractId = :contractId
-        AND ValueDate = :maxUpTrendValueDate
-        AND IntrinsicTimeTrend = :intrinsicTimeTrend
-        AND IntrinsicTimeMode IN :intrinsicTimeModes
-        ALLOW FILTERING;
-    """;
-
-    public const string GetFuturesItiSignalMaxTrendSequenceId = """
-        SELECT max(SequenceId) AS "Value"
-        FROM futures_iti_signal
-        WHERE ContractId = :contractId
-        AND ValueDate <= :maxTrendValueDate
-        AND IntrinsicTimeTrend = :intrinsicTimeTrend
-        AND IntrinsicTimeMode = :intrinsicTimeMode
-        ALLOW FILTERING;
-    """;
-
-    public const string GetFuturesItiSignalMaxValueDate = """
-        SELECT max(ValueDate) AS "Value"
-        FROM futures_iti_signal
-        WHERE ContractId = :contractId
-        AND ValueDate < :valueDate;
-    """;
-
-    public const string GetFuturesItiSignalMDI = """
-        SELECT 
-            ContractId AS "ContractId",
-            ValueDate AS "ValueDate",
-            IntrinsicTime AS "IntrinsicTime",
-            IntrinsicTimeTrend AS "TrendType",
-            IntrinsicPrice AS "MDI"
-        FROM futures_iti_signal
-        WHERE ContractId = :contractId
-        AND ValueDate = :maxValueDate
-        AND IntrinsicTimeMode IN :intrinsicTimeModes
-        ALLOW FILTERING;
-    """;
-
-    public const string GetFuturesItiSignalMaxValueDateByTrend = """
-        SELECT max(ValueDate) AS "Value"
-        FROM futures_iti_signal
-        WHERE ContractId = :contractId
-        AND ValueDate <= :valueDate
-        AND IntrinsicTimeMode IN :intrinsicTimeModes
-        AND IntrinsicTimeTrend = :intrinsicTimeTrend
-        ALLOW FILTERING;
-    """;
-
-    public const string GetFuturesItiSignalMaxTimeGroupId = """
-        SELECT max(IntrinsicTimeGroupId) AS "Value"
-        FROM futures_iti_signal
-        WHERE ContractId = :contractId
-        AND ValueDate = :maxValueDate
-        AND IntrinsicTimeMode IN :intrinsicTimeModes
-        AND IntrinsicTimeTrend = :intrinsicTimeTrend
-        Allow Filtering;
-    """;
-
-    public const string GetFuturesItiSignalMDIByTrend = """
-        SELECT 
-            ContractId AS "ContractId",
-            ValueDate AS "ValueDate",
-            IntrinsicTime AS "IntrinsicTime",
-            IntrinsicTimeTrend AS "TrendType",
-            IntrinsicPrice AS "MDI"
-        FROM futures_iti_signal
-        WHERE ContractId = :contractId
-        AND ValueDate = :maxValueDate
-        AND IntrinsicTimeMode IN :intrinsicTimeModes
-        AND IntrinsicTimeTrend = :intrinsicTimeTrend
-        ALLOW FILTERING;
-    """;
-
-    public const string GetFuturesItiSignalTrendDeltaData = """
-        SELECT 
-            contractId AS "ContractId",
-            valueDate AS "ValueDate",
-            timePeriod AS "TimePeriod",
-            sequenceId AS "SequenceId",
-            intrinsicTime AS "IntrinsicTime",
-            intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
-            intrinsicTimeLength AS "IntrinsicTimeLength",
-            intrinsicPrice AS "IntrinsicPrice",
-            intrinsicTimeTrend AS "IntrinsicTimeTrend",
-            intrinsicTimeMode AS "IntrinsicTimeMode",
-            trendPrice AS "TrendPrice",
-            trendExtreme AS "TrendExtreme",
-            trendReversal AS "TrendReversal",
-            trendDelta AS "TrendDelta",
-            targetDelta AS "TargetDelta",
-            lambda AS "Lambda",
-            tradingDays AS "TradingDays",
-            threshold AS "Threshold",
-            upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger",
-            tradeState AS "TradeState"
-        FROM futures_iti_signal
-        WHERE contractId IN :contractIds 
-        AND valueDate >= :startDate
-        AND valueDate <= :endDate
-        AND intrinsicTimeMode IN :intrinsicTimeModes
-        ALLOW FILTERING;
-    """;
-
-    public const string GetFuturesItiSignalTrendClassData = """
-        SELECT 
-            contractId AS "ContractId",
-            valueDate AS "ValueDate",
-            timePeriod AS "TimePeriod",
-            sequenceId AS "SequenceId",
-            intrinsicTime AS "IntrinsicTime",
-            intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
-            intrinsicTimeLength AS "IntrinsicTimeLength",
-            intrinsicPrice AS "IntrinsicPrice",
-            intrinsicTimeTrend AS "IntrinsicTimeTrend",
-            intrinsicTimeMode AS "IntrinsicTimeMode",
-            trendPrice AS "TrendPrice",
-            trendExtreme AS "TrendExtreme",
-            trendReversal AS "TrendReversal",
-            trendDelta AS "TrendDelta",
-            targetDelta AS "TargetDelta",
-            lambda AS "Lambda",
-            tradingDays AS "TradingDays",
-            threshold AS "Threshold",
-            upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger",
-            tradeState AS "TradeState"
-        FROM futures_iti_signal
-        WHERE contractId IN :contractIds 
-        AND valueDate >= :startDate
-        AND valueDate <= :endDate
-        AND intrinsicTimeMode IN :intrinsicTimeModes
-        ALLOW FILTERING;
     """;
 
     public const string InsertFuturesItiTrendClassData = """
@@ -1658,35 +1481,6 @@ internal static class MarketDataDbCql
         );
     """;
 
-    public const string GetFuturesItiTrendDirectionChangedSignals = """
-        SELECT contractid AS "ContractId",
-            valuedate AS "ValueDate",
-            timePeriod AS "TimePeriod",
-            sequenceid AS "SequenceId",
-            intrinsictime AS "IntrinsicTime",
-            intrinsictimegroupid AS "IntrinsicTimeGroupId",
-            intrinsictimelength AS "IntrinsicTimeLength",
-            intrinsicprice AS "IntrinsicPrice",
-            intrinsictimetrend AS "IntrinsicTimeTrend",
-            intrinsictimemode AS "IntrinsicTimeMode",
-            trendprice AS "TrendPrice",
-            trendextreme AS "TrendExtreme",
-            trendreversal AS "TrendReversal",
-            trenddelta AS "TrendDelta",
-            targetdelta AS "TargetDelta",
-            lambda AS "Lambda",
-            tradingDays AS "TradingDays",
-            threshold AS "Threshold",
-            uptrendtrigger AS "UpTrendTrigger",
-            downtrendtrigger AS "DownTrendTrigger",
-            tradestate AS "TradeState"
-        FROM futures_iti_signal
-        WHERE contractid = :contractid
-        AND valuedate = :valuedate
-        AND intrinsictimemode = 'TrendDirectionChanged'
-        Allow Filtering;
-    """;
-
     public const string InsertFuturesRsiSignal = """
         INSERT INTO futures_rsi_signal (
             contractId,
@@ -1723,6 +1517,240 @@ internal static class MarketDataDbCql
         );
     """;
 
+    public const string InsertFuturesItiSignalByContractDayV2 = """
+        INSERT INTO futures_iti_signal_by_contract_day_v2 (
+            contractId, valueDate, timePeriod, sequenceId, intrinsicTime,
+            intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice,
+            intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme,
+            trendReversal, trendDelta, targetDelta, lambda, tradingDays,
+            threshold, upTrendTrigger, downTrendTrigger, tradeState)
+        VALUES (
+            :contractId, :valueDate, :timePeriod, :sequenceId, :intrinsicTime,
+            :intrinsicTimeGroupId, :intrinsicTimeLength, :intrinsicPrice,
+            :intrinsicTimeTrend, :intrinsicTimeMode, :trendPrice, :trendExtreme,
+            :trendReversal, :trendDelta, :targetDelta, :lambda, :tradingDays,
+            :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState);
+    """;
+
+    public const string InsertFuturesItiSignalByContractMonthV2 = """
+        INSERT INTO futures_iti_signal_by_contract_month_v2 (
+            contractId, yearMonth, valueDate, timePeriod, sequenceId, intrinsicTime,
+            intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice,
+            intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme,
+            trendReversal, trendDelta, targetDelta, lambda, tradingDays,
+            threshold, upTrendTrigger, downTrendTrigger, tradeState)
+        VALUES (
+            :contractId, :yearMonth, :valueDate, :timePeriod, :sequenceId, :intrinsicTime,
+            :intrinsicTimeGroupId, :intrinsicTimeLength, :intrinsicPrice,
+            :intrinsicTimeTrend, :intrinsicTimeMode, :trendPrice, :trendExtreme,
+            :trendReversal, :trendDelta, :targetDelta, :lambda, :tradingDays,
+            :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState);
+    """;
+
+    public const string InsertFuturesItiSignalByTrendModeMonthV2 = """
+        INSERT INTO futures_iti_signal_by_trend_mode_month_v2 (
+            contractId, yearMonth, valueDate, timePeriod, sequenceId, intrinsicTime,
+            intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice,
+            intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme,
+            trendReversal, trendDelta, targetDelta, lambda, tradingDays,
+            threshold, upTrendTrigger, downTrendTrigger, tradeState)
+        VALUES (
+            :contractId, :yearMonth, :valueDate, :timePeriod, :sequenceId, :intrinsicTime,
+            :intrinsicTimeGroupId, :intrinsicTimeLength, :intrinsicPrice,
+            :intrinsicTimeTrend, :intrinsicTimeMode, :trendPrice, :trendExtreme,
+            :trendReversal, :trendDelta, :targetDelta, :lambda, :tradingDays,
+            :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState);
+    """;
+
+    public const string GetFuturesItiSignalsCanonicalByContract = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal
+        WHERE contractId = :contractId;
+    """;
+
+    public const string GetFuturesItiSignalsAll = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal;
+    """;
+
+    public const string GetFuturesItiSignalsCanonicalByContractDay = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal
+        WHERE contractId = :contractId AND valueDate = :valueDate;
+    """;
+
+    public const string GetFuturesItiSignalsByContractMonthV2 = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal_by_contract_month_v2
+        WHERE contractId = :contractId AND yearMonth = :yearMonth
+        AND valueDate >= :startDate AND valueDate <= :endDate;
+    """;
+
+    public const string GetFuturesItiSignalsByContractDayModeV2 = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal_by_contract_day_v2
+        WHERE contractId = :contractId AND valueDate = :valueDate
+        AND intrinsicTimeMode = :intrinsicTimeMode;
+    """;
+
+    public const string GetFuturesItiSignalsByContractDayModeAfterSequenceV2 = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal_by_contract_day_v2
+        WHERE contractId = :contractId AND valueDate = :valueDate
+        AND intrinsicTimeMode = :intrinsicTimeMode AND sequenceId > :sequenceId;
+    """;
+
+    public const string GetLastFuturesItiSignalByTrendModeMonthV2 = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal_by_trend_mode_month_v2
+        WHERE contractId = :contractId AND intrinsicTimeTrend = :intrinsicTimeTrend
+        AND intrinsicTimeMode = :intrinsicTimeMode AND yearMonth = :yearMonth
+        AND valueDate <= :valueDate LIMIT 1;
+    """;
+
+    public const string GetFuturesItiSignalsByTrendModeMonthV2 = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal_by_trend_mode_month_v2
+        WHERE contractId = :contractId AND intrinsicTimeTrend = :intrinsicTimeTrend
+        AND intrinsicTimeMode = :intrinsicTimeMode AND yearMonth = :yearMonth
+        AND valueDate >= :startDate AND valueDate <= :endDate;
+    """;
+
+    public const string GetFuturesItiSignalProjectionScopesSource = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode"
+        FROM futures_iti_signal;
+    """;
+
+    public const string GetFuturesItiSignalProjectionScopesDayTarget = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode"
+        FROM futures_iti_signal_by_contract_day_v2;
+    """;
+
+    public const string GetFuturesItiSignalByContractDayV2All = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal_by_contract_day_v2;
+    """;
+
+    public const string GetFuturesItiSignalByContractMonthV2All = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal_by_contract_month_v2;
+    """;
+
+    public const string GetFuturesItiSignalByTrendModeMonthV2All = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod", sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime", intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength", intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend", intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice", trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
+            threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+        FROM futures_iti_signal_by_trend_mode_month_v2;
+    """;
+
+    public const string TruncateFuturesItiSignalByContractDayV2 =
+        "TRUNCATE futures_iti_signal_by_contract_day_v2;";
+
+    public const string TruncateFuturesItiSignalByContractMonthV2 =
+        "TRUNCATE futures_iti_signal_by_contract_month_v2;";
+
+    public const string TruncateFuturesItiSignalByTrendModeMonthV2 =
+        "TRUNCATE futures_iti_signal_by_trend_mode_month_v2;";
+
     public const string GetFuturesRsiSignalsForTrend = """
         SELECT rsi AS "RSI"
         FROM futures_rsi_signal
@@ -1757,12 +1785,11 @@ internal static class MarketDataDbCql
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
             tradeState AS "TradeState"
-        FROM futures_iti_signal
+        FROM futures_iti_signal_by_contract_day_v2
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
         AND intrinsicTimeMode = 'TrendReversalChanged'
-        LIMIT 1
-        ALLOW FILTERING;
+        LIMIT 1;
     """;
 
     public const string GetLastFuturesItiSignalTrendDirectionChange = """
@@ -1788,22 +1815,20 @@ internal static class MarketDataDbCql
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
             tradeState AS "TradeState"
-        FROM futures_iti_signal
+        FROM futures_iti_signal_by_contract_day_v2
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
         AND intrinsicTimeMode = 'TrendDirectionChanged'
-        LIMIT 1
-        Allow Filtering;
+        LIMIT 1;
     """;
 
     public const string GetMaxFuturesItiSignalSequenceIdByTrendDirectionChanged = """
         SELECT sequenceid AS "Value"
-        FROM futures_iti_signal
+        FROM futures_iti_signal_by_contract_day_v2
         WHERE contractid = :contractid
         AND valuedate = :valuedate
         AND intrinsictimemode = 'TrendDirectionChanged'
-        LIMIT 1
-        Allow Filtering;
+        LIMIT 1;
     """;
 
     public const string GetLastFuturesItiSignalTrendExtremeChange = """
@@ -1829,13 +1854,12 @@ internal static class MarketDataDbCql
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
             tradeState AS "TradeState"
-        FROM futures_iti_signal
+        FROM futures_iti_signal_by_contract_day_v2
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
         AND SequenceId > :lastTrendDirectionChangedSequenceId
         AND intrinsicTimeMode = 'TrendExtremeChanged'
-        LIMIT 1
-        Allow Filtering;
+        LIMIT 1;
     """;
 
     public const string GetLastFuturesItiSignalTrendReversalChange = """
@@ -1861,13 +1885,12 @@ internal static class MarketDataDbCql
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
             tradeState AS "TradeState"
-        FROM futures_iti_signal
+        FROM futures_iti_signal_by_contract_day_v2
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
         AND SequenceId > :lastTrendDirectionChangedSequenceId
         AND intrinsicTimeMode = 'TrendReversalChanged'
-        Limit 1
-        Allow Filtering;
+        Limit 1;
     """;
 
     public const string GetLastFuturesOptionTickData = """
@@ -2519,54 +2542,6 @@ internal static class MarketDataDbCql
         AND timePeriod = :timePeriod
     """;
 
-    public const string GetMaxFuturesItiSignalValueDate = """
-        SELECT max(ValueDate) AS "Value" 
-        FROM futures_iti_signal 
-        WHERE ContractId = :contractId
-        AND ValueDate <= :valueDate 
-        AND IntrinsicTimeTrend = :intrinsicTimeTrend
-        ALLOW FILTERING;
-    """;
-
-    public const string GetMaxFuturesItiSignalSequenceId = """
-        SELECT max(SequenceId) AS "Value"
-        FROM futures_iti_signal
-        WHERE ContractId = :contractId
-        AND ValueDate <= :valueDate
-        AND IntrinsicTimeTrend = :intrinsicTimeTrend
-        AND IntrinsicTimeMode = :intrinsicTimeMode
-        ALLOW FILTERING;
-    """;
-
-    public const string GetFuturesItiSignalAverageInfo = """
-        SELECT 
-            contractId AS "ContractId",
-            valueDate AS "ValueDate",
-            avg(PredictedDelta) AS "PredictedDelta",
-            avg(FuturesRSI) AS "FuturesRSI"
-        FROM futures_iti_signal
-        WHERE ContractId = :contractId
-        AND ValueDate = :valueDate
-        AND IntrinsicTimeTrend = :intrinsicTimeTrend
-        AND IntrinsicTimeMode IN :intrinsicTimeModes
-        AND SequenceId > :maxSequenceId
-        AND FuturesRSI > -1
-        GROUP BY contractId, valueDate
-        ALLOW FILTERING;
-    """;
-
-    public const string GetFuturesItiSignalAvgPredictedDelta = """
-        SELECT avg(PredictedDelta) AS "Value"
-        FROM futures_iti_signal
-        WHERE ContractId IN :contractIds
-        AND ValueDate >= :startDate
-        AND ValueDate <= :endDate
-        AND IntrinsicTimeTrend = :intrinsicTimeTrend
-        AND IntrinsicTimeMode IN :intrinsicTimeModes
-        AND FuturesRSI > -1
-        ALLOW FILTERING;
-    """;
-
     public const string GetNormalCurveData = """
         SELECT 
             StdDevIndex AS "StdDevIndex",
@@ -2655,6 +2630,31 @@ internal static class MarketDataDbCql
             sequenceId AS "SequenceId"
         FROM futures_trade_signal_lookup_by_scope
         WHERE scope = :scope;
+    """;
+
+    public const string DeleteFuturesItiSignalByContractDayV2 = """
+        DELETE FROM futures_iti_signal_by_contract_day_v2
+        WHERE contractId = :contractId AND valueDate = :valueDate
+        AND intrinsicTimeMode = :intrinsicTimeMode AND sequenceId = :sequenceId
+        AND timePeriod = :timePeriod AND intrinsicTimeTrend = :intrinsicTimeTrend
+        AND intrinsicTimeGroupId = :intrinsicTimeGroupId;
+    """;
+
+    public const string DeleteFuturesItiSignalByContractMonthV2 = """
+        DELETE FROM futures_iti_signal_by_contract_month_v2
+        WHERE contractId = :contractId AND yearMonth = :yearMonth
+        AND valueDate = :valueDate AND sequenceId = :sequenceId
+        AND timePeriod = :timePeriod AND intrinsicTimeMode = :intrinsicTimeMode
+        AND intrinsicTimeTrend = :intrinsicTimeTrend
+        AND intrinsicTimeGroupId = :intrinsicTimeGroupId;
+    """;
+
+    public const string DeleteFuturesItiSignalByTrendModeMonthV2 = """
+        DELETE FROM futures_iti_signal_by_trend_mode_month_v2
+        WHERE contractId = :contractId AND intrinsicTimeTrend = :intrinsicTimeTrend
+        AND intrinsicTimeMode = :intrinsicTimeMode AND yearMonth = :yearMonth
+        AND valueDate = :valueDate AND sequenceId = :sequenceId
+        AND timePeriod = :timePeriod AND intrinsicTimeGroupId = :intrinsicTimeGroupId;
     """;
 
     public const string InsertFuturesMacdSignal = """

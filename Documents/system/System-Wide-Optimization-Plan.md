@@ -100,9 +100,9 @@ Databento is the primary market-data implementation. A future Interactive Broker
 | ---: | --- | --- | --- | --- |
 | 1 | Operational metrics export and stage timing | P0 | Measuring | Make system bottlenecks and regressions observable in paper trading. |
 | 2 | Aggregate actor backlog and overload control | P0 | In progress | Bound total actor memory and provide explicit system-wide backpressure. |
-| 3 | Actor startup readiness gate | P0 | Proposed | Prevent intake before every actor-owned dependency is ready. |
+| 3 | Actor startup readiness gate | P0 | Complete | Prevent intake before every actor-owned dependency is ready. |
 | 4 | Databento tick-price actor pipeline | P0 | Paused | Convert the proven feed into the production actor/event persistence path. |
-| 5 | ScyllaDB analytics query projections | P1 | Proposed | Remove remaining active `ALLOW FILTERING` signal reads. |
+| 5 | ScyllaDB analytics query projections | P1 | Complete | Removed the remaining active `ALLOW FILTERING` signal reads. |
 | 6 | Event-projector recovery and idempotency | P1 | Proposed | Reduce duplicate side effects and make replay backlog predictable. |
 | 7 | Fund compact snapshots | P1 | Proposed | Keep immutable history while bounding Fund reconstruction cost. |
 | 8 | OptionPricer QLNet allocation isolation | P1 | Proposed | Reduce the measured large allocation graph and global lock pressure. |
@@ -194,7 +194,7 @@ Individual V2 entity queues previously had bounded slot accounting without a pro
 ### SWO-03: Actor startup readiness gate
 
 **Priority:** P0  
-**Status:** Proposed  
+**Status:** Complete
 
 #### Objective
 
@@ -202,7 +202,7 @@ Prevent consumers from accepting actor traffic until all actors, producers, proj
 
 #### Current evidence
 
-The centralized startup coordinator registers actors and consumers, starts consumers, and then awaits each actor's `StartAsync`. This leaves an interval in which external messages can be accepted before actor-owned resources finish starting.
+The centralized startup coordinator now registers the complete runtime, awaits every actor's `StartAsync`, and only then opens Core NATS and JetStream consumer intake. Runtime readiness remains false through registration, actor initialization, projector recovery, and consumer startup. Startup cancellation or failure leaves readiness false and invokes the existing non-cancelable supervisor rollback path. The API host exposes the low-cardinality readiness result at `/health/ready`, and graceful supervisor shutdown clears readiness before stopping intake.
 
 #### Design requirements
 
@@ -214,11 +214,15 @@ The centralized startup coordinator registers actors and consumers, starts consu
 4. Publish readiness state to host health checks.
 5. Add deterministic tests for messages arriving at every startup boundary.
 
+The selected contract is actor-first initialization. Consumers are registered early but are not connected until all actor startup contracts complete. This avoids buffering Core request/reply traffic inside an application that cannot yet process it, while JetStream retains durable events at the server until its consumer starts.
+
 #### Acceptance criteria
 
 - No message reaches an actor before its startup contract completes.
 - Startup failure leaves the host unready and rolls back every registered resource.
 - The host does not advertise readiness until actor intake is safe.
+
+All acceptance criteria are satisfied. Deterministic lifecycle tests hold an actor startup operation open and prove consumer startup and readiness publication cannot occur, then prove actor-start failure never opens intake and performs rollback. Shutdown coverage proves readiness is cleared before cleanup. The complete Shared unit suite passes 105/105, the API server builds with zero warnings and errors, and the ten-domain sequential Release integration gate passes 193/193.
 
 ### SWO-04: Databento tick-price actor pipeline
 
@@ -257,7 +261,7 @@ Use `TomasAI.IFM.Framework.MarketData.DataBento/Docs/Tick_Price_Event_Pipeline_S
 ### SWO-05: ScyllaDB analytics query projections
 
 **Priority:** P1  
-**Status:** Proposed  
+**Status:** Complete
 
 #### Objective
 
@@ -278,6 +282,13 @@ Replace the intentionally deferred ITI/RSI and related active signal `ALLOW FILT
 - Reconciliation proves the new projections match canonical data.
 - Negative lookups and empty partitions do not fall back to full scans indefinitely.
 - Deployment and rollback are documented and repeatable.
+
+All acceptance criteria are satisfied. Three bounded ITI projections cover contract/day, contract/month, and
+contract/trend/mode/month access patterns. Maintained writes and exact deletes use the scoped mutation protocol;
+idempotent backfill reconciles independent identity fingerprints before readiness. Production application-storage CQL
+contains zero `ALLOW FILTERING` statements. Real-Scylla tracing proves the legacy lookup reads 4,096 or 32,768 rows
+while the projection lookup reads one row from one partition. The final sequential Release gate passes all 193 domain
+integration tests. Detailed measurements and validation are recorded in `System-Wide-Optimization-Results.md`.
 
 ### SWO-06: Event-projector recovery and idempotency
 
@@ -502,11 +513,11 @@ When specialized optimization work interrupts this plan:
 
 ### Current tranche
 
-**Work package:** SWO-02 Tranche D, rollout and confirmation
-**State:** Local implementation and confirmation complete; production remains `ObserveOnly`
-**Implemented scope:** production Command request/reply migration with transport-error preservation, durable routing for commandless exception events, removal of the unused Supervisor consumer, enforced startup guards, local mixed/hot saturation tests, real-network overload/recovery confirmation, and a starvation-resistant SPSC concurrency gate
-**Validation recorded:** 86/86 Shared unit tests, 56/56 NATS unit tests, 45/45 real-network NATS integration tests, a zero-warning solution build, and the complete 193/193 domain integration gate; details are recorded in `System-Wide-Optimization-Results.md`
-**Next action:** gather production-like ObserveOnly and paper-trading measurements, approve memory/count/byte limits, then explicitly authorize production `Enforce`
+**Work package:** SWO-05 ScyllaDB analytics query projections
+**State:** Complete
+**Implemented scope:** bounded futures ITI day/month/trend-mode projections, maintained writes and exact deletes, month inventory, canonical fallback, idempotent backfill/reconciliation/readiness, operator migration support, zero application-storage `ALLOW FILTERING`, and a real-Scylla before/after benchmark
+**Validation recorded:** 16/16 CQL/binding/projection policy tests, 58/58 real-Scylla MarketData storage tests, 25/25 Market Data Analytics integration tests, a zero-warning serial Release solution build, and the complete ten-domain sequential Release gate at 193/193; detailed traces and benchmark percentiles are recorded in `System-Wide-Optimization-Results.md`
+**Next action:** SWO-04 remains paused pending its recorded Databento schema/design decisions; the next independently actionable package is SWO-06 event-projector recovery and idempotency
 
 This record is intentionally temporary and must be updated after the tranche is committed, revised, or abandoned.
 
@@ -529,6 +540,8 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 2026-08-09 | Complete Tranche D locally without changing production mode. | Required Command/Supervisor routes are resolved and enforced behavior is verified, but capacity selection still requires production-like memory and traffic evidence. |
 | 2026-08-09 | Retain Channel as the actor-mailbox default while preparing an optimized MPSC production trial. | The optimized ring is 6.4% faster with one producer, 27.3% faster with eight producers, and 11.8% faster in the scheduled round trip; the four-producer result is 3.5% faster but statistically overlapping. It still allocates 320.94 KB per 8,192-slot mailbox versus 2.13 KB for Channel, so high-cardinality and end-to-end evidence is required before changing production configuration. |
 | 2026-08-09 | Recommend the topology-aligned SPSC mailbox for production, but retain Channel and capacity 8,192 in checked-in production configuration until the paper-trading or initial-production review. | SPSC is 72.4% faster than Channel in the scheduled round trip, 71.8% faster in the scheduled burst, and 66.5% faster in the dedicated single-producer batch. The activation gate must confirm the single-producer stripe invariant, full-pipeline latency, retained memory, and high-cardinality mailbox behavior under production-like traffic. Capacity 65,536 remains experimental. |
+| 2026-08-09 | Use actor-first startup and open Core/JetStream consumers only after every actor is initialized. | Actor startup has no dependency on external consumer intake; holding intake closed prevents premature request handling and lets JetStream retain durable events until the runtime is safe. |
+| 2026-08-09 | Complete SWO-05 with bounded month-based ITI projections while retaining canonical ITI data for fallback and rollback. | Real-Scylla tracing shows one projected row read instead of 4,096 or 32,768 canonical rows, with 88.64% and 98.27% lower measured mean latency; scoped readiness and reconciliation preserve correctness during migration. |
 
 ## 13. Revision history
 
@@ -546,6 +559,8 @@ This record is intentionally temporary and must be updated after the tranche is 
 | 0.10 | 2026-08-09 | Recorded the topology-aligned SPSC mailbox, capacity comparison, and production rollout requirements. |
 | 0.11 | 2026-08-09 | Marked SPSC as the recommended production implementation while retaining Channel as the active selection until paper-trading or initial-production validation. |
 | 0.12 | 2026-08-09 | Added direct logical actor-worker capacity, occupancy, availability, and utilization observability for the paper-trading saturation dashboard. |
+| 0.13 | 2026-08-09 | Completed SWO-03 with actor-first initialization, host readiness publication, rollback-safe failure behavior, and deterministic lifecycle verification. |
+| 0.14 | 2026-08-09 | Completed SWO-05 with bounded ITI projections, real-Scylla trace and benchmark evidence, migration documentation, and the complete regression gate. |
 
 ## 14. Related documents
 

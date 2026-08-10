@@ -66,6 +66,9 @@ internal static class Program
         "futures_tick_data_by_time",
         "futures_eod_data_by_month",
         "vix_futures_contract_index",
+        "futures_iti_signal_by_contract_day_v2",
+        "futures_iti_signal_by_contract_month_v2",
+        "futures_iti_signal_by_trend_mode_month_v2",
         "market_data_projection_month",
         "market_data_projection_state_v2",
         "market_data_projection_mutation",
@@ -321,8 +324,12 @@ internal static class Program
             $"Market VIX reconciliation: rows={backfill.VixFuturesEodRowsSource}, contracts source/indexed={backfill.VixContractsSource}/{backfill.VixContractsIndexed}, " +
             $"fingerprints={backfill.VixContractsSourceFingerprint}/{backfill.VixContractsIndexedFingerprint}.");
         Console.WriteLine(
+            $"Market ITI reconciliation: source/day/month/trendMode={backfill.FuturesItiSignalsSource}/{backfill.FuturesItiSignalsByDayProjected}/{backfill.FuturesItiSignalsByMonthProjected}/{backfill.FuturesItiSignalsByTrendModeProjected}, " +
+            $"fingerprints={backfill.FuturesItiSignalsSourceFingerprint}/{backfill.FuturesItiSignalsByDayFingerprint}/{backfill.FuturesItiSignalsByMonthFingerprint}/{backfill.FuturesItiSignalsByTrendModeFingerprint}.");
+        Console.WriteLine(
             $"Market readiness: tick={readiness.FuturesTickByTime}, eod={readiness.FuturesEodByMonth}, " +
-            $"vix={readiness.VixFuturesContractIndex}, cutoverCompleted={backfill.CutoverCompleted}.");
+            $"vix={readiness.VixFuturesContractIndex}, iti={readiness.FuturesItiSignalQueries}, " +
+            $"cutoverCompleted={backfill.CutoverCompleted}.");
 
         return Complete(backfill.IsReconciled && backfill.CutoverCompleted && readiness.IsReady);
     }
@@ -378,7 +385,7 @@ internal static class Program
         where TSchema : IObjectRepository
     {
         await schema.CreateAsync(objectNames, cancellationToken).ConfigureAwait(false);
-        Console.WriteLine($"Applied {objectNames.Count} additive projection/state schema objects; canonical and ITI/RSI objects were not changed.");
+        Console.WriteLine($"Applied {objectNames.Count} additive projection/state schema objects; canonical objects were not changed.");
     }
 
     static int Complete(bool reconciled)

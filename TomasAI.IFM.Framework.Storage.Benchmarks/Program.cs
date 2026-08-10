@@ -8,5 +8,6 @@ internal static class Program
     {
         var summaries = BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
         ScyllaBulkWriteComparisonWriter.Write(summaries);
+        ScyllaItiQueryComparisonWriter.Write(summaries);
     }
 }

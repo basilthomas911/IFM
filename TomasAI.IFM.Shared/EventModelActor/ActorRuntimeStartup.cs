@@ -30,6 +30,7 @@ public static class ActorRuntimeStartup
 
         try
         {
+            supervisor.SetReadiness(false);
             cancellationToken.ThrowIfCancellationRequested();
             var registry = supervisor.Container.Resolve<IActorRegistry>();
             var factory = supervisor.Container.Resolve<IActorFactory>();
@@ -71,13 +72,17 @@ public static class ActorRuntimeStartup
                     supervisor.AddConsumer(consumerType, consumer);
             }
 
-            await supervisor.StartConsumersAsync(cancellationToken).ConfigureAwait(false);
             foreach (var actor in actors)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await actor.StartAsync(supervisor, cancellationToken).ConfigureAwait(false);
                 logger.LogInformationEvent(ServiceId, "Started {ActorType} actor.", actor.GetType().Name);
             }
+
+            // External Core and JetStream intake stays closed until every actor-owned dependency,
+            // projector, and recovery operation has completed its startup contract.
+            await supervisor.StartConsumersAsync(cancellationToken).ConfigureAwait(false);
+            supervisor.SetReadiness(true);
 
             logger.LogInformationEvent(
                 ServiceId,
@@ -87,6 +92,7 @@ public static class ActorRuntimeStartup
         }
         catch (Exception exception)
         {
+            supervisor.SetReadiness(false);
             if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested)
                 ActorLifecycleMetrics.RecordStartupCancellation();
             else

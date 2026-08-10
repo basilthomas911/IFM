@@ -5,11 +5,11 @@
 **Created:** 2026-08-09
 **Last updated:** 2026-08-09
 **Baseline commit:** `32d025c8`
-**Current work package:** SWO-02 Tranche D, rollout and confirmation
+**Current work package:** SWO-03 actor startup readiness gate complete
 
 ## 1. Executive result
 
-SWO-01 has a production-capable OpenTelemetry/OTLP export path, low-cardinality actor and NATS instruments, detailed actor processing-stage timing, focused correctness tests, and a BenchmarkDotNet overhead measurement. SWO-02 Tranches A through D add aggregate actor admission contracts, observe-only evidence, allocation-free runtime enforcement, explicit Core overload results, durable JetStream redelivery, required route migration, and local enforced saturation confirmation. Production configuration remains `ObserveOnly` until production-like capacity evidence is recorded and approved.
+SWO-01 has a production-capable OpenTelemetry/OTLP export path, low-cardinality actor and NATS instruments, detailed actor processing-stage timing, focused correctness tests, and a BenchmarkDotNet overhead measurement. SWO-02 Tranches A through D add aggregate actor admission contracts, observe-only evidence, allocation-free runtime enforcement, explicit Core overload results, durable JetStream redelivery, required route migration, and local enforced saturation confirmation. SWO-03 now prevents Core NATS or JetStream consumer intake until every actor-owned startup dependency is ready and publishes that state through the API host readiness endpoint. Production admission configuration remains `ObserveOnly` until production-like capacity evidence is recorded and approved.
 
 The code tranche is implemented and verified, but SWO-01 remains in **Measuring** status until a production-like collector and paper-trading run provide the required p95/p99 attribution and exporter/load evidence. This document distinguishes implemented evidence from work that still requires a live topology.
 
@@ -408,6 +408,86 @@ Isolated-process BenchmarkDotNet results:
 
 Every hot-path case reports 0 B/op. The final immutable-ring/drain and scheduling pass improved the SPSC scheduled round trip from 25.19 ns to 24.68 ns (2.0%); the read-before-CAS scheduling fast path improved the scheduled burst from 24.83 ns to 24.43 ns per message (1.6%). Increasing SPSC capacity from 8,192 to 65,536 did not produce a meaningful throughput penalty in this 4,096-operation working set. Empty 8,192-slot mailbox creation allocates 256.98 KB for SPSC versus 2.13 KB for Channel and 321.05 KB for MPSC. SPSC is recommended for production based on the verified topology and measured throughput, subject to confirming the producer invariant, full-pipeline latency, retained memory, and high-cardinality behavior during paper trading or an initial controlled production run. Until that review, Channel remains the active production selection and 8,192 remains the default capacity; 65,536 remains experimental.
 
+### 7.14 SWO-03 actor startup readiness gate
+
+The runtime now uses an actor-first startup contract:
+
+1. register all actors, producers, and Core/JetStream consumers;
+2. keep runtime readiness false and consumer connections closed;
+3. await every actor startup hook, including actor-owned projector recovery and durable queue startup;
+4. start all Core and JetStream consumers; and
+5. atomically publish readiness true only after consumer startup completes.
+
+This removes the previous interval in which a consumer could accept traffic before an actor's mailbox, producer, repository, projector, or recovery operation was ready. Actor startup does not issue requests through these external consumers, so the ordering does not introduce a startup dependency cycle. JetStream durable messages remain on the server while its consumer is unopened; Core callers receive normal no-responder/timeout behavior rather than having work accepted by a partially initialized process.
+
+Cancellation or failure at registration, actor startup, or consumer startup holds readiness false and invokes the existing non-cancelable supervisor shutdown path. Graceful shutdown also clears readiness before stopping consumer intake. The API server registers an `actor_runtime` readiness health check and maps it to `/health/ready`; it returns healthy only while the supervisor reports intake-safe readiness.
+
+Verification on 2026-08-09:
+
+| Gate | Result |
+| --- | ---: |
+| Focused `ActorCancellationTests` lifecycle coverage | 13/13 passed |
+| Complete `TomasAI.IFM.Shared.UnitTests` | 105/105 passed |
+| API server Debug and Release builds | 0 warnings, 0 errors |
+| Ten domain integration projects, sequential Release run | 193/193 passed |
+
+The deterministic startup test holds actor initialization incomplete and proves consumer startup and readiness publication have not occurred. A separate failure test proves actor-start failure does not open consumers, does not publish ready, and invokes rollback. Existing cancellation coverage proves partial registration is also rolled back. The complete domain gate confirms actor-first startup does not introduce a dependency cycle in Fund projector recovery, analytics event routing, or the other production actor startup hooks.
+
+### 7.15 SWO-05 ScyllaDB ITI query projections
+
+The remaining active futures ITI filtered reads now use three additive, bounded projections: contract/day for mode and
+event reads, contract/month for ranges, and contract/trend/mode/month for latest-trend discovery. Canonical
+`futures_iti_signal` remains the source of truth and fallback. Inserts and exact time-period deletes maintain all three
+tables under the existing scoped V3 mutation/guard protocol. The idempotent MarketData backfill truncates only query
+projections, streams canonical ITI rows in bounded batches, publishes the month inventory, independently fingerprints
+all three targets, and publishes readiness only when every identity matches. Application-storage CQL now contains zero
+`ALLOW FILTERING` statements.
+
+Two dormant predicted-delta aggregate methods were removed from the storage interface. Their queries referenced
+`PredictedDelta`, `FuturesRSI`, and `FuturesMDI`, which do not exist in the canonical ITI schema or write contract, and
+there were no application callers. No replacement field mapping was inferred.
+
+The final benchmark uses the real configured Scylla test service, one driver/session and consistency configuration for
+both paths, the same logical latest-row result, five warmups, 100 measured single-query samples, and no outlier removal.
+The after path uses the production bounded trend/mode/month primary key; the earlier unbounded prototype is superseded.
+
+| Canonical rows | Before mean | After mean | Mean change | Before p95 | After p95 | Before p99 | After p99 | Before queries/s | After queries/s | Allocation change |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4,096 | 11.315 ms | 1.285 ms | -88.64% | 11.989 ms | 1.595 ms | 12.310 ms | 1.622 ms | 88.4 | 778.3 | +30.50% |
+| 32,768 | 78.658 ms | 1.358 ms | -98.27% | 80.970 ms | 1.636 ms | 83.387 ms | 1.799 ms | 12.7 | 736.3 | +30.57% |
+
+The measured positive lookup is one Scylla request on both paths. Driver-side Scylla tracing shows the 4,096-row
+canonical request returning one 4,096-row page and the 32,768-row request paging six 5,000-row pages plus 2,768 rows.
+The projected request reports one partition and one live clustering row at both sizes. Coordinator trace duration was
+10,102-10,467 microseconds before versus 442-813 microseconds after at 4,096 rows, and 78,961-80,997 microseconds before
+versus 532-631 microseconds after at 32,768 rows. This independently confirms that the latency change comes from
+bounded routing rather than a client-only shortcut.
+
+The projection allocates about 4.1-4.3 KiB more per request (17.35-18.32 KiB total), a 30.5% directional increase in
+this in-process driver measurement. That is an explicit tradeoff for the richer partition key and request setup; the
+absolute cost stays bounded as canonical history grows, while the old query's database work and latency scale with the
+partition. Monitor allocation rate if this lookup becomes a very high-QPS client path, but do not trade the bounded
+Scylla access pattern back for fewer client allocations. Latest negative lookup fan-out is bounded by the finite ITI
+month inventory and stops at the first matching month. Range reads issue one request per contract/month partition with
+at most eight concurrent requests.
+
+The final integration run also exposed a pre-existing Market Data Feed test race: parallel classes shared fixed
+Scylla rows and one NATS/host environment, allowing one EOD test to overwrite another's arrange data. The project now
+serializes its integration tests; the independently passing failed test, complete 44-test Feed rerun, and final
+ten-domain rerun confirm the correction. A separate RSI storage test cleanup was corrected to delete by the complete
+partition key required by Scylla.
+
+Final verification:
+
+| Gate | Result |
+| --- | ---: |
+| Serial complete solution Release build | 0 warnings, 0 errors |
+| CQL/binding/projection policy tests | 16/16 passed |
+| Real-Scylla complete MarketData storage class | 58/58 passed |
+| Market Data Analytics integration tests | 25/25 passed |
+| Market Data Feed integration tests | 44/44 passed |
+| Ten domain integration projects, sequential Release run | 193/193 passed |
+
 ## 8. References
 
 - [OpenTelemetry .NET metrics documentation](https://opentelemetry.io/docs/languages/dotnet/metrics/)
@@ -432,3 +512,6 @@ Every hot-path case reports 0 B/op. The final immutable-ring/drain and schedulin
 | 0.8 | 2026-08-09 | Recorded the striped-topology SPSC mailbox, transition-only backpressure, 8,192/65,536 capacity benchmarks, and the unchanged Channel/8,192 production defaults. |
 | 0.9 | 2026-08-09 | Marked SPSC as the recommended production implementation while retaining Channel as the checked-in selection until paper-trading or initial-production validation. |
 | 1.0 | 2026-08-09 | Added process-wide actor-worker capacity, busy, available, and utilization gauges with logical-slot semantics, lifecycle accounting, focused tests, and Grafana correlation guidance. |
+| 1.1 | 2026-08-09 | Recorded SWO-03 actor-first startup ordering, readiness health publication, rollback/shutdown semantics, and deterministic verification. |
+| 1.2 | 2026-08-09 | Recorded the in-progress SWO-05 bounded ITI projections, real-Scylla before/after benchmark, and focused reconciliation/read/write validation. |
+| 1.3 | 2026-08-09 | Completed SWO-05 with Scylla trace evidence, final benchmark percentiles and allocation tradeoff, deterministic integration-test isolation, and the complete validation gate. |

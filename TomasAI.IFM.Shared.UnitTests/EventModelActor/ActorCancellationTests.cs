@@ -108,9 +108,13 @@ public sealed class ActorCancellationTests
         var actor = new RecordingActor(order);
         supervisor.AddConsumer(ActorType.Command, consumer);
         supervisor.AddActor(actor);
+        supervisor.SetReadiness(true);
+
+        supervisor.IsReady.Should().BeTrue();
 
         await supervisor.ShutdownAsync();
 
+        supervisor.IsReady.Should().BeFalse();
         order.Should().Equal("consumer", "actor");
     }
 
@@ -287,6 +291,90 @@ public sealed class ActorCancellationTests
             measurement.Phase == "startup");
         metrics.Measurements.Should().Contain(measurement =>
             measurement.Name == "ifm.actor.startup.duration" && measurement.Value >= 0);
+    }
+
+    [Fact]
+    public async Task RuntimeStartup_KeepsConsumerIntakeClosedUntilActorStartupCompletes()
+    {
+        var container = new Mock<IContainerInstance>();
+        var supervisor = new Mock<IActorSupervisor>();
+        var registry = new Mock<IActorRegistry>();
+        var factory = new Mock<IActorFactory>();
+        var producer = new Mock<IActorProducer>();
+        var consumer = new Mock<IActorConsumer>();
+        var jsConsumer = new Mock<IJSActorConsumer>();
+        var actor = new Mock<IActor>();
+        var actorId = new ActorMailboxId(ActorType.Command, "ReadinessActor");
+        var startupEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseStartup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        actor.SetupGet(instance => instance.Id).Returns(actorId);
+        actor.Setup(instance => instance.StartAsync(supervisor.Object, It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                startupEntered.TrySetResult();
+                return new ValueTask(releaseStartup.Task);
+            });
+        registry.SetupGet(instance => instance.ActorTypes).Returns([typeof(FirstRegistrationMarker)]);
+        factory.Setup(instance => instance.GetActor(typeof(FirstRegistrationMarker))).Returns(actor.Object);
+        container.Setup(instance => instance.Resolve<IActorRegistry>()).Returns(registry.Object);
+        container.Setup(instance => instance.Resolve<IActorFactory>()).Returns(factory.Object);
+        container.Setup(instance => instance.Resolve<IActorProducer>()).Returns(producer.Object);
+        container.Setup(instance => instance.Resolve<IActorConsumer>()).Returns(consumer.Object);
+        container.Setup(instance => instance.Resolve<IJSActorConsumer>()).Returns(jsConsumer.Object);
+        supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        supervisor.Setup(instance => instance.StartConsumersAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+
+        var startup = ActorRuntimeStartup
+            .StartAsync(supervisor.Object, NullLogger.Instance)
+            .AsTask();
+        await startupEntered.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        supervisor.Verify(instance => instance.StartConsumersAsync(It.IsAny<CancellationToken>()), Times.Never);
+        supervisor.Verify(instance => instance.SetReadiness(true), Times.Never);
+
+        releaseStartup.TrySetResult();
+        await startup.WaitAsync(TimeSpan.FromSeconds(1));
+
+        supervisor.Verify(instance => instance.StartConsumersAsync(CancellationToken.None), Times.Once);
+        supervisor.Verify(instance => instance.SetReadiness(false), Times.Once);
+        supervisor.Verify(instance => instance.SetReadiness(true), Times.Once);
+    }
+
+    [Fact]
+    public async Task RuntimeStartup_ActorFailureLeavesRuntimeUnreadyAndRollsBackWithoutOpeningIntake()
+    {
+        var container = new Mock<IContainerInstance>();
+        var supervisor = new Mock<IActorSupervisor>();
+        var registry = new Mock<IActorRegistry>();
+        var factory = new Mock<IActorFactory>();
+        var actor = new Mock<IActor>();
+        var actorId = new ActorMailboxId(ActorType.Command, "FailedReadinessActor");
+        actor.SetupGet(instance => instance.Id).Returns(actorId);
+        actor.Setup(instance => instance.StartAsync(supervisor.Object, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("startup failed"));
+        registry.SetupGet(instance => instance.ActorTypes).Returns([typeof(FirstRegistrationMarker)]);
+        factory.Setup(instance => instance.GetActor(typeof(FirstRegistrationMarker))).Returns(actor.Object);
+        container.Setup(instance => instance.Resolve<IActorRegistry>()).Returns(registry.Object);
+        container.Setup(instance => instance.Resolve<IActorFactory>()).Returns(factory.Object);
+        container.Setup(instance => instance.Resolve<IActorProducer>()).Returns(Mock.Of<IActorProducer>());
+        container.Setup(instance => instance.Resolve<IActorConsumer>()).Returns(Mock.Of<IActorConsumer>());
+        container.Setup(instance => instance.Resolve<IJSActorConsumer>()).Returns(Mock.Of<IJSActorConsumer>());
+        supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        supervisor.Setup(instance => instance.ShutdownAsync(CancellationToken.None))
+            .Returns(ValueTask.CompletedTask);
+
+        Func<Task> start = () => ActorRuntimeStartup
+            .StartAsync(supervisor.Object, NullLogger.Instance)
+            .AsTask();
+
+        await start.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("startup failed");
+        supervisor.Verify(instance => instance.StartConsumersAsync(It.IsAny<CancellationToken>()), Times.Never);
+        supervisor.Verify(instance => instance.SetReadiness(true), Times.Never);
+        supervisor.Verify(instance => instance.SetReadiness(false), Times.AtLeastOnce);
+        supervisor.Verify(instance => instance.ShutdownAsync(CancellationToken.None), Times.Once);
     }
 
     readonly record struct LifecycleMeasurement(

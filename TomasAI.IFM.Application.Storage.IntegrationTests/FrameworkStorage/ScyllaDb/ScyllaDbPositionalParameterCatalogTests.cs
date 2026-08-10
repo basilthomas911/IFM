@@ -20,7 +20,6 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
         {
             ["InsertOptionPricerDevice"] = "InsertIOptionPricerDevice",
             ["UpdateSpreadDistributionJobStatus"] = "UpdateSreadDistributionJobStatus",
-            ["GetFuturesItiSignalTrendDataByDateRange"] = "GetFuturesItiSignalsByDateRange",
             ["GetLastFuturesAtrDailySignal"] = "GetLastFuturesDailyAtrSignal",
             ["GetOptionLegsWithValueDate"] = "GetOptionLegs",
             ["GetTradePlansByTradeId"] = "GetTradePlansByValueDate",

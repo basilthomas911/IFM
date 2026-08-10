@@ -2,13 +2,10 @@
 
 ## Scope
 
-This migration replaces every application-storage `ALLOW FILTERING` read except the intentionally deferred ITI/RSI
+This migration replaces every application-storage `ALLOW FILTERING` read, including the formerly deferred futures ITI
 signal queries. The new tables are query-shaped projections; the existing tables remain the canonical source during
-deployment, repair, and rollback.
-
-The deferred signal tables are not part of this migration because their data model is being redesigned and additional
-signal types are expected. `ScyllaCqlPolicyTests` pins that exception list so a new filtered query cannot be introduced
-silently.
+deployment, repair, and rollback. `ScyllaCqlPolicyTests` now rejects every application-storage CQL constant containing
+`ALLOW FILTERING`.
 
 ## New projection groups
 
@@ -17,7 +14,25 @@ silently.
 | Fund | Order-ID lookup, LWT-backed logical transaction identities, transaction timeline, status/day balance, and amount-oriented reads, with per-fund/month cutover state. |
 | Securities | Futures and futures-option contract reads partitioned by symbol, with global and per-symbol state. |
 | Reference | Economic calendars partitioned by country/month, scheduled jobs keyed by exact name, and scope-specific readiness. |
-| MarketData | Tick-time and EOD month projections plus a VIX contract index, with scoped V3 state and backfill/cutover state. |
+| MarketData | Tick-time and EOD month projections, a VIX contract index, and futures ITI day/month/trend-mode projections, with scoped V3 state and backfill/cutover state. |
+
+### Futures ITI query shapes
+
+| Table | Partition | Purpose |
+| --- | --- | --- |
+| `futures_iti_signal_by_contract_day_v2` | `(contractId, valueDate)` | Bounded day/mode reads, latest direction/reversal/extreme events, and sequence-after-direction-change reads. |
+| `futures_iti_signal_by_contract_month_v2` | `(contractId, yearMonth)` | Symbol/contract date ranges with bounded month fan-out. |
+| `futures_iti_signal_by_trend_mode_month_v2` | `(contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth)` | Latest trend/mode discovery without filtering or an unbounded lifetime partition. |
+
+All three tables duplicate the canonical ITI payload so reads do not require joins. A normal insert writes the canonical
+row, the existing date index, all three projections, and the ITI month inventory under one scoped mutation fence. A
+delete resolves the exact canonical rows first and deletes their complete projection primary keys; it never removes a
+whole day or month partition when only one time period was requested.
+
+The former predicted-delta aggregate storage APIs were removed. Their CQL referenced `PredictedDelta`, `FuturesRSI`,
+and `FuturesMDI`, none of which exists in the canonical `futures_iti_signal` schema or insert contract, and repository
+search found no application caller. Assigning those names to `targetDelta`, `intrinsicPrice`, or another field would
+have silently invented financial semantics.
 
 ## Deployment sequence
 
@@ -54,7 +69,8 @@ instead of attempting a manual partial repair.
   keys; scheduled-job scopes use length-prefixed exact names. Disjoint normal writes therefore retain independent
   readiness. Their global journal coordinates whole-projection backfill without forcing unrelated normal reads onto
   fallback. MarketData instead uses V3 tick `(contractId,valueDate)`, EOD `yearMonth`, and VIX bucket scopes.
-  Thirty-two stable FNV-sharded guard scopes fence MarketData discovery: backfill claims every guard before inventory,
+  ITI uses contract/day, contract/month, and contract/trend/mode/month data scopes. Thirty-two stable FNV-sharded guard
+  scopes fence MarketData discovery: backfill claims every guard before inventory,
   ordinary writes protect their data scope and guard, and reads validate both. A tick performs four nominal requests:
   a two-statement logged batch durably registers its guard operation, a bounded logged batch atomically changes the
   canonical rows, query rows, and data-scope generation (at most 49 statements), a conditional LWT releases the guard,
@@ -163,8 +179,9 @@ If `ASPNETCORE_ENVIRONMENT` is also set in the operator shell, it must select th
 `DOTNET_ENVIRONMENT`; Framework.Storage rejects conflicting environment selectors.
 
 Run the commands from the repository root. `--apply-schema` creates only this migration's additive projection,
-state, ownership, and operation-journal objects; it does not create, alter, truncate, or otherwise manage ITI/RSI
-objects. It is safe to repeat because each selected definition uses `CREATE ... IF NOT EXISTS`.
+state, ownership, and operation-journal objects, including the three ITI projection tables; it does not alter or
+truncate canonical ITI/RSI tables. It is safe to repeat because each selected definition uses
+`CREATE ... IF NOT EXISTS`.
 
 ~~~powershell
 dotnet run --project TomasAI.IFM.Application.Storage.Backup -- reference --apply-schema --batch-size 256
@@ -209,3 +226,5 @@ rollback window has closed.
 - Verify Reference IDs are allocated through the PostgreSQL sequence service.
 - Run the Framework.Storage ScyllaDB and PostgreSQL BenchmarkDotNet suites under the same host/database conditions used
   for the baseline comparison.
+- For the production-shaped ITI benchmark, require identical logical maxima before measurement and compare the
+  canonical filtered query with the bounded trend/mode/month projection at 4,096 and 32,768 canonical rows.

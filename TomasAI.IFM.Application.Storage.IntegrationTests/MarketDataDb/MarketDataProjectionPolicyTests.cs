@@ -54,6 +54,23 @@ public sealed class MarketDataProjectionPolicyTests
     }
 
     [Fact]
+    public void FuturesItiProjections_UseBoundedQueryShapedPartitions()
+    {
+        GetSchemaCql("CreateFuturesItiSignalByContractDayV2Table")
+            .ShouldContain("PRIMARY KEY ((contractId, valueDate), intrinsicTimeMode, sequenceId");
+        GetSchemaCql("CreateFuturesItiSignalByContractMonthV2Table")
+            .ShouldContain("PRIMARY KEY ((contractId, yearMonth), valueDate, sequenceId");
+        GetSchemaCql("CreateFuturesItiSignalByTrendModeMonthV2Table")
+            .ShouldContain("PRIMARY KEY ((contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth)");
+        GetCql("GetFuturesItiSignalsByContractMonthV2")
+            .ShouldContain("contractId = :contractId AND yearMonth = :yearMonth");
+        GetCql("GetLastFuturesItiSignalByTrendModeMonthV2")
+            .ShouldContain("AND yearMonth = :yearMonth");
+        GetCql("GetFuturesItiSignalsByContractDayModeAfterSequenceV2")
+            .ShouldContain("intrinsicTimeMode = :intrinsicTimeMode AND sequenceId > :sequenceId");
+    }
+
+    [Fact]
     public void LiveProjectionWrites_AreScopedAndTickBatchesAreExplicitlyBounded()
     {
         GetCql("BeginMarketDataProjectionScopeOperationV3")
@@ -212,6 +229,14 @@ public sealed class MarketDataProjectionPolicyTests
             VixContractsIndexed: 2,
             VixContractsSourceFingerprint: "vix",
             VixContractsIndexedFingerprint: "vix",
+            FuturesItiSignalsSource: 1,
+            FuturesItiSignalsByDayProjected: 1,
+            FuturesItiSignalsByMonthProjected: 1,
+            FuturesItiSignalsByTrendModeProjected: 1,
+            FuturesItiSignalsSourceFingerprint: "iti",
+            FuturesItiSignalsByDayFingerprint: "iti",
+            FuturesItiSignalsByMonthFingerprint: "iti",
+            FuturesItiSignalsByTrendModeFingerprint: "iti",
             CutoverCompleted: false);
 
         Assert.False(result.IsReconciled);

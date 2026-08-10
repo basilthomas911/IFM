@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Hazelcast;
 using Hazelcast.Caching;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
 using Serilog.Events;
 using SimpleInjector;
@@ -185,6 +186,8 @@ public static class Startup
             // add web app services...
             logger.LogInformationEvent("ApiServer", "register base services...");
             services.AddIfmMetrics(config, "TomasAI.IFM.Application.Api.Server");
+            services.AddHealthChecks()
+                .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["ready"]);
             services.AddOpenApiDocument();
 
             // Register HazelcastCache as the IDistributedCache implementation
@@ -477,6 +480,10 @@ public static class Startup
             app.UseHttpsRedirection();
         }
         app.UseAuthorization();
+        app.MapHealthChecks("/health/ready", new HealthCheckOptions
+        {
+            Predicate = registration => registration.Tags.Contains("ready")
+        });
         logger.LogInformationEvent("ApiServer", "web app configuration completed");
         return app;
 

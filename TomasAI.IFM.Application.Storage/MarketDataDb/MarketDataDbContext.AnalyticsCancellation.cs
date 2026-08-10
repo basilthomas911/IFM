@@ -13,25 +13,23 @@ public partial class MarketDataDbContext
         DateOnly valueDate,
         CancellationToken cancellationToken)
     {
-        var db = _dbFactory.MarketDataDb;
-        var maxValueDate = await db
-            .Use(MarketDataDbCql.GetFuturesItiSignalMaxTrendValueDate)
-            .SetParameters(new GetFuturesItiSignalMaxTrendValueDate(
-                contractId,
-                valueDate,
-                IntrinsicTimeTrendType.UpTrend.ToStringFast()))
-            .ExecuteScalarAsync<DateOnly>(MapToMaxValueDate!, cancellationToken)
-            .ConfigureAwait(false);
-
-        return await db
-            .Use(MarketDataDbCql.GetFuturesItiSignalMDI)
-            .SetParameters(new GetFuturesItiSignalMDI(
-                contractId,
-                maxValueDate,
-                GetIntrinsicTimeModes(),
-                IntrinsicTimeTrendType.UpTrend.ToStringFast()))
-            .ExecuteQueryAsync(MapToFuturesItiSignalMDI!, cancellationToken)
-            .ConfigureAwait(false);
+        var modes = new[]
+        {
+            IntrinsicTimeModeType.TrendExtremeChanged,
+            IntrinsicTimeModeType.TrendReversalChanged,
+            IntrinsicTimeModeType.TrendDirectionChanged
+        };
+        var latest = await Task.WhenAll(modes.Select(mode => ReadLastFuturesItiTrendModeAsync(
+            contractId, valueDate, IntrinsicTimeTrendType.UpTrend, mode, cancellationToken)));
+        var maxValueDate = latest.Where(static row => row is not null)
+            .Select(static row => row!.ValueDate)
+            .DefaultIfEmpty()
+            .Max();
+        if (maxValueDate == default)
+            return [];
+        var rows = await Task.WhenAll(modes.Select(mode => ReadFuturesItiDayModeAsync(
+            contractId, maxValueDate, mode, cancellationToken: cancellationToken)));
+        return [.. rows.SelectMany(static values => values).Select(ToFuturesItiSignalMdi)];
     }
 
     public async Task<ICollection<FuturesItiSignalMDIV2ReadModel>> GetFuturesItiSignalMDIByTrendAsync(
@@ -41,42 +39,26 @@ public partial class MarketDataDbContext
         int intrinsicTimeGroupId,
         CancellationToken cancellationToken)
     {
-        var db = _dbFactory.MarketDataDb;
-        var trend = intrinsicTimeTrend.ToStringFast();
-        var intrinsicTimeModes = GetIntrinsicTimeModes();
-        var maxValueDate = await db
-            .Use(MarketDataDbCql.GetFuturesItiSignalMaxValueDateByTrend)
-            .SetParameters(new GetFuturesItiSignalMaxValueDateByTrend(
-                contractId,
-                valueDate,
-                intrinsicTimeModes,
-                trend))
-            .ExecuteScalarAsync(MapToMaxValueDate, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (intrinsicTimeGroupId == -1)
+        _ = intrinsicTimeGroupId; // The legacy query never applied this argument.
+        var modes = new[]
         {
-            intrinsicTimeGroupId = await db
-                .Use(MarketDataDbCql.GetFuturesItiSignalMaxTimeGroupId)
-                .SetParameters(new GetFuturesItiSignalMaxTimeGroupId(
-                    contractId,
-                    maxValueDate,
-                    intrinsicTimeModes,
-                    trend))
-                .ExecuteScalarAsync(MapToMaxIntrinsicTimeGroupId!, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        return await db
-            .Use(MarketDataDbCql.GetFuturesItiSignalMDIByTrend)
-            .SetParameters(new GetFuturesItiSignalMDIByTrend(
-                contractId,
-                maxValueDate,
-                intrinsicTimeModes,
-                trend,
-                intrinsicTimeGroupId))
-            .ExecuteQueryAsync(MapToFuturesItiSignalMDI, cancellationToken)
-            .ConfigureAwait(false);
+            IntrinsicTimeModeType.TrendExtremeChanged,
+            IntrinsicTimeModeType.TrendReversalChanged,
+            IntrinsicTimeModeType.TrendDirectionChanged
+        };
+        var latest = await Task.WhenAll(modes.Select(mode => ReadLastFuturesItiTrendModeAsync(
+            contractId, valueDate, intrinsicTimeTrend, mode, cancellationToken)));
+        var maxValueDate = latest.Where(static row => row is not null)
+            .Select(static row => row!.ValueDate)
+            .DefaultIfEmpty()
+            .Max();
+        if (maxValueDate == default)
+            return [];
+        var rows = await Task.WhenAll(modes.Select(mode => ReadFuturesItiDayModeAsync(
+            contractId, maxValueDate, mode, cancellationToken: cancellationToken)));
+        return [.. rows.SelectMany(static values => values)
+            .Where(row => row.IntrinsicTimeTrend == intrinsicTimeTrend)
+            .Select(ToFuturesItiSignalMdi)];
     }
 
     public async Task<FuturesTrendDirectionReadModel> GetFuturesTrendDirectionFromRSISignalAsync(

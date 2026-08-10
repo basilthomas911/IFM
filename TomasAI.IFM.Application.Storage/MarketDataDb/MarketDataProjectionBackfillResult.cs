@@ -14,6 +14,14 @@ public readonly record struct MarketDataProjectionBackfillResult(
     long VixContractsIndexed,
     string VixContractsSourceFingerprint,
     string VixContractsIndexedFingerprint,
+    long FuturesItiSignalsSource,
+    long FuturesItiSignalsByDayProjected,
+    long FuturesItiSignalsByMonthProjected,
+    long FuturesItiSignalsByTrendModeProjected,
+    string FuturesItiSignalsSourceFingerprint,
+    string FuturesItiSignalsByDayFingerprint,
+    string FuturesItiSignalsByMonthFingerprint,
+    string FuturesItiSignalsByTrendModeFingerprint,
     bool CutoverCompleted)
 {
     public bool IsReconciled =>
@@ -22,13 +30,21 @@ public readonly record struct MarketDataProjectionBackfillResult(
         FuturesEodRowsSource == FuturesEodRowsProjected &&
         FuturesEodSourceFingerprint == FuturesEodProjectedFingerprint &&
         VixContractsSource == VixContractsIndexed &&
-        VixContractsSourceFingerprint == VixContractsIndexedFingerprint;
+        VixContractsSourceFingerprint == VixContractsIndexedFingerprint &&
+        FuturesItiSignalsSource == FuturesItiSignalsByDayProjected &&
+        FuturesItiSignalsSource == FuturesItiSignalsByMonthProjected &&
+        FuturesItiSignalsSource == FuturesItiSignalsByTrendModeProjected &&
+        FuturesItiSignalsSourceFingerprint == FuturesItiSignalsByDayFingerprint &&
+        FuturesItiSignalsSourceFingerprint == FuturesItiSignalsByMonthFingerprint &&
+        FuturesItiSignalsSourceFingerprint == FuturesItiSignalsByTrendModeFingerprint;
 }
 
 public readonly record struct MarketDataProjectionReadiness(
     bool FuturesTickByTime,
     bool FuturesEodByMonth,
-    bool VixFuturesContractIndex)
+    bool VixFuturesContractIndex,
+    bool FuturesItiSignalQueries)
 {
-    public bool IsReady => FuturesTickByTime && FuturesEodByMonth && VixFuturesContractIndex;
+    public bool IsReady => FuturesTickByTime && FuturesEodByMonth &&
+        VixFuturesContractIndex && FuturesItiSignalQueries;
 }

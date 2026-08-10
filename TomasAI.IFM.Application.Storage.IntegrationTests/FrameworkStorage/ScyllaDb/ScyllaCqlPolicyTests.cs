@@ -8,32 +8,8 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.Scyl
 
 public sealed class ScyllaCqlPolicyTests
 {
-    static readonly string[] DeferredItiQueries =
-    [
-        "GetFuturesItiSignalsByDateRange",
-        "GetFuturesItiSignalMaxTrendValueDate",
-        "GetFuturesItiAvgTrendMDI",
-        "GetFuturesItiSignalMaxTrendSequenceId",
-        "GetFuturesItiSignalMDI",
-        "GetFuturesItiSignalMaxValueDateByTrend",
-        "GetFuturesItiSignalMaxTimeGroupId",
-        "GetFuturesItiSignalMDIByTrend",
-        "GetFuturesItiSignalTrendDeltaData",
-        "GetFuturesItiSignalTrendClassData",
-        "GetFuturesItiTrendDirectionChangedSignals",
-        "GetLastFuturesItiSignal",
-        "GetLastFuturesItiSignalTrendDirectionChange",
-        "GetMaxFuturesItiSignalSequenceIdByTrendDirectionChanged",
-        "GetLastFuturesItiSignalTrendExtremeChange",
-        "GetLastFuturesItiSignalTrendReversalChange",
-        "GetMaxFuturesItiSignalValueDate",
-        "GetMaxFuturesItiSignalSequenceId",
-        "GetFuturesItiSignalAverageInfo",
-        "GetFuturesItiSignalAvgPredictedDelta"
-    ];
-
     [Fact]
-    public void AllowFiltering_IsRestrictedToDeferredItiQueries()
+    public void AllowFiltering_IsNotUsedByApplicationStorage()
     {
         var cqlTypes = typeof(MarketDataDbContext).Assembly.GetTypes()
             .Where(static type => type.Name.EndsWith("Cql", StringComparison.Ordinal));
@@ -46,10 +22,6 @@ public sealed class ScyllaCqlPolicyTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        var expected = DeferredItiQueries
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.Equal(expected, actual);
+        Assert.Empty(actual);
     }
 }

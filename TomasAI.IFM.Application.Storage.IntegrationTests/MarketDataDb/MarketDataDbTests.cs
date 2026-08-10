@@ -157,6 +157,23 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
 {
     MarketDataFixture TestFixture { get; } = testFixture;
 
+    async Task DeleteFuturesItiSignalsAsync(string contractId, DateOnly? valueDate = null)
+    {
+        var rows = await TestFixture.DevDatabase
+            .Use(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
+            .SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId))
+            .ExecuteQueryAsync(record => (
+                ValueDate: record.GetDateOnly(1),
+                TimePeriod: record.GetEnum<TimeFrameType>(2)));
+        foreach (var key in rows
+            .Where(row => !valueDate.HasValue || row.ValueDate == valueDate.Value)
+            .Distinct())
+        {
+            await TestFixture.DevDatabase.DeleteFuturesItiSignalAsync(
+                contractId, key.ValueDate, key.TimePeriod);
+        }
+    }
+
     public async Task InsertFuturesTickDataFromProdToDev_Ok()
     {
         var db = TestFixture.ProdDatabase;
@@ -732,13 +749,21 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var readiness = await TestFixture.DevDatabase.GetQueryProjectionReadinessAsync();
 
         result.IsReconciled.Should().BeTrue();
-        result.CutoverCompleted.Should().BeTrue();
+        result.CutoverCompleted.Should().BeTrue(
+            $"readiness was tick={readiness.FuturesTickByTime}, eod={readiness.FuturesEodByMonth}, " +
+            $"vix={readiness.VixFuturesContractIndex}, iti={readiness.FuturesItiSignalQueries}");
         result.FuturesTicksProjected.Should().Be(result.FuturesTicksSource);
         result.FuturesTicksProjectedFingerprint.Should().Be(result.FuturesTicksSourceFingerprint);
         result.FuturesEodRowsProjected.Should().Be(result.FuturesEodRowsSource);
         result.FuturesEodProjectedFingerprint.Should().Be(result.FuturesEodSourceFingerprint);
         result.VixContractsIndexed.Should().Be(result.VixContractsSource);
         result.VixContractsIndexedFingerprint.Should().Be(result.VixContractsSourceFingerprint);
+        result.FuturesItiSignalsByDayProjected.Should().Be(result.FuturesItiSignalsSource);
+        result.FuturesItiSignalsByMonthProjected.Should().Be(result.FuturesItiSignalsSource);
+        result.FuturesItiSignalsByTrendModeProjected.Should().Be(result.FuturesItiSignalsSource);
+        result.FuturesItiSignalsByDayFingerprint.Should().Be(result.FuturesItiSignalsSourceFingerprint);
+        result.FuturesItiSignalsByMonthFingerprint.Should().Be(result.FuturesItiSignalsSourceFingerprint);
+        result.FuturesItiSignalsByTrendModeFingerprint.Should().Be(result.FuturesItiSignalsSourceFingerprint);
         readiness.IsReady.Should().BeTrue();
     }
 
@@ -803,7 +828,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         [
             "futures_tick_data_by_time",
             "futures_eod_data_by_month",
-            "vix_futures_contract_index"
+            "vix_futures_contract_index",
+            "futures_iti_signal_queries_v2"
         ];
 
         await db.BackfillQueryProjectionsV2Async(batchSize: 64);
@@ -1734,8 +1760,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{SampleData.FuturesItiSignal1.ContractId}' and valueDate = '{SampleData.FuturesItiSignal1.ValueDate}' ").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{SampleData.FuturesItiSignal2.ContractId}' and valueDate = '{SampleData.FuturesItiSignal2.ValueDate}' ").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal1.ContractId, SampleData.FuturesItiSignal1.ValueDate);
+        await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal2.ContractId, SampleData.FuturesItiSignal2.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal1);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal2);
 
@@ -1763,7 +1789,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{SampleData.FuturesItiSignal1.ContractId}' ").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal1.ContractId);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal1);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal2 with { ContractId = SampleData.FuturesItiSignal1.ContractId, ValueDate = SampleData.FuturesItiSignal1.ValueDate });
 
@@ -1791,7 +1817,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
         var resultFuturesItiSignal = SampleData.FuturesItiSignal1 with { ValueDate = SampleData.FuturesItiSignal1.ValueDate.AddDays(-4) };
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{SampleData.FuturesItiSignal1.ContractId}' ").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal1.ContractId);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal1);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(resultFuturesItiSignal);
         var entityId = resultFuturesItiSignal.EntityId;
@@ -1820,8 +1846,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{SampleData.FuturesItiSignal1.ContractId}' and valueDate = '{SampleData.FuturesItiSignal1.ValueDate}' ").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{SampleData.FuturesItiSignal2.ContractId}' and valueDate = '{SampleData.FuturesItiSignal2.ValueDate}' ").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal1.ContractId, SampleData.FuturesItiSignal1.ValueDate);
+        await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal2.ContractId, SampleData.FuturesItiSignal2.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal1);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal2);
 
@@ -1854,8 +1880,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{SampleData.FuturesItiSignal1.ContractId}' and valueDate = '{SampleData.FuturesItiSignal1.ValueDate}' ").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{SampleData.FuturesItiSignal2.ContractId}' and valueDate = '{SampleData.FuturesItiSignal2.ValueDate}' ").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal1.ContractId, SampleData.FuturesItiSignal1.ValueDate);
+        await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal2.ContractId, SampleData.FuturesItiSignal2.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal1);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal2);
 
@@ -1885,8 +1911,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.SecDatabase.Use("truncate futures_contract").ExecuteCommandAsync();
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{futuresItiSignal1.ContractId}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{futuresItiSignal2.ContractId}'").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(futuresItiSignal1.ContractId);
+        await DeleteFuturesItiSignalsAsync(futuresItiSignal2.ContractId);
         await TestFixture.DevDatabase.Use($"truncate futures_iti_trend_class_data").ExecuteCommandAsync();
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(futuresItiSignal1);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(futuresItiSignal2);
@@ -1919,8 +1945,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var futuresItiSignal2 = SampleData.FuturesItiSignal2;
 
         await TestFixture.SecDatabase.Use("truncate futures_contract").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{futuresItiSignal1.ContractId}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{futuresItiSignal2.ContractId}'").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(futuresItiSignal1.ContractId);
+        await DeleteFuturesItiSignalsAsync(futuresItiSignal2.ContractId);
         await TestFixture.DevDatabase.Use($"delete from futures_iti_trend_delta_data where symbol = '{symbol}' ").ExecuteCommandAsync();
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(futuresContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(futuresContract2);
@@ -2030,8 +2056,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var entityId = SampleData.FuturesItiSignal1.EntityId;
         var expectedSignals = new List<FuturesItiSignalV2ReadModel> { SampleData.FuturesItiSignal1 };
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{SampleData.FuturesItiSignal1.ContractId}' and valueDate = '{SampleData.FuturesItiSignal1.ValueDate}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{SampleData.FuturesItiSignal2.ContractId}' and valueDate = '{SampleData.FuturesItiSignal2.ValueDate}'").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal1.ContractId, SampleData.FuturesItiSignal1.ValueDate);
+        await DeleteFuturesItiSignalsAsync(SampleData.FuturesItiSignal2.ContractId, SampleData.FuturesItiSignal2.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal1 with { IntrinsicTimeMode = IntrinsicTimeModeType.TrendDirectionChanged });
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(SampleData.FuturesItiSignal2 with
         {
@@ -2061,7 +2087,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var trendingSignal = SampleData.FuturesItiSignal1 with { IntrinsicTimeMode = IntrinsicTimeModeType.Trending };
         var trendDirectionSignal = SampleData.FuturesItiSignal1;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(expectedSignal.ContractId, expectedSignal.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(trendDirectionSignal);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(trendingSignal);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(expectedSignal);
@@ -2103,7 +2129,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var trendingSignal = SampleData.FuturesItiSignal1 with { IntrinsicTimeMode = IntrinsicTimeModeType.Trending };
         var expectedSignal = SampleData.FuturesItiSignal1;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(expectedSignal.ContractId, expectedSignal.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(trendReversalChangedSignal);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(expectedSignal);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(trendingSignal);
@@ -2145,7 +2171,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var trendingSignal = SampleData.FuturesItiSignal1 with { IntrinsicTimeMode = IntrinsicTimeModeType.Trending };
         var trendDirectionChangedSignal = SampleData.FuturesItiSignal1;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(expectedSignal.ContractId, expectedSignal.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(trendDirectionChangedSignal);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(expectedSignal);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(trendingSignal);
@@ -2187,7 +2213,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var trendingSignal = SampleData.FuturesItiSignal1 with { IntrinsicTimeMode = IntrinsicTimeModeType.Trending };
         var trendDirectionChangedSignal = SampleData.FuturesItiSignal1;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
+        await DeleteFuturesItiSignalsAsync(expectedSignal.ContractId, expectedSignal.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(trendDirectionChangedSignal);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(expectedSignal);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(trendingSignal);
@@ -2264,7 +2290,10 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var signalType = SampleData.FuturesRsiSignal.TimePeriod;
         var expectedSignal = SampleData.FuturesRsiSignal;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_rsi_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.Use(
+            $"delete from futures_rsi_signal where contractId = '{expectedSignal.ContractId}' " +
+            $"and timePeriod = '{expectedSignal.TimePeriod}' and periodLength = {expectedSignal.PeriodLength}")
+            .ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesRsiSignalAsync(expectedSignal);
 
         // Act

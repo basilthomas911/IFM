@@ -36,6 +36,14 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     readonly object _externalProducerGate = new();
     Task? _shutdownTask;
     int _disposed;
+    int _isReady;
+
+    /// <inheritdoc />
+    public bool IsReady => Volatile.Read(ref _isReady) != 0;
+
+    /// <inheritdoc />
+    public void SetReadiness(bool isReady)
+        => Volatile.Write(ref _isReady, isReady ? 1 : 0);
 
     /// <summary>
     /// Initializes a new instance of <see cref="ActorSupervisor"/>.
@@ -613,6 +621,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
 
     async Task ShutdownCoreAsync()
     {
+        SetReadiness(false);
         var startedTimestamp = Stopwatch.GetTimestamp();
         List<Exception>? failures = null;
         var completed = false;

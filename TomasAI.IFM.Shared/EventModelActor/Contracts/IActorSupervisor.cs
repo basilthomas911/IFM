@@ -15,6 +15,17 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// Implementations of this interface are expected to ensure thread safety and efficient resource management.</remarks>
 public interface IActorSupervisor
 {
+    /// <summary>
+    /// Gets whether every actor dependency is initialized and external consumer intake is open.
+    /// </summary>
+    bool IsReady { get; }
+
+    /// <summary>
+    /// Updates the runtime readiness advertised by the host health check.
+    /// </summary>
+    /// <param name="isReady"><see langword="true"/> only after actor startup and consumer startup complete.</param>
+    void SetReadiness(bool isReady);
+
     void AddActor(IActor actor);
     void RemoveActor(IActor actor);
     bool ActorExists(ActorMailboxId mailboxId);

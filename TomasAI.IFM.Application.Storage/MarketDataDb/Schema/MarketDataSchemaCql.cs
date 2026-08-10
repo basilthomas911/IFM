@@ -236,6 +236,89 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (valueDate desc, timePeriod desc, intrinsicTimeMode desc, intrinsicTimeTrend desc,intrinsicTimeGroupId desc, sequenceId desc);
     """;
 
+    public const string CreateFuturesItiSignalByContractDayV2Table = """
+    CREATE TABLE IF NOT EXISTS futures_iti_signal_by_contract_day_v2 (
+    contractId text,
+    valueDate date,
+    timePeriod text,
+    sequenceId bigint,
+    intrinsicTime timestamp,
+    intrinsicTimeGroupId int,
+    intrinsicTimeLength double,
+    intrinsicPrice double,
+    intrinsicTimeTrend text,
+    intrinsicTimeMode text,
+    trendPrice double,
+    trendExtreme double,
+    trendReversal double,
+    trendDelta double,
+    targetDelta double,
+    lambda double,
+    tradingDays int,
+    threshold double,
+    upTrendTrigger double,
+    downTrendTrigger double,
+    tradeState text,
+    PRIMARY KEY ((contractId, valueDate), intrinsicTimeMode, sequenceId, timePeriod, intrinsicTimeTrend, intrinsicTimeGroupId)
+    ) WITH CLUSTERING ORDER BY (intrinsicTimeMode ASC, sequenceId DESC, timePeriod ASC, intrinsicTimeTrend ASC, intrinsicTimeGroupId ASC);
+    """;
+
+    public const string CreateFuturesItiSignalByContractMonthV2Table = """
+    CREATE TABLE IF NOT EXISTS futures_iti_signal_by_contract_month_v2 (
+    contractId text,
+    yearMonth int,
+    valueDate date,
+    timePeriod text,
+    sequenceId bigint,
+    intrinsicTime timestamp,
+    intrinsicTimeGroupId int,
+    intrinsicTimeLength double,
+    intrinsicPrice double,
+    intrinsicTimeTrend text,
+    intrinsicTimeMode text,
+    trendPrice double,
+    trendExtreme double,
+    trendReversal double,
+    trendDelta double,
+    targetDelta double,
+    lambda double,
+    tradingDays int,
+    threshold double,
+    upTrendTrigger double,
+    downTrendTrigger double,
+    tradeState text,
+    PRIMARY KEY ((contractId, yearMonth), valueDate, sequenceId, timePeriod, intrinsicTimeMode, intrinsicTimeTrend, intrinsicTimeGroupId)
+    ) WITH CLUSTERING ORDER BY (valueDate DESC, sequenceId DESC, timePeriod ASC, intrinsicTimeMode ASC, intrinsicTimeTrend ASC, intrinsicTimeGroupId ASC);
+    """;
+
+    public const string CreateFuturesItiSignalByTrendModeMonthV2Table = """
+    CREATE TABLE IF NOT EXISTS futures_iti_signal_by_trend_mode_month_v2 (
+    contractId text,
+    yearMonth int,
+    valueDate date,
+    timePeriod text,
+    sequenceId bigint,
+    intrinsicTime timestamp,
+    intrinsicTimeGroupId int,
+    intrinsicTimeLength double,
+    intrinsicPrice double,
+    intrinsicTimeTrend text,
+    intrinsicTimeMode text,
+    trendPrice double,
+    trendExtreme double,
+    trendReversal double,
+    trendDelta double,
+    targetDelta double,
+    lambda double,
+    tradingDays int,
+    threshold double,
+    upTrendTrigger double,
+    downTrendTrigger double,
+    tradeState text,
+    PRIMARY KEY ((contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth), valueDate, sequenceId, timePeriod, intrinsicTimeGroupId)
+    ) WITH CLUSTERING ORDER BY (valueDate DESC, sequenceId DESC, timePeriod ASC, intrinsicTimeGroupId ASC);
+    """;
+
     public const string CreateFuturesTickDataTable = """
     CREATE TABLE IF NOT EXISTS futures_tick_data (
     contractId text,
