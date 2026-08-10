@@ -5,7 +5,7 @@
 **Created:** 2026-08-09
 **Last updated:** 2026-08-10
 **Baseline commit:** `32d025c8`
-**Current work package:** SWO-06 Tranche C complete; Tranche D next
+**Current work package:** SWO-06 Tranche D complete; Tranche E next
 
 ## 1. Executive result
 
@@ -647,6 +647,57 @@ Final verification:
 Tranche C is complete but not production-active. Tranche D transactional publication outbox and typed terminal failure
 delivery are next.
 
+### 7.19 SWO-06 Event-projector reliability Tranche D
+
+Tranche D activates the schema prepared in Tranche A without enabling it in production configuration. Processing,
+completion, and failure stages can now use a single PostgreSQL data-modifying CTE to conditionally advance or
+terminalize the fenced state row and insert the concrete MessagePack publication into `event_projector_outbox`. The
+durable key is `(ProjectorName, EventId, EffectKind)` and the SHA-256-derived message identity remains stable across
+every retry.
+
+`EventProjectorOutboxDispatcher` claims at most the configured batch size using `FOR UPDATE SKIP LOCKED`, a dispatch
+token, and a bounded lease. Successful sends conditionally mark `Published`; failures become `Retrying` with capped
+backoff, and exhausted delivery becomes `Failed`. A crash or ambiguous acknowledgement is reclaimed after lease expiry
+and republishes the identical payload with the same deterministic `IEvent.Id`. This remains durable at-least-once
+delivery, not exactly once.
+
+The one projector-wide maximum-attempt callback now resolves the immutable source descriptor, converts its typed
+failure event, and atomically terminalizes state plus failure outbox. Null or throwing terminal conversion fails closed
+to manual resolution. `BlockedStage` preserves the exact failed stage. Bounded operator APIs page pending, failed, or
+blocked rows; retry-exact reopens that stage and requeues the immutable source event; skip requires and durably records
+an operator reason.
+
+The Fund consumer audit found no registered Fund actor handlers that apply business effects from the projector's
+completion/failure event types. The outbox nevertheless assigns the stable effect-derived `IEvent.Id`; future consumers
+must use that ID as a durable receipt or prove natural idempotency.
+
+Fault injection covers publish failure before acknowledgement and publish success before the PostgreSQL delivery
+marker. Both paths retry with an identical typed payload/event identity. Real PostgreSQL coverage proves state/outbox
+atomicity, mutually exclusive leased claims, published-row exclusion, operational classification, exact-stage retry,
+and skip-with-reason. A live flow proves completion delivery through PostgreSQL, the NATS JetStream projector queue,
+and the ScyllaDB Fund target.
+
+Final verification:
+
+| Gate | Result |
+| --- | ---: |
+| Complete Fund projector/unit suite | 207/207 passed |
+| Tranche D atomic-outbox/operator PostgreSQL cases | 2/2 passed |
+| Tranche D focused outbox/typed-terminal/operator unit cases | 5/5 passed |
+| Live transactional-outbox Fund flow | 1/1 passed |
+| Complete Fund integration suite | 28/28 passed |
+| Sequential Release domain integration tests | 195/195 passed |
+| Complete solution Release build | 0 warnings, 0 errors |
+
+The broad `Application.Storage.IntegrationTests` project was also attempted. Its projector-focused cases passed, but the
+run was not counted as a pass: an unrelated Trade DB empty-range test found a pre-existing
+`TradePlanForwardLossRatioReadModel { ForwardLossRatio = 0.25 }`, and the broad project then reached the five-minute
+runner cap. This is recorded as shared-database fixture contamination, not Tranche D evidence.
+
+`BoundedRecoveryEnabled`, `FencedExecutionEnabled`, and `TransactionalOutboxEnabled` remain `false` in both checked-in
+application configurations. Tranche E ordering, observability, performance benchmarks, dashboards, and staged rollout
+are next.
+
 ## 8. References
 
 - [OpenTelemetry .NET metrics documentation](https://opentelemetry.io/docs/languages/dotnet/metrics/)
@@ -677,3 +728,4 @@ delivery are next.
 | 1.4 | 2026-08-09 | Recorded SWO-06 Tranche A reliability contracts, additive state/outbox schema, fenced storage concurrency evidence, bounded recovery API, and 1k/10k/100k current-path baseline. |
 | 1.5 | 2026-08-10 | Recorded SWO-06 Tranche B lifecycle separation, default-off bounded recovery, readiness rollback, compatibility correction, benchmark comparison, and focused/full Fund verification. |
 | 1.6 | 2026-08-10 | Recorded SWO-06 Tranche C immutable descriptors, unified fenced execution, claim release, all-eight Fund repeat-apply proof, fail-closed unknown handling, cleanup, and complete regression gate. |
+| 1.7 | 2026-08-10 | Recorded SWO-06 Tranche D atomic publication outbox, leased bounded dispatch, deterministic consumer IDs, typed terminal failure, operator controls, fault injection, and complete domain regression gate. |

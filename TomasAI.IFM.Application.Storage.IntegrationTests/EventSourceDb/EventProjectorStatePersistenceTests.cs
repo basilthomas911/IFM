@@ -112,13 +112,16 @@ public sealed class EventProjectorStatePersistenceTests
             .Contain("Revision bigint NOT NULL DEFAULT 0")
             .And.Contain("ExecutionToken uuid")
             .And.Contain("LeaseExpiresAtUtc timestamptz")
+            .And.Contain("BlockedStage varchar(50) NOT NULL DEFAULT 'None'")
             .And.Contain("ix_event_projector_state_pending_v2")
             .And.Contain("ix_event_projector_state_stream_pending_v2");
         EventSourceSchemaSql.CreateEventProjectorOutboxV2.Should()
             .Contain("PRIMARY KEY (ProjectorName, EventId, EffectKind)")
             .And.Contain("MessageId varchar(128) NOT NULL")
             .And.Contain("UNIQUE (MessageId)")
-            .And.Contain("ix_event_projector_outbox_pending");
+            .And.Contain("ix_event_projector_outbox_pending")
+            .And.Contain("DispatchLeaseExpiresAtUtc")
+            .And.Contain("ix_event_projector_outbox_dispatch_lease_v2");
         EventSourceDbSql.TryClaimEventProjectorExecution.Should()
             .Contain("Revision = Revision + 1")
             .And.Contain("LeaseExpiresAtUtc <= $5");
@@ -132,6 +135,14 @@ public sealed class EventProjectorStatePersistenceTests
             .And.Contain("Outcome = 'Retrying'")
             .And.Contain("Revision = $4")
             .And.Contain("Stage = $5");
+        EventSourceDbSql.TryTerminalizeEventProjectorExecutionWithOutbox.Should()
+            .Contain("WITH transitioned AS")
+            .And.Contain("INSERT INTO event_projector_outbox")
+            .And.Contain("FROM transitioned");
+        EventSourceDbSql.ClaimEventProjectorOutbox.Should()
+            .Contain("FOR UPDATE SKIP LOCKED")
+            .And.Contain("DispatchLeaseExpiresAtUtc <= $4")
+            .And.Contain("LIMIT $5");
         EventSourceDbSql.GetEventProjectorRecoveryPage.Should()
             .Contain("eps.EventId > $3")
             .And.Contain("eps.LeaseExpiresAtUtc <= $4")

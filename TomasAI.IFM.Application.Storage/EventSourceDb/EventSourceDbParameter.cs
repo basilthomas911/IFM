@@ -41,6 +41,10 @@ internal readonly record struct GetEventLogByMaxEventVersion(long eventStreamId,
 {
     public object Bind() => Values(Bigint(eventStreamId), Bigint(maxEventVersion));
 }
+internal readonly record struct GetEventLogByEventVersion(long eventVersion) : IBindValue
+{
+    public object Bind() => Values(Bigint(eventVersion));
+}
 internal readonly record struct GetEventStreamId(string eventStream) : IBindValue
 {
     public object Bind() => Values(Text(eventStream));
@@ -294,4 +298,140 @@ internal readonly record struct GetEventProjectorRecoveryPage(
         Bigint(afterEventId),
         TimestampTz(nowUtc),
         Integer(batchSize));
+}
+
+internal readonly record struct TryTransitionEventProjectorExecutionWithOutbox(
+    TryTransitionEventProjectorExecution Transition,
+    string effectKind,
+    string messageId,
+    string eventTypeName,
+    byte[] eventPayload,
+    DateTime createdAtUtc) : IBindValue
+{
+    public object Bind()
+    {
+        var values = (Npgsql.NpgsqlParameter[])Transition.Bind();
+        return Values(
+            [.. values,
+             Text(effectKind),
+             Text(messageId),
+             Text(eventTypeName),
+             Bytea(eventPayload),
+             TimestampTz(createdAtUtc)]);
+    }
+}
+
+internal readonly record struct TryTerminalizeEventProjectorExecutionWithOutbox(
+    TryTerminalizeEventProjectorExecution Transition,
+    string effectKind,
+    string messageId,
+    string eventTypeName,
+    byte[] eventPayload,
+    DateTime createdAtUtc) : IBindValue
+{
+    public object Bind()
+    {
+        var values = (Npgsql.NpgsqlParameter[])Transition.Bind();
+        return Values(
+            [.. values,
+             Text(effectKind),
+             Text(messageId),
+             Text(eventTypeName),
+             Bytea(eventPayload),
+             TimestampTz(createdAtUtc)]);
+    }
+}
+
+internal readonly record struct ClaimEventProjectorOutbox(
+    string projectorName,
+    Guid dispatchToken,
+    DateTime dispatchLeaseExpiresAtUtc,
+    DateTime nowUtc,
+    int batchSize) : IBindValue
+{
+    public object Bind() => Values(
+        Text(projectorName),
+        Uuid(dispatchToken),
+        TimestampTz(dispatchLeaseExpiresAtUtc),
+        TimestampTz(nowUtc),
+        Integer(batchSize));
+}
+
+internal readonly record struct MarkEventProjectorOutboxPublished(
+    string projectorName,
+    long eventId,
+    string effectKind,
+    Guid dispatchToken,
+    DateTime nowUtc,
+    DateTime publishedAtUtc) : IBindValue
+{
+    public object Bind() => Values(
+        Text(projectorName),
+        Bigint(eventId),
+        Text(effectKind),
+        Uuid(dispatchToken),
+        TimestampTz(nowUtc),
+        TimestampTz(publishedAtUtc));
+}
+
+internal readonly record struct ReleaseEventProjectorOutbox(
+    string projectorName,
+    long eventId,
+    string effectKind,
+    Guid dispatchToken,
+    DateTime nowUtc,
+    string status,
+    DateTime? nextAttemptAtUtc,
+    string lastError) : IBindValue
+{
+    public object Bind() => Values(
+        Text(projectorName),
+        Bigint(eventId),
+        Text(effectKind),
+        Uuid(dispatchToken),
+        TimestampTz(nowUtc),
+        Text(status),
+        TimestampTz(nextAttemptAtUtc),
+        Text(lastError));
+}
+
+internal readonly record struct GetEventProjectorOperationalStatePage(
+    string projectorName,
+    string status,
+    long afterEventId,
+    int batchSize) : IBindValue
+{
+    public object Bind() => Values(
+        Text(projectorName),
+        Text(status),
+        Bigint(afterEventId),
+        Integer(batchSize));
+}
+
+internal readonly record struct RetryEventProjectorExecution(
+    long eventId,
+    string projectorName,
+    DateTime nowUtc,
+    string updatedTimestamp) : IBindValue
+{
+    public object Bind() => Values(
+        Bigint(eventId),
+        Text(projectorName),
+        TimestampTz(nowUtc),
+        Text(updatedTimestamp));
+}
+
+internal readonly record struct SkipEventProjectorExecution(
+    long eventId,
+    string projectorName,
+    string reason,
+    DateTime nowUtc,
+    string updatedTimestamp) : IBindValue
+{
+    public object Bind() => Values(
+        Bigint(eventId),
+        Text(projectorName),
+        Text(reason),
+        TimestampTz(nowUtc),
+        Text(updatedTimestamp));
 }

@@ -76,6 +76,7 @@ public static class EventSourceSchemaSql
         ADD COLUMN IF NOT EXISTS LastErrorAtUtc timestamptz,
         ADD COLUMN IF NOT EXISTS BlockedReason text NOT NULL DEFAULT '',
         ADD COLUMN IF NOT EXISTS LastCompletedStage varchar(50) NOT NULL DEFAULT 'None',
+        ADD COLUMN IF NOT EXISTS BlockedStage varchar(50) NOT NULL DEFAULT 'None',
         ADD COLUMN IF NOT EXISTS UpdatedAtUtc timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
     UPDATE event_projector_state eps
@@ -103,6 +104,7 @@ public static class EventSourceSchemaSql
     DROP INDEX IF EXISTS ix_event_projector_state_pending_v2;
     ALTER TABLE IF EXISTS event_projector_state
         DROP COLUMN IF EXISTS UpdatedAtUtc,
+        DROP COLUMN IF EXISTS BlockedStage,
         DROP COLUMN IF EXISTS LastCompletedStage,
         DROP COLUMN IF EXISTS BlockedReason,
         DROP COLUMN IF EXISTS LastErrorAtUtc,
@@ -129,6 +131,8 @@ public static class EventSourceSchemaSql
         CreatedAtUtc timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PublishedAtUtc timestamptz,
         LastError text NOT NULL DEFAULT '',
+        DispatchToken uuid,
+        DispatchLeaseExpiresAtUtc timestamptz,
         CONSTRAINT pk_event_projector_outbox PRIMARY KEY (ProjectorName, EventId, EffectKind),
         CONSTRAINT fk_event_projector_outbox_state
             FOREIGN KEY (EventId, ProjectorName)
@@ -137,9 +141,17 @@ public static class EventSourceSchemaSql
         CONSTRAINT ux_event_projector_outbox_message_id UNIQUE (MessageId)
     );
 
+    ALTER TABLE event_projector_outbox
+        ADD COLUMN IF NOT EXISTS DispatchToken uuid,
+        ADD COLUMN IF NOT EXISTS DispatchLeaseExpiresAtUtc timestamptz;
+
     CREATE INDEX IF NOT EXISTS ix_event_projector_outbox_pending_v2
         ON event_projector_outbox (Status, NextAttemptAtUtc, CreatedAtUtc)
         WHERE Status IN ('Pending', 'Retrying');
+
+    CREATE INDEX IF NOT EXISTS ix_event_projector_outbox_dispatch_lease_v2
+        ON event_projector_outbox (Status, DispatchLeaseExpiresAtUtc)
+        WHERE Status = 'Publishing';
     """;
 
     public const string CreateCommandLog = """

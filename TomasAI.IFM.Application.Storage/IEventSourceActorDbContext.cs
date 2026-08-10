@@ -41,6 +41,9 @@ public interface IEventSourceActorDbContext
         long eventId,
         string projectorName,
         CancellationToken cancellationToken);
+    Task<EventLogReadModel?> GetEventLogByEventIdAsync(
+        long eventId,
+        CancellationToken cancellationToken = default);
     Task<EventProjectorExecutionStateReadModel?> TryCreateEventProjectorExecutionStateAsync(
         EventProjectorExecutionStateReadModel state,
         CancellationToken cancellationToken = default);
@@ -73,6 +76,51 @@ public interface IEventSourceActorDbContext
         CancellationToken cancellationToken = default);
     Task<EventProjectorExecutionStateReadModel?> TryTerminalizeEventProjectorExecutionAsync(
         EventProjectorStateTransition transition,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorExecutionStateReadModel?> TryTransitionEventProjectorExecutionWithOutboxAsync(
+        EventProjectorStateTransition transition,
+        EventProjectorOutboxMessage message,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorExecutionStateReadModel?> TryTerminalizeEventProjectorExecutionWithOutboxAsync(
+        EventProjectorStateTransition transition,
+        EventProjectorOutboxMessage message,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<EventProjectorOutboxReadModel>> ClaimEventProjectorOutboxAsync(
+        string projectorName,
+        Guid dispatchToken,
+        DateTime nowUtc,
+        TimeSpan leaseDuration,
+        int batchSize,
+        CancellationToken cancellationToken = default);
+    Task<bool> MarkEventProjectorOutboxPublishedAsync(
+        EventProjectorOutboxReadModel message,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default);
+    Task<bool> ReleaseEventProjectorOutboxAsync(
+        EventProjectorOutboxReadModel message,
+        EventProjectorOutboxStatus status,
+        DateTime? nextAttemptAtUtc,
+        string lastError,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<EventProjectorExecutionStateReadModel>> GetEventProjectorOperationalStatePageAsync(
+        string projectorName,
+        EventProjectorOperationalStatus status,
+        long afterEventId,
+        int batchSize,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorExecutionStateReadModel?> TryRetryEventProjectorExecutionAsync(
+        long eventId,
+        string projectorName,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default);
+    Task<EventProjectorExecutionStateReadModel?> TrySkipEventProjectorExecutionAsync(
+        long eventId,
+        string projectorName,
+        string reason,
         DateTime nowUtc,
         CancellationToken cancellationToken = default);
     Task<IReadOnlyList<EventProjectorRecoveryItemReadModel>> GetEventProjectorRecoveryPageAsync(

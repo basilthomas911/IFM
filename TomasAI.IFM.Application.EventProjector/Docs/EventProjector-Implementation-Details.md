@@ -3,17 +3,20 @@
 ## Purpose and current status
 
 `TomasAI.IFM.Application.EventProjector` projects committed event-sourced domain events into target read stores through
-a durable NATS JetStream queue. SWO-06 Tranches A-C are implemented:
+a durable NATS JetStream queue. SWO-06 Tranches A-D are implemented:
 
 - additive PostgreSQL execution state and compare-and-set fencing;
 - bounded, joined-keyset startup recovery;
 - immutable projector descriptors;
 - one claim/stage path for process and replay delivery;
 - explicit target idempotency contracts; and
-- fail-closed handling for unregistered and unknown source events.
+- fail-closed handling for unregistered and unknown source events;
+- atomic PostgreSQL publication outbox transitions and leased bounded dispatch;
+- typed maximum-attempt failure publication; and
+- bounded operator pages plus retry-exact and skip-with-reason actions.
 
-The transactional publication outbox is reserved for Tranche D. Both `BoundedRecoveryEnabled` and
-`FencedExecutionEnabled` remain `false` in production configuration until the rollout gate is approved.
+`BoundedRecoveryEnabled`, `FencedExecutionEnabled`, and `TransactionalOutboxEnabled` remain `false` in production
+configuration until the rollout gate is approved.
 
 ## Source map
 
@@ -21,6 +24,8 @@ The transactional publication outbox is reserved for Tranche D. Both `BoundedRec
 | --- | --- |
 | `BaseEventProjector.cs` | Validates descriptors, owns lifecycle and readiness, initializes durable intake, selects legacy or fenced execution, and publishes typed actor events. |
 | `EventProjectorExecutionEngine.cs` | Claims a leased execution, applies fenced stage transitions, releases failed claims for retry, terminalizes failures, and creates explicit target-operation contexts. |
+| `EventProjectorOutboxDispatcher.cs` | Claims bounded outbox batches with `SKIP LOCKED`, publishes typed events, and records delivery or bounded retry. |
+| `EventProjectorOutboxSerializer.cs` | Serializes concrete MessagePack payloads and assigns deterministic consumer-visible event IDs from stage-effect identities. |
 | `EventProjectorRecoveryCoordinator.cs` | Pages recoverable event/state rows, preserves same-stream ordering, and enqueues stable recovery candidates with bounded cross-stream concurrency. |
 | `EventProjectorReliabilityOptions.cs` | Contains activation switches and bounded recovery/retry/lease settings. |
 | `Contracts/EventProjectionDescriptor.cs` | Defines one immutable source type, target operation, idempotency strategy, and completion/failure factories. |
@@ -77,8 +82,9 @@ Therefore Tranche C does not add a ScyllaDB receipt table. A future operation wi
 3. prepare JetStream resources without starting consumption;
 4. register the single process/replay handler;
 5. inventory and enqueue recovery candidates;
-6. start process and replay workers; and
-7. publish readiness.
+6. start the outbox dispatcher when independently enabled;
+7. start process and replay workers; and
+8. publish readiness.
 
 Any startup failure stops partially started workers, clears the actor context, leaves readiness false, records the
 failure reason, and rethrows.
@@ -127,12 +133,34 @@ Immediate release is essential. Without it, a 30-second redelivery could exhaust
 two-minute lease still prevents every retry from claiming the state. A stale owner cannot release, transition, or
 terminalize after another owner changes the token or revision.
 
+## Transactional publication outbox
+
+With `TransactionalOutboxEnabled = true`, the engine serializes processing, completion, and failure publications and
+executes one PostgreSQL statement whose data-modifying CTE both changes projector state and inserts the outbox row.
+The primary key `(ProjectorName, EventId, EffectKind)` and deterministic `MessageId` make every retry reuse one durable
+publication identity.
+
+The dispatcher claims at most `OutboxBatchSize` eligible rows with `FOR UPDATE SKIP LOCKED`, a unique dispatch token,
+and a bounded lease. It publishes in created/event/effect order, then conditionally marks the row `Published`. A send
+failure releases the row as `Retrying` with capped exponential backoff. A process crash or lost acknowledgement leaves
+the row reclaimable after lease expiry; the same MessagePack payload and deterministic `IEvent.Id` are published again.
+After `MaximumOutboxAttempts`, status becomes `Failed` rather than retrying silently forever.
+
+This is durable at-least-once publication, not exactly once. Current Fund completion/failure event types have no
+registered business-effect consumers in the Fund event actor. Future consumers must persist or naturally absorb the
+deterministic `IEvent.Id`; finite JetStream duplicate windows are not a permanent business receipt.
+
 ## Unknown and terminal behavior
 
 An unregistered runtime type is never treated as successful. If durable execution state exists, it is terminalized as
 `Failed` with `BlockedReason = unregistered-source-event`. Failed failure-event conversion uses
-`failed-event-conversion`. Maximum delivery exhaustion uses `maximum-attempts-reached`. These states preserve the source
-event/state for later operator resolution.
+`failed-event-conversion`. Maximum delivery exhaustion converts through the immutable descriptor and atomically stages
+its typed failure event with `maximum-attempts-reached`. A null or throwing terminal conversion records manual
+resolution without an outbox row. These states preserve the source event/state for later operator resolution.
+
+Terminal failures persist `BlockedStage`, so `RetryExactAsync` can reopen the exact failed stage, reload the immutable
+source event, and durably re-enqueue it. `SkipAsync` requires a reason and records `operator-skip:<reason>`.
+`GetOperationalStatesAsync` provides bounded keyset pages for pending, failed, or blocked states.
 
 A state is terminal when its stage is `Completed` or its outcome is `Completed`, `Failed`, `Cancelled`, `Superseded`,
 or `AlreadyCompleted`.
@@ -149,7 +177,8 @@ Current application settings:
 {
   "EventProjectorReliability": {
     "BoundedRecoveryEnabled": false,
-    "FencedExecutionEnabled": false
+    "FencedExecutionEnabled": false,
+    "TransactionalOutboxEnabled": false
   }
 }
 ```
@@ -158,18 +187,18 @@ Activation requires draining projector workers, enabling bounded recovery and fe
 verifying PostgreSQL state, ScyllaDB Fund rows, JetStream lag/redelivery, blocked rows, and claim conflicts before
 expanding. Never run legacy and fenced workers concurrently for the same persisted projector identity.
 
-## Tranche C verification
+## Tranche D verification
 
 The verification gate covers:
 
-- descriptor uniqueness and explicit strategy for all eight Fund events;
-- crash after target write but before checkpoint, followed by safe repeat application;
-- unregistered-event manual-resolution terminalization;
-- conditional release and immediate takeover by a new owner;
-- stale token/revision rejection;
-- repeat application of all eight operations against real ScyllaDB;
-- fenced live projection through real PostgreSQL, NATS JetStream, and ScyllaDB; and
-- legacy projection/recovery compatibility while activation flags remain off.
+- atomic state/outbox persistence and leased competing claims against real PostgreSQL;
+- publish failure followed by retry with the identical payload/event identity;
+- publish success followed by a lost delivery marker and safe identical re-publication;
+- stable typed completion and maximum-attempt failure conversion;
+- bounded pending/failed/blocked pages, exact-stage retry, and skip-with-reason state;
+- real PostgreSQL, NATS JetStream queue, ScyllaDB target, and outbox completion delivery;
+- all eight Fund target idempotency contracts from Tranche C; and
+- legacy/fenced/outbox configuration compatibility while all activation flags remain off.
 
 Relevant suites are:
 
@@ -181,6 +210,6 @@ Relevant suites are:
 
 ## Next tranche
 
-Tranche D adds atomic PostgreSQL state-plus-outbox persistence, bounded outbox dispatch, deterministic publication IDs,
-typed terminal failure publication, and operator retry/skip queries. Until that tranche is complete, processing and
-completion/failure publications remain at-least-once and their consumers must remain idempotent.
+Tranche E adds cross-page same-stream execution ordering, projector OpenTelemetry instruments and Grafana guidance,
+recovery/steady-state/outbox benchmarks, and the staged canary rollout procedure. No production activation is implied
+by Tranche D completion.

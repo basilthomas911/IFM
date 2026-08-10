@@ -160,7 +160,8 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             LastErrorAtUtc: o.IsNull(offset + 17) ? null : o.GetDateTime(offset + 17),
             BlockedReason: o.GetString(offset + 18),
             LastCompletedStage: o.GetEnum<EventProjectorStageType>(offset + 19),
-            UpdatedAtUtc: o.GetDateTime(offset + 20));
+            UpdatedAtUtc: o.GetDateTime(offset + 20),
+            BlockedStage: o.GetEnum<EventProjectorStageType>(offset + 21));
 
     internal static EventProjectorRecoveryItemReadModel MapToEventProjectorRecoveryItem(
         IObjectDataRecord o)
@@ -174,6 +175,23 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 CommandId: o.GetGuid(5),
                 EventTimestamp: o.GetString(6)),
             State: MapToEventProjectorExecutionState(o, 7));
+
+    internal static EventProjectorOutboxReadModel MapToEventProjectorOutbox(IObjectDataRecord o)
+        => new(
+            ProjectorName: o.GetString(0),
+            EventId: o.GetLong(1),
+            EffectKind: o.GetEnum<EventProjectorEffectKind>(2),
+            MessageId: o.GetString(3),
+            EventTypeName: o.GetString(4),
+            EventPayload: o.GetBytes(5),
+            Status: o.GetEnum<EventProjectorOutboxStatus>(6),
+            AttemptCount: o.GetInt(7),
+            NextAttemptAtUtc: o.IsNull(8) ? null : o.GetDateTime(8),
+            CreatedAtUtc: o.GetDateTime(9),
+            PublishedAtUtc: o.IsNull(10) ? null : o.GetDateTime(10),
+            LastError: o.GetString(11),
+            DispatchToken: o.GetGuid(12),
+            DispatchLeaseExpiresAtUtc: o.GetDateTime(13));
 
     /// <summary>
     /// Maps the specified object map reader to an <see cref="EventStreamReadModel"/> instance.
@@ -389,6 +407,19 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             .ConfigureAwait(false);
     }
 
+    public async Task<EventLogReadModel?> GetEventLogByEventIdAsync(
+        long eventId,
+        CancellationToken cancellationToken = default)
+    {
+        if (eventId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(eventId));
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.GetEventLogByEventVersion)
+            .SetParameters(new GetEventLogByEventVersion(eventId))
+            .ExecuteSingleAsync<EventLogReadModel>(MapToEventLog, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public async Task<EventProjectorExecutionStateReadModel?> TryCreateEventProjectorExecutionStateAsync(
         EventProjectorExecutionStateReadModel state,
         CancellationToken cancellationToken = default)
@@ -587,6 +618,217 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
                 MapToEventProjectorExecutionState,
                 cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> TryTransitionEventProjectorExecutionWithOutboxAsync(
+        EventProjectorStateTransition transition,
+        EventProjectorOutboxMessage message,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateTransition(transition, terminal: false);
+        ValidateOutboxMessage(transition, message);
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        var parameters = new TryTransitionEventProjectorExecution(
+            transition.EventId,
+            transition.ProjectorName,
+            transition.ExecutionToken,
+            transition.ExpectedRevision,
+            $"{transition.ExpectedStage}",
+            nowUtc,
+            $"{transition.NextStage}",
+            $"{transition.Outcome}",
+            $"{transition.LastCompletedStage}",
+            transition.RetryCount,
+            ValidateOptionalUtc(transition.NextAttemptAtUtc, nameof(transition.NextAttemptAtUtc)),
+            ValidateOptionalUtc(transition.LastErrorAtUtc, nameof(transition.LastErrorAtUtc)),
+            transition.ErrorMessage ?? string.Empty,
+            transition.BlockedReason ?? string.Empty,
+            nowUtc,
+            $"{nowUtc:o}");
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TryTransitionEventProjectorExecutionWithOutbox)
+            .SetParameters(new TryTransitionEventProjectorExecutionWithOutbox(
+                parameters,
+                $"{message.Identity.EffectKind}",
+                message.MessageId,
+                message.EventTypeName,
+                message.EventPayload,
+                nowUtc))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> TryTerminalizeEventProjectorExecutionWithOutboxAsync(
+        EventProjectorStateTransition transition,
+        EventProjectorOutboxMessage message,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateTransition(transition, terminal: true);
+        ValidateOutboxMessage(transition, message);
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        var parameters = new TryTerminalizeEventProjectorExecution(
+            transition.EventId,
+            transition.ProjectorName,
+            transition.ExecutionToken,
+            transition.ExpectedRevision,
+            $"{transition.ExpectedStage}",
+            nowUtc,
+            $"{transition.Outcome}",
+            $"{transition.LastCompletedStage}",
+            transition.RetryCount,
+            ValidateOptionalUtc(transition.LastErrorAtUtc, nameof(transition.LastErrorAtUtc)),
+            transition.ErrorMessage ?? string.Empty,
+            transition.BlockedReason ?? string.Empty,
+            nowUtc,
+            $"{nowUtc:o}");
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TryTerminalizeEventProjectorExecutionWithOutbox)
+            .SetParameters(new TryTerminalizeEventProjectorExecutionWithOutbox(
+                parameters,
+                $"{message.Identity.EffectKind}",
+                message.MessageId,
+                message.EventTypeName,
+                message.EventPayload,
+                nowUtc))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<EventProjectorOutboxReadModel>> ClaimEventProjectorOutboxAsync(
+        string projectorName,
+        Guid dispatchToken,
+        DateTime nowUtc,
+        TimeSpan leaseDuration,
+        int batchSize,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
+        ValidateExecutionToken(dispatchToken);
+        if (batchSize is < 1 or > 2_048)
+            throw new ArgumentOutOfRangeException(nameof(batchSize));
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        var leaseExpiresAtUtc = GetLeaseExpiry(nowUtc, leaseDuration);
+        return [.. await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.ClaimEventProjectorOutbox)
+            .SetParameters(new ClaimEventProjectorOutbox(
+                projectorName,
+                dispatchToken,
+                leaseExpiresAtUtc,
+                nowUtc,
+                batchSize))
+            .ExecuteQueryAsync<EventProjectorOutboxReadModel>(MapToEventProjectorOutbox, cancellationToken)
+            .ConfigureAwait(false)];
+    }
+
+    public async Task<bool> MarkEventProjectorOutboxPublishedAsync(
+        EventProjectorOutboxReadModel message,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        var affected = await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.MarkEventProjectorOutboxPublished)
+            .SetParameters(new MarkEventProjectorOutboxPublished(
+                message.ProjectorName,
+                message.EventId,
+                $"{message.EffectKind}",
+                message.DispatchToken,
+                nowUtc,
+                nowUtc))
+            .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        return affected.Sum() == 1;
+    }
+
+    public async Task<bool> ReleaseEventProjectorOutboxAsync(
+        EventProjectorOutboxReadModel message,
+        EventProjectorOutboxStatus status,
+        DateTime? nextAttemptAtUtc,
+        string lastError,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        if (status is not EventProjectorOutboxStatus.Retrying and not EventProjectorOutboxStatus.Failed)
+            throw new ArgumentOutOfRangeException(nameof(status));
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        nextAttemptAtUtc = ValidateOptionalUtc(nextAttemptAtUtc, nameof(nextAttemptAtUtc));
+        var affected = await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.ReleaseEventProjectorOutbox)
+            .SetParameters(new ReleaseEventProjectorOutbox(
+                message.ProjectorName,
+                message.EventId,
+                $"{message.EffectKind}",
+                message.DispatchToken,
+                nowUtc,
+                $"{status}",
+                nextAttemptAtUtc,
+                lastError ?? string.Empty))
+            .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        return affected.Sum() == 1;
+    }
+
+    public async Task<IReadOnlyList<EventProjectorExecutionStateReadModel>> GetEventProjectorOperationalStatePageAsync(
+        string projectorName,
+        EventProjectorOperationalStatus status,
+        long afterEventId,
+        int batchSize,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
+        if (!Enum.IsDefined(status))
+            throw new ArgumentOutOfRangeException(nameof(status));
+        if (afterEventId < 0)
+            throw new ArgumentOutOfRangeException(nameof(afterEventId));
+        if (batchSize is < 1 or > 2_048)
+            throw new ArgumentOutOfRangeException(nameof(batchSize));
+        return [.. await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.GetEventProjectorOperationalStatePage)
+            .SetParameters(new GetEventProjectorOperationalStatePage(
+                projectorName, $"{status}", afterEventId, batchSize))
+            .ExecuteQueryAsync<EventProjectorExecutionStateReadModel>(
+                MapToEventProjectorExecutionState, cancellationToken)
+            .ConfigureAwait(false)];
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> TryRetryEventProjectorExecutionAsync(
+        long eventId,
+        string projectorName,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateProjectorIdentity(eventId, projectorName);
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TryRetryEventProjectorExecution)
+            .SetParameters(new RetryEventProjectorExecution(
+                eventId, projectorName, nowUtc, $"{nowUtc:o}"))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
+                MapToEventProjectorExecutionState, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorExecutionStateReadModel?> TrySkipEventProjectorExecutionAsync(
+        long eventId,
+        string projectorName,
+        string reason,
+        DateTime nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateProjectorIdentity(eventId, projectorName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        if (reason.Length > 2_000)
+            throw new ArgumentOutOfRangeException(nameof(reason));
+        nowUtc = RequireUtc(nowUtc, nameof(nowUtc));
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.TrySkipEventProjectorExecution)
+            .SetParameters(new SkipEventProjectorExecution(
+                eventId, projectorName, reason, nowUtc, $"{nowUtc:o}"))
+            .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
+                MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -1237,6 +1479,25 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             if (transition.Outcome is not (EventProjectorOutcomeType.Processing or EventProjectorOutcomeType.Retrying))
                 throw new ArgumentOutOfRangeException(nameof(transition.Outcome), "A non-terminal transition requires an active outcome.");
         }
+    }
+
+    static void ValidateOutboxMessage(
+        EventProjectorStateTransition transition,
+        EventProjectorOutboxMessage message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        if (message.Identity.EventId != transition.EventId
+            || !string.Equals(message.Identity.ProjectorName, transition.ProjectorName, StringComparison.Ordinal))
+            throw new ArgumentException("The outbox identity must match the transitioned projection.", nameof(message));
+        if (message.Identity.EffectKind is not (
+            EventProjectorEffectKind.ProcessingPublication
+            or EventProjectorEffectKind.CompletedPublication
+            or EventProjectorEffectKind.FailedPublication))
+            throw new ArgumentOutOfRangeException(nameof(message), "Only publication effects can be staged in the outbox.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(message.EventTypeName);
+        ArgumentNullException.ThrowIfNull(message.EventPayload);
+        if (message.EventPayload.Length == 0)
+            throw new ArgumentException("The outbox payload cannot be empty.", nameof(message));
     }
 
 }

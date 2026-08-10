@@ -16,6 +16,7 @@ internal sealed class EventProjectorExecutionEngine(
     string actorName,
     string projectorName,
     Func<IEvent, CancellationToken, ValueTask> publishAsync,
+    Action signalOutbox,
     ILogger logger)
 {
     readonly IEventSourceActorDbContext _eventSource = eventSource ?? throw new ArgumentNullException(nameof(eventSource));
@@ -23,6 +24,7 @@ internal sealed class EventProjectorExecutionEngine(
     readonly string _actorName = RequireName(actorName, nameof(actorName));
     readonly string _projectorName = RequireName(projectorName, nameof(projectorName));
     readonly Func<IEvent, CancellationToken, ValueTask> _publishAsync = publishAsync ?? throw new ArgumentNullException(nameof(publishAsync));
+    readonly Action _signalOutbox = signalOutbox ?? throw new ArgumentNullException(nameof(signalOutbox));
     readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task<EventProjectorExecutionStateReadModel> InitializeAsync(
@@ -191,7 +193,10 @@ internal sealed class EventProjectorExecutionEngine(
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task HandleMaximumAttemptsAsync(IEvent domainEvent, CancellationToken cancellationToken = default)
+    public async Task HandleMaximumAttemptsAsync(
+        IEvent domainEvent,
+        EventProjectionDescriptor descriptor,
+        CancellationToken cancellationToken = default)
     {
         var state = await _eventSource.GetEventProjectorExecutionStateAsync(
             domainEvent.EventId,
@@ -211,12 +216,46 @@ internal sealed class EventProjectorExecutionEngine(
         if (state is null)
             return;
 
-        _ = await TerminalizeAsync(
+        var errorMessage = $"Maximum {_options.MaximumReplayAttempts} attempts reached for event {domainEvent.EventId} of type {domainEvent.GetType().Name}.";
+        if (!_options.TransactionalOutboxEnabled)
+        {
+            _ = await TerminalizeAsync(
+                state,
+                executionToken,
+                EventProjectorOutcomeType.Failed,
+                state.LastCompletedStage,
+                errorMessage,
+                "maximum-attempts-reached",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        IErrorEvent? failedEvent;
+        try
+        {
+            failedEvent = descriptor.FailedEventFactory(domainEvent, new InvalidOperationException(errorMessage));
+        }
+        catch (Exception ex)
+        {
+            _ = await TerminalizeAsync(state, executionToken, EventProjectorOutcomeType.Failed,
+                state.LastCompletedStage, ex.ToString(), "failed-event-conversion", cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (failedEvent is null)
+        {
+            _ = await TerminalizeAsync(state, executionToken, EventProjectorOutcomeType.Failed,
+                state.LastCompletedStage, "The failure-event factory returned null.", "failed-event-conversion", cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        _ = await TerminalizeWithOutboxAsync(
             state,
             executionToken,
             EventProjectorOutcomeType.Failed,
             state.LastCompletedStage,
-            $"Maximum {_options.MaximumReplayAttempts} attempts reached for event {domainEvent.EventId} of type {domainEvent.GetType().Name}.",
+            failedEvent,
+            EventProjectorEffectKind.FailedPublication,
+            errorMessage,
             "maximum-attempts-reached",
             cancellationToken).ConfigureAwait(false);
     }
@@ -228,6 +267,17 @@ internal sealed class EventProjectorExecutionEngine(
         Guid executionToken,
         CancellationToken cancellationToken)
     {
+        if (descriptor.PublishProcessingEvent && _options.TransactionalOutboxEnabled)
+        {
+            return await TransitionWithOutboxAsync(
+                state,
+                executionToken,
+                EventProjectorStageType.ApplyProjection,
+                EventProjectorStageType.PublishProcessingEvent,
+                domainEvent,
+                EventProjectorEffectKind.ProcessingPublication,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
         if (descriptor.PublishProcessingEvent)
             await _publishAsync(domainEvent, cancellationToken).ConfigureAwait(false);
         return await TransitionAsync(
@@ -288,9 +338,33 @@ internal sealed class EventProjectorExecutionEngine(
         Guid executionToken,
         CancellationToken cancellationToken)
     {
-        var completedEvent = descriptor.CompletedEventFactory(domainEvent)
-            ?? throw new InvalidOperationException(
-                $"The completion-event factory returned null for {domainEvent.GetType().Name}.");
+        ICompleteEvent? completedEvent;
+        try
+        {
+            completedEvent = descriptor.CompletedEventFactory(domainEvent);
+        }
+        catch (Exception ex)
+        {
+            return await TerminalizeAsync(state, executionToken, EventProjectorOutcomeType.Failed,
+                EventProjectorStageType.ApplyProjection, ex.ToString(), "completed-event-conversion", cancellationToken).ConfigureAwait(false);
+        }
+        if (completedEvent is null)
+        {
+            return await TerminalizeAsync(state, executionToken, EventProjectorOutcomeType.Failed,
+                EventProjectorStageType.ApplyProjection, "The completion-event factory returned null.",
+                "completed-event-conversion", cancellationToken).ConfigureAwait(false);
+        }
+        if (_options.TransactionalOutboxEnabled)
+        {
+            return await TerminalizeWithOutboxAsync(
+                state,
+                executionToken,
+                EventProjectorOutcomeType.Completed,
+                EventProjectorStageType.PublishCompletedEvent,
+                completedEvent,
+                EventProjectorEffectKind.CompletedPublication,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
         await _publishAsync(completedEvent, cancellationToken).ConfigureAwait(false);
         return await TerminalizeAsync(
             state,
@@ -308,7 +382,16 @@ internal sealed class EventProjectorExecutionEngine(
         CancellationToken cancellationToken)
     {
         var failure = new InvalidOperationException(state.ErrorMessage);
-        var failedEvent = descriptor.FailedEventFactory(domainEvent, failure);
+        IErrorEvent? failedEvent;
+        try
+        {
+            failedEvent = descriptor.FailedEventFactory(domainEvent, failure);
+        }
+        catch (Exception ex)
+        {
+            return await TerminalizeAsync(state, executionToken, EventProjectorOutcomeType.Failed,
+                EventProjectorStageType.ApplyProjection, ex.ToString(), "failed-event-conversion", cancellationToken).ConfigureAwait(false);
+        }
         if (failedEvent is null)
         {
             return await TerminalizeAsync(
@@ -319,6 +402,19 @@ internal sealed class EventProjectorExecutionEngine(
                 "The failure-event factory returned null.",
                 "failed-event-conversion",
                 cancellationToken).ConfigureAwait(false);
+        }
+
+        if (_options.TransactionalOutboxEnabled)
+        {
+            return await TerminalizeWithOutboxAsync(
+                state,
+                executionToken,
+                EventProjectorOutcomeType.Failed,
+                EventProjectorStageType.PublishFailedEvent,
+                failedEvent,
+                EventProjectorEffectKind.FailedPublication,
+                state.ErrorMessage,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         await _publishAsync(failedEvent, cancellationToken).ConfigureAwait(false);
@@ -384,6 +480,71 @@ internal sealed class EventProjectorExecutionEngine(
             nowUtc,
             cancellationToken).ConfigureAwait(false)
             ?? throw LostFence(state);
+    }
+
+    async Task<EventProjectorExecutionStateReadModel> TransitionWithOutboxAsync(
+        EventProjectorExecutionStateReadModel state,
+        Guid executionToken,
+        EventProjectorStageType nextStage,
+        EventProjectorStageType lastCompletedStage,
+        IEvent publication,
+        EventProjectorEffectKind effectKind,
+        string errorMessage = "",
+        CancellationToken cancellationToken = default)
+    {
+        var nowUtc = DateTime.UtcNow;
+        var transition = new EventProjectorStateTransition(
+            state.EventId,
+            state.ProjectorName,
+            executionToken,
+            state.Revision,
+            state.Stage,
+            nextStage,
+            EventProjectorOutcomeType.Processing,
+            lastCompletedStage,
+            state.RetryCount,
+            ErrorMessage: errorMessage);
+        var message = EventProjectorOutboxSerializer.Serialize(
+            publication,
+            new EventProjectorEffectIdentity(_projectorName, state.EventId, effectKind));
+        var result = await _eventSource.TryTransitionEventProjectorExecutionWithOutboxAsync(
+            transition, message, nowUtc, cancellationToken).ConfigureAwait(false) ?? throw LostFence(state);
+        _signalOutbox();
+        return result;
+    }
+
+    async Task<EventProjectorExecutionStateReadModel> TerminalizeWithOutboxAsync(
+        EventProjectorExecutionStateReadModel state,
+        Guid executionToken,
+        EventProjectorOutcomeType outcome,
+        EventProjectorStageType lastCompletedStage,
+        IEvent publication,
+        EventProjectorEffectKind effectKind,
+        string errorMessage = "",
+        string blockedReason = "",
+        CancellationToken cancellationToken = default)
+    {
+        var nowUtc = DateTime.UtcNow;
+        var transition = new EventProjectorStateTransition(
+            state.EventId,
+            state.ProjectorName,
+            executionToken,
+            state.Revision,
+            state.Stage,
+            EventProjectorStageType.Completed,
+            outcome,
+            lastCompletedStage,
+            state.RetryCount,
+            LastErrorAtUtc: outcome == EventProjectorOutcomeType.Failed ? nowUtc : null,
+            ErrorMessage: errorMessage,
+            BlockedReason: blockedReason);
+        var message = EventProjectorOutboxSerializer.Serialize(
+            publication,
+            new EventProjectorEffectIdentity(_projectorName, state.EventId, effectKind));
+        var result = await _eventSource.TryTerminalizeEventProjectorExecutionWithOutboxAsync(
+            transition, message, nowUtc, cancellationToken).ConfigureAwait(false) ?? throw LostFence(state);
+        _signalOutbox();
+        return result;
     }
 
     async Task TryReleaseAsync(

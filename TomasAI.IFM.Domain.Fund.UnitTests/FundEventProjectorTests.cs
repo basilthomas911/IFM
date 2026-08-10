@@ -16,6 +16,7 @@ using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
+using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Fund.UnitTests;
 
@@ -555,6 +556,230 @@ public sealed class FundEventProjectorTests
         state.ExecutionToken.Should().BeNull();
         await context.Received(1).SendAsync<FundCreatedCompleteEvent, FundId>(
             Arg.Any<FundCreatedCompleteEvent>(),
+            CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Transactional_outbox_terminalizes_completion_with_one_deterministic_typed_publication()
+    {
+        var eventSource = Substitute.For<IEventSourceActorDbContext>();
+        var fundDb = Substitute.For<IFundDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.FundDb.Returns(fundDb);
+        var projector = CreateProjector(
+            Substitute.For<IDurableReplayQueue>(),
+            eventSource,
+            CreateBlackboard(),
+            new EventProjectorReliabilityOptions
+            {
+                FencedExecutionEnabled = true,
+                TransactionalOutboxEnabled = true,
+                InitialReplayDelay = TimeSpan.FromMilliseconds(1)
+            },
+            dbFactory);
+        var nowUtc = DateTime.UtcNow;
+        var domainEvent = new FundCreatedEvent
+        {
+            Subject = new ActorSubject(ActorType.Event, FundCreatedEvent.Actor, FundCreatedEvent.Verb, "1"),
+            EntityId = new FundId(1),
+            EventId = 951,
+            CommandId = Guid.NewGuid(),
+            AggregateId = "Event.FundCommandActor.1",
+            NewFund = SampleData.Fund
+        };
+        var state = new EventProjectorExecutionStateReadModel(
+            domainEvent.EventId, projector.ActorName, projector.ProjectorName, false, 0,
+            EventProjectorOutcomeType.Processing, EventProjectorStageType.ApplyProjection, string.Empty,
+            nowUtc, nowUtc, 77, nameof(FundCreatedEvent), 0, null, null, 0, null, null,
+            string.Empty, EventProjectorStageType.PublishProcessingEvent, nowUtc);
+        eventSource.GetEventProjectorExecutionStateAsync(
+                domainEvent.EventId, projector.ProjectorName, Arg.Any<CancellationToken>())
+            .Returns(_ => state);
+        eventSource.TryClaimEventProjectorExecutionAsync(
+                domainEvent.EventId, projector.ProjectorName, Arg.Any<Guid>(), Arg.Any<DateTime>(),
+                Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(call => state = state with
+            {
+                ExecutionToken = call.ArgAt<Guid>(2),
+                LeaseExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+                Revision = state.Revision + 1
+            });
+        eventSource.TryTransitionEventProjectorExecutionAsync(
+                Arg.Any<EventProjectorStateTransition>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var transition = call.ArgAt<EventProjectorStateTransition>(0);
+                return state = state with
+                {
+                    Stage = transition.NextStage,
+                    LastCompletedStage = transition.LastCompletedStage,
+                    Revision = state.Revision + 1
+                };
+            });
+        EventProjectorOutboxMessage? staged = null;
+        eventSource.TryTerminalizeEventProjectorExecutionWithOutboxAsync(
+                Arg.Any<EventProjectorStateTransition>(), Arg.Any<EventProjectorOutboxMessage>(),
+                Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var transition = call.ArgAt<EventProjectorStateTransition>(0);
+                staged = call.ArgAt<EventProjectorOutboxMessage>(1);
+                return state = state with
+                {
+                    Stage = EventProjectorStageType.Completed,
+                    Outcome = transition.Outcome,
+                    LastCompletedStage = transition.LastCompletedStage,
+                    ExecutionToken = null,
+                    LeaseExpiresAtUtc = null,
+                    Revision = state.Revision + 1
+                };
+            });
+
+        await projector.ProcessDomainEventAsync(domainEvent);
+
+        state.Outcome.Should().Be(EventProjectorOutcomeType.Completed);
+        staged.Should().NotBeNull();
+        staged!.Identity.EffectKind.Should().Be(EventProjectorEffectKind.CompletedPublication);
+        staged.Identity.EventId.Should().Be(domainEvent.EventId);
+        staged.EventTypeName.Should().Contain(nameof(FundCreatedCompleteEvent));
+        staged.EventPayload.Should().NotBeEmpty();
+        staged.MessageId.Should().Be(new EventProjectorEffectIdentity(
+            projector.ProjectorName,
+            domainEvent.EventId,
+            EventProjectorEffectKind.CompletedPublication).MessageId);
+    }
+
+    [Fact]
+    public async Task Maximum_attempt_handler_atomically_stages_the_registered_typed_failure_event()
+    {
+        var queue = Substitute.For<IDurableReplayQueue>();
+        Func<IEvent, Task>? maximumAttempts = null;
+        queue.When(instance => instance.SetMaxAttemptsReachedAction(
+                Arg.Any<string>(), Arg.Any<Func<IEvent, Task>>(), Arg.Any<bool>()))
+            .Do(call => maximumAttempts = call.ArgAt<Func<IEvent, Task>>(1));
+        var eventSource = Substitute.For<IEventSourceActorDbContext>();
+        eventSource.GetUncompletedEventProjectorEventsAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ICollection<EventLogReadModel>>([]));
+        eventSource.ClaimEventProjectorOutboxAsync(
+                Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<TimeSpan>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<EventProjectorOutboxReadModel>>([]));
+        var projector = CreateProjector(
+            queue,
+            eventSource,
+            CreateBlackboard(),
+            new EventProjectorReliabilityOptions
+            {
+                FencedExecutionEnabled = true,
+                TransactionalOutboxEnabled = true,
+                InitialReplayDelay = TimeSpan.FromMilliseconds(1),
+                OutboxPollingInterval = TimeSpan.FromMilliseconds(10)
+            });
+        var nowUtc = DateTime.UtcNow;
+        var domainEvent = new FundCreatedEvent
+        {
+            Subject = new ActorSubject(ActorType.Event, FundCreatedEvent.Actor, FundCreatedEvent.Verb, "1"),
+            EntityId = new FundId(1),
+            EventId = 952,
+            CommandId = Guid.NewGuid(),
+            AggregateId = "Event.FundCommandActor.1",
+            NewFund = SampleData.Fund
+        };
+        var state = new EventProjectorExecutionStateReadModel(
+            domainEvent.EventId, projector.ActorName, projector.ProjectorName, true, 3,
+            EventProjectorOutcomeType.Retrying, EventProjectorStageType.ApplyProjection, "target failed",
+            nowUtc, nowUtc, 77, nameof(FundCreatedEvent), 3, null, null, 3, nowUtc, nowUtc,
+            string.Empty, EventProjectorStageType.PublishProcessingEvent, nowUtc);
+        eventSource.GetEventProjectorExecutionStateAsync(
+                domainEvent.EventId, projector.ProjectorName, Arg.Any<CancellationToken>())
+            .Returns(_ => state);
+        eventSource.TryClaimEventProjectorExecutionAsync(
+                domainEvent.EventId, projector.ProjectorName, Arg.Any<Guid>(), Arg.Any<DateTime>(),
+                Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(call => state = state with
+            {
+                ExecutionToken = call.ArgAt<Guid>(2),
+                LeaseExpiresAtUtc = DateTime.UtcNow.AddMinutes(2),
+                Revision = state.Revision + 1
+            });
+        EventProjectorStateTransition? terminal = null;
+        EventProjectorOutboxMessage? staged = null;
+        eventSource.TryTerminalizeEventProjectorExecutionWithOutboxAsync(
+                Arg.Any<EventProjectorStateTransition>(), Arg.Any<EventProjectorOutboxMessage>(),
+                Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                terminal = call.ArgAt<EventProjectorStateTransition>(0);
+                staged = call.ArgAt<EventProjectorOutboxMessage>(1);
+                return state = state with
+                {
+                    Stage = EventProjectorStageType.Completed,
+                    Outcome = terminal.Outcome,
+                    BlockedReason = terminal.BlockedReason,
+                    ExecutionToken = null,
+                    LeaseExpiresAtUtc = null,
+                    Revision = state.Revision + 1
+                };
+            });
+
+        await projector.StartAsync(Substitute.For<ICommandActorContext>());
+        try
+        {
+            maximumAttempts.Should().NotBeNull();
+            await maximumAttempts!(domainEvent);
+        }
+        finally
+        {
+            await projector.StopAsync();
+        }
+
+        terminal.Should().NotBeNull();
+        terminal!.Outcome.Should().Be(EventProjectorOutcomeType.Failed);
+        terminal.BlockedReason.Should().Be("maximum-attempts-reached");
+        staged.Should().NotBeNull();
+        staged!.Identity.EffectKind.Should().Be(EventProjectorEffectKind.FailedPublication);
+        staged.EventTypeName.Should().Contain(nameof(FundCreatedFailEvent));
+        staged.EventPayload.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Retry_exact_reopens_the_durable_stage_and_requeues_the_original_source_event()
+    {
+        var queue = Substitute.For<IDurableReplayQueue>();
+        var eventSource = Substitute.For<IEventSourceActorDbContext>();
+        var projector = CreateProjector(queue, eventSource);
+        var source = new FundCreatedEvent
+        {
+            Subject = new ActorSubject(ActorType.Event, FundCreatedEvent.Actor, FundCreatedEvent.Verb, "1"),
+            EntityId = new FundId(1),
+            EventId = 953,
+            CommandId = Guid.NewGuid(),
+            AggregateId = "Event.FundCommandActor.1",
+            NewFund = SampleData.Fund
+        };
+        eventSource.GetEventLogByEventIdAsync(source.EventId, Arg.Any<CancellationToken>())
+            .Returns(new EventLogReadModel(
+                77,
+                nameof(FundCreatedEvent),
+                typeof(FundCreatedEvent).AssemblyQualifiedName!,
+                source.EventId,
+                source.ToEventData(),
+                source.CommandId,
+                $"{DateTime.UtcNow:o}"));
+        eventSource.TryRetryEventProjectorExecutionAsync(
+                source.EventId, projector.ProjectorName, Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(new EventProjectorExecutionStateReadModel(
+                source.EventId, projector.ActorName, projector.ProjectorName, true, 0,
+                EventProjectorOutcomeType.Retrying, EventProjectorStageType.ApplyProjection, string.Empty,
+                DateTime.UtcNow, DateTime.UtcNow, 77, nameof(FundCreatedEvent), 5, null, null,
+                0, null, null, string.Empty, EventProjectorStageType.PublishProcessingEvent, DateTime.UtcNow));
+
+        (await projector.RetryExactAsync(source.EventId)).Should().BeTrue();
+
+        await queue.Received(1).EnqueueAsync(
+            projector.ProjectorName,
+            Arg.Is<IEvent>(value => value is FundCreatedEvent && value.EventId == source.EventId),
             CancellationToken.None);
     }
 

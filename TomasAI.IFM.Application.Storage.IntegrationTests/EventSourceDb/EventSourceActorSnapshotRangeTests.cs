@@ -403,6 +403,133 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
     }
 
     [Fact]
+    public async Task Projector_state_transition_and_outbox_insert_are_atomic_and_dispatch_is_leased()
+    {
+        var stream = NewStream();
+        var saved = await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent()]));
+        var persisted = saved.Single();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"OutboxProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+        (await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+            NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc))).Should().NotBeNull();
+        var ownerToken = Guid.NewGuid();
+        var owner = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            persisted.EventId,
+            projectorName,
+            ownerToken,
+            nowUtc,
+            TimeSpan.FromMinutes(2));
+        owner.Should().NotBeNull();
+        var identity = new EventProjectorEffectIdentity(
+            projectorName,
+            persisted.EventId,
+            EventProjectorEffectKind.ProcessingPublication);
+        var transitioned = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionWithOutboxAsync(
+            new EventProjectorStateTransition(
+                persisted.EventId,
+                projectorName,
+                ownerToken,
+                owner!.Revision,
+                owner.Stage,
+                EventProjectorStageType.ApplyProjection,
+                EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.PublishProcessingEvent),
+            new EventProjectorOutboxMessage(identity, typeof(FuturesRsiSignalGeneratedEvent).AssemblyQualifiedName!, [1, 2, 3]),
+            nowUtc.AddSeconds(1));
+
+        transitioned.Should().NotBeNull();
+        transitioned!.Stage.Should().Be(EventProjectorStageType.ApplyProjection);
+        var firstDispatchToken = Guid.NewGuid();
+        var claimed = await fixture.ActorEventDb.ClaimEventProjectorOutboxAsync(
+            projectorName,
+            firstDispatchToken,
+            nowUtc.AddSeconds(2),
+            TimeSpan.FromMinutes(1),
+            8);
+        claimed.Should().ContainSingle();
+        claimed[0].MessageId.Should().Be(identity.MessageId);
+        claimed[0].DispatchToken.Should().Be(firstDispatchToken);
+
+        var concurrentClaim = await fixture.ActorEventDb.ClaimEventProjectorOutboxAsync(
+            projectorName,
+            Guid.NewGuid(),
+            nowUtc.AddSeconds(3),
+            TimeSpan.FromMinutes(1),
+            8);
+        concurrentClaim.Should().BeEmpty();
+        (await fixture.ActorEventDb.MarkEventProjectorOutboxPublishedAsync(
+            claimed[0], nowUtc.AddSeconds(4))).Should().BeTrue();
+        (await fixture.ActorEventDb.ClaimEventProjectorOutboxAsync(
+            projectorName,
+            Guid.NewGuid(),
+            nowUtc.AddSeconds(5),
+            TimeSpan.FromMinutes(1),
+            8)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Projector_operator_pages_retry_exact_and_skip_with_reason_are_durable()
+    {
+        var stream = NewStream();
+        var persisted = (await fixture.ActorEventDb.SaveEventsAsync(
+            stream, Guid.NewGuid(), new DomainEventCollection([RangeEvent()]))).Single();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"OperatorProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+        (await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+            NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc))).Should().NotBeNull();
+        var token = Guid.NewGuid();
+        var claimed = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            persisted.EventId, projectorName, token, nowUtc, TimeSpan.FromMinutes(2));
+        var failed = await fixture.ActorEventDb.TryTerminalizeEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                persisted.EventId, projectorName, token, claimed!.Revision, claimed.Stage,
+                EventProjectorStageType.Completed, EventProjectorOutcomeType.Failed,
+                EventProjectorStageType.None, 3, LastErrorAtUtc: nowUtc.AddSeconds(1),
+                ErrorMessage: "injected", BlockedReason: string.Empty),
+            nowUtc.AddSeconds(1));
+        failed.Should().NotBeNull();
+        (await fixture.ActorEventDb.GetEventProjectorOperationalStatePageAsync(
+            projectorName, EventProjectorOperationalStatus.Failed, 0, 8))
+            .Should().ContainSingle(state => state.EventId == persisted.EventId);
+
+        var retry = await fixture.ActorEventDb.TryRetryEventProjectorExecutionAsync(
+            persisted.EventId,
+            projectorName,
+            nowUtc.AddSeconds(2));
+        retry.Should().NotBeNull();
+        retry!.Outcome.Should().Be(EventProjectorOutcomeType.Retrying);
+        retry.Stage.Should().Be(EventProjectorStageType.ValidateSourceEvent);
+        retry.RetryCount.Should().Be(0);
+        (await fixture.ActorEventDb.GetEventProjectorOperationalStatePageAsync(
+            projectorName, EventProjectorOperationalStatus.Pending, 0, 8))
+            .Should().ContainSingle(state => state.EventId == persisted.EventId);
+
+        var skipped = await fixture.ActorEventDb.TrySkipEventProjectorExecutionAsync(
+            persisted.EventId,
+            projectorName,
+            "source event intentionally ignored by operator",
+            nowUtc.AddSeconds(3));
+        skipped.Should().NotBeNull();
+        skipped!.Outcome.Should().Be(EventProjectorOutcomeType.Superseded);
+        skipped.BlockedReason.Should().Be("operator-skip:source event intentionally ignored by operator");
+        (await fixture.ActorEventDb.GetEventProjectorOperationalStatePageAsync(
+            projectorName, EventProjectorOperationalStatus.Blocked, 0, 8))
+            .Should().ContainSingle(state => state.EventId == persisted.EventId);
+        var retrySkipped = await fixture.ActorEventDb.TryRetryEventProjectorExecutionAsync(
+            persisted.EventId,
+            projectorName,
+            nowUtc.AddSeconds(4));
+        retrySkipped.Should().NotBeNull();
+        retrySkipped!.Stage.Should().Be(EventProjectorStageType.ValidateSourceEvent);
+        retrySkipped.BlockedReason.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Legacy_projector_upsert_populates_additive_stream_identity_for_bounded_recovery()
     {
         var stream = NewStream();

@@ -3,6 +3,8 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventProjector;
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Application.EventProjector.Contracts;
@@ -47,6 +49,13 @@ public interface IEventProjector
 
     public ValueTask DomainEventsProjectionAsync(DomainEventCollection domainEvents);
     public ValueTask ProcessDomainEventAsync(IEvent domainEvent);
+    Task<IReadOnlyList<EventProjectorExecutionStateReadModel>> GetOperationalStatesAsync(
+        EventProjectorOperationalStatus status,
+        long afterEventId = 0,
+        int batchSize = 256,
+        CancellationToken cancellationToken = default);
+    ValueTask<bool> RetryExactAsync(long eventId, CancellationToken cancellationToken = default);
+    ValueTask<bool> SkipAsync(long eventId, string reason, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the database context for event sourcing operations.

@@ -42,6 +42,7 @@ public abstract class BaseEventProjector<TActor> (
     readonly object _descriptorLock = new();
     FrozenDictionary<Type, EventProjectionDescriptor>? _descriptorMap;
     EventProjectorExecutionEngine? _executionEngine;
+    EventProjectorOutboxDispatcher? _outboxDispatcher;
     static readonly ConcurrentDictionary<Type, Func<ICommandActorContext, IEvent, CancellationToken, ValueTask>>
         EventPublishers = new();
     ICommandActorContext? _context;
@@ -156,6 +157,8 @@ public abstract class BaseEventProjector<TActor> (
                     ProjectedEventTypes,
                     cancellationToken).ConfigureAwait(false)
                 : await RecoverUncompletedEventsAsync(cancellationToken).ConfigureAwait(false);
+            if (_reliabilityOptions.TransactionalOutboxEnabled)
+                await OutboxDispatcher.StartAsync(cancellationToken).ConfigureAwait(false);
             await DurableReplayQueue.StartAsync(
                 ProjectorName,
                 _reliabilityOptions.InitialReplayDelay,
@@ -164,6 +167,17 @@ public abstract class BaseEventProjector<TActor> (
         }
         catch (Exception ex)
         {
+            if (_outboxDispatcher is not null)
+            {
+                try
+                {
+                    await _outboxDispatcher.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception stopException)
+                {
+                    Logger.LogWarning(stopException, "Unable to roll back projector outbox startup for {ProjectorName}.", ProjectorName);
+                }
+            }
             try
             {
                 await DurableReplayQueue.StopAsync(ProjectorName, CancellationToken.None).ConfigureAwait(false);
@@ -190,6 +204,8 @@ public abstract class BaseEventProjector<TActor> (
     public async ValueTask StopAsync(CancellationToken cancellationToken = default)
     {
         SetReadiness(false, Readiness.RecoveryEventsDiscovered, Readiness.RecoveryEventsQueued);
+        if (_outboxDispatcher is not null)
+            await _outboxDispatcher.StopAsync(cancellationToken).ConfigureAwait(false);
         await DurableReplayQueue.StopAsync(ProjectorName, cancellationToken).ConfigureAwait(false);
     }
 
@@ -235,6 +251,39 @@ public abstract class BaseEventProjector<TActor> (
             await DurableReplayQueue.EnqueueAsync(ProjectorName, domainEvent).ConfigureAwait(false);
         }
     }
+
+    public Task<IReadOnlyList<EventProjectorExecutionStateReadModel>> GetOperationalStatesAsync(
+        EventProjectorOperationalStatus status,
+        long afterEventId = 0,
+        int batchSize = 256,
+        CancellationToken cancellationToken = default)
+        => DbEventSource.GetEventProjectorOperationalStatePageAsync(
+            ProjectorName, status, afterEventId, batchSize, cancellationToken);
+
+    public async ValueTask<bool> RetryExactAsync(
+        long eventId,
+        CancellationToken cancellationToken = default)
+    {
+        var eventLog = await DbEventSource.GetEventLogByEventIdAsync(eventId, cancellationToken).ConfigureAwait(false);
+        if (eventLog is null)
+            return false;
+        var domainEvent = eventLog.ToDomainEvent();
+        if (domainEvent is UnknownEvent || !GetDescriptorMap().ContainsKey(domainEvent.GetType()))
+            return false;
+        var state = await DbEventSource.TryRetryEventProjectorExecutionAsync(
+            eventId, ProjectorName, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
+        if (state is null)
+            return false;
+        await DurableReplayQueue.EnqueueAsync(ProjectorName, domainEvent, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    public async ValueTask<bool> SkipAsync(
+        long eventId,
+        string reason,
+        CancellationToken cancellationToken = default)
+        => await DbEventSource.TrySkipEventProjectorExecutionAsync(
+            eventId, ProjectorName, reason, DateTime.UtcNow, cancellationToken).ConfigureAwait(false) is not null;
 
     async Task ProcessQueuedDomainEventAsync(IEvent domainEvent)
     {
@@ -410,7 +459,10 @@ public abstract class BaseEventProjector<TActor> (
     {
         if (_reliabilityOptions.FencedExecutionEnabled)
         {
-            await ExecutionEngine.HandleMaximumAttemptsAsync(domainEvent).ConfigureAwait(false);
+            if (GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
+                await ExecutionEngine.HandleMaximumAttemptsAsync(domainEvent, descriptor).ConfigureAwait(false);
+            else
+                await ExecutionEngine.TerminalizeUnregisteredAsync(domainEvent).ConfigureAwait(false);
             return;
         }
 
@@ -521,9 +573,33 @@ public abstract class BaseEventProjector<TActor> (
                 ActorName,
                 ProjectorName,
                 PublishProjectionEventAsync,
+                SignalOutbox,
                 Logger);
             return Interlocked.CompareExchange(ref _executionEngine, created, null) ?? created;
         }
+    }
+
+    EventProjectorOutboxDispatcher OutboxDispatcher
+    {
+        get
+        {
+            var dispatcher = Volatile.Read(ref _outboxDispatcher);
+            if (dispatcher is not null)
+                return dispatcher;
+            var created = new EventProjectorOutboxDispatcher(
+                DbEventSource,
+                _reliabilityOptions,
+                ProjectorName,
+                PublishProjectionEventAsync,
+                Logger);
+            return Interlocked.CompareExchange(ref _outboxDispatcher, created, null) ?? created;
+        }
+    }
+
+    void SignalOutbox()
+    {
+        if (_reliabilityOptions.TransactionalOutboxEnabled)
+            OutboxDispatcher.Signal();
     }
 
     FrozenDictionary<Type, EventProjectionDescriptor> GetDescriptorMap()

@@ -49,10 +49,12 @@ public sealed class EventProjectorReliabilityContractTests
         var invalidBatch = new EventProjectorReliabilityOptions { RecoveryBatchSize = 0 };
         var invalidConcurrency = new EventProjectorReliabilityOptions { RecoveryStreamConcurrency = 33 };
         var invalidLease = new EventProjectorReliabilityOptions { ClaimLeaseDuration = TimeSpan.Zero };
+        var outboxWithoutFence = new EventProjectorReliabilityOptions { TransactionalOutboxEnabled = true };
 
         invalidBatch.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
         invalidConcurrency.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
         invalidLease.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
+        outboxWithoutFence.Invoking(options => options.Validate()).Should().Throw<InvalidOperationException>();
     }
 
     [Fact]

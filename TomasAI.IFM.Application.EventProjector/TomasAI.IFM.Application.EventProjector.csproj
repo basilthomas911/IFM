@@ -12,4 +12,8 @@
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.Fund.UnitTests" />
+  </ItemGroup>
+
 </Project>

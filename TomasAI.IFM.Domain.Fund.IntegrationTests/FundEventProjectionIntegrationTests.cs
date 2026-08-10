@@ -115,6 +115,51 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
     }
 
     [Fact]
+    public async Task Transactional_outbox_delivers_completion_through_real_PostgreSQL_and_NATS_queue_flow()
+    {
+        var context = new RecordingCommandActorContext();
+        var queue = new NatsJSDurableReplayQueue(CreateNatsOptions());
+        await using var queueScope = queue;
+        var projector = new FundEventProjector(
+            database.DbFactory,
+            queue,
+            database.ActorEventSourceDb,
+            database.BlackboardService,
+            Substitute.For<ILogger<FundEventProjector>>(),
+            new EventProjectorReliabilityOptions
+            {
+                BoundedRecoveryEnabled = true,
+                FencedExecutionEnabled = true,
+                TransactionalOutboxEnabled = true,
+                OutboxPollingInterval = TimeSpan.FromMilliseconds(10)
+            });
+        var repository = CreateRepository(projector);
+        var (fund, command, state) = CreateFundState();
+        Track(fund.FundId, command.StreamId);
+        await database.FundDb.DeleteFundAsync(fund.FundId);
+        await projector.StartAsync(context);
+
+        try
+        {
+            await repository.SaveStateAsync(context, state, command);
+            var domainEvent = state.Events.Should().ContainSingle().Subject;
+            var completedState = await WaitForCompletedStateAsync(domainEvent.EventId, projector.ProjectorName);
+            completedState.Outcome.Should().Be(EventProjectorOutcomeType.Completed);
+            (await WaitForFundAsync(fund.FundId)).Name.Should().Be(fund.Name);
+            await WaitForEventAsync<FundCreatedCompleteEvent>(context, domainEvent.EventId);
+            context.Events.OfType<FundCreatedCompleteEvent>()
+                .Where(e => e.EventId == domainEvent.EventId)
+                .Select(e => e.Id)
+                .Should().ContainSingle()
+                .Which.Should().NotBeEmpty();
+        }
+        finally
+        {
+            await projector.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task StartAsync_recovers_explicit_processing_event_from_event_log_and_completes_projection()
     {
         var context = new RecordingCommandActorContext();
@@ -358,6 +403,19 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
             await Task.Delay(50);
         }
         throw new TimeoutException($"Fund {fundId} was not projected.");
+    }
+
+    static async Task WaitForEventAsync<TEvent>(RecordingCommandActorContext context, long eventId)
+        where TEvent : IEvent
+    {
+        var expires = DateTime.UtcNow + TestTimeout;
+        while (DateTime.UtcNow < expires)
+        {
+            if (context.Events.Any(e => e is TEvent && e.EventId == eventId))
+                return;
+            await Task.Delay(25);
+        }
+        throw new TimeoutException($"Event {eventId} was not published as {typeof(TEvent).Name}.");
     }
 
     void Track(int fundId, string eventStream)

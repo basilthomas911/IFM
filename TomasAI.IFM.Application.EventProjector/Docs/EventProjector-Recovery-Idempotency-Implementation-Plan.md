@@ -17,7 +17,14 @@ Tranche C was completed on 2026-08-10. Immutable descriptors replaced the mutabl
 one worker-time claim/fencing path, all eight Fund operations declare and prove natural-key repeat safety, failed claims
 are explicitly released for retry, and unknown/unregistered types fail closed. Real PostgreSQL, NATS JetStream, and
 ScyllaDB tests passed. Production activation remains off through independent bounded-recovery and fenced-execution
-switches. Tranche D is the next implementation gate.
+switches.
+
+Tranche D was completed on 2026-08-10. Publication-producing transitions now stage typed MessagePack payloads in the
+PostgreSQL outbox atomically; a bounded leased dispatcher retries with deterministic consumer-visible event IDs.
+Maximum-attempt handling stages the descriptor's typed failure event before returning, conversion faults fail closed,
+and bounded operator APIs expose pending/failed/blocked pages, exact-stage retry, and skip-with-reason. Real
+PostgreSQL, NATS JetStream, ScyllaDB, and all ten domain integration projects passed. All three activation switches
+remain off. Tranche E is the next implementation gate.
 
 ## Status and scope
 
@@ -34,7 +41,7 @@ The goal is bounded, observable at-least-once processing with deterministic effe
 effects. The goal is not to claim exactly-once delivery across PostgreSQL, ScyllaDB, Redis, and NATS; that guarantee is
 not achievable across those independent systems without stronger coordination than the application currently owns.
 
-## Verified current behavior
+## Verified baseline behavior before SWO-06 implementation
 
 The repository audit established the following facts:
 
@@ -308,6 +315,12 @@ application configuration pending rollout approval.
 6. Add operator queries/actions for pending, failed, blocked, retry-exact, and skip-with-reason states.
 
 Gate: every publication/checkpoint crash window is fault-injected, and terminal failure is visible and delivered.
+
+Completed 2026-08-10. Atomic CTE storage tests prove no state-only checkpoint, dispatcher tests cover failed send and
+ambiguous acknowledgement with identical identities, the registered maximum-attempt callback stages the typed Fund
+failure, and the live Fund flow dispatches completion through PostgreSQL outbox + NATS queue + ScyllaDB. Operator
+retry records the exact blocked stage before terminalization and requeues the immutable source event. Production
+activation remains off through `TransactionalOutboxEnabled = false`.
 
 ### Tranche E: Ordering, observability, benchmark, and rollout
 

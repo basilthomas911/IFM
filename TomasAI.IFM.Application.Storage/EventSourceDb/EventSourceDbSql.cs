@@ -333,7 +333,8 @@ ORDER BY el.eventVersion ASC;
             LastErrorAtUtc as "LastErrorAtUtc",
             BlockedReason as "BlockedReason",
             LastCompletedStage as "LastCompletedStage",
-            UpdatedAtUtc as "UpdatedAtUtc"
+            UpdatedAtUtc as "UpdatedAtUtc",
+            BlockedStage as "BlockedStage"
         """;
 
     public const string TryCreateEventProjectorExecutionState = """
@@ -437,6 +438,7 @@ ORDER BY el.eventVersion ASC;
     public const string TryTerminalizeEventProjectorExecution = """
         UPDATE event_projector_state
         SET Stage = 'Completed',
+            BlockedStage = CASE WHEN $7 = 'Failed' THEN Stage ELSE 'None' END,
             Outcome = $7,
             LastCompletedStage = $8,
             RetryCount = $9,
@@ -456,6 +458,211 @@ ORDER BY el.eventVersion ASC;
           AND Stage = $5
           AND LeaseExpiresAtUtc > $6
           AND Outcome IN ('Processing', 'Retrying')
+        RETURNING
+        """ + EventProjectorExecutionStateColumns + ";";
+
+    public const string TryTransitionEventProjectorExecutionWithOutbox = """
+        WITH transitioned AS (
+            UPDATE event_projector_state
+            SET Stage = $7,
+                Outcome = $8,
+                LastCompletedStage = $9,
+                RetryCount = $10,
+                NextAttemptAtUtc = $11,
+                LastErrorAtUtc = $12,
+                ErrorMessage = $13,
+                BlockedReason = $14,
+                Revision = Revision + 1,
+                UpdatedAtUtc = $15,
+                UpdatedTimestamp = $16
+            WHERE EventId = $1
+              AND ProjectorName = $2
+              AND ExecutionToken = $3
+              AND Revision = $4
+              AND Stage = $5
+              AND LeaseExpiresAtUtc > $6
+              AND Outcome IN ('Processing', 'Retrying')
+            RETURNING *
+        ), staged AS (
+            INSERT INTO event_projector_outbox (
+                ProjectorName, EventId, EffectKind, MessageId, EventTypeName,
+                EventPayload, Status, AttemptCount, NextAttemptAtUtc, CreatedAtUtc, LastError)
+            SELECT ProjectorName, EventId, $17, $18, $19,
+                   $20, 'Pending', 0, $21, $21, ''
+            FROM transitioned
+            ON CONFLICT (ProjectorName, EventId, EffectKind) DO NOTHING
+        )
+        SELECT
+        """ + EventProjectorExecutionStateColumns + """
+        FROM transitioned;
+        """;
+
+    public const string TryTerminalizeEventProjectorExecutionWithOutbox = """
+        WITH transitioned AS (
+            UPDATE event_projector_state
+            SET Stage = 'Completed',
+                BlockedStage = CASE WHEN $7 = 'Failed' THEN Stage ELSE 'None' END,
+                Outcome = $7,
+                LastCompletedStage = $8,
+                RetryCount = $9,
+                NextAttemptAtUtc = NULL,
+                LastErrorAtUtc = $10,
+                ErrorMessage = $11,
+                BlockedReason = $12,
+                ExecutionToken = NULL,
+                LeaseExpiresAtUtc = NULL,
+                Revision = Revision + 1,
+                UpdatedAtUtc = $13,
+                UpdatedTimestamp = $14
+            WHERE EventId = $1
+              AND ProjectorName = $2
+              AND ExecutionToken = $3
+              AND Revision = $4
+              AND Stage = $5
+              AND LeaseExpiresAtUtc > $6
+              AND Outcome IN ('Processing', 'Retrying')
+            RETURNING *
+        ), staged AS (
+            INSERT INTO event_projector_outbox (
+                ProjectorName, EventId, EffectKind, MessageId, EventTypeName,
+                EventPayload, Status, AttemptCount, NextAttemptAtUtc, CreatedAtUtc, LastError)
+            SELECT ProjectorName, EventId, $15, $16, $17,
+                   $18, 'Pending', 0, $19, $19, ''
+            FROM transitioned
+            ON CONFLICT (ProjectorName, EventId, EffectKind) DO NOTHING
+        )
+        SELECT
+        """ + EventProjectorExecutionStateColumns + """
+        FROM transitioned;
+        """;
+
+    public const string ClaimEventProjectorOutbox = """
+        WITH candidates AS (
+            SELECT ProjectorName, EventId, EffectKind
+            FROM event_projector_outbox
+            WHERE ProjectorName = $1
+              AND (
+                    (Status IN ('Pending', 'Retrying') AND (NextAttemptAtUtc IS NULL OR NextAttemptAtUtc <= $4))
+                 OR (Status = 'Publishing' AND DispatchLeaseExpiresAtUtc <= $4)
+              )
+            ORDER BY CreatedAtUtc, EventId, EffectKind
+            LIMIT $5
+            FOR UPDATE SKIP LOCKED
+        )
+        UPDATE event_projector_outbox o
+        SET Status = 'Publishing',
+            AttemptCount = o.AttemptCount + 1,
+            DispatchToken = $2,
+            DispatchLeaseExpiresAtUtc = $3,
+            NextAttemptAtUtc = NULL
+        FROM candidates c
+        WHERE o.ProjectorName = c.ProjectorName
+          AND o.EventId = c.EventId
+          AND o.EffectKind = c.EffectKind
+        RETURNING
+            o.ProjectorName as "ProjectorName",
+            o.EventId as "EventId",
+            o.EffectKind as "EffectKind",
+            o.MessageId as "MessageId",
+            o.EventTypeName as "EventTypeName",
+            o.EventPayload as "EventPayload",
+            o.Status as "Status",
+            o.AttemptCount as "AttemptCount",
+            o.NextAttemptAtUtc as "NextAttemptAtUtc",
+            o.CreatedAtUtc as "CreatedAtUtc",
+            o.PublishedAtUtc as "PublishedAtUtc",
+            o.LastError as "LastError",
+            o.DispatchToken as "DispatchToken",
+            o.DispatchLeaseExpiresAtUtc as "DispatchLeaseExpiresAtUtc";
+        """;
+
+    public const string MarkEventProjectorOutboxPublished = """
+        UPDATE event_projector_outbox
+        SET Status = 'Published',
+            PublishedAtUtc = $6,
+            DispatchToken = NULL,
+            DispatchLeaseExpiresAtUtc = NULL,
+            NextAttemptAtUtc = NULL,
+            LastError = ''
+        WHERE ProjectorName = $1
+          AND EventId = $2
+          AND EffectKind = $3
+          AND DispatchToken = $4
+          AND Status = 'Publishing'
+          AND DispatchLeaseExpiresAtUtc > $5;
+        """;
+
+    public const string ReleaseEventProjectorOutbox = """
+        UPDATE event_projector_outbox
+        SET Status = $6,
+            NextAttemptAtUtc = $7,
+            LastError = $8,
+            DispatchToken = NULL,
+            DispatchLeaseExpiresAtUtc = NULL
+        WHERE ProjectorName = $1
+          AND EventId = $2
+          AND EffectKind = $3
+          AND DispatchToken = $4
+          AND Status = 'Publishing'
+          AND DispatchLeaseExpiresAtUtc > $5;
+        """;
+
+    public const string GetEventProjectorOperationalStatePage = """
+        SELECT
+        """ + EventProjectorExecutionStateColumns + """
+        FROM event_projector_state
+        WHERE ProjectorName = $1
+          AND EventId > $3
+          AND (
+                ($2 = 'Pending' AND Outcome IN ('Processing', 'Retrying') AND BlockedReason = '')
+             OR ($2 = 'Failed' AND Outcome = 'Failed' AND BlockedReason = '')
+             OR ($2 = 'Blocked' AND BlockedReason <> '')
+          )
+        ORDER BY EventId
+        LIMIT $4;
+        """;
+
+    public const string TryRetryEventProjectorExecution = """
+        UPDATE event_projector_state
+        SET Stage = BlockedStage,
+            BlockedStage = 'None',
+            Outcome = 'Retrying',
+            AttemptNumber = 0,
+            RetryCount = 0,
+            NextAttemptAtUtc = NULL,
+            LastErrorAtUtc = NULL,
+            ErrorMessage = '',
+            BlockedReason = '',
+            ExecutionToken = NULL,
+            LeaseExpiresAtUtc = NULL,
+            Revision = Revision + 1,
+            UpdatedAtUtc = $3,
+            UpdatedTimestamp = $4
+        WHERE EventId = $1
+          AND ProjectorName = $2
+          AND Stage = 'Completed'
+          AND BlockedStage NOT IN ('None', 'Completed')
+          AND (Outcome = 'Failed' OR (Outcome = 'Superseded' AND BlockedReason LIKE 'operator-skip:%'))
+        RETURNING
+        """ + EventProjectorExecutionStateColumns + ";";
+
+    public const string TrySkipEventProjectorExecution = """
+        UPDATE event_projector_state
+        SET Stage = 'Completed',
+            BlockedStage = Stage,
+            Outcome = 'Superseded',
+            NextAttemptAtUtc = NULL,
+            LastErrorAtUtc = $4,
+            ErrorMessage = $3,
+            BlockedReason = 'operator-skip:' || $3,
+            ExecutionToken = NULL,
+            LeaseExpiresAtUtc = NULL,
+            Revision = Revision + 1,
+            UpdatedAtUtc = $4,
+            UpdatedTimestamp = $5
+        WHERE EventId = $1
+          AND ProjectorName = $2
+          AND Outcome NOT IN ('Completed', 'Superseded', 'AlreadyCompleted')
         RETURNING
         """ + EventProjectorExecutionStateColumns + ";";
 
