@@ -1,7 +1,7 @@
 # IFM Database Backup and Restore Architecture Overview
 
-Status: Revised draft for architecture review and sign-off
-Version: 0.5
+Status: Approved architecture
+Version: 0.6
 Date: 2026-08-10
 Scope: Shared architecture for PostgreSQL and ScyllaDB backup and restore using AWS cloud and local destinations
 
@@ -32,8 +32,9 @@ an implementation task breakdown.
 The target architecture is based on these decisions:
 
 1. The existing backup execution actor and its event flow are deprecated and will not constrain the redesign.
-2. The SystemAdmin bounded context contains exactly three actor roles: Command Actor, Event Actor, and Query Actor. The
-   group owns backup policy, authorization, orchestration, event-sourced audit state, and operator-facing read models.
+2. The SystemAdmin bounded context contains separate **DatabaseBackup** and **ScheduledTask** features. The
+   DatabaseBackup feature contains exactly three actor roles: Command Actor, Event Actor, and Query Actor. ScheduledTask
+   owns a separate actor set; its internal design is outside this document.
 3. PostgreSQL and ScyllaDB are protected as physical clusters or explicitly defined cluster protection sets, not as a
    sequence of unrelated logical-database backup commands.
 4. Backup and restore control uses durable, versioned events. SystemAdmin publishes execution-intent events; the service
@@ -60,6 +61,13 @@ The target architecture is based on these decisions:
     into `TomasAI.IFM.Api.DatabaseBackup.Host` as an Aspire-managed project resource.
 14. Aspire extraction creates the final process, resource, credential, and deployment boundary. Correctness cannot
     depend on the Aspire AppHost remaining online.
+15. Database backup event names and schemas are source-independent. Every DatabaseBackup domain event,
+    execution-intent event, service event, and translated service-event command carries one concrete **BackupSource**
+    value.
+16. **BackupSource** selects the cloud or local execution capability. Initial values are **AwsCloud** and
+    **LocalWorkstation**. It is not the same as the UI or ScheduledTask request origin.
+17. The UI and SystemAdmin ScheduledTask actors exercise the same DatabaseBackup command and query contracts.
+    ScheduledTask-to-DatabaseBackup event integration is deferred until the ScheduledTask architecture is designed.
 
 ### 2.2 Non-goals
 
@@ -72,6 +80,8 @@ This overview does not:
 - define NATS JetStream disaster recovery beyond its relationship to database recovery;
 - define AWS resource names, accounts, regions, bucket policies, or exact service configurations;
 - define local drive letters, mount points, filesystem products, or hardware;
+- define ScheduledTask aggregates, persistence, actor roles, internal commands, internal events, or scheduling
+  algorithms;
 - authorize automatic production cutover after a restore; or
 - claim a recovery objective until it has been measured by a successful restore drill.
 
@@ -100,13 +110,17 @@ state, manifests, verification, or restore behavior.
 ### 4.1 Normal operating path
 
 ```text
-Operator / scheduled policy / UI
-              |
-              v
-      SystemAdmin actors in Core
-      - Command: policy, state, intent
-      - Event: service-event ingestion
-      - Query: projected read models
+Operator / UI              SystemAdmin ScheduledTask feature
+      |                                 |
+      | same DatabaseBackup commands    | same DatabaseBackup commands
+      | and queries                     | and queries
+      +----------------+----------------+
+                       |
+                       v
+      SystemAdmin DatabaseBackup actors in Core
+      - Command: policy, state, source-bound intent
+      - Event: source-bound service-event ingestion
+      - Query: source-filtered projected read models
               |
               | committed events
               | in-process now / NATS after extraction
@@ -288,17 +302,20 @@ actor decision.
 
 ## 5. Responsibilities
 
-### 5.1 SystemAdmin actor group
+### 5.1 SystemAdmin DatabaseBackup actor group
 
-SystemAdmin uses three actors with non-overlapping responsibilities.
+The SystemAdmin DatabaseBackup feature uses exactly three actors with non-overlapping responsibilities.
+
+Unless explicitly qualified as ScheduledTask, references below to the SystemAdmin Command Actor, Event Actor, or Query
+Actor mean the corresponding actor in the DatabaseBackup feature.
 
 #### 5.1.1 SystemAdmin Command Actor
 
 The Command Actor owns:
 
-- validation of operator, scheduler, policy, and internally translated service commands;
+- validation of UI, API, ScheduledTask, policy, and internally translated service commands;
 - accepted backup and restore policy revisions;
-- scheduling intent and manual requests;
+- backup requests from authorized callers and references to accepted ScheduledTask identities;
 - authorization and approval state;
 - operation IDs, correlation, causation, and idempotency;
 - application checkpoints and any required maintenance coordination;
@@ -318,9 +335,11 @@ The Event Actor owns:
 
 - listening for allowlisted Database Backup Service events;
 - validating contract version, subject, producing service identity, envelope integrity, and required identifiers;
+- validating that the producing service identity is authorized for the declared BackupSource;
 - deserializing each supported service event;
 - mapping the service event to the corresponding internal SystemAdmin command;
-- preserving source event ID, service sequence, correlation, causation, operation, host, and observation metadata;
+- preserving source event ID, BackupSource, service sequence, correlation, causation, operation, host, and observation
+  metadata;
 - sending the translated command to the Command Actor using `OperationId`, `BackupSetId`, policy identity, or service
   identity as the appropriate entity key;
 - acknowledging the inbound service event only after the Command Actor reports durable success or idempotent prior
@@ -339,7 +358,7 @@ The Query Actor owns:
 - the database-backup query contract;
 - validation and routing of query requests;
 - reading event-projected backup, restore, policy, retention, service-health, and recovery-readiness models;
-- returning bounded query results to UI and API clients; and
+- returning bounded query results to UI, API, and authorized ScheduledTask actor clients; and
 - reporting projection availability or staleness without falling back to the execution service as a hidden data source.
 
 The Query Actor is read-only. It does not load command aggregates, issue execution intent, or query PostgreSQL/Scylla
@@ -354,6 +373,25 @@ backup utilities and destinations directly.
 - Actor mailboxes remain bounded and never carry native backup artifacts or unbounded logs.
 - A failure in event ingestion or projection cannot silently advance command state.
 
+#### 5.1.5 SystemAdmin feature boundary
+
+This architecture defines two cooperating features inside the SystemAdmin bounded context:
+
+| SystemAdmin feature | Responsibility in this architecture |
+| --- | --- |
+| DatabaseBackup | Owns backup and restore policy, authorization, source-bound operations, service integration, event-sourced backup state, projections, and the commands and queries defined in Section 9 |
+| ScheduledTask | Owns time-based triggering through its own actor set and calls the public DatabaseBackup command and query contracts as an authorized actor client |
+
+The DatabaseBackup and ScheduledTask features do not share mutable actor state. The ScheduledTask feature does not call
+the Database Backup Service, publish DatabaseBackup execution-intent events, or consume raw service response events. It
+submits the same DatabaseBackup commands available to the UI and may use the same bounded DatabaseBackup queries to
+decide whether a scheduled invocation is appropriate.
+
+ScheduledTask command, event, query, aggregate, persistence, retry, and actor-role design is deliberately out of scope.
+No ScheduledTask-specific event integration is required by this version. If later scheduling workflows need completion
+notifications, that design must define an explicit feature-to-feature contract rather than coupling ScheduledTask actors
+to Database Backup Service events.
+
 ### 5.2 Database Backup Service and future host
 
 The Database Backup Service is the behavior boundary. It initially runs inside `Api.Server`; the future Database Backup
@@ -362,6 +400,7 @@ Host becomes its executable and process boundary under Aspire.
 The Database Backup Service owns:
 
 - listening for authorized SystemAdmin execution-intent events;
+- routing each event to the processor registered for its concrete BackupSource;
 - execution of the requested backup and restore behavior;
 - database-native backup coordination within its approved credential model;
 - bounded concurrency, resource throttling, and cancellation;
@@ -374,6 +413,10 @@ The Database Backup Service owns:
 - publication of bounded progress and outcome events to Core;
 - independent operational logs and metrics; and
 - the break-glass recovery entry point.
+
+One service process may support more than one BackupSource, but each registered processor declares its supported source
+and accepts only matching events. A deployment may instead run source-specific service instances. Neither choice
+changes event names, payload schemas, actor commands, queries, or operation state.
 
 It must not expose general SQL, CQL, arbitrary paths, arbitrary process execution, or a generic object-storage API.
 
@@ -461,9 +504,10 @@ required JetStream snapshot or replay position.
 A `BackupPolicy` is a versioned, non-secret definition containing:
 
 - protected environment and protection sets;
+- enabled BackupSource values and source-specific policy bindings;
 - enabled destinations;
 - which destinations are required for success;
-- base, incremental, log-archive, and restore-drill schedules;
+- ScheduledTask identities and cadence requirements for base, incremental, log-archive, and restore-drill work;
 - retention and immutability rules;
 - maximum concurrency and resource budgets;
 - recovery point and recovery time objectives;
@@ -479,6 +523,7 @@ the revision it is enforcing. A host may reject an unsafe or unsupported policy,
 A `BackupOperation` represents one requested execution against one protection set. It includes:
 
 - `OperationId`;
+- one concrete BackupSource;
 - `BackupSetId` when coordinated with other protection sets;
 - policy revision;
 - operation type;
@@ -497,6 +542,7 @@ A `BackupOperation` represents one requested execution against one protection se
 A `BackupSet` associates one or more engine-specific operations with a shared recovery purpose. It records:
 
 - participating protection sets;
+- participating source-bound operations;
 - application checkpoint or sequence boundary;
 - engine-specific restore points;
 - destination replica status;
@@ -508,7 +554,8 @@ A backup set may be partially complete without being eligible for whole-applicat
 ### 7.4 Artifact and replica
 
 A `BackupArtifact` is a native backup file, directory tree, WAL segment group, SSTable set, schema export, log, or
-manifest. An `ArtifactReplica` is one stored copy in AWS or local storage.
+manifest. An `ArtifactReplica` is one stored copy in AWS or local storage and records the BackupSource that owns its
+execution and catalog lifecycle.
 
 The architecture distinguishes:
 
@@ -542,6 +589,7 @@ An artifact directory is not a restore point until its manifest and required dep
 A `RestoreOperation` records:
 
 - selected restore point or coordinated backup set;
+- one concrete BackupSource;
 - source destination and fallback replicas;
 - fresh target identity;
 - authorization and approval identities;
@@ -549,6 +597,29 @@ A `RestoreOperation` records:
 - validation results;
 - cutover eligibility and separate cutover approval; and
 - cleanup disposition for failed or test restores.
+
+### 7.7 Backup source
+
+**BackupSource** is a required logical discriminator that selects which backup execution capability owns an operation.
+The initial contract values are:
+
+| BackupSource | Processing capability |
+| --- | --- |
+| AwsCloud | The AWS cloud backup/restore processor defined by the AWS reference architecture |
+| LocalWorkstation | The local workstation backup/restore processor to be defined by the local reference architecture |
+
+BackupSource is not a bucket, directory, drive, Region, account, endpoint, credential, or replica identifier. Those
+details remain service configuration and destination metadata. BackupSource is also not the request origin: UI and
+ScheduledTask identify who initiated a command, while BackupSource identifies which execution capability processes it.
+
+Every DatabaseBackup event carries exactly one recognized BackupSource. Values such as **Any**, **Both**, null, or an
+unknown future value are rejected. A policy requiring AWS and local processing creates distinct source-bound operations
+with distinct OperationId values under one BackupSetId. This prevents two processors from accepting the same operation
+while preserving coordinated recovery reporting.
+
+BackupSource is immutable after an operation is created. It is copied from accepted command intent into every domain
+event, execution-intent event, service response event, translated command, projection, manifest summary, and terminal
+outcome for that operation. It is never inferred only from a NATS subject, host name, bucket, or filesystem path.
 
 ## 8. Operation state machines
 
@@ -610,12 +681,16 @@ Production restore, production cutover, and cleanup are separate decisions. A su
 - Cancellation is best effort during a native atomic step and must report when the operation becomes safely cancellable.
 - No restore point becomes visible until its immutable manifest is published successfully.
 
-## 9. SystemAdmin actor contracts
+## 9. SystemAdmin DatabaseBackup actor contracts
 
 Contract names in this section are conceptual architecture names. Their serialized shape and language-specific types
 belong to later implementation design.
 
-### 9.1 Operator and policy commands
+The DatabaseBackup command, query, domain-event, and service-event names are identical for AWS and local execution.
+Contracts never add source-specific variants such as AwsDatabaseBackupCompletedEvent or
+LocalDatabaseBackupCompletedEvent. BackupSource is data in the common contract, not part of its type name.
+
+### 9.1 DatabaseBackup commands
 
 - `RequestDatabaseBackupCommand`
 - `CancelDatabaseBackupCommand`
@@ -633,13 +708,21 @@ belong to later implementation design.
 Every command includes an idempotency identity, actor subject, requesting identity, expected policy revision where
 applicable, and audit context. Secrets and arbitrary executable arguments are prohibited.
 
-An operator command never directly invokes a native database utility. It is handled by the SystemAdmin command actor,
-which validates current event-sourced state and emits one or more durable domain events.
+Every source-scoped command includes one concrete BackupSource. A policy command may describe more than one enabled
+source, but the Command Actor emits a separate source-bound domain and execution event for each resulting operation.
+The command audit envelope distinguishes a UI caller from a ScheduledTask actor through RequestOrigin and requesting
+identity; RequestOrigin is never used to route execution.
+
+A UI- or ScheduledTask-originated command never directly invokes a native database utility. It is handled by the
+DatabaseBackup Command Actor, which validates current event-sourced state and emits one or more durable domain events.
 
 ### 9.2 SystemAdmin-to-service execution events
 
 Selected SystemAdmin domain events are published after their event-store commit as service-facing execution-intent
 events. The Database Backup Service event listener consumes these events.
+
+Every event in the following table carries one concrete BackupSource. The same event type is published for AwsCloud and
+LocalWorkstation. A processor must reject rather than ignore an event with an unsupported source.
 
 | SystemAdmin event | Service behavior authorized by the event |
 | --- | --- |
@@ -665,8 +748,9 @@ prevent these invalid states:
 - the service begins behavior for an event that was not committed to SystemAdmin state; or
 - SystemAdmin commits an execution event permanently but publication is silently lost.
 
-Publication is at least once. The service deduplicates by event ID and `OperationId` and never starts a second native
-operation merely because the same execution event is redelivered.
+Publication is at least once. The service deduplicates by event ID, `OperationId`, and BackupSource and never starts a
+second native operation merely because the same execution event is redelivered. An existing OperationId can never be
+rebound to another BackupSource.
 
 ### 9.3 Database Backup Service event listener
 
@@ -675,13 +759,14 @@ The service event listener owns the execution-event subscription and admission b
 In Stage 1:
 
 - it subscribes to the committed in-process SystemAdmin event publication stream;
+- it routes only to a processor registered for the event's BackupSource;
 - it copies the bounded event envelope into the recoverable service journal before acknowledging acceptance;
 - it schedules work outside the actor call stack; and
 - it publishes service events through the in-process service-event publisher.
 
 In Stage 2:
 
-- it subscribes to the corresponding authorized NATS subjects;
+- it subscribes to the corresponding authorized NATS subjects, which may include BackupSource as a routing token;
 - durable delivery and acknowledgement replace the in-process transport;
 - the service journal remains the execution restart boundary; and
 - the event names and semantics remain unchanged.
@@ -689,10 +774,19 @@ In Stage 2:
 The listener is not a domain actor. It does not own SystemAdmin state, create operator approvals, or infer authority from
 the ability to receive an event.
 
+NATS subject or in-process subscription filtering is an optimization and authorization boundary, not the source of
+truth. The listener validates the BackupSource inside the event envelope, the processor capability, and the producing
+host or service identity before admission.
+
 ### 9.4 Service-to-SystemAdmin events
 
 The Database Backup Service publishes observations about accepted behavior. These are integration events from the
 execution boundary; they are not applied directly to the SystemAdmin aggregate.
+
+Every service event listed below echoes the exact BackupSource from the accepted execution intent. AWS and local
+processors use the same event names and payload schemas. The service cannot relabel a response, and the SystemAdmin
+Event Actor rejects a response whose BackupSource differs from the operation or whose producing host is not authorized
+for that source.
 
 #### Backup execution events
 
@@ -768,12 +862,13 @@ the only normal path by which host observations enter the authoritative backup-s
 | Reconciliation | `ReconcileDatabaseBackupServiceStateCommand` |
 | Capability change | `RecordDatabaseBackupServiceCapabilityCommand` |
 
-The translated command preserves the source service event ID, service sequence, operation ID, correlation ID, host
-identity, and observed time. The SystemAdmin Event Actor sends that command to the Command Actor, which then:
+The translated command preserves the source service event ID, BackupSource, service sequence, operation ID,
+correlation ID, host identity, and observed time. The SystemAdmin Event Actor sends that command to the Command Actor,
+which then:
 
 1. loads the aggregate identified by `OperationId`, `BackupSetId`, or policy identity;
-2. rejects an unknown operation, unauthorized host, stale policy, duplicate source event, illegal transition, or stale
-   service sequence;
+2. rejects an unknown operation, BackupSource mismatch, host not authorized for the source, stale policy, duplicate
+   source event, illegal transition, or stale service sequence;
 3. applies the accepted state transition;
 4. appends a durable SystemAdmin domain event;
 5. publishes the domain event for projection; and
@@ -790,11 +885,11 @@ boundaries are:
 
 | Aggregate identity | State owned by the aggregate |
 | --- | --- |
-| `OperationId` for backup | Request, authorization, service admission, phase, persisted progress, boundary, replicas, verification, terminal outcome, errors |
-| `OperationId` for restore | Request, approvals, target, phase, persisted progress, validation, cutover readiness, terminal outcome, errors |
-| `BackupSetId` | Participating engine operations, application checkpoint, completeness, compatibility, restore-test status |
-| Environment/policy identity | Policy revisions, schedules, destination requirements, retention, RPO/RTO, service enforcement status |
-| Service host identity | Capability revision, effective policy revision, readiness transitions, last reconciliation time |
+| `OperationId` for backup | Immutable BackupSource, request, authorization, service admission, phase, persisted progress, boundary, replicas, verification, terminal outcome, errors |
+| `OperationId` for restore | Immutable BackupSource, request, approvals, target, phase, persisted progress, validation, cutover readiness, terminal outcome, errors |
+| `BackupSetId` | Participating source-bound engine operations, application checkpoint, completeness, compatibility, restore-test status |
+| Environment/policy identity | Policy revisions, enabled BackupSources, ScheduledTask bindings, destination requirements, retention, RPO/RTO, service enforcement status |
+| Service host identity and BackupSource | Capability revision, supported sources, effective policy revision, readiness transitions, last reconciliation time |
 
 Using `OperationId` as the actor entity and mailbox key ensures that accepted service updates for one operation are
 processed sequentially. Backup-set coordination is handled by its own aggregate rather than placing unrelated operation
@@ -816,6 +911,10 @@ Representative SystemAdmin domain events include:
 - backup-set checkpoint and completeness events;
 - policy revision and enforcement-status events; and
 - service reconciliation and capability-status events.
+
+Every representative event above and every corresponding restore, retention, policy, verification, and reconciliation
+event carries BackupSource. A policy revision affecting both initial sources produces source-specific domain events so
+that no event has ambiguous execution ownership.
 
 The current deprecated backup events are not repurposed. New event names, entity identities, schemas, and versioning are
 introduced for this architecture.
@@ -862,12 +961,12 @@ do not query the Database Backup Service directly for authoritative application 
 | Read model | Primary contents |
 | --- | --- |
 | `DatabaseProtectionSetReadModel` | PostgreSQL and Scylla protection sets, logical contents, classification, enabled policy |
-| `DatabaseBackupOperationReadModel` | Current phase, bounded progress, engine boundary, destination replicas, verification, terminal outcome, summarized errors |
-| `DatabaseBackupSetReadModel` | Coordinated operations, application checkpoint, completeness, compatibility, restore-test status |
-| `DatabaseRestorePointReadModel` | Eligible restore points, dependency chains, destinations, verification and drill history |
-| `DatabaseRestoreOperationReadModel` | Restore target, approvals, phase, progress, validation, cutover readiness, terminal outcome |
-| `DatabaseBackupPolicyReadModel` | Effective policy, schedules, retention, required destinations, RPO/RTO, service enforcement revision |
-| `DatabaseBackupHealthReadModel` | Service readiness, latest completed/verified/restore-tested ages, policy violations and alerts |
+| `DatabaseBackupOperationReadModel` | BackupSource, current phase, bounded progress, engine boundary, destination replicas, verification, terminal outcome, summarized errors |
+| `DatabaseBackupSetReadModel` | Coordinated source-bound operations, application checkpoint, completeness, compatibility, restore-test status |
+| `DatabaseRestorePointReadModel` | BackupSource, eligible restore points, dependency chains, destinations, verification and drill history |
+| `DatabaseRestoreOperationReadModel` | BackupSource, restore target, approvals, phase, progress, validation, cutover readiness, terminal outcome |
+| `DatabaseBackupPolicyReadModel` | Enabled BackupSources, effective policy, ScheduledTask bindings, retention, required destinations, RPO/RTO, service enforcement revision |
+| `DatabaseBackupHealthReadModel` | Per-source service readiness, latest completed/verified/restore-tested ages, policy violations and alerts |
 | `DatabaseRetentionReadModel` | Forecast, protected chains, legal holds, proposed and executed retention plans |
 
 Projectors are idempotent and checkpointed. They can rebuild from the event store. A projection failure cannot authorize
@@ -895,6 +994,10 @@ The redesigned SystemAdmin query surface includes:
 Queries return bounded read models. Large logs and manifests are accessed through authorized management endpoints or
 destination tools, not embedded into actor query replies.
 
+The UI and authorized ScheduledTask actors use these same query types. Source-specific queries require BackupSource;
+list and compliance queries may use an optional BackupSource filter but return the source on every source-bound item.
+The query envelope identifies and authorizes the caller independently from BackupSource.
+
 ### 9.10 Event and command envelope invariants
 
 Every service-facing event and translated command carries:
@@ -902,6 +1005,7 @@ Every service-facing event and translated command carries:
 - contract version;
 - immutable source event ID;
 - operation ID and optional backup-set ID;
+- one concrete BackupSource;
 - correlation and causation IDs;
 - environment and protection-set identity;
 - policy revision;
@@ -910,6 +1014,10 @@ Every service-facing event and translated command carries:
 - monotonic service sequence or progress revision where applicable;
 - operation kind and phase; and
 - authenticated subject authorization in the cross-host stage.
+
+Every translated service-event command also carries BackupSource. Every UI- or ScheduledTask-originated command and
+query carries caller identity and RequestOrigin. These fields answer different questions and must not be substituted:
+BackupSource selects the execution capability, while RequestOrigin identifies who invoked the DatabaseBackup contract.
 
 At-least-once delivery is assumed in both directions. Listeners and actors must be idempotent and reject stale revisions,
 sequence regressions, conflicting operation definitions, unauthorized producers, and illegal state transitions.
@@ -925,6 +1033,7 @@ The backup dashboard presents:
 
 - protection sets rather than misleading independent physical database names;
 - logical databases and keyspaces contained in each set;
+- BackupSource and source-specific capability health;
 - effective AWS and local destination policy;
 - last completed, last verified, and last restore-tested recovery points;
 - measured recovery-point age;
@@ -937,7 +1046,7 @@ The backup dashboard presents:
 The operator:
 
 1. selects a protection set or coordinated backup set;
-2. selects only policy-allowed operation and destination options;
+2. selects one concrete BackupSource and only policy-allowed operation and destination options;
 3. sees the expected consistency and resource impact;
 4. submits a SystemAdmin command;
 5. receives an `OperationId` immediately; and
@@ -971,13 +1080,15 @@ block the WinForms or future WPF UI thread, poll aggressively, or mutate view st
 
 ### 11.1 Normal sequence
 
-1. A schedule or authorized operator submits `RequestDatabaseBackupCommand`.
-2. The SystemAdmin actor validates policy, identity, concurrency, and environment.
-3. Core allocates `OperationId` and, when required, `BackupSetId`.
+1. An authorized UI caller or ScheduledTask actor submits the same `RequestDatabaseBackupCommand` with one concrete
+   BackupSource and its own RequestOrigin.
+2. The DatabaseBackup Command Actor validates policy, caller identity, BackupSource, concurrency, and environment.
+3. Core allocates a source-bound `OperationId` and, when required, `BackupSetId`.
 4. Core establishes the required application checkpoint or maintenance mode.
-5. The actor appends `DatabaseBackupRequestedEvent` and `DatabaseBackupExecutionRequestedEvent`, including the accepted
-   checkpoint, to event-sourced state.
-6. The committed execution event is published to the Database Backup Service listener.
+5. The actor appends `DatabaseBackupRequestedEvent` and `DatabaseBackupExecutionRequestedEvent`, including
+   BackupSource and the accepted checkpoint, to event-sourced state.
+6. The committed execution event is published to the Database Backup Service listener and admitted only by the
+   processor registered for its BackupSource.
 7. The service journals and deduplicates the event, then publishes accepted or rejected service events.
 8. The SystemAdmin Event Actor converts the observation into a SystemAdmin command; the Command Actor persists the
    admission result and its domain event is projected into the read model.
@@ -995,7 +1106,8 @@ block the WinForms or future WPF UI thread, poll aggressively, or mutate view st
 18. Read-model projectors update the query models, and Core releases any application coordination state.
 
 Failure to publish, duplicate delivery, a service-sequence gap, or loss of an acknowledgement is reconciled by source
-event ID, `OperationId`, and service sequence. It does not create a second backup or blindly advance actor state.
+event ID, BackupSource, `OperationId`, and service sequence. It does not create a second backup or blindly advance
+actor state.
 
 ### 11.2 Consistency modes
 
@@ -1236,6 +1348,7 @@ Every engine operation has an immutable, versioned manifest containing at least:
 
 - manifest schema version;
 - operation and backup-set IDs;
+- one concrete BackupSource;
 - environment, protection set, engine, and cluster identity;
 - backup type and consistency mode;
 - request, policy, and producing-host revisions;
@@ -1348,7 +1461,8 @@ A missed or failed drill reduces recovery confidence and must be visible indepen
 
 ### 19.1 Scheduling
 
-Schedules are policy, not hard-coded day-of-week behavior. They cover:
+Database backup scheduling is driven by the SystemAdmin ScheduledTask feature, not by the DatabaseBackup actors or the
+Database Backup Service. Schedule definitions are policy, not hard-coded day-of-week behavior. They cover:
 
 - PostgreSQL base backups;
 - PostgreSQL WAL archival health;
@@ -1359,7 +1473,22 @@ Schedules are policy, not hard-coded day-of-week behavior. They cover:
 - verification; and
 - restore drills.
 
-The scheduler submits the same SystemAdmin commands used by authorized manual operations.
+When work is due, an authorized ScheduledTask actor:
+
+1. uses the same DatabaseBackup queries available to the UI to check policy, source health, current operation state, and
+   recovery-objective compliance;
+2. submits the same source-scoped DatabaseBackup command used by an authorized UI caller;
+3. supplies RequestOrigin **ScheduledTask**, its actor identity, schedule identity, occurrence identity, idempotency
+   identity, and one concrete BackupSource; and
+4. receives command acceptance without waiting for the long-running backup behavior.
+
+The UI uses RequestOrigin **Ui** and an operator identity. Both paths exercise one DatabaseBackup command and query
+surface; neither receives a special execution path.
+
+ScheduledTask does not publish DatabaseBackup execution-intent events or consume Database Backup Service events. The
+DatabaseBackup Command Actor owns event publication, and the DatabaseBackup Event Actor owns service-event ingestion.
+Whether ScheduledTask later receives a bounded feature-level completion event is intentionally deferred to the
+ScheduledTask architecture. Until then it may observe state through DatabaseBackup queries without polling aggressively.
 
 ### 19.2 Retention
 
@@ -1500,9 +1629,10 @@ components share one process.
 Stage 2 moves that configuration unchanged in meaning into the Database Backup Host configuration root. Core and the
 host then receive only the configuration and secret references required by their responsibilities.
 
-Core configuration contains actor policy, authorization, protection-set identity, schedules, recovery objectives, and
-the expected Database Backup Service capability version. Service configuration contains staging, destination, native
-backup, throttling, journal, and break-glass settings.
+Core configuration contains DatabaseBackup policy, authorization, protection-set identity, enabled BackupSources,
+source-specific service capability expectations, recovery objectives, and ScheduledTask configuration. Service
+configuration contains supported BackupSources, staging, destination, native backup, throttling, journal, and
+break-glass settings.
 
 Each host receives only the configuration and secret references required by its responsibility.
 
@@ -1511,7 +1641,8 @@ Each host receives only the configuration and secret references required by its 
 Core owns authoritative non-secret configuration:
 
 - protection sets and data classification;
-- schedules and recovery objectives;
+- DatabaseBackup recovery objectives and source-specific policy;
+- ScheduledTask definitions, cadence, occurrence state, and DatabaseBackup schedule bindings;
 - required destinations;
 - verification and restore-drill policy;
 - retention classes; and
@@ -1665,8 +1796,8 @@ Every failure has an explicit terminal or recoverable state. No failure is repre
 
 The shared architecture is satisfied only when the AWS and local designs conform to these invariants:
 
-1. SystemAdmin has three backup actors with explicit roles: Command Actor for event-sourced transitions, Event Actor for
-   service-event-to-command translation, and Query Actor for projected read models.
+1. The SystemAdmin DatabaseBackup feature has exactly three actors with explicit roles: Command Actor for event-sourced
+   transitions, Event Actor for service-event-to-command translation, and Query Actor for projected read models.
 2. PostgreSQL is backed up once per physical cluster boundary.
 3. ScyllaDB cluster completeness accounts for every required node and keyspace.
 4. NATS never transports native backup payloads.
@@ -1695,6 +1826,18 @@ The shared architecture is satisfied only when the AWS and local designs conform
 23. Database backup queries read event-projected read models rather than calling the execution service directly.
 24. Progress and errors are event sourced at bounded operational checkpoints without persisting per-byte or per-file
     telemetry as domain state.
+25. SystemAdmin contains separate DatabaseBackup and ScheduledTask features with separate actor state and
+    responsibilities.
+26. UI callers and ScheduledTask actors use the same DatabaseBackup command and query contracts.
+27. Every DatabaseBackup domain event, execution-intent event, service event, and translated service-event command
+    carries one concrete BackupSource.
+28. AWS and local processing use the same event type names and schemas; no source-specific event class is introduced.
+29. An operation is permanently bound to one BackupSource, and a multi-source policy creates distinct operations under
+    one BackupSetId.
+30. A service response is accepted only when its BackupSource matches the operation and its producing host is
+    authorized for that source.
+31. ScheduledTask actors do not publish DatabaseBackup execution events, consume raw service events, or call the
+    Database Backup Service directly.
 
 ## 28. Decisions required for sign-off
 
@@ -1714,18 +1857,24 @@ The following decisions must be accepted or revised before this overview is sign
 | Redis | Excluded while cache-only |
 | JetStream | Separate infrastructure recovery design coordinated by checkpoint where required |
 | Legacy contracts | Deprecated and replaced; serialized values are not repurposed |
-| SystemAdmin actor model | Exactly three roles: Command Actor owns state transitions, Event Actor processes service events into commands, Query Actor serves projected read models |
+| SystemAdmin feature model | Separate DatabaseBackup and ScheduledTask features; DatabaseBackup has exactly three roles: Command Actor owns state transitions, Event Actor processes service events into commands, Query Actor serves projected read models; ScheduledTask owns a separate actor set whose design is deferred |
+| Source-independent contracts | AWS and local use identical command, query, domain-event, execution-event, and service-event types |
+| BackupSource | Required concrete value on every DatabaseBackup event; initial values are `AwsCloud` and `LocalWorkstation`; no `Any` or `Both` event value |
+| Multi-source operation | One source-bound `OperationId` per BackupSource, coordinated through a shared `BackupSetId` |
+| UI and ScheduledTask integration | Both invoke the same DatabaseBackup commands and queries with distinct RequestOrigin and requesting identity |
+| ScheduledTask events | Deferred to the ScheduledTask architecture; ScheduledTask does not consume raw Database Backup Service events |
 | Backup execution deployment | Stage 1: isolated hosted service inside `Api.Server`; Stage 2: extracted `TomasAI.IFM.Api.DatabaseBackup.Host` Aspire resource |
 | Service communication | Stage 1 committed in-process event listeners; Stage 2 equivalent NATS event listeners; service events are translated into SystemAdmin commands; HTTP remains limited to observability, diagnostics, and secured break-glass recovery |
 | State ownership | SystemAdmin event sourcing owns all authoritative backup state and read-model projections; Database Backup Service owns recoverable execution journals; destinations own immutable recovery evidence |
 | Aspire role | Future host orchestration, development composition, and shared observability defaults; not a correctness or state dependency |
 
-The AWS architecture will resolve AWS-specific durability, identity, encryption, lifecycle, regional, and cost decisions.
+The AWS architecture resolves AWS-specific durability, identity, encryption, lifecycle, regional, and cost decisions.
 The local architecture will resolve filesystem, device, capacity, encryption, offline-copy, and local disaster-boundary
 decisions while preserving the approved common model.
 
 ## 29. References
 
+- [AWS cloud backup and restore architecture](AWS-Cloud-Backup-Restore-Architecture.md)
 - [PostgreSQL current backup and restore documentation](https://www.postgresql.org/docs/current/backup.html)
 - [PostgreSQL `pg_basebackup`](https://www.postgresql.org/docs/current/app-pgbasebackup.html)
 - [PostgreSQL continuous archiving and point-in-time recovery](https://www.postgresql.org/docs/current/continuous-archiving.html)
@@ -1742,3 +1891,4 @@ decisions while preserving the approved common model.
 | 0.3 | 2026-08-10 | Clarified the staged deployment: the isolated Database Backup Service initially runs inside `Api.Server` behind an asynchronous service gateway, then moves with unchanged behavior and contracts into a separate Aspire-managed host. |
 | 0.4 | 2026-08-10 | Defined the bidirectional event contract: committed SystemAdmin execution events drive the service listener; service progress and outcomes are translated into idempotent SystemAdmin commands; accepted state, progress, and errors are persisted as domain events and projected into backup read models. |
 | 0.5 | 2026-08-10 | Defined the three-actor SystemAdmin model: Command Actor owns event-sourced transitions and outbound intent, Event Actor validates service events and translates them into commands, and Query Actor serves event-projected read models. |
+| 0.6 | 2026-08-10 | Approved the shared architecture after scoping the three-actor model to the SystemAdmin DatabaseBackup feature, establishing ScheduledTask as a separate shared command/query caller, making every DatabaseBackup event source-independent through mandatory BackupSource, and deferring ScheduledTask event design. |

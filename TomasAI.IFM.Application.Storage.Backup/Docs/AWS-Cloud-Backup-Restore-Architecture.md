@@ -1,0 +1,1581 @@
+# IFM AWS Cloud Database Backup and Restore Architecture
+
+Status: Draft for architecture review; Section 29 decisions approved
+Version: 0.2
+Date: 2026-08-10
+Scope: AWS reference architecture for PostgreSQL and ScyllaDB backup, restore, retention, and disaster recovery
+Parent architecture: Database-Backup-Architecture-Overview.md version 0.6
+
+## 1. Purpose
+
+This document defines the AWS reference architecture for protecting and recovering the IFM PostgreSQL and ScyllaDB
+clusters. It specializes the shared architecture in Database-Backup-Architecture-Overview.md without changing its
+SystemAdmin actors, event-sourced state model, database-native recovery formats, restore governance, or future Aspire
+host boundary.
+
+The design answers the AWS-specific questions intentionally deferred by the overview:
+
+- AWS account and Region isolation;
+- Amazon S3 bucket roles, object layout, immutability, replication, and publication;
+- AWS Identity and Access Management roles and separation of duties;
+- AWS Key Management Service encryption and recovery-key controls;
+- network and credential boundaries;
+- PostgreSQL WAL and base-backup movement to AWS;
+- ScyllaDB cluster-backup movement to AWS;
+- destination-resident catalog, manifest, verification, and break-glass recovery;
+- lifecycle, retention, legal hold, audit, observability, cost, and failure behavior; and
+- the production acceptance evidence required before AWS becomes a trusted recovery destination.
+
+This remains an architecture and design document. It does not prescribe C# classes, Terraform or CloudFormation modules,
+AWS resource names, command-line scripts, or a delivery task breakdown.
+
+## 2. Relationship to the shared architecture
+
+This document inherits the following non-negotiable rules from the overview:
+
+1. SystemAdmin contains exactly three backup actor roles: Command Actor, Event Actor, and Query Actor.
+2. The SystemAdmin Command Actor is the authority for event-sourced operation state and execution intent.
+3. The SystemAdmin Event Actor translates service observations into commands and acknowledges only after durable
+   Command Actor application or an idempotent prior application.
+4. The SystemAdmin Query Actor reads projected models and never queries AWS or the Database Backup Service as a hidden
+   source of truth.
+5. The Database Backup Service executes all native backup, transfer, verification, retention, and restore behavior.
+6. The service initially runs as an isolated hosted service inside **Api.Server** and later moves, without behavioral
+   redesign, into **TomasAI.IFM.Api.DatabaseBackup.Host** as an Aspire-managed project resource.
+7. NATS carries bounded control and outcome events after host extraction. Native backup payloads never travel through
+   NATS or actor mailboxes.
+8. PostgreSQL and ScyllaDB are protected at their physical cluster or declared protection-set boundaries.
+9. Restore uses fresh targets by default and stops at **ReadyForCutover** until separately approved.
+10. A break-glass recovery path works without Core, NATS, PostgreSQL, or ScyllaDB.
+11. AWS and local destinations use the same operation identities, manifest meaning, checksums, catalog semantics,
+    verification levels, retention dependencies, and restore qualification.
+12. AWS credentials exist only within the Database Backup Service trust boundary. Core actors and ordinary database
+    workloads never receive them.
+13. DatabaseBackup event, command, and query types are shared with local workstation backup. Every AWS source-bound
+    event carries BackupSource **AwsCloud**; no AWS-specific event type is introduced.
+14. UI callers and SystemAdmin ScheduledTask actors use the same DatabaseBackup command and query contracts.
+    ScheduledTask event integration remains outside this document.
+
+If this document conflicts with the approved overview, the overview controls until both documents are deliberately
+revised and reviewed.
+
+## 3. Architectural decisions
+
+The AWS design adopts these decisions for production:
+
+| Concern | Decision |
+| --- | --- |
+| Durable object store | Amazon S3 general purpose buckets |
+| Workload separation | Production backup storage is not owned by the IFM workload account |
+| Primary vault | Dedicated backup account and primary backup Region |
+| Recovery vault | Separate recovery account and a distinct AWS Region |
+| Replication | One-way S3 Cross-Region Replication from primary vault to recovery vault |
+| Immutability | S3 Versioning and S3 Object Lock on both vaults |
+| Production lock mode | Compliance mode for published recovery objects after policy validation |
+| Encryption | SSE-KMS using a customer-managed regional symmetric key in each vault account |
+| Key topology | Independent regional keys; replication decrypts and re-encrypts with the destination key |
+| Ownership | Bucket-owner-enforced Object Ownership; ACLs disabled |
+| Credentials | Temporary role credentials only; no long-lived AWS access keys in application configuration |
+| Artifact publication | Unique immutable object keys, manifest, commit record, then append-only catalog entry |
+| Catalog | Destination-resident and reconstructable from immutable manifests; no database dependency |
+| Restore source | Explicit replica selection after independent validation; no automatic opaque failover |
+| PostgreSQL | Periodic physical base backup plus continuous WAL archiving for PITR |
+| ScyllaDB | Scylla Manager coordinates cluster-native capture; AWS movement remains controlled by the Backup Service |
+| Native AWS access | Database and Scylla agents do not receive AWS credentials under this architecture |
+| BackupSource | AwsCloud; AwsPrimary and AwsRecovery remain physical replica identities within that source |
+| AWS Backup service | Optional tertiary protection only; it does not replace native capture or the IFM catalog |
+| Audit | Organization CloudTrail plus S3 object data events, KMS events, configuration checks, and immutable log storage |
+| Deep archive | Policy-controlled and allowed only when its retrieval time still satisfies the recovery class |
+| Deletion | A revision-matched retention plan and a separate deletion role; never an unbounded bucket sweep |
+
+Production uses three AWS trust domains:
+
+1. **Workload account**: runs or identifies the Database Backup Service and contains no vault administration authority.
+2. **Primary backup account**: owns the primary immutable vault, primary KMS key, replication role, and primary catalog.
+3. **Recovery account**: owns the cross-Region replica vault, recovery KMS key, and independent recovery-read role.
+
+Non-production may consolidate accounts for cost and convenience, but a consolidated environment cannot be used as
+evidence that production account-isolation or disaster-recovery controls work.
+
+## 4. Goals and non-goals
+
+### 4.1 Goals
+
+The AWS architecture must:
+
+- survive loss of the Core Actor Host and active database volumes;
+- survive loss or compromise of the workload account without permitting normal workload credentials to erase history;
+- retain a geographically separate, independently owned copy of every policy-required restore point;
+- provide PostgreSQL point-in-time recovery within the retained WAL window;
+- provide complete ScyllaDB cluster recovery for the declared protection set;
+- make the backup catalog discoverable without IFM application databases;
+- preserve proof of artifact identity, native consistency, checksums, encryption, retention, and verification;
+- make incomplete or unreplicated work visibly ineligible for recovery;
+- support fresh-target restore drills and production recovery;
+- measure actual RPO and RTO;
+- constrain cost without weakening declared recovery objectives; and
+- preserve identical logical behavior during the Stage 1 to Stage 2 host extraction.
+
+### 4.2 Non-goals
+
+This design does not:
+
+- convert PostgreSQL or ScyllaDB into managed AWS database services;
+- use logical row export as the primary cluster recovery mechanism;
+- send database artifacts through NATS, HTTP management APIs, or SystemAdmin actors;
+- grant Core actors direct S3, KMS, STS, or CloudTrail access;
+- treat Amazon S3 replication as proof that a database backup is natively restorable;
+- make AWS Backup vaults the authoritative IFM backup catalog;
+- use S3 Multi-Region Access Point failover to hide replica identity during recovery;
+- permit automatic production cutover;
+- put permanent AWS credentials on PostgreSQL or ScyllaDB nodes; or
+- promise an RPO or RTO before drills demonstrate it.
+
+## 5. AWS system context
+
+The normal production data path is:
+
+    SystemAdmin Command Actor
+        |
+        | committed execution-intent event
+        v
+    Database Backup Service
+        |-- PostgreSQL replication/backup interface
+        |-- PostgreSQL WAL ingress
+        |-- Scylla Manager and service-controlled staging
+        |
+        | temporary AWS role session
+        v
+    Primary immutable S3 vault
+        |
+        | one-way CRR, new encryption under recovery key
+        v
+    Recovery immutable S3 vault
+
+The control path remains:
+
+    Service observation
+        -> SystemAdmin Event Actor
+        -> translated SystemAdmin command
+        -> SystemAdmin Command Actor
+        -> committed domain event
+        -> read-model projection
+        -> SystemAdmin Query Actor and UI
+
+AWS service notifications and metrics are infrastructure observations. They first enter the Database Backup Service,
+which correlates them with its operation journal and publishes a bounded service event. They do not write SystemAdmin
+state directly.
+
+## 6. Account, Region, and failure-boundary design
+
+### 6.1 Workload account
+
+The workload account owns the compute identity used by the Database Backup Service. It does not own either production
+vault, either vault KMS key, Object Lock configuration, replication configuration, lifecycle policy, or recovery audit
+trail.
+
+The service assumes narrowly scoped roles in the primary backup account. A compromise of the normal application role,
+Core actors, or ordinary application database credentials must not grant:
+
+- vault administration;
+- object-version deletion;
+- Object Lock bypass;
+- legal-hold removal;
+- KMS administration;
+- replication-policy changes; or
+- recovery-account access.
+
+### 6.2 Primary backup account
+
+The primary backup account owns:
+
+- the primary S3 vault in the selected primary backup Region;
+- the primary vault customer-managed KMS key;
+- the service upload and verification roles;
+- the S3 replication role;
+- the primary retention-execution role;
+- primary replication metrics and alarms; and
+- primary catalog and manifest evidence.
+
+The primary backup Region should normally match the Database Backup Service or primary database Region to minimize
+latency and transfer cost. This is a policy choice, not an actor-contract field.
+
+### 6.3 Recovery account
+
+The recovery account owns:
+
+- the recovery S3 vault in a distinct approved AWS Region;
+- the recovery customer-managed KMS key;
+- replica ownership and Object Lock policy;
+- an independent recovery-read role;
+- tightly controlled legal-hold and post-expiry deletion roles; and
+- recovery-region audit and alarms.
+
+The source replication role may write encrypted replicas. It cannot read recovery objects, shorten retention, remove
+legal holds, change the recovery key, or delete object versions.
+
+### 6.4 Region selection
+
+The primary and recovery Regions must:
+
+- be distinct AWS Regions;
+- satisfy legal, residency, and brokerage-data constraints;
+- support all selected S3, Object Lock, KMS, CloudTrail, and replication capabilities;
+- have a tested network and operational path from the recovery environment;
+- avoid a consciously shared failure dependency where practical; and
+- be recorded in the destination configuration and recovery runbook.
+
+Region names are deployment configuration, not embedded in domain event schemas.
+
+### 6.5 One-way replication
+
+Replication is deliberately one-way. Bi-directional replication and replica-modification synchronization are disabled
+for the immutable vault path because they increase the chance that an unwanted mutation or configuration error crosses
+the recovery boundary.
+
+Delete-marker replication is disabled. Retention deletion is independently planned and executed against each vault
+after its own eligibility checks.
+
+## 7. S3 resource topology
+
+### 7.1 Required buckets
+
+Production requires at least:
+
+| Bucket role | Account and Region | Purpose |
+| --- | --- | --- |
+| Primary immutable vault | Primary backup account, primary Region | First durable AWS copy of artifacts, manifests, commit records, and catalog entries |
+| Recovery immutable vault | Recovery account, recovery Region | Cross-account and cross-Region replica used for disaster recovery |
+| Security audit log archive | Security or log-archive account | CloudTrail and security evidence independent of application and backup operators |
+
+The security audit bucket is not used for database artifacts. Its ownership and retention follow the organization audit
+architecture.
+
+Optional operational buckets, such as S3 Inventory report destinations, must not become authoritative recovery sources.
+
+### 7.2 Mandatory vault settings
+
+Both immutable vault buckets require:
+
+- S3 Versioning enabled and never suspended;
+- S3 Object Lock enabled;
+- Block Public Access enabled at account and bucket level;
+- bucket-owner-enforced Object Ownership with ACLs disabled;
+- default SSE-KMS encryption using the bucket's own customer-managed key;
+- rejection of plaintext transport;
+- rejection of uploads that do not use the approved encryption and key;
+- rejection of primary published-object uploads that omit the approved Object Lock mode or fall below the
+  policy-calculated retain-until time;
+- no public access points;
+- no website hosting;
+- no Requester Pays on the replication destination;
+- CloudTrail management and object data-event coverage;
+- replication and inventory visibility;
+- lifecycle rules reviewed against Object Lock and recovery objectives; and
+- infrastructure drift detection.
+
+The buckets are created with Object Lock as a foundational control. Production does not rely on enabling immutability
+after backup objects already exist.
+
+### 7.3 Object Lock policy
+
+Published production artifacts, manifests, commit records, catalog entries, verification records, and recovery records
+use S3 Object Lock Compliance mode for their declared retention interval.
+
+The policy progression is:
+
+1. development tests publication and cleanup without representing production immutability;
+2. pre-production validates Governance mode, retention calculation, legal hold, and cleanup;
+3. production enables Compliance mode only after a simulated long-retention error and recovery review; and
+4. retention can be extended but never shortened for an already published compliance-protected object version.
+
+Legal hold is independent of time-based retention. It may be applied for incident response, audit, investigation, or
+operator-directed preservation. Removing legal hold requires a separate authorized workflow and does not override an
+unexpired retention period.
+
+Object Lock protects a specific object version. All manifests therefore record bucket, key, version ID, retention mode,
+and retain-until time for every required object version. Because legal hold can change after original publication, the
+manifest records its publication-time state while later changes create signed append-only hold records. Recovery always
+checks the current S3 legal-hold state as well as that history.
+
+### 7.4 Why the design uses S3 directly
+
+The protected databases are self-managed PostgreSQL and ScyllaDB clusters. Database-native capture and restore semantics
+remain necessary even when AWS stores the results. Direct S3 vaults provide:
+
+- stable native artifact storage;
+- object-version identity;
+- WORM retention;
+- cross-account and cross-Region replication;
+- explicit KMS boundaries;
+- a destination-resident catalog; and
+- break-glass access that does not require the IFM application.
+
+AWS Backup may be evaluated as a tertiary copy of eligible S3 data or supporting infrastructure. It does not replace
+PostgreSQL WAL/PITR, Scylla cluster completeness, IFM manifests, SystemAdmin state, or restore drills.
+
+## 8. Immutable object namespace
+
+### 8.1 General rules
+
+Every published object key is unique and immutable. The service never overwrites a logical "latest backup" object.
+Human-readable database names, credentials, host paths, account numbers, and sensitive strategy identifiers are not
+placed in object keys.
+
+The normative logical layout is:
+
+    schema-v1/
+      environments/{EnvironmentId}/
+        protection-sets/{ProtectionSetId}/
+          operations/{OperationId}/
+            engines/{EngineId}/
+              artifacts/{ArtifactId}/{PartName}
+              native-manifest/{NativeManifestId}
+              ifm-engine-manifest/{ManifestId}
+              verification/{VerificationId}
+            backup-set/{BackupSetId}/manifest/{ManifestId}
+            publication/{PublicationId}/commit
+          catalog/entries/{UtcDate}/{BackupSetId}/{CatalogEntryId}
+          recovery-records/{RecoveryOperationId}/{RecordId}
+
+Identifiers are opaque and stable. The manifest contains the bounded descriptive metadata needed to interpret them.
+
+### 8.2 Object identity
+
+An artifact replica identity includes:
+
+- destination identity;
+- AWS partition, account identity, and Region;
+- bucket;
+- object key;
+- S3 version ID;
+- content length;
+- native checksum where available;
+- IFM cryptographic content digest;
+- S3 checksum algorithm and value;
+- SSE-KMS key ARN;
+- Object Lock mode and retain-until time;
+- legal-hold state;
+- storage class;
+- replication status; and
+- publication and verification revisions.
+
+The ETag is recorded for diagnostics but is never treated as a universal content checksum.
+
+### 8.3 Multipart uploads
+
+Large artifacts use bounded parallel multipart upload. The service:
+
+- journals upload ID, object key, part size, completed part numbers, and checksums;
+- uses consecutive part numbers;
+- supplies supported S3 checksums;
+- independently calculates the manifest's cryptographic content digest;
+- resumes only when the journal, remote upload, object identity, and policy revision match;
+- aborts abandoned multipart uploads after the diagnostic window; and
+- does not publish a manifest until the completed object passes a HEAD and checksum check.
+
+Concurrency is limited by configured memory, network, disk, and KMS request budgets. Multipart performance cannot create
+unbounded buffers inside **Api.Server** during Stage 1.
+
+### 8.4 Atomic publication in S3
+
+S3 has no directory rename transaction, so visibility is established through immutable records:
+
+1. Upload every artifact to its final unique key.
+2. Complete multipart uploads and verify length, version ID, encryption, Object Lock, and checksum.
+3. Upload and verify the database-native manifest.
+4. Upload the signed IFM engine manifest.
+5. For a coordinated set, upload the signed backup-set manifest referencing every engine manifest.
+6. Upload a signed publication commit record as the last operation object.
+7. Upload an append-only catalog entry referencing the commit record.
+8. Report the replica as published to SystemAdmin only after the applicable publication policy is satisfied.
+
+A restore point is visible only when a valid commit record and catalog entry refer to a complete, verifiable manifest
+chain. Listing an artifact prefix is never sufficient.
+
+S3's strong consistency permits the commit and catalog objects to be read and listed after their successful writes, but
+the service still validates explicit version IDs and signatures rather than relying on timing.
+
+### 8.5 Manifest signing
+
+The IFM engine manifest, backup-set manifest, publication commit, catalog entry, and break-glass recovery record are
+cryptographically signed.
+
+The production signing design uses an AWS KMS asymmetric signing key controlled by the backup security boundary. Its
+public-key trust material, algorithm, key identity, and validity period are included in the recovery trust bundle. The
+public key is stored in the recovery vault and in an independently controlled offline recovery package so signature
+verification does not require a live call to the failed Core environment.
+
+Signing authorization is separate from artifact upload. The signing role signs a digest only after policy validation
+confirms artifact identity, checksum evidence, retention, and encryption.
+
+## 9. IAM and separation of duties
+
+### 9.1 Identity principles
+
+- Workloads use temporary role credentials.
+- Static AWS access keys are prohibited in source code, configuration files, actor events, manifests, logs, and UI.
+- Role sessions include operation and environment context through approved session tags where supported.
+- Role trust is limited to the expected workload identity and AWS organization.
+- Permissions are scoped to exact bucket prefixes, KMS encryption context, Region, and operation category.
+- Human administration uses federated identity, strong MFA, and separately approved break-glass access.
+- The ability to create a backup does not imply the ability to delete, restore, release legal hold, or administer keys.
+
+### 9.2 Service roles
+
+| Role | Required capability | Explicit exclusions |
+| --- | --- | --- |
+| Vault upload role | Create multipart uploads, upload parts, complete or abort owned uploads, write unique approved prefixes, read required object metadata | No object-version deletion, retention bypass, legal-hold removal, bucket administration, or arbitrary reads |
+| Verification role | Read exact artifact versions and checksum metadata for approved operations | No write, delete, retention, replication, or key administration |
+| Manifest signing role | Sign approved manifest digests | No S3 artifact access or KMS decryption |
+| Restore-read role | List catalog prefixes and read exact published versions for an approved restore | No write, delete, retention, or bucket administration |
+| Retention-planning role | List versions, manifests, Object Lock state, legal holds, storage class, and dependency evidence | No delete or retention mutation |
+| Retention-execution role | Delete only exact expired versions in an approved revision-matched plan | No governance bypass, policy change, wildcard sweep, or KMS administration |
+| Legal-hold role | Apply or release legal hold under a separately audited workflow | No artifact read, delete, or key administration |
+| Replication role | Replicate source versions, encryption, and Object Lock metadata to the destination | No human assumption, source deletion, destination read, or destination administration |
+| Break-glass recovery role | Read catalog, manifests, exact artifact versions, and decrypt through the recovery key | No write, delete, retention modification, or routine application use |
+
+Where one AWS API technically requires additional KMS permissions for multipart processing, those permissions are
+constrained through KMS ViaService, encryption context, bucket ARN, caller identity, and resource policy. They do not
+grant S3 GetObject.
+
+### 9.3 Administrative roles
+
+Bucket administration, KMS administration, security audit, and recovery operation are separate duties. Production
+policy changes require peer review and deployment through approved infrastructure change control.
+
+No routine role receives **s3:BypassGovernanceRetention**. Production Compliance mode does not provide a bypass even to
+the account root user during the retention period.
+
+AWS Organizations service-control policies should deny or tightly constrain:
+
+- disabling or deleting production vault keys;
+- suspending S3 Versioning;
+- changing Object Lock configuration;
+- disabling Block Public Access;
+- making vault buckets public;
+- weakening CloudTrail;
+- changing replication outside approved infrastructure roles; and
+- leaving the organization with a vault account.
+
+### 9.4 Core Actor Host exclusion
+
+The Core Actor Host has no IAM policy for S3 vault objects, KMS backup keys, replication, CloudTrail, or retention. Actor
+messages contain logical destination IDs such as **AwsPrimary** and **AwsRecovery**, never bucket names, role ARNs,
+credentials, presigned URLs, or KMS key IDs.
+
+## 10. Encryption and key recovery
+
+### 10.1 Data in transit
+
+All AWS API traffic uses TLS. Bucket policies reject non-secure transport. Native database and service-agent traffic uses
+authenticated encryption where the engine path supports it. Staging storage is encrypted independently from S3.
+
+### 10.2 Data at rest
+
+Every vault object is encrypted using SSE-KMS and the customer-managed regional key owned by that vault account.
+S3 Bucket Keys are enabled where compatibility tests confirm correct encryption context and replication behavior, to
+reduce KMS request volume and cost.
+
+Cross-Region Replication decrypts with the primary key and encrypts the destination replica with the recovery account's
+key. AWS managed KMS keys are not used for cross-account replicas.
+
+### 10.3 Independent regional keys
+
+The reference design chooses independent single-Region keys rather than a shared multi-Region key. This provides:
+
+- independent key administration in each vault account;
+- separate recovery blast radius;
+- explicit proof that the recovery account can decrypt its replica without the primary key; and
+- reduced risk that a synchronized key-policy error affects both replicas.
+
+The cost is that replica encryption must be configured explicitly and manifests must record the key used by each
+replica. This tradeoff is accepted.
+
+### 10.4 Key policy
+
+Key policies separate:
+
+- key administrators, who cannot decrypt backup data;
+- upload and replication users;
+- verification and restore users;
+- signing users, on a separate asymmetric key; and
+- security auditors.
+
+Cryptographic permissions are restricted to S3 use, the exact vault bucket encryption context, approved roles, and
+approved accounts.
+
+### 10.5 Rotation and deletion
+
+Automatic key rotation is enabled where supported and validated. Rotation must preserve decryption of objects encrypted
+under older key material.
+
+Scheduling deletion of a production vault key is denied to ordinary administrators. If policy permits it at all, it
+requires an exceptional security role, peer approval, the maximum practical waiting period, immediate alerting, and
+proof that no retained object version depends on the key.
+
+Disabling a key also triggers a critical recovery-readiness alert. A backup whose required key is disabled, pending
+deletion, or inaccessible is not reported as recovery-ready.
+
+### 10.6 Recovery trust bundle
+
+An independently controlled recovery trust bundle contains:
+
+- vault account IDs and Regions;
+- bucket identities and expected ownership;
+- KMS key ARNs and aliases;
+- manifest signing public keys and trust history;
+- supported manifest schemas;
+- approved recovery-role identities;
+- database engine and native-tool compatibility matrix;
+- infrastructure templates for fresh targets;
+- recovery tooling verification hashes; and
+- escalation and authorization procedure.
+
+The bundle contains no long-lived secret key. It is retained in at least one location outside the protected IFM
+databases and is reviewed during every restore drill.
+
+## 11. Network architecture
+
+### 11.1 AWS-hosted Database Backup Service
+
+When the Database Backup Service runs inside an AWS VPC, S3 traffic uses a controlled S3 gateway endpoint where
+practical. STS, KMS, CloudWatch, and other required AWS service access uses approved private endpoints or controlled
+egress.
+
+Endpoint and bucket policies restrict access to expected roles and resources. A VPC-endpoint-only bucket policy must
+include a tested break-glass exception; otherwise the same policy intended to improve security can prevent recovery when
+the normal VPC is unavailable.
+
+### 11.2 Service outside AWS
+
+If IFM runs outside AWS:
+
+- the service uses an approved workload-federation mechanism such as IAM Roles Anywhere or another reviewed identity
+  provider to obtain temporary credentials;
+- traffic uses TLS to regional S3 endpoints;
+- network paths, bandwidth, retry behavior, and egress controls are tested under full backup and restore load; and
+- long-lived IAM user access keys remain prohibited.
+
+### 11.3 Database nodes
+
+PostgreSQL and ScyllaDB nodes do not require network access to S3, KMS, or STS in the reference architecture. They
+communicate only with the Database Backup Service or its service-controlled native agent path.
+
+This constraint intentionally rejects the default Scylla Manager direct-to-S3 credential pattern for IFM production.
+Changing to direct agent uploads would require revising the parent credential boundary, defining per-agent temporary
+identity, and repeating the security review.
+
+## 12. PostgreSQL AWS backup design
+
+### 12.1 Recovery model
+
+PostgreSQL protection consists of:
+
+- periodic physical base backups of the complete PostgreSQL cluster;
+- continuous WAL archiving;
+- immutable native and IFM manifests;
+- checksum and native backup verification;
+- cross-account and cross-Region replication; and
+- recurring fresh-target PITR drills.
+
+Incremental base backups may be enabled only for a compatible PostgreSQL version after measured restore-time and
+retention-chain benefits justify their additional dependency complexity.
+
+### 12.2 Base-backup workflow
+
+1. SystemAdmin commits **DatabaseBackupExecutionRequestedEvent** for **CorePostgresCluster**.
+2. The Database Backup Service admits and journals the operation.
+3. The service validates the replication identity, PostgreSQL version, destination readiness, staging capacity, policy
+   revision, active lease, and WAL archive health.
+4. The service runs the approved physical base-backup tool through the PostgreSQL replication/backup interface.
+5. Output is streamed through bounded encrypted staging or directly into bounded service-owned upload buffers.
+6. The service preserves PostgreSQL's native backup manifest and calculates IFM artifact digests.
+7. Artifacts are uploaded under unique immutable S3 keys.
+8. Native verification validates the base backup.
+9. The IFM engine manifest records cluster identity, system identifier, engine version, timeline, start and end LSN,
+   start and end time, native tool version, tablespace mapping, artifact versions, checksums, and WAL dependency.
+10. The service publishes the engine commit and catalog evidence only after policy-required verification.
+11. Replication state is tracked per object version and reported as replica lifecycle events.
+
+The actor never starts or waits for the native utility. Process output remains service telemetry and a bounded artifact
+log.
+
+### 12.3 Continuous WAL workflow
+
+The PostgreSQL archiver sends each completed WAL segment to an authenticated, allowlisted service ingress or
+service-controlled agent. That component does not have AWS credentials.
+
+The service:
+
+- validates timeline and segment identity;
+- rejects a conflicting second payload for the same immutable WAL identity;
+- persists a transfer journal;
+- uploads the segment under a unique deterministic WAL key;
+- verifies length, S3 version, encryption, retention, and checksum;
+- publishes bounded WAL archive health and watermark observations; and
+- retains WAL according to every dependent base backup and PITR policy.
+
+The normal archive acknowledgement is issued only after the segment is durably present and verified in the primary AWS
+vault. A policy may introduce a redundant durable local spool, but acknowledging only local persistence weakens the AWS
+RPO and must be represented explicitly rather than hidden.
+
+An AWS outage therefore produces WAL backpressure. The service alerts on:
+
+- last successfully archived WAL time;
+- local queue depth and bytes;
+- PostgreSQL WAL filesystem headroom;
+- primary upload failures;
+- replication lag to the recovery vault; and
+- the earliest PITR gap.
+
+The system must prefer a visible risk and controlled operational response over silently recycling WAL that has no
+durable recovery copy.
+
+### 12.4 PostgreSQL restore eligibility
+
+A PostgreSQL restore point is eligible only when:
+
+- its base or incremental chain is complete;
+- the native backup manifest is valid;
+- required WAL ranges are present for the selected target;
+- every referenced object has an exact bucket, key, and version ID;
+- checksums, encryption key, Object Lock, and signature evidence validate;
+- PostgreSQL major-version and tool compatibility is supported;
+- tablespace and filesystem requirements are declared;
+- the chosen replica can meet the requested recovery class; and
+- policy-required verification or restore testing is current.
+
+### 12.5 PostgreSQL restore workflow
+
+The service restores to a fresh encrypted volume and compatible PostgreSQL runtime:
+
+1. Select an exact restore point, target time, target LSN, or named target.
+2. Resolve the full base, incremental, and WAL dependency chain from signed manifests.
+3. Select and validate a primary or recovery replica explicitly.
+4. Retrieve or rehydrate archived S3 objects into controlled encrypted staging.
+5. Verify every downloaded object's S3 and IFM checksums.
+6. Combine incremental backups where applicable.
+7. Restore the cluster files with correct ownership, permissions, and tablespace mapping.
+8. Configure recovery to read the verified WAL staging path.
+9. Start PostgreSQL in isolated recovery networking.
+10. Confirm the intended recovery target and timeline.
+11. Run native catalog, extension, role, event-store, sequence, and application checkpoint validation.
+12. Publish **DatabaseRestoreValidationCompletedEvent**.
+13. For production recovery, stop at **DatabaseRestoreReadyForCutoverEvent**.
+
+No restore writes over an active production PostgreSQL data volume.
+
+## 13. ScyllaDB AWS backup design
+
+### 13.1 Recovery model
+
+ScyllaDB protection consists of:
+
+- Scylla Manager coordination for multi-node production capture;
+- complete declared-node and token-range coverage;
+- schema capture;
+- snapshot/SSTable artifact capture and dependency tracking;
+- preservation of Scylla native manifests;
+- IFM cluster manifest and application checkpoint;
+- immutable AWS replicas; and
+- recurring fresh-cluster restore drills.
+
+A cluster backup is incomplete when any required live node, keyspace, table, token range, schema artifact, or native
+manifest required by the policy is missing.
+
+### 13.2 Credential-preserving transfer model
+
+Scylla Manager supports S3 directly, but its standard direct path places S3 credentials or equivalent access on
+Manager agents. The approved IFM overview allows AWS destination credentials only in the Database Backup Service.
+
+The reference architecture therefore uses:
+
+1. Scylla Manager for native cluster coordination;
+2. an encrypted service-controlled shared staging target exposed only to the allowlisted native backup path;
+3. no AWS credential on Scylla nodes or Manager agents;
+4. Database Backup Service upload from staging to immutable S3 keys; and
+5. cleanup of staging only after AWS verification and journaled publication state permit it.
+
+The staging mechanism must preserve Scylla Manager's expected directory layout and native manifests. It is bounded,
+capacity-reserved, monitored, and not an authoritative long-term destination.
+
+This choice adds staging I/O but preserves the approved trust boundary. A future direct-to-S3 optimization is a new
+architecture decision, not an implementation detail.
+
+### 13.3 Cluster-backup workflow
+
+1. SystemAdmin commits **DatabaseBackupExecutionRequestedEvent** for **CoreScyllaCluster**.
+2. The Database Backup Service admits and journals the operation.
+3. The service validates Scylla Manager readiness, required nodes, token coverage, schema credentials, staging capacity,
+   destination readiness, active repair conflicts, and policy revision.
+4. Scylla Manager establishes coordinated snapshots and pauses conflicting topology movement as required.
+5. Scylla Manager writes schema, SSTables, and native manifests to controlled staging.
+6. The service checks every required node and protection-set component against the native manifest.
+7. The service uploads artifacts with bounded multipart concurrency.
+8. The service writes an IFM Scylla engine manifest containing cluster ID, topology, datacenters, nodes, token coverage,
+   keyspaces, tables, schema identity, native snapshot tag, Scylla and Manager versions, artifact identities, checksums,
+   and application checkpoint.
+9. Verification validates the native and IFM manifests and object versions.
+10. The service publishes the commit and append-only catalog entry.
+11. Staging cleanup occurs only after the required AWS replica state and diagnostic policy allow it.
+
+Scylla Manager automatic retention against the AWS source of truth is disabled or subordinated to the IFM approved
+retention plan. Native tooling must not independently purge a retained chain.
+
+### 13.4 Scylla restore eligibility
+
+A Scylla restore point is eligible only when:
+
+- schema and data manifests are complete;
+- every required node and token range is accounted for;
+- the full SSTable and incremental dependency set exists;
+- destination topology mapping is explicit;
+- the target Scylla version is compatible;
+- the selected backup set's application checkpoint is compatible with PostgreSQL where coordinated recovery is needed;
+- checksums, signatures, encryption keys, retention, and exact S3 versions validate; and
+- the chosen storage class can meet the requested recovery class.
+
+### 13.5 Scylla restore workflow
+
+The service restores to a fresh compatible cluster:
+
+1. Resolve and validate the complete signed manifest chain.
+2. Select the primary or recovery replica explicitly.
+3. Rehydrate archived objects when needed.
+4. Download exact S3 versions into fresh encrypted service-controlled staging.
+5. Reconstruct the Scylla Manager-compatible layout and verify every artifact.
+6. Validate fresh-cluster topology, capacity, version, and datacenter mapping.
+7. Restore schema before table data.
+8. Restore SSTables through the approved Scylla Manager method.
+9. Run native cluster health, ownership, schema agreement, and data validation.
+10. Rebuild excluded materialized views and secondary indexes from their base tables.
+11. Reconcile event-derived and externally recoverable data according to classification.
+12. Run application checkpoint and cross-engine validation.
+13. Publish validation results and stop at **ReadyForCutover** for production.
+
+No restore copies files blindly into active ScyllaDB node directories.
+
+## 14. Coordinated PostgreSQL and ScyllaDB backup sets
+
+The preferred consistency mode is **ApplicationCheckpoint**. SystemAdmin records a checkpoint that can be correlated
+with both engine operations without pausing the entire application unless testing proves quiescence necessary.
+
+A coordinated set manifest contains:
+
+- BackupSetId and policy revision;
+- environment and protection-set identities;
+- application event or ingestion checkpoint;
+- PostgreSQL engine-manifest identity and recovery boundary;
+- Scylla engine-manifest identity and recovery boundary;
+- consistency mode;
+- known replay or reconciliation requirements;
+- JetStream checkpoint relationship where applicable;
+- required destinations and replica results;
+- validation and restore-test history; and
+- signature and publication record.
+
+The coordinated set is not eligible until each required engine restore point is independently eligible and their
+checkpoint compatibility has been validated.
+
+## 15. Cross-Region and cross-account replication
+
+### 15.1 Replication configuration
+
+The primary vault replicates all published recovery prefixes to the recovery vault. Both buckets have Versioning and
+Object Lock enabled. Replication includes:
+
+- artifact object versions;
+- native manifests;
+- IFM manifests;
+- Object Lock retention metadata;
+- legal-hold state;
+- publication commit records;
+- catalog entries; and
+- verification and recovery records required by policy.
+
+SSE-KMS replication explicitly selects the destination customer-managed key. The destination uses bucket-owner-enforced
+ownership so the recovery account owns the replica.
+
+The source replication role has only the source-key decrypt and destination-key encrypt permissions that S3 replication
+requires. The recovery key policy grants that role through the S3 service and expected encryption context without
+granting it general recovery-vault read access.
+
+### 15.2 Replication completion
+
+The service checks replication status for each required source object version. It records **Pending**, **Completed**, or
+**Failed** at the replica level and verifies the destination object's ownership, encryption key, retention, version,
+length, and checksum evidence.
+
+S3 Inventory is used for broad reconciliation and audit, not real-time publication. Failed or previously unreplicated
+versions use a controlled S3 Batch Replication repair plan.
+
+### 15.3 S3 Replication Time Control
+
+S3 Replication Time Control is enabled for policy classes whose cross-Region replica objective requires its supported
+replication-time commitment and metrics. Large backup objects are still monitored individually because object size,
+Region pair, KMS policy, and service conditions affect replication time.
+
+RTC threshold events and replication metrics enter the Backup Service observability path. Missing the threshold changes
+recovery-readiness state and alerts; it does not corrupt the valid primary replica.
+
+### 15.4 Replica success policy
+
+Each policy declares one of:
+
+- **PrimaryRequired**: primary AWS vault is required for backup completion; recovery replica may complete asynchronously;
+- **PrimaryAndRecoveryRequired**: both replicas must be complete before the backup set is policy-compliant; or
+- **DualDestinationRequired**: AWS and an approved local replica must meet the shared policy.
+
+For production disaster-recovery classes, **PrimaryAndRecoveryRequired** is the default compliance state. SystemAdmin may
+record the engine backup as captured while still reporting the backup set as destination-incomplete and outside its
+recovery objective.
+
+## 16. AWS restore-source selection
+
+Restore source selection is explicit and auditable:
+
+1. discover candidate restore points from the destination-resident catalog;
+2. validate catalog and manifest signatures;
+3. validate exact object versions and dependencies;
+4. verify the destination account, Region, ownership, KMS access, retention, storage class, and checksums;
+5. compare measured or forecast retrieval time with the requested recovery class;
+6. prefer the primary vault only when it is healthy and trusted;
+7. select the recovery vault when the primary Region, account, key, or evidence is unavailable or suspect; and
+8. record the selected replica and reason in the restore operation.
+
+The service never silently combines arbitrary objects from two replicas. If a dependency chain is repaired from mixed
+replicas, a new signed recovery plan identifies every source version and must pass full verification before use.
+
+## 17. Break-glass disaster recovery
+
+### 17.1 Trigger conditions
+
+Break-glass recovery is permitted when normal SystemAdmin authorization cannot operate because Core, NATS, or the
+protected databases are unavailable. It is not a shortcut for routine restore approval.
+
+### 17.2 Independent prerequisites
+
+The recovery team requires:
+
+- independently federated AWS access with phishing-resistant MFA;
+- access to the recovery account without the IFM application identity provider being the sole dependency;
+- the recovery trust bundle;
+- signed recovery tooling;
+- fresh-target infrastructure templates;
+- approved PostgreSQL and ScyllaDB native tools;
+- adequate staging capacity and network access;
+- audit logging outside IFM; and
+- an incident or change record authorizing recovery.
+
+No permanent AWS access key is stored as an emergency credential.
+
+### 17.3 Break-glass sequence
+
+1. Establish incident authority and two-person approval.
+2. Assume the recovery-read role with a short session.
+3. Verify account, Region, bucket, KMS key, CloudTrail, and recovery trust bundle.
+4. Enumerate immutable catalog entries.
+5. Validate signatures and reconstruct the catalog from manifests if the index is suspect.
+6. Select an exact coordinated backup set and recovery target.
+7. Resolve all PostgreSQL and Scylla dependencies.
+8. Retrieve or rehydrate exact object versions.
+9. Validate checksums before native tools consume the artifacts.
+10. Provision fresh isolated database targets.
+11. Restore PostgreSQL and ScyllaDB using the normal native boundaries.
+12. Run minimum native and application validation.
+13. Start the recovered Core Actor Host only after validation.
+14. Import a signed break-glass recovery record into SystemAdmin after it becomes available.
+15. Perform a full post-recovery security and consistency review before production cutover.
+
+### 17.4 Audit record
+
+The signed break-glass record includes:
+
+- recovery operation ID;
+- incident/change authorization;
+- human and role-session identities;
+- selected catalog, manifest, bucket, key, and object-version identities;
+- target infrastructure identity;
+- timestamps and measured RPO/RTO;
+- verification outcomes;
+- deviations and errors;
+- cutover authorization; and
+- hashes of external audit evidence.
+
+## 18. Lifecycle, retention, and legal hold
+
+### 18.1 Retention source of truth
+
+SystemAdmin owns the approved retention policy and operation intent. The Database Backup Service evaluates concrete AWS
+dependencies and produces **DatabaseRetentionPlanCreatedEvent**. No S3 Lifecycle expiration rule independently decides
+which PostgreSQL base, WAL, Scylla SSTable, manifest, or coordinated set is safe to delete.
+
+### 18.2 Storage-class lifecycle
+
+Lifecycle transitions may change storage class after publication because they do not change manifest identity. Policy
+maps recovery classes to storage:
+
+| Recovery class | Default storage direction |
+| --- | --- |
+| Active operational recovery | S3 Standard, Intelligent-Tiering without archive tiers, Standard-IA, or Glacier Instant Retrieval |
+| Warm historical recovery | Glacier Instant Retrieval or Flexible Retrieval when measured retrieval time is acceptable |
+| Long-term archive | Glacier Flexible Retrieval or Deep Archive only when delayed recovery is explicitly accepted |
+| Catalog and current manifests | Immediately readable storage; never dependent on archive retrieval merely to discover restore points |
+
+Archived objects are not immediately readable. A restore operation must represent archive retrieval as a visible phase,
+track temporary restored-copy expiry, and include retrieval delay in RTO.
+
+Small manifests and catalog entries remain in an immediately accessible storage class. Large native artifacts may
+transition only after minimum-duration charges, retrieval cost, and restore objectives have been modeled.
+
+No S3 Lifecycle expiration rule applies to published recovery prefixes. Lifecycle is limited to approved storage-class
+transitions and cleanup of abandoned multipart uploads or explicitly non-published diagnostic prefixes.
+
+### 18.3 Dependency-safe expiration
+
+Retention planning protects:
+
+- every base backup referenced by a retained incremental or PITR point;
+- every required PostgreSQL WAL segment;
+- every Scylla schema, snapshot, SSTable, and native manifest dependency;
+- every object referenced by an active backup, restore, verification, or drill;
+- every legal-held object version;
+- the latest successful restore-tested set;
+- required primary and recovery replicas independently; and
+- all publication, catalog, verification, and signature evidence needed to interpret retained artifacts.
+
+### 18.4 Deletion execution
+
+Deletion is a two-step operation:
+
+1. create a signed, immutable plan containing exact bucket, key, version ID, dependency proof, retention expiry, legal
+   hold state, and expected policy revision;
+2. after actor approval, assume the separate deletion role and revalidate every entry immediately before deletion.
+
+The executor stops on a policy-revision mismatch, active dependency, legal hold, unexpired Object Lock, unknown version,
+replication uncertainty, or manifest inconsistency. It never performs recursive prefix deletion.
+
+Source and recovery replicas are deleted under independent plans. Deleting a source object does not implicitly authorize
+deleting the recovery replica.
+
+### 18.5 Incomplete operations
+
+Incomplete multipart uploads, uncommitted artifact versions, failed staging objects, and diagnostic logs follow a
+separate cleanup policy. No cleanup rule may match published prefixes without exact object-state validation.
+
+## 19. Verification and restore drills
+
+### 19.1 Verification levels
+
+AWS verification adds destination evidence to the shared levels:
+
+1. **Upload verification**: S3 accepted the expected checksum and object length.
+2. **Object identity verification**: exact version, ownership, encryption key, Object Lock, storage class, and metadata
+   match the manifest.
+3. **Replication verification**: recovery replica exists under the recovery owner and recovery KMS key.
+4. **Cryptographic verification**: downloaded content digest matches the immutable manifest.
+5. **Native verification**: PostgreSQL and Scylla native manifests and tools accept the artifact set.
+6. **Engine restore verification**: a fresh database target restores and starts.
+7. **Application verification**: event store, schemas, projections, sequence infrastructure, data classification, and
+   application checkpoints pass.
+8. **Coordinated-set verification**: PostgreSQL and Scylla state is compatible at the selected checkpoint.
+
+Only levels explicitly completed are reported. Replicated does not mean verified; verified does not mean restore-tested.
+
+### 19.2 Drill schedule
+
+Production policy schedules:
+
+- frequent metadata, checksum, KMS-access, and replication checks;
+- periodic PostgreSQL PITR drills using randomly selected valid target times;
+- periodic Scylla fresh-cluster restore drills;
+- coordinated full-application restore drills;
+- recovery-vault-only drills that deny access to the primary vault;
+- key and identity failure drills;
+- archived-object retrieval drills; and
+- at least one exercise that assumes Core and NATS are unavailable.
+
+### 19.3 Drill evidence
+
+A drill records:
+
+- requested and actual recovery point;
+- capture age and data-loss window;
+- catalog discovery time;
+- archive retrieval time;
+- artifact transfer time;
+- native restore time;
+- application validation time;
+- total RTO;
+- replica, Region, account, storage class, and KMS key used;
+- throughput, cost estimate, and bottlenecks;
+- validation failures and manual intervention; and
+- corrective actions with owner and deadline.
+
+Recovery objectives remain unproven until representative drills succeed.
+
+## 20. Catalog and recovery discovery
+
+### 20.1 Authoritative evidence
+
+Immutable manifests and commit records are authoritative destination evidence. Catalog entries are append-only indexes
+over that evidence. S3 Inventory is an audit and reconciliation aid. SystemAdmin read models are the normal application
+view but are not required for disaster recovery.
+
+### 20.2 Catalog reconstruction
+
+Recovery tooling can:
+
+1. list publication commit records under a versioned environment prefix;
+2. validate their signatures;
+3. resolve engine and backup-set manifests;
+4. validate referenced exact object versions;
+5. rebuild restore-point and dependency indexes; and
+6. compare the rebuilt index with catalog entries and S3 Inventory.
+
+No mutable global catalog file is required. An optional generated index may improve speed, but it is disposable and
+cannot make an otherwise invalid restore point eligible.
+
+### 20.3 Catalog privacy
+
+Catalog and manifest contents are encrypted at rest. They use opaque identifiers in keys and omit secrets, raw
+connection strings, credentials, trading logic, and unnecessary row-level information. Authorized recovery operators
+can still determine engine version, topology, dependency chain, and recovery eligibility.
+
+## 21. SystemAdmin and service integration
+
+### 21.1 Actor contracts remain destination-neutral
+
+The command, query, and event contracts from the overview are unchanged. A policy identifies a logical destination and
+required replica class. AWS account IDs, bucket names, KMS keys, role ARNs, endpoints, and network settings remain typed
+Database Backup Service configuration.
+
+Every AWS DatabaseBackup domain event, execution-intent event, service event, and translated service-event command
+carries BackupSource **AwsCloud**. The event type and payload schema are the same ones used by LocalWorkstation
+processing. Logical replicas such as **AwsPrimary** and **AwsRecovery** do not replace BackupSource.
+
+UI callers and SystemAdmin ScheduledTask actors invoke the same source-scoped commands and queries. RequestOrigin
+records which caller path initiated the contract; it does not select the AWS processor.
+
+### 21.2 AWS-related service observations
+
+The service uses existing event families to report AWS state:
+
+| AWS observation | Service event |
+| --- | --- |
+| Primary object or manifest reached a meaningful lifecycle boundary | **DatabaseBackupArtifactReplicaUpdatedEvent** |
+| Recovery replication completed, failed, or exceeded policy threshold | **DatabaseBackupArtifactReplicaUpdatedEvent** or bounded **DatabaseBackupServiceErrorEvent** |
+| Object, checksum, signature, encryption, or lock verification completed | **DatabaseBackupVerificationCompletedEvent** |
+| Required KMS key, vault, or replication capability changed | **DatabaseBackupServiceCapabilityChangedEvent** |
+| Retention plan derived from exact AWS versions | **DatabaseRetentionPlanCreatedEvent** |
+| Approved version deletions completed or stopped | **DatabaseRetentionExecutionCompletedEvent** or **DatabaseRetentionExecutionFailedEvent** |
+| Reconciliation found journal, S3, or SystemAdmin divergence | **DatabaseBackupServiceReconciliationEvent** |
+
+The SystemAdmin Event Actor maps each observation to the internal commands defined by the overview. It does not parse
+CloudTrail records or call AWS.
+
+### 21.3 Progress limits
+
+One durable event per S3 part, object chunk, WAL segment, SSTable component, or CloudTrail record is prohibited.
+Meaningful persisted checkpoints include:
+
+- engine capture boundary;
+- aggregate transfer thresholds;
+- primary replica published;
+- recovery replica completed;
+- verification level changed;
+- archive retrieval phase changed;
+- policy-relevant replication lag;
+- restore phase changed; and
+- terminal outcome.
+
+High-cardinality details stay in service metrics, traces, logs, journal records, and immutable operation evidence.
+
+### 21.4 UI presentation
+
+The UI continues to use SystemAdmin commands and projected query models. AWS-specific read-model fields are limited to
+safe operational facts:
+
+- logical replica identity;
+- account trust boundary and Region alias;
+- primary, replication, verification, and archive-retrieval state;
+- retention class, retain-until time, and legal-hold indicator;
+- encryption-key health without key material;
+- latest verified and restore-tested age;
+- projected and measured recovery time; and
+- structured policy violations.
+
+The normal UI does not expose credentials, role sessions, raw bucket policy, presigned URLs, full object keys, or
+unbounded manifests. Production restore and cutover retain the separate approvals defined by the overview.
+
+## 22. Observability, audit, and alerting
+
+### 22.1 AWS audit sources
+
+The security audit design captures:
+
+- CloudTrail management events for S3, KMS, IAM, STS, replication, and policy changes;
+- CloudTrail S3 object data events for vault reads, writes, and deletes;
+- KMS use and key-state events;
+- S3 replication metrics and failure/threshold events;
+- S3 Inventory including version, encryption, replication, and Object Lock fields;
+- configuration compliance and drift findings;
+- bucket public-access and policy findings; and
+- role assumptions for upload, restore, retention, legal hold, and break-glass activity.
+
+Audit delivery goes to an independently controlled log archive. The Database Backup Service cannot alter security audit
+history.
+
+### 22.2 Required metrics
+
+Metrics include:
+
+- bytes captured, staged, uploaded, replicated, downloaded, and rehydrated;
+- multipart upload count, retries, aborts, throughput, and age;
+- PostgreSQL latest archived WAL time, queue depth, and PITR gap;
+- Scylla required and completed node/token coverage;
+- primary and recovery object counts and bytes pending replication;
+- oldest pending replication age and replication failures;
+- KMS request failures and throttling;
+- current key enabled state and pending-deletion state;
+- Object Lock or legal-hold validation failures;
+- latest primary-complete, recovery-complete, verified, and restore-tested age;
+- archive retrieval duration;
+- restore throughput and validation duration;
+- actual RPO and RTO;
+- lifecycle transition and retained-byte forecasts; and
+- estimated storage, request, replication, retrieval, and data-transfer cost by protection set.
+
+### 22.3 Critical alerts
+
+Critical or policy-severity alerts include:
+
+- PostgreSQL WAL archive age or filesystem headroom threatens RPO or availability;
+- primary vault upload unavailable;
+- recovery replication exceeds objective or fails;
+- S3 Versioning, Object Lock, Block Public Access, encryption, replication, or CloudTrail drifts;
+- required KMS key is disabled, inaccessible, or scheduled for deletion;
+- destination bucket or replica ownership differs from policy;
+- an unauthorized GetObject, DeleteObjectVersion, retention, legal-hold, or key-policy action occurs;
+- no verified or restore-tested point exists within policy;
+- Scylla cluster coverage is incomplete;
+- retention cannot prove dependency safety;
+- staging approaches its hard reserve; or
+- a break-glass role is assumed.
+
+### 22.4 Health endpoints
+
+HTTP health endpoints report bounded capability:
+
+- service journal writable;
+- native tools available;
+- staging capacity above reserve;
+- primary vault reachable;
+- required key usable;
+- replication monitoring active;
+- current policy revision supported; and
+- recovery catalog readable where policy requires.
+
+They expose no bucket inventory, manifest body, credentials, role session, or presigned object URL.
+
+## 23. Reliability and failure behavior
+
+### 23.1 Operation journal
+
+The Database Backup Service journal is outside the protected application databases and records:
+
+- accepted event and policy revision;
+- lease owner and fencing token;
+- native process identity and boundary;
+- staging paths and capacity reservation;
+- multipart upload state;
+- exact S3 object and version identities;
+- verification state;
+- replication state;
+- outbound service-event sequence and acknowledgement;
+- retry state; and
+- cleanup eligibility.
+
+Stage 1 journal durability must survive an **Api.Server** restart. Stage 2 moves it with the extracted host.
+
+### 23.2 Failure matrix
+
+| Failure | Required behavior |
+| --- | --- |
+| Core unavailable before dispatch | No service operation begins; SystemAdmin retains intent and reports capability risk |
+| Core unavailable after dispatch | Service continues only to the policy-approved safe boundary, journals events, and reconciles later |
+| NATS unavailable after extraction | Same as Core communication loss; no duplicate operation on reconnect |
+| Backup Service restart | Reconcile journal, multipart state, native process, S3 versions, and last service sequence |
+| Duplicate execution event | Resolve to existing OperationId and policy revision |
+| Reordered or missing service observation | Detect service-sequence gap, stop unsafe state advancement, and reconcile before acknowledgement |
+| Native database unavailable | Fail preflight or stop at a native safe boundary; preserve structured diagnostics and do not publish |
+| PostgreSQL base capture interrupted | Mark capture unusable unless the native tool proves resumability; retain bounded diagnostic evidence |
+| Scylla native task interrupted | Reconcile Scylla Manager state and required-node coverage; never infer cluster completeness |
+| Credential expiry | Refresh temporary role session; pause safely if refresh fails |
+| Primary S3 unavailable | Retry within budget, preserve staging, expose WAL/backpressure risk, and do not claim AWS completion |
+| KMS unavailable | Stop affected upload or restore safely and alert; never fall back to unapproved encryption |
+| Multipart interruption | Resume exact compatible upload or abort and create a new unique object identity |
+| Checksum mismatch | Quarantine operation evidence, never publish, and recapture or retransmit |
+| Primary complete, replication pending | Preserve primary; show recovery replica incomplete and policy compliance accordingly |
+| Replication failed | Diagnose permissions/key/policy, repair with controlled Batch Replication, then reverify |
+| Recovery Region unavailable | Preserve primary; alert on degraded regional recovery |
+| Primary Region unavailable | Restore from independently validated recovery replica |
+| Manifest or signature invalid | Restore point is ineligible regardless of object presence |
+| Base, WAL, SSTable, schema, or manifest dependency missing | Mark the affected restore point ineligible and prevent dependent retention changes |
+| PostgreSQL WAL gap | PITR targets beyond the gap are ineligible; retain surrounding evidence for diagnosis |
+| Scylla node/token omission | Cluster restore point is incomplete and unpublished |
+| Staging exhausted | Reject new work or pause safely; protect WAL and active operation reserves |
+| Archive retrieval delayed | Remain in explicit retrieval phase and revise forecast RTO |
+| Restore target version or topology incompatible | Reject before target mutation and require an explicitly supported recovery plan |
+| Native or application validation failed | Keep the fresh target isolated, report structured failure, and prohibit cutover |
+| Cutover failed | Preserve old and restored targets, fence further mutation, and enter the separately approved rollback procedure |
+| Retention race with restore | Restore lease and manifest references fence deletion |
+| Key scheduled for deletion | Critical alert, recovery-readiness failure, and security response |
+| Complete loss of Core and databases | Use recovery account, destination catalog, and break-glass workflow |
+
+### 23.3 No silent downgrade
+
+The service never silently:
+
+- changes Compliance mode to Governance mode;
+- uses SSE-S3 instead of the approved KMS key;
+- publishes without a recovery replica when policy requires it;
+- omits WAL or Scylla dependencies;
+- selects a warmer or colder storage class than policy allows;
+- acknowledges an unprotected PostgreSQL WAL segment;
+- uses an unsigned manifest;
+- changes accounts or Regions; or
+- treats a log message as an operation state.
+
+## 24. Security and threat controls
+
+### 24.1 Workload compromise
+
+Normal workload roles can create only approved immutable objects through temporary sessions. They cannot alter existing
+versions or recovery-vault policy. Compliance retention limits destructive action even if an upload role is compromised.
+Unique operation IDs, policy revision, signatures, and SystemAdmin authorization prevent a compromised service from
+silently replacing a known restore point.
+
+### 24.2 Backup-account compromise
+
+The recovery replica is owned by a separate account and key. One-way replication, independent administrators, immutable
+versions, and independent audit reduce the chance that a single account compromise destroys both copies.
+
+### 24.3 Ransomware and poisoned backups
+
+Immutability alone can preserve encrypted or logically corrupted source data. The design also requires:
+
+- historical retention;
+- application checkpoints;
+- malware and anomaly controls appropriate to database artifacts;
+- native validation;
+- isolated restore testing;
+- deliberate selection of a recovery point before the incident; and
+- prevention of automatic cutover.
+
+### 24.4 Malicious deletion or policy weakening
+
+Object Lock Compliance mode, separate deletion roles, organization guardrails, configuration drift alarms, CloudTrail
+data events, independent audit ownership, and exact-version deletion plans provide layered control.
+
+### 24.5 Credential exposure
+
+Secrets are redacted from process arguments, error messages, manifests, object keys, tags, metrics, traces, actor events,
+and UI. Temporary credentials live only in service memory and the supported AWS credential provider chain.
+
+### 24.6 Supply-chain and recovery-tool risk
+
+Native database tools, AWS SDKs, recovery binaries, and container images are version-pinned, vulnerability-scanned,
+signed where supported, and recorded in operation manifests. Recovery drills prove that the retained toolchain can read
+older formats.
+
+## 25. Performance and cost architecture
+
+### 25.1 Performance controls
+
+The service configures separate bounded limits for:
+
+- native database capture;
+- local staging reads and writes;
+- concurrent artifacts;
+- multipart parts per artifact;
+- aggregate upload bandwidth;
+- aggregate download bandwidth;
+- KMS request rate;
+- checksum CPU;
+- replication observations;
+- archive retrieval jobs; and
+- concurrent engine restores.
+
+Backup I/O is subordinate to database latency policy. Restore drills may use higher limits on isolated infrastructure.
+Stage 1 limits protect Core actor responsiveness despite the shared process. Stage 2 gives the host independent CPU,
+memory, disk, and network budgets.
+
+### 25.2 Object sizing
+
+Very small objects increase S3, KMS, lifecycle, inventory, and retrieval request costs. Extremely large objects reduce
+parallel recovery flexibility. Native artifact boundaries are preserved where meaningful, and packaging is allowed only
+when it does not weaken native validation, deduplication, selective retry, or dependency interpretation.
+
+Object-size and multipart-part-size choices are benchmarked using representative PostgreSQL and Scylla data.
+
+### 25.3 Cost drivers
+
+Cost reporting accounts for:
+
+- active and archived S3 storage;
+- noncurrent versions;
+- minimum storage-duration charges;
+- PUT, GET, LIST, HEAD, multipart, lifecycle, inventory, and Batch Operations requests;
+- KMS requests;
+- Cross-Region Replication and inter-Region transfer;
+- S3 RTC;
+- CloudTrail object data events;
+- archive transition and retrieval;
+- temporary restored copies;
+- restore compute and staging volumes; and
+- duplicate retention caused by failed or incomplete operations.
+
+Cost pressure cannot silently shorten retention, remove a required replica, disable verification, or move an operational
+recovery point into a storage class that violates RTO. Policy changes go through SystemAdmin authorization.
+
+### 25.4 Capacity forecasting
+
+Forecasting uses:
+
+- PostgreSQL base-backup size and WAL generation percentiles;
+- Scylla snapshot growth and SSTable churn;
+- retention-chain dependencies;
+- replication lag;
+- staging high-water marks;
+- restore workspace requirements;
+- lifecycle minimum durations; and
+- at least one simultaneous recovery reserve where policy requires it.
+
+## 26. Configuration ownership and Aspire evolution
+
+### 26.1 Core-owned configuration
+
+Core owns destination-neutral policy:
+
+- protection sets and classifications;
+- schedules;
+- RPO and RTO classes;
+- logical required destinations;
+- retention classes;
+- verification and drill frequency;
+- legal-hold authorization policy;
+- cutover approval policy; and
+- expected Database Backup Service capability revision.
+
+### 26.2 Service-owned AWS configuration
+
+The Database Backup Service owns validated bootstrap configuration:
+
+- logical destination-to-account/Region/bucket mapping;
+- role identities and credential-provider mode;
+- KMS key and signing-key references;
+- required Object Lock mode and minimum retention;
+- replication rule identity and RTC requirement;
+- S3 endpoint and network controls;
+- multipart, bandwidth, retry, and KMS limits;
+- staging and journal locations;
+- inventory and audit integration;
+- archive retrieval policy;
+- native database endpoint or agent configuration; and
+- break-glass capability configuration.
+
+Startup fails closed when a mandatory production control is absent or weaker than policy.
+
+### 26.3 Stage 1
+
+Inside **Api.Server**, the Database Backup Service:
+
+- receives only its typed AWS configuration and secret references;
+- obtains temporary AWS credentials independently of actors;
+- uses dedicated bounded queues and resource limits;
+- maintains a restart-safe external operation journal;
+- exposes service-specific health and telemetry; and
+- remains testable without starting all business domains.
+
+This is a logical boundary, not strong process isolation. AWS access in the shared process remains an accepted temporary
+risk.
+
+### 26.4 Stage 2
+
+After extraction, **TomasAI.IFM.Api.DatabaseBackup.Host** receives:
+
+- its own workload identity;
+- its own network policy and endpoints;
+- its own AWS configuration and temporary role path;
+- independent CPU, memory, disk, and network constraints;
+- independent deployment and restart lifecycle; and
+- NATS event transport using unchanged contracts.
+
+The Aspire AppHost composes development resources and observability but does not hold backup state, own credentials,
+execute backup behavior, or remain required after the service starts.
+
+## 27. Environment strategy
+
+### 27.1 Development
+
+Development defaults to disabled or dry-run production operations. It may use disposable buckets or an S3-compatible
+emulator for contract tests, but emulation cannot prove AWS Object Lock, KMS, IAM, CRR, CloudTrail, archive retrieval, or
+cross-account behavior.
+
+### 27.2 AWS integration environment
+
+An isolated AWS integration environment validates:
+
+- temporary role assumption;
+- bucket and key policies;
+- multipart checksums;
+- object-version identity;
+- Object Lock Governance mode;
+- signed manifest publication;
+- replication and destination ownership;
+- KMS re-encryption;
+- inventory and CloudTrail evidence;
+- controlled retention cleanup; and
+- fresh disposable database restore.
+
+### 27.3 Production-readiness environment
+
+Before production, a representative environment validates:
+
+- the three-account boundary;
+- Compliance-mode consequences;
+- realistic backup and WAL volume;
+- full Scylla cluster coverage;
+- recovery-Region-only restore;
+- primary key denial during recovery;
+- archive retrieval;
+- Core and NATS absence;
+- actual RPO/RTO; and
+- security and operations runbooks.
+
+## 28. Architecture acceptance criteria
+
+The AWS design is accepted only when evidence demonstrates:
+
+1. The workload account cannot administer either vault.
+2. Primary and recovery vaults use separate accounts and Regions.
+3. Both vaults have Versioning, Object Lock, Block Public Access, bucket-owner enforcement, and SSE-KMS.
+4. Published production objects use the approved Compliance retention.
+5. A recovery replica is encrypted under a recovery-account key and owned by the recovery account.
+6. No Core actor, PostgreSQL node, Scylla node, or Scylla Manager agent holds AWS destination credentials.
+7. All application AWS access uses temporary role credentials.
+8. PostgreSQL base backup and continuous WAL provide tested PITR.
+9. PostgreSQL does not acknowledge AWS protection for a WAL segment before the declared durable boundary.
+10. Scylla Manager capture proves complete required-node and token coverage.
+11. Scylla staging preserves native manifests and is not treated as a durable recovery destination.
+12. Every artifact is addressed by exact S3 version and validated checksum.
+13. Manifest, commit, and catalog publication cannot expose a partial restore point.
+14. Catalog reconstruction works without Core, NATS, PostgreSQL, or ScyllaDB.
+15. Replication status and destination encryption are verified per required object version.
+16. Catalog and current manifest discovery do not depend on archive retrieval.
+17. Retention cannot delete a referenced dependency, legal-held version, active restore input, or latest restore-tested set.
+18. Deletion uses an exact approved version list and a separate role.
+19. KMS key disablement or pending deletion creates an immediate recovery-readiness failure.
+20. CloudTrail object data events and security audit records are stored outside service control.
+21. A recovery-account-only break-glass drill restores fresh PostgreSQL and ScyllaDB targets.
+22. Production restore stops at **ReadyForCutover** until separately approved.
+23. SystemAdmin authoritative state changes only through Command Actor domain events.
+24. AWS observations enter Core only through service events, Event Actor translation, and durable Command Actor
+    application.
+25. Stage 1 restart recovery and Stage 2 independent-host recovery use the same operation and manifest semantics.
+26. Actual RPO and RTO are measured using representative data.
+27. Cost forecasts include storage, replication, KMS, audit, lifecycle, retrieval, and restore compute.
+28. No acceptance criterion depends on the Aspire AppHost remaining online.
+29. Every AWS source-bound event carries BackupSource **AwsCloud** while retaining the shared source-independent event
+    type.
+30. UI and ScheduledTask callers use the same DatabaseBackup command and query surface without consuming raw AWS
+    service events.
+
+## 29. Approved architecture decisions
+
+The following production directions were approved on 2026-08-10. Later changes require an explicit architecture
+revision rather than an implementation-level substitution:
+
+| Decision | Proposed production direction |
+| --- | --- |
+| AWS trust topology | Workload, primary backup, and recovery accounts |
+| Region topology | Primary backup Region near workload; distinct approved recovery Region |
+| Immutable storage | S3 Versioning and Object Lock on both vaults |
+| Lock mode | Compliance mode for published production recovery objects |
+| Encryption | Independent customer-managed regional KMS keys |
+| Replication | One-way cross-account CRR; RTC for recovery classes that require it |
+| Recovery replica | Required for production policy compliance |
+| Object publication | Artifact versions, signed manifests, commit record, append-only catalog |
+| Scylla AWS movement | Service-controlled staging and upload; no AWS credentials on Scylla agents |
+| PostgreSQL WAL acknowledgement | After verified primary-vault durability |
+| Deep archive | Allowed only for explicitly delayed recovery classes |
+| AWS Backup | Optional tertiary control, not the native backup or catalog authority |
+| Retention deletion | Separate approved exact-version plan per vault |
+| Break-glass identity | Independent federation, strong MFA, short role sessions, no static keys |
+| Cutover | Separate approval after fresh-target validation |
+
+## 30. Follow-on relationship to the local design
+
+The future **Local-Backup-Restore-Architecture.md** must preserve:
+
+- operation, backup-set, artifact, and replica identities;
+- signed manifest and commit semantics;
+- checksum requirements;
+- catalog reconstruction;
+- SystemAdmin and Database Backup Service event flow;
+- verification and restore-test terminology;
+- exact dependency-safe retention planning;
+- fresh-target restore and separate cutover; and
+- break-glass recovery evidence.
+
+It will replace AWS account, Region, S3, IAM, KMS, Object Lock, CRR, and archive-class mechanisms with explicit local
+filesystem, device, encryption, capacity, media-rotation, and offline-copy controls. It must state clearly where local
+infrastructure provides a weaker failure boundary than this AWS reference.
+
+## 31. References
+
+### Shared IFM architecture
+
+- [IFM database backup and restore architecture overview](Database-Backup-Architecture-Overview.md)
+- [IFM Aspire migration overview](../../Documents/system/Aspire%20migration%20overview.md)
+
+### Amazon S3
+
+- [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html)
+- [S3 Object Lock considerations and replication](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock-managing.html)
+- [Replicating encrypted S3 objects](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication-config-for-kms-objects.html)
+- [Replicating objects within and across Regions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html)
+- [S3 Replication Time Control](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication-time-control.html)
+- [S3 object replication status](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication-status.html)
+- [S3 object integrity and checksums](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html)
+- [S3 multipart upload](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html)
+- [S3 data consistency model](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html#ConsistencyModel)
+- [Working with archived S3 objects](https://docs.aws.amazon.com/AmazonS3/latest/userguide/archived-objects.html)
+- [S3 Lifecycle transition considerations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/lifecycle-transition-general-considerations.html)
+- [S3 Inventory](https://docs.aws.amazon.com/AmazonS3/latest/userguide/configure-inventory.html)
+
+### AWS identity, encryption, network, and audit
+
+- [IAM roles](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
+- [IAM security best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
+- [AWS KMS key deletion](https://docs.aws.amazon.com/kms/latest/developerguide/deleting-keys.html)
+- [S3 gateway VPC endpoints](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html)
+- [CloudTrail data events](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-events.html#data-events)
+- [AWS backup and recovery approaches](https://docs.aws.amazon.com/prescriptive-guidance/latest/backup-recovery/introduction.html)
+
+### Database-native recovery
+
+- [PostgreSQL pg_basebackup](https://www.postgresql.org/docs/current/app-pgbasebackup.html)
+- [PostgreSQL continuous archiving and PITR](https://www.postgresql.org/docs/current/continuous-archiving.html)
+- [Scylla Manager backup](https://manager.docs.scylladb.com/stable/backup/)
+- [Scylla Manager backup format](https://manager.docs.scylladb.com/stable/backup/specification.html)
+- [Scylla Manager restore](https://manager.docs.scylladb.com/stable/restore/)
+
+## 32. Revision history
+
+| Version | Date | Summary |
+| --- | --- | --- |
+| 0.1 | 2026-08-10 | Created the AWS reference architecture covering three-account isolation, immutable S3 vaults, KMS, IAM, one-way cross-Region replication, native PostgreSQL and Scylla workflows, signed publication, restore, retention, break-glass recovery, audit, cost, Aspire extraction, and acceptance criteria. |
+| 0.2 | 2026-08-10 | Recorded approval of Section 29 and aligned with overview version 0.6 by assigning BackupSource AwsCloud to shared DatabaseBackup events, preserving primary/recovery replica identities, and confirming the shared UI and ScheduledTask command/query surface. |
