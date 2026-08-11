@@ -28,7 +28,16 @@ public class FundUIEventConsumer(INatsEventListenerOptions options, ILogger logg
         [new ActorMailboxId(ActorType.Event, EndOfDayFundTransactionProcessedCompleteEvent.Actor)]
                = [EndOfDayFundTransactionProcessedCompleteEvent.Verb,
                    EndOfDayFundTransactionProcessedFailEvent.Verb,
-                   OptionTradeEndOfDayProcessedFailEvent.Verb]
+                   OptionTradeEndOfDayProcessedFailEvent.Verb],
+        [new ActorMailboxId(ActorType.Event, OpeningTradeFundTransactionAdjustmentCreatedEvent.Actor)]
+               = [OpeningTradeFundTransactionAdjustmentCreatedEvent.CompleteName,
+                   OpeningTradeFundTransactionAdjustmentCreatedEvent.FailName,
+                   RealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent.Verb,
+                   RealizedTradePnlFundTransactionAdjustmentCreatedFailEvent.Verb,
+                   TradeCommissionFundTransactionAdjustmentCreatedCompleteEvent.Verb,
+                   TradeCommissionFundTransactionAdjustmentCreatedFailEvent.Verb,
+                   UnrealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent.Verb,
+                   UnrealizedTradePnlFundTransactionAdjustmentCreatedFailEvent.Verb]
     };
 
     public async ValueTask StartAsync(ICollection<IEvent> consumeEvents, Func<IEvent, ValueTask> eventAction)
@@ -48,6 +57,22 @@ public class FundUIEventConsumer(INatsEventListenerOptions options, ILogger logg
                         => HandleEventAsync(eventMsg.AsEvent<EndOfDayFundTransactionProcessedFailEvent>()!, eventAction),
                     _ when eventVerb == OptionTradeEndOfDayProcessedFailEvent.Verb 
                         => HandleEventAsync(eventMsg.AsEvent<OptionTradeEndOfDayProcessedFailEvent>()!, eventAction),
+                    _ when eventVerb == OpeningTradeFundTransactionAdjustmentCreatedEvent.CompleteName
+                        => HandleEventAsync(eventMsg.AsEvent<OpeningTradeFundTransactionAdjustmentCreatedCompleteEvent>()!, eventAction),
+                    _ when eventVerb == OpeningTradeFundTransactionAdjustmentCreatedEvent.FailName
+                        => HandleEventAsync(eventMsg.AsEvent<OpeningTradeFundTransactionAdjustmentCreatedFailEvent>()!, eventAction),
+                    _ when eventVerb == RealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent.Verb
+                        => HandleEventAsync(eventMsg.AsEvent<RealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent>()!, eventAction),
+                    _ when eventVerb == RealizedTradePnlFundTransactionAdjustmentCreatedFailEvent.Verb
+                        => HandleEventAsync(eventMsg.AsEvent<RealizedTradePnlFundTransactionAdjustmentCreatedFailEvent>()!, eventAction),
+                    _ when eventVerb == TradeCommissionFundTransactionAdjustmentCreatedCompleteEvent.Verb
+                        => HandleEventAsync(eventMsg.AsEvent<TradeCommissionFundTransactionAdjustmentCreatedCompleteEvent>()!, eventAction),
+                    _ when eventVerb == TradeCommissionFundTransactionAdjustmentCreatedFailEvent.Verb
+                        => HandleEventAsync(eventMsg.AsEvent<TradeCommissionFundTransactionAdjustmentCreatedFailEvent>()!, eventAction),
+                    _ when eventVerb == UnrealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent.Verb
+                        => HandleEventAsync(eventMsg.AsEvent<UnrealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent>()!, eventAction),
+                    _ when eventVerb == UnrealizedTradePnlFundTransactionAdjustmentCreatedFailEvent.Verb
+                        => HandleEventAsync(eventMsg.AsEvent<UnrealizedTradePnlFundTransactionAdjustmentCreatedFailEvent>()!, eventAction),
                     _ => ValueTask.CompletedTask
                 };
                 await valueTask;

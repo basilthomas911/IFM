@@ -20,16 +20,10 @@ public partial class AdjustFundTransactionEditor : Form, IForm<AdjustFundTransac
     /// <param name="viewModel"></param>
     public void LoadModel(AdjustFundTransactionReadModel viewModel)
     {
+        if (_viewModel is not null)
+            _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
         _viewModel = viewModel;
-        _viewModel.StartListener();
-        _viewModel.OnFundTransactionAdjustment = () =>
-            this.Post(() =>
-            {
-                MessageBox.Show($"Unable to Adjust: {_viewModel.FundTransaction.TransactionType} on Fund Transaction: {_viewModel.FundTransaction.Id} ", "Fund Transaction Adjustment Error", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                this.DialogResult = DialogResult.OK;
-                this.Close();
-            });
-        _viewModel.OnErrorMessage = (errorMsg, caption) => this.ShowErrorMessage(errorMsg, caption);
+        _viewModel.PropertyChanged += ViewModel_PropertyChanged;
     }
 
     public async Task UnloadModelAsync()
@@ -38,7 +32,7 @@ public partial class AdjustFundTransactionEditor : Form, IForm<AdjustFundTransac
             await _viewModel.StopListener();
     }
 
-    private void AdjustFundTransactionForm_Load(object sender, EventArgs e)
+    private async void AdjustFundTransactionForm_Load(object sender, EventArgs e)
     {
         try
         {
@@ -53,10 +47,12 @@ public partial class AdjustFundTransactionEditor : Form, IForm<AdjustFundTransac
             txtComment.Text = string.Empty;
             txtBalance.Text = $"{_viewModel?.FundBalance:C}";
             btnSave.Enabled = false;
+            if (_viewModel is not null)
+                await _viewModel.StartListener();
         }
-        catch
+        catch (Exception exception)
         {
-            MessageBox.Show($"Unable to Adjust Transaction Type: {_viewModel?.FundTransaction.TransactionType} for Adjustment", "Fund Transaction Adjustment Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            this.ShowErrorMessage(exception.Message, "Fund Transaction Adjustment Error");
             this.DialogResult = DialogResult.Cancel;
             this.Close();
         }
@@ -68,16 +64,30 @@ public partial class AdjustFundTransactionEditor : Form, IForm<AdjustFundTransac
             return;
         e.Cancel = true;
         await UnloadModelAsync();
+        if (_viewModel is not null)
+            _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
         _closeComplete = true;
         Close();
     }
 
-    private void btnSave_Click(object sender, EventArgs e)
+    private async void btnSave_Click(object sender, EventArgs e)
     {
         var adjustmentTransaction = _viewModel?.GetAdjustmentTransaction(
             amount: Convert.ToDecimal(txtAmount.Text),
             comment: txtComment.Text);
-        _viewModel?.AdjustFundTransaction(adjustmentTransaction!);
+        if (_viewModel is null || adjustmentTransaction is null)
+            return;
+        try
+        {
+            _viewModel.SetPendingAdjustment(adjustmentTransaction);
+            btnSave.Enabled = false;
+            await _viewModel.SubmitAdjustmentOperation.ExecuteAsync();
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Fund Transaction Adjustment Error");
+            UpdateSaveEnabled();
+        }
     }
 
     private void btnCancel_Click(object sender, EventArgs e)
@@ -88,15 +98,38 @@ public partial class AdjustFundTransactionEditor : Form, IForm<AdjustFundTransac
 
     private void txtAmount_TextChanged(object sender, EventArgs e)
     {
-       btnSave.Enabled = decimal.TryParse(txtAmount.Text,  out _) 
-            && !string.IsNullOrWhiteSpace(txtComment.Text);
+       UpdateSaveEnabled();
     }
 
     private void txtComment_TextChanged(object sender, EventArgs e)
     {
-         btnSave.Enabled = decimal.TryParse(txtAmount.Text, out _)
-            && !string.IsNullOrWhiteSpace(txtComment.Text);
+         UpdateSaveEnabled();
     }
+
+    void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (_viewModel is null)
+            return;
+        this.Post(() =>
+        {
+            if (_viewModel.IsAdjustmentCompleted)
+            {
+                DialogResult = DialogResult.OK;
+                Close();
+                return;
+            }
+            if (_viewModel.AdjustmentFailure is { } failure)
+                this.ShowErrorMessage(failure.Message, "Fund Transaction Adjustment Error");
+            UpdateSaveEnabled();
+        });
+    }
+
+    void UpdateSaveEnabled()
+        => btnSave.Enabled = _viewModel is not null
+            && _viewModel.CommandId == Guid.Empty
+            && !_viewModel.SubmitAdjustmentOperation.IsRunning
+            && decimal.TryParse(txtAmount.Text, out _)
+            && !string.IsNullOrWhiteSpace(txtComment.Text);
 
     public void Open()
     {

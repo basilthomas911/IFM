@@ -147,4 +147,28 @@ public class UiArchitectureBaselineTests
             "TomasAI.IFM.UI.Net.Views/Presentation/WinFormsViewNavigator.cs"
         ]);
     }
+
+    [Fact]
+    public void FundUiConsumer_RoutesEveryAdjustmentCompletionAndFailureEvent()
+    {
+        var sourcePath = Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.EventConsumer",
+            "FundUIEventConsumer.cs");
+        var source = File.ReadAllText(sourcePath);
+        var eventTypes = new[]
+        {
+            "OpeningTradeFundTransactionAdjustmentCreatedCompleteEvent",
+            "OpeningTradeFundTransactionAdjustmentCreatedFailEvent",
+            "RealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent",
+            "RealizedTradePnlFundTransactionAdjustmentCreatedFailEvent",
+            "TradeCommissionFundTransactionAdjustmentCreatedCompleteEvent",
+            "TradeCommissionFundTransactionAdjustmentCreatedFailEvent",
+            "UnrealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent",
+            "UnrealizedTradePnlFundTransactionAdjustmentCreatedFailEvent"
+        };
+
+        foreach (var eventType in eventTypes)
+            source.Should().Contain($"AsEvent<{eventType}>");
+    }
 }

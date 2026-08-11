@@ -579,9 +579,17 @@ Fund workflow progress on 2026-08-11:
   guarded load/create operations. `CreateFundForm` awaits both operations and
   validates the pending fund before submission.
 - Fund Model/ViewModel tests cover coded query failures, safe selection,
-  consistent details publication, and new-fund identifier loading. Adjustment
-  completion callbacks remain temporarily documented as correlated event-stream
-  boundaries and will move with the event-driven Fund editor slice.
+  consistent details publication, and new-fund identifier loading.
+- The adjustment editor now retains the command API's real correlation ID and
+  prevents another submission until the matching terminal event arrives.
+  Unrelated events are ignored; matching completion/failure events update
+  observable state, and coded failures are written to the status console. A
+  bounded early-event buffer closes the race where a terminal event arrives just
+  before the command response returns its correlation ID.
+- `FundUIEventConsumer` now routes all eight opening-trade, realized-P&L,
+  commission, and unrealized-P&L adjustment completion/failure event types. Tests
+  exercise listener lifecycle, correlation filtering, successful completion,
+  coded failure publication, and the complete routing table.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 

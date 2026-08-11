@@ -2,13 +2,14 @@ using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
 namespace TomasAI.IFM.UI.Net.ViewModels;
 
 /// <summary>
 /// base editor view model
 /// </summary>
-public class BaseEditorViewModel
+public class BaseEditorViewModel : ObservableObject
 {
     readonly IAppRoot _appRoot;
 

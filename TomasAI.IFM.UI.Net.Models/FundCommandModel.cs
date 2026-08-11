@@ -110,7 +110,7 @@ public class FundCommandModel : BaseModel<FundCommandModel>
     /// <param name="description"></param>
     /// <param name="amount"></param>
     /// <param name="onCompleted"></param>
-    public async Task CreateAdjustmentTransactionAsync(
+    public async Task<Guid> CreateAdjustmentTransactionAsync(
         FundTransactionType adjustmentTransactionType, 
         int fundId, 
         int orderId, 
