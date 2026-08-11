@@ -4,10 +4,10 @@
 
 The UI.Net project family is the Windows Forms desktop client for the IFM application. It presents the operational fund, trade, market-data, reference-data, system-administration, and status-console workflows. It does not host domain actors or access storage directly.
 
-The UI uses three backend paths:
+The UI uses NATS for all backend communication:
 
-- commands are sent by HTTP through the domain command APIs in `TomasAI.IFM.Application.Api.Client`;
-- queries are sent by HTTP through the domain query APIs in `TomasAI.IFM.Application.Api.Client`;
+- commands are sent through the domain command APIs in `TomasAI.IFM.Application.Api.Nats.Client`;
+- queries use NATS request/reply through the domain query APIs in `TomasAI.IFM.Application.Api.Nats.Client`;
 - live domain and service events are consumed from NATS through `TomasAI.IFM.UI.EventConsumer`.
 
 This document describes the implementation currently in the repository. The notes under [Current implementation notes](#current-implementation-notes) describe existing behavior and known constraints, not a proposed architecture.
@@ -33,7 +33,7 @@ The client is split into four assemblies. `TomasAI.IFM.UI.Net` is the Windows ex
 | Shared editor view-model behavior | [`BaseEditorViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/BaseEditorViewModel.cs) |
 | Main application window | [`App/IFMAppView.cs`](../../TomasAI.IFM.UI.Net.Views/App/IFMAppView.cs) |
 | Main application orchestration | [`App/IFMAppViewModel.cs`](../../TomasAI.IFM.UI.Net.ViewModels/App/IFMAppViewModel.cs) |
-| Command and query HTTP adapters | [`TomasAI.IFM.Application.Api.Client`](../../TomasAI.IFM.Application.Api.Client) |
+| Command and query NATS adapters | [`TomasAI.IFM.Application.Api.Nats.Client`](../../TomasAI.IFM.Application.Api.Nats.Client) |
 | Concrete UI event consumers | [`TomasAI.IFM.UI.EventConsumer`](../../TomasAI.IFM.UI.EventConsumer) |
 | NATS event-listener implementation | [`TomasAI.IFM.Framework.Messaging.Nats`](../../TomasAI.IFM.Framework.Messaging.Nats) |
 
@@ -46,19 +46,18 @@ flowchart LR
     ViewModel[View model]
     Model[UI model]
     DomainApi[Domain command or query API]
-    RestClient[REST command or query client]
-    ApiServer[IFM API Server]
+    NatsClient[NATS command or query client]
+    Nats[(NATS)]
     UiConsumer[UI event consumer]
-    Nats[(NATS event stream)]
     ActorRuntime[Event Model Actor runtime]
 
     User --> View
     View --> ViewModel
     ViewModel --> Model
     Model --> DomainApi
-    DomainApi --> RestClient
-    RestClient -->|HTTP| ApiServer
-    ApiServer --> ActorRuntime
+    DomainApi --> NatsClient
+    NatsClient -->|Core NATS publish or request/reply| Nats
+    Nats --> ActorRuntime
 
     ActorRuntime --> Nats
     Nats --> UiConsumer
@@ -67,7 +66,7 @@ flowchart LR
     ViewModel -->|Control.Post / BeginInvoke| View
 ```
 
-The views do not send NATS actor commands or queries directly. `IActorProducer` and `IActorEventListener` are registered, while the active UI command and query models call the HTTP-facing application client APIs. Events are the live push path into the desktop process.
+The views do not address NATS subjects directly. UI models call typed application APIs, and those adapters use the shared `IActorProducer` to publish commands or perform request/reply queries. UI event consumers remain the live push path into the desktop process.
 
 ## Project structure
 
@@ -92,12 +91,12 @@ At the time of writing, the project contains 33 model files, 30 view-model files
 2. Enable visual styles, compatible text rendering settings, and system-aware high DPI mode.
 3. Build configuration from `appsettings.json` in the current working directory.
 4. Call `Startup.Configure` to build and verify the Simple Injector container.
-5. Resolve the singleton `IFMAppView` through `IAppRoot.GetForm<IFMAppView>()`.
-6. Wait synchronously for ten seconds.
-7. enter the WinForms message loop with `Application.Run`.
-8. terminate the process after the message loop returns.
+5. Resolve the singleton `IFMAppView` through the view navigator.
+6. Enter the WinForms message loop through `NatsReadyApplicationContext` on the original STA thread.
+7. Connect the shared NATS producer asynchronously and show the main form only after that readiness task succeeds.
+8. When the main form closes, stop the status producer and shared actor producer, dispose the shared NATS connection manager and container, and then end the message loop.
 
-Both top-level exception handlers display a message box containing exception information and then terminate the process.
+Top-level exception handlers display a message box containing exception information, set a failing process exit code, and request orderly application exit.
 
 ### Main-window initialization
 
@@ -139,22 +138,21 @@ The UI reads the following keys from the `AppSettings` section:
 | Key | Consumer | Purpose |
 | --- | --- | --- |
 | `AppEnvironment` | `Startup` and the main window | Environment label displayed in the UI. |
-| `CommandServerBaseUri` | `CommandServiceApiOptions` | Base URI for HTTP command requests. |
-| `QueryServerBaseUri` | `QueryServiceApiOptions` | Base URI for HTTP query requests. |
+| `NatsServerUri` | NATS producer, consumer, and event-listener options | NATS endpoint used by commands, queries, and event consumers. |
 
 `appsettings.Development.json` and `appsettings.Production.json` contain the same key shape and are copied to output and publish directories. The current `Program.AppSetup` loads only `appsettings.json`; the environment-specific configuration call is commented out.
 
-NATS producer, consumer, and event-listener options are registered as their default option implementations rather than bound from an explicit UI configuration section. The current default URL is `nats://localhost:4222`; consumer defaults also specify four dispatchers and owned command/query payloads.
+NATS producer, consumer, and event-listener options are registered from the required `AppSettings:NatsServerUri` value. The checked-in local value is `nats://localhost:4222`.
 
 ## Dependency injection and lifetimes
 
-The project uses Simple Injector as its application container. Microsoft DI is used locally to create `IHttpClientFactory`.
+The project uses Simple Injector as its application container.
 
 `Startup.Configure` registers services in this order:
 
 1. logging;
 2. the application root, forms, and models;
-3. HTTP, serialization, and NATS infrastructure;
+3. serialization and NATS infrastructure;
 4. query APIs;
 5. command APIs;
 6. UI event consumers;
@@ -168,13 +166,12 @@ Important lifetimes are:
 | `IAppRoot` | Singleton |
 | All closed `IForm<TForm>` implementations | Singleton |
 | All closed `IModel<TModel>` implementations | Transient |
-| `IHttpClientFactory` | Singleton |
 | JSON serializer | Singleton; currently `NewtonSoftJsonSerializer` |
-| Command/query service options and REST clients | Singleton |
+| Shared `NatsConnectionManager` and `IActorProducer` | Singleton |
 | Domain command/query API implementations | Singleton |
 | UI event consumers | Singleton |
 | Status-console producer and writer | Singleton |
-| `IActorProducer` and `IActorEventListener` | Transient/default registration |
+| Per-consumer `IActorEventListener` | Transient/default registration |
 
 The container scans the assembly containing `IForm<>` for forms and the assembly containing `IModel<>` for models. Adding a correctly implemented form or model therefore does not require an individual registration. Domain APIs and UI event consumers are registered explicitly.
 
@@ -228,28 +225,31 @@ sequenceDiagram
     participant VM as View model
     participant Model as Command model
     participant Api as Domain command API
-    participant Rest as CommandServiceApiClient
-    participant Server as API Server
+    participant Producer as IActorProducer
+    participant Nats as NATS
+    participant Actor as Domain actor
 
     View->>VM: User action
     VM->>Model: Command method
     Model->>Api: Typed domain request
-    Api->>Rest: Route plus command parameter
-    Rest->>Server: HTTP POST JSON
-    Server-->>Rest: ServiceResult<Guid>
-    Rest-->>Api: Typed result
+    Api->>Producer: Actor subject, command, entity identifier
+    Producer->>Nats: NATS request
+    Nats->>Actor: Route typed command
+    Actor-->>Nats: ServiceResult<GuidResult>
+    Nats-->>Producer: Typed reply
+    Producer-->>Api: ServiceResult<Guid>
     Api-->>Model: Typed result
     Model-->>VM: Completion or error callback
     VM-->>View: UI callback
 ```
 
-Domain command APIs construct command parameter objects and call `ICommandServiceApi`. `CommandServiceApiClient` serializes requests as JSON, uses HTTP POST, and returns `ServiceResult<Guid>`. The client adds a command or command-parameter type-name header, depending on the overload used.
+Domain command APIs construct typed command objects and derive from `NatsCommandApi`. The adapter calls `IActorProducer.RequestAsync` with the command's actor subject and entity identifier, then maps the typed `GuidResult` reply to `ServiceResult<Guid>`. The messaging layer serializes the request and reply over Core NATS.
 
 UI command models normally call `BaseModel.ExecuteCommandAsync`, which invokes the completion callback only when `Success` is true and routes failures through the model error callback.
 
 ### Query flow
 
-Query models call a domain `*QueryApi`, which constructs typed query parameters and uses `IQueryServiceApi`. `QueryServiceApiClient` normally sends HTTP GET requests with encoded query parameters and deserializes `ServiceResult<TResult>`. Some shared query-client overloads support POST when a query requires body content.
+Query models call a domain `*QueryApi`, which constructs a typed query and derives from the shared `NatsCommandApi` request/reply base. The adapter calls `IActorProducer.RequestAsync<TResult, TQuery>` on the query's actor subject and returns the typed `ServiceResult<TResult>` reply. Commands and queries therefore share the NATS connection established before the main form is shown.
 
 On success, `BaseModel.ExecuteAsync<TResult>` passes the returned value to the model or view-model callback. On failure, it invokes the configured error notifier.
 
@@ -324,7 +324,7 @@ Several helpers and status operations intentionally catch and suppress exception
 Use the following sequence when adding a feature:
 
 1. Define or reuse the domain command/query/event contracts in the appropriate shared domain project.
-2. Add the HTTP-facing domain API implementation to `TomasAI.IFM.Application.Api.Client` when a command or query adapter is required.
+2. Add the NATS-facing domain API implementation to `TomasAI.IFM.Application.Api.Nats.Client` when a command or query adapter is required.
 3. Register a new domain API explicitly in `Startup.RegisterCommandServices` or `Startup.RegisterQueryServices`.
 4. Add a UI model implementing `IModel<TModel>` or deriving from `BaseModel<TModel>`. It will be discovered automatically and registered transiently.
 5. Add a UI event consumer in `TomasAI.IFM.UI.EventConsumer` when push updates are required, then register it as a singleton in `Startup.RegisterEventConsumers`.
@@ -340,15 +340,16 @@ When a singleton form is reopened, its load method must fully reset any state th
 ## Current implementation notes
 
 - `Program.AppSetup` loads only `appsettings.json`; the environment-specific JSON files are copied but not selected at runtime.
-- Startup blocks for ten seconds before the WinForms message loop begins.
-- The process is explicitly terminated after `Application.Run` returns and after top-level unhandled exceptions.
+- The main form is gated on actual NATS producer readiness; there is no elapsed-time startup delay.
+- Normal close awaits NATS producer shutdown and connection/container disposal before the WinForms message loop exits.
 - Forms are singletons while models are transient. Reopened forms can retain control or field state unless their load/close paths reset it.
 - `CommandResponseUIEventConsumer.StartAsync` currently completes without creating a subscription. `EventModel.WaitingForCommandResponse` can therefore become true even though that consumer has not started listening.
 - Some event-consumer method parameters, such as selected `consumeEvents` collections or site identifiers, are not used by their current concrete implementations.
 - `IAppRoot.Execute`, the `BaseModelExtension` helpers, status-console methods, control-posting helpers, and several shutdown paths suppress exceptions.
 - `IFMAppViewModel` contains operational assumptions specific to the current deployment, including ES selection, a daily 14-period RSI service, and a 900-second live-feed inactivity threshold.
 - `IControlExtension.Draw` uses `user32.dll` and is Windows-only, which is consistent with the project target.
-- No dedicated UI.Net automated-test project is currently referenced by this project. Backend behavior should be tested below the UI layer, while form-specific behavior requires targeted WinForms tests or manual verification.
+- `TomasAI.IFM.UI.Presentation.UnitTests` enforces the NATS-only composition and readiness lifecycle. Form-specific behavior still requires targeted WinForms or manual end-to-end verification.
+- QTS view implementation and further WinForms view changes are deferred until the existing application passes user-driven backend integration and paper-trading verification.
 
 ## Build verification
 

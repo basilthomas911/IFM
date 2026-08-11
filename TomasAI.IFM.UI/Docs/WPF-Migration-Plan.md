@@ -11,7 +11,7 @@
 | Immediate delivery target | Stage 1: optimized WinForms application suitable for paper trading |
 | Production delivery target | Stage 2: WPF application with functional and operational parity |
 | Scope of this document | Stage 1 implementation specification and Stage 2 architectural pathway |
-| Stage 1 progress | S1.0 through S1.4 implemented on 2026-08-11; S1.5 real-time stream hardening is in progress |
+| Stage 1 progress | S1.0 through S1.5 implemented; S1.6 transport/lifecycle implementation is complete and user-driven WinForms/backend validation is pending |
 
 This document is the controlling migration plan for the IFM desktop client. The existing [`UI.Net implementation details`](../../TomasAI.IFM.UI.Net/Docs/UI-Implementation-Details.md) remain the description of the current WinForms implementation. This document describes the target state and the controlled path from that implementation to WPF.
 
@@ -870,7 +870,7 @@ consumer boundary.
 - Architecture tests enforce awaitable option-tick and spread-bar consumer
   contracts and reject regression to the detached Iron Condor registrations.
 
-S1.5 is complete. S1.6 startup, shutdown, and operational validation is next.
+S1.5 is complete. The S1.6 transport and lifecycle implementation described below is also complete; operational approval remains pending the user-driven WinForms/backend validation and soak gates.
 
 Exit: burst tests show bounded memory, correct ordering for lossless events, and responsive visual updates under expected peak rates.
 
@@ -881,6 +881,16 @@ Exit: burst tests show bounded memory, correct ordering for lossless events, and
 - Implement graceful stop and disposal.
 - Execute functional, concurrency, soak, and paper-trading tests.
 - Update the current implementation document to describe the completed architecture.
+
+Implementation status on 2026-08-11:
+
+- The WinForms views remain unchanged and are treated as legacy presentation adapters.
+- UI commands and queries now use `TomasAI.IFM.Application.Api.Nats.Client`; the executable and Models projects no longer reference the HTTP application client or REST messaging project.
+- `NatsReadyApplicationContext` preserves the STA WinForms message loop while asynchronously connecting the shared NATS producer. The main form is shown only after connection readiness succeeds, replacing the fixed ten-second delay.
+- Form closure initiates an awaited stop of the status-console producer and shared actor producer, followed by shared NATS connection-manager and container disposal. Normal shutdown no longer forcibly terminates the process.
+- The presentation architecture suite rejects restoration of the HTTP client, REST messaging, fixed startup delay, or missing NATS start/stop lifecycle.
+- The UI project build and automated presentation tests are the implementation gate. Controlled user-driven startup, workflow, reconnect, shutdown, and paper-trading/soak validation against the running backend remain required for operational approval.
+- QTS implementation and discretionary WinForms view changes are explicitly deferred until the current WinForms application passes those runtime gates. Only a demonstrated compatibility defect should cause another legacy-view change.
 
 Exit: all Stage 1 acceptance criteria pass and the WinForms build is approved for controlled paper trading.
 

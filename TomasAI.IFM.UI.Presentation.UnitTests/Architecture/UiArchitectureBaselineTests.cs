@@ -153,6 +153,55 @@ public class UiArchitectureBaselineTests
     }
 
     [Fact]
+    public void WinFormsComposition_UsesNatsApisAndReadinessInsteadOfHttpClientsOrDelay()
+    {
+        var uiProject = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.Net",
+            "TomasAI.IFM.UI.Net.csproj"));
+        var modelsProject = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.Net.Models",
+            "TomasAI.IFM.UI.Net.Models.csproj"));
+        var startup = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.Net",
+            "Startup.cs"));
+        var program = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.Net",
+            "Program.cs"));
+        var configuration = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.Net",
+            "appsettings.json"));
+
+        uiProject.Should().Contain("TomasAI.IFM.Application.Api.Nats.Client");
+        uiProject.Should().NotContain("TomasAI.IFM.Application.Api.Client");
+        uiProject.Should().NotContain("TomasAI.IFM.Framework.Messaging.RestApi");
+        uiProject.Should().NotContain("Microsoft.Extensions.Http");
+        modelsProject.Should().NotContain("TomasAI.IFM.Application.Api.Client");
+        modelsProject.Should().NotContain("TomasAI.IFM.Framework.Messaging.RestApi");
+
+        startup.Should().Contain("using TomasAI.IFM.Application.Api.Nats.Client;");
+        startup.Should().Contain("RegisterSingleton<IActorProducer>");
+        startup.Should().Contain("RegisterSingleton<NatsConnectionManager>");
+        startup.Should().NotContain("CommandServiceApiClient");
+        startup.Should().NotContain("QueryServiceApiClient");
+        startup.Should().NotContain("IHttpClientFactory");
+
+        program.Should().Contain("Startup.StartAsync().AsTask()");
+        program.Should().Contain("Startup.ShutdownAsync().AsTask()");
+        program.Should().Contain("NatsReadyApplicationContext");
+        program.Should().NotContain("DelayedApplicationContext");
+        program.Should().NotContain("TimeSpan.FromSeconds(10)");
+
+        configuration.Should().Contain("NatsServerUri");
+        configuration.Should().NotContain("CommandServerBaseUri");
+        configuration.Should().NotContain("QueryServerBaseUri");
+    }
+
+    [Fact]
     public void HighRateOptionConsumers_AreAwaitableAndHaveNoDetachedRegistrations()
     {
         var optionTickConsumer = File.ReadAllText(Path.Combine(

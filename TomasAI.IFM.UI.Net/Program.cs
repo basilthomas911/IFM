@@ -1,13 +1,9 @@
 using System;
 using System.Text;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
-using TomasAI.IFM.UI.Net.Views.App;
-using WinForms=System.Windows.Forms;
-
 using Microsoft.Extensions.Configuration;
-using TomasAI.IFM.UI.Net;
+using TomasAI.IFM.UI.Net.Views.App;
+using WinForms = System.Windows.Forms;
 
 namespace TomasAI.IFM.UI.Net
 {
@@ -21,59 +17,42 @@ namespace TomasAI.IFM.UI.Net
         {
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
-
             WinForms.Application.ThreadException += Application_ThreadException;
             WinForms.Application.SetUnhandledExceptionMode(WinForms.UnhandledExceptionMode.CatchException);
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             WinForms.Application.EnableVisualStyles();
             WinForms.Application.SetCompatibleTextRenderingDefault(false);
             WinForms.Application.SetHighDpiMode(HighDpiMode.SystemAware);
-#pragma warning disable WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-            //WinForms.Application.SetColorMode(SystemColorMode.Dark);
-#pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-            var config = AppSetup();
-            var mainForm = Startup.Configure(config).CreateView<IFMAppView>();
-            WinForms.Application.Run(new DelayedApplicationContext(mainForm, TimeSpan.FromSeconds(10)));
-        }
 
-        sealed class DelayedApplicationContext : WinForms.ApplicationContext
-        {
-            readonly WinForms.Form _mainForm;
-            readonly WinForms.Timer _timer;
-
-            public DelayedApplicationContext(WinForms.Form mainForm, TimeSpan delay)
+            try
             {
-                _mainForm = mainForm;
-                _timer = new WinForms.Timer { Interval = checked((int)delay.TotalMilliseconds) };
-                _timer.Tick += ShowMainForm;
-                _timer.Start();
+                var config = AppSetup();
+                var navigator = Startup.Configure(config);
+                var mainForm = navigator.CreateView<IFMAppView>();
+                WinForms.Application.Run(new NatsReadyApplicationContext(mainForm));
             }
-
-            void ShowMainForm(object? sender, EventArgs e)
+            catch (Exception exception)
             {
-                _timer.Stop();
-                _timer.Dispose();
-                MainForm = _mainForm;
-                _mainForm.Show();
+                Environment.ExitCode = 1;
+                ShowFatalError(exception, "Application Startup Error");
             }
         }
 
         static IConfigurationRoot AppSetup()
         {
-            // Set up the configuration sources.
             var builder = new ConfigurationBuilder()
-                    .SetBasePath(Directory.GetCurrentDirectory())
-                    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-                    //.AddJsonFile($"appsettings.{ctx.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true);
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
             return builder.Build();
         }
+
         static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             var errorMessage = new StringBuilder();
             errorMessage.AppendLine(((Exception)e.ExceptionObject).GetType().FullName);
             errorMessage.AppendLine(((Exception)e.ExceptionObject).Message);
             errorMessage.AppendLine(((Exception)e.ExceptionObject).StackTrace);
-            MessageBox.Show($"{errorMessage}", "UnhandledException", WinForms.MessageBoxButtons.OK, WinForms.MessageBoxIcon.Error);
+            WinForms.MessageBox.Show($"{errorMessage}", "UnhandledException", WinForms.MessageBoxButtons.OK, WinForms.MessageBoxIcon.Error);
             Environment.ExitCode = 1;
             WinForms.Application.Exit();
         }
@@ -81,15 +60,116 @@ namespace TomasAI.IFM.UI.Net
         static void Application_ThreadException(object sender, System.Threading.ThreadExceptionEventArgs e)
         {
             var errorMessage = new StringBuilder();
-            var ex = e.Exception;
-            while (ex.InnerException != null)
-                ex = ex.InnerException;
-            errorMessage.AppendLine(ex.GetType().FullName);
-            errorMessage.AppendLine(ex.Message);
-            errorMessage.AppendLine(ex.StackTrace);
-            MessageBox.Show($"{errorMessage}", "ThreadException", WinForms.MessageBoxButtons.OK, WinForms.MessageBoxIcon.Error);
+            var exception = e.Exception;
+            while (exception.InnerException != null)
+                exception = exception.InnerException;
+            errorMessage.AppendLine(exception.GetType().FullName);
+            errorMessage.AppendLine(exception.Message);
+            errorMessage.AppendLine(exception.StackTrace);
+            WinForms.MessageBox.Show($"{errorMessage}", "ThreadException", WinForms.MessageBoxButtons.OK, WinForms.MessageBoxIcon.Error);
             Environment.ExitCode = 1;
             WinForms.Application.Exit();
+        }
+
+        static void ShowFatalError(Exception exception, string caption)
+        {
+            var errorMessage = new StringBuilder();
+            for (var current = exception; current is not null; current = current.InnerException)
+            {
+                errorMessage.AppendLine(current.GetType().FullName);
+                errorMessage.AppendLine(current.Message);
+                errorMessage.AppendLine(current.StackTrace);
+            }
+
+            WinForms.MessageBox.Show(
+                $"{errorMessage}",
+                caption,
+                WinForms.MessageBoxButtons.OK,
+                WinForms.MessageBoxIcon.Error);
+        }
+
+        /// <summary>
+        /// Keeps the WinForms message loop on the STA thread while NATS starts and stops asynchronously.
+        /// The main view is shown only after the shared NATS producer has connected successfully.
+        /// </summary>
+        sealed class NatsReadyApplicationContext : WinForms.ApplicationContext
+        {
+            readonly WinForms.Form _mainForm;
+            readonly WinForms.Timer _lifecycleTimer;
+            Task _lifecycleOperation;
+            LifecyclePhase _phase = LifecyclePhase.Starting;
+
+            public NatsReadyApplicationContext(WinForms.Form mainForm)
+            {
+                _mainForm = mainForm ?? throw new ArgumentNullException(nameof(mainForm));
+                _mainForm.FormClosed += MainForm_FormClosed;
+                _lifecycleOperation = Startup.StartAsync().AsTask();
+                _lifecycleTimer = new WinForms.Timer { Interval = 25 };
+                _lifecycleTimer.Tick += LifecycleTimer_Tick;
+                _lifecycleTimer.Start();
+            }
+
+            void LifecycleTimer_Tick(object? sender, EventArgs e)
+            {
+                if (!_lifecycleOperation.IsCompleted)
+                    return;
+
+                if (_phase == LifecyclePhase.Starting)
+                {
+                    if (_lifecycleOperation.IsCompletedSuccessfully)
+                    {
+                        _phase = LifecyclePhase.Running;
+                        _lifecycleTimer.Stop();
+                        _mainForm.Show();
+                        return;
+                    }
+
+                    Environment.ExitCode = 1;
+                    ShowFatalError(
+                        _lifecycleOperation.Exception?.GetBaseException()
+                            ?? new InvalidOperationException("NATS startup was cancelled."),
+                        "Application Startup Error");
+                    BeginShutdown();
+                    return;
+                }
+
+                if (_phase != LifecyclePhase.Stopping)
+                    return;
+
+                if (!_lifecycleOperation.IsCompletedSuccessfully)
+                {
+                    Environment.ExitCode = 1;
+                    ShowFatalError(
+                        _lifecycleOperation.Exception?.GetBaseException()
+                            ?? new InvalidOperationException("Application shutdown was cancelled."),
+                        "Application Shutdown Error");
+                }
+
+                _lifecycleTimer.Stop();
+                _lifecycleTimer.Tick -= LifecycleTimer_Tick;
+                _lifecycleTimer.Dispose();
+                _mainForm.FormClosed -= MainForm_FormClosed;
+                ExitThread();
+            }
+
+            void MainForm_FormClosed(object? sender, WinForms.FormClosedEventArgs e) => BeginShutdown();
+
+            void BeginShutdown()
+            {
+                if (_phase == LifecyclePhase.Stopping)
+                    return;
+
+                _phase = LifecyclePhase.Stopping;
+                _lifecycleOperation = Startup.ShutdownAsync().AsTask();
+                _lifecycleTimer.Start();
+            }
+
+            enum LifecyclePhase
+            {
+                Starting,
+                Running,
+                Stopping
+            }
         }
     }
 }

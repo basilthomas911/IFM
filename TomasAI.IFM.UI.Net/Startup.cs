@@ -1,21 +1,19 @@
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Extensions.Logging;
 using SimpleInjector;
-using System.Net;
 using System.Reflection;
-using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
-using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Service.StatusConsole;
 using TomasAI.IFM.Shared.EventChannel;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProducers;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -42,6 +40,7 @@ namespace TomasAI.IFM.UI.Net
     {
         static Container? _container;
         static IConfiguration ?_config;
+        static int _shutdownStarted;
 
         /// <summary>
         /// initialize dependency injector container...
@@ -50,6 +49,7 @@ namespace TomasAI.IFM.UI.Net
         public static IViewNavigator Configure(IConfigurationRoot config)
         {
             _config = config;
+            Interlocked.Exchange(ref _shutdownStarted, 0);
             _container = new Container();
             RegisterLogger();
             RegisterApplication();
@@ -89,30 +89,29 @@ namespace TomasAI.IFM.UI.Net
 
         static void RegisterBaseServices()
         {
-             _container!.RegisterSingleton(() => {
-                var services = new ServiceCollection();
-                services.AddHttpClient("HttpRestApi").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler()
-                {
-                    UseDefaultCredentials = true,
-                    Credentials = new NetworkCredential("", ""),
-                });
-                var serviceProvider = services.BuildServiceProvider();
-                return serviceProvider.GetService<IHttpClientFactory>()!;
-            });
+            var natsServerUri = _config!.GetValue<string>("AppSettings:NatsServerUri");
+            if (string.IsNullOrWhiteSpace(natsServerUri))
+                throw new InvalidOperationException("AppSettings:NatsServerUri is required.");
+
             //_container!.RegisterSingleton<IJsonSerializer, SystemTextJsonSerializer>();
             _container!.RegisterSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
-            _container!.RegisterSingleton<INatsProducerOptions, NatsProducerOptions>();
-            _container!.RegisterSingleton<INatsConsumerOptions, NatsConsumerOptions>();
-            _container!.RegisterSingleton<INatsEventListenerOptions, NatsEventListenerOptions>();
-            _container!.Register<IActorProducer, NatsActorProducer>();
-            _container!.Register<IActorEventListener, NatsActorEventListener>();
+            _container!.RegisterInstance<INatsProducerOptions>(new NatsProducerOptions { Url = natsServerUri });
+            _container!.RegisterInstance<INatsConsumerOptions>(new NatsConsumerOptions { Url = natsServerUri });
+            _container!.RegisterInstance<INatsEventListenerOptions>(new NatsEventListenerOptions { Url = natsServerUri });
+            _container!.RegisterSingleton<NatsConnectionManager>();
+            _container!.RegisterSingleton<IActorProducer>(() => new NatsActorProducer(
+                _container.GetInstance<INatsProducerOptions>(),
+                _container.GetInstance<Microsoft.Extensions.Logging.ILogger>(),
+                _container.GetInstance<NatsConnectionManager>()));
+            _container!.Register<IActorEventListener>(() => new NatsActorEventListener(
+                _container.GetInstance<INatsEventListenerOptions>(),
+                _container.GetInstance<Microsoft.Extensions.Logging.ILogger>(),
+                _container.GetInstance<NatsConnectionManager>()));
 
         }
 
         static void RegisterQueryServices()
         {
-            _container!.RegisterSingleton<IQueryServiceApiOptions>(() => new QueryServiceApiOptions(_config!.GetValue<string>("AppSettings:QueryServerBaseUri")!));
-            _container!.RegisterSingleton<IQueryServiceApi, QueryServiceApiClient>();
             _container!.RegisterSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
             _container!.RegisterSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
             _container!.RegisterSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
@@ -126,8 +125,6 @@ namespace TomasAI.IFM.UI.Net
 
         static void RegisterCommandServices()
         {
-            _container!.RegisterSingleton<ICommandServiceApiOptions>(() => new CommandServiceApiOptions(_config!.GetValue<string>("AppSettings:CommandServerBaseUri")!));
-            _container!.RegisterSingleton<ICommandServiceApi, CommandServiceApiClient>();
             _container!.RegisterSingleton<IApplicationCommandApi, ApplicationCommandApi>();
             _container!.RegisterSingleton<ISystemAdminCommandApi, SystemAdminCommandApi>();
             _container!.RegisterSingleton<ITradeCommandApi, OptionTradeCommandApi>();
@@ -139,6 +136,56 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IFundCommandApi, FundCommandApi>();
             _container!.RegisterSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
             _container!.RegisterSingleton<IReferenceCommandApi, ReferenceCommandApi>();
+        }
+
+        /// <summary>Connects the shared command/query transport before the WinForms shell starts loading data.</summary>
+        public static ValueTask StartAsync(CancellationToken cancellationToken = default)
+        {
+            if (_container is null)
+                throw new InvalidOperationException("The UI container has not been configured.");
+
+            return _container.GetInstance<IActorProducer>().StartAsync(
+                new ActorMailboxId(ActorType.Query, "IFM.UI"),
+                cancellationToken);
+        }
+
+        /// <summary>Stops UI producers and disposes the shared NATS connection after all forms have closed.</summary>
+        public static async ValueTask ShutdownAsync()
+        {
+            if (_container is null || Interlocked.Exchange(ref _shutdownStarted, 1) != 0)
+                return;
+
+            List<Exception> failures = [];
+            await StopAsync(_container.GetInstance<IStatusConsoleEventProducer>());
+            await StopAsync(_container.GetInstance<IActorProducer>());
+            try
+            {
+                await _container.GetInstance<NatsConnectionManager>().DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
+            }
+            finally
+            {
+                _container.Dispose();
+                Log.CloseAndFlush();
+            }
+
+            if (failures.Count > 0)
+                throw new AggregateException("One or more UI NATS transports failed to stop.", failures);
+
+            async ValueTask StopAsync(IActorProducer producer)
+            {
+                try
+                {
+                    await producer.StopAsync();
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                }
+            }
         }
 
         static void RegisterEventConsumers()
