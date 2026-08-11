@@ -602,8 +602,21 @@ Market Data workflow progress on 2026-08-11:
   ViewModel rather than invoking parent-view callbacks.
 - Tests cover definition publication, invalid selection, busy-state
   notification, coded Model failure propagation, and the no-public-delegate
-  contract. Futures contract, futures-option contract, and yield-curve editor
-  internals remain the next incremental Market Data slices.
+  contract.
+- `FuturesContractEditorViewModel` now publishes read-only lookup and contract
+  snapshots and exposes single-flight load/add/change/remove operations. A load
+  publishes only after all reference lookups and contracts have completed, so a
+  host never observes the former partially initialized editor state.
+- The futures-contract WinForms control is now a thin transitional adapter: it
+  awaits the ViewModel operations, renders observable state, contains the
+  confirmation dialog, and catches failures at the view boundary. The twelve
+  editor-specific callback fields, repeated load fan-in callbacks, and detached
+  post-command refresh tasks have been removed.
+- Futures-contract tests cover coherent state publication, guarded add and
+  post-command refresh, coded reference-query failures, safe selection, the
+  December futures month code, and the no-declared-callback contract.
+- Futures-option contract and yield-curve editor internals remain the next
+  incremental Market Data slices.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 

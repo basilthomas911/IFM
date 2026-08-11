@@ -1,12 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using System.Data;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
@@ -67,135 +62,9 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
     /// <param name="dataLoaded">A callback action invoked with a boolean value indicating whether the data was successfully loaded.</param>
     void IControlCommand.Load(IAppRoot appRoot, Action<bool> dataLoaded)
     {
-        bool showError = false;
         _editMode = EditMode.View;
         _dataLoaded = dataLoaded;
-        _viewModel.OnError = (_, errorMsg) => this.Post(() =>
-        {
-            if ((!showError))
-            {
-                Cursor = Cursors.Default;
-                showError = true;
-                MessageBox.Show(
-                    text: errorMsg,
-                    caption: "Futures Contract Editor Error",
-                    buttons: MessageBoxButtons.OK,
-                    icon: MessageBoxIcon.Error);
-                showError = false;
-            }
-        });
-
-        _viewModel.OnCurrenciesLoaded = lookupTypes => this.Post(() => {
-            ddlCurrency.Items.Clear();
-            if (lookupTypes?.Length == 0)
-                return;
-            foreach (var lookupType in lookupTypes!)
-                ddlCurrency.Items.Add(lookupType.Description);
-            ddlCurrency.SelectedIndex = 0;
-            LoadAllFuturesContracts();
-        });
-
-        _viewModel.OnSecurityTypesLoaded = lookupTypes => this.Post(() => {
-            ddlSecurityType.Items.Clear();
-            if (lookupTypes?.Length == 0)
-                return;
-            foreach (var lookupType in lookupTypes!)
-                ddlSecurityType.Items.Add(lookupType.Description);
-            ddlSecurityType.SelectedIndex = 0;
-            LoadAllFuturesContracts();
-        });
-
-        _viewModel.OnExchangesLoaded = lookupTypes => this.Post(() => {
-            ddlExchange.Items.Clear();
-            if (lookupTypes?.Length == 0)
-                return;
-            foreach (var lookupType in lookupTypes!)
-                ddlExchange.Items.Add(lookupType.Description);
-            ddlExchange.SelectedIndex = 0;
-            LoadAllFuturesContracts();
-        });
-
-        _viewModel.OnMultipliersLoaded = lookupTypes => this.Post(() => {
-            ddlMultiplier.Items.Clear();
-            if (lookupTypes?.Length == 0)
-                return;
-            foreach (var lookupType in lookupTypes!)
-                ddlMultiplier.Items.Add(lookupType.Description);
-            ddlMultiplier.SelectedIndex = 0;
-            LoadAllFuturesContracts();
-        });
-
-        _viewModel.OnSymbolsLoaded = lookupTypes => this.Post(() => {
-            ddlSymbol.Items.Clear();
-            if (lookupTypes?.Length == 0)
-                return;
-            foreach (var lookupType in lookupTypes!)
-                ddlSymbol.Items.Add(lookupType.Description);
-            ddlSymbol.SelectedIndex = 0;
-            LoadAllFuturesContracts();
-        });
-
-        _viewModel.OnCurrentlyTraded = currentlyTraded => this.Post(() => {
-            ddlCurrentlyTraded.Items.Clear();
-            if (currentlyTraded?.Length == 0)
-                return;
-            foreach (var e in currentlyTraded!)
-                ddlCurrentlyTraded.Items.Add(e);
-            ddlCurrentlyTraded.SelectedIndex = 0;
-            LoadAllFuturesContracts();
-        });
-
-        _viewModel.OnFuturesContractAdded = () => this.Post(() => {
-            _editMode = EditMode.View;
-            _addAction?.Invoke(true);
-            _refreshAction?.Invoke();
-            lstFuturesContractIds.Enabled = true;
-        });
-
-        _viewModel.OnFuturesContractChanged = () => this.Post(() => {
-            _editMode = EditMode.View;
-            _changeAction?.Invoke(true);
-            lstFuturesContractIds.Enabled = true;
-            lstFuturesContractIds_SelectedIndexChanged(this, EventArgs.Empty);
-        });
-
-        _viewModel.OnFuturesContractRemoved = () => this.Post(() => {
-            _editMode = EditMode.View;
-            _refreshAction?.Invoke();
-            lstFuturesContractIds.Enabled = true;
-        });
-
-        _viewModel.OnFuturesContractIdsLoaded = () => this.Post(() => {
-            _refreshAction?.Invoke();
-        });
-
-        _viewModel.OnFuturesContractsLoaded = (futuresContracts) => this.Post(() => {
-            _canChangeRemove = false;
-            LoadFuturesContractIds(default!, futuresContracts);
-            _canChangeRemove = true;
-            _dataLoaded?.Invoke(futuresContracts.Length > 0);
-            ddlSymbol.Enabled = false;
-            SetDescription();
-            SetContractId();
-        });
-
-        _viewModel.OnWaitCursor = () => this.Post(() =>
-        {
-            Cursor = Cursors.WaitCursor;
-        });
-
-        _viewModel.OnDefaultCursor = () => this.Post(() =>
-        {
-            Cursor = Cursors.Default;
-        });
-
-        _viewModel.LoadContractMonths();
-        _viewModel.LoadCurrentlyTraded();
-        _viewModel.LoadSecurityTypes();
-        _viewModel.LoadCurrencies();
-        _viewModel.LoadExchanges();
-        _viewModel.LoadMultipliers();
-        _viewModel.LoadSymbols();
+        _ = LoadEditorAsync();
     }
     
     /// <summary>
@@ -262,7 +131,8 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
                     localSymbol: txtLocalSymbol.Text,
                     currentlyTraded: ddlCurrentlyTraded.SelectedIndex == 0
                 );
-                _viewModel.AddFuturesContract(futuresContract, true);
+                _viewModel.PrepareAdd(futuresContract);
+                _ = AddPreparedContractAsync(futuresContract.ContractId);
                 break;
         }
     }
@@ -319,7 +189,7 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
                 break;
             case EditMode.Change:
                 var symbol = _viewModel.GetSymbol(ddlSymbol.SelectedIndex);
-                var futuresContractId = _viewModel.GetFuturesContract(lstFuturesContractIds.SelectedIndex).Id;
+                var futuresContractId = _viewModel.GetFuturesContract(lstFuturesContractIds.SelectedIndex)!.Id;
                 var maturityDate = $"{dtmLastTradeDate.Value:yyyyMMdd}";
                 txtContractId.Text = $"{symbol}{maturityDate}";
                 var futuresContract = new FuturesContractV2ReadModel
@@ -335,7 +205,8 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
                     localSymbol: txtLocalSymbol.Text,
                     currentlyTraded: ddlCurrentlyTraded.SelectedIndex == 0
                 );
-                _viewModel.ChangeFuturesContract(futuresContractId, futuresContract, true, changeAction);
+                _viewModel.PrepareChange(futuresContractId, futuresContract);
+                _ = ChangePreparedContractAsync(futuresContract.ContractId);
                 break;
         }
     }
@@ -352,7 +223,10 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
         var contractId = contract?.ContractId;
         if (!string.IsNullOrWhiteSpace(contract?.ContractId))
             if (MessageBox.Show($"Are you sure you want to remove Futures Contract: {contractId} ?", "Remove Futures Contract", MessageBoxButtons.YesNo) == DialogResult.Yes)
-                _viewModel.RemoveFuturesContract(contract.Id, true);
+            {
+                _viewModel.PrepareRemove(contract!.Id);
+                _ = RemovePreparedContractAsync();
+            }
     }
 
     public void Import()
@@ -371,20 +245,84 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
     }
 
 
-    /// <summary>
-    /// load all futures contracts once all reference dependencies have been loaded
-    /// </summary>
-    void LoadAllFuturesContracts()
-    {
-        if (ddlCurrency.Items.Count > 0 &&
-            ddlSecurityType.Items.Count > 0 &&
-            ddlExchange.Items.Count > 0 &&
-            ddlMultiplier.Items.Count > 0 &&
-            ddlSymbol.Items.Count > 0 &&
-            ddlCurrentlyTraded.Items.Count > 0)
+    async Task LoadEditorAsync()
+        => await ExecuteOperationAsync(_viewModel.LoadOperation, () =>
         {
-            _viewModel.LoadFuturesContracts();
+            BindLookup(ddlCurrency, _viewModel.Currencies.Select(value => value.Description));
+            BindLookup(ddlSecurityType, _viewModel.SecurityTypes.Select(value => value.Description));
+            BindLookup(ddlExchange, _viewModel.Exchanges.Select(value => value.Description));
+            BindLookup(ddlMultiplier, _viewModel.Multipliers.Select(value => value.Description));
+            BindLookup(ddlSymbol, _viewModel.Symbols.Select(value => value.Description));
+            BindLookup(ddlCurrentlyTraded, _viewModel.CurrentlyTraded);
+            BindContracts();
+            _dataLoaded?.Invoke(_viewModel.FuturesContracts.Count > 0);
+        });
+
+    async Task AddPreparedContractAsync(string contractId)
+        => await ExecuteOperationAsync(_viewModel.AddOperation, () =>
+        {
+            _editMode = EditMode.View;
+            BindContracts(contractId);
+            _addAction?.Invoke(true);
+            _refreshAction();
+            lstFuturesContractIds.Enabled = true;
+        });
+
+    async Task ChangePreparedContractAsync(string contractId)
+        => await ExecuteOperationAsync(_viewModel.ChangeOperation, () =>
+        {
+            _editMode = EditMode.View;
+            BindContracts(contractId);
+            _changeAction?.Invoke(true);
+            _refreshAction();
+            lstFuturesContractIds.Enabled = true;
+        });
+
+    async Task RemovePreparedContractAsync()
+        => await ExecuteOperationAsync(_viewModel.RemoveOperation, () =>
+        {
+            _editMode = EditMode.View;
+            BindContracts();
+            _refreshAction();
+            lstFuturesContractIds.Enabled = true;
+        });
+
+    async Task ExecuteOperationAsync(IAsyncOperation operation, Action onCompleted)
+    {
+        Cursor = Cursors.WaitCursor;
+        try
+        {
+            await operation.ExecuteAsync();
+            onCompleted();
         }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                text: exception.Message,
+                caption: "Futures Contract Editor Error",
+                buttons: MessageBoxButtons.OK,
+                icon: MessageBoxIcon.Error);
+        }
+        finally
+        {
+            Cursor = Cursors.Default;
+        }
+    }
+
+    static void BindLookup(ComboBox comboBox, IEnumerable<string> values)
+    {
+        comboBox.Items.Clear();
+        foreach (var value in values)
+            comboBox.Items.Add(value);
+        comboBox.SelectedIndex = comboBox.Items.Count > 0 ? 0 : -1;
+    }
+
+    void BindContracts(string? contractId = null)
+    {
+        _canChangeRemove = false;
+        LoadFuturesContractIds(contractId ?? string.Empty, [.. _viewModel.FuturesContracts]);
+        _canChangeRemove = _viewModel.FuturesContracts.Count > 0;
+        ddlSymbol.Enabled = false;
     }
 
     /// <summary>
@@ -420,7 +358,7 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
     /// <param name="lookupTypes"></param>
     /// <param name="shortCode"></param>
     /// <returns></returns>
-   static  int GetSelectedIndex(ICollection<LookupTypeReadModel> lookupTypes, string shortCode)
+   static int GetSelectedIndex(IEnumerable<LookupTypeReadModel> lookupTypes, string shortCode)
         => lookupTypes
             .Where(e => e.ShortCode.Equals(shortCode, StringComparison.CurrentCultureIgnoreCase))
             .Select(e => e.OrderId)
