@@ -1,378 +1,516 @@
+using PropertyChangedEventArgs = System.ComponentModel.PropertyChangedEventArgs;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Shared.StatusConsole;
-using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.MarketData.Shared.Events;
-using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
+using TomasAI.IFM.UI.Net.ViewModels.Operations;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 /// <summary>
-/// Represents the view model for managing yield curve rates in the editor.
+/// Coordinates observable yield-curve editor state with correlated market-data command events.
 /// </summary>
-/// <remarks>This class provides functionality to add, update, remove, and import yield curve rates, as well as to
-/// load yield curve rate data for specific time periods or date ranges. It also manages event handling for operations
-/// related to yield curve rates, such as completion or failure events.</remarks>
-public class YieldCurveRateEditorViewModel : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
+public sealed class YieldCurveRateEditorViewModel
+    : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
     readonly AsyncLifecycleCoordinator _lifecycle;
-    List<YieldCurveRateReadModel> _yieldCurveRates = [];
+    readonly MarketDataEventModel _eventModel;
+    readonly MarketDataCommandModel _commandModel;
+    readonly MarketDataQueryModel _queryModel;
+    readonly ICollection<IEvent> _consumeEvents;
+    readonly object _correlationGate = new();
+    readonly Dictionary<Guid, IEvent> _earlyTerminalEvents = [];
+    readonly AsyncOperation _loadOperation;
+    readonly AsyncOperation _loadRatesOperation;
+    readonly AsyncOperation _addOperation;
+    readonly AsyncOperation _changeOperation;
+    readonly AsyncOperation _removeOperation;
+    readonly AsyncOperation _importOperation;
+    IReadOnlyList<string> _timePeriods = [];
+    IReadOnlyList<YieldCurveRateReadModel> _yieldCurveRates = [];
+    YieldCurveRateReadModel? _pendingAdd;
+    YieldCurveRateReadModel? _pendingChange;
+    YieldCurveRateReadModel? _pendingRemove;
+    DateTime? _pendingImportDate;
+    TaskCompletionSource<IEvent>? _terminalCompletion;
     Guid _commandId;
-    Action<Guid> _setCommandId;
-    readonly ICollection<IEvent> _consumeEvents = [];
-    readonly MarketDataEventModel?_eventModel;
-    readonly MarketDataCommandModel? _commandModel;
-    readonly MarketDataQueryModel? _queryModel;
+    string _selectedTimePeriod = string.Empty;
+    string _lastStatusMessage = string.Empty;
+    DateOnly _rangeStart;
+    DateOnly _rangeEnd;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="YieldCurveRateEditorViewModel"/> class.
+    /// Creates the editor and resolves its Models from the application composition root.
     /// </summary>
-    /// <remarks>This constructor sets up the view model by initializing dependencies and subscribing to error
-    /// handling  and event consumption for market data operations. The provided <paramref name="appRoot"/> is used to
-    /// retrieve required models such as <see cref="MarketDataEventModel"/>, <see cref="MarketDataCommandModel"/>,  and
-    /// <see cref="MarketDataQueryModel"/>.</remarks>
-    /// <param name="appRoot">The application root object that provides access to application-wide services and models.</param>
-    public YieldCurveRateEditorViewModel(IAppRoot appRoot)
-        : base(appRoot)
+    public YieldCurveRateEditorViewModel(IAppRoot appRoot) : base(appRoot)
     {
-        _yieldCurveRates = [];
-        _commandId = Guid.Empty;
         _eventModel = AppRoot.GetModel<MarketDataEventModel>();
         _commandModel = AppRoot.GetModel<MarketDataCommandModel>();
-        _commandModel.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
         _queryModel = AppRoot.GetModel<MarketDataQueryModel>();
-        _queryModel.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-        _setCommandId = commandId => _commandId = commandId;
-        _consumeEvents = [
-            new YieldCurveRateAddedCompleteEvent { }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new YieldCurveRateAddedFailEvent{ }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new YieldCurveRateChangedCompleteEvent { }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new YieldCurveRateChangedFailEvent{ }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new YieldCurveRateRemovedCompleteEvent { }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new YieldCurveRateRemovedFailEvent{ }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new YieldCurveRatesImportedCompleteEvent { }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new YieldCurveRatesImportedFailEvent{ }.SetEventSource($"{EventTopic.MarketDataEvents}"),
+        _consumeEvents =
+        [
+            new YieldCurveRateAddedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new YieldCurveRateAddedFailEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new YieldCurveRateChangedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new YieldCurveRateChangedFailEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new YieldCurveRateRemovedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new YieldCurveRateRemovedFailEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new YieldCurveRatesImportedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new YieldCurveRatesImportedFailEvent().SetEventSource($"{EventTopic.MarketDataEvents}")
         ];
+
+        _loadOperation = new AsyncOperation(LoadCoreAsync);
+        _loadRatesOperation = new AsyncOperation(
+            LoadRatesCoreAsync,
+            () => RangeStart != default && RangeEnd >= RangeStart);
+        _addOperation = new AsyncOperation(
+            AddCoreAsync,
+            () => _pendingAdd is not null && _lifecycle.IsRunning && !IsMutationRunning);
+        _changeOperation = new AsyncOperation(
+            ChangeCoreAsync,
+            () => _pendingChange is not null && _lifecycle.IsRunning && !IsMutationRunning);
+        _removeOperation = new AsyncOperation(
+            RemoveCoreAsync,
+            () => _pendingRemove is not null && _lifecycle.IsRunning && !IsMutationRunning);
+        _importOperation = new AsyncOperation(
+            ImportCoreAsync,
+            () => _pendingImportDate is not null && _lifecycle.IsRunning && !IsMutationRunning);
+        _addOperation.PropertyChanged += MutationOperationPropertyChanged;
+        _changeOperation.PropertyChanged += MutationOperationPropertyChanged;
+        _removeOperation.PropertyChanged += MutationOperationPropertyChanged;
+        _importOperation.PropertyChanged += MutationOperationPropertyChanged;
         _lifecycle = new AsyncLifecycleCoordinator(StartListenerCoreAsync, StopListenerCoreAsync);
     }
 
-    public bool CanChangeRemove { get; set; }
+    /// <summary>Gets the available time-period filters.</summary>
+    public IReadOnlyList<string> TimePeriods
+    {
+        get => _timePeriods;
+        private set => SetProperty(ref _timePeriods, value);
+    }
 
-    public bool CanImport
-        => true;
+    /// <summary>Gets the rates in the selected date range.</summary>
+    public IReadOnlyList<YieldCurveRateReadModel> YieldCurveRates
+    {
+        get => _yieldCurveRates;
+        private set
+        {
+            if (SetProperty(ref _yieldCurveRates, value))
+                OnPropertyChanged(nameof(CanChangeRemove));
+        }
+    }
 
-    public Action<bool> OnDataLoaded = (loaded) => { };
-    public Action<bool> OnChangeAction = (changed) => { };
-    public Action<string[]> OnYieldCurveRateTimePeriodsLoaded = (timePeriods) => { };
-    public Action<YieldCurveRateReadModel[]> OnYieldCurveRatesLoaded = (rates) => { };
-    public Action<YieldCurveRateReadModel> OnYieldCurveRateAdded = (rate) => { };
-    public Action<bool> OnAddAction = (canAdd) => { };
-    public Action<DateOnly> OnYieldCurveRateRemoved = (date) => { };
-    public Action<YieldCurveRateReadModel> OnYieldCurveRateChanged = (rate) => { };
-    public Action<int> OnYieldCurveRatesImported = (count) => { };
-    public Action OnShowYieldCurveRates = () => { };
-    public Action OnWaitCursor = () => { };
-    public Action OnDefaultCursor = () => { };
+    /// <summary>Gets the selected time-period label.</summary>
+    public string SelectedTimePeriod
+    {
+        get => _selectedTimePeriod;
+        private set => SetProperty(ref _selectedTimePeriod, value);
+    }
 
-    /// <summary>
-    /// start listening for yield curve rate editor events
-    /// </summary>
-    public Task StartListener()
-        => InitializeAsync(CancellationToken.None);
+    /// <summary>Gets the inclusive start of the selected rate range.</summary>
+    public DateOnly RangeStart
+    {
+        get => _rangeStart;
+        private set => SetProperty(ref _rangeStart, value);
+    }
+
+    /// <summary>Gets the inclusive end of the selected rate range.</summary>
+    public DateOnly RangeEnd
+    {
+        get => _rangeEnd;
+        private set => SetProperty(ref _rangeEnd, value);
+    }
+
+    /// <summary>Gets the correlated command identifier while a mutation awaits its terminal event.</summary>
+    public Guid CommandId
+    {
+        get
+        {
+            lock (_correlationGate)
+                return _commandId;
+        }
+    }
+
+    /// <summary>Gets the latest successful mutation status.</summary>
+    public string LastStatusMessage
+    {
+        get => _lastStatusMessage;
+        private set => SetProperty(ref _lastStatusMessage, value);
+    }
+
+    /// <summary>Gets whether the current rate snapshot supports change and remove actions.</summary>
+    public bool CanChangeRemove => YieldCurveRates.Count > 0;
+
+    /// <summary>Gets whether the editor supports importing external rates.</summary>
+    public bool CanImport => true;
+
+    /// <summary>Gets the operation that starts the listener and loads the initial editor snapshot.</summary>
+    public IAsyncOperation LoadOperation => _loadOperation;
+
+    /// <summary>Gets the operation that reloads the selected date range.</summary>
+    public IAsyncOperation LoadRatesOperation => _loadRatesOperation;
+
+    /// <summary>Gets the correlated operation that adds the prepared rate.</summary>
+    public IAsyncOperation AddOperation => _addOperation;
+
+    /// <summary>Gets the correlated operation that changes the prepared rate.</summary>
+    public IAsyncOperation ChangeOperation => _changeOperation;
+
+    /// <summary>Gets the correlated operation that removes the prepared rate.</summary>
+    public IAsyncOperation RemoveOperation => _removeOperation;
+
+    /// <summary>Gets the correlated operation that imports external rates.</summary>
+    public IAsyncOperation ImportOperation => _importOperation;
+
+    /// <summary>Selects a time period and calculates its inclusive date range.</summary>
+    public void SelectTimePeriod(int index, DateOnly currentDate)
+    {
+        if (index < 0 || index >= TimePeriods.Count)
+            throw new ArgumentOutOfRangeException(nameof(index));
+        SelectedTimePeriod = TimePeriods[index];
+        SetRange(SelectedTimePeriod, currentDate);
+        _loadRatesOperation.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Prepares a rate for the next add operation.</summary>
+    public void PrepareAdd(YieldCurveRateReadModel rate)
+    {
+        _pendingAdd = rate ?? throw new ArgumentNullException(nameof(rate));
+        PrepareMutation();
+        _addOperation.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Prepares a rate for the next change operation.</summary>
+    public void PrepareChange(YieldCurveRateReadModel rate)
+    {
+        _pendingChange = rate ?? throw new ArgumentNullException(nameof(rate));
+        PrepareMutation();
+        _changeOperation.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Prepares a rate for the next remove operation.</summary>
+    public void PrepareRemove(YieldCurveRateReadModel rate)
+    {
+        _pendingRemove = rate ?? throw new ArgumentNullException(nameof(rate));
+        PrepareMutation();
+        _removeOperation.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Prepares an import date for the next external-rate import operation.</summary>
+    public void PrepareImport(DateTime importDate)
+    {
+        _pendingImportDate = importDate;
+        PrepareMutation();
+        _importOperation.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Gets a yield-curve rate by presentation index, or <see langword="null"/> for an invalid index.</summary>
+    public YieldCurveRateReadModel? GetYieldCurveRate(int index)
+        => index >= 0 && index < YieldCurveRates.Count ? YieldCurveRates[index] : null;
+
+    /// <summary>Starts the market-data terminal-event listener once.</summary>
+    public Task StartListener() => InitializeAsync(CancellationToken.None);
+
+    /// <summary>Stops the listener and cancels all owned operations.</summary>
+    public Task StopListener() => StopAsync(CancellationToken.None);
+
+    /// <inheritdoc />
+    public Task InitializeAsync(CancellationToken cancellationToken)
+        => _lifecycle.InitializeAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        CancelOperations();
+        await AwaitOperationsStoppedAsync();
+        await _lifecycle.StopAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync(CancellationToken.None);
+        _addOperation.PropertyChanged -= MutationOperationPropertyChanged;
+        _changeOperation.PropertyChanged -= MutationOperationPropertyChanged;
+        _removeOperation.PropertyChanged -= MutationOperationPropertyChanged;
+        _importOperation.PropertyChanged -= MutationOperationPropertyChanged;
+        await _lifecycle.DisposeAsync();
+    }
 
     Task StartListenerCoreAsync(CancellationToken cancellationToken)
-        => _eventModel?.ExecuteAsync(async e => {
-            cancellationToken.ThrowIfCancellationRequested();
-            await e.StartMarketDataListenerAsync(_consumeEvents, HandleEventAsync);
-        });
-
-    /// <summary>
-    /// stop listening for yield curve rate editor events
-    /// </summary>
-    public Task StopListener()
-        => StopAsync(CancellationToken.None);
+        => _eventModel.ExecuteObservableAsync(
+            model => model.StartMarketDataListenerAsync(_consumeEvents, HandleEventAsync).AsTask(),
+            cancellationToken);
 
     Task StopListenerCoreAsync(CancellationToken cancellationToken)
-        => _eventModel?.ExecuteAsync(async e => {
-            cancellationToken.ThrowIfCancellationRequested();
-            await e.StopMarketDataListenerAsync();
-        });
+        => _eventModel.ExecuteObservableAsync(
+            model => model.StopMarketDataListenerAsync().AsTask(),
+            cancellationToken);
 
-    public Task InitializeAsync(CancellationToken cancellationToken) => _lifecycle.InitializeAsync(cancellationToken);
-    public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
-    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
+    async Task LoadCoreAsync(CancellationToken cancellationToken)
+    {
+        await InitializeAsync(cancellationToken);
+        var timePeriods = await QueryTimePeriodsAsync(cancellationToken);
+        var selectedTimePeriod = timePeriods.FirstOrDefault() ?? string.Empty;
+        var currentDate = DateOnly.FromDateTime(DateTime.Today);
+        var (start, end) = CalculateRange(selectedTimePeriod, currentDate);
+        var rates = start == default
+            ? []
+            : await QueryRatesAsync(start, end, cancellationToken);
 
-    /// <summary>
-    /// exute yield curve rate editor event actions
-    /// </summary>
-    /// <param name="e"></param>
-    /// <returns></returns>
-    ValueTask HandleEventAsync(IEvent e)
-        => (_commandId != e.CommandId)
-            ? ValueTask.CompletedTask
-            : e switch
+        TimePeriods = timePeriods;
+        SelectedTimePeriod = selectedTimePeriod;
+        RangeStart = start;
+        RangeEnd = end;
+        YieldCurveRates = rates;
+        _loadRatesOperation.NotifyCanExecuteChanged();
+        NotifyMutationCanExecuteChanged();
+    }
+
+    async Task LoadRatesCoreAsync(CancellationToken cancellationToken)
+        => YieldCurveRates = await QueryRatesAsync(RangeStart, RangeEnd, cancellationToken);
+
+    async Task<IReadOnlyList<string>> QueryTimePeriodsAsync(CancellationToken cancellationToken)
+    {
+        string[] result = [];
+        await _queryModel.ExecuteObservableAsync(
+            model => model.GetYieldCurveRateTimePeriodsAsync(loaded => result = loaded ?? []),
+            cancellationToken);
+        return result;
+    }
+
+    async Task<IReadOnlyList<YieldCurveRateReadModel>> QueryRatesAsync(
+        DateOnly start,
+        DateOnly end,
+        CancellationToken cancellationToken)
+    {
+        YieldCurveRateReadModel[] result = [];
+        await _queryModel.ExecuteObservableAsync(
+            model => model.GetYieldCurveRatesAsync(start, end, loaded => result = loaded ?? []),
+            cancellationToken);
+        return result;
+    }
+
+    Task AddCoreAsync(CancellationToken cancellationToken)
+    {
+        var rate = _pendingAdd ?? throw new InvalidOperationException("No yield-curve rate is prepared for add.");
+        return ExecuteMutationAsync(
+            model => model.AddYieldCurveRateAsync(rate, false),
+            $"Yield Curve Rate {rate.ValueDate:yyyy-MM-dd} Added",
+            () => _pendingAdd = null,
+            cancellationToken);
+    }
+
+    Task ChangeCoreAsync(CancellationToken cancellationToken)
+    {
+        var rate = _pendingChange ?? throw new InvalidOperationException("No yield-curve rate is prepared for change.");
+        return ExecuteMutationAsync(
+            model => model.ChangeYieldCurveRateAsync(rate, true),
+            $"Yield Curve Rate {rate.ValueDate:yyyy-MM-dd} Changed",
+            () => _pendingChange = null,
+            cancellationToken);
+    }
+
+    Task RemoveCoreAsync(CancellationToken cancellationToken)
+    {
+        var rate = _pendingRemove ?? throw new InvalidOperationException("No yield-curve rate is prepared for removal.");
+        return ExecuteMutationAsync(
+            model => model.RemoveYieldCurveRateAsync(rate.ValueDate, true),
+            $"Yield Curve Rate {rate.ValueDate:yyyy-MM-dd} Removed",
+            () => _pendingRemove = null,
+            cancellationToken);
+    }
+
+    async Task ImportCoreAsync(CancellationToken cancellationToken)
+    {
+        var importDate = _pendingImportDate
+            ?? throw new InvalidOperationException("No yield-curve import date is prepared.");
+        YieldCurveRateReadModel[] externalRates = [];
+        await _queryModel.ExecuteObservableAsync(
+            model => model.GetExternalYieldCurveRatesAsync(loaded => externalRates = loaded ?? []),
+            cancellationToken);
+        await ExecuteMutationAsync(
+            model => model.ImportYieldCurveRatesAsync(importDate, externalRates),
+            $"{externalRates.Length} Yield Curve Rates Imported on {importDate:yyyy-MM-dd}",
+            () => _pendingImportDate = null,
+            cancellationToken);
+    }
+
+    async Task ExecuteMutationAsync(
+        Func<MarketDataCommandModel, Task<Guid>> submit,
+        string statusMessage,
+        Action clearPending,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            Guid commandId = Guid.Empty;
+            await _commandModel.ExecuteObservableAsync(
+                async model => commandId = await submit(model),
+                cancellationToken);
+            if (commandId == Guid.Empty)
+                throw new InvalidOperationException("The market-data command returned an empty correlation identifier.");
+
+            var terminalEvent = await AwaitTerminalEventAsync(commandId, cancellationToken);
+            if (terminalEvent is IErrorEvent error)
+                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+
+            await RefreshSnapshotAsync(cancellationToken);
+            LastStatusMessage = statusMessage;
+            clearPending();
+        }
+        finally
+        {
+            ClearCorrelation();
+        }
+    }
+
+    async Task RefreshSnapshotAsync(CancellationToken cancellationToken)
+    {
+        var timePeriods = await QueryTimePeriodsAsync(cancellationToken);
+        var selected = timePeriods.Contains(SelectedTimePeriod, StringComparer.Ordinal)
+            ? SelectedTimePeriod
+            : timePeriods.FirstOrDefault() ?? string.Empty;
+        var (start, end) = CalculateRange(selected, DateOnly.FromDateTime(DateTime.Today));
+        var rates = start == default
+            ? []
+            : await QueryRatesAsync(start, end, cancellationToken);
+        TimePeriods = timePeriods;
+        SelectedTimePeriod = selected;
+        RangeStart = start;
+        RangeEnd = end;
+        YieldCurveRates = rates;
+        _loadRatesOperation.NotifyCanExecuteChanged();
+    }
+
+    async Task<IEvent> AwaitTerminalEventAsync(Guid commandId, CancellationToken cancellationToken)
+    {
+        IEvent? earlyEvent;
+        TaskCompletionSource<IEvent> completion;
+        lock (_correlationGate)
+        {
+            _commandId = commandId;
+            completion = new TaskCompletionSource<IEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _terminalCompletion = completion;
+            _earlyTerminalEvents.Remove(commandId, out earlyEvent);
+            _earlyTerminalEvents.Clear();
+        }
+        OnPropertyChanged(nameof(CommandId));
+        if (earlyEvent is not null)
+            completion.TrySetResult(earlyEvent);
+        return await completion.Task.WaitAsync(cancellationToken);
+    }
+
+    ValueTask HandleEventAsync(IEvent @event)
+    {
+        TaskCompletionSource<IEvent>? completion;
+        lock (_correlationGate)
+        {
+            if (_commandId == Guid.Empty)
             {
-                YieldCurveRateAddedCompleteEvent o => AddYieldCurveRateCompleted(o),
-                YieldCurveRateAddedFailEvent o => AddYieldCurveRateFailed(o),
-                YieldCurveRateChangedCompleteEvent o => ChangeYieldCurveRateCompleted(o),
-                YieldCurveRateChangedFailEvent o => ChangeYieldCurveRateFailed(o),
-                YieldCurveRateRemovedCompleteEvent o => RemoveYieldCurveRateCompleted(o),
-                YieldCurveRateRemovedFailEvent o => RemoveYieldCurveRateFailed(o),
-                YieldCurveRatesImportedCompleteEvent o => ImportYieldCurveRatesCompleted(o),
-                YieldCurveRatesImportedFailEvent o => ImportYieldCurveRatesFailed(o),
-                _ => ValueTask.CompletedTask
-            };
-
-    /// <summary>
-    /// add yield curve rate
-    /// </summary>
-    /// <param name="yieldCurveRate"></param>
-    /// <param name="overwrite">Indicates whether to overwrite an existing yield curve rate with the same value date.</param>
-    public Task AddYieldCurveRate(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
-        => _commandModel?.ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-            IsArgumentNull.Check(yieldCurveRate);
-            OnWaitCursor?.Invoke(); // Show wait cursor before executing the command
-            WriteStatusConsole(LogSourceType.MarketData, $"Adding Yield Curve Rate: {yieldCurveRate.ValueDate:yyyy-MM-dd}...please wait");
-            await model.AddYieldCurveRateAsync(yieldCurveRate, overwrite);
-            OnYieldCurveRateAdded?.Invoke(yieldCurveRate);
-            OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-        });
-
-    /// <summary>
-    /// Handles the completion of adding a yield curve rate.
-    /// </summary>
-    /// <remarks>This method refreshes the updated yield curve rates and resets the command identifier after a
-    /// yield curve rate has been successfully added.</remarks>
-    /// <param name="e">An event containing details about the added yield curve rate, including its value date.</param>
-    /// <returns>A completed <see cref="Task"/> representing the asynchronous operation.</returns>
-    ValueTask AddYieldCurveRateCompleted(YieldCurveRateAddedCompleteEvent e)
-    {
-        RefreshUpdatedYieldCurveRates($"Yield Curve Rate: {e.YieldCurveRate.ValueDate:yyyy-MM-dd} Added");
-        _commandId = Guid.Empty;
-        OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
+                if (IsMutationRunning && _earlyTerminalEvents.Count < 32)
+                    _earlyTerminalEvents[@event.CommandId] = @event;
+                return ValueTask.CompletedTask;
+            }
+            if (_commandId != @event.CommandId)
+                return ValueTask.CompletedTask;
+            completion = _terminalCompletion;
+        }
+        completion?.TrySetResult(@event);
         return ValueTask.CompletedTask;
     }
 
-    /// <summary>
-    /// Handles the failure event for adding a yield curve rate.
-    /// </summary>
-    /// <remarks>This method logs the failure details and resets the internal command identifier.</remarks>
-    /// <param name="e">The event containing details about the failure, including the error code and message.</param>
-    /// <returns>A completed <see cref="Task"/> representing the asynchronous operation.</returns>
-    ValueTask AddYieldCurveRateFailed(YieldCurveRateAddedFailEvent e)
+    void SetRange(string timePeriod, DateOnly currentDate)
     {
-        WriteStatusConsole(LogSourceType.MarketData, e.ErrorCode, $"Yield Curve Rate Add failed due to: {e.ErrorMessage}");
-        _commandId = Guid.Empty;
-        OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-        return ValueTask.CompletedTask;
+        var (start, end) = CalculateRange(timePeriod, currentDate);
+        RangeStart = start;
+        RangeEnd = end;
     }
 
-    /// <summary>
-    /// Updates the yield curve rate with the specified data and optionally overwrites existing values.
-    /// </summary>
-    /// <remarks>This method executes the update operation asynchronously and may trigger a wait cursor during
-    /// execution.</remarks>
-    /// <param name="yieldCurveRate">The yield curve rate data to be updated. Cannot be <see langword="null"/>.</param>
-    /// <param name="overwrite">A value indicating whether to overwrite existing yield curve rate data.  <see langword="true"/> to overwrite;
-    /// otherwise, <see langword="false"/>.</param>
-    public Task ChangeYieldCurveRate(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
-        => _commandModel?.ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-            IsArgumentNull.Check(yieldCurveRate);
-            OnWaitCursor?.Invoke(); // Show wait cursor before executing the command
-            WriteStatusConsole(LogSourceType.MarketData, $"Changing Yield Curve Rate: {yieldCurveRate.ValueDate:yyyy-MM-dd}...please wait");
-            await model.ChangeYieldCurveRateAsync(yieldCurveRate, overwrite);
-            OnYieldCurveRateChanged?.Invoke(yieldCurveRate);
-            OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-        });
-
-    /// <summary>
-    /// Handles the completion of a yield curve rate change operation.
-    /// </summary>
-    /// <remarks>This method refreshes the updated yield curve rates and resets the command state.  It also
-    /// invokes the <see cref="OnDefaultCursor"/> action to reset the cursor to its default state.</remarks>
-    /// <param name="e">An event containing details about the completed yield curve rate change, including the updated rate and its
-    /// value date.</param>
-    /// <returns>A completed <see cref="Task"/> representing the asynchronous operation.</returns>
-    ValueTask ChangeYieldCurveRateCompleted(YieldCurveRateChangedCompleteEvent e)
+    static (DateOnly Start, DateOnly End) CalculateRange(string timePeriod, DateOnly currentDate)
     {
-        RefreshUpdatedYieldCurveRates($"Yield Curve Rate: {e.YieldCurveRate.ValueDate:yyyy-MM-dd} Changed");
-        _commandId = Guid.Empty;
-        OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-        WriteStatusConsole(LogSourceType.MarketData, $"Changed Yield Curve Rate: {e.YieldCurveRate.ValueDate:yyyy-MM-dd}");
-        return ValueTask.CompletedTask;
+        if (string.IsNullOrWhiteSpace(timePeriod))
+            return default;
+        if (timePeriod == "Current Month")
+        {
+            var start = new DateOnly(currentDate.Year, currentDate.Month, 1);
+            return (start, start.AddMonths(1).AddDays(-1));
+        }
+        if (!int.TryParse(timePeriod, out var year) || year < 1 || year > 9999)
+            throw new InvalidOperationException($"Invalid yield-curve time period '{timePeriod}'.");
+        var yearStart = new DateOnly(year, 1, 1);
+        return (yearStart, yearStart.AddYears(1).AddDays(-1));
     }
 
-    /// <summary>
-    /// Handles the failure of a yield curve rate change operation.
-    /// </summary>
-    /// <remarks>This method logs the failure details, resets the internal command identifier, and invokes the
-    /// default cursor reset action.</remarks>
-    /// <param name="e">The event containing details about the failure, including the error code and message.</param>
-    /// <returns>A completed <see cref="Task"/> representing the asynchronous operation.</returns>
-    ValueTask ChangeYieldCurveRateFailed(YieldCurveRateChangedFailEvent e)
+    bool IsMutationRunning =>
+        _addOperation.IsRunning || _changeOperation.IsRunning ||
+        _removeOperation.IsRunning || _importOperation.IsRunning;
+
+    void PrepareMutation()
     {
-        WriteStatusConsole(LogSourceType.MarketData, e.ErrorCode, $"Yield Curve Rate Change failed due to: {e.ErrorMessage}");
-        _commandId = Guid.Empty;
-        OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-        return ValueTask.CompletedTask;
+        lock (_correlationGate)
+            _earlyTerminalEvents.Clear();
+        LastStatusMessage = string.Empty;
     }
 
-    /// <summary>
-    /// remove yield curve rate
-    /// </summary>
-    /// <param name="valueDate"></param>
-    /// <param name="overwrite">Indicates whether to overwrite an existing yield curve rate with the same value date.</param>
-    public Task RemoveYieldCurveRate(DateOnly valueDate, bool overwrite)
-        => _commandModel?.ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-            IsArgumentNull.Check(valueDate);
-            OnWaitCursor?.Invoke(); // Show wait cursor before executing the command
-            WriteStatusConsole(LogSourceType.MarketData, $"Removing Yield Curve Rate: {valueDate:yyyy-MM-dd}...please wait");
-            await model.RemoveYieldCurveRateAsync(valueDate, overwrite);
-            OnYieldCurveRateRemoved?.Invoke(valueDate);
-            OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-        });
-
-    /// <summary>
-    /// Handles the completion of a yield curve rate removal operation.
-    /// </summary>
-    /// <remarks>This method refreshes the updated yield curve rates and resets the command state. It also
-    /// invokes the <see cref="OnDefaultCursor"/> action to reset the cursor to its default state.</remarks>
-    /// <param name="e">An event containing details about the removed yield curve rate, including the value date.</param>
-    /// <returns>A completed <see cref="Task"/> representing the asynchronous operation.</returns>
-    ValueTask RemoveYieldCurveRateCompleted(YieldCurveRateRemovedCompleteEvent e)
+    void ClearCorrelation()
     {
-        RefreshUpdatedYieldCurveRates($"Yield Curve Rate: {e.ValueDate:yyyy-MM-dd} Removed");
-        _commandId = Guid.Empty;
-        OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-        return ValueTask.CompletedTask;
+        lock (_correlationGate)
+        {
+            _commandId = Guid.Empty;
+            _terminalCompletion = null;
+            _earlyTerminalEvents.Clear();
+        }
+        OnPropertyChanged(nameof(CommandId));
     }
 
-    /// <summary>
-    /// Handles the failure event for removing a yield curve rate.
-    /// </summary>
-    /// <remarks>This method logs the failure details, resets the internal command identifier, and invokes the
-    /// default cursor reset action.</remarks>
-    /// <param name="e">The event containing details about the failure, including the error code and message.</param>
-    /// <returns>A completed <see cref="Task"/> representing the asynchronous operation.</returns>
-    ValueTask RemoveYieldCurveRateFailed(YieldCurveRateRemovedFailEvent e)
+    void MutationOperationPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        WriteStatusConsole(LogSourceType.MarketData, e.ErrorCode, $"Yield Curve Rate Remove failed due to: {e.ErrorMessage}");
-        _commandId = Guid.Empty;
-        OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-        return ValueTask.CompletedTask;
+        if (args.PropertyName == nameof(IAsyncOperation.IsRunning))
+            NotifyMutationCanExecuteChanged();
     }
 
-    /// <summary>
-    /// import yiele curve rates
-    /// </summary>
-    /// <param name="importDate"></param>
-    public Task ImportYieldCurveRates(DateTime importDate)
-        => _commandModel?.ExecuteAsync(async model => {
-            IsArgumentNull.Check(importDate);
-            OnWaitCursor?.Invoke();
-            YieldCurveRateReadModel[] yieldCurveRates = [];
-            await (_queryModel?.GetExternalYieldCurveRatesAsync(e => yieldCurveRates = e))!;
-            await model.ImportYieldCurveRatesAsync(importDate, yieldCurveRates);
-        });
-
-    /// <summary>
-    /// Handles the completion of the yield curve rates import process.
-    /// </summary>
-    /// <remarks>This method is typically invoked when the yield curve rates import process has finished.  It
-    /// updates the relevant state and logs the import details.</remarks>
-    /// <param name="e">An event containing details about the completed import, including the imported yield curve rates and the import
-    /// date.</param>
-    /// <returns>A completed <see cref="Task"/> representing the asynchronous operation.</returns>
-    ValueTask ImportYieldCurveRatesCompleted(YieldCurveRatesImportedCompleteEvent e)
+    void NotifyMutationCanExecuteChanged()
     {
-        RefreshUpdatedYieldCurveRates($"{e.YieldCurveRates.Length} Yield Curve Rates Imported on: {e.ImportDate:yyyy-MM-dd}");
-        _commandId = Guid.Empty;
-        OnDefaultCursor?.Invoke();
-        return ValueTask.CompletedTask;
+        _addOperation.NotifyCanExecuteChanged();
+        _changeOperation.NotifyCanExecuteChanged();
+        _removeOperation.NotifyCanExecuteChanged();
+        _importOperation.NotifyCanExecuteChanged();
     }
 
-    /// <summary>
-    /// Handles the event triggered when the import of yield curve rates fails.
-    /// </summary>
-    /// <remarks>This method logs the failure details, resets the command identifier, and invokes the default
-    /// cursor reset action.</remarks>
-    /// <param name="e">The event data containing details about the failure, including the error code and error message.</param>
-    /// <returns>A completed <see cref="Task"/> representing the asynchronous operation.</returns>
-    ValueTask ImportYieldCurveRatesFailed(YieldCurveRatesImportedFailEvent e)
+    void CancelOperations()
     {
-        WriteStatusConsole(LogSourceType.MarketData, e.ErrorCode, $"Yield Curve Rates Import failed due to: {e.ErrorMessage}");
-        _commandId = Guid.Empty;
-        OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-        return ValueTask.CompletedTask;
+        _loadOperation.Cancel();
+        _loadRatesOperation.Cancel();
+        _addOperation.Cancel();
+        _changeOperation.Cancel();
+        _removeOperation.Cancel();
+        _importOperation.Cancel();
     }
 
-    /// <summary>
-    /// Loads the yield curve rate time periods and triggers the corresponding event upon completion.
-    /// </summary>
-    /// <remarks>This method asynchronously retrieves yield curve rate time periods and invokes the  <see
-    /// cref="OnYieldCurveRateTimePeriodsLoaded"/> event with the retrieved data.  Ensure that the event is subscribed
-    /// to before calling this method to handle the loaded data.</remarks>
-    public Task LoadYieldCurveRateTimePeriods()
-         => _queryModel?.ExecuteAsync(async model => {
-                OnWaitCursor?.Invoke(); // Show wait cursor before executing the command
-                await model.GetYieldCurveRateTimePeriodsAsync(timePeriods => OnYieldCurveRateTimePeriodsLoaded?.Invoke(timePeriods));
-                OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-         });
-
-    /// <summary>
-    /// Loads yield curve rates for the specified date range and triggers an event upon completion.
-    /// </summary>
-    /// <remarks>This method retrieves yield curve rates asynchronously for the specified date range and
-    /// invokes the  <see cref="OnYieldCurveRatesLoaded"/> event with the retrieved data. Ensure that the <see
-    /// cref="_queryModel"/>  is properly initialized before calling this method.</remarks>
-    /// <param name="startDate">The start date of the range for which to load yield curve rates.</param>
-    /// <param name="endDate">The end date of the range for which to load yield curve rates.</param>
-    public Task LoadYieldCurveRates(DateOnly startDate, DateOnly endDate)
-        => _queryModel?.ExecuteAsync(async model => {
-            OnWaitCursor?.Invoke();
-            await model.GetYieldCurveRatesAsync(startDate, endDate, yieldCurveRates => OnYieldCurveRatesLoaded?.Invoke(yieldCurveRates));
-            OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
-        });
-
-    /// <summary>
-    /// Retrieves the yield curve rate at the specified index.
-    /// </summary>
-    /// <param name="index">The zero-based index of the yield curve rate to retrieve. Must be within the range of available rates.</param>
-    /// <returns>A <see cref="YieldCurveRateReadModel"/> representing the yield curve rate at the specified index,  or <see
-    /// langword="null"/> if the index is out of range.</returns>
-    public YieldCurveRateReadModel? GetYieldCurveRate(int index)
-        =>  (index < 0 || index >= _yieldCurveRates.Count)
-            ? default
-            : _yieldCurveRates[index];
-
-    /// <summary>
-    /// Sets the yield curve rates for the current instance.
-    /// </summary>
-    /// <param name="yieldCurveRates">An array of <see cref="YieldCurveRateReadModel"/> objects representing the yield curve rates to be set.  Cannot
-    /// be <see langword="null"/>.</param>
-    public void SetYieldCurveRates(YieldCurveRateReadModel[] yieldCurveRates)
+    async Task AwaitOperationsStoppedAsync()
     {
-        if (yieldCurveRates is not null)
-            _yieldCurveRates = [.. yieldCurveRates];
+        await AwaitOperationStoppedAsync(_loadOperation);
+        await AwaitOperationStoppedAsync(_loadRatesOperation);
+        await AwaitOperationStoppedAsync(_addOperation);
+        await AwaitOperationStoppedAsync(_changeOperation);
+        await AwaitOperationStoppedAsync(_removeOperation);
+        await AwaitOperationStoppedAsync(_importOperation);
     }
 
-    /// <summary>
-    /// Refreshes and updates the yield curve rates by invoking the necessary actions and updating the console status.
-    /// </summary>
-    /// <remarks>This method triggers the <see cref="OnShowYieldCurveRates"/> event, loads the yield curve
-    /// rate time periods,  and writes the specified status message to the console. Ensure that the <paramref
-    /// name="consoleStatus"/> parameter  is not null or empty to provide meaningful feedback in the console.</remarks>
-    /// <param name="consoleStatus">The status message to be written to the console, providing context for the operation.</param>
-    void RefreshUpdatedYieldCurveRates(string consoleStatus)
+    static async Task AwaitOperationStoppedAsync(AsyncOperation operation)
     {
-        OnShowYieldCurveRates?.Invoke();
-        LoadYieldCurveRateTimePeriods();
-        WriteStatusConsole(LogSourceType.MarketData, consoleStatus);
+        try
+        {
+            await operation.DisposeAsync();
+        }
+        catch (Exception) when (operation.LastFailure is not null)
+        {
+            // The operation's caller observes LastFailure; shutdown only awaits ownership cleanup.
+        }
     }
-
 }

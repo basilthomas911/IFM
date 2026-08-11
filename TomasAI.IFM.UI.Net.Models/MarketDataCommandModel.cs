@@ -106,35 +106,35 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
     /// </summary>
     /// <param name="yieldCurveRate"></param>
     /// <param name="overwrite">Indicates whether to overwrite an existing yield curve rate with the same value date.</param>
-    /// <param name="setCommandId"></param>
-    public async Task AddYieldCurveRateAsync(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
-        => await ExecuteCommandAsync(() => _commandApi.AddYieldCurveRateAsync(yieldCurveRate, overwrite));
+    /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
+    public Task<Guid> AddYieldCurveRateAsync(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
+        => ExecuteCommandAsync(() => _commandApi.AddYieldCurveRateAsync(yieldCurveRate, overwrite));
 
     /// <summary>
     /// change yield curve rate
     /// </summary>
     /// <param name="yieldCurveRate"></param>
     /// <param name="overwrite">Indicates whether to overwrite an existing yield curve rate with the same value date.</param>
-    /// <param name="setCommandId"></param>
-    public async Task ChangeYieldCurveRateAsync(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
-        => await ExecuteCommandAsync(() => _commandApi.ChangeYieldCurveRateAsync(yieldCurveRate, overwrite));
+    /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
+    public Task<Guid> ChangeYieldCurveRateAsync(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
+        => ExecuteCommandAsync(() => _commandApi.ChangeYieldCurveRateAsync(yieldCurveRate, overwrite));
 
     /// <summary>
     /// remove yield curve rate
     /// </summary>
     /// <param name="valueDate"></param>
     /// <param name="overwrite">Indicates whether to overwrite an existing yield curve rate with the same value date.</param>
-    /// <param name="setCommandId"></param>
-    public async Task RemoveYieldCurveRateAsync(DateOnly valueDate, bool overwrite)
-        => await ExecuteCommandAsync(() => _commandApi.RemoveYieldCurveRateAsync(valueDate, overwrite));
+    /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
+    public Task<Guid> RemoveYieldCurveRateAsync(DateOnly valueDate, bool overwrite)
+        => ExecuteCommandAsync(() => _commandApi.RemoveYieldCurveRateAsync(valueDate, overwrite));
 
     /// <summary>
     /// import yield curve rates
     /// </summary>
     /// <param name="importDate"></param>
     /// <param name="yieldCurveRates"></param>
-    /// <param name="setCommandId"></param>
-    public async Task ImportYieldCurveRatesAsync(DateTime importDate, YieldCurveRateReadModel[] yieldCurveRates)
-        => await ExecuteCommandAsync(() => _commandApi.ImportYieldCurveRatesAsync(importDate, yieldCurveRates));
+    /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
+    public Task<Guid> ImportYieldCurveRatesAsync(DateTime importDate, YieldCurveRateReadModel[] yieldCurveRates)
+        => ExecuteCommandAsync(() => _commandApi.ImportYieldCurveRatesAsync(importDate, yieldCurveRates));
 
 }

@@ -1,301 +1,223 @@
-using TomasAI.IFM.Shared.StatusConsole;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
 /// <summary>
-/// Represents a user control for managing and editing yield curve rates.
+/// Adapts the observable yield-curve editor state and operations to WinForms controls and dialogs.
 /// </summary>
-/// <remarks>This control provides functionality to load, add, change, remove, and import yield curve rates. It
-/// interacts with a <see cref="YieldCurveRateEditorViewModel"/> to handle data operations and updates the UI
-/// accordingly. The control also supports commands defined by the <see cref="IControlCommand"/> and <see
-/// cref="IFormControl"/> interfaces.</remarks>
-public partial class YieldCurveRateEditorControl 
+public partial class YieldCurveRateEditorControl
     : UserControl, IControlCommand, IAsyncFormControl
 {
-    YieldCurveRateEditorViewModel? _viewModel;
+    readonly YieldCurveRateEditorViewModel _viewModel;
+    readonly MarketDataViewModel _marketDataViewModel;
+    Action<bool>? _dataLoaded;
+    Action<bool>? _addAction;
+    Action<bool>? _changeAction;
+    bool _isBinding;
 
     /// <summary>
-    /// Gets a value indicating whether the "Remove" operation can be changed.
+    /// Creates a WinForms adapter for the supplied editor and Market Data shell ViewModels.
     /// </summary>
-    public bool CanChangeRemove 
-        => _viewModel?.CanChangeRemove ?? false;
-
-    /// <summary>
-    /// Gets a value indicating whether the current context supports importing operations.
-    /// </summary>
-    public bool CanImport 
-        => true;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="YieldCurveRateEditorControl"/> class with the specified view model.
-    /// </summary>
-    /// <param name="viewModel">The view model that provides data and behavior for the yield curve rate editor control. Cannot be null.</param>
-    public YieldCurveRateEditorControl(YieldCurveRateEditorViewModel viewModel)
+    public YieldCurveRateEditorControl(
+        YieldCurveRateEditorViewModel viewModel,
+        MarketDataViewModel marketDataViewModel)
     {
         InitializeComponent();
-        _viewModel = viewModel;
+        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        _marketDataViewModel = marketDataViewModel ?? throw new ArgumentNullException(nameof(marketDataViewModel));
     }
 
-    /// <summary>
-    /// Loads the necessary data and initializes event handlers for managing yield curve rates.
-    /// </summary>
-    /// <remarks>This method sets up event handlers for various operations related to yield curve rates, such
-    /// as loading, adding, changing, removing, and importing rates. It also handles UI updates, error notifications,
-    /// and cursor state changes during these operations. The provided <paramref name="dataLoaded"/> callback is
-    /// triggered once the yield curve rates are loaded, with a value of <see langword="true"/> if data is available, or
-    /// <see langword="false"/> otherwise.</remarks>
-    /// <param name="appRoot">The application root object used for accessing shared application resources.</param>
-    /// <param name="dataLoaded">A callback action invoked with a boolean value indicating whether the data was successfully loaded.</param>
+    /// <summary>Gets whether the current snapshot supports change and remove actions.</summary>
+    public bool CanChangeRemove => _viewModel.CanChangeRemove;
+
+    /// <summary>Gets whether the editor supports imports.</summary>
+    public bool CanImport => _viewModel.CanImport;
+
     void IControlCommand.Load(IAppRoot appRoot, Action<bool> dataLoaded)
     {
-        _viewModel?.StartListener();
-        bool showError = false; 
-        _viewModel?.OnDataLoaded = dataLoaded;
-        
-        _viewModel?.OnError = (_, errorMsg) => this.Post(() =>
-        {
-            if (!showError)
-            {
-                showError = true;
-                MessageBox.Show(
-                    text: errorMsg,
-                    caption: "Yield Curve Rates Editor Error",
-                    buttons: MessageBoxButtons.OK,
-                    icon: MessageBoxIcon.Error);
-                showError = false;
-            }
-        });
-
-        _viewModel?.OnYieldCurveRateTimePeriodsLoaded = timePeriods =>
-            this.Post(() => {
-                   if (timePeriods is not null && timePeriods.Length > 0)
-                   {
-                       ddlTimePeriod.DataSource = timePeriods;
-                       ddlTimePeriod.SelectedIndex = 0;
-                   }
-               });
-
-        _viewModel?.OnYieldCurveRateAdded = (ycr) => this.Post(() => {
-            ShowYieldCurveRates();
-            _viewModel.OnAddAction?.Invoke(true);
-            _viewModel.WriteStatusConsole(LogSourceType.MarketData, $"Yield Curve Rate for: {ycr.ValueDate:dd-MM-yyyy} added");
-        });
-
-        _viewModel?.OnYieldCurveRateChanged = (ycr) => this.Post(() =>
-        {
-            ShowYieldCurveRates();
-            _viewModel.OnChangeAction?.Invoke(true);
-            _viewModel.WriteStatusConsole(LogSourceType.MarketData, $"Yield Curve Rate for: {ycr.ValueDate:dd-MM-yyyy} changed");
-        });
-
-        _viewModel?.OnYieldCurveRateRemoved = (valueDate) => this.Post(() =>
-        {
-            ShowYieldCurveRates();
-            _viewModel.WriteStatusConsole(LogSourceType.MarketData, $"Yield Curve Rate for: {valueDate:dd-MM-yyyy} was Removed");
-        });
-
-        _viewModel?.OnYieldCurveRatesImported = (numImported) => this.Post(() => {
-            ShowYieldCurveRates();
-            _viewModel.WriteStatusConsole(LogSourceType.MarketData, $"{numImported} Yield Curve Rates Imported");
-        });
-
-        _viewModel?.OnYieldCurveRatesLoaded = (yieldCurveRates) => this.Post(() => {
-            _viewModel.CanChangeRemove = false;
-            if (yieldCurveRates?.Length > 0)
-            {
-                _viewModel.CanChangeRemove = true;
-                yieldCurveRatesBindingSource.DataSource = yieldCurveRates;
-                gridYieldCurveRates.DataSource = yieldCurveRatesBindingSource;
-                yieldCurveRatesBindingSource.ResetBindings(false);
-                gridYieldCurveRates.Update();
-            }
-            _viewModel.OnDataLoaded?.Invoke(yieldCurveRates?.Length > 0);
-            if (yieldCurveRates?.Length > 0)
-                _viewModel.SetYieldCurveRates(yieldCurveRates);
-        });
-
-        _viewModel?.OnShowYieldCurveRates = () => this.Post(() => {
-            ShowYieldCurveRates();
-        });
-
-        _viewModel?.OnWaitCursor = () => this.Post(() =>
-        {
-            Cursor = Cursors.WaitCursor;
-        });
-
-        _viewModel?.OnDefaultCursor = () => this.Post(() =>
-        {
-            Cursor = Cursors.Default;
-        });
-
-        _viewModel?.LoadYieldCurveRateTimePeriods();
+        _dataLoaded = dataLoaded;
+        _ = LoadEditorAsync();
     }
 
-    /// <summary>
-    /// Releases resources or performs cleanup operations associated with the control.
-    /// </summary>
-    /// <remarks>This method is typically called to unload the control and free any resources it holds. 
-    /// Ensure that any dependent operations or references are completed before invoking this method.</remarks>
     void IControlCommand.Unload()
-    {
-        _ = ((IAsyncFormControl)this).CloseAsync();
-    }
-
-    /// <summary>
-    /// Displays a dialog for adding a new yield curve rate and processes the result based on user input.
-    /// </summary>
-    /// <remarks>This method opens a dialog to allow the user to input a new yield curve rate.  If the user
-    /// confirms the operation, the yield curve rate is added to the view model.  If the user cancels, the provided
-    /// <paramref name="addAction"/> is invoked with <see langword="true"/>.</remarks>
-    /// <param name="addAction">A callback action that is invoked after the dialog is closed.  If the user cancels the dialog, the action is
-    /// invoked with <see langword="true"/>.</param>
-    public void Add(Action<bool> addAction)
-    {
-        var dlg = new YieldCurveRateEditForm(_viewModel!.AppRoot);
-        switch (dlg.ShowDialog())
-        {
-            case DialogResult.OK:
-                _viewModel.OnAddAction = addAction;
-                _viewModel.AddYieldCurveRate(dlg.YieldCurveRate, false);
-                break;
-            case DialogResult.Cancel:
-                addAction(true);
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Initiates a change operation for a selected yield curve rate and executes the specified action based on the
-    /// result.
-    /// </summary>
-    /// <remarks>This method retrieves the currently selected yield curve rate from the grid and opens a
-    /// dialog for editing it.  If the dialog result is <see cref="DialogResult.OK"/>, the yield curve rate is updated,
-    /// and the provided action is not invoked.  If the dialog result is <see cref="DialogResult.Cancel"/>, the provided
-    /// action is invoked with a <see langword="true"/> value.</remarks>
-    /// <param name="changeAction">An <see cref="Action{T}"/> delegate that is invoked with a <see langword="true"/> value if the operation is
-    /// canceled,  or remains uninvoked if the operation completes successfully.</param>
-    public void Change(Action<bool> changeAction)
-    {
-        var yieldCurveRate = _viewModel!.GetYieldCurveRate(gridYieldCurveRates.SelectedRows[0].Index);
-        if (yieldCurveRate is null)
-        {
-            _viewModel!.WriteStatusConsole(LogSourceType.MarketData, "No Yield Curve Rate selected for change");
-            return;
-        }
-        var dlg = new YieldCurveRateEditForm(_viewModel!.AppRoot);
-        dlg.SetYieldCurveRate(yieldCurveRate);
-        switch (dlg.ShowDialog())
-        {
-            case DialogResult.OK:
-                _viewModel.OnChangeAction = changeAction;
-                _viewModel.ChangeYieldCurveRate(dlg.YieldCurveRate, true);
-                break;
-            case DialogResult.Cancel:
-                changeAction(true);
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Closes the current resource and invokes the specified callback with the result of the operation.
-    /// </summary>
-    /// <param name="changeAction">A callback action that is invoked with a <see langword="true"/> value to indicate the success of the close
-    /// operation.</param>
-    /// <returns><see langword="true"/> if the resource was successfully closed; otherwise, <see langword="false"/>.</returns>
-    public bool Close(Action<bool> changeAction) 
-        => true;
-
-    /// <summary>
-    /// Removes the selected yield curve rate after user confirmation.
-    /// </summary>
-    /// <remarks>Displays a confirmation dialog to the user before removing the yield curve rate associated
-    /// with the selected row. If the user confirms, the yield curve rate is removed from the underlying data
-    /// source.</remarks>
-    public void Remove()
-    {
-        var yieldCurveRate = _viewModel!.GetYieldCurveRate(gridYieldCurveRates.SelectedRows[0].Index);
-        if (yieldCurveRate is null)
-        {
-            _viewModel!.WriteStatusConsole(LogSourceType.MarketData, "No Yield Curve Rate selected for removal");
-            return;
-        }
-        if (MessageBox.Show($"Are you sure you want to remove the Yield Curve Rates for: {yieldCurveRate.ValueDate:yyyy-MMM-dd} ?"
-                , "Remove Yield Curve Rate", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-        {
-            _viewModel.RemoveYieldCurveRate(yieldCurveRate.ValueDate, true);
-        }
-    }
-
-    /// <summary>
-    /// Initiates the import process for yield curve rates.
-    /// </summary>
-    /// <remarks>This method logs the import operation to the status console and triggers the import of yield
-    /// curve rates for the current date. Ensure that the associated view model is properly initialized before calling
-    /// this method.</remarks>
-    public void Import() 
-    {
-        _viewModel!.WriteStatusConsole(LogSourceType.MarketData, "Importing Yield Curve Rates...");
-        _viewModel.ImportYieldCurveRates(DateTime.Now.Date);
-    }
-
-    /// <summary>
-    /// Displays yield curve rates for a specified time period.
-    /// </summary>
-    /// <remarks>The method determines the date range based on the selected time period and loads the
-    /// corresponding yield curve rates  using the provided date range. Supported time periods include "Current Month"
-    /// and specific years.</remarks>
-    void ShowYieldCurveRates()
-    {
-        (DateOnly startDate, DateOnly endDate) dateRange;
-        var timePeriod = $"{ddlTimePeriod.SelectedItem}";
-        switch (timePeriod)
-        {
-            case "Current Month":
-                var currentDate = DateTime.Now;
-                dateRange.startDate = new DateOnly(currentDate.Year, currentDate.Month, 1);
-                dateRange.endDate = dateRange.startDate.AddMonths(1).AddDays(-1);
-                break;
-            default:
-                dateRange.startDate = new DateOnly(Convert.ToInt32(timePeriod), 1, 1);
-                dateRange.endDate = dateRange.startDate.AddYears(1).AddDays(-1);
-                break;
-        }
-        _viewModel!.LoadYieldCurveRates(dateRange.startDate, dateRange.endDate);
-    }
-
-    /// <summary>
-    /// Opens the resource or connection associated with this instance.
-    /// </summary>
-    /// <remarks>This method is intended to initialize and make the resource or connection ready for use. 
-    /// Ensure that any required preconditions, such as configuration or dependencies, are met before calling this
-    /// method.</remarks>
-    /// <exception cref="NotImplementedException">This method is not yet implemented.</exception>
-    public void Open()
-        => throw new NotImplementedException();
-
-    /// <summary>
-    /// Closes the current resource and releases any associated resources.
-    /// </summary>
-    /// <remarks>Once the resource is closed, it cannot be reopened. Ensure that all necessary operations  are
-    /// completed before calling this method.</remarks>
-    /// <exception cref="NotImplementedException">This method is not yet implemented.</exception>
-    public void Close()
         => _ = ((IAsyncFormControl)this).CloseAsync();
 
-    async ValueTask IAsyncFormControl.CloseAsync()
+    /// <summary>Shows the rate dialog and submits a guarded add operation when accepted.</summary>
+    public void Add(Action<bool> addAction)
     {
-        if (_viewModel is not null)
-            await _viewModel.StopListener();
+        if (_viewModel.AddOperation.IsRunning)
+            return;
+        _addAction = addAction;
+        using var dialog = new YieldCurveRateEditForm(new YieldCurveRateEditViewModel(_viewModel.AppRoot));
+        if (dialog.ShowDialog() == DialogResult.OK)
+        {
+            _viewModel.PrepareAdd(dialog.YieldCurveRate);
+            _ = AddPreparedRateAsync();
+        }
+        else
+            addAction(true);
     }
 
-    void ddlTimePeriod_SelectedIndexChanged(object sender, EventArgs e) 
-        => ShowYieldCurveRates();
+    /// <summary>Shows the rate dialog for the selected row and submits a guarded change operation.</summary>
+    public void Change(Action<bool> changeAction)
+    {
+        if (_viewModel.ChangeOperation.IsRunning)
+            return;
+        var rate = GetSelectedRate();
+        if (rate is null)
+            return;
+        _changeAction = changeAction;
+        using var dialog = new YieldCurveRateEditForm(new YieldCurveRateEditViewModel(_viewModel.AppRoot));
+        dialog.SetYieldCurveRate(rate);
+        if (dialog.ShowDialog() == DialogResult.OK)
+        {
+            _viewModel.PrepareChange(dialog.YieldCurveRate);
+            _ = ChangePreparedRateAsync();
+        }
+        else
+            changeAction(true);
+    }
+
+    /// <summary>Confirms and submits removal of the selected rate.</summary>
+    public void Remove()
+    {
+        if (_viewModel.RemoveOperation.IsRunning)
+            return;
+        var rate = GetSelectedRate();
+        if (rate is null)
+            return;
+        if (MessageBox.Show(
+                $"Are you sure you want to remove the Yield Curve Rates for: {rate.ValueDate:yyyy-MMM-dd} ?",
+                "Remove Yield Curve Rate",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+        _viewModel.PrepareRemove(rate);
+        _ = RemovePreparedRateAsync();
+    }
+
+    /// <summary>Imports external yield-curve rates through the guarded import operation.</summary>
+    public void Import()
+    {
+        if (_viewModel.ImportOperation.IsRunning)
+            return;
+        _viewModel.PrepareImport(DateTime.Today);
+        _ = ImportPreparedRatesAsync();
+    }
+
+    /// <summary>Indicates that the control has no inline edit mode to cancel.</summary>
+    public bool Close(Action<bool> changeAction) => true;
+
+    /// <summary>This control does not expose an independent open action.</summary>
+    public void Open() => throw new NotImplementedException();
+
+    /// <summary>Stops the editor lifecycle asynchronously.</summary>
+    public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
+
+    async ValueTask IAsyncFormControl.CloseAsync()
+        => await _viewModel.StopAsync(CancellationToken.None);
 
     void IFormControl.Resize(Control parentControl)
         => throw new NotImplementedException();
 
+    async Task LoadEditorAsync()
+        => await ExecuteOperationAsync(_viewModel.LoadOperation, BindSnapshot);
 
+    async Task ReloadRatesAsync()
+        => await ExecuteOperationAsync(_viewModel.LoadRatesOperation, BindRates);
 
+    async Task AddPreparedRateAsync()
+        => await ExecuteOperationAsync(_viewModel.AddOperation, () =>
+        {
+            BindSnapshot();
+            _addAction?.Invoke(true);
+        });
+
+    async Task ChangePreparedRateAsync()
+        => await ExecuteOperationAsync(_viewModel.ChangeOperation, () =>
+        {
+            BindSnapshot();
+            _changeAction?.Invoke(true);
+        });
+
+    async Task RemovePreparedRateAsync()
+        => await ExecuteOperationAsync(_viewModel.RemoveOperation, BindSnapshot);
+
+    async Task ImportPreparedRatesAsync()
+        => await ExecuteOperationAsync(_viewModel.ImportOperation, BindSnapshot);
+
+    async Task ExecuteOperationAsync(IAsyncOperation operation, Action onCompleted)
+    {
+        SetBusy(true);
+        try
+        {
+            await operation.ExecuteAsync();
+            onCompleted();
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                text: exception.Message,
+                caption: "Yield Curve Rates Editor Error",
+                buttons: MessageBoxButtons.OK,
+                icon: MessageBoxIcon.Error);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    void SetBusy(bool isBusy)
+    {
+        Cursor = isBusy ? Cursors.WaitCursor : Cursors.Default;
+        _marketDataViewModel.SetEditorBusy(isBusy);
+        ddlTimePeriod.Enabled = !isBusy;
+        gridYieldCurveRates.Enabled = !isBusy;
+    }
+
+    void BindSnapshot()
+    {
+        _isBinding = true;
+        try
+        {
+            ddlTimePeriod.DataSource = null;
+            ddlTimePeriod.DataSource = _viewModel.TimePeriods.ToArray();
+            var selectedIndex = Array.IndexOf(
+                _viewModel.TimePeriods.ToArray(),
+                _viewModel.SelectedTimePeriod);
+            ddlTimePeriod.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        }
+        finally
+        {
+            _isBinding = false;
+        }
+        BindRates();
+    }
+
+    void BindRates()
+    {
+        yieldCurveRatesBindingSource.DataSource = _viewModel.YieldCurveRates.ToArray();
+        gridYieldCurveRates.DataSource = yieldCurveRatesBindingSource;
+        yieldCurveRatesBindingSource.ResetBindings(false);
+        gridYieldCurveRates.Update();
+        _dataLoaded?.Invoke(_viewModel.YieldCurveRates.Count > 0);
+    }
+
+    YieldCurveRateReadModel? GetSelectedRate()
+        => gridYieldCurveRates.SelectedRows.Count > 0
+            ? _viewModel.GetYieldCurveRate(gridYieldCurveRates.SelectedRows[0].Index)
+            : null;
+
+    void ddlTimePeriod_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (_isBinding || ddlTimePeriod.SelectedIndex < 0)
+            return;
+        _viewModel.SelectTimePeriod(
+            ddlTimePeriod.SelectedIndex,
+            DateOnly.FromDateTime(DateTime.Today));
+        _ = ReloadRatesAsync();
+    }
 }

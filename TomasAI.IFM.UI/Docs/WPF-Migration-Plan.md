@@ -542,10 +542,10 @@ Exit: Models and ViewModels compile without WinForms, WPF, and `System.Drawing` 
 
 ### S1.4 — observable ViewModels and commands
 
-Progress on 2026-08-11: **the shared foundation and the Reference/System Admin
-selector slice are implemented.** S1.4 remains in progress while the remaining
-Fund, Market Data, shell/status, trading, and Iron Condor workflows retain
-callback-based adapters.
+Progress on 2026-08-11: **the shared foundation, Reference/System Admin
+selectors, Fund workflows, and Market Data editors are implemented.** S1.4
+remains in progress while the remaining shell/status, trading, and Iron Condor
+workflows retain callback-based adapters.
 
 - Introduce observable base state.
 - Replace view callbacks with properties, collections, and async operations one screen at a time.
@@ -631,8 +631,22 @@ Market Data workflow progress on 2026-08-11:
   removed.
 - Option-editor tests cover coherent listener/load state, unrelated event
   filtering, matching completion, coded terminal failure, the early-event race,
-  and the no-declared-callback contract. Yield-curve editor internals remain the
-  next incremental Market Data slice.
+  and the no-declared-callback contract.
+- `YieldCurveRateEditorViewModel` now publishes time-period, inclusive date-range,
+  and rate snapshots with guarded load/reload/add/change/remove/import operations.
+  All four mutations retain their command IDs, await matching terminal events,
+  handle the bounded early-event race, and refresh time periods plus the selected
+  rate range only after successful denormalization.
+- `YieldCurveRateEditorControl` is now a thin WinForms adapter that renders the
+  observable snapshot, owns dialogs and confirmation, awaits ViewModel work, and
+  reports semantic busy state through `MarketDataViewModel`. The modal rate dialog
+  uses `YieldCurveRateEditViewModel` for observable duplicate-date validation
+  instead of directly wiring Model callbacks and UI posts.
+- Yield-curve tests cover initial/current-month state, calendar-year selection,
+  correlation filtering, coded terminal failure, early import completion,
+  duplicate-date/save state, coded validation failure, and the
+  no-declared-callback contract. This completes the specialized Market Data
+  editor internals; main shell/status workflows are the next S1.4 slice.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 

@@ -22,7 +22,7 @@ public partial class MarketDataForm
         {
             { "FuturesOptionContract", ar => new FuturesOptionContractEditorControl( new FuturesOptionContractEditorViewModel(ar), _viewModel!)},
             { "FuturesContract", ar => new FuturesContractEditorControl( new FuturesContractEditorViewModel(ar) , () => ddlMarketDataSelector_SelectedIndexChanged(this,  EventArgs.Empty) )},
-            { "YieldCurveRates", ar => new YieldCurveRateEditorControl( new YieldCurveRateEditorViewModel(ar) )}
+            { "YieldCurveRates", ar => new YieldCurveRateEditorControl( new YieldCurveRateEditorViewModel(ar), _viewModel!)}
         };
         InitializeComponent();
     }
