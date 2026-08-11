@@ -88,14 +88,13 @@ public partial class FuturesOptionContractEditorControl
         _viewModel.OnWaitCursor = () => this.Post(() =>
         {
             this.Cursor = Cursors.WaitCursor;
-            _mktDataViewModel.OnDisableAllButtons?.Invoke();
-            _mktDataViewModel.OnEnableMarketSelector?.Invoke(false);
+            _mktDataViewModel.SetEditorBusy(true);
             lstFuturesOptionContractIds.Enabled = false;
             tlpFuturesOptionContract.Enabled = false;
         });
         _viewModel.OnDefaultCursor = () => this.Post(() => {
             this.Cursor = Cursors.Default;
-            _mktDataViewModel.OnEnableMarketSelector?.Invoke(true);
+            _mktDataViewModel.SetEditorBusy(false);
             lstFuturesOptionContractIds.Enabled = true;
             tlpFuturesOptionContract.Enabled = true;
         });

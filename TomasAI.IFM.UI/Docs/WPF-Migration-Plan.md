@@ -591,6 +591,20 @@ Fund workflow progress on 2026-08-11:
   exercise listener lifecycle, correlation filtering, successful completion,
   coded failure publication, and the complete routing table.
 
+Market Data workflow progress on 2026-08-11:
+
+- `MarketDataViewModel` now exposes observable editor definitions, a
+  single-flight load operation, safe indexed selection, and semantic
+  `IsEditorBusy` state instead of WinForms button/selector callbacks.
+- `MarketDataForm` awaits definition loading, observes operation/busy state, and
+  remains the transitional adapter that selects the existing specialized editor
+  controls. The futures-option editor now reports busy state through the shared
+  ViewModel rather than invoking parent-view callbacks.
+- Tests cover definition publication, invalid selection, busy-state
+  notification, coded Model failure propagation, and the no-public-delegate
+  contract. Futures contract, futures-option contract, and yield-curve editor
+  internals remain the next incremental Market Data slices.
+
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 
 Exit: every active screen consumes observable state and awaits ViewModel operations; callback adapters are removed or documented as intentional event-stream boundaries.

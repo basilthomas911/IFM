@@ -29,29 +29,25 @@ public partial class MarketDataForm
 
     public void LoadViewModel(MarketDataViewModel viewModel)
     {
+        UnsubscribeFromViewModel();
         _viewModel = viewModel;
-        _viewModel.OnDisableAllButtons = () => this.Post(() =>
-        {
-            DisableAllButtons();
-        });
-        _viewModel.OnEnableMarketSelector = (enabled) => this.Post(() =>
-        {
-            ddlMarketDataSelector.Enabled = enabled;
-        });
+        _viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        _viewModel.LoadDefinitionTypesOperation.PropertyChanged += LoadOperation_PropertyChanged;
     }
 
-    private void MarketDataForm_Load(object sender, EventArgs e)
+    private async void MarketDataForm_Load(object sender, EventArgs e)
     {
-        _viewModel?.LoadMarketDefinitionTypes(mktDataDefTypes =>
-          this.Post(() => {
-              ddlMarketDataSelector.Items.Clear();
-              if (mktDataDefTypes != null && mktDataDefTypes.Length > 0)
-              {
-                  foreach (var mktDataDefType in mktDataDefTypes)
-                      ddlMarketDataSelector.Items.Add(mktDataDefType.Description);
-                  ddlMarketDataSelector.SelectedIndex = 0;
-              }
-          }));
+        if (_viewModel is null)
+            return;
+        try
+        {
+            await _viewModel.LoadDefinitionTypesOperation.ExecuteAsync();
+            BindDefinitionTypes();
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Market Data Definitions Error");
+        }
     }
 
     private async void MarketDataForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -60,6 +56,7 @@ public partial class MarketDataForm
             return;
         e.Cancel = true;
         await CloseActiveControlAsync();
+        UnsubscribeFromViewModel();
         ResetButtons(true);
         _closeComplete = true;
         Close();
@@ -70,7 +67,7 @@ public partial class MarketDataForm
         ResetButtons(true);
         await CloseActiveControlAsync();
         pnlMarketData.Controls.Clear();
-        var mktDataDefType = _viewModel?.GetMarketDefinitionType(ddlMarketDataSelector.SelectedIndex);
+        var mktDataDefType = _viewModel?.GetDefinitionType(ddlMarketDataSelector.SelectedIndex);
         if (mktDataDefType != null && _controlMap.ContainsKey(mktDataDefType.ShortCode))
         {
             var control = _controlMap[mktDataDefType.ShortCode](_appRoot);
@@ -158,6 +155,43 @@ public partial class MarketDataForm
         btnChange.ForeColor = btnChange.Enabled ? Color.Black : Color.White;
         btnRemove.ForeColor = btnRemove.Enabled ? Color.Black : Color.White;
         btnImport.ForeColor = btnImport.Enabled ? Color.Black : Color.White;       
+    }
+
+    void BindDefinitionTypes()
+    {
+        ddlMarketDataSelector.Items.Clear();
+        if (_viewModel is null)
+            return;
+        foreach (var definition in _viewModel.DefinitionTypes)
+            ddlMarketDataSelector.Items.Add(definition.Description);
+        if (ddlMarketDataSelector.Items.Count > 0)
+            ddlMarketDataSelector.SelectedIndex = 0;
+    }
+
+    void LoadOperation_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IAsyncOperation.IsRunning) && _viewModel is not null)
+            this.Post(() => ddlMarketDataSelector.Enabled = !_viewModel.LoadDefinitionTypesOperation.IsRunning);
+    }
+
+    void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MarketDataViewModel.IsEditorBusy) || _viewModel is null)
+            return;
+        this.Post(() =>
+        {
+            if (_viewModel.IsEditorBusy)
+                DisableAllButtons();
+            ddlMarketDataSelector.Enabled = !_viewModel.IsEditorBusy;
+        });
+    }
+
+    void UnsubscribeFromViewModel()
+    {
+        if (_viewModel is null)
+            return;
+        _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        _viewModel.LoadDefinitionTypesOperation.PropertyChanged -= LoadOperation_PropertyChanged;
     }
 
     public void Open()

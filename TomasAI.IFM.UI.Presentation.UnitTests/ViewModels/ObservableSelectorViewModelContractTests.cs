@@ -4,6 +4,7 @@ using System.Reflection;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 using TomasAI.IFM.UI.Net.ViewModels.Fund;
+using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 namespace TomasAI.IFM.UI.Presentation.UnitTests.ViewModels;
 
@@ -14,7 +15,8 @@ public class ObservableSelectorViewModelContractTests
         typeof(ReferenceViewModel),
         typeof(SystemAdminViewModel),
         typeof(FundTransactionEditorViewModel),
-        typeof(CreateFundReadModel)
+        typeof(CreateFundReadModel),
+        typeof(MarketDataViewModel)
     };
 
     [Theory]
