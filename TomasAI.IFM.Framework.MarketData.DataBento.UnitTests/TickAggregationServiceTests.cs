@@ -4,11 +4,97 @@ using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
+using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.UnitTests;
 
 public sealed class TickAggregationServiceTests
 {
+    [Fact]
+    public async Task Futures_option_ticks_use_the_same_persistence_pipeline_and_hot_store()
+    {
+        var valueDate = new DateOnly(2026, 8, 10);
+        var instrument = new InstrumentKey(7, 99);
+        using var feed = new FakeFeed(instrument,
+            Quote(instrument, 1, 10_000_000_000, 12_000_000_000),
+            Trade(instrument, 2, 11_000_000_000));
+        using var lastPrices = new DatabentoLastPriceStore(valueDate, 1);
+        var livePublisher = new CapturingLivePublisher();
+        var liveRouter = new TickLiveRouter(livePublisher);
+        Assert.True(liveRouter.Activate("ESU6 C6500"));
+        await using var service = new TickAggregationService(
+            feed,
+            new AssetMappingProvider(instrument, "ESU6 C6500", AssetTypeId.FuturesOption),
+            new CapturingPublisher(),
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = valueDate
+            },
+            lastPrices: lastPrices,
+            liveRouter: liveRouter);
+
+        await service.StartAsync();
+        await service.StopAsync();
+
+        var status = service.GetContractStatus("ESU6 C6500");
+        Assert.Equal(AssetTypeId.FuturesOption, status.AssetTypeId);
+        Assert.True(status.ContractConfigured);
+        var reader = lastPrices.GetFuturesOptionReader("ESU6 C6500", valueDate);
+        Assert.True(reader.TryGetLastQuote(out var quote));
+        Assert.True(quote.TryGetMidpoint(out var midpoint));
+        Assert.Equal(11m, midpoint);
+        Assert.True(reader.TryGetLastTrade(out var trade));
+        Assert.Equal(11m, trade.Price);
+        Assert.Single(livePublisher.Quotes);
+        Assert.Single(livePublisher.Trades);
+        Assert.Equal(AssetTypeId.FuturesOption, livePublisher.Quotes[0].AssetTypeId);
+    }
+
+    [Fact]
+    public async Task Ticker_status_requires_live_service_and_registered_contract()
+    {
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new RunningFeed(instrument);
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            new CapturingPublisher(),
+            new TickQuoteBufferPool(),
+            new UtcTickValueDateProvider(),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = new DateOnly(2026, 8, 7)
+            });
+
+        var stopped = service.GetTickerStatus("ESU6");
+        Assert.False(stopped.ServiceRunning);
+        Assert.False(stopped.TickerConfigured);
+        Assert.False(stopped.TickerRunning);
+
+        await service.StartAsync();
+
+        var running = service.GetTickerStatus("ESU6");
+        Assert.True(running.ServiceRunning);
+        Assert.True(running.TickerConfigured);
+        Assert.True(running.TickerRunning);
+
+        var unknown = service.GetTickerStatus("NQU6");
+        Assert.True(unknown.ServiceRunning);
+        Assert.False(unknown.TickerConfigured);
+        Assert.False(unknown.TickerRunning);
+
+        await service.StopAsync();
+
+        var stoppedAfterRun = service.GetTickerStatus("ESU6");
+        Assert.False(stoppedAfterRun.ServiceRunning);
+        Assert.True(stoppedAfterRun.TickerConfigured);
+        Assert.False(stoppedAfterRun.TickerRunning);
+    }
+
     [Fact]
     public async Task Trade_flushes_ticker_quotes_before_trade_with_shared_sequence()
     {
@@ -115,6 +201,29 @@ public sealed class TickAggregationServiceTests
         }
     }
 
+    private sealed class AssetMappingProvider(
+        InstrumentKey instrument,
+        string contractId,
+        AssetTypeId assetTypeId) : ITickContractMappingProvider
+    {
+        public bool TryGetMapping(
+            string dataset,
+            DateOnly definitionDate,
+            InstrumentKey key,
+            out TickContractMapping mapping)
+        {
+            mapping = new TickContractMapping(
+                dataset, definitionDate, key.PublisherId, key.InstrumentId,
+                contractId, assetTypeId);
+            return key == instrument;
+        }
+    }
+
+    private sealed class FixedValueDateProvider(DateOnly valueDate) : ITickValueDateProvider
+    {
+        public DateOnly GetValueDate(DateTime timestampUtc) => valueDate;
+    }
+
     private sealed class CapturingPublisher : ITickAggregationEventPublisher
     {
         public List<string> Order { get; } = [];
@@ -136,6 +245,22 @@ public sealed class TickAggregationServiceTests
         }
         public ValueTask StopAsync() { IsRunning = false; return ValueTask.CompletedTask; }
         public ValueTask DisposeAsync() => StopAsync();
+    }
+
+    private sealed class CapturingLivePublisher : ITickLiveEventPublisher
+    {
+        public List<LiveTickQuoteServiceEvent> Quotes { get; } = [];
+        public List<LiveTickTradeServiceEvent> Trades { get; } = [];
+        public ValueTask PublishAsync(LiveTickQuoteServiceEvent @event)
+        {
+            Quotes.Add(@event);
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask PublishAsync(LiveTickTradeServiceEvent @event)
+        {
+            Trades.Add(@event);
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class RejectFirstQuotePublisher : ITickAggregationEventPublisher
@@ -183,6 +308,27 @@ public sealed class TickAggregationServiceTests
         }
         public IReadOnlyList<TickerInstrumentRegistration> GetInstruments() =>
             [new TickerInstrumentRegistration("ES", "ESU6", _instrument)];
+        public FeedHealthSnapshot GetHealth() => throw new NotSupportedException();
+        public void Dispose() => _channel.Complete();
+    }
+
+    private sealed class RunningFeed(InstrumentKey instrument) : IDatabentoTickerFeed
+    {
+        private readonly BoundedBatchChannel _channel = new(4, 64);
+        private bool _leased;
+
+        public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) { }
+        public void Start(TimeSpan timeout) { }
+        public void Stop(TimeSpan timeout) => _channel.Complete();
+        public ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey key) => _channel;
+        public IMultiplexedTickerBatchReader GetMultiplexedReader()
+        {
+            if (_leased) throw new InvalidOperationException();
+            _leased = true;
+            return new MultiplexedTickerBatchReader([(instrument, _channel)], () => _leased = false);
+        }
+        public IReadOnlyList<TickerInstrumentRegistration> GetInstruments() =>
+            [new TickerInstrumentRegistration("ES", "ESU6", instrument)];
         public FeedHealthSnapshot GetHealth() => throw new NotSupportedException();
         public void Dispose() => _channel.Complete();
     }

@@ -1,8 +1,11 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
+using System.Collections.Frozen;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
 
@@ -17,8 +20,12 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private readonly ITickValueDateProvider _valueDates;
     private readonly TimeProvider _timeProvider;
     private readonly TickAggregationOptions _options;
+    private readonly IDatabentoLastPriceWriter? _lastPrices;
+    private readonly ITickLiveRouter? _liveRouter;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly Dictionary<InstrumentKey, TickerState> _states = [];
+    private FrozenDictionary<string, TickerState> _statesByContractId =
+        FrozenDictionary<string, TickerState>.Empty;
     private IMultiplexedTickerBatchReader? _reader;
     private Task? _worker;
     private int _running;
@@ -44,7 +51,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         ITickQuoteBufferPool quotePool,
         ITickValueDateProvider valueDates,
         TickAggregationOptions options,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDatabentoLastPriceWriter? lastPrices = null,
+        ITickLiveRouter? liveRouter = null)
     {
         _feed = feed ?? throw new ArgumentNullException(nameof(feed));
         _mappings = mappings ?? throw new ArgumentNullException(nameof(mappings));
@@ -54,9 +63,48 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         _options = options ?? throw new ArgumentNullException(nameof(options));
         ValidateOptions(options);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _lastPrices = lastPrices;
+        _liveRouter = liveRouter;
     }
 
     public bool IsRunning => Volatile.Read(ref _running) != 0;
+
+    public TickAggregationTickerStatus GetTickerStatus(string futuresContractId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(futuresContractId);
+
+        var states = Volatile.Read(ref _statesByContractId);
+        var configured = states.ContainsKey(futuresContractId);
+        var worker = Volatile.Read(ref _worker);
+        var serviceRunning = IsRunning
+            && Volatile.Read(ref _stopping) == 0
+            && worker is { IsCompleted: false };
+
+        return new TickAggregationTickerStatus(
+            futuresContractId,
+            serviceRunning,
+            configured,
+            serviceRunning && configured);
+    }
+
+    public TickAggregationContractStatus GetContractStatus(string contractId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+
+        var states = Volatile.Read(ref _statesByContractId);
+        var configured = states.TryGetValue(contractId, out var state);
+        var worker = Volatile.Read(ref _worker);
+        var serviceRunning = IsRunning
+            && Volatile.Read(ref _stopping) == 0
+            && worker is { IsCompleted: false };
+
+        return new TickAggregationContractStatus(
+            contractId,
+            configured ? state!.Mapping.AssetTypeId : AssetTypeId.Unknown,
+            serviceRunning,
+            configured,
+            serviceRunning && configured);
+    }
 
     public async ValueTask StartAsync()
     {
@@ -65,6 +113,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         {
             if (IsRunning) return;
             _states.Clear();
+            Volatile.Write(
+                ref _statesByContractId,
+                FrozenDictionary<string, TickerState>.Empty);
             Volatile.Write(ref _stopping, 0);
             await _publisher.StartAsync().ConfigureAwait(false);
             var feedStarted = false;
@@ -76,10 +127,20 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 {
                     if (!_mappings.TryGetMapping(_options.Dataset, _options.DefinitionDate, registration.Instrument, out var mapping))
                         throw new KeyNotFoundException($"No tick mapping exists for {registration.Instrument}.");
-                    if (mapping.AssetTypeId != AssetTypeId.Futures)
-                        throw new InvalidOperationException($"V1 accepts only futures mappings; {mapping.ContractId} is {mapping.AssetTypeId}.");
+                    if (mapping.AssetTypeId is not (AssetTypeId.Futures or AssetTypeId.FuturesOption))
+                        throw new InvalidOperationException(
+                            $"Tick aggregation accepts futures and futures-option mappings; " +
+                            $"{mapping.ContractId} is {mapping.AssetTypeId}.");
+                    _lastPrices?.RegisterContract(
+                        mapping.ContractId,
+                        mapping.AssetTypeId);
                     _states.Add(registration.Instrument, new TickerState(mapping));
                 }
+                Volatile.Write(
+                    ref _statesByContractId,
+                    _states.Values.ToFrozenDictionary(
+                        state => state.Mapping.ContractId,
+                        StringComparer.Ordinal));
                 Volatile.Write(ref _activeTickers, _states.Count);
                 _reader = _feed.GetMultiplexedReader();
                 Volatile.Write(ref _running, 1);
@@ -87,6 +148,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             }
             catch
             {
+                Volatile.Write(
+                    ref _statesByContractId,
+                    FrozenDictionary<string, TickerState>.Empty);
                 Volatile.Write(ref _activeTickers, 0);
                 _reader?.Dispose();
                 _reader = null;
@@ -175,12 +239,22 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         {
             case MarketRecordKind.Quote:
                 Interlocked.Increment(ref _sourceQuoteRecords);
+                UpdateLastQuote(state, record.Quote);
+                if (_liveRouter is not null
+                    && _liveRouter.IsActive(state.Mapping.ContractId))
+                    await _liveRouter.RouteAsync(CreateLiveQuote(state, record.Quote))
+                        .ConfigureAwait(false);
                 AddQuote(state, record.Quote);
                 if (state.QuoteCount == FuturesTickQuoteDataSegment.MaximumCount)
                     await FlushAsync(state, QuoteEmissionReason.BufferFull, observedUtc).ConfigureAwait(false);
                 break;
             case MarketRecordKind.Trade:
                 Interlocked.Increment(ref _sourceTradeRecords);
+                UpdateLastTrade(state, record.Trade);
+                if (_liveRouter is not null
+                    && _liveRouter.IsActive(state.Mapping.ContractId))
+                    await _liveRouter.RouteAsync(CreateLiveTrade(state, record.Trade))
+                        .ConfigureAwait(false);
                 var quotePending = state.QuoteCount > 0
                     ? EnsurePendingQuote(state, QuoteEmissionReason.TradeObserved, observedUtc)
                     : null;
@@ -207,6 +281,94 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             quote.Header.ReceiveTimestampNanoseconds, quote.Header.Flags,
             quote.BidPrice, ScaleNullable(quote.BidPrice), quote.BidSize, quote.BidCount,
             quote.AskPrice, ScaleNullable(quote.AskPrice), quote.AskSize, quote.AskCount);
+    }
+
+    private void UpdateLastQuote(TickerState state, QuoteRecord64 quote)
+    {
+        _lastPrices?.TryUpdateQuote(new LastQuoteTickSnapshot(
+            state.Mapping.ContractId,
+            state.ValueDate,
+            ScaleNullable(quote.BidPrice),
+            quote.BidSize,
+            quote.BidCount,
+            ScaleNullable(quote.AskPrice),
+            quote.AskSize,
+            quote.AskCount,
+            quote.Header.Sequence,
+            FromUnixNanoseconds(quote.Header.EventTimestampNanoseconds),
+            FromUnixNanoseconds(quote.Header.ReceiveTimestampNanoseconds)));
+    }
+
+    private void UpdateLastTrade(TickerState state, TradeRecord64 trade)
+    {
+        _lastPrices?.TryUpdateTrade(new LastTradeTickSnapshot(
+            state.Mapping.ContractId,
+            state.ValueDate,
+            trade.Price / PriceScale,
+            trade.Size,
+            trade.Header.Sequence,
+            FromUnixNanoseconds(trade.Header.EventTimestampNanoseconds),
+            FromUnixNanoseconds(trade.Header.ReceiveTimestampNanoseconds)));
+    }
+
+    private static LiveTickQuoteServiceEvent CreateLiveQuote(
+        TickerState state,
+        QuoteRecord64 quote) => new(
+        Guid.NewGuid(),
+        state.Mapping.ContractId,
+        state.ValueDate,
+        state.Mapping.AssetTypeId,
+        state.Mapping.Dataset,
+        state.Mapping.DefinitionDate,
+        state.Mapping.PublisherId,
+        state.Mapping.InstrumentId,
+        new FuturesTickQuoteData(
+            quote.Header.Sequence,
+            quote.Header.EventTimestampNanoseconds,
+            quote.Header.ReceiveTimestampNanoseconds,
+            quote.Header.Flags,
+            quote.BidPrice,
+            ScaleNullable(quote.BidPrice),
+            quote.BidSize,
+            quote.BidCount,
+            quote.AskPrice,
+            ScaleNullable(quote.AskPrice),
+            quote.AskSize,
+            quote.AskCount));
+
+    private static LiveTickTradeServiceEvent CreateLiveTrade(
+        TickerState state,
+        TradeRecord64 trade) => new(
+        Guid.NewGuid(),
+        state.Mapping.ContractId,
+        state.ValueDate,
+        state.Mapping.AssetTypeId,
+        state.Mapping.Dataset,
+        state.Mapping.DefinitionDate,
+        state.Mapping.PublisherId,
+        state.Mapping.InstrumentId,
+        new FuturesTickTradeData(
+            trade.Header.Sequence,
+            trade.Header.EventTimestampNanoseconds,
+            trade.Header.ReceiveTimestampNanoseconds,
+            trade.Header.Flags,
+            trade.Price,
+            trade.Price / PriceScale,
+            trade.Size,
+            trade.Action,
+            trade.Side,
+            trade.DbnFlags));
+
+    private static DateTimeOffset FromUnixNanoseconds(long nanoseconds)
+    {
+        try
+        {
+            return DateTimeOffset.UnixEpoch.AddTicks(nanoseconds / 100L);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return nanoseconds < 0 ? DateTimeOffset.MinValue : DateTimeOffset.MaxValue;
+        }
     }
 
     private async ValueTask FlushAsync(

@@ -32,9 +32,6 @@
 #include <databento/exceptions.hpp>
 #include <databento/historical.hpp>
 #include <databento/live.hpp>
-#if defined(_WIN32)
-#include <openssl/ssl.h>
-#endif
 #endif
 
 #if defined(_WIN32)
@@ -505,18 +502,18 @@ std::vector<contract_result_entry> fetch_definitions(
                           http.set_write_timeout(timeout);
                           if (!ca_file.empty()) {
                               http.set_ca_cert_path(ca_file);
+                              http.enable_system_ca(false);
                           }
 #if defined(_WIN32)
                           else {
-                              auto* ssl_context = static_cast<SSL_CTX*>(http.tls_context());
-                              if (ssl_context == nullptr ||
-                                  SSL_CTX_load_verify_store(
-                                      ssl_context,
-                                      "org.openssl.winstore:") != 1) {
-                                  throw std::runtime_error(
-                                      "Failed to load the Windows trusted-root certificate store");
-                              }
-                              http.enable_system_ca(false);
+                              http.enable_system_ca(true);
+                              http.enable_windows_certificate_verification(true);
+                              // OpenSSL cannot always build chains that require Windows AIA
+                              // retrieval. Let the TLS handshake continue so cpp-httplib's
+                              // mandatory post-handshake Schannel policy check can build and
+                              // validate the chain, including the requested host name.
+                              http.set_server_certificate_verifier(
+                                  [](const httplib::tls::VerifyContext&) { return true; });
                           }
 #endif
                       })

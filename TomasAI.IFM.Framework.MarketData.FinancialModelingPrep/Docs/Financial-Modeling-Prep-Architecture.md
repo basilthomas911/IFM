@@ -1,7 +1,7 @@
 # IFM Financial Modeling Prep Market Data Architecture
 
 Status: Draft for architecture review
-Version: 0.2
+Version: 0.6
 Date: 2026-08-10
 Scope: Financial Modeling Prep US Treasury curve and economic-calendar acquisition and MarketData-domain import
 
@@ -43,6 +43,11 @@ command contract is required for the first implementation.
 12. There is exactly one economic-calendar table: `economic_calendar`. The current canonical-plus-projection design is
     replaced rather than copied into MarketData.
 13. Runtime economic-calendar CQL never uses `ALLOW FILTERING` and never falls back to an unbounded table scan.
+14. `ITreasuryCurve` and `IEconomicCalendar` are provider-neutral contracts in
+    `TomasAI.IFM.Framework.MarketData.Contracts`; FMP supplies their production
+    implementations. Application orchestration consumes `ITreasuryCurve`,
+    selects the option-pricing rate, and passes that scalar into DataBento;
+    DataBento does not implement or call either FMP-backed contract.
 
 ## 3. Current-state findings
 
@@ -222,25 +227,75 @@ The base address is `https://financialmodelingprep.com/stable/`. Initial endpoin
 Every request is date bounded using supported `from` and `to` query values. The API key is sent using the `apikey`
 request header. It is never placed in the query string even though FMP supports query authentication.
 
-### 7.2 Future client contract
+### 7.2 Provider-neutral client contracts
 
-The intended asynchronous behavior is equivalent to:
+The binding framework boundary is equivalent to:
 
 ```csharp
-Task<IReadOnlyList<YieldCurveRateReadModel>> GetTreasuryRatesAsync(
-    DateOnly from,
-    DateOnly to,
-    CancellationToken cancellationToken);
+namespace TomasAI.IFM.Framework.MarketData.Contracts;
 
-Task<IReadOnlyList<EconomicCalendarReadModel>> GetEconomicCalendarAsync(
-    DateOnly from,
-    DateOnly to,
-    IReadOnlySet<string>? countryCodes,
-    CancellationToken cancellationToken);
+public interface ITreasuryCurve
+{
+    Task<TreasuryCurveSnapshot?> GetLatestAsync(
+        DateOnly asOfDate,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<TreasuryCurveSnapshot>> GetRangeAsync(
+        DateOnly from,
+        DateOnly to,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IEconomicCalendar
+{
+    Task<IReadOnlyList<EconomicCalendarEntry>> GetAsync(
+        DateOnly from,
+        DateOnly to,
+        IReadOnlySet<string>? countryCodes = null,
+        CancellationToken cancellationToken = default);
+}
 ```
 
-The exact interface placement and name are implementation details, but storage must consume an abstraction rather than
-constructing `HttpClient` or the concrete FMP client.
+The provider-neutral snapshot/entry records live beside these contracts in
+`Framework.MarketData/Contracts/ReferenceData`. A `TreasuryCurveSnapshot`
+contains its value date, country/currency, acquisition time/source, and a
+unique ordered list of `TreasuryRatePoint` values. Each point identifies a
+`TreasuryTenor` and stores an explicitly named `RatePercent`; its `DecimalRate`
+property performs the percentage-point conversion required by pricing.
+
+An `EconomicCalendarEntry` contains UTC event time, country, event name,
+nullable actual/forecast/previous values, impact, unit, change,
+change-percentage, acquisition time, and source. Provider values remain strings
+because releases can contain suffixes, units, or status text. Missing data is
+`null`, never a synthetic zero. The logical storage identity remains
+`(EventTimeUtc, CountryCode, EventName)`.
+
+These records contain no FMP DTO names or HTTP concerns. The concrete implementations are
+`FinancialModelingPrepTreasuryCurve` and
+`FinancialModelingPrepEconomicCalendar` in this project. Storage, application,
+and DataBento consumers receive these abstractions through dependency
+injection rather than constructing `HttpClient` or a concrete FMP client.
+
+The FMP startup extension will register only the framework abstractions:
+
+```csharp
+services.AddFinancialModelingPrepMarketData(configuration);
+
+// registrations owned by the extension
+services.AddSingleton<ITreasuryCurve, FinancialModelingPrepTreasuryCurve>();
+services.AddSingleton<IEconomicCalendar, FinancialModelingPrepEconomicCalendar>();
+```
+
+It does not register or reference the application-level `IMarketDataApi`.
+Application startup composes these services into storage/import coordinators
+and into the application market-data API as required.
+
+An application-layer cache-aside decorator may cache a complete Treasury curve
+by its published curve date. A hybrid high-frequency L1/L2 cache is not required
+for this low-rate input. Provider adapters do not reference Blackboard.
+Application orchestration resolves the curve/tenor and passes the selected
+scalar rate into an option-chain session, so DataBento performs no FMP HTTP or
+Redis operation on an option-tick hot path.
 
 ### 7.3 Date windows
 
@@ -305,10 +360,13 @@ The initial mapping is:
 | import timestamp | `CreatedOn` | UTC acquisition/import time under the current schema |
 | provider identity | `CreatedBy` | Stable non-secret FMP importer identity |
 
-The logical key is `(EventDateUtc, CountryCode, EventName)`. The provider DTO also captures `impact` and `unit`. The
-current canonical model and Scylla tables cannot persist those fields. The proposed implementation adds nullable
-`Impact` and `Unit` fields using backward-compatible serialization keys and storage columns; until that migration is
-approved, the adapter must report that those fields were omitted rather than pretending they were stored.
+The logical key is `(EventDateUtc, CountryCode, EventName)`. The framework
+entry also preserves `impact`, `unit`, `change`, and `changePercentage`. The
+current canonical model and Scylla tables cannot persist those fields. The
+proposed implementation adds nullable `Impact`, `Unit`, `Change`, and
+`ChangePercentage` fields using backward-compatible serialization keys and
+storage columns; until that migration is approved, the application mapper must
+report omitted fields rather than pretending they were stored.
 
 The current mapper converts the provider timestamp to workstation local time and substitutes `"0"` for absent values.
 The new mapper will not do either. Storage identity must not change with workstation time zone, and missing data must
@@ -782,6 +840,11 @@ The design is implemented only when:
 26. Country-code queries use configured/projected actor state rather than scanning event rows.
 27. Provider, import, duplicate, concurrency, migration, and storage tests pass.
 28. Live tests remain opt-in and cannot run without explicit secret configuration.
+29. `ITreasuryCurve` and `IEconomicCalendar` are defined in
+    `Framework.MarketData.Contracts` and implemented by the FMP project.
+30. Application orchestration resolves and passes the selected rate; DataBento
+    performs no FMP HTTP or Blackboard/Redis operation on its option-record hot
+    path.
 
 ## 19. Decisions requested during review
 
@@ -805,11 +868,13 @@ The design is implemented only when:
 | Reject concurrency | Preflight plus conditional `IF NOT EXISTS`; never check then unconditionally insert |
 | Range atomicity | No global transaction claim; single-date commands bound partial failure |
 | Economic calendar revisions | Overwrite the matching row in the single MarketData table |
-| Calendar `Impact` and `Unit` | Add optional canonical/storage fields before claiming full FMP fidelity |
+| Calendar supplemental values | Add optional `Impact`, `Unit`, `Change`, and `ChangePercentage` canonical/storage fields before claiming full FMP fidelity |
 | Time handling | Normalize provider timestamps to UTC; do not convert identity to workstation local time |
 | Missing values | Preserve missing/empty distinction; do not synthesize `"0"` |
 | Yield key | Reconcile schema/runtime CQL on `valueDate` before enabling imports |
 | Credential gate | Rotate exposed keys and remove plaintext secrets before live use |
+| Framework contracts | Define provider-neutral `ITreasuryCurve` and `IEconomicCalendar` in `Framework.MarketData.Contracts` |
+| Provider ownership | Implement both contracts in Financial Modeling Prep; application orchestration consumes Treasury data and passes the selected rate to DataBento |
 
 ## 20. References
 
@@ -823,5 +888,9 @@ The design is implemented only when:
 
 | Version | Date | Summary |
 | --- | --- | --- |
-| 0.1 | 2026-08-10 | Created the FMP architecture and defined API-backed imports using current command parameters, direct event-denormalized table writes, configurable Overwrite/Reject duplicate behavior, single-date range partitioning, mapping, resilience, secrets, observability, testing, and review decisions. |
+| 0.6 | 2026-08-10 | Defined the provider-neutral framework contracts and storage-capable records in code; made Treasury percentage units explicit, preserved UTC/provenance and nullable calendar values including impact/unit/change fields, and specified FMP-to-framework DI registration without any dependency on the application API. |
+| 0.5 | 2026-08-10 | Removed the high-frequency Blackboard L1/L2 requirement: Treasury curves may use ordinary application cache-aside, while DataBento owns its in-process quote/trade hot values and continues to receive only the selected scalar rate. |
+| 0.4 | 2026-08-10 | Clarified that application orchestration owns Treasury L1/L2 caching and tenor selection and passes the selected scalar rate into DataBento, which performs no FMP or Blackboard calls. |
+| 0.3 | 2026-08-10 | Made `ITreasuryCurve` and `IEconomicCalendar` binding provider-neutral framework contracts, assigned both implementations to the FMP adapter, and documented application Blackboard caching plus DataBento's consumer-only hot-path boundary. |
 | 0.2 | 2026-08-10 | Moved target economic-calendar ownership from Reference to MarketData, replaced the canonical-plus-projection layout with one country/month-partitioned MarketData table, prohibited `ALLOW FILTERING` and runtime full-table scans, redesigned bounded queries, and added the domain/storage data migration path. |
+| 0.1 | 2026-08-10 | Created the FMP architecture and defined API-backed imports using current command parameters, direct event-denormalized table writes, configurable Overwrite/Reject duplicate behavior, single-date range partitioning, mapping, resilience, secrets, observability, testing, and review decisions. |

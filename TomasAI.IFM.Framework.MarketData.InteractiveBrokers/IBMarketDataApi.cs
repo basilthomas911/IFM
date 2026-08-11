@@ -12,27 +12,26 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
-using TomasAI.IFM.Framework.MarketData.MarketDataApi;
 using TomasAI.IFM.Shared.EventQueue;
 using System.Collections.Concurrent;
 
 namespace TomasAI.IFM.Framework.MarketData.InteractiveBrokers;
 
-public class IBMarketDataSnapshotApi(MarketDataApi.IMarketDataSnapshotApiOptions snapshotOptions, IStatusConsoleWriter statusConsoleWriter, IMarketDataFeedEventProducer marketDataFeedEventProducer)
-    : IBMarketDataApi(snapshotOptions, statusConsoleWriter, marketDataFeedEventProducer), MarketDataApi.IMarketDataSnapshotApi
+public class IBMarketDataSnapshotApi(IBMarketDataSnapshotApiOptions snapshotOptions, IStatusConsoleWriter statusConsoleWriter, IMarketDataFeedEventProducer marketDataFeedEventProducer)
+    : IBMarketDataApi(snapshotOptions, statusConsoleWriter, marketDataFeedEventProducer)
 {
 }
 
-public class IBMarketDataApi : MarketDataApi.IMarketDataApi
+public class IBMarketDataApi
 {
     static Dictionary<string, FuturesTickDataV2ReadModel>? _stmFuturesTickDataMap;
     static ConcurrentDictionary<string, byte>? _statusMsgMap;
-    MarketDataApi.IMarketDataApiOptions _options;
+    IBMarketDataApiOptions _options;
     IStatusConsoleWriter _statusConsoleWriter;
     IBClient _ibApi;
     Func<Guid, int, string, Task>? _errorHandler;
     readonly ConcurrentEventQueue<(Guid CommandId, int ErrorCode, string ErrorMessage)> _statusQueue;
-    public IBMarketDataApi(MarketDataApi.IMarketDataApiOptions options, IStatusConsoleWriter statusConsoleWriter, IMarketDataFeedEventProducer marketDataFeedEventProducer)
+    public IBMarketDataApi(IBMarketDataApiOptions options, IStatusConsoleWriter statusConsoleWriter, IMarketDataFeedEventProducer marketDataFeedEventProducer)
     {
         _options = options;
         _statusConsoleWriter = statusConsoleWriter;

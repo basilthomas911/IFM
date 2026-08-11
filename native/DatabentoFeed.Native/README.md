@@ -43,7 +43,7 @@ The native feed target links only to `IFM::DatabentoSdk`, not directly to the ve
 
 ## Live Phase 3/4/5 build
 
-The live-enabled build uses `DATABENTO_API_KEY` directly from the native process for both Live and Historical clients. The key is never passed through a managed string or logged. On Windows, the native adapter explicitly loads OpenSSL's `org.openssl.winstore:` provider so HTTPS verification uses the Windows trusted-root certificate store. `SSL_CERT_FILE` takes precedence as an optional override for an explicitly managed PEM CA bundle, corporate trust roots, containers, or diagnosing host trust configuration. TLS verification is never disabled.
+The live-enabled build uses `DATABENTO_API_KEY` directly from the native process for both Live and Historical clients. The key is never passed through a managed string or logged. On Windows, cpp-httplib imports certificates from the Windows `ROOT` and `CA` stores into the OpenSSL verification context. If an HTTPS chain requires Windows AIA retrieval, the handshake continues only to cpp-httplib's post-handshake Schannel certificate-policy and hostname validation. `SSL_CERT_FILE` takes precedence as an optional override for an explicitly managed PEM CA bundle, corporate trust roots, containers, or diagnosing host trust configuration. End-to-end TLS verification is never disabled.
 
 On Windows with Visual Studio vcpkg installed:
 
@@ -61,8 +61,9 @@ $env:IFM_RUN_DATABENTO_SMOKE_TESTS = '1'
 dotnet test ./TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests/TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests.csproj -c Release -p:DatabentoEnableLive=true
 ```
 
-On Windows, the native adapter loads the Windows trusted-root certificate store
-through the pinned OpenSSL runtime.
+On Windows, the native adapter enables cpp-httplib's Windows system-CA loader
+and mandatory Schannel certificate-policy check. This supports chains that need
+Windows AIA retrieval while preserving chain and hostname verification.
 Set `SSL_CERT_FILE` only when an explicit PEM trust bundle is required:
 
 ```powershell

@@ -5,9 +5,24 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 public interface ITickAggregationService : IAsyncDisposable
 {
     bool IsRunning { get; }
+    TickAggregationContractStatus GetContractStatus(string contractId);
+    TickAggregationTickerStatus GetTickerStatus(string futuresContractId);
     ValueTask StartAsync();
     ValueTask StopAsync();
 }
+
+public readonly record struct TickAggregationContractStatus(
+    string ContractId,
+    AssetTypeId AssetTypeId,
+    bool ServiceRunning,
+    bool ContractConfigured,
+    bool ContractRunning);
+
+public readonly record struct TickAggregationTickerStatus(
+    string FuturesContractId,
+    bool ServiceRunning,
+    bool TickerConfigured,
+    bool TickerRunning);
 
 public interface ITickAggregationMetricsSource
 {

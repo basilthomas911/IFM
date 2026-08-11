@@ -1,5 +1,14 @@
 using TomasAI.IFM.Framework.MarketData.DataBento;
 
+if (args.Contains("--last-price", StringComparer.OrdinalIgnoreCase))
+{
+    return LastPriceBenchmark.Run(args);
+}
+if (args.Contains("--api-price", StringComparer.OrdinalIgnoreCase))
+{
+    return ApplicationPriceBenchmark.Run(args);
+}
+
 var pinned = args.Contains("--pinned", StringComparer.OrdinalIgnoreCase);
 var forcedMigration = args.Contains("--forced-migration", StringComparer.OrdinalIgnoreCase);
 var useAffinity = pinned || forcedMigration;

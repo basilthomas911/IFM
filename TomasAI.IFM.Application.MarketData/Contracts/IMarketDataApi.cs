@@ -1,77 +1,119 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 
-namespace TomasAI.IFM.Framework.MarketData.MarketDataApi;
+namespace TomasAI.IFM.Application.MarketData.Contracts;
 
 /// <summary>
-/// Defines an interface for interacting with market data, including futures and options contracts, tick data, and
-/// related computations. Provides methods for retrieving, streaming, and managing market data for futures and options,
-/// as well as calculating option greeks.
+/// Defines the application boundary for querying futures and futures-option
+/// contracts and prices and controlling their live market-data streams.
 /// </summary>
-/// <remarks>This interface is designed to support operations related to futures and options market data,
-/// including querying contract details, retrieving price data, streaming tick data, and performing computations such as
-/// option greeks. It provides asynchronous methods for data retrieval and synchronous methods for streaming control and
-/// computations.</remarks>
+/// <remarks>
+/// Contract identifiers are canonical domain identifiers. Provider-specific
+/// symbols, instruments, requests, and subscription models do not cross this
+/// interface.
+/// </remarks>
 public interface IMarketDataApi
 {
-
     Task StartAsync(
-        Guid commandId,
+        DateOnly valueDate,
         Func<Guid, int, string, Task>? errorMessageHandler = null,
         CancellationToken cancellationToken = default);
-    void Stop(Guid commandId);
+    Task StopAsync(DateOnly valueDate);
 
     Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(
-        Guid commandId,
-        FuturesContractV2ReadModel queryForContract);
-    
+        string futuresContractId);
+
+    Task<FuturesContractV2ReadModel[]> GetFuturesContractsAsync(
+        string[] futuresContractIds);
+
     Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(
-        Guid commandId,
-        FuturesOptionContractReadModel qfContract);
+        string futuresOptionContractId);
 
-    Task<FuturesTickDataV2ReadModel?> GetFuturesPriceAsync(
-        Guid commandId,
-        FuturesContractV2ReadModel contract);
+    Task<FuturesOptionContractReadModel[]> GetFuturesOptionContractsAsync(
+        string[] futuresOptionContractIds);
 
-    Task<(FuturesOptionContractReadModel? shortContract, FuturesOptionContractReadModel? longContract)> GetFuturesOptionSpreadAsync(
-        Guid commandId,
-        FuturesOptionContractReadModel qfShortContract,
-        FuturesOptionContractReadModel qfLongContract);
+    /// <summary>
+    /// Gets every currently available call and put definition for one futures
+    /// option chain so the domain layer can apply its own filtering.
+    /// </summary>
+    /// <param name="futuresContractId">
+    /// The canonical domain contract ID of the underlying futures contract.
+    /// </param>
+    /// <param name="maturityDate">The exact option-chain maturity date.</param>
+    /// <returns>
+    /// Domain futures-option contracts ordered by strike, option type, and
+    /// contract ID; an empty array when no definitions exist.
+    /// </returns>
+    Task<FuturesOptionContractReadModel[]> GetFuturesOptionChainContractsAsync(
+        string futuresContractId,
+        DateOnly maturityDate);
 
-    Task<FuturesOptionTickDataV2ReadModel?> GetFuturesOptionPriceAsync(
-        Guid commandId,
-        DateOnly valueDate,
-        FuturesOptionContractReadModel optionContract);
-    
-    TickOptionComputation? GetFuturesOptionGreeks(
-        Guid commandId,
-        DateOnly valueDate, 
-        DateOnly maturityDate, 
-        FuturesOptionContractReadModel optionContract, 
-        double optionPrice, 
-        double futuresPrice, 
-        double riskFreeRate);
+    Task<decimal> GetFuturesPriceAsync(
+        string futuresContractId);
 
-    void StartStreamingFuturesTickData(
-        Guid commandId,
-        DateOnly valueDate,
-        FuturesContractV2ReadModel contract);
+    Task<decimal?> GetFuturesOptionPriceAsync(
+        string futuresOptionContractId);
 
-    bool StopStreamingFuturesTickData(Guid commandId);
+    /// <summary>
+    /// Gets the epoch-bound hot-value reader for one domain futures contract.
+    /// Getting a reader does not start a subscription.
+    /// </summary>
+    IFuturesLastPriceReader GetFuturesLastPriceReader(
+        string futuresContractId);
 
-    void StartStreamingFuturesOptionTickData(
-        Guid commandId,
-        DateOnly valueDate,
-        DateTime maturityDate,
-        FuturesOptionContractReadModel contract,
-        double riskFreeRate);
+    /// <summary>
+    /// Gets the epoch-bound hot-value reader for one domain futures-option contract.
+    /// Getting a reader does not start a subscription.
+    /// </summary>
+    IFuturesOptionLastPriceReader GetFuturesOptionLastPriceReader(
+        string futuresOptionContractId);
 
-    bool StopStreamingFuturesOptionTickData(Guid commandId);
+    Task<bool> StartStreamingFuturesTickDataAsync(
+        string futuresContractId);
 
+    Task<bool> StopStreamingFuturesTickDataAsync(
+        string futuresContractId);
+
+    Task<bool> StartStreamingFuturesOptionTickDataAsync(
+        string futuresOptionContractId);
+
+    Task<bool> StopStreamingFuturesOptionTickDataAsync(
+        string futuresOptionContractId);
+
+    /// <summary>
+    /// Starts one futures-option chain using domain contract identifiers.
+    /// </summary>
+    /// <param name="futuresContractId">
+    /// The canonical domain contract ID of the underlying futures contract.
+    /// </param>
+    /// <param name="maturityDate">The exact option-chain maturity date.</param>
+    /// <param name="optionContractIds">
+    /// The canonical domain contract IDs of the futures options to include in the chain.
+    /// All contracts must resolve to the supplied underlying contract and maturity.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when a new chain stream is started; otherwise,
+    /// <see langword="false"/> when the identical chain is already running.
+    /// </returns>
+    Task<bool> StartStreamingFuturesOptionChainDataAsync(
+        string futuresContractId,
+        DateOnly maturityDate,
+        string[] optionContractIds);
+
+    /// <summary>
+    /// Stops one futures-option chain identified by its domain underlying contract and maturity.
+    /// </summary>
+    /// <param name="futuresContractId">
+    /// The canonical domain contract ID of the underlying futures contract.
+    /// </param>
+    /// <param name="maturityDate">The exact option-chain maturity date.</param>
+    /// <returns>
+    /// <see langword="true"/> when a running chain is stopped; otherwise,
+    /// <see langword="false"/> when no matching chain is running.
+    /// </returns>
+    Task<bool> StopStreamingFuturesOptionChainDataAsync(
+        string futuresContractId,
+        DateOnly maturityDate);
 }
 
 public interface IMarketDataSnapshotApi : IMarketDataApi
