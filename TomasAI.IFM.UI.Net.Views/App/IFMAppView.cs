@@ -112,9 +112,8 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             case nameof(IFMAppViewModel.StatusLine):
                 lblStatus.Text = _viewModel.StatusLine;
                 break;
-            case nameof(IFMAppViewModel.LatestStatusLog):
-                if (_viewModel.LatestStatusLog is { } statusLog)
-                    statusConsoleView1.AppendStatusConsole(statusLog);
+            case nameof(IFMAppViewModel.StatusLogs):
+                statusConsoleView1.RenderStatusConsole(_viewModel.StatusLogs);
                 break;
             case nameof(IFMAppViewModel.StatusConsole):
                 if (_viewModel.StatusConsole is { } statusConsole)
@@ -123,6 +122,14 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             case nameof(IFMAppViewModel.MarketOutlook):
                 if (_viewModel.MarketOutlook is { } marketOutlook)
                     marketOutlookView1.RefreshView(marketOutlook);
+                break;
+            case nameof(IFMAppViewModel.FuturesTradeSignal):
+                if (_viewModel.FuturesTradeSignal is { } tradeSignal)
+                    marketOutlookView1.RefreshView(tradeSignal);
+                break;
+            case nameof(IFMAppViewModel.LatestTradePlacement):
+                if (_viewModel.LatestTradePlacement is { } tradePlacement)
+                    marketOutlookView1.RefreshView(tradePlacement);
                 break;
             case nameof(IFMAppViewModel.LatestFuturesBarSnapshot):
                 if (_viewModel.LatestFuturesBarSnapshot is { } futuresBars)
@@ -147,6 +154,10 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             statusConsoleView1.LoadViewModel(statusConsole);
         if (_viewModel.MarketOutlook is { } marketOutlook)
             marketOutlookView1.RefreshView(marketOutlook);
+        if (_viewModel.FuturesTradeSignal is { } tradeSignal)
+            marketOutlookView1.RefreshView(tradeSignal);
+        if (_viewModel.LatestTradePlacement is { } tradePlacement)
+            marketOutlookView1.RefreshView(tradePlacement);
         foreach (var futuresBars in _viewModel.FuturesBarSnapshots)
             marketDataView1.RefreshView(futuresBars.Key, futuresBars.Value);
         RenderLatestError();
@@ -169,14 +180,6 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         _lastErrorSequence = error.Sequence;
         this.ShowErrorMessage(error.Message, error.Caption);
     }
-
-    /// <inheritdoc />
-    public void UpdateTradeSignal(FuturesTradeSignalUIViewModel futuresTradeSignal)
-        => this.Post(() => marketOutlookView1.RefreshView(futuresTradeSignal));
-
-    /// <inheritdoc />
-    public void NotifyTradePlacement(PlaceTradeUIViewModel placeTrade)
-        => this.Post(() => marketOutlookView1.RefreshView(placeTrade));
 
     private async void IFMApp_FormClosing(object sender, FormClosingEventArgs e)
     {

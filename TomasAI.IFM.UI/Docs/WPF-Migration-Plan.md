@@ -11,7 +11,7 @@
 | Immediate delivery target | Stage 1: optimized WinForms application suitable for paper trading |
 | Production delivery target | Stage 2: WPF application with functional and operational parity |
 | Scope of this document | Stage 1 implementation specification and Stage 2 architectural pathway |
-| Stage 1 progress | S1.0 through S1.3 implemented on 2026-08-11; S1.4 observable ViewModels and commands is in progress |
+| Stage 1 progress | S1.0 through S1.4 implemented on 2026-08-11; S1.5 real-time stream hardening is in progress |
 
 This document is the controlling migration plan for the IFM desktop client. The existing [`UI.Net implementation details`](../../TomasAI.IFM.UI.Net/Docs/UI-Implementation-Details.md) remain the description of the current WinForms implementation. This document describes the target state and the controlled path from that implementation to WPF.
 
@@ -814,9 +814,33 @@ a pending VX refresh.
   shutdown, rejected post-stop keys, observable snapshots, per-symbol ordering
   and bounds, adapter removal, and UI latency aggregation.
 
-The next S1.5 slice classifies and migrates futures trade-signal display state,
-then applies lossless ordered processing to trade-placement and status-console
-events.
+Progress on 2026-08-11: **the fourth main-shell trade-signal, trade-placement,
+and status-console slice is implemented.** Futures trade signals are replaceable
+display state and use a capacity-one channel at a maximum 20 Hz cadence. Trade
+placements and status-console entries are distinct events and use independent
+capacity-512 ordered channels with batches of up to 32.
+
+- The status-console and trade-placement NATS consumer callbacks are awaitable,
+  allowing a full channel to apply asynchronous backpressure at the subscription
+  boundary without blocking a thread or dropping an accepted event.
+- Futures trade-signal, latest trade-placement, bounded placement history, and
+  bounded status history are observable `IFMAppViewModel` state. The remaining
+  `UpdateTradeSignal` and `NotifyTradePlacement` transitional adapter methods
+  have been removed.
+- `RealtimeStreamMetrics` exposes accepted rate, processed/coalesced event
+  counts, ordered batch counts, backpressure, failures, queue delay, processing
+  duration, capacity, and lifecycle state for all three paths.
+- Shutdown stops each upstream consumer before closing its owned channel;
+  ordered placement and console channels drain accepted events while the
+  replaceable signal channel discards obsolete pending display state.
+- Tests cover observable signal and placement state, newest-first ordering,
+  display bounds, batch publication, empty lifecycle metrics, and adapter
+  removal. Shared channel suites provide the burst, backpressure, retry,
+  coalescing, and shutdown coverage used by these paths.
+
+The next S1.5 step is the final real-time-path classification audit and burst
+acceptance gate. It inventories any remaining UI event callbacks, migrates any
+unbounded path found, and records peak-rate evidence before S1.6 begins.
 
 - Classify every UI event path as lossless or latest-value.
 - Apply bounded channels, batching, render cadence, and ordered processing.

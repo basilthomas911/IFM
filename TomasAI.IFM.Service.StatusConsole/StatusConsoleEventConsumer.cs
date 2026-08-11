@@ -21,7 +21,7 @@ namespace TomasAI.IFM.Service.StatusConsole;
 public class StatusConsoleEventConsumer(INatsEventListenerOptions options, ILogger logger)
     : NatsActorEventListener(options, logger), IStatusConsoleEventConsumer
 {
-    Action<StatusConsoleLoggedEvent> _eventAction = default!;
+    Func<StatusConsoleLoggedEvent, ValueTask> _eventAction = default!;
 
     /// <summary>
     /// Starts the NATS subscription and begins forwarding <see cref="StatusConsoleLoggedEvent"/> events
@@ -31,10 +31,9 @@ public class StatusConsoleEventConsumer(INatsEventListenerOptions options, ILogg
     /// Subscribes to the <c>StatusConsoleEvent / Logged</c> actor mailbox. Each received message is
     /// deserialised into a <see cref="StatusConsoleLoggedEvent"/> and passed to <paramref name="eventAction"/>
     /// only when <see cref="StatusConsoleLoggedEvent.IsValid"/> is <see langword="true"/>.
-    /// The <paramref name="siteId"/> parameter is reserved for future multi-site filtering.
     /// </remarks>
     /// <param name="eventAction">Callback invoked for every valid <see cref="StatusConsoleLoggedEvent"/> received.</param>
-    public async ValueTask StartAsync(Action<StatusConsoleLoggedEvent> eventAction)
+    public async ValueTask StartAsync(Func<StatusConsoleLoggedEvent, ValueTask> eventAction)
     {
         _eventAction = eventAction;
         await StartAsync(
@@ -55,8 +54,7 @@ public class StatusConsoleEventConsumer(INatsEventListenerOptions options, ILogg
                 _ => default!
             };
             if (loggedEvent.IsValid)
-                _eventAction(loggedEvent);
-            await ValueTask.CompletedTask;
+                await _eventAction(loggedEvent);
         }
     }
 
@@ -66,12 +64,10 @@ public class StatusConsoleEventConsumer(INatsEventListenerOptions options, ILogg
     /// <remarks>
     /// Delegates to the base <see cref="NatsActorEventListener.StopAsync()"/> to cleanly unsubscribe
     /// from all NATS subjects before clearing the internal callback reference.
-    /// The <paramref name="siteId"/> parameter is reserved for future multi-site teardown logic.
     /// </remarks>
-    /// <param name="siteId">Site identifier reserved for future per-site subscription teardown.</param>
     public new async ValueTask StopAsync()
     {
-        _eventAction = default!;
         await base.StopAsync();
+        _eventAction = default!;
     }
 }

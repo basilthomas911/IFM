@@ -4,6 +4,6 @@ namespace TomasAI.IFM.Service.StatusConsole;
 
 public interface IStatusConsoleEventConsumer
 {
-    ValueTask StartAsync(Action<StatusConsoleLoggedEvent> eventAction);
+    ValueTask StartAsync(Func<StatusConsoleLoggedEvent, ValueTask> eventAction);
     ValueTask StopAsync();
 }

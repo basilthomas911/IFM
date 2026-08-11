@@ -2,7 +2,9 @@ using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.EventConsumer;
@@ -61,16 +63,78 @@ public class IFMAppViewModelTests
         viewModel.ShutdownOperation.Should().NotBeNull();
         viewModel.MarketOutlook.Should().BeNull();
         viewModel.FuturesBarSnapshots.Should().BeEmpty();
+        viewModel.FuturesTradeSignal.Should().BeNull();
+        viewModel.LatestTradePlacement.Should().BeNull();
+        viewModel.TradePlacements.Should().BeEmpty();
         viewModel.MarketDataStreamMetrics.MarketOutlook.IsOpen.Should().BeFalse();
         viewModel.MarketDataStreamMetrics.FuturesBars.Should().BeEmpty();
+        viewModel.RealtimeStreamMetrics.FuturesTradeSignals.IsOpen.Should().BeFalse();
+        viewModel.RealtimeStreamMetrics.TradePlacements.IsOpen.Should().BeFalse();
+        viewModel.RealtimeStreamMetrics.StatusConsole.IsOpen.Should().BeFalse();
         typeof(IIFMAppLiveViewAdapter).GetMethod("UpdateMarketOutlook").Should().BeNull();
         typeof(IIFMAppLiveViewAdapter).GetMethod("UpdateMarketData").Should().BeNull();
+        typeof(IIFMAppLiveViewAdapter).GetMethod("UpdateTradeSignal").Should().BeNull();
+        typeof(IIFMAppLiveViewAdapter).GetMethod("NotifyTradePlacement").Should().BeNull();
         typeof(IFMAppViewModel)
             .GetFields(System.Reflection.BindingFlags.Public
                 | System.Reflection.BindingFlags.Instance
                 | System.Reflection.BindingFlags.DeclaredOnly)
             .Where(field => typeof(Delegate).IsAssignableFrom(field.FieldType))
             .Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RealtimeSnapshots_AreObservableOrderedAndBounded()
+    {
+        var viewModel = CreateSubject();
+        var changed = new List<string?>();
+        viewModel.PropertyChanged += (_, eventArgs) => changed.Add(eventArgs.PropertyName);
+
+        viewModel.PublishFuturesTradeSignal(new FuturesTradeSignalV2ReadModel
+        {
+            ContractId = "ESZ26",
+            ValueDate = new DateOnly(2026, 8, 11),
+            RSI = 52.5
+        });
+        var placements = Enumerable.Range(0, 505)
+            .Select(index => (index % 3) switch
+            {
+                0 => (TomasAI.IFM.Shared.EventSourcing.IEvent)new TradePlacementSetEvent(),
+                1 => new TradePlacementWaitEvent(),
+                _ => new TradePlacementClearedEvent()
+            })
+            .ToArray();
+        viewModel.PublishTradePlacementBatch(placements);
+
+        viewModel.FuturesTradeSignal!.ContractId.Should().Be("ESZ26");
+        viewModel.FuturesTradeSignal.RSI.Should().Be("52.50");
+        viewModel.TradePlacements.Should().HaveCount(500);
+        viewModel.LatestTradePlacement.Should().BeSameAs(viewModel.TradePlacements[0]);
+        viewModel.LatestTradePlacement!.PlaceTrade.Should().Be("Yes");
+        changed.Should().Contain(nameof(IFMAppViewModel.FuturesTradeSignal));
+        changed.Should().Contain(nameof(IFMAppViewModel.TradePlacements));
+        changed.Should().Contain(nameof(IFMAppViewModel.LatestTradePlacement));
+    }
+
+    [Fact]
+    public void StatusLogBatch_PreservesNewestFirstDisplayOrder()
+    {
+        var viewModel = CreateSubject();
+        var received = new DateTime(2026, 8, 11, 9, 30, 0);
+        var logs = Enumerable.Range(0, 3)
+            .Select(index => new StatusConsoleLogReadModel(
+                received.AddSeconds(index),
+                0,
+                LogSourceType.IFMApp,
+                $"message-{index}"))
+            .ToArray();
+
+        viewModel.AppendStatusLogs(logs);
+
+        viewModel.StatusLogs.Select(log => log.Message)
+            .Should().Equal("message-2", "message-1", "message-0");
+        viewModel.LatestStatusLog.Should().BeSameAs(logs[2]);
+        viewModel.StatusLine.Should().Be("message-2");
     }
 
     [Fact]

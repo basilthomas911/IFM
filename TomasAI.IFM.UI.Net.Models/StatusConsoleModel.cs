@@ -26,7 +26,9 @@ public class StatusConsoleModel : BaseModel<StatusConsoleModel>
     /// </summary>
     /// <param name="listenerAction"></param>
     /// <param name="siteId"></param>
-    public async Task StartStatusConsoleLogListenerAsync(Action<StatusConsoleLoggedEvent> listenerAction, Guid siteId)
+    public async Task StartStatusConsoleLogListenerAsync(
+        Func<StatusConsoleLoggedEvent, ValueTask> listenerAction,
+        Guid siteId)
     {
         try
         {

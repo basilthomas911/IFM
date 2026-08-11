@@ -24,7 +24,7 @@ public class TradePlacementUIEventConsumer(INatsEventListenerOptions options, IL
                ]
     };
 
-    public async ValueTask StartAsync(Action<IEvent> eventAction)
+    public async ValueTask StartAsync(Func<IEvent, ValueTask> eventAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
       
@@ -32,7 +32,7 @@ public class TradePlacementUIEventConsumer(INatsEventListenerOptions options, IL
         {
             try
             {
-                _ = eventVerb switch
+                await (eventVerb switch
                 {
                     _ when eventVerb == TradePlacementSetEvent.Verb 
                         => HandleEvent(eventMsg.AsEvent<TradePlacementSetEvent>()!, eventAction),
@@ -40,20 +40,16 @@ public class TradePlacementUIEventConsumer(INatsEventListenerOptions options, IL
                         => HandleEvent(eventMsg.AsEvent<TradePlacementWaitEvent>()!, eventAction),
                     _ when eventVerb == TradePlacementClearedEvent.Verb 
                         => HandleEvent(eventMsg.AsEvent<TradePlacementClearedEvent>()!, eventAction),
-                    _ => default!
-                };
-                await ValueTask.CompletedTask;
+                    _ => ValueTask.CompletedTask
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
             }
 
-            IEvent HandleEvent(IEvent e, Action<IEvent> eventAction)
-            {
-                eventAction?.Invoke(e);
-                return e;
-            }
+            static ValueTask HandleEvent(IEvent e, Func<IEvent, ValueTask> eventAction)
+                => eventAction(e);
         }
     }
 

@@ -3,8 +3,10 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventChannel;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -31,6 +33,14 @@ public sealed record IFMAppMarketDataStreamMetricsSnapshot(
     IReadOnlyDictionary<string, LatestValueChannelMetrics> FuturesBars);
 
 /// <summary>
+/// Provides diagnostics for the main shell's trade-signal, trade-placement, and status-console streams.
+/// </summary>
+public sealed record IFMAppRealtimeStreamMetricsSnapshot(
+    LatestValueChannelMetrics FuturesTradeSignals,
+    OrderedBatchChannelMetrics TradePlacements,
+    OrderedBatchChannelMetrics StatusConsole);
+
+/// <summary>
 /// Describes main-shell dispatcher wait and render duration.
 /// </summary>
 public readonly record struct IFMAppUiDispatchMetricsSnapshot(
@@ -43,9 +53,14 @@ public readonly record struct IFMAppUiDispatchMetricsSnapshot(
 public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
     const int StatusLogCapacity = 500;
+    const int TradePlacementDisplayCapacity = 500;
+    const int OrderedEventChannelCapacity = 512;
+    const int OrderedEventBatchSize = 32;
     const int FuturesBarChartCapacity = 2_048;
     readonly object _statusLogGate = new();
     readonly object _marketDataStreamGate = new();
+    readonly object _realtimeStreamGate = new();
+    readonly object _tradePlacementGate = new();
     readonly IAppRoot _appRoot;
     readonly IIFMAppLiveViewAdapter _liveViewAdapter;
     readonly TimeProvider _timeProvider;
@@ -54,10 +69,14 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     readonly Version _appVersion;
     readonly string _appEnvironment;
     readonly List<StatusConsoleLogReadModel> _statusLogBuffer = [];
+    readonly List<PlaceTradeUIViewModel> _tradePlacementBuffer = [];
     readonly Dictionary<string, FuturesBarDataReadModel[]> _futuresBarSnapshots = [];
     readonly Dictionary<string, LatestValueChannelMetrics> _futuresBarMetrics = [];
     LatestValueAsyncChannel<FuturesEodDataV2ReadModel>? _marketOutlookChannel;
     KeyedLatestValueAsyncChannel<string, FuturesBarDataInsertedCompleteEvent>? _futuresBarChannels;
+    LatestValueAsyncChannel<FuturesTradeSignalV2ReadModel>? _futuresTradeSignalChannel;
+    OrderedBatchAsyncChannel<IEvent>? _tradePlacementChannel;
+    OrderedBatchAsyncChannel<StatusConsoleLogReadModel>? _statusConsoleChannel;
     DateOnly? _valueDate;
     IReadOnlyList<FuturesContractV2ReadModel> _baseContracts = [];
     IReadOnlyList<StatusConsoleLogReadModel> _statusLogs = [];
@@ -70,9 +89,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     long _errorSequence;
     int _resetTicks;
     FuturesEodDataUIViewModel? _marketOutlook;
+    FuturesTradeSignalUIViewModel? _futuresTradeSignal;
+    PlaceTradeUIViewModel? _latestTradePlacement;
+    IReadOnlyList<PlaceTradeUIViewModel> _tradePlacements = [];
     FuturesBarChartSnapshot? _latestFuturesBarSnapshot;
     IReadOnlyDictionary<string, FuturesBarDataReadModel[]> _futuresBarSnapshotState = new Dictionary<string, FuturesBarDataReadModel[]>();
     IFMAppMarketDataStreamMetricsSnapshot _marketDataStreamMetrics = new(default, new Dictionary<string, LatestValueChannelMetrics>());
+    IFMAppRealtimeStreamMetricsSnapshot _realtimeStreamMetrics = new(default, default, default);
     IFMAppUiDispatchMetricsSnapshot _uiDispatchMetrics;
     long _uiDispatchCount;
     long _maximumUiDispatchDelayTicks;
@@ -177,6 +200,27 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         private set => SetProperty(ref _marketOutlook, value);
     }
 
+    /// <summary>Gets the newest replaceable futures trade-signal display snapshot.</summary>
+    public FuturesTradeSignalUIViewModel? FuturesTradeSignal
+    {
+        get => _futuresTradeSignal;
+        private set => SetProperty(ref _futuresTradeSignal, value);
+    }
+
+    /// <summary>Gets the newest losslessly processed trade-placement event.</summary>
+    public PlaceTradeUIViewModel? LatestTradePlacement
+    {
+        get => _latestTradePlacement;
+        private set => SetProperty(ref _latestTradePlacement, value);
+    }
+
+    /// <summary>Gets the bounded, newest-first display history of processed trade-placement events.</summary>
+    public IReadOnlyList<PlaceTradeUIViewModel> TradePlacements
+    {
+        get => _tradePlacements;
+        private set => SetProperty(ref _tradePlacements, value);
+    }
+
     /// <summary>Gets the newest bounded futures-bar snapshot across symbols.</summary>
     public FuturesBarChartSnapshot? LatestFuturesBarSnapshot
     {
@@ -196,6 +240,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     {
         get => _marketDataStreamMetrics;
         private set => SetProperty(ref _marketDataStreamMetrics, value);
+    }
+
+    /// <summary>Gets rate, coalescing, backpressure, lag, failure, and lifecycle stream metrics.</summary>
+    public IFMAppRealtimeStreamMetricsSnapshot RealtimeStreamMetrics
+    {
+        get => _realtimeStreamMetrics;
+        private set => SetProperty(ref _realtimeStreamMetrics, value);
     }
 
     /// <summary>Gets main-shell dispatcher wait and render-duration metrics.</summary>
@@ -274,7 +325,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await DisableMarketDataFeedResetListener();
         await DisableTradeLiveFeed();
         await _appRoot.GetModel<ApplicationEventModel>().StopApplicationEventConsumerAsync();
-        await _appRoot.GetModel<StatusConsoleModel>().StopStatusConsoleLogListener(_siteId);
+        await StopStatusConsoleListener();
         IsMenuEnabled = false;
         StartupOperation.NotifyCanExecuteChanged();
         ShutdownOperation.NotifyCanExecuteChanged();
@@ -350,14 +401,50 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// start console listener
     /// </summary>
     Task StartStatusConsoleListener()
-        => _appRoot.GetModel<StatusConsoleModel>().ExecuteAsync(async model => {
+    {
+        if (_statusConsoleChannel is not null)
+            return Task.CompletedTask;
+
+        var channel = new OrderedBatchAsyncChannel<StatusConsoleLogReadModel>(
+            ProcessStatusConsoleBatchAsync,
+            capacity: OrderedEventChannelCapacity,
+            maximumBatchSize: OrderedEventBatchSize,
+            timeProvider: _timeProvider,
+            metricsChanged: PublishStatusConsoleMetrics);
+        _statusConsoleChannel = channel;
+        PublishStatusConsoleMetrics(channel.Metrics);
+        return _appRoot.GetModel<StatusConsoleModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Status Console Log Error"));
-            await model.StartStatusConsoleLogListenerAsync(o => {
+            await model.StartStatusConsoleLogListenerAsync(async o => {
                 if (o is not null && o.StatusConsoleLog is not null)
-                    AppendStatusLog(o.StatusConsoleLog);
+                    await channel.WriteAsync(o.StatusConsoleLog);
             }, _siteId);
         });
+
+        ValueTask ProcessStatusConsoleBatchAsync(
+            IReadOnlyList<StatusConsoleLogReadModel> logs,
+            CancellationToken channelCancellationToken)
+        {
+            channelCancellationToken.ThrowIfCancellationRequested();
+            AppendStatusLogs(logs);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    async Task StopStatusConsoleListener()
+    {
+        var channel = Interlocked.Exchange(ref _statusConsoleChannel, null);
+        try
+        {
+            await _appRoot.GetModel<StatusConsoleModel>().StopStatusConsoleLogListener(_siteId);
+        }
+        finally
+        {
+            if (channel is not null)
+                await channel.StopAsync();
+        }
+    }
 
     /// <summary>
     /// start application events listener
@@ -409,7 +496,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await model.GetLastFuturesTradeSignalAsync(futuresTradeSignal =>
             {
                 if (futuresTradeSignal is not null)
-                    _liveViewAdapter.UpdateTradeSignal(new FuturesTradeSignalUIViewModel(futuresTradeSignal));
+                    PublishFuturesTradeSignal(futuresTradeSignal);
             });
         });
 
@@ -493,6 +580,16 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// </summary>
     async Task StartFuturesTradeSignalEventConsumer(CancellationToken cancellationToken)
     {
+        if (_futuresTradeSignalChannel is not null)
+            return;
+
+        var channel = new LatestValueAsyncChannel<FuturesTradeSignalV2ReadModel>(
+            ProcessFuturesTradeSignalAsync,
+            minimumInterval: TimeSpan.FromMilliseconds(50),
+            timeProvider: _timeProvider,
+            metricsChanged: PublishFuturesTradeSignalMetrics);
+        _futuresTradeSignalChannel = channel;
+        PublishFuturesTradeSignalMetrics(channel.Metrics);
         await _appRoot.GetModel<MarketDataAnalyticsQueryModel>().ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
@@ -505,7 +602,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                     contractId, _valueDate ?? DateOnly.MinValue, futuresTradeSignal =>
                     {
                         if (futuresTradeSignal is not null)
-                            _liveViewAdapter.UpdateTradeSignal(new FuturesTradeSignalUIViewModel(futuresTradeSignal));
+                            channel.TryWrite(futuresTradeSignal);
                     });
         });
         await _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model =>
@@ -517,33 +614,64 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 _siteId, e =>
                 {
                     if (e is not null && e.FuturesTradeSignal is not null)
-                        _liveViewAdapter.UpdateTradeSignal(new FuturesTradeSignalUIViewModel(e.FuturesTradeSignal));
+                        channel.TryWrite(e.FuturesTradeSignal);
                 });
         });
+
+        ValueTask ProcessFuturesTradeSignalAsync(
+            FuturesTradeSignalV2ReadModel signal,
+            CancellationToken channelCancellationToken)
+        {
+            channelCancellationToken.ThrowIfCancellationRequested();
+            PublishFuturesTradeSignal(signal);
+            return ValueTask.CompletedTask;
+        }
     }
 
     /// <summary>
     /// stop futures trade signal consumer
     /// </summary>
-    Task StopFuturesTradeSignalEventConsumer()
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Stopping Futures Trade Signal Error"));
-            await WriteStatusConsoleAsync("Stopping Futures Trade Signal...");
-            await model.StopFuturesTradeSignalEventConsumerAsync(_siteId);
-        });
+    async Task StopFuturesTradeSignalEventConsumer()
+    {
+        var channel = Interlocked.Exchange(ref _futuresTradeSignalChannel, null);
+        try
+        {
+            await _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model => {
+                model.OnError((errorCode, errorMessage) =>
+                    PublishError(errorCode, errorMessage, "Stopping Futures Trade Signal Error"));
+                await WriteStatusConsoleAsync("Stopping Futures Trade Signal...");
+                await model.StopFuturesTradeSignalEventConsumerAsync(_siteId);
+            });
+        }
+        finally
+        {
+            if (channel is not null)
+                await channel.StopAsync();
+        }
+    }
 
     /// <summary>
     /// start trade placement event consumer
     /// </summary>
     Task StartTradePlacementEventConsumer(CancellationToken cancellationToken)
-        => _appRoot.GetModel<TradePlacementEventModel>().ExecuteAsync(async model => {
+    {
+        if (_tradePlacementChannel is not null)
+            return Task.CompletedTask;
+
+        var channel = new OrderedBatchAsyncChannel<IEvent>(
+            ProcessTradePlacementBatchAsync,
+            capacity: OrderedEventChannelCapacity,
+            maximumBatchSize: OrderedEventBatchSize,
+            timeProvider: _timeProvider,
+            metricsChanged: PublishTradePlacementMetrics);
+        _tradePlacementChannel = channel;
+        PublishTradePlacementMetrics(channel.Metrics);
+        return _appRoot.GetModel<TradePlacementEventModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Starting Trade Placement Event Consumer Error"));
             await WriteStatusConsoleAsync("Starting Trade Placement Event Consumer...");
             await DelayStartupAsync(cancellationToken);
-            await model.StartTradePlacementListenerAsync(e =>
-                _liveViewAdapter.NotifyTradePlacement(new PlaceTradeUIViewModel(e)));
+            await model.StartTradePlacementListenerAsync(e => channel.WriteAsync(e));
             await _appRoot.GetModel<TradePlacementCommandModel>().ExecuteAsync(async tradePlacementModel => {
                 var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
                 if (esContract is not null && _valueDate.HasValue)
@@ -555,24 +683,45 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
         });
 
+        ValueTask ProcessTradePlacementBatchAsync(
+            IReadOnlyList<IEvent> events,
+            CancellationToken channelCancellationToken)
+        {
+            channelCancellationToken.ThrowIfCancellationRequested();
+            PublishTradePlacementBatch(events);
+            return ValueTask.CompletedTask;
+        }
+    }
+
     /// <summary>
     /// stop trade placement consumer
     /// </summary>
-    Task StopTradePlacementEventConsumer()
-        => _appRoot.GetModel<TradePlacementEventModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Stopping Trade Placement Event Consumer Error"));
-            await WriteStatusConsoleAsync("Stopping Trade Placement Event Consumer...");
-            await model.StopTradePlacementListenerAsync();
-            await _appRoot.GetModel<TradePlacementCommandModel>().ExecuteAsync(async tradePlacementModel => {
-                var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
-                if (esContract is not null && _valueDate.HasValue)
-                {
-                    await tradePlacementModel.StopTradePlacementAsync(esContract.ContractId, _valueDate.Value);
-                    await WriteStatusConsoleAsync("Stopping Trade Placement Signal Service...");
-                }
+    async Task StopTradePlacementEventConsumer()
+    {
+        var channel = Interlocked.Exchange(ref _tradePlacementChannel, null);
+        try
+        {
+            await _appRoot.GetModel<TradePlacementEventModel>().ExecuteAsync(async model => {
+                model.OnError((errorCode, errorMessage) =>
+                    PublishError(errorCode, errorMessage, "Stopping Trade Placement Event Consumer Error"));
+                await WriteStatusConsoleAsync("Stopping Trade Placement Event Consumer...");
+                await model.StopTradePlacementListenerAsync();
+                await _appRoot.GetModel<TradePlacementCommandModel>().ExecuteAsync(async tradePlacementModel => {
+                    var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
+                    if (esContract is not null && _valueDate.HasValue)
+                    {
+                        await tradePlacementModel.StopTradePlacementAsync(esContract.ContractId, _valueDate.Value);
+                        await WriteStatusConsoleAsync("Stopping Trade Placement Signal Service...");
+                    }
+                });
             });
-        });
+        }
+        finally
+        {
+            if (channel is not null)
+                await channel.StopAsync();
+        }
+    }
 
     /// <summary>
     /// start futures rsi signal service
@@ -831,6 +980,28 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     internal void PublishMarketOutlook(FuturesEodDataV2ReadModel futuresEodData)
         => MarketOutlook = new FuturesEodDataUIViewModel(futuresEodData);
 
+    internal void PublishFuturesTradeSignal(FuturesTradeSignalV2ReadModel signal)
+        => FuturesTradeSignal = new FuturesTradeSignalUIViewModel(signal);
+
+    internal void PublishTradePlacementBatch(IReadOnlyList<IEvent> events)
+    {
+        if (events.Count == 0)
+            return;
+
+        var placements = events.Select(@event => new PlaceTradeUIViewModel(@event)).ToArray();
+        lock (_tradePlacementGate)
+        {
+            foreach (var placement in placements)
+                _tradePlacementBuffer.Insert(0, placement);
+            if (_tradePlacementBuffer.Count > TradePlacementDisplayCapacity)
+                _tradePlacementBuffer.RemoveRange(
+                    TradePlacementDisplayCapacity,
+                    _tradePlacementBuffer.Count - TradePlacementDisplayCapacity);
+            TradePlacements = [.. _tradePlacementBuffer];
+            LatestTradePlacement = placements[^1];
+        }
+    }
+
     internal void PublishFuturesBarSnapshot(
         string symbol,
         IEnumerable<FuturesBarDataReadModel> futuresBarData)
@@ -869,20 +1040,45 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
     }
 
-    internal void AppendStatusLog(StatusConsoleLogReadModel log)
+    void PublishFuturesTradeSignalMetrics(LatestValueChannelMetrics metrics)
     {
+        lock (_realtimeStreamGate)
+            RealtimeStreamMetrics = RealtimeStreamMetrics with { FuturesTradeSignals = metrics };
+    }
+
+    void PublishTradePlacementMetrics(OrderedBatchChannelMetrics metrics)
+    {
+        lock (_realtimeStreamGate)
+            RealtimeStreamMetrics = RealtimeStreamMetrics with { TradePlacements = metrics };
+    }
+
+    void PublishStatusConsoleMetrics(OrderedBatchChannelMetrics metrics)
+    {
+        lock (_realtimeStreamGate)
+            RealtimeStreamMetrics = RealtimeStreamMetrics with { StatusConsole = metrics };
+    }
+
+    internal void AppendStatusLog(StatusConsoleLogReadModel log)
+        => AppendStatusLogs([log]);
+
+    internal void AppendStatusLogs(IReadOnlyList<StatusConsoleLogReadModel> logs)
+    {
+        if (logs.Count == 0)
+            return;
+
         StatusConsoleLogReadModel[] snapshot;
         lock (_statusLogGate)
         {
-            _statusLogBuffer.Insert(0, log);
+            foreach (var log in logs)
+                _statusLogBuffer.Insert(0, log);
             if (_statusLogBuffer.Count > StatusLogCapacity)
                 _statusLogBuffer.RemoveRange(StatusLogCapacity, _statusLogBuffer.Count - StatusLogCapacity);
             snapshot = [.. _statusLogBuffer];
         }
 
         StatusLogs = snapshot;
-        LatestStatusLog = log;
-        StatusLine = log.Message;
+        LatestStatusLog = logs[^1];
+        StatusLine = logs[^1].Message;
     }
 
     internal void PublishError(int errorCode, string message, string caption)
