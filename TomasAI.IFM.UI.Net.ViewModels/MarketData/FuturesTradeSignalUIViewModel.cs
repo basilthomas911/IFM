@@ -1,4 +1,4 @@
-using System.Drawing;
+using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -8,38 +8,38 @@ public class FuturesTradeSignalUIViewModel
 {
     public string ContractId { get; private set; }
     public string Trend { get; private set; }
-    public Color TrendForeColor { get; private set; }
-    public Color TrendBackColor { get; private set; }
+    public PresentationColorRole TrendForeColor { get; private set; }
+    public PresentationColorRole TrendBackColor { get; private set; }
     public string MDIDownLimit { get; private set; }
-    public Color MDIDownLimitForeColor { get; private set; }
-    public Color MDIDownLimitBackColor { get; private set; }
+    public PresentationColorRole MDIDownLimitForeColor { get; private set; }
+    public PresentationColorRole MDIDownLimitBackColor { get; private set; }
     public string RSI { get; private set; }
-    public Color RSIForeColor { get; private set; }
-    public Color RSIBackColor { get; private set; }
+    public PresentationColorRole RSIForeColor { get; private set; }
+    public PresentationColorRole RSIBackColor { get; private set; }
     public string MDITrend { get; private set; }
-    public Color MDITrendForeColor { get; private set; }
-    public Color MDITrendBackColor { get; private set; }
+    public PresentationColorRole MDITrendForeColor { get; private set; }
+    public PresentationColorRole MDITrendBackColor { get; private set; }
     public string MDIUpLimit { get; private set; }
-    public Color MDIUpLimitForeColor { get; private set; }
-    public Color MDIUpLimitBackColor { get; private set; }
+    public PresentationColorRole MDIUpLimitForeColor { get; private set; }
+    public PresentationColorRole MDIUpLimitBackColor { get; private set; }
     public string RiskPosition { get; private set; }
-    public Color RiskPositionForeColor { get; private set; }
-    public Color RiskPositionBackColor { get; private set; }
+    public PresentationColorRole RiskPositionForeColor { get; private set; }
+    public PresentationColorRole RiskPositionBackColor { get; private set; }
 
     public string UpTrendLimit { get; private set; }
-    public Color UpTrendLimitForeColor { get; private set; }
+    public PresentationColorRole UpTrendLimitForeColor { get; private set; }
     public string DownLimitTrigger { get; private set; }
-    public Color DownLimitTriggerForeColor { get; private set; }
+    public PresentationColorRole DownLimitTriggerForeColor { get; private set; }
     public string TradeEntry { get; private set; }
-    public Color TradeEntryForeColor { get; private set; }
+    public PresentationColorRole TradeEntryForeColor { get; private set; }
     public string TradeExit { get; private set; }
-    public Color TradeExitForeColor { get; private set; }
+    public PresentationColorRole TradeExitForeColor { get; private set; }
     public string TrendDelta { get; private set; }
-    public Color TrendDeltaForeColor { get; private set; }
+    public PresentationColorRole TrendDeltaForeColor { get; private set; }
     public string TrendExtreme { get; private set; }
-    public Color TrendExtremeForeColor { get; private set; }
+    public PresentationColorRole TrendExtremeForeColor { get; private set; }
     public string TrendReversal { get; private set; }
-    public Color TrendReversalForeColor { get; private set; }
+    public PresentationColorRole TrendReversalForeColor { get; private set; }
     public string FiftyDMA { get; private set; }
     public string TwoHundredDMA { get; private set; }
 
@@ -82,66 +82,66 @@ public class FuturesTradeSignalUIViewModel
         TwoHundredDMA = $"{e.TwoHundredDMA:F2}";
         return;
 
-        Color GetTrendForeColor() => Color.Black;
+        PresentationColorRole GetTrendForeColor() => PresentationColorRole.DarkText;
 
-        Color GetTrendBackColor()
+        PresentationColorRole GetTrendBackColor()
             => e.TrendType switch {
-                FuturesTrendType.UpTrend => Color.LimeGreen,
-                FuturesTrendType.UpTrending => Color.LimeGreen,
-                FuturesTrendType.DownTrending => Color.Red,
-                FuturesTrendType.DownTrend => Color.Red,
-                _ => Color.Yellow
+                FuturesTrendType.UpTrend => PresentationColorRole.Positive,
+                FuturesTrendType.UpTrending => PresentationColorRole.Positive,
+                FuturesTrendType.DownTrending => PresentationColorRole.Negative,
+                FuturesTrendType.DownTrend => PresentationColorRole.Negative,
+                _ => PresentationColorRole.Caution
             };
 
-        Color GetMDIUpLimitForeColor() => Color.Black;
+        PresentationColorRole GetMDIUpLimitForeColor() => PresentationColorRole.DarkText;
 
-        Color GetMDIUpLimitBackColor() => Color.LimeGreen;
+        PresentationColorRole GetMDIUpLimitBackColor() => PresentationColorRole.Positive;
 
-        Color GetMDIDownLimitForeColor() => Color.Black;
+        PresentationColorRole GetMDIDownLimitForeColor() => PresentationColorRole.DarkText;
 
-        Color GetMDIDownLimitBackColor() => Color.Red;
+        PresentationColorRole GetMDIDownLimitBackColor() => PresentationColorRole.Negative;
 
-        Color GetRSIForeColor() => Color.Black;
+        PresentationColorRole GetRSIForeColor() => PresentationColorRole.DarkText;
 
-        Color GetRSIBackColor()
+        PresentationColorRole GetRSIBackColor()
              => e.RSI switch
              {
-                 > 60 => Color.LimeGreen,
-                 < 40 => Color.Red,
-                 _ => Color.Yellow
+                 > 60 => PresentationColorRole.Positive,
+                 < 40 => PresentationColorRole.Negative,
+                 _ => PresentationColorRole.Caution
              };
 
-        Color GetMDITrendForeColor() => Color.Black;
+        PresentationColorRole GetMDITrendForeColor() => PresentationColorRole.DarkText;
 
-        Color GetMDITrendBackColor()
+        PresentationColorRole GetMDITrendBackColor()
             => e.MDITrend switch
             {
-                FuturesMDITrendType.UpTrending  => Color.LimeGreen,
-                FuturesMDITrendType.DownTrending => Color.Red,
-                _ => Color.Yellow
+                FuturesMDITrendType.UpTrending  => PresentationColorRole.Positive,
+                FuturesMDITrendType.DownTrending => PresentationColorRole.Negative,
+                _ => PresentationColorRole.Caution
             };
 
-        Color GetRiskPositionForeColor() => Color.Black;
+        PresentationColorRole GetRiskPositionForeColor() => PresentationColorRole.DarkText;
 
-        Color GetRiskPositionBackColor()
+        PresentationColorRole GetRiskPositionBackColor()
             => e.TrendStrength switch
             {
-                FuturesTrendStrengthType.High => Color.LimeGreen,
-                FuturesTrendStrengthType.Medium => Color.Yellow,
-                _ => Color.Red
+                FuturesTrendStrengthType.High => PresentationColorRole.Positive,
+                FuturesTrendStrengthType.Medium => PresentationColorRole.Caution,
+                _ => PresentationColorRole.Negative
             };
 
-        Color GetTradeEntryForeColor() => Color.White;
+        PresentationColorRole GetTradeEntryForeColor() => PresentationColorRole.LightText;
 
-        Color GetTradeExitForeColor() => Color.White;
+        PresentationColorRole GetTradeExitForeColor() => PresentationColorRole.LightText;
 
-        Color GetTrendDeltaForeColor() => Color.White;
-        Color GetTrendExtremeForeColor() => Color.White;
-        Color GetTrendReversalForeColor() => Color.White;
+        PresentationColorRole GetTrendDeltaForeColor() => PresentationColorRole.LightText;
+        PresentationColorRole GetTrendExtremeForeColor() => PresentationColorRole.LightText;
+        PresentationColorRole GetTrendReversalForeColor() => PresentationColorRole.LightText;
 
-        Color GetUpTrendTriggerForeColor() => Color.White;
+        PresentationColorRole GetUpTrendTriggerForeColor() => PresentationColorRole.LightText;
 
-        Color GetDownTrendTriggerForeColor() => Color.White;
+        PresentationColorRole GetDownTrendTriggerForeColor() => PresentationColorRole.LightText;
 
     }
 

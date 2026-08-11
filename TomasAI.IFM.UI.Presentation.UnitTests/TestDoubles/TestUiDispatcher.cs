@@ -15,6 +15,14 @@ public sealed class TestUiDispatcher : IUiDispatcher
     public int InvocationCount { get; private set; }
 
     /// <inheritdoc />
+    public void Post(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        InvocationCount++;
+        action();
+    }
+
+    /// <inheritdoc />
     public bool CheckAccess() => Environment.CurrentManagedThreadId == _ownerThreadId;
 
     /// <inheritdoc />

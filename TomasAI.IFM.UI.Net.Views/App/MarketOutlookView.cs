@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.App
 {
@@ -29,32 +30,32 @@ namespace TomasAI.IFM.UI.Net.Views.App
         public void RefreshView(FuturesEodDataUIViewModel e)
         {
             txtMarketTrendRT.Text = e.MarketDirection;
-            txtMarketTrendRT.ForeColor = e.MarketDirectionForeColor;
-            txtMarketTrendRT.BackColor = e.MarketDirectionBackColor;
+            txtMarketTrendRT.ForeColor = e.MarketDirectionForeColor.ToColor();
+            txtMarketTrendRT.BackColor = e.MarketDirectionBackColor.ToColor();
             txtMarketVolatilityRT.Text = e.MarketVolatility;
-            txtMarketVolatilityRT.ForeColor = e.MarketVolatilityForeColor;
-            txtMarketVolatilityRT.BackColor = e.MarketVolatilityBackColor;
+            txtMarketVolatilityRT.ForeColor = e.MarketVolatilityForeColor.ToColor();
+            txtMarketVolatilityRT.BackColor = e.MarketVolatilityBackColor.ToColor();
             txtMarketDirectionRT.Text = e.PriceDirection;
-            txtMarketDirectionRT.ForeColor = e.PriceDirectionForeColor;
-            txtMarketDirectionRT.BackColor = e.PriceDirectionBackColor;
+            txtMarketDirectionRT.ForeColor = e.PriceDirectionForeColor.ToColor();
+            txtMarketDirectionRT.BackColor = e.PriceDirectionBackColor.ToColor();
             txtVixVolRT.Text = e.PriceVolatility;
-            txtVixVolRT.ForeColor = e.PriceVolatilityForeColor;
-            txtVixVolRT.BackColor = e.PriceVolatilityBackColor;
+            txtVixVolRT.ForeColor = e.PriceVolatilityForeColor.ToColor();
+            txtVixVolRT.BackColor = e.PriceVolatilityBackColor.ToColor();
             txtOpenRT.Text = e.OpenPrice;
             txtHighRT.Text = e.HighPrice;
             txtLowRT.Text = e.LowPrice;
             txtCloseRT.Text = e.ClosePrice;
             txtVolumeRT.Text = e.Volume;
             txtPercentChangeRT.Text = e.DailyPercentChange;
-            txtPercentChangeRT.ForeColor = e.DailyPercentChangeForeColor;
-            txtPercentChangeRT.BackColor = e.DailyPercentChangeBackColor;
+            txtPercentChangeRT.ForeColor = e.DailyPercentChangeForeColor.ToColor();
+            txtPercentChangeRT.BackColor = e.DailyPercentChangeBackColor.ToColor();
             txtStdDevRT.Text = e.DailyStdDev;
             txtUpperBandRT.Text = e.UpperBand;
             txtMeanRT.Text = e.Mean;
             txtLowerBandRT.Text = e.LowerBand;
             txtMDI.Text = e.MDI;
-            txtMDI.ForeColor = e.MDIForeColor;
-            txtMDI.BackColor = e.MDIBackColor;
+            txtMDI.ForeColor = e.MDIForeColor.ToColor();
+            txtMDI.BackColor = e.MDIBackColor.ToColor();
         }
 
         public void RefreshView(FuturesTradeSignalUIViewModel e)
@@ -63,31 +64,31 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txt200DMA.Text = e.TwoHundredDMA;
 
             txtTrend.Text = e.Trend;
-            txtTrend.ForeColor = e.TrendForeColor;
-            txtTrend.BackColor = e.TrendBackColor;
+            txtTrend.ForeColor = e.TrendForeColor.ToColor();
+            txtTrend.BackColor = e.TrendBackColor.ToColor();
             txtMDITrend.Text = e.MDITrend;
-            txtMDITrend.ForeColor = e.MDITrendForeColor;
-            txtMDITrend.BackColor = e.MDITrendBackColor;
+            txtMDITrend.ForeColor = e.MDITrendForeColor.ToColor();
+            txtMDITrend.BackColor = e.MDITrendBackColor.ToColor();
             txtMDIUpLimit.Text = e.MDIUpLimit;
-            txtMDIUpLimit.ForeColor = e.MDIUpLimitForeColor;
-            txtMDIUpLimit.BackColor = e.MDIUpLimitBackColor;
+            txtMDIUpLimit.ForeColor = e.MDIUpLimitForeColor.ToColor();
+            txtMDIUpLimit.BackColor = e.MDIUpLimitBackColor.ToColor();
             txtMDIDownLimit.Text = e.MDIDownLimit;
-            txtMDIDownLimit.ForeColor = e.MDIDownLimitForeColor;
-            txtMDIDownLimit.BackColor = e.MDIDownLimitBackColor;
+            txtMDIDownLimit.ForeColor = e.MDIDownLimitForeColor.ToColor();
+            txtMDIDownLimit.BackColor = e.MDIDownLimitBackColor.ToColor();
             txtRSI.Text = e.RSI;
-            txtRSI.ForeColor = e.RSIForeColor;
-            txtRSI.BackColor = e.RSIBackColor;
+            txtRSI.ForeColor = e.RSIForeColor.ToColor();
+            txtRSI.BackColor = e.RSIBackColor.ToColor();
 
             txtUpTrendLimit.Text = e.UpTrendLimit;
-            txtUpTrendLimit.ForeColor = e.UpTrendLimitForeColor;
+            txtUpTrendLimit.ForeColor = e.UpTrendLimitForeColor.ToColor();
             txtDownTrendLimit.Text = e.DownLimitTrigger;
-            txtDownTrendLimit.ForeColor = e.DownLimitTriggerForeColor;
+            txtDownTrendLimit.ForeColor = e.DownLimitTriggerForeColor.ToColor();
             txtExtremeLimit.Text = e.TrendExtreme;
-            txtExtremeLimit.ForeColor = e.TrendExtremeForeColor;
+            txtExtremeLimit.ForeColor = e.TrendExtremeForeColor.ToColor();
             txtReversalLimit.Text = e.TrendReversal;
-            txtReversalLimit.ForeColor = e.TrendReversalForeColor;
+            txtReversalLimit.ForeColor = e.TrendReversalForeColor.ToColor();
             txtTrendDelta.Text = e.TrendDelta;
-            txtTrendDelta.ForeColor = e.TrendDeltaForeColor;
+            txtTrendDelta.ForeColor = e.TrendDeltaForeColor.ToColor();
         }
 
         public void RefreshView(PlaceTradeUIViewModel e)

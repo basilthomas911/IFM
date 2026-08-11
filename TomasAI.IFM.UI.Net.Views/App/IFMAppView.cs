@@ -29,15 +29,17 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
 {
     private IAppRoot _appRoot;
+    private readonly IViewNavigator _navigator;
     private Control? _tradeBlotter;
     private IFMAppViewModel _viewModel = null!;
     private Dictionary<ActionState, Color> _tradePlanStateMap = null!;
     private Version _appVersion;
     private bool _shutdownComplete;
 
-    public IFMAppView(IAppRoot appRoot)
+    public IFMAppView(IAppRoot appRoot, IViewNavigator navigator)
     {
         _appRoot = appRoot;
+        _navigator = navigator;
         InitializeComponent();
         _appVersion = Assembly.GetExecutingAssembly().GetName().Version!;
         this.Text += $" - v{_appVersion} - {appRoot.AppEnvironment}";
@@ -109,11 +111,15 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
 
     private void tradeButton_Click(object sender, EventArgs e)
     {
-        var dlg = _appRoot.GetForm<TradeOrderEditorForm>();
-        dlg.LoadViewModel(new TradeOrderEditorViewModel(_appRoot, _viewModel.ValueDate, _viewModel.BaseContracts));
-        switch (dlg.ShowDialog())
+        TradeOrderEditorForm? dlg = null;
+        var navigationResult = _navigator.ShowModal<TradeOrderEditorForm>(view =>
         {
-            case DialogResult.OK:
+            dlg = view;
+            view.LoadViewModel(new TradeOrderEditorViewModel(_appRoot, _viewModel.ValueDate, _viewModel.BaseContracts));
+        });
+        switch (navigationResult)
+        {
+            case NavigationResult.Accepted:
                 if (dlg.FundOrderTrade is not null)
                 {
                     var tabPageName = $"{dlg.FundOrderTrade.OrderId}:{dlg.FundOrderTrade.TradeId}";
@@ -135,7 +141,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
             default:
                 break;
         }
-        if (dlg.FundOrder != null)
+        if (dlg?.FundOrder != null)
         {
             if (tabTradeBlotter.TabPages.Count > 0)
             {
@@ -152,30 +158,26 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
 
     private void marketDataButton_Click(object sender, EventArgs e)
     {
-        var dlg = _appRoot.GetForm<MarketDataForm>();
-        dlg.LoadViewModel(new MarketDataViewModel(_appRoot));
-        dlg.ShowDialog();
+        _navigator.ShowModal<MarketDataForm>(view =>
+            view.LoadViewModel(new MarketDataViewModel(_appRoot)));
     }
 
     private void fundButton_Click(object sender, EventArgs e)
     {
-        var dlg = _appRoot.GetForm<FundTransactionEditor>();
-        dlg.LoadViewModel(new FundTransactionEditorViewModel(_appRoot));
-        dlg.ShowDialog();
+        _navigator.ShowModal<FundTransactionEditor>(view =>
+            view.LoadViewModel(new FundTransactionEditorViewModel(_appRoot)));
     }
 
     private void referenceButton_Click(object sender, EventArgs e)
     {
-        var dlg = _appRoot.GetForm<ReferenceForm>();
-        dlg.LoadViewModel(new ReferenceViewModel(_appRoot));
-        dlg.ShowDialog();
+        _navigator.ShowModal<ReferenceForm>(view =>
+            view.LoadViewModel(new ReferenceViewModel(_appRoot)));
     }
 
     private void systemAdminButton_Click(object sender, EventArgs e)
     {
-        var dlg = _appRoot.GetForm<SystemAdminForm>();
-        dlg.LoadViewModel(new SystemAdminViewModel(_appRoot));
-        dlg.ShowDialog();
+        _navigator.ShowModal<SystemAdminForm>(view =>
+            view.LoadViewModel(new SystemAdminViewModel(_appRoot)));
     }
 
     private void IFMApp_Resize(object sender, EventArgs e)

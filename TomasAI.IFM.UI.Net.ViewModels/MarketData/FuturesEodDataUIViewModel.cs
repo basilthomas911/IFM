@@ -1,4 +1,4 @@
-using System.Drawing;
+using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -13,16 +13,16 @@ public class FuturesEodDataUIViewModel
     public FuturesEodDataUIViewModel(FuturesEodDataV2ReadModel e)
     {
         MarketDirection = $"{e.MarketDirection}";
-        MarketDirectionForeColor = Color.Black;
+        MarketDirectionForeColor = PresentationColorRole.DarkText;
         MarketDirectionBackColor = GetMarketDirectionBackColor();
         MarketVolatility = $"{e.MarketVolatility}";
-        MarketVolatilityForeColor = Color.Black;
+        MarketVolatilityForeColor = PresentationColorRole.DarkText;
         MarketVolatilityBackColor = GetMarketVolatilityBackColor();
         PriceDirection = $"{e.PriceDirection}";
-        PriceDirectionForeColor = Color.Black;
+        PriceDirectionForeColor = PresentationColorRole.DarkText;
         PriceDirectionBackColor = GetPriceDirectionBackColor();
         PriceVolatility = $"{e.PriceVolatility}";
-        PriceVolatilityForeColor = Color.Black;
+        PriceVolatilityForeColor = PresentationColorRole.DarkText;
         PriceVolatilityBackColor = GetPriceVolatilityBackColor();
         OpenPrice = $"{e.OpenPrice:F2}";
         HighPrice = $"{e.HighPrice:F2}";
@@ -30,84 +30,84 @@ public class FuturesEodDataUIViewModel
         ClosePrice = $"{e.ClosePrice:F2}";
         Volume = $"{e.Volume}";
         DailyPercentChange = $"{e.DailyPercentChange:P2}";
-        DailyPercentChangeForeColor = Color.Black;
-        DailyPercentChangeBackColor = e.DailyPercentChange >= 0 ? Color.LimeGreen : Color.Red;
+        DailyPercentChangeForeColor = PresentationColorRole.DarkText;
+        DailyPercentChangeBackColor = e.DailyPercentChange >= 0 ? PresentationColorRole.Positive : PresentationColorRole.Negative;
         DailyStdDev = $"{e.DailyStdDev:F2}";
         UpperBand = $"{e.UpperBand:F2}";
         Mean = $"{e.Mean:F2}";
         LowerBand = $"{e.LowerBand:F2}";
         MDI = $"{e.MarketDirectionIndicator:F4}";
-        MDIForeColor = Color.Black;
+        MDIForeColor = PresentationColorRole.DarkText;
         MDIBackColor = GetMDIBackColor();
         return;
 
-        Color GetMarketDirectionBackColor()
+        PresentationColorRole GetMarketDirectionBackColor()
             => e.MarketDirection switch {
-                MarketDirectionType.Up => Color.Yellow,
-                MarketDirectionType.NeutralDown => Color.DarkOrange,
-                MarketDirectionType.Down => Color.Red,
-                _ => Color.LimeGreen
+                MarketDirectionType.Up => PresentationColorRole.Caution,
+                MarketDirectionType.NeutralDown => PresentationColorRole.Warning,
+                MarketDirectionType.Down => PresentationColorRole.Negative,
+                _ => PresentationColorRole.Positive
             };
 
-        Color GetMarketVolatilityBackColor()
+        PresentationColorRole GetMarketVolatilityBackColor()
             => e.MarketVolatility switch {
-                MarketVolatilityType.High => Color.Red,
-                MarketVolatilityType.Low => Color.Yellow,
-                MarketVolatilityType.Rising => Color.DarkOrange,
-                _ => Color.LimeGreen
+                MarketVolatilityType.High => PresentationColorRole.Negative,
+                MarketVolatilityType.Low => PresentationColorRole.Caution,
+                MarketVolatilityType.Rising => PresentationColorRole.Warning,
+                _ => PresentationColorRole.Positive
             };
 
-        Color GetPriceDirectionBackColor()
+        PresentationColorRole GetPriceDirectionBackColor()
             => e.PriceDirection switch {
-                PriceDirectionType.Rising => Color.LimeGreen,
-                PriceDirectionType.RisingSlowly => Color.YellowGreen,
-                PriceDirectionType.Flat => Color.Yellow,
-                PriceDirectionType.FallingSlowly => Color.OrangeRed,
-                PriceDirectionType.Falling => Color.Red,
-                _ => Color.LimeGreen
+                PriceDirectionType.Rising => PresentationColorRole.Positive,
+                PriceDirectionType.RisingSlowly => PresentationColorRole.PositiveMuted,
+                PriceDirectionType.Flat => PresentationColorRole.Caution,
+                PriceDirectionType.FallingSlowly => PresentationColorRole.NegativeMuted,
+                PriceDirectionType.Falling => PresentationColorRole.Negative,
+                _ => PresentationColorRole.Positive
             };
 
-        Color GetPriceVolatilityBackColor()
+        PresentationColorRole GetPriceVolatilityBackColor()
             => e.PriceVolatility switch {
-                PriceVolatilityType.Rising => Color.Red,
-                PriceVolatilityType.Flat => Color.Yellow,
-                _ => Color.LimeGreen
+                PriceVolatilityType.Rising => PresentationColorRole.Negative,
+                PriceVolatilityType.Flat => PresentationColorRole.Caution,
+                _ => PresentationColorRole.Positive
             };
 
-        Color GetMDIBackColor()
+        PresentationColorRole GetMDIBackColor()
            => e.MarketDirectionIndicator switch
            {
-               _ when e.MarketDirectionIndicator >= 60 => Color.LimeGreen,
-               _ when e.MarketDirectionIndicator >= 30 => Color.Yellow,
-               _ => Color.Red,
+               _ when e.MarketDirectionIndicator >= 60 => PresentationColorRole.Positive,
+               _ when e.MarketDirectionIndicator >= 30 => PresentationColorRole.Caution,
+               _ => PresentationColorRole.Negative,
            };
     }
 
     public string MarketDirection { get; private set; }
-    public Color MarketDirectionForeColor { get; private set; }
-    public Color MarketDirectionBackColor { get; private set; }
+    public PresentationColorRole MarketDirectionForeColor { get; private set; }
+    public PresentationColorRole MarketDirectionBackColor { get; private set; }
     public string MarketVolatility { get; private set; }
-    public Color MarketVolatilityForeColor { get; private set; }
-    public Color MarketVolatilityBackColor { get; private set; }
+    public PresentationColorRole MarketVolatilityForeColor { get; private set; }
+    public PresentationColorRole MarketVolatilityBackColor { get; private set; }
     public string PriceDirection { get; private set; }
-    public Color PriceDirectionForeColor { get; private set; }
-    public Color PriceDirectionBackColor { get; private set; }
+    public PresentationColorRole PriceDirectionForeColor { get; private set; }
+    public PresentationColorRole PriceDirectionBackColor { get; private set; }
     public string PriceVolatility { get; private set; }
-    public Color PriceVolatilityForeColor { get; private set; }
-    public Color PriceVolatilityBackColor { get; private set; }
+    public PresentationColorRole PriceVolatilityForeColor { get; private set; }
+    public PresentationColorRole PriceVolatilityBackColor { get; private set; }
     public string OpenPrice { get; private set; }
     public string HighPrice { get; private set; }
     public string LowPrice { get; private set; }
     public string ClosePrice { get; private set; }
     public string Volume { get; private set; }
     public string DailyPercentChange { get; private set; }
-    public Color DailyPercentChangeForeColor { get; private set; }
-    public Color DailyPercentChangeBackColor { get; private set; }
+    public PresentationColorRole DailyPercentChangeForeColor { get; private set; }
+    public PresentationColorRole DailyPercentChangeBackColor { get; private set; }
     public string DailyStdDev { get; private set; }
     public string UpperBand { get; private set; }
     public string Mean { get; private set; }
     public string LowerBand { get; private set; }
     public string MDI { get; private set; }
-    public Color MDIForeColor { get; private set; }
-    public Color MDIBackColor { get; private set; }
+    public PresentationColorRole MDIForeColor { get; private set; }
+    public PresentationColorRole MDIBackColor { get; private set; }
 }

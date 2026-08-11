@@ -1,6 +1,7 @@
 using System;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Contracts
 {
@@ -25,7 +26,11 @@ namespace TomasAI.IFM.UI.Net.Contracts
         {
             try
             {
-                view?.BeginInvoke((MethodInvoker)(() => MessageBox.Show(text: errorMsg, caption: caption, buttons: MessageBoxButtons.OK, icon: MessageBoxIcon.Error)));
+                if (view is null)
+                    return;
+                new WinFormsUiDispatcher(view).Post(() =>
+                    _ = new WinFormsUserInteraction(view).NotifyAsync(
+                        new UserNotification(errorMsg, caption, UserNotificationSeverity.Error)));
             }
             catch { }
 
@@ -40,7 +45,8 @@ namespace TomasAI.IFM.UI.Net.Contracts
         {
             try
             {
-                view?.BeginInvoke((MethodInvoker)(() => viewAction?.Invoke()));
+                if (view is not null && viewAction is not null)
+                    new WinFormsUiDispatcher(view).Post(viewAction);
             }
             catch { }
         }
@@ -57,19 +63,7 @@ namespace TomasAI.IFM.UI.Net.Contracts
             ArgumentNullException.ThrowIfNull(viewAction);
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (view.IsDisposed || view.Disposing)
-                return;
-
-            try
-            {
-                await view.InvokeAsync(viewAction, cancellationToken);
-            }
-            catch (InvalidOperationException) when (view.IsDisposed || view.Disposing)
-            {
-            }
-            catch (ObjectDisposedException) when (view.IsDisposed || view.Disposing)
-            {
-            }
+            await new WinFormsUiDispatcher(view).InvokeAsync(viewAction, cancellationToken);
         }
            
 

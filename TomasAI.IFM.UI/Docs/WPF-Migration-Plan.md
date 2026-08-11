@@ -11,7 +11,7 @@
 | Immediate delivery target | Stage 1: optimized WinForms application suitable for paper trading |
 | Production delivery target | Stage 2: WPF application with functional and operational parity |
 | Scope of this document | Stage 1 implementation specification and Stage 2 architectural pathway |
-| Stage 1 progress | S1.0 baseline/safety net and S1.1 async Model execution boundary implemented on 2026-08-11 |
+| Stage 1 progress | S1.0 through S1.3 implemented on 2026-08-11; S1.4 observable ViewModels and commands is in progress |
 
 This document is the controlling migration plan for the IFM desktop client. The existing [`UI.Net implementation details`](../../TomasAI.IFM.UI.Net/Docs/UI-Implementation-Details.md) remain the description of the current WinForms implementation. This document describes the target state and the controlled path from that implementation to WPF.
 
@@ -506,20 +506,68 @@ Exit: repeatedly opening/closing every screen and starting/stopping the app leav
 
 ### S1.3 — presentation abstractions
 
+Status: **Implemented on 2026-08-11.** Shared Models, ViewModels, and event
+consumers now compile without WinForms, WPF, or `System.Drawing` presentation
+dependencies. WinForms-specific behavior is isolated behind presentation
+adapters in `TomasAI.IFM.UI.Net.Views`.
+
 - Add `IUiDispatcher`, `IUserInteraction`, navigation, and async-operation contracts.
 - Implement WinForms adapters.
 - Remove `IAppRoot.GetForm<T>` and message-box/control dependencies from ViewModels.
 - Replace presentation colors with semantic states.
 - Enforce dependency direction with project/architecture tests.
 
+Implemented artifacts:
+
+- `IUiDispatcher` remains framework-neutral and supports access checks, queued
+  posting, awaited actions, and awaited functions. `WinFormsUiDispatcher` maps
+  it to a stable `Control` and preserves narrow shutdown-race handling.
+- `IUserInteraction` represents notifications and confirmations without
+  `MessageBox`; `WinFormsUserInteraction` supplies the current WinForms adapter.
+- `IViewNavigator` and `NavigationResult` replace the application-root Form
+  service locator. Startup owns view resolution, while the shell and modal
+  workflows depend on the navigation contract.
+- `IAsyncOperation` and the single-flight `AsyncOperation` implementation expose
+  running state, cooperative cancellation, shared completion for duplicate
+  execution, and retry after completion or failure.
+- `PresentationColorRole` replaces `System.Drawing.Color` in shared market-data
+  ViewModels. `WinFormsPresentationColorExtensions` maps semantic roles back to
+  the existing WinForms palette at the view boundary.
+- Architecture tests keep `GetForm<T>`, WinForms/WPF presentation types, and
+  `System.Drawing` out of shared projects and ensure the framework adapters stay
+  in the WinForms Views assembly. Async-operation tests cover completion,
+  cancellation, single-flight behavior, failure propagation, and retry.
+
 Exit: Models and ViewModels compile without WinForms, WPF, and `System.Drawing` presentation dependencies.
 
 ### S1.4 — observable ViewModels and commands
+
+Progress on 2026-08-11: **the shared foundation and the Reference/System Admin
+selector slice are implemented.** S1.4 remains in progress while the remaining
+Fund, Market Data, shell/status, trading, and Iron Condor workflows retain
+callback-based adapters.
 
 - Introduce observable base state.
 - Replace view callbacks with properties, collections, and async operations one screen at a time.
 - Keep thin transitional WinForms bindings only while a screen is under conversion.
 - Apply explicit command re-entry and busy-state policies.
+
+Implemented in the first slice:
+
+- `ObservableObject` provides framework-neutral `INotifyPropertyChanged` and
+  equality-aware property updates.
+- `IAsyncOperation`/`AsyncOperation` now expose observable `IsRunning`,
+  `CanExecute`, and `LastFailure` state, preserve single-flight execution, and
+  support an external execution predicate.
+- `ObservableModelExtension` converts the Models' coded error callback into an
+  awaited `ModelOperationException`, so migrated operations preserve both failure
+  completion and the application error code.
+- `ReferenceViewModel` and `SystemAdminViewModel` expose read-only selector state
+  and load operations instead of public view callbacks. Their WinForms forms are
+  transitional adapters that await those operations and render their properties.
+- Unit tests cover observable state, busy/can-execute transitions, Model error
+  propagation, selector state publication, invalid selection, and the absence of
+  public callback delegates on migrated ViewModels.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 

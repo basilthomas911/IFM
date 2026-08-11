@@ -1,22 +1,24 @@
 namespace TomasAI.IFM.UI.Net.Contracts;
 
 /// <summary>
-/// Dispatches presentation-state work to the UI thread without coupling shared
-/// ViewModels to WinForms or WPF.
+/// Marshals presentation work onto the active UI thread without coupling shared code to a UI framework.
 /// </summary>
 public interface IUiDispatcher
 {
     /// <summary>
-    /// Gets whether the caller already has access to the UI thread.
+    /// Gets whether the caller is already executing on the UI thread.
     /// </summary>
     bool CheckAccess();
 
     /// <summary>
-    /// Executes an action on the UI thread and completes after the action has run.
+    /// Queues an action for UI-thread execution when completion does not need to be observed.
     /// </summary>
-    ValueTask InvokeAsync(
-        Action action,
-        CancellationToken cancellationToken = default);
+    void Post(Action action);
+
+    /// <summary>
+    /// Executes an action on the UI thread and completes after the action has finished.
+    /// </summary>
+    ValueTask InvokeAsync(Action action, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Executes a function on the UI thread and returns its result.

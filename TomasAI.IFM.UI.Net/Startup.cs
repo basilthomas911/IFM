@@ -30,6 +30,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
@@ -45,20 +46,21 @@ namespace TomasAI.IFM.UI.Net
         /// <summary>
         /// initialize dependency injector container...
         /// </summary>
-        /// <returns>application root</returns>
-        public static IAppRoot Configure(IConfigurationRoot config)
+        /// <returns>configured application view navigator</returns>
+        public static IViewNavigator Configure(IConfigurationRoot config)
         {
             _config = config;
             _container = new Container();
             RegisterLogger();
-            var appRoot = RegisterApplication();
+            RegisterApplication();
             RegisterBaseServices();
             RegisterQueryServices();
             RegisterCommandServices();
             RegisterEventConsumers();
             RegisterEventProducers();
+            RegisterPresentationServices();
             _container.Verify();
-            return appRoot;
+            return _container.GetInstance<IViewNavigator>();
         }
 
         static void RegisterLogger()
@@ -172,6 +174,17 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IStatusConsoleWriter, StatusConsoleWriter>();
         }
 
+        static void RegisterPresentationServices()
+        {
+            _container!.RegisterSingleton<IViewNavigator>(() =>
+                new WinFormsViewNavigator(viewType =>
+                {
+                    var formContract = typeof(IForm<>).MakeGenericType(viewType);
+                    return _container.GetInstance(formContract);
+                }));
+            _container.RegisterSingleton<IUserInteraction>(() => new WinFormsUserInteraction());
+        }
+
         /// <summary>
         /// create singleton instance of application root
         /// </summary>
@@ -185,14 +198,6 @@ namespace TomasAI.IFM.UI.Net
         /// startup environment PROD/DEV
         /// </summary>
         public string AppEnvironment { get; }
-
-        /// <summary>
-        /// return container instance object that implements windows form
-        /// </summary>
-        /// <typeparam name="TWindowsForm"></typeparam>
-        /// <returns>instance of specified windows form</returns>
-        public TView GetForm<TView>() where TView : class
-            => (_container!.GetInstance<IForm<TView>>() as TView)!;
 
         /// <summary>
         /// return container instance object that implements controller class type

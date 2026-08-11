@@ -32,7 +32,7 @@ namespace TomasAI.IFM.UI.Net
             //WinForms.Application.SetColorMode(SystemColorMode.Dark);
 #pragma warning restore WFO5001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             var config = AppSetup();
-            var mainForm = Startup.Configure(config).GetForm<IFMAppView>();
+            var mainForm = Startup.Configure(config).CreateView<IFMAppView>();
             WinForms.Application.Run(new DelayedApplicationContext(mainForm, TimeSpan.FromSeconds(10)));
         }
 

@@ -6,6 +6,7 @@ using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 
@@ -63,8 +64,8 @@ public partial class StatusConsoleView : UserControl
     public void RefreshTradeStatus(FuturesTradeStatusUIViewModel e)
     {
         txtTradeStatus.Text = e.TradeStatus;
-        txtTradeStatus.ForeColor = e.TradeStatusForeColor;
-        txtTradeStatus.BackColor = e.TradeStatusBackColor;
+        txtTradeStatus.ForeColor = e.TradeStatusForeColor.ToColor();
+        txtTradeStatus.BackColor = e.TradeStatusBackColor.ToColor();
         txtTradeStatus.Enabled = true;
     }
 

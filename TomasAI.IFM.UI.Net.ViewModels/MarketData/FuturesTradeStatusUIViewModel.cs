@@ -2,7 +2,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Drawing;
+using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -27,30 +27,30 @@ namespace TomasAI.IFM.UI.Net.ViewModels.MarketData
                 _ => false
             };
 
-        public Color TradeStatusForeColor
+        public PresentationColorRole TradeStatusForeColor
             => _futuresTradeStatus.TradeExecuteState switch  {
-                null => Color.White,
-                TradeExecuteState.Enter => Color.Black,
-                TradeExecuteState.ExitOnTrendReversion => Color.Black,
-                TradeExecuteState.ExitOnEntryLimit => Color.Black,
-                TradeExecuteState.Hold => Color.Black,
-                TradeExecuteState.No => Color.Black,
-                TradeExecuteState.InTrade => Color.White,
-                TradeExecuteState.RangeBound => Color.Black,
-                _ => Color.White
+                null => PresentationColorRole.LightText,
+                TradeExecuteState.Enter => PresentationColorRole.DarkText,
+                TradeExecuteState.ExitOnTrendReversion => PresentationColorRole.DarkText,
+                TradeExecuteState.ExitOnEntryLimit => PresentationColorRole.DarkText,
+                TradeExecuteState.Hold => PresentationColorRole.DarkText,
+                TradeExecuteState.No => PresentationColorRole.DarkText,
+                TradeExecuteState.InTrade => PresentationColorRole.LightText,
+                TradeExecuteState.RangeBound => PresentationColorRole.DarkText,
+                _ => PresentationColorRole.LightText
             };
 
-        public Color TradeStatusBackColor
+        public PresentationColorRole TradeStatusBackColor
             => _futuresTradeStatus.TradeExecuteState switch  {
-                null => Color.Black,
-                TradeExecuteState.Enter => Color.LimeGreen,
-                TradeExecuteState.ExitOnTrendReversion => Color.Red,
-                TradeExecuteState.ExitOnEntryLimit => Color.Red,
-                TradeExecuteState.Hold => Color.Yellow,
-                TradeExecuteState.No => Color.Yellow,
-                TradeExecuteState.InTrade => Color.Black,
-                TradeExecuteState.RangeBound => Color.Yellow,
-                _ => Color.Black
+                null => PresentationColorRole.DarkSurface,
+                TradeExecuteState.Enter => PresentationColorRole.Positive,
+                TradeExecuteState.ExitOnTrendReversion => PresentationColorRole.Negative,
+                TradeExecuteState.ExitOnEntryLimit => PresentationColorRole.Negative,
+                TradeExecuteState.Hold => PresentationColorRole.Caution,
+                TradeExecuteState.No => PresentationColorRole.Caution,
+                TradeExecuteState.InTrade => PresentationColorRole.DarkSurface,
+                TradeExecuteState.RangeBound => PresentationColorRole.Caution,
+                _ => PresentationColorRole.DarkSurface
             };
 
     }

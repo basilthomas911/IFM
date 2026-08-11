@@ -28,15 +28,11 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
     /// <param name="viewModel"></param>
     public void LoadViewModel(ReferenceViewModel viewModel)
     {
+        if (_viewModel is not null)
+            _viewModel.LoadReferenceDataDefinitionTypesOperation.PropertyChanged -= LoadOperation_PropertyChanged;
+
         _viewModel = viewModel;
-        _viewModel.OnDisableAllButtons = () => this.Post(() =>
-        {
-            DisableAllButtons();
-        });
-        _viewModel.OnEnableMarketSelector = (enabled) => this.Post(() =>
-        {
-            ddlReferenceDataSelector.Enabled = enabled;
-        });
+        _viewModel.LoadReferenceDataDefinitionTypesOperation.PropertyChanged += LoadOperation_PropertyChanged;
     }
 
     /// <summary>
@@ -44,22 +40,26 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
     /// </summary>
     /// <param name="sender"></param>
     /// <param name="e"></param>
-     void ReferenceForm_Load(object sender, EventArgs e)
+     async void ReferenceForm_Load(object sender, EventArgs e)
     {
-        _viewModel?.LoadReferenceDataDefinitionTypes(mktDataDefTypes =>
-          this.Post(() => {
-              ddlReferenceDataSelector.Items.Clear();
-              if (mktDataDefTypes != null && mktDataDefTypes.Length > 0)
-              {
-                  foreach (var mktDataDefType in mktDataDefTypes)
-                      ddlReferenceDataSelector.Items.Add(mktDataDefType.Description);
-                  ddlReferenceDataSelector.SelectedIndex = 0;
-              }
-          }));
+        if (_viewModel is null)
+            return;
+
+        try
+        {
+            await _viewModel.LoadReferenceDataDefinitionTypesOperation.ExecuteAsync();
+            BindReferenceDataDefinitionTypes();
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Reference Data");
+        }
     }
 
      void ReferenceForm_FormClosing(object sender, FormClosingEventArgs e)
     {
+        if (_viewModel is not null)
+            _viewModel.LoadReferenceDataDefinitionTypesOperation.PropertyChanged -= LoadOperation_PropertyChanged;
         _ctrlCommand?.Unload();
         ResetButtons(true);
     }
@@ -68,7 +68,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
     {
         _ctrlCommand?.Unload();
         pnlMarketData.Controls.Clear();
-        var mktDataDefType = _viewModel?.GetMarketDefinitionType(ddlReferenceDataSelector.SelectedIndex);
+        var mktDataDefType = _viewModel?.GetReferenceDataDefinitionType(ddlReferenceDataSelector.SelectedIndex);
         if (mktDataDefType is not null && _controlMap.ContainsKey(mktDataDefType.ShortCode))
         {
             var control = _controlMap[mktDataDefType.ShortCode](_appRoot);
@@ -135,6 +135,25 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
         btnRemove.Enabled = false;
         btnImport.Enabled = false;
         btnClose.Enabled = false;
+    }
+
+    void LoadOperation_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IAsyncOperation.IsRunning) && _viewModel is not null)
+            this.Post(() => ddlReferenceDataSelector.Enabled = !_viewModel.LoadReferenceDataDefinitionTypesOperation.IsRunning);
+    }
+
+    void BindReferenceDataDefinitionTypes()
+    {
+        ddlReferenceDataSelector.Items.Clear();
+        if (_viewModel is null)
+            return;
+
+        foreach (var definitionType in _viewModel.ReferenceDataDefinitionTypes)
+            ddlReferenceDataSelector.Items.Add(definitionType.Description);
+
+        if (ddlReferenceDataSelector.Items.Count > 0)
+            ddlReferenceDataSelector.SelectedIndex = 0;
     }
 
     public void Open()

@@ -26,21 +26,24 @@ public partial class SystemAdminForm : Form, IForm<SystemAdminForm>, IFormContro
 
     public void LoadViewModel(SystemAdminViewModel viewModel)
     {
+        if (_viewModel is not null)
+            _viewModel.LoadFunctionTypesOperation.PropertyChanged -= LoadOperation_PropertyChanged;
+
         _viewModel = viewModel;
+        _viewModel.LoadFunctionTypesOperation.PropertyChanged += LoadOperation_PropertyChanged;
     }
 
-    private void SystemAdminForm_Load(object sender, EventArgs e)
+    private async void SystemAdminForm_Load(object sender, EventArgs e)
     {
-        _viewModel.LoadSystemAdminFunctionTypes(sysAdminFuncTypes =>
-            this.Post(() => {
-                ddlFunctionSelector.Items.Clear();
-                if (sysAdminFuncTypes != null && sysAdminFuncTypes.Length > 0)
-                {
-                    foreach (var sysAdminFuncType in sysAdminFuncTypes)
-                        ddlFunctionSelector.Items.Add(sysAdminFuncType.Description);
-                    ddlFunctionSelector.SelectedIndex = 0;
-                }
-            }));
+        try
+        {
+            await _viewModel.LoadFunctionTypesOperation.ExecuteAsync();
+            BindFunctionTypes();
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "System Administration");
+        }
     }
 
     private async void ddlMarketDataSelector_SelectedIndexChanged(object sender, EventArgs e)
@@ -48,7 +51,7 @@ public partial class SystemAdminForm : Form, IForm<SystemAdminForm>, IFormContro
         foreach (IFormControl control in pnlSystemAdmin.Controls)
             await CloseControlAsync(control);
         pnlSystemAdmin.Controls.Clear();
-        var sysAdminFuncType = _viewModel.GetSystemAdminFunctionType(ddlFunctionSelector.SelectedIndex);
+        var sysAdminFuncType = _viewModel.GetFunctionType(ddlFunctionSelector.SelectedIndex);
         if (sysAdminFuncType != null && _controlMap.ContainsKey(sysAdminFuncType.ShortCode))
         {
             var control = _controlMap[sysAdminFuncType.ShortCode]();
@@ -66,8 +69,25 @@ public partial class SystemAdminForm : Form, IForm<SystemAdminForm>, IFormContro
         e.Cancel = true;
         foreach(IFormControl control in pnlSystemAdmin.Controls)
             await CloseControlAsync(control);
+        _viewModel.LoadFunctionTypesOperation.PropertyChanged -= LoadOperation_PropertyChanged;
         _closeComplete = true;
         Close();
+    }
+
+    void LoadOperation_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IAsyncOperation.IsRunning))
+            this.Post(() => ddlFunctionSelector.Enabled = !_viewModel.LoadFunctionTypesOperation.IsRunning);
+    }
+
+    void BindFunctionTypes()
+    {
+        ddlFunctionSelector.Items.Clear();
+        foreach (var functionType in _viewModel.FunctionTypes)
+            ddlFunctionSelector.Items.Add(functionType.Description);
+
+        if (ddlFunctionSelector.Items.Count > 0)
+            ddlFunctionSelector.SelectedIndex = 0;
     }
 
     static ValueTask CloseControlAsync(IFormControl control)

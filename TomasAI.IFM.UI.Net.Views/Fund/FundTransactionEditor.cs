@@ -11,6 +11,7 @@ public partial class FundTransactionEditor
     : Form, IForm<FundTransactionEditor>, IFormControl
 {
     FundTransactionEditorViewModel? _viewModel;
+    readonly IViewNavigator _navigator;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FundTransactionEditor"/> class.
@@ -19,8 +20,9 @@ public partial class FundTransactionEditor
     /// "From" date is set to the first day of the current month, and the "To" date is set to the last day of the
     /// current month. The controls are temporarily disabled during initialization to prevent user
     /// interaction.</remarks>
-    public FundTransactionEditor()
+    public FundTransactionEditor(IViewNavigator navigator)
     {
+        _navigator = navigator;
         InitializeComponent();
         var dtpControls = new DateTimePicker[] { dtpFrom, dtpTo };
         _ = dtpControls.Select(e => e.Enabled = false).ToArray();
@@ -143,9 +145,12 @@ public partial class FundTransactionEditor
         {
             var index = gridTransactions.SelectedRows[0].Index;
             var fundTransaction = _viewModel!.GetFundTransaction(index);
-            var dlg = _viewModel.AppRoot.GetForm<AdjustFundTransactionEditor>();
-            dlg.LoadModel(new AdjustFundTransactionReadModel(_viewModel.AppRoot, fundTransaction!, _viewModel.FundBalance));
-            if (dlg.ShowDialog() == DialogResult.OK)
+            var result = _navigator.ShowModal<AdjustFundTransactionEditor>(view =>
+                view.LoadModel(new AdjustFundTransactionReadModel(
+                    _viewModel.AppRoot,
+                    fundTransaction!,
+                    _viewModel.FundBalance)));
+            if (result == NavigationResult.Accepted)
                 _viewModel.LoadFunds();
         }
     }

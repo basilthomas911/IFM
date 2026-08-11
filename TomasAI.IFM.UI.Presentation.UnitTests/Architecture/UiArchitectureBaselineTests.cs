@@ -46,6 +46,18 @@ public class UiArchitectureBaselineTests
     }
 
     [Fact]
+    public void SharedPresentationProjects_DoNotUseFrameworkPresentationTypes()
+    {
+        const string pattern = @"\bMessageBox\b|\bUserControl\b|\bSystem\.Drawing\b";
+        var matches = SolutionSource.FindFilesWithMatches(
+            SolutionSource.GetSourceFiles(SharedPresentationProjects),
+            pattern);
+
+        matches.Should().BeEmpty(
+            "shared presentation state and behavior must use semantic contracts instead of WinForms or drawing types");
+    }
+
+    [Fact]
     public void SharedPresentationProjects_RemainFrameworkNeutralTargets()
     {
         foreach (var projectName in SharedPresentationProjects)
@@ -75,6 +87,7 @@ public class UiArchitectureBaselineTests
             "TomasAI.IFM.UI.Net.Views/Fund/AdjustFundTransactionEditor.cs",
             "TomasAI.IFM.UI.Net.Views/MarketData/MarketDataForm.cs",
             "TomasAI.IFM.UI.Net.Views/MarketData/YieldCurveRateEditForm.cs",
+            "TomasAI.IFM.UI.Net.Views/Reference/ReferenceForm.cs",
             "TomasAI.IFM.UI.Net.Views/SystemAdmin/SystemAdminForm.cs",
             "TomasAI.IFM.UI.Net.Views/SystemInfo/SystemWaitView.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/CreateFundOrderTradeForm.cs",
@@ -87,6 +100,7 @@ public class UiArchitectureBaselineTests
     [Theory]
     [InlineData(@"\.Execute\s*\(\s*async\b", 0, "Action-based async Model executions")]
     [InlineData(@"_appRoot\.Execute\s*\(\s*async\b", 0, "Action-based async application-root executions")]
+    [InlineData(@"GetForm\s*<", 0, "application-root form service-locator calls")]
     [InlineData(@"catch(?:\s*\([^)]*\))?\s*\{\s*\}", 15, "empty catch blocks")]
     [InlineData(@"Task\.Run\s*\(", 0, "Task.Run calls")]
     [InlineData(@"System\.Threading\.Timer|new\s+System\.Timers\.Timer", 0, "unowned background timers")]
@@ -107,18 +121,28 @@ public class UiArchitectureBaselineTests
     }
 
     [Fact]
-    public void PresentationColors_DoNotSpreadBeyondKnownViewModels()
+    public void SharedPresentationProjects_DoNotExposeDrawingColors()
     {
         var files = SolutionSource.FindFilesWithMatches(
             SolutionSource.GetSourceFiles(SharedPresentationProjects),
             @"using\s+System\.Drawing\s*;|\bSystem\.Drawing\.Color\b");
 
+        files.Should().BeEmpty(
+            "shared ViewModels expose semantic presentation roles that each UI framework maps to its own palette");
+    }
+
+    [Fact]
+    public void FrameworkAdapters_AreIsolatedToWinFormsViews()
+    {
+        var files = SolutionSource.FindFilesWithMatches(
+            SolutionSource.GetSourceFiles(UiProjects),
+            @"class\s+\w+[^\r\n]*:\s*(?:IUiDispatcher|IUserInteraction|IViewNavigator)");
+
         files.Should().BeEquivalentTo(
         [
-            "TomasAI.IFM.UI.Net.ViewModels/MarketData/FuturesEodDataUIViewModel.cs",
-            "TomasAI.IFM.UI.Net.ViewModels/MarketData/FuturesTradeSignalUIViewModel.cs",
-            "TomasAI.IFM.UI.Net.ViewModels/MarketData/FuturesTradeStatusUIViewModel.cs",
-            "TomasAI.IFM.UI.Net.ViewModels/MarketData/PlaceTradeUIViewModel.cs"
+            "TomasAI.IFM.UI.Net.Views/Presentation/WinFormsUiDispatcher.cs",
+            "TomasAI.IFM.UI.Net.Views/Presentation/WinFormsUserInteraction.cs",
+            "TomasAI.IFM.UI.Net.Views/Presentation/WinFormsViewNavigator.cs"
         ]);
     }
 }
