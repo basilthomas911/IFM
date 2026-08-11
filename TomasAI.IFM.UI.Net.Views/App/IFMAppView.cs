@@ -36,6 +36,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     private IFMAppViewModel _viewModel = null!;
     private Dictionary<ActionState, Color> _tradePlanStateMap = null!;
     private Version _appVersion;
+    private bool _shutdownStarted;
     private bool _shutdownComplete;
     private long _lastErrorSequence;
 
@@ -78,33 +79,64 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
      }
 
     private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
-        => this.Post(() =>
+    {
+        if (_shutdownStarted || eventArgs.PropertyName == nameof(IFMAppViewModel.UiDispatchMetrics))
+            return;
+
+        var postedAt = Stopwatch.GetTimestamp();
+        this.Post(() =>
         {
-            switch (eventArgs.PropertyName)
+            if (_shutdownStarted)
+                return;
+            var renderStarted = Stopwatch.GetTimestamp();
+            try
             {
-                case nameof(IFMAppViewModel.IsMenuEnabled):
-                    RenderMenuState();
-                    break;
-                case nameof(IFMAppViewModel.StatusLine):
-                    lblStatus.Text = _viewModel.StatusLine;
-                    break;
-                case nameof(IFMAppViewModel.LatestStatusLog):
-                    if (_viewModel.LatestStatusLog is { } statusLog)
-                        statusConsoleView1.AppendStatusConsole(statusLog);
-                    break;
-                case nameof(IFMAppViewModel.StatusConsole):
-                    if (_viewModel.StatusConsole is { } statusConsole)
-                        statusConsoleView1.LoadViewModel(statusConsole);
-                    break;
-                case nameof(IFMAppViewModel.LastError):
-                    RenderLatestError();
-                    break;
-                case nameof(IFMAppViewModel.IsCloseRequested):
-                    if (_viewModel.IsCloseRequested)
-                        Close();
-                    break;
+                RenderProperty(eventArgs.PropertyName);
+            }
+            finally
+            {
+                _viewModel.RecordUiDispatch(
+                    Stopwatch.GetElapsedTime(postedAt, renderStarted),
+                    Stopwatch.GetElapsedTime(renderStarted));
             }
         });
+    }
+
+    private void RenderProperty(string? propertyName)
+    {
+        switch (propertyName)
+        {
+            case nameof(IFMAppViewModel.IsMenuEnabled):
+                RenderMenuState();
+                break;
+            case nameof(IFMAppViewModel.StatusLine):
+                lblStatus.Text = _viewModel.StatusLine;
+                break;
+            case nameof(IFMAppViewModel.LatestStatusLog):
+                if (_viewModel.LatestStatusLog is { } statusLog)
+                    statusConsoleView1.AppendStatusConsole(statusLog);
+                break;
+            case nameof(IFMAppViewModel.StatusConsole):
+                if (_viewModel.StatusConsole is { } statusConsole)
+                    statusConsoleView1.LoadViewModel(statusConsole);
+                break;
+            case nameof(IFMAppViewModel.MarketOutlook):
+                if (_viewModel.MarketOutlook is { } marketOutlook)
+                    marketOutlookView1.RefreshView(marketOutlook);
+                break;
+            case nameof(IFMAppViewModel.LatestFuturesBarSnapshot):
+                if (_viewModel.LatestFuturesBarSnapshot is { } futuresBars)
+                    marketDataView1.RefreshView(futuresBars.Symbol, futuresBars.Bars);
+                break;
+            case nameof(IFMAppViewModel.LastError):
+                RenderLatestError();
+                break;
+            case nameof(IFMAppViewModel.IsCloseRequested):
+                if (_viewModel.IsCloseRequested)
+                    Close();
+                break;
+        }
+    }
 
     private void RenderShellState()
     {
@@ -113,6 +145,10 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         statusConsoleView1.RenderStatusConsole(_viewModel.StatusLogs);
         if (_viewModel.StatusConsole is { } statusConsole)
             statusConsoleView1.LoadViewModel(statusConsole);
+        if (_viewModel.MarketOutlook is { } marketOutlook)
+            marketOutlookView1.RefreshView(marketOutlook);
+        foreach (var futuresBars in _viewModel.FuturesBarSnapshots)
+            marketDataView1.RefreshView(futuresBars.Key, futuresBars.Value);
         RenderLatestError();
     }
 
@@ -135,10 +171,6 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     }
 
     /// <inheritdoc />
-    public void UpdateMarketOutlook(FuturesEodDataUIViewModel futuresEodData)
-        => this.Post(() => marketOutlookView1.RefreshView(futuresEodData));
-
-    /// <inheritdoc />
     public void UpdateTradeSignal(FuturesTradeSignalUIViewModel futuresTradeSignal)
         => this.Post(() => marketOutlookView1.RefreshView(futuresTradeSignal));
 
@@ -146,16 +178,15 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     public void NotifyTradePlacement(PlaceTradeUIViewModel placeTrade)
         => this.Post(() => marketOutlookView1.RefreshView(placeTrade));
 
-    /// <inheritdoc />
-    public void UpdateMarketData(string symbol, FuturesBarDataReadModel[] futuresBarData)
-        => this.Post(() => marketDataView1.RefreshView(symbol, futuresBarData));
-
     private async void IFMApp_FormClosing(object sender, FormClosingEventArgs e)
     {
         if (_shutdownComplete)
             return;
 
         e.Cancel = true;
+        if (_shutdownStarted)
+            return;
+        _shutdownStarted = true;
         try
         {
             await ((IAsyncFormControl)economicCalendarView1).CloseAsync();
@@ -168,6 +199,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         }
         catch (Exception ex)
         {
+            _shutdownStarted = false;
             this.ShowErrorMessage(ex.Message, "Application Shutdown Error");
         }
     }

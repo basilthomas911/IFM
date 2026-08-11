@@ -789,8 +789,34 @@ backpressure instead of blocking a thread or dropping an event.
   retry recovery, exhausted-failure propagation, drain-on-stop, rejected
   post-stop writes, and invalid bounds.
 
-The next S1.5 slice audits and classifies the remaining real-time UI screens,
-then applies these shared latest-value or lossless-ordered policies to each path.
+Progress on 2026-08-11: **the third main-shell Market Outlook and futures-bar
+slice is implemented.** Both paths are classified as latest-value display state.
+Market Outlook uses one capacity-one channel at a maximum 20 Hz cadence. Futures
+bar events remain query-refresh triggers and use independent capacity-one
+partitions per symbol at a maximum 10 Hz cadence, so an ES burst cannot supersede
+a pending VX refresh.
+
+- `KeyedLatestValueAsyncChannel<TKey, TValue>` provides reusable per-key
+  coalescing, metrics, and owned shutdown over the existing latest-value channel.
+- The six-hour futures-bar query remains the source of chart truth. Published
+  snapshots are sorted and capped at 2,048 bars per symbol before reaching a UI.
+- Market Outlook and futures-bar snapshots are observable `IFMAppViewModel`
+  state; their direct transitional-adapter methods have been removed.
+- EOD status writes are awaited by the serialized channel reader instead of
+  being launched as detached lifecycle work.
+- `MarketDataStreamMetrics` exposes event rate, processed/coalesced/failure
+  counts, queue and processing latency, and lifecycle state globally and per
+  symbol. The main WinForms host also records dispatch and render latency.
+- Shutdown first rejects new bar triggers, stops upstream consumers, then awaits
+  every active market-data partition. Already-posted WinForms work is ignored
+  once shell shutdown begins.
+- Tests cover per-key burst isolation, same-key convergence, metrics, idempotent
+  shutdown, rejected post-stop keys, observable snapshots, per-symbol ordering
+  and bounds, adapter removal, and UI latency aggregation.
+
+The next S1.5 slice classifies and migrates futures trade-signal display state,
+then applies lossless ordered processing to trade-placement and status-console
+events.
 
 - Classify every UI event path as lossless or latest-value.
 - Apply bounded channels, batching, render cadence, and ordered processing.

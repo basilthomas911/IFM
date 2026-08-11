@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.App;
@@ -12,17 +11,11 @@ namespace TomasAI.IFM.UI.Net.ViewModels.App;
 /// </remarks>
 public interface IIFMAppLiveViewAdapter
 {
-    /// <summary>Publishes the latest market-outlook snapshot.</summary>
-    void UpdateMarketOutlook(FuturesEodDataUIViewModel futuresEodData);
-
     /// <summary>Publishes the latest futures trade-signal snapshot.</summary>
     void UpdateTradeSignal(FuturesTradeSignalUIViewModel futuresTradeSignal);
 
     /// <summary>Publishes a trade-placement notification.</summary>
     void NotifyTradePlacement(PlaceTradeUIViewModel placeTrade);
-
-    /// <summary>Publishes the latest futures bar-data snapshot for a symbol.</summary>
-    void UpdateMarketData(string symbol, FuturesBarDataReadModel[] futuresBarData);
 
     /// <summary>Closes all open trade blotters during application shutdown.</summary>
     ValueTask CloseTradeBlottersAsync();

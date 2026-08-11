@@ -1,5 +1,8 @@
 using FluentAssertions;
 using NSubstitute;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.EventConsumer;
@@ -56,12 +59,74 @@ public class IFMAppViewModelTests
         viewModel.IsCloseRequested.Should().BeFalse();
         viewModel.StartupOperation.Should().NotBeNull();
         viewModel.ShutdownOperation.Should().NotBeNull();
+        viewModel.MarketOutlook.Should().BeNull();
+        viewModel.FuturesBarSnapshots.Should().BeEmpty();
+        viewModel.MarketDataStreamMetrics.MarketOutlook.IsOpen.Should().BeFalse();
+        viewModel.MarketDataStreamMetrics.FuturesBars.Should().BeEmpty();
+        typeof(IIFMAppLiveViewAdapter).GetMethod("UpdateMarketOutlook").Should().BeNull();
+        typeof(IIFMAppLiveViewAdapter).GetMethod("UpdateMarketData").Should().BeNull();
         typeof(IFMAppViewModel)
             .GetFields(System.Reflection.BindingFlags.Public
                 | System.Reflection.BindingFlags.Instance
                 | System.Reflection.BindingFlags.DeclaredOnly)
             .Where(field => typeof(Delegate).IsAssignableFrom(field.FieldType))
             .Should().BeEmpty();
+    }
+
+    [Fact]
+    public void MarketDataSnapshots_AreObservableSortedAndBoundedPerSymbol()
+    {
+        var viewModel = CreateSubject();
+        var valueDate = new DateOnly(2026, 8, 11);
+        var changed = new List<string?>();
+        viewModel.PropertyChanged += (_, eventArgs) => changed.Add(eventArgs.PropertyName);
+        var bars = Enumerable.Range(0, 2_055)
+            .Select(index => new FuturesBarDataReadModel(
+                "ESZ26",
+                "ES",
+                valueDate,
+                valueDate.ToDateTime(new TimeOnly(9, 30)).AddMinutes(index),
+                BarRateType.Minute,
+                5_000m + index,
+                5_100,
+                4_900))
+            .Reverse();
+
+        viewModel.PublishMarketOutlook(new FuturesEodDataV2ReadModel(
+            "ESZ26",
+            valueDate,
+            "ES",
+            5_000m,
+            5_100m,
+            4_900m,
+            5_050m,
+            1_000));
+        viewModel.PublishFuturesBarSnapshot("ES", bars);
+
+        viewModel.MarketOutlook.Should().NotBeNull();
+        viewModel.MarketOutlook!.ClosePrice.Should().Be("5050.00");
+        viewModel.FuturesBarSnapshots["ES"].Should().HaveCount(2_048);
+        viewModel.FuturesBarSnapshots["ES"].Should().BeInAscendingOrder(bar => bar.BarDate);
+        viewModel.LatestFuturesBarSnapshot!.Symbol.Should().Be("ES");
+        viewModel.LatestFuturesBarSnapshot.Bars.Should().BeSameAs(viewModel.FuturesBarSnapshots["ES"]);
+        changed.Should().Contain(nameof(IFMAppViewModel.MarketOutlook));
+        changed.Should().Contain(nameof(IFMAppViewModel.FuturesBarSnapshots));
+        changed.Should().Contain(nameof(IFMAppViewModel.LatestFuturesBarSnapshot));
+    }
+
+    [Fact]
+    public void UiDispatchMetrics_RecordLastAndMaximumLatency()
+    {
+        var viewModel = CreateSubject();
+
+        viewModel.RecordUiDispatch(TimeSpan.FromMilliseconds(9), TimeSpan.FromMilliseconds(2));
+        viewModel.RecordUiDispatch(TimeSpan.FromMilliseconds(3), TimeSpan.FromMilliseconds(6));
+
+        viewModel.UiDispatchMetrics.DispatchCount.Should().Be(2);
+        viewModel.UiDispatchMetrics.LastDispatchDelay.Should().Be(TimeSpan.FromMilliseconds(3));
+        viewModel.UiDispatchMetrics.MaximumDispatchDelay.Should().Be(TimeSpan.FromMilliseconds(9));
+        viewModel.UiDispatchMetrics.LastRenderDuration.Should().Be(TimeSpan.FromMilliseconds(6));
+        viewModel.UiDispatchMetrics.MaximumRenderDuration.Should().Be(TimeSpan.FromMilliseconds(6));
     }
 
     static IFMAppViewModel CreateSubject()

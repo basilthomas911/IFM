@@ -1,8 +1,10 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventChannel;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -14,10 +16,36 @@ using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.App;
 
+/// <summary>
+/// Identifies the newest bounded futures-bar chart snapshot published for one symbol.
+/// </summary>
+public sealed record FuturesBarChartSnapshot(
+    string Symbol,
+    FuturesBarDataReadModel[] Bars);
+
+/// <summary>
+/// Provides diagnostics for the main shell's replaceable market-data streams.
+/// </summary>
+public sealed record IFMAppMarketDataStreamMetricsSnapshot(
+    LatestValueChannelMetrics MarketOutlook,
+    IReadOnlyDictionary<string, LatestValueChannelMetrics> FuturesBars);
+
+/// <summary>
+/// Describes main-shell dispatcher wait and render duration.
+/// </summary>
+public readonly record struct IFMAppUiDispatchMetricsSnapshot(
+    long DispatchCount,
+    TimeSpan LastDispatchDelay,
+    TimeSpan MaximumDispatchDelay,
+    TimeSpan LastRenderDuration,
+    TimeSpan MaximumRenderDuration);
+
 public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
     const int StatusLogCapacity = 500;
+    const int FuturesBarChartCapacity = 2_048;
     readonly object _statusLogGate = new();
+    readonly object _marketDataStreamGate = new();
     readonly IAppRoot _appRoot;
     readonly IIFMAppLiveViewAdapter _liveViewAdapter;
     readonly TimeProvider _timeProvider;
@@ -26,6 +54,10 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     readonly Version _appVersion;
     readonly string _appEnvironment;
     readonly List<StatusConsoleLogReadModel> _statusLogBuffer = [];
+    readonly Dictionary<string, FuturesBarDataReadModel[]> _futuresBarSnapshots = [];
+    readonly Dictionary<string, LatestValueChannelMetrics> _futuresBarMetrics = [];
+    LatestValueAsyncChannel<FuturesEodDataV2ReadModel>? _marketOutlookChannel;
+    KeyedLatestValueAsyncChannel<string, FuturesBarDataInsertedCompleteEvent>? _futuresBarChannels;
     DateOnly? _valueDate;
     IReadOnlyList<FuturesContractV2ReadModel> _baseContracts = [];
     IReadOnlyList<StatusConsoleLogReadModel> _statusLogs = [];
@@ -37,6 +69,14 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     StatusConsoleViewModel? _statusConsole;
     long _errorSequence;
     int _resetTicks;
+    FuturesEodDataUIViewModel? _marketOutlook;
+    FuturesBarChartSnapshot? _latestFuturesBarSnapshot;
+    IReadOnlyDictionary<string, FuturesBarDataReadModel[]> _futuresBarSnapshotState = new Dictionary<string, FuturesBarDataReadModel[]>();
+    IFMAppMarketDataStreamMetricsSnapshot _marketDataStreamMetrics = new(default, new Dictionary<string, LatestValueChannelMetrics>());
+    IFMAppUiDispatchMetricsSnapshot _uiDispatchMetrics;
+    long _uiDispatchCount;
+    long _maximumUiDispatchDelayTicks;
+    long _maximumUiRenderDurationTicks;
 
     /// <summary>
     /// create IFM app root view model
@@ -128,6 +168,61 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     {
         get => _statusConsole;
         private set => SetProperty(ref _statusConsole, value);
+    }
+
+    /// <summary>Gets the newest Market Outlook display snapshot.</summary>
+    public FuturesEodDataUIViewModel? MarketOutlook
+    {
+        get => _marketOutlook;
+        private set => SetProperty(ref _marketOutlook, value);
+    }
+
+    /// <summary>Gets the newest bounded futures-bar snapshot across symbols.</summary>
+    public FuturesBarChartSnapshot? LatestFuturesBarSnapshot
+    {
+        get => _latestFuturesBarSnapshot;
+        private set => SetProperty(ref _latestFuturesBarSnapshot, value);
+    }
+
+    /// <summary>Gets the newest bounded futures-bar chart snapshot for every observed symbol.</summary>
+    public IReadOnlyDictionary<string, FuturesBarDataReadModel[]> FuturesBarSnapshots
+    {
+        get => _futuresBarSnapshotState;
+        private set => SetProperty(ref _futuresBarSnapshotState, value);
+    }
+
+    /// <summary>Gets latest-value event-rate, coalescing, latency, failure, and lifecycle metrics.</summary>
+    public IFMAppMarketDataStreamMetricsSnapshot MarketDataStreamMetrics
+    {
+        get => _marketDataStreamMetrics;
+        private set => SetProperty(ref _marketDataStreamMetrics, value);
+    }
+
+    /// <summary>Gets main-shell dispatcher wait and render-duration metrics.</summary>
+    public IFMAppUiDispatchMetricsSnapshot UiDispatchMetrics
+    {
+        get => _uiDispatchMetrics;
+        private set => SetProperty(ref _uiDispatchMetrics, value);
+    }
+
+    /// <summary>
+    /// Records one completed main-shell UI dispatch and render operation.
+    /// </summary>
+    public void RecordUiDispatch(TimeSpan dispatchDelay, TimeSpan renderDuration)
+    {
+        if (dispatchDelay < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(dispatchDelay));
+        if (renderDuration < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(renderDuration));
+
+        UpdateMaximum(ref _maximumUiDispatchDelayTicks, dispatchDelay.Ticks);
+        UpdateMaximum(ref _maximumUiRenderDurationTicks, renderDuration.Ticks);
+        UiDispatchMetrics = new IFMAppUiDispatchMetricsSnapshot(
+            Interlocked.Increment(ref _uiDispatchCount),
+            dispatchDelay,
+            TimeSpan.FromTicks(Interlocked.Read(ref _maximumUiDispatchDelayTicks)),
+            renderDuration,
+            TimeSpan.FromTicks(Interlocked.Read(ref _maximumUiRenderDurationTicks)));
     }
 
     /// <summary>Gets the single-flight application-startup operation.</summary>
@@ -301,7 +396,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             foreach (var contract in _baseContracts ?? [])
                 await model.GetLastFuturesEodDataAsync(contract.ContractId, contract.LastTradeDate, futuresEodData => {
                     if (futuresEodData is not null)
-                        _liveViewAdapter.UpdateMarketOutlook(new FuturesEodDataUIViewModel(futuresEodData));
+                        PublishMarketOutlook(futuresEodData);
                 });
         });
 
@@ -328,7 +423,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                     await model.GetLastFuturesBarDataAsync(contract.ContractId, contract.Symbol, DateOnly.FromDateTime(DateTime.UtcNow), futuresBarData =>
                     {
                         if (futuresBarData is not null)
-                            _liveViewAdapter.UpdateMarketData(futuresBarData.Symbol, [futuresBarData]);
+                            PublishFuturesBarSnapshot(futuresBarData.Symbol, [futuresBarData]);
                     });
             });
 
@@ -337,8 +432,14 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// </summary>
     async Task StartFuturesEodDataEventConsumer(CancellationToken cancellationToken)
     {
-
-
+        if (_marketOutlookChannel is not null)
+            return;
+        _marketOutlookChannel = new LatestValueAsyncChannel<FuturesEodDataV2ReadModel>(
+            ProcessMarketOutlookAsync,
+            minimumInterval: TimeSpan.FromMilliseconds(50),
+            timeProvider: _timeProvider,
+            metricsChanged: PublishMarketOutlookMetrics);
+        PublishMarketOutlookMetrics(_marketOutlookChannel.Metrics);
         await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
@@ -349,24 +450,43 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 _siteId, e =>
                 {
                     Interlocked.Exchange(ref _resetTicks, 0);
-                    _liveViewAdapter.UpdateMarketOutlook(new FuturesEodDataUIViewModel(e.FuturesEodData));
-                    QueueStatusConsoleWrite(
-                        $"{e.FuturesEodData.ContractId}={e.FuturesEodData.ClosePrice:F2}@{e.FuturesEodData.DailyPercentChange:P} {e.FuturesEodData.MarketDirection}:{e.FuturesEodData.MarketVolatility}:{e.FuturesEodData.PriceDirection}:{e.FuturesEodData.PriceVolatility}",
-                        LogSourceType.MarketDataFeedEvent);
+                    _marketOutlookChannel?.TryWrite(e.FuturesEodData);
                 });
         });
+
+        async ValueTask ProcessMarketOutlookAsync(
+            FuturesEodDataV2ReadModel futuresEodData,
+            CancellationToken channelCancellationToken)
+        {
+            channelCancellationToken.ThrowIfCancellationRequested();
+            PublishMarketOutlook(futuresEodData);
+            await WriteStatusConsoleAsync(
+                $"{futuresEodData.ContractId}={futuresEodData.ClosePrice:F2}@{futuresEodData.DailyPercentChange:P} {futuresEodData.MarketDirection}:{futuresEodData.MarketVolatility}:{futuresEodData.PriceDirection}:{futuresEodData.PriceVolatility}",
+                LogSourceType.MarketDataFeedEvent);
+        }
     }
 
     /// <summary>
     /// stop futures eod data consumer
     /// </summary>
-    Task StopFuturesEodDataEventConsumer()
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Stopping Futures Eod Data Error"));
-            await WriteStatusConsoleAsync("Stopping Futures Eod Data...");
-            await model.StopFuturesEodDataEventConsumerAsync(_siteId);
-        });
+    async Task StopFuturesEodDataEventConsumer()
+    {
+        var channel = Interlocked.Exchange(ref _marketOutlookChannel, null);
+        try
+        {
+            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+                model.OnError((errorCode, errorMessage) =>
+                    PublishError(errorCode, errorMessage, "Stopping Futures Eod Data Error"));
+                await WriteStatusConsoleAsync("Stopping Futures Eod Data...");
+                await model.StopFuturesEodDataEventConsumerAsync(_siteId);
+            });
+        }
+        finally
+        {
+            if (channel is not null)
+                await channel.StopAsync();
+        }
+    }
 
     /// <summary>
     /// start futures trade signal event consumer
@@ -492,40 +612,75 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// </summary>
     Task StartFuturesBarDataEventConsumer(CancellationToken cancellationToken)
         => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+            if (_futuresBarChannels is not null)
+                return;
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Starting Futures Bar Data Event Consumer Error"));
             await WriteStatusConsoleAsync("Starting Futures Bar Data Event Consumer...");
             await DelayStartupAsync(cancellationToken);
+            _futuresBarChannels = new KeyedLatestValueAsyncChannel<string, FuturesBarDataInsertedCompleteEvent>(
+                (_, e, channelCancellationToken) => ProcessFuturesBarRefreshAsync(e, channelCancellationToken),
+                minimumInterval: TimeSpan.FromMilliseconds(100),
+                timeProvider: _timeProvider,
+                metricsChanged: PublishFuturesBarMetrics);
             await model.StartFuturesBarDataEventConsumerAsync(
-                _siteId, async e =>
-                await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async queryModel =>
-                {
-                    queryModel.OnError((errorCode, errorMessage) =>
-                        PublishError(errorCode, errorMessage, "Loading Futures Bar Data Error"));
-                    await queryModel.GetFuturesBarDataAsync(
-                        e.FuturesBarData.ContractId,
-                        e.FuturesBarData.Symbol,
-                        e.FuturesBarData.ValueDate,
-                        e.FuturesBarData.BarDate.AddHours(-6),
-                        e.FuturesBarData.BarDate.AddSeconds(1), futuresBarData =>
-                        {
-                            _liveViewAdapter.UpdateMarketData(e.FuturesBarData.Symbol, futuresBarData);
-                        });
-                    await WriteStatusConsoleAsync(
-                        $"FuturesBarData := {e.FuturesBarData.ContractId} @ {e.FuturesBarData.BarValue:F2}");
-                }));
+                _siteId,
+                QueueFuturesBarRefreshAsync);
         });
 
     /// <summary>
     /// stop futures bar data consumer
     /// </summary>
-    Task StopFuturesBarDataEventConsumer()
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Stopping Futures Bar Data Event Consumer Error"));
-            await WriteStatusConsoleAsync("Stopping Futures Bar Data Event Consumer...");
-            await model.StopFuturesBarDataEventConsumerAsync(_siteId);
+    async Task StopFuturesBarDataEventConsumer()
+    {
+        var channels = Interlocked.Exchange(ref _futuresBarChannels, null);
+
+        try
+        {
+            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+                model.OnError((errorCode, errorMessage) =>
+                    PublishError(errorCode, errorMessage, "Stopping Futures Bar Data Event Consumer Error"));
+                await WriteStatusConsoleAsync("Stopping Futures Bar Data Event Consumer...");
+                await model.StopFuturesBarDataEventConsumerAsync(_siteId);
+            });
+        }
+        finally
+        {
+            if (channels is not null)
+                await channels.StopAsync();
+        }
+    }
+
+    ValueTask QueueFuturesBarRefreshAsync(FuturesBarDataInsertedCompleteEvent e)
+    {
+        var symbol = e.FuturesBarData.Symbol;
+        if (string.IsNullOrWhiteSpace(symbol))
+            return ValueTask.CompletedTask;
+
+        _futuresBarChannels?.TryWrite(symbol, e);
+        return ValueTask.CompletedTask;
+    }
+
+    async ValueTask ProcessFuturesBarRefreshAsync(
+        FuturesBarDataInsertedCompleteEvent e,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async queryModel =>
+        {
+            queryModel.OnError((errorCode, errorMessage) =>
+                PublishError(errorCode, errorMessage, "Loading Futures Bar Data Error"));
+            await queryModel.GetFuturesBarDataAsync(
+                e.FuturesBarData.ContractId,
+                e.FuturesBarData.Symbol,
+                e.FuturesBarData.ValueDate,
+                e.FuturesBarData.BarDate.AddHours(-6),
+                e.FuturesBarData.BarDate.AddSeconds(1),
+                futuresBarData => PublishFuturesBarSnapshot(e.FuturesBarData.Symbol, futuresBarData));
         });
+        await WriteStatusConsoleAsync(
+            $"FuturesBarData := {e.FuturesBarData.ContractId} @ {e.FuturesBarData.BarValue:F2}");
+    }
 
     /// <summary>
     /// import yiele curve rates
@@ -673,6 +828,47 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
     }
 
+    internal void PublishMarketOutlook(FuturesEodDataV2ReadModel futuresEodData)
+        => MarketOutlook = new FuturesEodDataUIViewModel(futuresEodData);
+
+    internal void PublishFuturesBarSnapshot(
+        string symbol,
+        IEnumerable<FuturesBarDataReadModel> futuresBarData)
+    {
+        if (string.IsNullOrWhiteSpace(symbol))
+            return;
+
+        var bounded = futuresBarData
+            .OrderBy(bar => bar.BarDate)
+            .TakeLast(FuturesBarChartCapacity)
+            .ToArray();
+        lock (_marketDataStreamGate)
+        {
+            _futuresBarSnapshots[symbol] = bounded;
+            FuturesBarSnapshots = new Dictionary<string, FuturesBarDataReadModel[]>(_futuresBarSnapshots);
+            LatestFuturesBarSnapshot = new FuturesBarChartSnapshot(symbol, bounded);
+        }
+    }
+
+    void PublishMarketOutlookMetrics(LatestValueChannelMetrics metrics)
+    {
+        lock (_marketDataStreamGate)
+            MarketDataStreamMetrics = new IFMAppMarketDataStreamMetricsSnapshot(
+                metrics,
+                new Dictionary<string, LatestValueChannelMetrics>(_futuresBarMetrics));
+    }
+
+    void PublishFuturesBarMetrics(string symbol, LatestValueChannelMetrics metrics)
+    {
+        lock (_marketDataStreamGate)
+        {
+            _futuresBarMetrics[symbol] = metrics;
+            MarketDataStreamMetrics = new IFMAppMarketDataStreamMetricsSnapshot(
+                MarketDataStreamMetrics.MarketOutlook,
+                new Dictionary<string, LatestValueChannelMetrics>(_futuresBarMetrics));
+        }
+    }
+
     internal void AppendStatusLog(StatusConsoleLogReadModel log)
     {
         StatusConsoleLogReadModel[] snapshot;
@@ -695,27 +891,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             errorCode,
             message,
             caption);
-
-    void QueueStatusConsoleWrite(
-        string message,
-        LogSourceType logSourceType = LogSourceType.IFMApp)
-    {
-        if (!_lifecycle.IsRunning)
-            return;
-
-        try
-        {
-            _lifecycle.RunAsync(async cancellationToken =>
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await WriteStatusConsoleAsync(message, logSourceType);
-            });
-        }
-        catch (InvalidOperationException) when (!_lifecycle.IsRunning)
-        {
-            // Stop won the race after the event callback observed the running flag.
-        }
-    }
 
     /// <summary>Writes one status-console message with observable asynchronous completion.</summary>
     async Task WriteStatusConsoleAsync(
@@ -741,6 +916,18 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         catch (Exception exception) when (ReferenceEquals(operation.LastFailure, exception))
         {
             // The caller already observed this completed operation failure.
+        }
+    }
+
+    static void UpdateMaximum(ref long location, long value)
+    {
+        var current = Interlocked.Read(ref location);
+        while (current < value)
+        {
+            var observed = Interlocked.CompareExchange(ref location, value, current);
+            if (observed == current)
+                return;
+            current = observed;
         }
     }
 
