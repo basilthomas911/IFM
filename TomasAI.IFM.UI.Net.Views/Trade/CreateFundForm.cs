@@ -26,17 +26,23 @@ public partial class CreateFundForm : Form, IFormControl
         InitializeComponent();
     }
 
-    private void CreateFundForm_Load(object sender, EventArgs e)
+    private async void CreateFundForm_Load(object sender, EventArgs e)
     {
         txtFundName.Text = string.Empty;
         txtDescription.Text = string.Empty;
         txtInitialBalance.Text = $"{0m}";
-        _viewModel.LoadNewFundId(
-            newFundIdAction: newFundId => this.Invoke(() => txtFundId.Text = $"{newFundId}"),
-            onError: errorMsg => this.ShowErrorMessage(errorMsg, "New Fund Id Error"));
+        try
+        {
+            await _viewModel.LoadNewFundIdOperation.ExecuteAsync();
+            txtFundId.Text = $"{_viewModel.NewFundId}";
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "New Fund Id Error");
+        }
     }
 
-    private void btnSave_Click(object sender, EventArgs e)
+    private async void btnSave_Click(object sender, EventArgs e)
     {
         var newFund = new FundReadModel
         (
@@ -48,14 +54,32 @@ public partial class CreateFundForm : Form, IFormControl
             createdBy: $"{Environment.UserDomainName}\\{Environment.UserName}",
             createdOn: DateTime.Now
         );
-        _viewModel.CreateNewFund(newFund,
-            onCompleted: () => 
-                this.Post(() =>  {
-                    _fund = newFund;
-                    DialogResult = DialogResult.OK;
-                    this.Close();
-                }),
-            onError: errorMsg => this.ShowErrorMessage(errorMsg, "Create Fund Error"));
+        if (!newFund.IsValid)
+        {
+            this.ShowErrorMessage("A valid fund identifier and name are required.", "Create Fund Error");
+            return;
+        }
+        try
+        {
+            _viewModel.SetPendingFund(newFund);
+            btnSave.Enabled = false;
+            await _viewModel.CreateFundOperation.ExecuteAsync();
+            if (_viewModel.CreatedFund is not null)
+            {
+                _fund = _viewModel.CreatedFund;
+                DialogResult = DialogResult.OK;
+                Close();
+            }
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Create Fund Error");
+        }
+        finally
+        {
+            if (!IsDisposed)
+                btnSave.Enabled = true;
+        }
     }
 
     private void btnCancel_Click(object sender, EventArgs e)

@@ -569,6 +569,20 @@ Implemented in the first slice:
   propagation, selector state publication, invalid selection, and the absence of
   public callback delegates on migrated ViewModels.
 
+Fund workflow progress on 2026-08-11:
+
+- `FundTransactionEditorViewModel` now publishes funds, transactions, balance,
+  P&L, and selected-comment state. Fund details load as one single-flight,
+  consistent snapshot while the WinForms selectors are disabled, replacing three
+  overlapping fire-and-forget queries.
+- `CreateFundReadModel` exposes observable identifier/created-fund state and
+  guarded load/create operations. `CreateFundForm` awaits both operations and
+  validates the pending fund before submission.
+- Fund Model/ViewModel tests cover coded query failures, safe selection,
+  consistent details publication, and new-fund identifier loading. Adjustment
+  completion callbacks remain temporarily documented as correlated event-stream
+  boundaries and will move with the event-driven Fund editor slice.
+
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 
 Exit: every active screen consumes observable state and awaits ViewModel operations; callback adapters are removed or documented as intentional event-stream boundaries.

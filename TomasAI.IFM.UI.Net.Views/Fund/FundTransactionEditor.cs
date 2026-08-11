@@ -42,90 +42,73 @@ public partial class FundTransactionEditor
     /// the current view model.</param>
     public void LoadViewModel(FundTransactionEditorViewModel? viewModel)
     {
+        UnsubscribeFromOperations();
         _viewModel = viewModel;
-        _viewModel?.OnErrorMessage = (errorMsg, caption) => this.ShowErrorMessage(errorMsg, caption);
-        _viewModel?.OnFundsLoaded = (funds) =>
-            this.Post(() =>
-            {
-                btnAdjust.Enabled = false;
-                ddlFund.Items.Clear();
-                if (funds.Count == 0)
-                    return;
-                foreach (var fund in funds)
-                    ddlFund.Items.Add(fund.Name);
-                if (ddlFund.Items.Count > 0)
-                    ddlFund.SelectedIndex = 0;
-                btnAdjust.Enabled = ddlFund.Items.Count > 0;
-            });
-        _viewModel?.OnFundTransactionsLoaded = (fundTransactions) =>
-            this.Post(() =>
-            {
-                txtComment.Text = string.Empty;
-                gridTransactions.DataSource = null;
-                if (fundTransactions is not null && fundTransactions.Count > 0)
-                {
-                    gridTransactions.AutoGenerateColumns = false;
-                    SetupFundTransactionGridColumns();
-                    gridTransactions.DataSource = fundTransactions.ToList();
-                }
-            });
-        _viewModel?.OnTransactionCommentLoaded = (comment) => this.Post(() => txtComment.Text = comment ?? string.Empty);
-        _viewModel?.OnFundBalanceLoaded = (fundBalance) => this.Post(() => txtFundBalance.Text = $"{fundBalance:C}");
-        _viewModel?.OnFundPnlReportLoaded = e => this.Post(() =>
-        {
-            txtWinRate.Text = $"{e.WinRate:P2}";
-            txtAverageProfit.Text = e.AverageProfit.ToString("C");
-            txtLossRate.Text = $"{e.LossRate:P2}";
-            txtAverageLoss.Text = e.AverageLoss.ToString("C");
-            txtWinLossRatio.Text = $"{e.WinLossRatio:F2}";
-            txtSharpeRatio.Text = $"{e.ActualSharpeRatio:F2}";
-            txtProfitLoss.Text = $"{e.PnlAmount:C}";
-            txtProfitLossPercent.Text = $"{e.PnlPercent:P2}";
-            txtCommission.Text = $"{e.TradeCommission:C}";
-        });
+        if (_viewModel is null)
+            return;
+
+        _viewModel.LoadFundsOperation.PropertyChanged += Operation_PropertyChanged;
+        _viewModel.LoadFundDetailsOperation.PropertyChanged += Operation_PropertyChanged;
     }
 
-    void FundTransactionEditor_Load(object sender, EventArgs e)
-        => OnFundTransactionEditorLoad();
+    async void FundTransactionEditor_Load(object sender, EventArgs e)
+        => await LoadFundsAsync();
 
-    void ddlFund_SelectedIndexChanged(object sender, EventArgs e)
-        => OnFundSelectedIndexChanged();
+    async void ddlFund_SelectedIndexChanged(object sender, EventArgs e)
+        => await LoadSelectedFundDetailsAsync();
 
-    void dtpFrom_ValueChanged(object sender, EventArgs e)
-        => OnFromValueChanged();
-
-    void dtpTo_ValueChanged(object sender, EventArgs e)
-        => OnToValueChanged();
-
-    void btnAdjust_Click(object sender, EventArgs e)
-        => OnAdjustClicked();
-
-    void OnFundTransactionEditorLoad() => _viewModel!.LoadFunds();
-
-    void OnFundSelectedIndexChanged()
-    {
-        var fundId = _viewModel!.GetFundId(ddlFund.SelectedIndex);
-        _viewModel.LoadFundTransactions(fundId, dtpFrom.Value, dtpTo.Value);
-        _viewModel.LoadFundPnlReport(fundId, dtpFrom.Value, dtpTo.Value);
-    }
-
-    void OnFromValueChanged()
+    async void dtpFrom_ValueChanged(object sender, EventArgs e)
     {
         if (dtpFrom.Enabled)
+            await LoadSelectedFundDetailsAsync();
+    }
+
+    async void dtpTo_ValueChanged(object sender, EventArgs e)
+    {
+        if (dtpTo.Enabled)
+            await LoadSelectedFundDetailsAsync();
+    }
+
+    async void btnAdjust_Click(object sender, EventArgs e)
+        => await OnAdjustClickedAsync();
+
+    async Task LoadFundsAsync()
+    {
+        if (_viewModel is null)
+            return;
+        try
         {
-            var fundId = _viewModel!.GetFundId(ddlFund.SelectedIndex);
-            _viewModel.LoadFundTransactions(fundId, dtpFrom.Value, dtpTo.Value);
-            _viewModel.LoadFundPnlReport(fundId, dtpFrom.Value, dtpTo.Value);
+            await _viewModel.LoadFundsOperation.ExecuteAsync();
+            BindFunds();
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Loading Funds Error");
         }
     }
 
-    void OnToValueChanged()
+    async Task LoadSelectedFundDetailsAsync()
     {
-        if (dtpTo.Enabled)
+        if (_viewModel is null)
+            return;
+        var fundId = _viewModel.GetFundId(ddlFund.SelectedIndex);
+        if (fundId < 0)
+            return;
+        if (dtpFrom.Value > dtpTo.Value)
         {
-            var fundId = _viewModel!.GetFundId(ddlFund.SelectedIndex);
-            _viewModel.LoadFundTransactions(fundId, dtpFrom.Value, dtpTo.Value);
-            _viewModel.LoadFundPnlReport(fundId, dtpFrom.Value, dtpTo.Value);
+            this.ShowErrorMessage("The From date must not be after the To date.", "Loading Fund Details Error");
+            return;
+        }
+
+        try
+        {
+            _viewModel.SetFundDetailsFilter(fundId, dtpFrom.Value, dtpTo.Value);
+            await _viewModel.LoadFundDetailsOperation.ExecuteAsync();
+            BindFundDetails();
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Loading Fund Details Error");
         }
     }
 
@@ -134,12 +117,12 @@ public partial class FundTransactionEditor
         if (gridTransactions.SelectedRows.Count > 0)
         {
             var index = gridTransactions.SelectedRows[0].Index;
-            _viewModel!.LoadTransactionComment(
-                transactionId: _viewModel.GetFundTransactionId(index));
+            _viewModel!.SelectTransaction(index);
+            txtComment.Text = _viewModel.TransactionComment;
         }
     }
 
-    void OnAdjustClicked()
+    async Task OnAdjustClickedAsync()
     {
         if (gridTransactions.RowCount > 0)
         {
@@ -151,12 +134,13 @@ public partial class FundTransactionEditor
                     fundTransaction!,
                     _viewModel.FundBalance)));
             if (result == NavigationResult.Accepted)
-                _viewModel.LoadFunds();
+                await LoadFundsAsync();
         }
     }
 
     void FundTransactionEditor_FormClosed(object sender, FormClosedEventArgs e)
     {
+        UnsubscribeFromOperations();
     }
 
     void SetupFundTransactionGridColumns()
@@ -187,7 +171,7 @@ public partial class FundTransactionEditor
     }
 
     void gridTransactions_DoubleClick(object sender, EventArgs e)
-        => OnAdjustClicked();
+        => _ = OnAdjustClickedAsync();
 
     void gridTransactions_SelectionChanged(object sender, EventArgs e)
         => OnTransactionSelectionChanged();
@@ -197,8 +181,67 @@ public partial class FundTransactionEditor
 
     }
 
-    private void btnAdjust_Click_1(object sender, EventArgs e)
-        => OnAdjustClicked();
+    private async void btnAdjust_Click_1(object sender, EventArgs e)
+        => await OnAdjustClickedAsync();
+
+    void BindFunds()
+    {
+        ddlFund.Items.Clear();
+        if (_viewModel is null)
+            return;
+        foreach (var fund in _viewModel.Funds)
+            ddlFund.Items.Add(fund.Name);
+        if (ddlFund.Items.Count > 0)
+            ddlFund.SelectedIndex = 0;
+    }
+
+    void BindFundDetails()
+    {
+        if (_viewModel is null)
+            return;
+        txtComment.Text = _viewModel.TransactionComment;
+        gridTransactions.DataSource = null;
+        if (_viewModel.FundTransactions.Count > 0)
+        {
+            gridTransactions.AutoGenerateColumns = false;
+            SetupFundTransactionGridColumns();
+            gridTransactions.DataSource = _viewModel.FundTransactions.ToList();
+        }
+        txtFundBalance.Text = $"{_viewModel.FundBalance:C}";
+        if (_viewModel.FundPnlReport is not { } report)
+            return;
+        txtWinRate.Text = $"{report.WinRate:P2}";
+        txtAverageProfit.Text = report.AverageProfit.ToString("C");
+        txtLossRate.Text = $"{report.LossRate:P2}";
+        txtAverageLoss.Text = report.AverageLoss.ToString("C");
+        txtWinLossRatio.Text = $"{report.WinLossRatio:F2}";
+        txtSharpeRatio.Text = $"{report.ActualSharpeRatio:F2}";
+        txtProfitLoss.Text = $"{report.PnlAmount:C}";
+        txtProfitLossPercent.Text = $"{report.PnlPercent:P2}";
+        txtCommission.Text = $"{report.TradeCommission:C}";
+    }
+
+    void Operation_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(IAsyncOperation.IsRunning) || _viewModel is null)
+            return;
+        this.Post(() =>
+        {
+            var isBusy = _viewModel.LoadFundsOperation.IsRunning || _viewModel.LoadFundDetailsOperation.IsRunning;
+            ddlFund.Enabled = !isBusy;
+            dtpFrom.Enabled = !isBusy;
+            dtpTo.Enabled = !isBusy;
+            btnAdjust.Enabled = !isBusy && gridTransactions.RowCount > 0;
+        });
+    }
+
+    void UnsubscribeFromOperations()
+    {
+        if (_viewModel is null)
+            return;
+        _viewModel.LoadFundsOperation.PropertyChanged -= Operation_PropertyChanged;
+        _viewModel.LoadFundDetailsOperation.PropertyChanged -= Operation_PropertyChanged;
+    }
 
     void IFormControl.Resize(Control parentControl)
         => throw new NotImplementedException();

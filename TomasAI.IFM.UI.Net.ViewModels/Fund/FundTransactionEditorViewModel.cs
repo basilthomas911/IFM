@@ -1,128 +1,124 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.ViewModels.Extensions;
+using TomasAI.IFM.UI.Net.ViewModels.Operations;
+using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Fund;
 
-public class FundTransactionEditorViewModel
+/// <summary>
+/// Exposes observable fund-transaction state and guarded query operations.
+/// </summary>
+public sealed class FundTransactionEditorViewModel : ObservableObject
 {
     readonly IAppRoot _appRoot;
-
-    List<FundReadModel> _funds = null!;
-    List<FundTransactionReadModel> _fundTransactions = null!;
+    IReadOnlyList<FundReadModel> _funds = [];
+    IReadOnlyList<FundTransactionReadModel> _fundTransactions = [];
+    FundPnlReportReadModel? _fundPnlReport;
+    string _transactionComment = string.Empty;
     decimal _fundBalance;
+    int _selectedFundId = -1;
+    DateTime _fromDate;
+    DateTime _toDate;
 
-    /// <summary>
-    /// create fund transaction view model
-    /// </summary>
-    /// <param name="appRoot"></param>
     public FundTransactionEditorViewModel(IAppRoot appRoot)
     {
-        _appRoot = appRoot;
+        _appRoot = appRoot ?? throw new ArgumentNullException(nameof(appRoot));
+        LoadFundsOperation = new AsyncOperation(LoadFundsCoreAsync);
+        LoadFundDetailsOperation = new AsyncOperation(
+            LoadFundDetailsCoreAsync,
+            () => _selectedFundId >= 0 && _fromDate <= _toDate);
     }
 
     public IAppRoot AppRoot => _appRoot;
-    public decimal FundBalance => _fundBalance;
-    public Action<string, string> OnErrorMessage { get; set; } = null!;
-    public Action<ICollection<FundReadModel>> OnFundsLoaded { get; set; } = null!;
-    public Action<ICollection<FundTransactionReadModel>> OnFundTransactionsLoaded { get; set; } = null!;
-    public Action<string> OnTransactionCommentLoaded { get; set; } = null!;
-    public Action<decimal> OnFundBalanceLoaded { get; set; } = null!;
-    public Action<FundPnlReportReadModel> OnFundPnlReportLoaded { get; set; } = null!;
+    public IReadOnlyList<FundReadModel> Funds
+    {
+        get => _funds;
+        private set => SetProperty(ref _funds, value);
+    }
 
-    /// <summary>
-    /// load funds from storage
-    /// </summary>
-    /// <param name="selectedIndex"></param>
-    public Task LoadFunds()
-        => _appRoot.GetModel<FundQueryModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMsg) => OnErrorMessage(errorMsg, "Loading Funds Error"));
-            await model.GetFundsAsync(funds =>
+    public IReadOnlyList<FundTransactionReadModel> FundTransactions
+    {
+        get => _fundTransactions;
+        private set => SetProperty(ref _fundTransactions, value);
+    }
+
+    public decimal FundBalance
+    {
+        get => _fundBalance;
+        private set => SetProperty(ref _fundBalance, value);
+    }
+
+    public FundPnlReportReadModel? FundPnlReport
+    {
+        get => _fundPnlReport;
+        private set => SetProperty(ref _fundPnlReport, value);
+    }
+
+    public string TransactionComment
+    {
+        get => _transactionComment;
+        private set => SetProperty(ref _transactionComment, value);
+    }
+
+    public IAsyncOperation LoadFundsOperation { get; }
+    public IAsyncOperation LoadFundDetailsOperation { get; }
+
+    public void SetFundDetailsFilter(int fundId, DateTime fromDate, DateTime toDate)
+    {
+        _selectedFundId = fundId;
+        _fromDate = fromDate;
+        _toDate = toDate;
+        LoadFundDetailsOperation.NotifyCanExecuteChanged();
+    }
+
+    public void SelectTransaction(int index)
+        => TransactionComment = GetFundTransaction(index)?.Description ?? string.Empty;
+
+    public int GetFundId(int index)
+        => index >= 0 && index < Funds.Count ? Funds[index].FundId : -1;
+
+    public FundTransactionReadModel? GetFundTransaction(int index)
+        => index >= 0 && index < FundTransactions.Count ? FundTransactions[index] : null;
+
+    Task LoadFundsCoreAsync(CancellationToken cancellationToken)
+        => _appRoot.GetModel<FundQueryModel>().ExecuteObservableAsync(
+            async model =>
             {
-                if (funds?.Length > 0)
-                {
-                   _funds = new List<FundReadModel>(funds);
-                   OnFundsLoaded(funds);
-                }
-            });
-        });
+                FundReadModel[] funds = [];
+                await model.GetFundsAsync(loaded => funds = loaded ?? []);
+                Funds = funds;
+            },
+            cancellationToken);
 
-    /// <summary>
-    /// return list of transactions for selected fund by date range
-    /// </summary>
-    /// <param name="fundId">selected fund</param>
-    /// <param name="startDate"></param>
-    /// <param name="endDate"></param>
-    public Task LoadFundTransactions(int fundId, DateTime startDate, DateTime endDate)
-        => _appRoot.GetModel<FundQueryModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMsg) => OnErrorMessage(errorMsg, "Loading Fund Transactions Error"));
-            await model.GetFundTransactionsAsync(fundId, DateOnly.FromDateTime(startDate), DateOnly.FromDateTime(endDate), funds => {
-                _fundTransactions = [.. funds];
-                OnFundTransactionsLoaded(_fundTransactions);
-                LoadFundBalance(fundId);
-            });
-        });
+    Task LoadFundDetailsCoreAsync(CancellationToken cancellationToken)
+        => _appRoot.GetModel<FundQueryModel>().ExecuteObservableAsync(
+            async model =>
+            {
+                FundTransactionReadModel[] transactions = [];
+                var balance = 0m;
+                FundPnlReportReadModel? report = null;
+                var fromDate = DateOnly.FromDateTime(_fromDate);
+                var toDate = DateOnly.FromDateTime(_toDate);
 
-    /// <summary>
-    /// return fund balance
-    /// </summary>
-    /// <param name="fundId"></param>
-    public Task LoadFundBalance(int fundId)
-        => _appRoot.GetModel<FundQueryModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMsg) => OnErrorMessage(errorMsg, "Loading Fund Balance Error"));
-            await model.GetFundBalanceAsync(fundId, fundBalance => {
-                _fundBalance = fundBalance;
-                OnFundBalanceLoaded(fundBalance);
-            });
-        });
+                await model.GetFundTransactionsAsync(
+                    _selectedFundId,
+                    fromDate,
+                    toDate,
+                    loaded => transactions = loaded ?? []);
+                await model.GetFundBalanceAsync(_selectedFundId, loaded => balance = loaded);
+                await model.GetFundPnlReportAsync(
+                    _selectedFundId,
+                    fromDate,
+                    DateOnly.FromDateTime(_toDate.AddDays(1)),
+                    loaded => report = loaded);
 
-    /// <summary>
-    /// return list of transactions for selected fund by date range
-    /// </summary>
-    /// <param name="fundId">selected fund</param>
-    /// <param name="startDate"></param>
-    /// <param name="endDate"></param>
-    public Task LoadFundPnlReport(int fundId, DateTime startDate, DateTime endDate)
-        => _appRoot.GetModel<FundQueryModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMsg) => OnErrorMessage(errorMsg, "Loading Fund Pnl Report Error"));
-            await model.GetFundPnlReportAsync(fundId, DateOnly.FromDateTime(startDate), DateOnly.FromDateTime(endDate.AddDays(1)), fundPnlReport => {
-                if (fundPnlReport != null)
-                    OnFundPnlReportLoaded(fundPnlReport);
-            });
-        });
-
-    /// <summary>
-    /// return transaction comment
-    /// </summary>
-    /// <param name="transactionId"></param>
-    public void LoadTransactionComment(FundTransactionId? transactionId)
-        => OnTransactionCommentLoaded(_fundTransactions == null ? string.Empty : _fundTransactions.Where(e => e.Id == transactionId).SingleOrDefault()?.Description ?? string.Empty);
-
-    /// <summary>
-    /// return fund id from  drop down list selected index
-    /// </summary>
-    /// <param name="index">drop down list selected index</param>
-    /// <returns></returns>
-    public int GetFundId(int index) => _funds == null || _funds.Count == 0 ? -1 : _funds[index].FundId;
-
-    /// <summary>
-    /// return fund transaction id from selected transaction grid
-    /// </summary>
-    /// <param name="index"></param>
-    /// <returns></returns>
-    public FundTransactionId? GetFundTransactionId(int index) => _fundTransactions == null || _fundTransactions.Count == 0 ? default : _fundTransactions[index].Id;
-
-    /// <summary>
-    /// return fund transaction
-    /// </summary>
-    /// <param name="transactionId"></param>
-    /// <returns></returns>
-    public FundTransactionReadModel? GetFundTransaction(int index) => _fundTransactions == null || _fundTransactions.Count == 0 ? null : _fundTransactions[index];
-
+                FundTransactions = transactions;
+                FundBalance = balance;
+                FundPnlReport = report;
+                TransactionComment = string.Empty;
+            },
+            cancellationToken);
 }

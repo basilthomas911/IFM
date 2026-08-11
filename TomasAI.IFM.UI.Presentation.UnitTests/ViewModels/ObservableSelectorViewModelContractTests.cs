@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Reflection;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
+using TomasAI.IFM.UI.Net.ViewModels.Fund;
 
 namespace TomasAI.IFM.UI.Presentation.UnitTests.ViewModels;
 
@@ -11,7 +12,9 @@ public class ObservableSelectorViewModelContractTests
     public static TheoryData<Type> MigratedViewModels => new()
     {
         typeof(ReferenceViewModel),
-        typeof(SystemAdminViewModel)
+        typeof(SystemAdminViewModel),
+        typeof(FundTransactionEditorViewModel),
+        typeof(CreateFundReadModel)
     };
 
     [Theory]
