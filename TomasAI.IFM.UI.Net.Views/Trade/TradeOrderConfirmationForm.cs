@@ -1,62 +1,44 @@
-using TomasAI.IFM.Domain.Trade.Shared;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 
-namespace TomasAI.IFM.UI.Net.Views.Trade
+namespace TomasAI.IFM.UI.Net.Views.Trade;
+
+/// <summary>WinForms adapter for framework-neutral trade-order confirmation state.</summary>
+public partial class TradeOrderConfirmationForm : Form
 {
-    public partial class TradeOrderConfirmationForm : Form
+    readonly TradeOrderConfirmationViewModel _viewModel;
+
+    public TradeOrderConfirmationForm(TradeOrderConfirmationViewModel viewModel)
     {
-        readonly TradeOrderConfirmationViewModel _viewModel;
+        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        InitializeComponent();
+    }
 
-        public TradeOrderConfirmationForm(TradeOrderConfirmationViewModel viewModel)
-        {
-            _viewModel = viewModel;
-            InitializeComponent();
-        }
+    void TradeOrderConfirmationForm_Load(object sender, EventArgs e)
+    {
+        txtName.Text = $"{_viewModel.TradeOrder.TradeType}";
+        txtDescription.Text = _viewModel.TradeOrder.OrderDescription;
+        txtAction.Text = $"{_viewModel.TradeOrder.OrderAction} {_viewModel.TradeOrder.OrderQuantity}";
+        txtOrderPrice.Text = $"{_viewModel.TradeOrder.OrderPrice:F2}";
+        txtOrderType.Text = $"{_viewModel.TradeOrder.OrderType}";
+        txtOrderAmount.Text = $"{_viewModel.TradeOrder.OrderAmount:C}";
+        txtCommission.Text = $"{_viewModel.TradeOrder.Commission:C}";
+        txtTotalAmount.Text = $"{_viewModel.TradeOrder.TotalAmount:C}";
+        ddlTradeFillType.Items.Clear();
+        foreach (var tradeFillType in _viewModel.TradeFillTypes)
+            ddlTradeFillType.Items.Add($"{tradeFillType}");
+        ddlTradeFillType.SelectedIndex = _viewModel.TradeFillTypes
+            .ToList()
+            .IndexOf(_viewModel.SelectedTradeFillType);
+        btnContinue.Enabled = _viewModel.CanConfirm;
+        btnCancel.Select();
+    }
 
-        private void TradeOrderConfirmationForm_Load(object sender, EventArgs e)
-        {
-            txtName.Text = $"{_viewModel.TradeOrder.TradeType}";
-            txtDescription.Text = _viewModel.TradeOrder.OrderDescription;
-            txtAction.Text = $"{_viewModel.TradeOrder.OrderAction} {_viewModel.TradeOrder.OrderQuantity}";
-            txtOrderPrice.Text = $"{_viewModel.TradeOrder.OrderPrice:F2}";
-            txtOrderType.Text = $"{_viewModel.TradeOrder.OrderType}";
-            txtOrderAmount.Text = $"{_viewModel.TradeOrder.OrderAmount:C}";
-            txtCommission.Text = $"{_viewModel.TradeOrder.Commission:C}";
-            txtTotalAmount.Text = $"{_viewModel.TradeOrder.TotalAmount:C}";
-            ddlTradeFillType.Items.Clear();
-            ddlTradeFillType.Items.Add($"{TradeFillType.Manual}");
-            ddlTradeFillType.Items.Add($"{TradeFillType.Broker}");
-            ddlTradeFillType.SelectedIndex = 0;
-            btnCancel.Select();
-        }
+    void btnContinue_Click(object sender, EventArgs e) => Close();
+    void btnCancel_Click(object sender, EventArgs e) => Close();
 
-        private void btnContinue_Click(object sender, EventArgs e) => this.Close();
-
-        private void btnCancel_Click(object sender, EventArgs e) => this.Close();
-
-        private void ddlTradeFillType_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            var tradeFillType = (TradeFillType )Enum.Parse(typeof(TradeFillType), $"{ddlTradeFillType.SelectedItem}");
-            switch (tradeFillType)
-            {
-                case TradeFillType.Manual:
-                    btnContinue.Enabled = true;
-                    break;
-                case TradeFillType.Broker:
-                    /// broker trade fill currently not implemented...
-                    btnContinue.Enabled = false;
-                    break;
-            }
-        }
+    void ddlTradeFillType_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        _viewModel.SelectTradeFillType(ddlTradeFillType.SelectedIndex);
+        btnContinue.Enabled = _viewModel.CanConfirm;
     }
 }

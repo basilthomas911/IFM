@@ -487,19 +487,16 @@ public partial class TradeOrderEditorForm
 
     void btnClearTrade_Click(object sender, EventArgs e) => ClearTradeOrderControl();
 
-    void btnSubmitOrder_Click(object sender, EventArgs e)
+    async void btnSubmitOrder_Click(object sender, EventArgs e)
     {
         var orderActionType = (OrderActionType)Enum.Parse(typeof(OrderActionType), ddlOrderActionType.SelectedItem!.ToString()!);
-        var fundOrderTrade = _viewModel.GetFundOrderTrade(lstTrades.SelectedIndices[0]);
         var tradeOrderControl = pnlTradeControl.Controls[0] as ITradeOrderControl;
-        var orderConfirmation = new TradeOrderConfirmationViewModel(viewModel => {
-            var confirmTradeOrder = true;
-            var dlg = new TradeOrderConfirmationForm(viewModel);
-            if (dlg.ShowDialog() == DialogResult.Cancel)
-                confirmTradeOrder = false;
-            return confirmTradeOrder;
-        });
-        tradeOrderControl!.SubmitOrder(DateOnly.FromDateTime(dtpTradeDate.Value), orderActionType, orderConfirmation, _viewModel.SetCommandId );
+        var orderConfirmation = new WinFormsTradeOrderConfirmationService(this);
+        await ObserveAsync(() => tradeOrderControl!.SubmitOrderAsync(
+            DateOnly.FromDateTime(dtpTradeDate.Value),
+            orderActionType,
+            orderConfirmation,
+            _viewModel.SetCommandId));
     }
 
     void dtpTradeDate_ValueChanged(object sender, EventArgs e)

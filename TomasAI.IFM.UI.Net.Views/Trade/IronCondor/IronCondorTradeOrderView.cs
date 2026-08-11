@@ -111,7 +111,11 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     public void RemoveTrade(int fundId, int orderId, int tradeId) => _viewModel.RemoveTradeFromFundOrder( new FundOrderTradeId(fundId, orderId, tradeId));
 
-    public void SubmitOrder(DateOnly tradeDate, OrderActionType orderActionType, TradeOrderConfirmationViewModel tradeOrderConfirmation, Action<Guid> setCommmandId)
+    public async Task SubmitOrderAsync(
+        DateOnly tradeDate,
+        OrderActionType orderActionType,
+        ITradeOrderConfirmationService tradeOrderConfirmation,
+        Action<Guid> setCommmandId)
     {
         _viewModel.SetTradeStatus(orderActionType);
         _viewModel.SetTradeDate(tradeDate);
@@ -131,9 +135,9 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         var tradeFillType = TradeFillType.Manual;
         var orderAmount = _viewModel.OrderAmount;
         var totalAmount = _viewModel.TotalAmount;
-        _viewModel.GetIntraDayPnl(intraDayPnl =>
-        {
-            var tradeOrder = new TradeOrderReadModel
+        var intraDayPnl = 0m;
+        await _viewModel.GetIntraDayPnl(value => intraDayPnl = value);
+        var tradeOrder = new TradeOrderReadModel
             (
                 fundId: _viewModel.FundId,
                 orderId: _viewModel.IronCondorTrade.OrderId,
@@ -163,11 +167,11 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
                 updatedOn: DateTime.Now,
                 updatedBy: $"{Environment.UserDomainName}\\{Environment.UserName}"
             );
-            tradeOrderConfirmation.TradeOrder = tradeOrder;
-            if (tradeOrderConfirmation.ShowOrderConfirmation())
-                _viewModel.SubmitOrder(tradeOrder, setCommmandId);
-
-        });
+        var confirmation = await tradeOrderConfirmation.ConfirmAsync(tradeOrder);
+        if (confirmation.IsConfirmed)
+            await _viewModel.SubmitOrder(
+                tradeOrder with { TradeFillType = confirmation.TradeFillType },
+                setCommmandId);
     }
 
     public void LiveFeed(bool enabled)

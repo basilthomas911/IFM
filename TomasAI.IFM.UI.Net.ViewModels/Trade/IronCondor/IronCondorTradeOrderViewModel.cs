@@ -543,7 +543,9 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
         // place order...
         await _appRoot.GetModel<TradeCommandModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Submit Order Error"));
-            await model.PlaceOrderAsync(tradeOrder, _ironCondorTrade);
+            var commandId = await model.PlaceOrderAsync(tradeOrder, _ironCondorTrade);
+            if (commandId != Guid.Empty)
+                setCommandId(commandId);
         });
         return;
 

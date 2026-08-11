@@ -545,8 +545,7 @@ Exit: Models and ViewModels compile without WinForms, WPF, and `System.Drawing` 
 Progress on 2026-08-11: **the shared foundation, Reference/System Admin
 selectors, Fund workflows, Market Data editors, and main shell/status console
 are implemented; general trading migration is in progress.** S1.4 remains in
-progress while the end-of-day, confirmation, and Iron Condor workflows retain
-callback-based adapters.
+progress while the embedded Iron Condor workflow retains callback-based adapters.
 
 - Introduce observable base state.
 - Replace view callbacks with properties, collections, and async operations one screen at a time.
@@ -696,8 +695,23 @@ Market Data workflow progress on 2026-08-11:
 - Main-editor tests cover coherent nested loading and date filtering, safe
   selection, both listener lifecycles, unrelated-event rejection, correlated
   completion, early completion buffering, coded terminal failure, and the
-  no-declared-callback contract. End-of-day and confirmation are the next
-  general-trading slice before the embedded Iron Condor workflow.
+  no-declared-callback contract.
+- `EndOfDayProcessViewModel` now publishes a coherent price/P&L/balance snapshot,
+  guarded load/process operations, validation state, coded errors, completion
+  status, and owned listener lifecycle. The process retains the command API's
+  real ID, ignores unrelated terminal events, buffers the command-response race,
+  and exposes matching failures without closing the workflow prematurely.
+- `TradeEndOfDayForm` now awaits load/process operations and renders observable
+  state. `TradeOrderConfirmationViewModel` is callback-free and exposes the
+  selected fill source plus confirmation eligibility; the framework-neutral
+  `ITradeOrderConfirmationService` allows WinForms and future WPF hosts to supply
+  their own modal adapter.
+- End-of-day/confirmation tests cover coherent loading, date invalidation,
+  listener teardown, correlated completion, unrelated-event rejection, early
+  completion, coded failure/retry, safe fill selection, and callback-free public
+  state. Trade command models now return both end-of-day and placed-order IDs;
+  the Iron Condor adapter forwards placed-order correlation to the main editor.
+  The embedded Iron Condor workflow is the remaining general-trading slice.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 

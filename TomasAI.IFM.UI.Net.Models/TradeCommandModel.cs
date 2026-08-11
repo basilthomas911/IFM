@@ -1,11 +1,9 @@
-using TomasAI.IFM.Domain.Trade.Shared;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
@@ -81,18 +79,41 @@ public class TradeCommandModel : BaseModel<TradeCommandModel>
     /// run end of day process
     /// </summary>
     /// <param name="tradeId"></param>
-    public async Task<Guid> ProcessEndOfDayAsync(int fundId, int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, TradeStatus tradeStatus,
-        decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, int volume, string reference, Action<Guid> setCommandId)
-         => await ExecuteCommandAsync(() => _commandApi.ProcessEndOfDayAsync(fundId, orderId, tradeId, tradeType, valueDate, tradeStatus, openPrice, highPrice, lowPrice, closePrice, volume, reference));
+    public Task<Guid> ProcessEndOfDayAsync(
+        int fundId,
+        int orderId,
+        int tradeId,
+        TradeType tradeType,
+        DateOnly valueDate,
+        TradeStatus tradeStatus,
+        decimal openPrice,
+        decimal highPrice,
+        decimal lowPrice,
+        decimal closePrice,
+        int volume,
+        string reference)
+        => ExecuteCommandAsync(() => _commandApi.ProcessEndOfDayAsync(
+            fundId,
+            orderId,
+            tradeId,
+            tradeType,
+            valueDate,
+            tradeStatus,
+            openPrice,
+            highPrice,
+            lowPrice,
+            closePrice,
+            volume,
+            reference));
 
     /// <summary>
     /// submit trade broker order to open or close option trade
     /// </summary>
     /// <param name="tradeOrder"></param>
     /// <param name="optionTrade"></param>
-    /// <param name="setCommandId"></param>
-    public async Task PlaceOrderAsync( TradeOrderReadModel tradeOrder, OptionTradeReadModel optionTrade) 
-        => await ExecuteCommandAsync( () => _commandApi.PlaceOrderAsync(tradeOrder, optionTrade));
+    /// <returns>The command correlation identifier.</returns>
+    public Task<Guid> PlaceOrderAsync(TradeOrderReadModel tradeOrder, OptionTradeReadModel optionTrade)
+        => ExecuteCommandAsync(() => _commandApi.PlaceOrderAsync(tradeOrder, optionTrade));
    
     /// <summary>
     /// fill spread trade 
