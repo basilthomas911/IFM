@@ -43,8 +43,8 @@ public class FundCommandModel : BaseModel<FundCommandModel>
     /// </summary>
     /// <param name="fundOrder"></param>
     /// <param name="setCommandId"></param>
-    public async Task AddOrderToFundAsync(FundOrderReadModel fundOrder)
-        => await ExecuteCommandAsync(() => _commandApi.AddOrderToFundAsync(fundOrder));
+    public Task<Guid> AddOrderToFundAsync(FundOrderReadModel fundOrder)
+        => ExecuteCommandAsync(() => _commandApi.AddOrderToFundAsync(fundOrder));
 
     /// <summary>
     /// delete order from fund
@@ -52,32 +52,32 @@ public class FundCommandModel : BaseModel<FundCommandModel>
     /// <param name="fundOrderId"></param>
     /// <param name="setCommandId"></param>
     /// <returns></returns>
-    public async Task RemoveOrderFromFundAsync(FundOrderId fundOrderId)
-        => await ExecuteCommandAsync(() => _commandApi.RemoveOrderFromFundAsync(fundOrderId));
+    public Task<Guid> RemoveOrderFromFundAsync(FundOrderId fundOrderId)
+        => ExecuteCommandAsync(() => _commandApi.RemoveOrderFromFundAsync(fundOrderId));
 
     /// <summary>
     /// close fund order
     /// </summary>
     /// <param name="fundOrderId"></param>
     /// <param name="setCommandId"></param>
-    public async Task CloseFundOrderAsync(FundOrderId fundOrderId)
-        => await ExecuteCommandAsync(() => _commandApi.CloseFundOrderAsync(fundOrderId));
+    public Task<Guid> CloseFundOrderAsync(FundOrderId fundOrderId)
+        => ExecuteCommandAsync(() => _commandApi.CloseFundOrderAsync(fundOrderId));
 
     /// <summary>
     /// add trade to fund order
     /// </summary>
     /// <param name="fundOrderTrade"></param>
     /// <param name="setCommandId"></param>
-    public async Task AddTradeToFundOrderAsync(FundOrderTradeReadModel fundOrderTrade)
-        => await ExecuteCommandAsync(() => _commandApi.AddTradeToFundOrderAsync(fundOrderTrade));
+    public Task<Guid> AddTradeToFundOrderAsync(FundOrderTradeReadModel fundOrderTrade)
+        => ExecuteCommandAsync(() => _commandApi.AddTradeToFundOrderAsync(fundOrderTrade));
 
     /// <summary>
     /// delete trade from order
     /// </summary>
     /// <param name="fundOrderTradeId"></param>
     /// <param name="setCommandId"></param>
-    public async Task RemoveTradeFromFundOrderAsync(FundOrderTradeId fundOrderTradeId)
-        => await ExecuteCommandAsync(() => _commandApi.RemoveTradeFromFundOrderAsync(fundOrderTradeId));
+    public Task<Guid> RemoveTradeFromFundOrderAsync(FundOrderTradeId fundOrderTradeId)
+        => ExecuteCommandAsync(() => _commandApi.RemoveTradeFromFundOrderAsync(fundOrderTradeId));
 
     /// <summary>
     /// chnage fund order trade state
@@ -85,8 +85,8 @@ public class FundCommandModel : BaseModel<FundCommandModel>
     /// <param name="fundOrderTradeId"></param>
     /// <param name="tradeState"></param>
     /// <param name="setCommandId"></param>
-    public async Task ChangeFundOrderTradeStateAsync(FundOrderTradeId fundOrderTradeId, TradeState tradeState)
-        => await ExecuteCommandAsync(() => _commandApi.ChangeFundOrderTradeStateAsync(fundOrderTradeId, tradeState));
+    public Task<Guid> ChangeFundOrderTradeStateAsync(FundOrderTradeId fundOrderTradeId, TradeState tradeState)
+        => ExecuteCommandAsync(() => _commandApi.ChangeFundOrderTradeStateAsync(fundOrderTradeId, tradeState));
 
     /// <summary>
     /// chnage fund order trade state
@@ -94,8 +94,8 @@ public class FundCommandModel : BaseModel<FundCommandModel>
     /// <param name="fundOrderTradeId"></param>
     /// <param name="tradeState"></param>
     /// <param name="correlationId"></param>
-    public async Task ChangeFundOrderTradeStateAsync(FundOrderTradeId fundOrderTradeId, TradeState tradeState, Guid correlationId)
-        => await ExecuteCommandAsync(() => _commandApi.ChangeFundOrderTradeStateAsync(fundOrderTradeId, tradeState, correlationId));
+    public Task<Guid> ChangeFundOrderTradeStateAsync(FundOrderTradeId fundOrderTradeId, TradeState tradeState, Guid correlationId)
+        => ExecuteCommandAsync(() => _commandApi.ChangeFundOrderTradeStateAsync(fundOrderTradeId, tradeState, correlationId));
 
     /// <summary>
     /// create adjustment transaction
@@ -166,8 +166,8 @@ public class FundCommandModel : BaseModel<FundCommandModel>
     /// <param name="completeAction"></param>
     /// <param name="failAction"
     public async Task StartFundOrderTradeStateEventConsumerAsync(
-        Action<FundOrderTradeStateChangedCompleteEvent> completeAction,
-        Action<FundOrderTradeStateChangedFailEvent> failAction)
+        Func<FundOrderTradeStateChangedCompleteEvent, ValueTask> completeAction,
+        Func<FundOrderTradeStateChangedFailEvent, ValueTask> failAction)
         => await _tradeOrderUIEventConsumer.StartAsync(completeAction, failAction);
 
     /// <summary>

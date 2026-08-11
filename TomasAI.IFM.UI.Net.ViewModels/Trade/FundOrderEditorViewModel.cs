@@ -35,7 +35,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
     public FundOrderEditorViewModel(
         IAppRoot appRoot,
         DateOnly valueDate,
-        ICollection<FuturesContractV2ReadModel> baseContracts,
+        IEnumerable<FuturesContractV2ReadModel> baseContracts,
         int fundId,
         TimeProvider? timeProvider = null)
     {

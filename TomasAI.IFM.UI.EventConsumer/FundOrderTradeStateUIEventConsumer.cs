@@ -21,8 +21,8 @@ public class FundOrderTradeStateUIEventConsumer(INatsEventListenerOptions option
     };
 
     public async ValueTask StartAsync(
-       Action<FundOrderTradeStateChangedCompleteEvent> completeAction,
-       Action<FundOrderTradeStateChangedFailEvent> failAction)
+       Func<FundOrderTradeStateChangedCompleteEvent, ValueTask> completeAction,
+       Func<FundOrderTradeStateChangedFailEvent, ValueTask> failAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
 
@@ -30,25 +30,19 @@ public class FundOrderTradeStateUIEventConsumer(INatsEventListenerOptions option
         {
             try
             {
-                _ = eventVerb switch
+                var operation = eventVerb switch
                 {
                     _ when eventVerb == FundOrderTradeStateChangedCompleteEvent.Verb 
-                        => HandleEvent(eventMsg.AsEvent<FundOrderTradeStateChangedCompleteEvent>()!, e => completeAction?.Invoke((e as FundOrderTradeStateChangedCompleteEvent)!)),
+                        => completeAction(eventMsg.AsEvent<FundOrderTradeStateChangedCompleteEvent>()!),
                     _ when eventVerb == FundOrderTradeStateChangedFailEvent.Verb 
-                        => HandleEvent(eventMsg.AsEvent<FundOrderTradeStateChangedFailEvent>()!, e => failAction?.Invoke((e as FundOrderTradeStateChangedFailEvent)!)),
-                    _ => default!
+                        => failAction(eventMsg.AsEvent<FundOrderTradeStateChangedFailEvent>()!),
+                    _ => ValueTask.CompletedTask
                 };
-                await ValueTask.CompletedTask;
+                await operation;
             }
             catch (Exception ex)
             {
                 _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
-            }
-
-            IEvent HandleEvent(IEvent e, Action<IEvent> eventAction)
-            {
-                eventAction?.Invoke(e);
-                return e;
             }
         }
     }
@@ -56,6 +50,8 @@ public class FundOrderTradeStateUIEventConsumer(INatsEventListenerOptions option
 
 public interface IFundOrderTradeStateUIEventConsumer
 {
-    ValueTask StartAsync(Action<FundOrderTradeStateChangedCompleteEvent> completeAction, Action<FundOrderTradeStateChangedFailEvent> failAction);
+    ValueTask StartAsync(
+        Func<FundOrderTradeStateChangedCompleteEvent, ValueTask> completeAction,
+        Func<FundOrderTradeStateChangedFailEvent, ValueTask> failAction);
     ValueTask StopAsync();
 }

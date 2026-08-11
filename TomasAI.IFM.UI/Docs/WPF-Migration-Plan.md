@@ -545,8 +545,8 @@ Exit: Models and ViewModels compile without WinForms, WPF, and `System.Drawing` 
 Progress on 2026-08-11: **the shared foundation, Reference/System Admin
 selectors, Fund workflows, Market Data editors, and main shell/status console
 are implemented; general trading migration is in progress.** S1.4 remains in
-progress while the main trade-order, end-of-day, confirmation, and Iron Condor
-workflows retain callback-based adapters.
+progress while the end-of-day, confirmation, and Iron Condor workflows retain
+callback-based adapters.
 
 - Introduce observable base state.
 - Replace view callbacks with properties, collections, and async operations one screen at a time.
@@ -682,8 +682,22 @@ Market Data workflow progress on 2026-08-11:
   snapshots, disables input while busy, validates save state, and disposes
   operations on close. Tests cover coherent initial loading, safe contract
   selection, date validation, duplicate-load suppression, coded failure, and
-  the no-declared-callback contract. The main trade-order editor is the next
-  general-trading slice.
+  the no-declared-callback contract.
+- `TradeOrderEditorViewModel` now owns fund/order/trade selection, date filtering,
+  button capability state, listener lifecycle, coded errors, and immutable
+  snapshots. `TradeOrderEditorForm` only renders that state, owns dialogs and
+  embedded strategy controls, and awaits editor operations instead of mutating
+  ViewModel collections or assigning callback fields.
+- Fund commands now return their real command IDs through `FundCommandModel`.
+  The editor remains busy until the matching NATS completion/failure event,
+  ignores unrelated events, buffers the bounded command-response race, reloads
+  only after successful denormalization, and observes fund-order trade-state
+  events through an awaited consumer contract.
+- Main-editor tests cover coherent nested loading and date filtering, safe
+  selection, both listener lifecycles, unrelated-event rejection, correlated
+  completion, early completion buffering, coded terminal failure, and the
+  no-declared-callback contract. End-of-day and confirmation are the next
+  general-trading slice before the embedded Iron Condor workflow.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 
