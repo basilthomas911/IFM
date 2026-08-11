@@ -544,7 +544,8 @@ Exit: Models and ViewModels compile without WinForms, WPF, and `System.Drawing` 
 
 Progress on 2026-08-11: **the shared foundation, Reference/System Admin
 selectors, Fund workflows, Market Data editors, and main shell/status console
-are implemented.** S1.4 remains in progress while the trading and Iron Condor
+are implemented; general trading migration is in progress.** S1.4 remains in
+progress while the main trade-order, end-of-day, confirmation, and Iron Condor
 workflows retain callback-based adapters.
 
 - Introduce observable base state.
@@ -671,7 +672,18 @@ Market Data workflow progress on 2026-08-11:
   retention, repeatable error notifications, coherent query snapshots,
   listener start/stop behavior, post-stop event rejection, coded failures, and
   the no-declared-callback contracts. Trading and Iron Condor workflows are the
-  next S1.4 slices.
+  remaining S1.4 slices.
+- The first general-trading slice converts `FundOrderEditorViewModel` to
+  observable identifier, contract, date, reference, EOD-enrichment, busy,
+  validation, and coded-error state with single-flight load and reference
+  operations. Contract selection is safe and disabled while a query is active,
+  preventing stale EOD data from being applied to a newer selection.
+- `CreateFundOrderForm` now awaits identifier/EOD work, renders ViewModel
+  snapshots, disables input while busy, validates save state, and disposes
+  operations on close. Tests cover coherent initial loading, safe contract
+  selection, date validation, duplicate-load suppression, coded failure, and
+  the no-declared-callback contract. The main trade-order editor is the next
+  general-trading slice.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 
