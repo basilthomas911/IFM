@@ -6,7 +6,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.UI.EventConsumer;
 
@@ -20,7 +19,7 @@ public class TradePlanUIEventConsumer(INatsEventListenerOptions options, ILogger
         [new ActorMailboxId(ActorType.Event, TradePlanUpdatedEvent.Actor)] = [TradePlanUpdatedEvent.Verb]
     };
 
-    public async ValueTask StartAsync(Action<TradePlanUpdatedEvent> eventAction)
+    public async ValueTask StartAsync(Func<TradePlanUpdatedEvent, ValueTask> eventAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
 
@@ -28,24 +27,22 @@ public class TradePlanUIEventConsumer(INatsEventListenerOptions options, ILogger
         {
             try
             {
-                _ = eventVerb switch
+                await (eventVerb switch
                 {
                     _ when eventVerb == TradePlanUpdatedEvent.Verb 
-                        => HandleEvent(eventMsg.AsEvent<TradePlanUpdatedEvent>()!, eventAction),
-                    _ => default!
-                };
-                await ValueTask.CompletedTask;
+                        => HandleEventAsync(eventMsg.AsEvent<TradePlanUpdatedEvent>()!, eventAction),
+                    _ => ValueTask.CompletedTask
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
             }
 
-            IEvent HandleEvent(TradePlanUpdatedEvent e, Action<TradePlanUpdatedEvent> eventAction)
-            {
-                eventAction?.Invoke(e);
-                return e;
-            }
+            static ValueTask HandleEventAsync(
+                TradePlanUpdatedEvent e,
+                Func<TradePlanUpdatedEvent, ValueTask> eventAction)
+                => eventAction is null ? ValueTask.CompletedTask : eventAction(e);
         }
 
     }

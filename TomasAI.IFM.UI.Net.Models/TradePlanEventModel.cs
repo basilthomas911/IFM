@@ -1,14 +1,8 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.EventConsumer;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.UI.Net.Models
 {
@@ -25,7 +19,7 @@ namespace TomasAI.IFM.UI.Net.Models
         /// start listening for trade plan updated events
         /// </summary>
         /// <param name="listenerAction"></param>
-        public async Task StartTradePlanListenerAsync( Action<TradePlanUpdatedEvent> listenerAction) 
+        public async Task StartTradePlanListenerAsync(Func<TradePlanUpdatedEvent, ValueTask> listenerAction)
             => await ExecuteValueTaskAsync( () => _tradePlanEventConsumer.StartAsync(listenerAction));
 
         /// <summary>

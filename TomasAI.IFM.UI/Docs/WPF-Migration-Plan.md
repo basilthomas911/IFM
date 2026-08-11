@@ -758,16 +758,39 @@ neither channel can grow with producer rate.
   same time provider, metrics publication, and lifecycle diagnostics as EOD.
 - `IronCondorViewModel.LiveStreamMetrics` exposes accepted event rate, processed,
   coalesced, and failed counts, queue delay, processing duration, and open/closed
-  state for both streams.
+  state for both latest-value streams.
 - Shutdown stops each upstream consumer before closing and awaiting its channel,
   so no producer can refill a channel while the monitor is closing.
 - Shared channel tests cover concurrent bursts, latest-value convergence,
   serialization, callback recovery, throttling, cancellation, rejected writes
   after closure, and the published metrics.
 
-The next S1.5 slice classifies the Iron Condor trade-plan/history paths as
-lossless ordered streams, adds their bounded batching policy, and measures the
-final WinForms dispatcher/render latency.
+Progress on 2026-08-11: **the second Iron Condor lossless-stream slice is
+implemented.** Trade-plan events are distinct business events and now retain
+arrival order through a capacity-256 channel with batches of up to 32. The NATS
+consumer callback is awaitable, so a full channel applies asynchronous
+backpressure instead of blocking a thread or dropping an event.
+
+- Ordered batches retry transient reader failures three times and surface an
+  exhausted failure through channel completion rather than silently continuing.
+- Events for other orders, trades, and value dates are filtered before admission;
+  every accepted event is processed before normal monitor shutdown completes.
+- A batch creates one immutable `TradePlans` update and retains the newest 500
+  rendered entries without changing the lossless processing count.
+- Trade history is explicitly classified as query-derived latest snapshot state,
+  not an event stream. Its reload remains serialized by trade-position processing.
+- `LiveStreamMetrics` now includes trade-plan event rate, processed batch/event
+  counts, backpressure, failures, queue delay, batch duration, capacity, and
+  lifecycle state.
+- The WinForms adapter records dispatcher wait and render duration through the
+  presentation-neutral `UiDispatchMetrics` snapshot while suppressing recursive
+  metrics notifications.
+- Ordered-channel tests cover bursts, ordering, bounded backpressure, batching,
+  retry recovery, exhausted-failure propagation, drain-on-stop, rejected
+  post-stop writes, and invalid bounds.
+
+The next S1.5 slice audits and classifies the remaining real-time UI screens,
+then applies these shared latest-value or lossless-ordered policies to each path.
 
 - Classify every UI event path as lossless or latest-value.
 - Apply bounded channels, batching, render cadence, and ordered processing.

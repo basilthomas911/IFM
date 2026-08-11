@@ -32,6 +32,7 @@ public class IronCondorMonitorViewModelTests
         viewModel.IsLiveFeedEnabled.Should().BeFalse();
         viewModel.LiveStreamMetrics.FuturesEod.IsOpen.Should().BeFalse();
         viewModel.LiveStreamMetrics.TradePosition.IsOpen.Should().BeFalse();
+        viewModel.LiveStreamMetrics.TradePlan.IsOpen.Should().BeFalse();
         await viewModel.LoadOptionTradeSpreadBarData(-1);
 
         var callbackMembers = viewModel.GetType()
@@ -50,6 +51,22 @@ public class IronCondorMonitorViewModelTests
             .Where(parameter => typeof(Delegate).IsAssignableFrom(parameter.ParameterType));
         callbackParameters.Should().BeEmpty();
 
+        await viewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task UiDispatchMetrics_RecordLastAndMaximumLatency()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.RecordUiDispatch(TimeSpan.FromMilliseconds(8), TimeSpan.FromMilliseconds(3));
+        viewModel.RecordUiDispatch(TimeSpan.FromMilliseconds(2), TimeSpan.FromMilliseconds(5));
+
+        viewModel.UiDispatchMetrics.DispatchCount.Should().Be(2);
+        viewModel.UiDispatchMetrics.LastDispatchDelay.Should().Be(TimeSpan.FromMilliseconds(2));
+        viewModel.UiDispatchMetrics.MaximumDispatchDelay.Should().Be(TimeSpan.FromMilliseconds(8));
+        viewModel.UiDispatchMetrics.LastRenderDuration.Should().Be(TimeSpan.FromMilliseconds(5));
+        viewModel.UiDispatchMetrics.MaximumRenderDuration.Should().Be(TimeSpan.FromMilliseconds(5));
         await viewModel.DisposeAsync();
     }
 

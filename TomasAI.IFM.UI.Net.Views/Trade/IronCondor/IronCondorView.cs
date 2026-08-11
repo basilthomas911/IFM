@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -140,7 +141,28 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     }
 
     void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
-        => this.Post(() => RenderProperty(eventArgs.PropertyName));
+    {
+        if (_closed || eventArgs.PropertyName == nameof(IronCondorViewModel.UiDispatchMetrics))
+            return;
+
+        var postedAt = Stopwatch.GetTimestamp();
+        this.Post(() =>
+        {
+            if (_closed)
+                return;
+            var renderStarted = Stopwatch.GetTimestamp();
+            try
+            {
+                RenderProperty(eventArgs.PropertyName);
+            }
+            finally
+            {
+                _viewModel.RecordUiDispatch(
+                    Stopwatch.GetElapsedTime(postedAt, renderStarted),
+                    Stopwatch.GetElapsedTime(renderStarted));
+            }
+        });
+    }
 
     void RenderProperty(string? propertyName)
     {

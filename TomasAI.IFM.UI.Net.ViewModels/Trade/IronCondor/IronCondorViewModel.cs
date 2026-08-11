@@ -11,7 +11,6 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventChannel;
-using TomasAI.IFM.Shared.EventQueue;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -41,7 +40,18 @@ public sealed record IronCondorPositionSnapshot(
 /// <param name="TradePosition">Metrics for the latest-value trade-position stream.</param>
 public sealed record IronCondorLiveStreamMetricsSnapshot(
     LatestValueChannelMetrics FuturesEod,
-    LatestValueChannelMetrics TradePosition);
+    LatestValueChannelMetrics TradePosition,
+    OrderedBatchChannelMetrics TradePlan);
+
+/// <summary>
+/// Describes the WinForms/WPF adapter dispatch and rendering latency observed by the monitor.
+/// </summary>
+public readonly record struct IronCondorUiDispatchMetricsSnapshot(
+    long DispatchCount,
+    TimeSpan LastDispatchDelay,
+    TimeSpan MaximumDispatchDelay,
+    TimeSpan LastRenderDuration,
+    TimeSpan MaximumRenderDuration);
 
 public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
@@ -66,8 +76,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     List<FuturesEodDataV2ReadModel> _futuresEodData;
     LatestValueAsyncChannel<FuturesEodDataV2ReadModel>? _futuresEodChannel;
     LatestValueAsyncChannel<TradePositionChangeSourceReadModel>? _tradePositionChannel;
+    OrderedBatchAsyncChannel<TradePlanReadModel>? _tradePlanChannel;
     ConcurrentStack<IronCondorSpreadPathDataModel> _spreadPathQueue;
-    ConcurrentEventQueue<TradePlanReadModel> _tradePlanConsoleQueue = null!;
     List<TradePositionReadModel> _tradePositions;
     TradeLimitReadModel _tradeLimits = null!;
     decimal _fundBalance;
@@ -95,7 +105,11 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     long _errorSequence;
     bool _resetListenerEnabled;
     readonly object _liveStreamMetricsGate = new();
-    IronCondorLiveStreamMetricsSnapshot _liveStreamMetrics = new(default, default);
+    IronCondorLiveStreamMetricsSnapshot _liveStreamMetrics = new(default, default, default);
+    IronCondorUiDispatchMetricsSnapshot _uiDispatchMetrics;
+    long _dispatchCount;
+    long _maximumDispatchDelayTicks;
+    long _maximumRenderDurationTicks;
 
     /// <summary>
     /// create iron condor view model
@@ -194,6 +208,34 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     {
         get => _liveStreamMetrics;
         private set => SetProperty(ref _liveStreamMetrics, value);
+    }
+    /// <summary>
+    /// Gets dispatcher wait and adapter rendering latency recorded by the active UI host.
+    /// </summary>
+    public IronCondorUiDispatchMetricsSnapshot UiDispatchMetrics
+    {
+        get => _uiDispatchMetrics;
+        private set => SetProperty(ref _uiDispatchMetrics, value);
+    }
+
+    /// <summary>
+    /// Records one completed UI dispatch and render operation without introducing a framework dependency.
+    /// </summary>
+    public void RecordUiDispatch(TimeSpan dispatchDelay, TimeSpan renderDuration)
+    {
+        if (dispatchDelay < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(dispatchDelay));
+        if (renderDuration < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(renderDuration));
+
+        UpdateMaximum(ref _maximumDispatchDelayTicks, dispatchDelay.Ticks);
+        UpdateMaximum(ref _maximumRenderDurationTicks, renderDuration.Ticks);
+        UiDispatchMetrics = new IronCondorUiDispatchMetricsSnapshot(
+            Interlocked.Increment(ref _dispatchCount),
+            dispatchDelay,
+            TimeSpan.FromTicks(Interlocked.Read(ref _maximumDispatchDelayTicks)),
+            renderDuration,
+            TimeSpan.FromTicks(Interlocked.Read(ref _maximumRenderDurationTicks)));
     }
     public OptionTradeSpreadBarUIViewModel[] SpreadBarData
     {
@@ -949,12 +991,42 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         /// <summary>
         /// start trade plan listener
         /// </summary>
-        Task EnableTradePlanListener()
-            => _appRoot.GetModel<TradePlanEventModel>().ExecuteAsync(async model => {
+        async Task EnableTradePlanListener()
+        {
+            if (_tradePlanChannel is not null)
+                return;
+
+            _tradePlanChannel = new OrderedBatchAsyncChannel<TradePlanReadModel>(
+                PublishTradePlanBatchAsync,
+                capacity: 256,
+                maximumBatchSize: 32,
+                readerRetryCount: 3,
+                readerRetryDelay: TimeSpan.FromMilliseconds(50),
+                timeProvider: _timeProvider,
+                metricsChanged: PublishTradePlanMetrics);
+            PublishTradePlanMetrics(_tradePlanChannel.Metrics);
+            await _appRoot.GetModel<TradePlanEventModel>().ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Trade Plan Listener Error"));
-                await model.StartTradePlanListenerAsync(o =>
-                    TradePlans = [.. TradePlans.TakeLast(499), o.TradePlan]);
+                await model.StartTradePlanListenerAsync(async e =>
+                {
+                    var tradePlan = e.TradePlan;
+                    if (!_valueDate.HasValue || tradePlan.OrderId != OrderId || tradePlan.TradeId != TradeId || tradePlan.ValueDate != _valueDate.Value)
+                        return;
+                    var channel = _tradePlanChannel;
+                    if (channel is not null)
+                        await channel.WriteAsync(tradePlan);
+                });
             });
+
+            ValueTask PublishTradePlanBatchAsync(
+                IReadOnlyList<TradePlanReadModel> batch,
+                CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                TradePlans = [.. TradePlans.Concat(batch).TakeLast(500)];
+                return ValueTask.CompletedTask;
+            }
+        }
 
         ///
         async Task EnableOptionTradeSpreadBarDataListener()
@@ -1117,10 +1189,18 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
         async Task DisableTradePlanListener()
         {
-            if (_tradePlanConsoleQueue == null) return;
-            _tradePlanConsoleQueue?.Stop();
-            await _appRoot.GetModel<TradePlanEventModel>().ExecuteAsync(async model => await model.StopTradePlanListenerAsync());
-            _tradePlanConsoleQueue = null!;
+            var channel = Interlocked.Exchange(ref _tradePlanChannel, null);
+            if (channel is null)
+                return;
+            try
+            {
+                await _appRoot.GetModel<TradePlanEventModel>()
+                    .ExecuteAsync(async model => await model.StopTradePlanListenerAsync());
+            }
+            finally
+            {
+                await channel.StopAsync();
+            }
         }
 
         Task DisableOptionTradeSpreadBarDataListener()
@@ -1246,6 +1326,24 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     {
         lock (_liveStreamMetricsGate)
             LiveStreamMetrics = LiveStreamMetrics with { TradePosition = metrics };
+    }
+
+    void PublishTradePlanMetrics(OrderedBatchChannelMetrics metrics)
+    {
+        lock (_liveStreamMetricsGate)
+            LiveStreamMetrics = LiveStreamMetrics with { TradePlan = metrics };
+    }
+
+    static void UpdateMaximum(ref long location, long value)
+    {
+        var current = Interlocked.Read(ref location);
+        while (current < value)
+        {
+            var observed = Interlocked.CompareExchange(ref location, value, current);
+            if (observed == current)
+                return;
+            current = observed;
+        }
     }
 
     void PublishError(int errorCode, string message, string caption)
