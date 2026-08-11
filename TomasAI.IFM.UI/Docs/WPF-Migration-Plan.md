@@ -11,6 +11,7 @@
 | Immediate delivery target | Stage 1: optimized WinForms application suitable for paper trading |
 | Production delivery target | Stage 2: WPF application with functional and operational parity |
 | Scope of this document | Stage 1 implementation specification and Stage 2 architectural pathway |
+| Stage 1 progress | S1.0 baseline and safety net implemented on 2026-08-11 |
 
 This document is the controlling migration plan for the IFM desktop client. The existing [`UI.Net implementation details`](../../TomasAI.IFM.UI.Net/Docs/UI-Implementation-Details.md) remain the description of the current WinForms implementation. This document describes the target state and the controlled path from that implementation to WPF.
 
@@ -39,21 +40,25 @@ The new [`TomasAI.IFM.UI`](../TomasAI.IFM.UI.csproj) project is the root of the 
 
 ## Current-state baseline
 
-The following static-analysis baseline should be remeasured when Stage 1 starts:
+The following static-analysis baseline was remeasured when S1.0 started on
+2026-08-11. The S1.0 architecture tests enforce these values as ratchets: later
+packages may reduce them, but new occurrences fail the safety suite.
 
 | Finding | Current baseline | Consequence |
 | --- | ---: | --- |
-| `.Execute(async ...)` calls accepted by `Action<T>` | Approximately 190 | Implicit `async void`; cannot await, cancel, order, or reliably catch failure |
+| `.Execute(async ...)` calls accepted by `Action<T>` | 189 | Implicit `async void`; cannot await, cancel, order, or reliably catch failure |
 | `_appRoot.Execute(async ...)` calls accepted by `Action` | 2 | Same implicit `async void` failure mode |
-| WinForms `Post`/`BeginInvoke` calls | Approximately 141 | Fire-and-forget dispatch; current helper suppresses dispatch failures |
-| Awaitable `PostAsync` calls | 2 | Awaitable dispatch exists but is not yet the normal path |
+| WinForms `Post`/`BeginInvoke` calls | 144 | Fire-and-forget dispatch; current helper suppresses dispatch failures |
+| Awaitable `PostAsync` calls | 1 | Awaitable dispatch exists but is not yet the normal path |
 | Blocking `.Wait`, `.Result`, or `GetAwaiter().GetResult()` in audited UI projects | 0 | Positive baseline; must remain zero |
 | Explicit `async void` declarations | 2 | Acceptable only if they are UI event boundaries with exception handling |
-| ViewModel callback delegate occurrences | Approximately 482 | Presentation flow is callback-oriented and difficult to compose/test |
+| `Action` delegate tokens across Models and ViewModels | 321 | Presentation flow is callback-oriented and difficult to compose/test |
 | `INotifyPropertyChanged` implementations | 0 | ViewModels are not directly suitable for WPF binding |
 | Framework-neutral command abstractions | 0 | User operations do not expose consistent execution/can-execute state |
 | ViewModels exposing `System.Drawing.Color` | 4 files | Prevents presentation-neutral styling |
 | WinForms forms/user controls/designer files | 17 / 12 / 29 | Views require WPF reconstruction rather than conversion |
+| Empty `catch` blocks | 15 | Operational failures can be suppressed |
+| `Process.Kill` calls | 3 | Normal shutdown and fatal paths are not yet cooperatively coordinated |
 
 Important current sources include:
 
@@ -396,11 +401,32 @@ The packages are ordered to keep the WinForms application buildable and testable
 
 ### S1.0 — baseline and safety net
 
+Status: **Implemented on 2026-08-11.** The safety net is intentionally a
+ratchet around the current application; S1.1 and later packages reduce the
+recorded debt without requiring a flag-day rewrite.
+
 - Record current build and relevant integration-test results.
 - Add architecture tests that reject blocking waits in UI projects.
 - Add searches/analyzers for async lambdas passed to `Action`, unowned `Task.Run`, empty catches, and UI-framework references in shared projects.
 - Add fake dispatcher, fake time provider, and deterministic event-source test utilities.
 - Add ViewModel tests around the highest-risk paper-trading workflows before modifying them.
+
+Implemented artifacts:
+
+- `TomasAI.IFM.UI.Presentation.UnitTests` is the shared presentation safety
+  project and is included in `TomasAI.IFM.sln`.
+- Architecture tests reject sync-over-async and UI-framework dependencies,
+  allow `async void` only at the two known WinForms event boundaries, and
+  ratchet unsafe execution, empty catches, detached work, forced termination,
+  fire-and-forget dispatch, and presentation-color usage.
+- `TestUiDispatcher`, `ManualTimeProvider`, and `ControlledEventSource<T>`
+  provide deterministic concurrency, virtual timer, and ordered event tests
+  without WinForms, WPF, wall-clock delays, or NATS.
+- Baseline behavior tests preserve Model service-error propagation and cover
+  the market-data-feed start and futures-option tick-listener boundaries used
+  by paper-trading workflows.
+- The initial S1.0 suite contains 23 passing tests. The existing Application
+  API integration baseline remains 212 passing tests.
 
 Exit: the baseline is repeatable and failures introduced by later packages can be localized.
 
