@@ -23,8 +23,8 @@ public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnl
     public Action<FuturesTradeStatusUIViewModel> OnTradeStatusChanged = null!;
     public Action<MDIForwardLossRatioUIViewModel[]> OnMDIForwardLossRatiosLoaded = null!;
 
-    public void LoadTradeStatus()
-        => _appRoot.GetModel<MarketDataAnalyticsQueryModel>().Execute(async model => {
+    public Task LoadTradeStatus()
+        => _appRoot.GetModel<MarketDataAnalyticsQueryModel>().ExecuteAsync(async model => {
                 model.OnError((_, errorMessage) => OnErrorMessage?.Invoke(errorMessage));
                 await model.GetFuturesItiTrendDirectionChangedSignalsAsync(
                      _contractId, _valueDate, TimeFrameType.Weekly, futuresItiSignals => {
@@ -37,8 +37,8 @@ public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnl
                      });
             });
 
-    public void LoadMDIForwardLossRatios()
-          => _appRoot.GetModel<ReferenceQueryModel>().Execute(async model => {
+    public Task LoadMDIForwardLossRatios()
+          => _appRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model => {
               model.OnError((_, errorMessage) => OnErrorMessage?.Invoke(errorMessage));
               await model.LoadMDIFowardLossRatiosAsync(IntrinsicTimeTrendType.UpTrend, TradeType.ShortIronCondor, async o =>
               {
@@ -58,9 +58,9 @@ public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnl
               });
           });
 
-    public void StartMarketDataAnalyticsEventConsumer()
-    { 
-        _appRoot.GetModel<MarketDataAnalyticsEventModel>().Execute(async model => {
+    public async Task StartMarketDataAnalyticsEventConsumer()
+    {
+        await _appRoot.GetModel<MarketDataAnalyticsEventModel>().ExecuteAsync(async model => {
                model.OnError((_, errorMessage) => OnErrorMessage?.Invoke(errorMessage));
                await model.StartFuturesItiSignalEventListenersAsync(
                    trendDirectionChangedAction: e => UpdateTrendDirectionStatus(e),
@@ -91,8 +91,8 @@ public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnl
         }
     }
 
-    public void StopMarketDataAnalyticsEventConsumer()
-        => _appRoot.GetModel<MarketDataAnalyticsEventModel>().Execute(async model => {
+    public Task StopMarketDataAnalyticsEventConsumer()
+        => _appRoot.GetModel<MarketDataAnalyticsEventModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMessage) => OnErrorMessage?.Invoke(errorMessage));
             await model.StopFuturesItiSignalEventListenersAsync();
         });
@@ -111,7 +111,7 @@ public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnl
                 _ =>  null
             };
             if (trendTrade is not null )
-                tradeStatus = _futuresTradeSignal?.TradeExecuteState switch { 
+                tradeStatus = _futuresTradeSignal?.TradeExecuteState switch {
                     null => tradeStatus,
                     TradeExecuteState.Enter => $"Open {trendTrade} Trade",
                     TradeExecuteState.ExitOnTrendReversion => $"Close {trendTrade} On Trade Reversion",

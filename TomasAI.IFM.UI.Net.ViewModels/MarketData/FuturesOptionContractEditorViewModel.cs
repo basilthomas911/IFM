@@ -16,7 +16,7 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     const int ErrorCode = 9241;
 
     List<LookupTypeReadModel> _symbols = [];
-    bool _symbolsLoaded = false;    
+    bool _symbolsLoaded = false;
     List<LookupTypeReadModel> _securityTypes = [];
     bool _securityTypesLoaded = false;
     List<LookupTypeReadModel> _currencies = [];
@@ -42,8 +42,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// <remarks>This constructor sets up the view model by initializing required models and event handlers
     /// for managing  futures option contract operations. The <paramref name="appRoot"/> parameter is used to retrieve
     /// instances  of the necessary models, including <see cref="MarketDataEventModel"/>, <see
-    /// cref="MarketDataCommandModel"/>,  <see cref="MarketDataQueryModel"/>, and <see cref="ReferenceQueryModel"/>. 
-    /// The view model also subscribes to a predefined set of market data events related to futures option contracts, 
+    /// cref="MarketDataCommandModel"/>,  <see cref="MarketDataQueryModel"/>, and <see cref="ReferenceQueryModel"/>.
+    /// The view model also subscribes to a predefined set of market data events related to futures option contracts,
     /// such as addition, modification, and removal events, both for success and failure scenarios.</remarks>
     /// <param name="appRoot">The application root object that provides access to shared models and services.</param>
     public FuturesOptionContractEditorViewModel(IAppRoot appRoot)
@@ -80,8 +80,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// <summary>
     /// start listening for futures options data editor events
     /// </summary>
-    public void StartListener()
-        => _eventModel?.Execute(async e => {
+    public Task StartListener()
+        => _eventModel?.ExecuteAsync(async e => {
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StartMarketDataListenerAsync(_consumeEvents, HandleEventAsync);
         });
@@ -89,8 +89,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// <summary>
     /// stop listening for futures options editor events
     /// </summary>
-    public void StopListener()
-        => _eventModel?.Execute(async e => {
+    public Task StopListener()
+        => _eventModel?.ExecuteAsync(async e => {
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StopMarketDataListenerAsync();
         });
@@ -120,8 +120,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// add futures option contract
     /// </summary>
     /// <param name="futuresOptionContract">new futures option contract</param>
-    public void AddFuturesOptionContract(FuturesOptionContractReadModel futuresOptionContract, bool overwrite)
-        => _commandModel?.Execute(async model => {
+    public Task AddFuturesOptionContract(FuturesOptionContractReadModel futuresOptionContract, bool overwrite)
+        => _commandModel?.ExecuteAsync(async model => {
              model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
              IsArgumentNull.Check(futuresOptionContract);
             OnWaitCursor?.Invoke();
@@ -153,8 +153,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// <param name="originalContractId"></param>
     /// <param name="futuresOptionContract">updated futures option contract</param>
     /// <param name="overwrite"></param>
-    public void ChangeFuturesOptionContract(string originalContractId, FuturesOptionContractReadModel futuresOptionContract, bool overwrite)
-        =>  _commandModel?.Execute(async model => {
+    public Task ChangeFuturesOptionContract(string originalContractId, FuturesOptionContractReadModel futuresOptionContract, bool overwrite)
+        =>  _commandModel?.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             IsArgumentNull.Check(originalContractId);
             IsArgumentNull.Check(futuresOptionContract);
@@ -188,8 +188,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// </summary>
     /// <param name="contractId"></param>
     /// <param name="overwrite"></param>
-    public void RemoveFuturesOptionContract(string contractId, bool overwrite)
-        => _commandModel?.Execute(async model => {
+    public Task RemoveFuturesOptionContract(string contractId, bool overwrite)
+        => _commandModel?.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
                 IsArgumentNull.Check(contractId);
                 OnWaitCursor?.Invoke();
@@ -215,50 +215,50 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
         return ValueTask.CompletedTask;
     }
 
-    public LookupTypeReadModel GetSymbol(int index) 
+    public LookupTypeReadModel GetSymbol(int index)
         => _symbols.GetLookupType(index);
 
-    public LookupTypeReadModel GetOptionType(int index) 
+    public LookupTypeReadModel GetOptionType(int index)
         => _optionTypes.GetLookupType(index);
 
-    public LookupTypeReadModel GetSecurityType(int index) 
+    public LookupTypeReadModel GetSecurityType(int index)
         => _securityTypes.GetLookupType(index);
 
-    public LookupTypeReadModel GetCurrency(int index) 
+    public LookupTypeReadModel GetCurrency(int index)
         => _currencies.GetLookupType(index);
 
-    public LookupTypeReadModel GetExchange(int index) 
+    public LookupTypeReadModel GetExchange(int index)
         => _exchanges.GetLookupType(index);
 
-    public LookupTypeReadModel GetMultiplier(int index) 
+    public LookupTypeReadModel GetMultiplier(int index)
         => _multipliers.GetLookupType(index);
 
     public FuturesOptionContractReadModel? GetFuturesOptionContract(int index)
-        => index >= 0 && _futuresOptionContracts != null && _futuresOptionContracts.Count > index 
-            ? _futuresOptionContracts[index] 
+        => index >= 0 && _futuresOptionContracts != null && _futuresOptionContracts.Count > index
+            ? _futuresOptionContracts[index]
             : default;
-         
-    public int GetOptionTypeIndex(string shortCode) 
+
+    public int GetOptionTypeIndex(string shortCode)
         => _optionTypes.GetLookupTypeIndex(shortCode);
 
-    public int GetSecurityTypeIndex(string shortCode) 
+    public int GetSecurityTypeIndex(string shortCode)
         => _securityTypes.GetLookupTypeIndex(shortCode);
 
-    public int GetCurrencyIndex(string shortCode) 
+    public int GetCurrencyIndex(string shortCode)
         => _currencies.GetLookupTypeIndex(shortCode);
 
-    public int GetExchangeIndex(string shortCode) 
+    public int GetExchangeIndex(string shortCode)
         => _exchanges.GetLookupTypeIndex(shortCode);
 
-    public int GetMultiplierIndex(string shortCode) 
+    public int GetMultiplierIndex(string shortCode)
         => _multipliers.GetLookupTypeIndex(shortCode);
 
     /// <summary>
     /// load option types
     /// </summary>
     /// <param name="optionTypesLoaded"></param>
-    public void LoadOptionTypes(Action<LookupTypeReadModel[]> optionTypesLoaded)
-        => _referenceQueryModel?.Execute(async model => {
+    public Task LoadOptionTypes(Action<LookupTypeReadModel[]> optionTypesLoaded)
+        => _referenceQueryModel?.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await model.LoadOptionTypesAsync(lookupTypes =>
             {
@@ -277,8 +277,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// load security types
     /// </summary>
     /// <param name="securityTypesLoaded"></param>
-    public void LoadSecurityTypes(Action<LookupTypeReadModel[]> securityTypesLoaded)
-         => _referenceQueryModel?.Execute(async model => {
+    public Task LoadSecurityTypes(Action<LookupTypeReadModel[]> securityTypesLoaded)
+         => _referenceQueryModel?.ExecuteAsync(async model => {
              model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
              await model.LoadSecurityTypesAsync(lookupTypes =>
              {
@@ -297,8 +297,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// load currencies
     /// </summary>
     /// <param name="currencyTypesLoaded"></param>
-    public void LoadCurrencies(Action<LookupTypeReadModel[]> currencyTypesLoaded)
-          => _referenceQueryModel?.Execute(async model => 
+    public Task LoadCurrencies(Action<LookupTypeReadModel[]> currencyTypesLoaded)
+          => _referenceQueryModel?.ExecuteAsync(async model =>
               await model.LoadCurrenciesAsync(lookupTypes =>  {
                   _currencies = [];
                   if (lookupTypes?.Count > 0)
@@ -314,8 +314,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// load exchanges
     /// </summary>
     /// <param name="exchangesLoaded"></param>
-    public void LoadExchanges(Action<LookupTypeReadModel[]> exchangesLoaded)
-          => _referenceQueryModel?.Execute(async model => 
+    public Task LoadExchanges(Action<LookupTypeReadModel[]> exchangesLoaded)
+          => _referenceQueryModel?.ExecuteAsync(async model =>
               await model.LoadExchangesAsync((lookupTypes) => {
                   _exchanges = [];
                   if (lookupTypes?.Count > 0)
@@ -331,8 +331,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// load multipliers
     /// </summary>
     /// <param name="multipliersLoaded"></param>
-    public void LoadMultipliers(Action<LookupTypeReadModel[]> multipliersLoaded)
-        => _referenceQueryModel?.Execute(async model => 
+    public Task LoadMultipliers(Action<LookupTypeReadModel[]> multipliersLoaded)
+        => _referenceQueryModel?.ExecuteAsync(async model =>
             await model.LoadMultipliersAsync((lookupTypes) => {
                 _multipliers = [];
                 if (lookupTypes?.Count > 0)
@@ -348,8 +348,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// load symbols
     /// </summary>
     /// <param name="symbolsLoaded"></param>
-    public void LoadSymbols(Action<LookupTypeReadModel[]> symbolsLoaded)
-        => _referenceQueryModel?.Execute(async model =>
+    public Task LoadSymbols(Action<LookupTypeReadModel[]> symbolsLoaded)
+        => _referenceQueryModel?.ExecuteAsync(async model =>
                 await model.LoadSymbolsAsync(lookupTypes => {
                     _symbols = [];
                     if (lookupTypes?.Count > 0)
@@ -366,8 +366,8 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// </summary>
     /// <param name="symbol"></param>
     /// <param name="onContractsLoaded"></param>
-    public void LoadFuturesOptionContracts(string symbol, Action<List<FuturesOptionContractReadModel>> onContractsLoaded)
-        => _queryModel?.Execute(async ctlr => 
+    public Task LoadFuturesOptionContracts(string symbol, Action<List<FuturesOptionContractReadModel>> onContractsLoaded)
+        => _queryModel?.ExecuteAsync(async ctlr =>
             await ctlr.GetFuturesOptionContractsAsync(symbol, futuresOptionContracts => {
                 _futuresOptionContracts = [];
                 if (futuresOptionContracts?.Length > 0)
@@ -380,7 +380,7 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// <summary>
     /// Loads futures option contracts and triggers the associated event if all lookup types are loaded.
     /// </summary>
-    /// <remarks>This method checks whether all required lookup types are loaded. If they are, it invokes the 
+    /// <remarks>This method checks whether all required lookup types are loaded. If they are, it invokes the
     /// <see cref="OnFuturesOptionContractLoaded"/> event to signal that the futures option contracts  have been
     /// successfully loaded.</remarks>
     void LoadFuturesOptionContracts()
@@ -395,13 +395,13 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// <returns><see langword="true"/> if all lookup types, including symbols, security types, currencies, exchanges,
     /// multipliers, and option types, are loaded; otherwise, <see langword="false"/>.</returns>
     bool AllLookupTypesLoaded()
-        => _symbolsLoaded && 
-        _securityTypesLoaded && 
-        _currenciesLoaded && 
-        _exchangesLoaded && 
-        _multipliersLoaded && 
+        => _symbolsLoaded &&
+        _securityTypesLoaded &&
+        _currenciesLoaded &&
+        _exchangesLoaded &&
+        _multipliersLoaded &&
         _optionTypesLoaded;
-     
+
     /// <summary>
     /// show status message and execute refresh action
     /// </summary>

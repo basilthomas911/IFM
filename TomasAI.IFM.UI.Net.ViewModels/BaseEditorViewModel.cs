@@ -54,24 +54,24 @@ public class BaseEditorViewModel
             @events.Add(new CommandExceptionEvent {}.SetEventSource(eventSource));
     }
 
-    
+
     /// <summary>
     /// write status console
     /// </summary>
-    public void WriteStatusConsole(LogSourceType logSourceType, string statusMsg)
-        => _appRoot.GetModel<StatusConsoleModel>().Execute(async model => {
+    public Task WriteStatusConsole(LogSourceType logSourceType, string statusMsg)
+        => _appRoot.GetModel<StatusConsoleModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => this.OnError?.Invoke(errorCode, errorMsg));
             await model.WriteConsoleAsync(logSourceType, statusMsg);
          });
-    
+
 
     /// <summary>
     /// write error status
     /// </summary>
     /// <param name="errorCode"></param>
     /// <param name="errorMsg"></param>
-    public void WriteStatusConsole(LogSourceType logSourceType,int errorCode, string errorMsg)
-        => _appRoot.GetModel<StatusConsoleModel>().Execute(async model =>
+    public Task WriteStatusConsole(LogSourceType logSourceType,int errorCode, string errorMsg)
+        => _appRoot.GetModel<StatusConsoleModel>().ExecuteAsync(async model =>
         {
             model.OnError((errCode, errMsg) => this.OnError?.Invoke(errCode, errMsg));
             await model.WriteConsoleAsync(logSourceType, errorCode, errorMsg);

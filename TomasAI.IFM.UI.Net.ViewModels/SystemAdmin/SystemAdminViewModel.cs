@@ -20,8 +20,8 @@ namespace TomasAI.IFM.UI.Net.ViewModels.SystemAdmin
             _appRoot = appRoot;
         }
 
-        public void LoadSystemAdminFunctionTypes(Action<LookupTypeReadModel[]> onDataLoad)
-            => _appRoot.GetModel<ReferenceQueryModel>().Execute(async model =>
+        public Task LoadSystemAdminFunctionTypes(Action<LookupTypeReadModel[]> onDataLoad)
+            => _appRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model =>
                 await model.LoadSystemAdminFunctionTypesAsync(sysAdminFuncType => {
                     _sysAdminFuncTypes = new List<LookupTypeReadModel>();
                     if (sysAdminFuncType != null && sysAdminFuncType.Count > 0)

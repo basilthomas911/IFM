@@ -73,7 +73,7 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
 
     public int FundSelectedIndex { get; set; }
     public int FundOrderSelectedIndex { get; set; }
-    public OrderActionType OrderActionType { get; set; }    
+    public OrderActionType OrderActionType { get; set; }
     public Action<string, string> ShowErrorMessage { get; set; } = null!;
     public Action OnShowButtons { get; set; } = null!;
     public Action OnFundsLoaded { get; set; } = null!;
@@ -89,24 +89,24 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
 
     public Action<TradeOrderReadModel> OnOrderSubmitted { get; set; } = null!;
 
-    public FundReadModel? GetFund(int index) 
+    public FundReadModel? GetFund(int index)
         => _funds.Count > 0 ? _funds[index] : default;
 
     public int GetFundId(int index)
         => _funds.Count > 0 ? _funds[index].FundId : 0;
 
-    public FundOrderReadModel? GetFundOrder(int index) 
+    public FundOrderReadModel? GetFundOrder(int index)
         => _fundOrders.Count > 0 ? _fundOrders[index] : default;
 
-    public FundOrderReadModel? GetFundOrder(int fundId, DateTime startDate, DateTime endDate, int index) 
-        => _fundOrders.Count(e => e.FundId == fundId && e.OrderDate >= startDate && e.OrderDate <= endDate) > 0 
+    public FundOrderReadModel? GetFundOrder(int fundId, DateTime startDate, DateTime endDate, int index)
+        => _fundOrders.Count(e => e.FundId == fundId && e.OrderDate >= startDate && e.OrderDate <= endDate) > 0
         ? _fundOrders.Where(e => e.FundId == fundId && e.OrderDate >= startDate && e.OrderDate <= endDate).ToList()[index]
         : default;
 
-    public FundOrderTradeReadModel? GetFundOrderTrade(int index) 
+    public FundOrderTradeReadModel? GetFundOrderTrade(int index)
         => _fundOrderTrades.Count > 0 ? _fundOrderTrades[index] : default;
 
-    public FundOrderTradeReadModel? GetOpeningFundOrderTrade() 
+    public FundOrderTradeReadModel? GetOpeningFundOrderTrade()
         => _fundOrderTrades.Count > 0 ? _fundOrderTrades.Where(e => e.TradeState == TradeState.TradeToOpen).SingleOrDefault() : default;
 
     public void SetCommandId(Guid commandId) => _commandId = commandId;
@@ -128,8 +128,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// add fund order to fund
     /// </summary>
     /// <param name="fundOrder"></param>
-    public void AddOrderToFund(FundOrderReadModel fundOrder)
-        => _fundCommandModel.Execute(async model => {
+    public Task AddOrderToFund(FundOrderReadModel fundOrder)
+        => _fundCommandModel.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) => OnError?.Invoke(errorCode, errorMessage));
             await model.AddOrderToFundAsync(fundOrder);
         });
@@ -138,8 +138,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// remove order from fund
     /// </summary>
     /// <param name="fundOrderId"></param>
-    public void RemoveOrderFromFund(FundOrderId fundOrderId)
-        => _fundCommandModel.Execute(async model => {
+    public Task RemoveOrderFromFund(FundOrderId fundOrderId)
+        => _fundCommandModel.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) => OnError?.Invoke(errorCode, errorMessage));
             await model.RemoveOrderFromFundAsync(fundOrderId);
         });
@@ -148,8 +148,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// close fund order
     /// </summary>
     /// <param name="fundOrderId"></param>
-    public void CloseFundOrder(FundOrderId fundOrderId)
-        => _fundCommandModel.Execute(async model => {
+    public Task CloseFundOrder(FundOrderId fundOrderId)
+        => _fundCommandModel.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) => OnError?.Invoke(errorCode, errorMessage));
             await model.CloseFundOrderAsync(fundOrderId);
         });
@@ -158,8 +158,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// add fund order trade to fund order
     /// </summary>
     /// <param name="fundOrderTrade"></param>
-    public void AddTradeToFundOrder(FundOrderTradeReadModel fundOrderTrade)
-        => _fundCommandModel.Execute(async model => {
+    public Task AddTradeToFundOrder(FundOrderTradeReadModel fundOrderTrade)
+        => _fundCommandModel.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) => OnError?.Invoke(errorCode, errorMessage));
             await model.AddTradeToFundOrderAsync(fundOrderTrade);
         });
@@ -168,8 +168,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// remove trade from fund order
     /// </summary>
     /// <param name="fundOrderTradeId"></param>
-    public void RemoveTradeFromFundOrder(FundOrderTradeId fundOrderTradeId)
-        => _fundCommandModel.Execute(async model => {
+    public Task RemoveTradeFromFundOrder(FundOrderTradeId fundOrderTradeId)
+        => _fundCommandModel.ExecuteAsync(async model => {
              model.OnError((errorCode, errorMessage) => OnError?.Invoke(errorCode, errorMessage));
              await model.RemoveTradeFromFundOrderAsync(fundOrderTradeId);
          });
@@ -179,8 +179,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// </summary>
     /// <param name="fundOrderTradeId"></param>
     /// <param name="tradeState"></param>
-    public void ChangeFundOrderTradeState(FundOrderTradeId fundOrderTradeId, TradeState tradeState)
-        => _fundCommandModel.Execute(async model => {
+    public Task ChangeFundOrderTradeState(FundOrderTradeId fundOrderTradeId, TradeState tradeState)
+        => _fundCommandModel.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) => OnError?.Invoke(errorCode, errorMessage));
             await model.ChangeFundOrderTradeStateAsync(fundOrderTradeId, tradeState);
         });
@@ -190,8 +190,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// </summary>
     /// <param name="orderId"></param>
     /// <param name="tradeId"></param>
-    public void AddTradeLiveFeed(int orderId, int tradeId)
-        => AppRoot.GetModel<MarketDataFeedCommandModel>().Execute(async model => {
+    public Task AddTradeLiveFeed(int orderId, int tradeId)
+        => AppRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => DisplayErrorMessage(errorCode, errorMsg, "Add Trade Live Feed Error"));
             await model.AddTradeLiveFeedAsync(orderId, tradeId, _valueDate!.Value);
         });
@@ -201,8 +201,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// </summary>
     /// <param name="orderId"></param>
     /// <param name="tradeId"></param>
-    public void RemoveTradeLiveFeed(int orderId, int tradeId)
-        => AppRoot.GetModel<MarketDataFeedCommandModel>().Execute(async model => {
+    public Task RemoveTradeLiveFeed(int orderId, int tradeId)
+        => AppRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => DisplayErrorMessage(errorCode, errorMsg, "Remove Trade Live Feed Error"));
             await model.RemoveTradeLiveFeedAsync(orderId, tradeId, _valueDate!.Value);
         });
@@ -211,8 +211,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// remove all trade live feed for order
     /// </summary>
     /// <param name="orderId"></param>
-    public void RemoveTradeLiveFeeds(int orderId)
-        => AppRoot.GetModel<MarketDataFeedCommandModel>().Execute(async model => {
+    public Task RemoveTradeLiveFeeds(int orderId)
+        => AppRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => DisplayErrorMessage(errorCode, errorMsg, "Remove Trade Live Feeds Error"));
             await model.RemoveTradeLiveFeedsAsync(orderId);
         });
@@ -220,8 +220,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// <summary>
     /// load all fund info from storage
     /// </summary>
-    public void LoadFunds()
-        => _fundQueryModel.Execute(async model =>  {
+    public Task LoadFunds()
+        => _fundQueryModel.ExecuteAsync(async model =>  {
             model.OnError((errorCode, errorMsg) => DisplayErrorMessage(errorCode, errorMsg, "Loading Funds Error"));
             await model.GetFundsAsync(async funds => await LoadFundsAsync(model, funds));
         });
@@ -229,8 +229,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// <summary>
     /// load all fund info from storage
     /// </summary>
-    public void LoadFunds(Action onFundsLoaded)
-        => _fundQueryModel.Execute(async model => {
+    public Task LoadFunds(Action onFundsLoaded)
+        => _fundQueryModel.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => DisplayErrorMessage(errorCode, errorMsg, "Loading Funds Error"));
             await model.GetFundsAsync(async funds => await LoadFundsAsync(model, funds, onFundsLoaded));
         });
@@ -270,8 +270,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// load new trade id
     /// </summary>
     /// <param name="onCompleted"></param>
-    public void LoadNewTradeId(Action<int> onCompleted)
-        => _refQueryModel.Execute(async model => {
+    public Task LoadNewTradeId(Action<int> onCompleted)
+        => _refQueryModel.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => DisplayErrorMessage(errorCode, errorMsg, "New Trade Id Error"));
             await model.NewTradeIdAsync(tradeId => onCompleted?.Invoke(tradeId));
         });
@@ -279,8 +279,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// <summary>
     /// start fund order listener
     /// </summary>
-    public void StartFundOrderListener()
-      => _fundOrderEventModel.Execute(async e => {
+    public Task StartFundOrderListener()
+      => _fundOrderEventModel.ExecuteAsync(async e => {
           e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
           await e.StartFundOrderListenerAsync(HandleEventAsync);
       });
@@ -288,8 +288,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// <summary>
     /// stop fund order listener
     /// </summary>
-    public void StopFundOrderListener()
-        => _fundOrderEventModel.Execute(async e => {
+    public Task StopFundOrderListener()
+        => _fundOrderEventModel.ExecuteAsync(async e => {
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StopFundOrderListenerAsync();
         });
@@ -393,8 +393,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// <summary>
     /// start fund order trade state event consumer
     /// </summary>
-    public void StartFundOrderTradeStateListener()
-        => _fundCommandModel.Execute(async model => {
+    public Task StartFundOrderTradeStateListener()
+        => _fundCommandModel.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => DisplayErrorMessage(errorCode, errorMsg, "Start Fund Order Trade State Event Consumer Error"));
             await model.StartFundOrderTradeStateEventConsumerAsync(e => LoadFunds(), e => { });
         });
@@ -402,8 +402,8 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// <summary>
     /// stop trade order event consumer
     /// </summary>
-    public void StopFundOrderTradeStateListener()
-        => _fundCommandModel.Execute(async model => {
+    public Task StopFundOrderTradeStateListener()
+        => _fundCommandModel.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => DisplayErrorMessage(errorCode, errorMsg, "Stop Fund Order Event Consumer Error"));
             await model.StopFundOrderTradeStateEventConsumerAsync();
         });

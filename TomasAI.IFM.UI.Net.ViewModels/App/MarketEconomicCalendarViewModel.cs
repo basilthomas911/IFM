@@ -36,8 +36,8 @@ namespace TomasAI.IFM.UI.Net.ViewModels.App
         public Action<string> OnErrorMessage = null!;
         public Action OnCountryCodesLoaded = null!;
 
-        public void LoadCountryCodes()
-            => _referenceQueryModel.Execute(async model => {
+        public Task LoadCountryCodes()
+            => _referenceQueryModel.ExecuteAsync(async model => {
                 model.OnError((_, errorMsg) => OnErrorMessage?.Invoke(errorMsg));
                 await model.LoadEconomicCalendarCountryCodesAsync(countryCodes => {
                     _countryCodes = new();
@@ -47,8 +47,8 @@ namespace TomasAI.IFM.UI.Net.ViewModels.App
                 });
             });
 
-        public void UpdateModel(DateTime todaysDate, EconomicCalendarViewType calendarViewType)
-            => _referenceQueryModel.Execute(async model => {
+        public Task UpdateModel(DateTime todaysDate, EconomicCalendarViewType calendarViewType)
+            => _referenceQueryModel.ExecuteAsync(async model => {
                 model.OnError((_, errorMsg) => OnErrorMessage?.Invoke(errorMsg));
                 await model.LoadEconomicCalendarAsync(todaysDate, calendarViewType, _selectedCountryCode, async economicCalendar => {
                     await model.LoadEconomicCalendarDateAsync(todaysDate, calendarViewType, calendarDate => {
@@ -66,7 +66,7 @@ namespace TomasAI.IFM.UI.Net.ViewModels.App
             => _selectedCountryCode = (index > -1 && index < _countryCodes.Count)
                     ? _countryCodes[index]
                     : string.Empty;
-        
+
         public DateTime? GetCalendarDate(int index)
         {
             if ((_economicCalendars?.Count ?? 0 ) > 0)
@@ -97,8 +97,8 @@ namespace TomasAI.IFM.UI.Net.ViewModels.App
                 _ => EconomicCalendarViewType.Today
             };
 
-        public void StartEventListeners(Action refreshView)
-            => _eventModel.Execute(async model => {
+        public Task StartEventListeners(Action refreshView)
+            => _eventModel.ExecuteAsync(async model => {
                 model.OnError((_, errorMsg) => OnErrorMessage?.Invoke(errorMsg));
                 await model.StartEconomicCalendarEventListenersAsync(
                     addedAction: e => refreshView?.Invoke(),
@@ -107,8 +107,8 @@ namespace TomasAI.IFM.UI.Net.ViewModels.App
                     importedAction: e => refreshView?.Invoke());
             });
 
-        public void StopEventListeners()
-            => _eventModel.Execute(async model => {
+        public Task StopEventListeners()
+            => _eventModel.ExecuteAsync(async model => {
                 model.OnError((_, errorMsg) => OnErrorMessage?.Invoke(errorMsg));
                 await model.StopEconomicCalendarEventListenersAsync();
             });

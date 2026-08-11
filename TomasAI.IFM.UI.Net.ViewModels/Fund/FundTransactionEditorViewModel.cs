@@ -28,7 +28,7 @@ public class FundTransactionEditorViewModel
     }
 
     public IAppRoot AppRoot => _appRoot;
-    public decimal FundBalance => _fundBalance; 
+    public decimal FundBalance => _fundBalance;
     public Action<string, string> OnErrorMessage { get; set; } = null!;
     public Action<ICollection<FundReadModel>> OnFundsLoaded { get; set; } = null!;
     public Action<ICollection<FundTransactionReadModel>> OnFundTransactionsLoaded { get; set; } = null!;
@@ -40,8 +40,8 @@ public class FundTransactionEditorViewModel
     /// load funds from storage
     /// </summary>
     /// <param name="selectedIndex"></param>
-    public void LoadFunds()
-        => _appRoot.GetModel<FundQueryModel>().Execute(async model => {
+    public Task LoadFunds()
+        => _appRoot.GetModel<FundQueryModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnErrorMessage(errorMsg, "Loading Funds Error"));
             await model.GetFundsAsync(funds =>
             {
@@ -59,8 +59,8 @@ public class FundTransactionEditorViewModel
     /// <param name="fundId">selected fund</param>
     /// <param name="startDate"></param>
     /// <param name="endDate"></param>
-    public void LoadFundTransactions(int fundId, DateTime startDate, DateTime endDate)
-        => _appRoot.GetModel<FundQueryModel>().Execute(async model => {
+    public Task LoadFundTransactions(int fundId, DateTime startDate, DateTime endDate)
+        => _appRoot.GetModel<FundQueryModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnErrorMessage(errorMsg, "Loading Fund Transactions Error"));
             await model.GetFundTransactionsAsync(fundId, DateOnly.FromDateTime(startDate), DateOnly.FromDateTime(endDate), funds => {
                 _fundTransactions = [.. funds];
@@ -73,8 +73,8 @@ public class FundTransactionEditorViewModel
     /// return fund balance
     /// </summary>
     /// <param name="fundId"></param>
-    public void LoadFundBalance(int fundId)
-        => _appRoot.GetModel<FundQueryModel>().Execute(async model => {
+    public Task LoadFundBalance(int fundId)
+        => _appRoot.GetModel<FundQueryModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnErrorMessage(errorMsg, "Loading Fund Balance Error"));
             await model.GetFundBalanceAsync(fundId, fundBalance => {
                 _fundBalance = fundBalance;
@@ -88,11 +88,11 @@ public class FundTransactionEditorViewModel
     /// <param name="fundId">selected fund</param>
     /// <param name="startDate"></param>
     /// <param name="endDate"></param>
-    public void LoadFundPnlReport(int fundId, DateTime startDate, DateTime endDate)
-        => _appRoot.GetModel<FundQueryModel>().Execute(async model => {
+    public Task LoadFundPnlReport(int fundId, DateTime startDate, DateTime endDate)
+        => _appRoot.GetModel<FundQueryModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnErrorMessage(errorMsg, "Loading Fund Pnl Report Error"));
             await model.GetFundPnlReportAsync(fundId, DateOnly.FromDateTime(startDate), DateOnly.FromDateTime(endDate.AddDays(1)), fundPnlReport => {
-                if (fundPnlReport != null) 
+                if (fundPnlReport != null)
                     OnFundPnlReportLoaded(fundPnlReport);
             });
         });

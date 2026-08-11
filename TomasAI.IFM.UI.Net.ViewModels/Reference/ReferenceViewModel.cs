@@ -16,8 +16,8 @@ public class ReferenceViewModel(IAppRoot appRoot)
     public Action OnDisableAllButtons = () => { };
     public Action<bool> OnEnableMarketSelector = (enabled) => { };
 
-    public void LoadReferenceDataDefinitionTypes(Action<LookupTypeReadModel[]> onDataLoad)
-        => _appRoot.GetModel<ReferenceQueryModel>().Execute(async ctlr =>
+    public Task LoadReferenceDataDefinitionTypes(Action<LookupTypeReadModel[]> onDataLoad)
+        => _appRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async ctlr =>
             await ctlr.LoadReferenceDataDefinitionTypesAsync(mktDataDefTypes => {
                 _mktDataDefTypes = [];
                 if (mktDataDefTypes is not null && mktDataDefTypes.Count > 0)
@@ -28,8 +28,8 @@ public class ReferenceViewModel(IAppRoot appRoot)
     public LookupTypeReadModel GetMarketDefinitionType(int index)
         => _mktDataDefTypes != null && _mktDataDefTypes.Count > 0 ? _mktDataDefTypes[index] : null!;
 
-    public void LoadMDIForwardLossRatios(IntrinsicTimeTrendType trendDirection, TradeType tradeType, Action<MDIForwardLossRatioReadModel[]> onDataLoad)
-        => _appRoot.GetModel<ReferenceQueryModel>().Execute(async model =>
+    public Task LoadMDIForwardLossRatios(IntrinsicTimeTrendType trendDirection, TradeType tradeType, Action<MDIForwardLossRatioReadModel[]> onDataLoad)
+        => _appRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model =>
             await model.LoadMDIFowardLossRatiosAsync(trendDirection, tradeType, mdiForwardLossRatios => {
                 _mdiForwardLossRatios = new List<MDIForwardLossRatioReadModel>();
                 if (mdiForwardLossRatios != null && mdiForwardLossRatios.Length > 0)

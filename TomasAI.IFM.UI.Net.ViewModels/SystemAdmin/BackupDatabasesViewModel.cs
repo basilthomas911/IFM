@@ -40,8 +40,8 @@ public class BackupDatabasesViewModel
         _statusMessagesMap[databaseName].Enqueue(statusMessage);
     }
 
-    public void LoadDatabaseNames()
-        => _appRoot.GetModel<SystemAdminModel>().Execute(async model =>
+    public Task LoadDatabaseNames()
+        => _appRoot.GetModel<SystemAdminModel>().ExecuteAsync(async model =>
             await model.LoadDatabaseNamesAsync(databaseNames => {
                _databaseNames.Clear();
                if (databaseNames != null)
@@ -49,22 +49,22 @@ public class BackupDatabasesViewModel
                OnDatabaseNamesLoaded?.Invoke();
         }));
 
-    public void RunDatabaseBackup(ICollection<string> databaseNames)
-        =>  _appRoot.GetModel<SystemAdminModel>().Execute(async model => {
-            _statusMessagesMap.Clear(); 
+    public Task RunDatabaseBackup(ICollection<string> databaseNames)
+        =>  _appRoot.GetModel<SystemAdminModel>().ExecuteAsync(async model => {
+            _statusMessagesMap.Clear();
             foreach (var databaseName in databaseNames)
                 await model.BackupDatabaseAsync(databaseName, _backupType, _commandTimeout * 60);
         });
 
-    public void StartSystemAdminEventConsumer()
-        =>  _appRoot.GetModel<SystemAdminModel>().Execute(async model => {
+    public Task StartSystemAdminEventConsumer()
+        =>  _appRoot.GetModel<SystemAdminModel>().ExecuteAsync(async model => {
                 await model.StartSystemAdminEventConsumer(
                     infoMsgAction: o => OnStatusMessagesUpdate?.Invoke(o.DatabaseName, o.InfoMessage),
                     completedAction: o => OnDatabaseBackupComplete?.Invoke(o.DatabaseName));
             });
 
-    public void StopSystemAdminEventConsumer()
-        => _appRoot.GetModel<SystemAdminModel>().Execute(async model => {
+    public Task StopSystemAdminEventConsumer()
+        => _appRoot.GetModel<SystemAdminModel>().ExecuteAsync(async model => {
             _statusMessagesMap.Clear();
             await model.StopSystemAdminEventConsumer();
         });

@@ -21,6 +21,9 @@ public class TradeQueryModel(ITradeQueryApi queryApi) : BaseModel<TradeQueryMode
     public async Task GetOptionTradeAsync(int orderId, int tradeId, Action<OptionTradeReadModel> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetOptionTradeAsync(orderId, tradeId), onCompleted);
 
+    public Task GetOptionTradeAsync(int orderId, int tradeId, Func<OptionTradeReadModel, Task> onCompleted)
+        => ExecuteAsync(() => _queryApi.GetOptionTradeAsync(orderId, tradeId), onCompleted);
+
     /// <summary>
     /// load option trade spread data
     /// </summary>
@@ -45,6 +48,18 @@ public class TradeQueryModel(ITradeQueryApi queryApi) : BaseModel<TradeQueryMode
     public async Task GetOptionTradeSpreadBarDataAsync(int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, DateTime startDate, DateTime endDate, Action<OptionTradeSpreadBarsDataModel[]> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetOptionTradeSpreadBarDataAsync(orderId, tradeId, tradeType, valueDate, startDate, endDate), onCompleted);
 
+    public Task GetOptionTradeSpreadBarDataAsync(
+        int orderId,
+        int tradeId,
+        TradeType tradeType,
+        DateOnly valueDate,
+        DateTime startDate,
+        DateTime endDate,
+        Func<OptionTradeSpreadBarsDataModel[], Task> onCompleted)
+        => ExecuteAsync(
+            () => _queryApi.GetOptionTradeSpreadBarDataAsync(orderId, tradeId, tradeType, valueDate, startDate, endDate),
+            onCompleted);
+
     /// <summary>
     /// load all spread trade data for selected trade
     /// </summary>
@@ -60,6 +75,17 @@ public class TradeQueryModel(ITradeQueryApi queryApi) : BaseModel<TradeQueryMode
     /// <param name="onCompleted"></param>
     public async Task GetTradePositionTradeTypesAsync(int orderId, int tradeId, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus, Action<string[]> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetTradePositionTradeTypesAsync(orderId, tradeId, valueDate, daysToExpiry, tradeStatus), onCompleted);
+
+    public Task GetTradePositionTradeTypesAsync(
+        int orderId,
+        int tradeId,
+        DateOnly valueDate,
+        int daysToExpiry,
+        TradeStatus tradeStatus,
+        Func<string[], Task> onCompleted)
+        => ExecuteAsync(
+            () => _queryApi.GetTradePositionTradeTypesAsync(orderId, tradeId, valueDate, daysToExpiry, tradeStatus),
+            onCompleted);
 
     /// <summary>
     /// load trade plan summary for selected trade
@@ -78,9 +104,9 @@ public class TradeQueryModel(ITradeQueryApi queryApi) : BaseModel<TradeQueryMode
     /// <param name="onDataLoad"></param>
     public async Task GetIronCondorTradePositionsAsync(
         int orderId,
-        int tradeId, 
-        DateOnly valueDate, 
-        int daysToExpiry, 
+        int tradeId,
+        DateOnly valueDate,
+        int daysToExpiry,
         TradeType putSpreadTradeType,
         TradeType callSpreadTradeType,
        TradeStatus tradeStatus,
@@ -143,7 +169,7 @@ public class TradeQueryModel(ITradeQueryApi queryApi) : BaseModel<TradeQueryMode
     /// </summary>
     /// <param name="fundOrderTrades"></param>
     /// <returns></returns>
-    public async Task GetTradeInfoAsync(ICollection<FundOrderTradeReadModel> fundOrderTrades, Action<ICollection<TradeInfoReadModel>> onTradeInfoLoaded) 
+    public async Task GetTradeInfoAsync(ICollection<FundOrderTradeReadModel> fundOrderTrades, Action<ICollection<TradeInfoReadModel>> onTradeInfoLoaded)
     {
         var tradeInfo = new List<TradeInfoReadModel>();
         foreach (var e in fundOrderTrades)
@@ -178,7 +204,7 @@ public class TradeQueryModel(ITradeQueryApi queryApi) : BaseModel<TradeQueryMode
     }
 
     /// <summary>
-    /// load trade limits for selected trade 
+    /// load trade limits for selected trade
     /// </summary>
     /// <param name="tradeId"></param>
     /// <param name="onCompleted"></param>
@@ -186,7 +212,7 @@ public class TradeQueryModel(ITradeQueryApi queryApi) : BaseModel<TradeQueryMode
         => await ExecuteAsync(() => _queryApi.GetTradeLimitAsync(tradeId), onCompleted);
 
     /// <summary>
-    /// load trade limits for selected trade 
+    /// load trade limits for selected trade
     /// </summary>
     /// <param name="tradeId"></param>
     /// <param name="tradeType"></param>
@@ -195,7 +221,7 @@ public class TradeQueryModel(ITradeQueryApi queryApi) : BaseModel<TradeQueryMode
         => await ExecuteAsync(() => _queryApi.GetTradeTypeLimitAsync(tradeId, tradeType), onCompleted);
 
     /// <summary>
-    /// load iron condor market data indicator limit info 
+    /// load iron condor market data indicator limit info
     /// </summary>
     /// <param name="orderId"></param>
     /// <param name="tradeId"></param>

@@ -19,7 +19,7 @@ public class FuturesBarDataUIEventConsumer(INatsEventListenerOptions options, IL
         [new ActorMailboxId(ActorType.Event, FuturesBarDataInsertedCompleteEvent.Actor)] = [FuturesBarDataInsertedCompleteEvent.Verb]
     };
 
-    public async ValueTask StartAsync( Action<FuturesBarDataInsertedCompleteEvent> eventAction)
+    public async ValueTask StartAsync(Func<FuturesBarDataInsertedCompleteEvent, ValueTask> eventAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
 
@@ -27,23 +27,16 @@ public class FuturesBarDataUIEventConsumer(INatsEventListenerOptions options, IL
         {
             try
             {
-                _ = eventVerb switch
+                switch (eventVerb)
                 {
-                    _ when eventVerb == FuturesBarDataInsertedCompleteEvent.Verb 
-                        => HandleEvent(eventMsg.AsEvent<FuturesBarDataInsertedCompleteEvent>()!, e => eventAction?.Invoke(e)),
-                    _ => default!
-                };
-                await ValueTask.CompletedTask;
+                    case FuturesBarDataInsertedCompleteEvent.Verb:
+                        await eventAction(eventMsg.AsEvent<FuturesBarDataInsertedCompleteEvent>()!);
+                        break;
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
-            }
-
-            IEvent HandleEvent(FuturesBarDataInsertedCompleteEvent e, Action<FuturesBarDataInsertedCompleteEvent> eventAction)
-            {
-                eventAction?.Invoke(e);
-                return e;
             }
         }
     }
@@ -51,6 +44,6 @@ public class FuturesBarDataUIEventConsumer(INatsEventListenerOptions options, IL
 
  public interface IFuturesBarDataUIEventConsumer
 {
-    ValueTask StartAsync(Action<FuturesBarDataInsertedCompleteEvent> eventAction);
+    ValueTask StartAsync(Func<FuturesBarDataInsertedCompleteEvent, ValueTask> eventAction);
     ValueTask StopAsync();
 }

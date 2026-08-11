@@ -100,6 +100,26 @@ public class MarketDataFeedQueryModel(IMarketDataFeedQueryApi marketDataFeedQuer
         Action<FuturesOptionSpreadDataReadModel> onCompleted)
             => await ExecuteAsync(() => _marketDataFeedQueryApi.GetFuturesOptionSpreadDataAsync(valueDate, maturityDate, assetPrice, riskFreeRate, timeValue, shortOptionContract, longOptionContract), onCompleted);
 
+    public Task GetFuturesOptionSpreadDataAsync(
+        DateOnly valueDate,
+        DateOnly maturityDate,
+        double assetPrice,
+        double riskFreeRate,
+        double timeValue,
+        FuturesOptionContractReadModel shortOptionContract,
+        FuturesOptionContractReadModel longOptionContract,
+        Func<FuturesOptionSpreadDataReadModel, Task> onCompleted)
+        => ExecuteAsync(
+            () => _marketDataFeedQueryApi.GetFuturesOptionSpreadDataAsync(
+                valueDate,
+                maturityDate,
+                assetPrice,
+                riskFreeRate,
+                timeValue,
+                shortOptionContract,
+                longOptionContract),
+            onCompleted);
+
     /// <summary>
     /// return streaming request id by stream id
     /// </summary>

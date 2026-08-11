@@ -39,7 +39,7 @@ public class MarketDataFeedCommandModel(
     /// </summary>
     /// <param name="orderId"></param>
     /// <param name="tradeId"></param>
-    public async Task AddTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate) 
+    public async Task AddTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate)
         => await ExecuteCommandAsync(() =>  _marketDataFeedCommandApi.AddTradeLiveFeedAsync(orderId, tradeId, valueDate));
 
     /// <summary>
@@ -57,7 +57,7 @@ public class MarketDataFeedCommandModel(
     /// </summary>
     /// <param name="futuresContracts"></param>
     /// <param name="valueDate"></param>
-    public async Task StartDataFeedAsync(ICollection<FuturesContractV2ReadModel> futuresContracts, DateOnly valueDate) 
+    public async Task StartDataFeedAsync(ICollection<FuturesContractV2ReadModel> futuresContracts, DateOnly valueDate)
         => await ExecuteCommandAsync( () => _marketDataFeedCommandApi.StartMarketDataFeedAsync(futuresContracts, valueDate));
 
     /// <summary>
@@ -131,7 +131,7 @@ public class MarketDataFeedCommandModel(
     /// stop streaming futures tick data
     /// </summary>
     /// <param name="feedId"></param>
-    public async Task StopStreamingFuturesOptionTickDataAsync(FuturesOptionTickEntityId entityId, string contractId) 
+    public async Task StopStreamingFuturesOptionTickDataAsync(FuturesOptionTickEntityId entityId, string contractId)
         => await ExecuteCommandAsync( () => _marketDataFeedCommandApi.StopFuturesOptionTickDataStreamingAsync(entityId, contractId) );
 
     /// <summary>
@@ -176,7 +176,9 @@ public class MarketDataFeedCommandModel(
     /// </summary>
     /// <param name="siteId"></param>
     /// <param name="listenerAction"></param>
-    public async Task StartFuturesBarDataEventConsumerAsync(Guid siteId, Action<FuturesBarDataInsertedCompleteEvent> listenerAction)
+    public async Task StartFuturesBarDataEventConsumerAsync(
+        Guid siteId,
+        Func<FuturesBarDataInsertedCompleteEvent, ValueTask> listenerAction)
         => await ExecuteValueTaskAsync( () => _futuresBarDataEventConsumer.StartAsync( listenerAction) );
 
     /// <summary>
@@ -196,20 +198,20 @@ public class MarketDataFeedCommandModel(
     /// <summary>
     /// stop listening for market data feed reset event
     /// </summary>
-    public async Task StopMarketDataFeedResetListenerAsync() 
+    public async Task StopMarketDataFeedResetListenerAsync()
         => await ExecuteValueTaskAsync( _marketDataFeedResetEventConsumer.StopAsync );
 
     /// <summary>
     /// start listening for futures option tick data updates
     /// </summary>
     /// <param name="listenerAction"></param>
-    public async Task StartFuturesOptionTickDataListenerAsync(Action<OptionTradeTickPriceDataUpdatedEvent> listenerAction) 
+    public async Task StartFuturesOptionTickDataListenerAsync(Action<OptionTradeTickPriceDataUpdatedEvent> listenerAction)
         => await ExecuteValueTaskAsync( () => _futuresOptionTickDataEventConsumer.StartAsync(listenerAction) );
 
     /// <summary>
     /// stop listening for futures option tick data updates
     /// </summary>
-    public async Task StopFuturesOptionTickDataListenerAsync() 
+    public async Task StopFuturesOptionTickDataListenerAsync()
         => await ExecuteValueTaskAsync( _futuresOptionTickDataEventConsumer.StopAsync );
 
 }

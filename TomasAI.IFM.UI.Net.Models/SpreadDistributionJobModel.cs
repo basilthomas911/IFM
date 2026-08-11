@@ -39,7 +39,7 @@ namespace TomasAI.IFM.UI.Net.Models
         /// submit spread distribution job to option pricer service
         /// </summary>
         /// <param name="spreadDistributionJob"></param>
-        public async Task SubmitSpreadDistributionJobAsync(SpreadDistributionJobReadModel spreadDistributionJob) 
+        public async Task SubmitSpreadDistributionJobAsync(SpreadDistributionJobReadModel spreadDistributionJob)
             => await ExecuteCommandAsync(() => _optionPricerCommandApi.SubmitSpreadDistributionJobAsync(spreadDistributionJob));
 
         /// <summary>
@@ -65,10 +65,18 @@ namespace TomasAI.IFM.UI.Net.Models
         public async Task IsSpreadDistributionJobInProgressAsync(int orderId, int tradeId, Action<bool> isJobInProgress)
             => await ExecuteAsync(() => _optionPricerQueryApi.IsSpreadDistributionJobInProgressAsync(orderId, tradeId), e => isJobInProgress(e.Value));
 
+        public Task IsSpreadDistributionJobInProgressAsync(
+            int orderId,
+            int tradeId,
+            Func<bool, Task> isJobInProgress)
+            => ExecuteAsync(
+                () => _optionPricerQueryApi.IsSpreadDistributionJobInProgressAsync(orderId, tradeId),
+                e => isJobInProgress(e.Value));
+
         /// <summary>
         /// start spread distribution job consumer
         /// </summary>
-        public async Task StartSpreadDistributionJobConsumerAsync() 
+        public async Task StartSpreadDistributionJobConsumerAsync()
             //=> await ExecuteAsync( _spreadDistributionJobEventConsumer.StartAsync );
             => await Task.CompletedTask;
 

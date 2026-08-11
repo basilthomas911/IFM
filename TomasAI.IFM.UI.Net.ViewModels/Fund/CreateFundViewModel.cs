@@ -19,14 +19,14 @@ public class CreateFundReadModel
         _appRoot = appRoot;
     }
 
-    public void LoadNewFundId(Action<int> newFundIdAction, Action<string> onError)
-        => _appRoot.GetModel<ReferenceQueryModel>().Execute(async model => {
+    public Task LoadNewFundId(Action<int> newFundIdAction, Action<string> onError)
+        => _appRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMsg) => onError(errorMsg));
             await model.NewFundIdAsync(newFundId => newFundIdAction(newFundId));
         });
 
-    public void CreateNewFund(FundReadModel newFund, Action onCompleted, Action<string> onError)
-        => _appRoot.GetModel<FundCommandModel>().Execute(async model => {
+    public Task CreateNewFund(FundReadModel newFund, Action onCompleted, Action<string> onError)
+        => _appRoot.GetModel<FundCommandModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMsg) => onError(errorMsg));
             await model.CreateFundAsync(newFund, onCompleted);
         });

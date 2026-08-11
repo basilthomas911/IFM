@@ -42,9 +42,9 @@ public class EconomicCalendarEditorViewModel(IAppRoot appRoot) : BaseEditorViewM
     /// <param name="index">The zero-based index of the economic calendar to retrieve. Must be within the range of available calendars.</param>
     /// <returns>An <see cref="EconomicCalendarReadModel"/> representing the economic calendar at the specified index,  or <see
     /// langword="null"/> if the index is out of range.</returns>
-    public EconomicCalendarReadModel GetEconomicCalendar(int index) 
+    public EconomicCalendarReadModel GetEconomicCalendar(int index)
         => index >= 0 && index < _economicCalendars.Count ? _economicCalendars[index] : null!;
-    
+
     /// <summary>
     /// Retrieves the index of the specified country code in the list of country codes.
     /// </summary>
@@ -70,8 +70,8 @@ public class EconomicCalendarEditorViewModel(IAppRoot appRoot) : BaseEditorViewM
     /// <param name="economicCalendar">The economic calendar entry to be added. This parameter must not be <see langword="null"/>.</param>
     /// <param name="onCompleted">An action to be executed after the economic calendar entry is successfully added. This parameter is optional and
     /// can be <see langword="null"/>.</param>
-    public void AddEconomicCalendar(EconomicCalendarReadModel economicCalendar, Action onCompleted)
-        => AppRoot.GetModel<ReferenceCommandModel>().Execute(async model => {
+    public Task AddEconomicCalendar(EconomicCalendarReadModel economicCalendar, Action onCompleted)
+        => AppRoot.GetModel<ReferenceCommandModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await model.AddEconomicCalendarAsync(economicCalendar);
             LoadEconomicCalendars(DateOnly.FromDateTime(economicCalendar.EventDate), economicCalendar.CountryCode);
@@ -85,8 +85,8 @@ public class EconomicCalendarEditorViewModel(IAppRoot appRoot) : BaseEditorViewM
     /// <param name="economicCalendarId"></param>
     /// <param name="economicCalendar"></param>
     /// <param name="overwrite"></param>
-    public void ChangeEconomicCalendar(EconomicCalendarId economicCalendarId, EconomicCalendarReadModel economicCalendar, bool overwrite,  Action onCompleted)
-        => AppRoot.GetModel<ReferenceCommandModel>().Execute(async model => {
+    public Task ChangeEconomicCalendar(EconomicCalendarId economicCalendarId, EconomicCalendarReadModel economicCalendar, bool overwrite,  Action onCompleted)
+        => AppRoot.GetModel<ReferenceCommandModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await model.ChangeEconomicCalendarAsync(economicCalendarId, economicCalendar, overwrite);
             LoadEconomicCalendars(DateOnly.FromDateTime(economicCalendar.EventDate), economicCalendar.CountryCode);
@@ -99,8 +99,8 @@ public class EconomicCalendarEditorViewModel(IAppRoot appRoot) : BaseEditorViewM
     /// </summary>
     /// <param name="economicCalendarId"></param>
     /// <param name="overwrite"></param>
-    public void RemoveEconomicCalendar(EconomicCalendarId economicCalendarId, bool overwrite)
-        => AppRoot.GetModel<ReferenceCommandModel>().Execute(async model => {
+    public Task RemoveEconomicCalendar(EconomicCalendarId economicCalendarId, bool overwrite)
+        => AppRoot.GetModel<ReferenceCommandModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await model.RemoveEconomicCalendarAsync(economicCalendarId, overwrite);
             LoadEconomicCalendars(DateOnly.FromDateTime(economicCalendarId.EventDate), economicCalendarId.CountryCode);
@@ -113,7 +113,7 @@ public class EconomicCalendarEditorViewModel(IAppRoot appRoot) : BaseEditorViewM
     /// <param name="importDate"></param>
     public void ImportEconomicCalendars(DateTime importDate, string countryCode)
      => AppRoot.GetModel<ReferenceCommandModel>()
-            .Execute(async model => {
+            .ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
                 var economicCalendars = default(EconomicCalendarReadModel[]);
                 await AppRoot.GetModel<ReferenceQueryModel>().GetExternalEconomicCalendarsAsync(e => economicCalendars = e);
@@ -123,12 +123,12 @@ public class EconomicCalendarEditorViewModel(IAppRoot appRoot) : BaseEditorViewM
                         WriteStatusConsole(LogSourceType.Reference, $"Economic Calendars For: {importDate:yyyy-MM-dd} Imported");
                     });
             });
-    
+
     /// <summary>
     /// load country codes
     /// </summary>
-    public void LoadCountryCodes()
-        => AppRoot.GetModel<ReferenceQueryModel>().Execute(async model => {
+    public Task LoadCountryCodes()
+        => AppRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             _countryCodes = [];
             await model.LoadEconomicCalendarCountryCodesAsync(countryCodes => {
@@ -141,8 +141,8 @@ public class EconomicCalendarEditorViewModel(IAppRoot appRoot) : BaseEditorViewM
     /// <summary>
     /// load economic calendars
     /// </summary>
-    public void LoadEconomicCalendars(DateOnly eventDate, string countryCode)
-        => AppRoot.GetModel<ReferenceQueryModel>().Execute(async model => {
+    public Task LoadEconomicCalendars(DateOnly eventDate, string countryCode)
+        => AppRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             _economicCalendars = [];
             await model.LoadEconomicCalendarsAsync(eventDate, countryCode, economicCalendars => {

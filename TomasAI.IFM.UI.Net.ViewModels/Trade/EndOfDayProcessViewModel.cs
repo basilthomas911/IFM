@@ -82,14 +82,14 @@ public class EndOfDayProcessViewModel : BaseEditorViewModel
     public Action<string> OnEndOfDayProcessFailed = null!;
     public Action<string, string> ShowErrorMessage = null!;
 
-    public void StartListener()
-       => _eventModel.Execute(async e => {
+    public Task StartListener()
+       => _eventModel.ExecuteAsync(async e => {
            e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
            await e.StartEndOfDayProcessListenerAsync(HandleEventAsync);
        });
 
-    public void StopListener()
-        => _eventModel.Execute(async e => {
+    public Task StopListener()
+        => _eventModel.ExecuteAsync(async e => {
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StopEndOfDayProcessListenerAsync();
         });
@@ -136,8 +136,8 @@ public class EndOfDayProcessViewModel : BaseEditorViewModel
         LoadFund(() => LoadOptionTrade(trade => LoadFuturesEodData(trade)));
         return;
 
-        void LoadFund(Action onFundLoaded)
-            => _fundQueryModel.Execute(async model => {
+        Task LoadFund(Action onFundLoaded)
+            => _fundQueryModel.ExecuteAsync(async model => {
                 model.OnError((_, errorMsg) => ShowErrorMessage?.Invoke(errorMsg, "Loading Fund Data Error"));
                 await model.GetFundsAsync(funds =>
                 {
@@ -150,14 +150,14 @@ public class EndOfDayProcessViewModel : BaseEditorViewModel
                 });
             });
 
-        void LoadOptionTrade(Action<OptionTradeReadModel> onTradeLoaded)
-            => _tradeQueryModel.Execute(async model => {
+        Task LoadOptionTrade(Action<OptionTradeReadModel> onTradeLoaded)
+            => _tradeQueryModel.ExecuteAsync(async model => {
                 model.OnError((_, errorMsg) => ShowErrorMessage?.Invoke(errorMsg, "Loading Option Trade Error"));
                 await model.GetOptionTradeAsync(OrderId, TradeId, e => onTradeLoaded?.Invoke(e));
             });
 
-        void LoadFuturesEodData(OptionTradeReadModel optionTrade)
-            => _mktDataFeedQueryModel.Execute(async model => {
+        Task LoadFuturesEodData(OptionTradeReadModel optionTrade)
+            => _mktDataFeedQueryModel.ExecuteAsync(async model => {
                 model.OnError((_, errorMsg) => ShowErrorMessage?.Invoke(errorMsg, "Loading End Of Day Data Error"));
                 await model.GetFuturesEodDataAsync(_eodParam.BaseContractId, ValueDate, futuresEodData => {
                     _openPrice = futuresEodData.OpenPrice;
@@ -178,8 +178,8 @@ public class EndOfDayProcessViewModel : BaseEditorViewModel
     /// <summary>
     /// run end of day process
     /// </summary>
-    public void RunEndOfDayProcess()
-        => AppRoot.GetModel<TradeCommandModel>().Execute(async model => {
+    public Task RunEndOfDayProcess()
+        => AppRoot.GetModel<TradeCommandModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMsg) => OnEndOfDayProcessFailed?.Invoke($"End Of Day process failed due to {errorMsg}"));
             await model.ProcessEndOfDayAsync(
                 FundId,

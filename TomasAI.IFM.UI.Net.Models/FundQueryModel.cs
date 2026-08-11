@@ -26,14 +26,17 @@ namespace TomasAI.IFM.UI.Net.Models
         /// get funds
         /// </summary>
         /// <param name="onCompleted"></param>
-        public async Task GetFundsAsync(Action<FundReadModel[]> onCompleted) 
+        public async Task GetFundsAsync(Action<FundReadModel[]> onCompleted)
             => await ExecuteAsync(_queryApi.GetFundsAsync, onCompleted);
 
+        public Task GetFundsAsync(Func<FundReadModel[], Task> onCompleted)
+            => ExecuteAsync(_queryApi.GetFundsAsync, onCompleted);
+
         /// <summary>
-        /// get fund orders 
+        /// get fund orders
         /// </summary>
         public async Task<FundOrderReadModel[]> GetFundOrdersAsync()
-        { 
+        {
             var serviceResut = await _queryApi.GetFundOrdersAsync();
             if (serviceResut is not null && serviceResut.Success)
                 return serviceResut.Value!;
@@ -42,7 +45,7 @@ namespace TomasAI.IFM.UI.Net.Models
         }
 
         /// <summary>
-        /// get fund order trades 
+        /// get fund order trades
         /// </summary>
         public async Task<FundOrderTradeReadModel[]> GetFundOrderTradesAsync()
         {
@@ -67,6 +70,9 @@ namespace TomasAI.IFM.UI.Net.Models
         /// <param name="onCompleted"></param>
         public async Task GetFundBalanceAsync(int fundId, Action<decimal> onCompleted)
             => await ExecuteAsync(() => _queryApi.GetFundBalanceAsync(fundId), fb => onCompleted(fb.Value));
+
+        public Task GetFundBalanceAsync(int fundId, Func<decimal, Task> onCompleted)
+            => ExecuteAsync(() => _queryApi.GetFundBalanceAsync(fundId), fb => onCompleted(fb.Value));
 
         /// <summary>
         /// get fund pnl report

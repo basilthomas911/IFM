@@ -11,7 +11,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData;
 /// supports both adding new yield curve rates and modifying existing ones. The form ensures that the data entered is
 /// valid and provides feedback for invalid inputs. Additionally, it prevents duplicate entries for the same value
 /// date.</remarks>
-public partial class YieldCurveRateEditForm 
+public partial class YieldCurveRateEditForm
     : Form, IForm<YieldCurveRateEditForm>, IFormControl
 {
     IAppRoot? _appRoot = default!;
@@ -38,9 +38,9 @@ public partial class YieldCurveRateEditForm
     /// </summary>
     /// <param name="yieldCurveRate">The <see cref="YieldCurveRateReadModel"/> instance representing the yield curve rate to be set.  This parameter
     /// cannot be <see langword="null"/>.</param>
-    public void SetYieldCurveRate(YieldCurveRateReadModel yieldCurveRate) 
+    public void SetYieldCurveRate(YieldCurveRateReadModel yieldCurveRate)
         => _yieldCurveRate = yieldCurveRate;
-    
+
     /// <summary>
     /// Handles the Load event of the YieldCurveRateEditForm.
     /// </summary>
@@ -150,7 +150,7 @@ public partial class YieldCurveRateEditForm
     /// <summary>
     /// Opens the resource or connection associated with this instance.
     /// </summary>
-    /// <remarks>This method is intended to initialize and make the resource or connection ready for use. 
+    /// <remarks>This method is intended to initialize and make the resource or connection ready for use.
     /// Ensure that the resource is properly closed or disposed after use to avoid resource leaks.</remarks>
     /// <exception cref="NotImplementedException">This method is not yet implemented.</exception>
     public void Open()
@@ -158,24 +158,34 @@ public partial class YieldCurveRateEditForm
         throw new NotImplementedException();
     }
 
-    void dtmValueDate_ValueChanged(object sender, EventArgs e)
+    async void dtmValueDate_ValueChanged(object sender, EventArgs e)
     {
         var valueDate = new DateOnly(dtmValueDate.Value.Year, dtmValueDate.Value.Month, dtmValueDate.Value.Day);
         if (_yieldCurveRate == null)
         {
-            _appRoot?.GetModel<MarketDataQueryModel>().Execute(async ctlr => {
-                ctlr.OnError((errorCode, errorMsg) => this.Post(() => MessageBox.Show(text: errorMsg, caption: "Yield Curve Rate Error", buttons: MessageBoxButtons.OK, icon: MessageBoxIcon.Error)));
-                await ctlr.YieldCurveRateExistsAsync(valueDate, serviceResult =>
-                    this.Post(() => {
-                        btnSave.Enabled = false;
-                        if (!serviceResult.Success)
-                            MessageBox.Show($"Yield Curve Rate data error : {serviceResult.ErrorMessage}", "Validate Year Curve Rates", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        else if (serviceResult.Value!.Value)
-                            MessageBox.Show($"Yield Curve Rate already exists for : {valueDate:yyyy-MMM-dd}", "Validate Year Curve Rates", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        else
-                            btnSave.Enabled = true;
-                    }));
-            });
+            try
+            {
+                if (_appRoot is null)
+                    return;
+
+                await _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async ctlr => {
+                    ctlr.OnError((errorCode, errorMsg) => this.Post(() => MessageBox.Show(text: errorMsg, caption: "Yield Curve Rate Error", buttons: MessageBoxButtons.OK, icon: MessageBoxIcon.Error)));
+                    await ctlr.YieldCurveRateExistsAsync(valueDate, serviceResult =>
+                        this.Post(() => {
+                            btnSave.Enabled = false;
+                            if (!serviceResult.Success)
+                                MessageBox.Show($"Yield Curve Rate data error : {serviceResult.ErrorMessage}", "Validate Year Curve Rates", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            else if (serviceResult.Value!.Value)
+                                MessageBox.Show($"Yield Curve Rate already exists for : {valueDate:yyyy-MMM-dd}", "Validate Year Curve Rates", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            else
+                                btnSave.Enabled = true;
+                        }));
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Yield Curve Rate Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 
@@ -196,6 +206,6 @@ public partial class YieldCurveRateEditForm
     {
         throw new NotImplementedException();
     }
-   
+
 }
 

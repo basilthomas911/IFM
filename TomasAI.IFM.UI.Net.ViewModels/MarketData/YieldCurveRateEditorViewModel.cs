@@ -28,11 +28,11 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
     /// Initializes a new instance of the <see cref="YieldCurveRateEditorViewModel"/> class.
     /// </summary>
     /// <remarks>This constructor sets up the view model by initializing dependencies and subscribing to error
-    /// handling  and event consumption for market data operations. The provided <paramref name="appRoot"/> is used to 
+    /// handling  and event consumption for market data operations. The provided <paramref name="appRoot"/> is used to
     /// retrieve required models such as <see cref="MarketDataEventModel"/>, <see cref="MarketDataCommandModel"/>,  and
     /// <see cref="MarketDataQueryModel"/>.</remarks>
     /// <param name="appRoot">The application root object that provides access to application-wide services and models.</param>
-    public YieldCurveRateEditorViewModel(IAppRoot appRoot) 
+    public YieldCurveRateEditorViewModel(IAppRoot appRoot)
         : base(appRoot)
     {
         _yieldCurveRates = [];
@@ -57,7 +57,7 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
 
     public bool CanChangeRemove { get; set; }
 
-    public bool CanImport 
+    public bool CanImport
         => true;
 
     public Action<bool> OnDataLoaded = (loaded) => { };
@@ -76,16 +76,16 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
     /// <summary>
     /// start listening for yield curve rate editor events
     /// </summary>
-    public void StartListener()
-        => _eventModel?.Execute(async e => {
+    public Task StartListener()
+        => _eventModel?.ExecuteAsync(async e => {
             await e.StartMarketDataListenerAsync(_consumeEvents, HandleEventAsync);
         });
 
     /// <summary>
     /// stop listening for yield curve rate editor events
     /// </summary>
-    public void StopListener()
-        => _eventModel?.Execute(async e => {
+    public Task StopListener()
+        => _eventModel?.ExecuteAsync(async e => {
             await e.StopMarketDataListenerAsync();
         });
 
@@ -115,8 +115,8 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
     /// </summary>
     /// <param name="yieldCurveRate"></param>
     /// <param name="overwrite">Indicates whether to overwrite an existing yield curve rate with the same value date.</param>
-    public void AddYieldCurveRate(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
-        => _commandModel?.Execute(async model => {
+    public Task AddYieldCurveRate(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
+        => _commandModel?.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             IsArgumentNull.Check(yieldCurveRate);
             OnWaitCursor?.Invoke(); // Show wait cursor before executing the command
@@ -163,8 +163,8 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
     /// <param name="yieldCurveRate">The yield curve rate data to be updated. Cannot be <see langword="null"/>.</param>
     /// <param name="overwrite">A value indicating whether to overwrite existing yield curve rate data.  <see langword="true"/> to overwrite;
     /// otherwise, <see langword="false"/>.</param>
-    public void ChangeYieldCurveRate(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
-        => _commandModel?.Execute(async model => {
+    public Task ChangeYieldCurveRate(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
+        => _commandModel?.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             IsArgumentNull.Check(yieldCurveRate);
             OnWaitCursor?.Invoke(); // Show wait cursor before executing the command
@@ -211,8 +211,8 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
     /// </summary>
     /// <param name="valueDate"></param>
     /// <param name="overwrite">Indicates whether to overwrite an existing yield curve rate with the same value date.</param>
-    public void RemoveYieldCurveRate(DateOnly valueDate, bool overwrite)
-        => _commandModel?.Execute(async model => {
+    public Task RemoveYieldCurveRate(DateOnly valueDate, bool overwrite)
+        => _commandModel?.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             IsArgumentNull.Check(valueDate);
             OnWaitCursor?.Invoke(); // Show wait cursor before executing the command
@@ -256,8 +256,8 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
     /// import yiele curve rates
     /// </summary>
     /// <param name="importDate"></param>
-    public void ImportYieldCurveRates(DateTime importDate)
-        => _commandModel?.Execute(async model => {
+    public Task ImportYieldCurveRates(DateTime importDate)
+        => _commandModel?.ExecuteAsync(async model => {
             IsArgumentNull.Check(importDate);
             OnWaitCursor?.Invoke();
             YieldCurveRateReadModel[] yieldCurveRates = [];
@@ -302,8 +302,8 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
     /// <remarks>This method asynchronously retrieves yield curve rate time periods and invokes the  <see
     /// cref="OnYieldCurveRateTimePeriodsLoaded"/> event with the retrieved data.  Ensure that the event is subscribed
     /// to before calling this method to handle the loaded data.</remarks>
-    public void LoadYieldCurveRateTimePeriods()
-         => _queryModel?.Execute(async model => {
+    public Task LoadYieldCurveRateTimePeriods()
+         => _queryModel?.ExecuteAsync(async model => {
                 OnWaitCursor?.Invoke(); // Show wait cursor before executing the command
                 await model.GetYieldCurveRateTimePeriodsAsync(timePeriods => OnYieldCurveRateTimePeriodsLoaded?.Invoke(timePeriods));
                 OnDefaultCursor?.Invoke(); // Reset cursor to default after operation
@@ -317,8 +317,8 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
     /// cref="_queryModel"/>  is properly initialized before calling this method.</remarks>
     /// <param name="startDate">The start date of the range for which to load yield curve rates.</param>
     /// <param name="endDate">The end date of the range for which to load yield curve rates.</param>
-    public void LoadYieldCurveRates(DateOnly startDate, DateOnly endDate)
-        => _queryModel?.Execute(async model => {
+    public Task LoadYieldCurveRates(DateOnly startDate, DateOnly endDate)
+        => _queryModel?.ExecuteAsync(async model => {
             OnWaitCursor?.Invoke();
             await model.GetYieldCurveRatesAsync(startDate, endDate, yieldCurveRates => OnYieldCurveRatesLoaded?.Invoke(yieldCurveRates));
             OnDefaultCursor?.Invoke(); // Reset cursor to default after operation

@@ -20,7 +20,7 @@ public class BaseModel<TModel>
     /// execute action when service function returns an error
     /// </summary>
     /// <param name="errorNotifier"></param>
-    public void OnError(Action<int, string> errorNotifier = null!) 
+    public void OnError(Action<int, string> errorNotifier = null!)
         => _errorNotifier = errorNotifier;
 
     /// <summary>
@@ -28,43 +28,29 @@ public class BaseModel<TModel>
     /// </summary>
     /// <param name="errorCode"></param>
     /// <param name="errorMsg"></param>
-    public void RaiseError(int errorCode, string errorMsg) 
+    public void RaiseError(int errorCode, string errorMsg)
         => _errorNotifier?.Invoke(errorCode, errorMsg);
 
     /// <summary>
-    /// execute async lambda function 
+    /// execute async lambda function
     /// </summary>
     /// <param name="serviceFunc"></param>
     /// <returns></returns>
-    public async Task ExecuteAsync(Func<Task> serviceFunc)
+    public Task ExecuteAsync(Func<Task> serviceFunc)
     {
-        try
-        {
-            await serviceFunc();
-        }
-        catch (Exception ex)
-        {
-            if (ex is not ThreadAbortException)
-                RaiseError(9999, $"{ex}");
-        }
+        ArgumentNullException.ThrowIfNull(serviceFunc);
+        return serviceFunc();
     }
 
     /// <summary>
-    /// execute async lambda function 
+    /// execute async lambda function
     /// </summary>
     /// <param name="serviceFunc"></param>
     /// <returns></returns>
-    public async ValueTask ExecuteValueTaskAsync(Func<ValueTask> serviceFunc)
+    public ValueTask ExecuteValueTaskAsync(Func<ValueTask> serviceFunc)
     {
-        try
-        {
-            await serviceFunc();
-        }
-        catch (Exception ex)
-        {
-            if (ex is not ThreadAbortException)
-                RaiseError(99991, $"{ex}");
-        }
+        ArgumentNullException.ThrowIfNull(serviceFunc);
+        return serviceFunc();
     }
 
     /// <summary>
@@ -76,44 +62,52 @@ public class BaseModel<TModel>
     /// <returns></returns>
     protected async Task ExecuteAsync<TResult>(Func<Task<ServiceResult<TResult>>> serviceQuery, Action<TResult> resultAction)
     {
-        try
-        {
-            var serviceResult = await serviceQuery();
-            if (serviceResult.Success)
-                resultAction?.Invoke(serviceResult.Value!);
-            else
-                RaiseError(serviceResult.ErrorCode, serviceResult.ErrorMessage);
-        }
-        catch (Exception ex)
-        {
-            RaiseError(1237, $"{ex}");
-        }
+        ArgumentNullException.ThrowIfNull(serviceQuery);
+        ArgumentNullException.ThrowIfNull(resultAction);
+
+        var serviceResult = await serviceQuery();
+        if (serviceResult.Success)
+            resultAction(serviceResult.Value!);
+        else
+            RaiseError(serviceResult.ErrorCode, serviceResult.ErrorMessage);
     }
 
     /// <summary>
-    /// execute command 
+    /// Executes a service query and awaits asynchronous result processing before reporting completion.
+    /// </summary>
+    protected async Task ExecuteAsync<TResult>(
+        Func<Task<ServiceResult<TResult>>> serviceQuery,
+        Func<TResult, Task> resultOperation)
+    {
+        ArgumentNullException.ThrowIfNull(serviceQuery);
+        ArgumentNullException.ThrowIfNull(resultOperation);
+
+        var serviceResult = await serviceQuery();
+        if (serviceResult.Success)
+            await resultOperation(serviceResult.Value!);
+        else
+            RaiseError(serviceResult.ErrorCode, serviceResult.ErrorMessage);
+    }
+
+    /// <summary>
+    /// execute command
     /// </summary>
     /// <typeparam name="Guid"></typeparam>
     /// <param name="funcCommand"></param>
     /// <returns></returns>
     protected async Task<Guid> ExecuteCommandAsync<Guid>(Func<Task<ServiceResult<Guid>>> funcCommand, Action onCompleted = null!)
     {
+        ArgumentNullException.ThrowIfNull(funcCommand);
         var commandId = default(Guid);
-        try
+        var serviceResult = await funcCommand();
+        if (serviceResult?.Success == true)
         {
-            var serviceResult = await funcCommand();
-            if (serviceResult?.Success == true)
-            {
-                commandId = serviceResult.Value;
-                onCompleted?.Invoke();
-            }
-            else
-                RaiseError(serviceResult?.ErrorCode ?? 0, serviceResult?.ErrorMessage ?? "Unknown error");
+            commandId = serviceResult.Value;
+            onCompleted?.Invoke();
         }
-        catch(Exception ex)
-        {
-            RaiseError(1238, $"{ex}");
-        }
+        else
+            RaiseError(serviceResult?.ErrorCode ?? 0, serviceResult?.ErrorMessage ?? "Unknown error");
+
         return commandId!;
     }
 
@@ -122,43 +116,74 @@ public class BaseModel<TModel>
 public static class BaseModelExtension
 {
     /// <summary>
-    /// Executes the specified action on the model instance.
+    /// Executes an asynchronous operation on the concrete model instance.
     /// </summary>
-    /// <remarks>This method attempts to cast the model to the specified type <typeparamref name="TModel"/>
-    /// and invokes the provided action. Any exceptions thrown during the execution of the action are caught and
-    /// suppressed.</remarks>
+    /// <remarks>Completion, cancellation, and failures are returned to the caller. This prevents an asynchronous
+    /// lambda from being converted to <see cref="Action{T}"/> and losing observable completion.</remarks>
     /// <typeparam name="TModel">The type of the model, which must be a reference type.</typeparam>
     /// <param name="model">The model instance on which the action will be performed. Cannot be <see langword="null"/>.</param>
-    /// <param name="viewAction">The action to execute on the model. Cannot be <see langword="null"/>.</param>
-    public static void Execute<TModel>(this IModel<TModel> model, Action<TModel> viewAction) where TModel : class
+    /// <param name="operation">The asynchronous operation to execute. Cannot be <see langword="null"/>.</param>
+    /// <param name="cancellationToken">A token that cancels execution before the operation starts.</param>
+    /// <returns>A task representing the complete operation.</returns>
+    public static Task ExecuteAsync<TModel>(
+        this IModel<TModel> model,
+        Func<TModel, CancellationToken, Task> operation,
+        CancellationToken cancellationToken = default)
+        where TModel : class
     {
-        try
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(operation);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (model is not TModel concreteModel)
         {
-            viewAction((model as TModel)!);
+            throw new InvalidOperationException(
+                $"Model instance '{model.GetType().FullName}' does not implement its declared concrete type '{typeof(TModel).FullName}'.");
         }
-        catch { }
+
+        return operation(concreteModel, cancellationToken);
+    }
+
+    /// <summary>
+    /// Executes an asynchronous operation on the concrete model instance when the operation does not consume a
+    /// cancellation token directly.
+    /// </summary>
+    /// <typeparam name="TModel">The type of the model, which must be a reference type.</typeparam>
+    /// <param name="model">The model instance on which the operation will be performed.</param>
+    /// <param name="operation">The asynchronous operation to execute.</param>
+    /// <param name="cancellationToken">A token that cancels execution before the operation starts.</param>
+    /// <returns>A task representing the complete operation.</returns>
+    public static Task ExecuteAsync<TModel>(
+        this IModel<TModel> model,
+        Func<TModel, Task> operation,
+        CancellationToken cancellationToken = default)
+        where TModel : class
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        return model.ExecuteAsync((concreteModel, _) => operation(concreteModel), cancellationToken);
     }
 
     /// <summary>
     /// Executes a query action on the specified model and returns the result.
     /// </summary>
-    /// <remarks>This method attempts to execute the provided <paramref name="viewAction"/> on the given
-    /// <paramref name="model"/>. If an exception is thrown during execution, the method suppresses the exception and
-    /// returns the default value of <typeparamref name="TData"/>.</remarks>
+    /// <remarks>Invalid model casts and operation failures are propagated to the caller.</remarks>
     /// <typeparam name="TModel">The type of the model on which the query is executed. Must be a reference type.</typeparam>
     /// <typeparam name="TData">The type of the data returned by the query action.</typeparam>
     /// <param name="model">The model instance on which the query action is performed. Cannot be null.</param>
     /// <param name="viewAction">A function that defines the query action to execute on the model. Cannot be null.</param>
-    /// <returns>The result of the query action, or the default value of <typeparamref name="TData"/> if an exception occurs.</returns>
+    /// <returns>The result of the query action.</returns>
     public static TData ExecuteQuery<TModel, TData>(this IModel<TModel> model, Func<TModel, TData> viewAction) where TModel : class
     {
-        var result = default(TData);
-        try
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(viewAction);
+
+        if (model is not TModel concreteModel)
         {
-            result = viewAction((model as TModel)!);
+            throw new InvalidOperationException(
+                $"Model instance '{model.GetType().FullName}' does not implement its declared concrete type '{typeof(TModel).FullName}'.");
         }
-        catch { }
-        return result!;
+
+        return viewAction(concreteModel);
     }
 
 }

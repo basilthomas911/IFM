@@ -34,7 +34,7 @@ public class FundOrderEditorViewModel : BaseEditorViewModel
     public FundOrderEditorViewModel(
         IAppRoot appRoot,
         DateOnly valueDate,
-        ICollection<FuturesContractV2ReadModel> baseContracts, 
+        ICollection<FuturesContractV2ReadModel> baseContracts,
         int fundId) : base(appRoot)
     {
         _appRoot = appRoot;
@@ -83,8 +83,8 @@ public class FundOrderEditorViewModel : BaseEditorViewModel
     /// <summary>
     /// load new order id
     /// </summary>
-    public void LoadNewOrderId() => _appRoot.GetModel<ReferenceQueryModel>()
-        .Execute(async model => await model.NewOrderIdAsync(newOrderId => {
+    public Task LoadNewOrderId() => _appRoot.GetModel<ReferenceQueryModel>()
+        .ExecuteAsync(async model => await model.NewOrderIdAsync(newOrderId => {
             _orderId = newOrderId;
             OnNewOrderId?.Invoke();
         }));
@@ -100,7 +100,7 @@ public class FundOrderEditorViewModel : BaseEditorViewModel
            ? _baseContracts.ElementAt(index).ContractId
             : throw new IndexOutOfRangeException($"Invalid Base Contract index: {index}");
         _appRoot.GetModel<MarketDataFeedQueryModel>()
-            .Execute(async model => await model.GetFuturesEodDataAsync(_baseContractId, _valueDate, futuresEodData =>
+            .ExecuteAsync(async model => await model.GetFuturesEodDataAsync(_baseContractId, _valueDate, futuresEodData =>
             {
                 _futuresEodData = futuresEodData;
                 SetReference();
@@ -136,7 +136,7 @@ public class FundOrderEditorViewModel : BaseEditorViewModel
             _reference = $"{_baseContractId} @ {_tradeDate:MMM dd} - {_maturityDate:MMM dd}";
         else
             _reference = $"{_baseContractId} @ {_tradeDate:MMM dd} - {_maturityDate:MMM dd} => {_futuresEodData.MarketDirection}:{_futuresEodData.MarketVolatility}:{_futuresEodData.PriceDirection}:{_futuresEodData.PriceVolatility}";
-        OnReferenceChanged?.Invoke();   
+        OnReferenceChanged?.Invoke();
     }
 
 }

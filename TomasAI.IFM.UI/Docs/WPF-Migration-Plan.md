@@ -11,7 +11,7 @@
 | Immediate delivery target | Stage 1: optimized WinForms application suitable for paper trading |
 | Production delivery target | Stage 2: WPF application with functional and operational parity |
 | Scope of this document | Stage 1 implementation specification and Stage 2 architectural pathway |
-| Stage 1 progress | S1.0 baseline and safety net implemented on 2026-08-11 |
+| Stage 1 progress | S1.0 baseline/safety net and S1.1 async Model execution boundary implemented on 2026-08-11 |
 
 This document is the controlling migration plan for the IFM desktop client. The existing [`UI.Net implementation details`](../../TomasAI.IFM.UI.Net/Docs/UI-Implementation-Details.md) remain the description of the current WinForms implementation. This document describes the target state and the controlled path from that implementation to WPF.
 
@@ -46,12 +46,12 @@ packages may reduce them, but new occurrences fail the safety suite.
 
 | Finding | Current baseline | Consequence |
 | --- | ---: | --- |
-| `.Execute(async ...)` calls accepted by `Action<T>` | 189 | Implicit `async void`; cannot await, cancel, order, or reliably catch failure |
-| `_appRoot.Execute(async ...)` calls accepted by `Action` | 2 | Same implicit `async void` failure mode |
+| `.Execute(async ...)` calls accepted by `Action<T>` | 0 (189 removed in S1.1) | Enforced at zero by the architecture suite |
+| `_appRoot.Execute(async ...)` calls accepted by `Action` | 0 (2 removed in S1.1) | Unsafe application-root execution API removed |
 | WinForms `Post`/`BeginInvoke` calls | 144 | Fire-and-forget dispatch; current helper suppresses dispatch failures |
 | Awaitable `PostAsync` calls | 1 | Awaitable dispatch exists but is not yet the normal path |
 | Blocking `.Wait`, `.Result`, or `GetAwaiter().GetResult()` in audited UI projects | 0 | Positive baseline; must remain zero |
-| Explicit `async void` declarations | 2 | Acceptable only if they are UI event boundaries with exception handling |
+| Explicit `async void` declarations | 6 | Restricted to four known WinForms adapter files; shared Models and ViewModels contain none |
 | `Action` delegate tokens across Models and ViewModels | 321 | Presentation flow is callback-oriented and difficult to compose/test |
 | `INotifyPropertyChanged` implementations | 0 | ViewModels are not directly suitable for WPF binding |
 | Framework-neutral command abstractions | 0 | User operations do not expose consistent execution/can-execute state |
@@ -62,7 +62,7 @@ packages may reduce them, but new occurrences fail the safety suite.
 
 Important current sources include:
 
-- [`BaseModel.ExecuteAsync` and `BaseModelExtension.Execute`](../../TomasAI.IFM.UI.Net.Models/BaseModel.cs)
+- [`BaseModel.ExecuteAsync` and `BaseModelExtension.ExecuteAsync`](../../TomasAI.IFM.UI.Net.Models/BaseModel.cs)
 - [`IAppRoot`](../../TomasAI.IFM.UI.Net.ViewModels/Contracts/IAppRoot.cs)
 - [`Control.Post` and `Control.PostAsync`](../../TomasAI.IFM.UI.Net.Views/Contracts/IFormControl.cs)
 - [`IFMAppViewModel`](../../TomasAI.IFM.UI.Net.ViewModels/App/IFMAppViewModel.cs)
@@ -432,11 +432,35 @@ Exit: the baseline is repeatable and failures introduced by later packages can b
 
 ### S1.1 — async Model execution boundary
 
+Status: **Implemented on 2026-08-11.** The Model/ViewModel execution boundary
+now returns observable `Task` completion. WinForms event methods remain thin
+adapters; lifecycle token ownership and systematic view-adapter replacement are
+the subjects of S1.2 through S1.4.
+
 - Add `ExecuteAsync` with cancellation.
 - Convert all `.Execute(async ...)` and `_appRoot.Execute(async ...)` occurrences.
 - Remove the unsafe async-compatible path through `Action`.
 - Convert nested async callbacks to returned Tasks.
 - Preserve service error codes and stop suppressing exceptions.
+
+Implemented artifacts:
+
+- `BaseModelExtension.ExecuteAsync` validates the concrete Model, accepts a
+  cancellation token, returns the operation Task, and propagates cancellation
+  and failures. The former `Execute(Action<TModel>)` API no longer exists.
+- `IAppRoot.ExecuteAsync` replaces `IAppRoot.Execute(Action)` and the WinForms
+  startup adapter implements the cancellation-aware Task contract.
+- All 189 Model execution call sites and both application-root execution call
+  sites use the awaitable boundary. ViewModel operations expose Task completion,
+  including application startup/shutdown and the affected Iron Condor flows.
+- Async result continuations use `Func<T, Task>` overloads that are awaited by
+  `BaseModel`; unexpected query/command exceptions propagate while unsuccessful
+  `ServiceResult<T>` values retain their original error code and message.
+- The futures-bar UI event path now accepts an awaited `Func<T, ValueTask>` so
+  event processing completion and failure remain observable to the listener.
+- Architecture tests ratchet both unsafe execution patterns to zero. Model tests
+  cover retained completion, pre-start cancellation, exception propagation, and
+  service-error preservation. The presentation suite contains 28 passing tests.
 
 Exit: no async lambda is convertible to `Action` in UI code; all affected operations have observable completion.
 

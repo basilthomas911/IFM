@@ -72,13 +72,15 @@ public class UiArchitectureBaselineTests
         matches.Should().BeEquivalentTo(
         [
             "TomasAI.IFM.UI.Net.Views/App/IFMAppView.cs",
+            "TomasAI.IFM.UI.Net.Views/MarketData/YieldCurveRateEditForm.cs",
+            "TomasAI.IFM.UI.Net.Views/Trade/CreateFundOrderTradeForm.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/IronCondor/IronCondorView.cs"
         ]);
     }
 
     [Theory]
-    [InlineData(@"\.Execute\s*\(\s*async\b", 189, "Action-based async Model executions")]
-    [InlineData(@"_appRoot\.Execute\s*\(\s*async\b", 2, "Action-based async application-root executions")]
+    [InlineData(@"\.Execute\s*\(\s*async\b", 0, "Action-based async Model executions")]
+    [InlineData(@"_appRoot\.Execute\s*\(\s*async\b", 0, "Action-based async application-root executions")]
     [InlineData(@"catch(?:\s*\([^)]*\))?\s*\{\s*\}", 15, "empty catch blocks")]
     [InlineData(@"Task\.Run\s*\(", 2, "Task.Run calls")]
     [InlineData(@"Process\.(?:GetCurrentProcess\(\)\.)?Kill\s*\(|GetCurrentProcess\(\)\.Kill\s*\(", 3, "forced process termination calls")]

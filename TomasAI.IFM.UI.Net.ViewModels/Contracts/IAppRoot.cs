@@ -8,5 +8,5 @@ public interface IAppRoot
     TView GetForm<TView>() where TView : class;
     TModel GetModel<TModel>() where TModel : class;
     IStatusConsoleWriter GetStatusConsoleWriter();
-    void Execute(Action modelAction);
+    Task ExecuteAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken = default);
 }

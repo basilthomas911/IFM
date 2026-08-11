@@ -199,27 +199,27 @@ namespace TomasAI.IFM.UI.Net
         /// </summary>
         /// <typeparam name="TController">controller class type</typeparam>
         /// <returns>instance of controller class type</returns>
-        public TModel GetModel<TModel>() where TModel : class 
+        public TModel GetModel<TModel>() where TModel : class
             => (_container!.GetInstance<IModel<TModel>>() as TModel)!;
 
         /// <summary>
         /// return status console api
         /// </summary>
         /// <returns></returns>
-        public IStatusConsoleWriter GetStatusConsoleWriter() 
+        public IStatusConsoleWriter GetStatusConsoleWriter()
             => (_container!.GetInstance<IStatusConsoleWriter>()!);
 
-        public void Execute(Action viewAction)
+        public Task ExecuteAsync(
+            Func<CancellationToken, Task> operation,
+            CancellationToken cancellationToken = default)
         {
-            try
-            {
-                viewAction();
-            }
-            catch { }
+            ArgumentNullException.ThrowIfNull(operation);
+            cancellationToken.ThrowIfCancellationRequested();
+            return operation(cancellationToken);
         }
     }
 
-    public class EventChannelLogger(Microsoft.Extensions.Logging.ILogger logger) 
+    public class EventChannelLogger(Microsoft.Extensions.Logging.ILogger logger)
         : ILogger<EventChannel>
     {
         readonly Microsoft.Extensions.Logging.ILogger _logger = logger;

@@ -42,10 +42,12 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
         this.Text += $" - v{_appVersion} - {appRoot.AppEnvironment}";
     }
 
-    private void IFMApp_Load(object sender, EventArgs e)
+    private async void IFMApp_Load(object sender, EventArgs e)
     {
         _viewModel = new IFMAppViewModel(_appRoot);
-        _viewModel.AppStartup(
+        try
+        {
+            await _viewModel.AppStartup(
             appVersion: _appVersion,
             appEnvironment: _appRoot.AppEnvironment,
             onErrorMessage: (errorMessage, caption) => this.ShowErrorMessage(errorMessage, caption),
@@ -67,7 +69,13 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
             notifyTradePlacement: placeTrade => this.Post(() => marketOutlookView1.RefreshView(placeTrade)),
             updateMarketData: (symbol, futuresBarData) => this.Post(() => marketDataView1.RefreshView(symbol, futuresBarData)),
             closeTradeBlotters: () => this.Post(() => _ = CloseTradeBlottersAsync().AsTask())
-        );
+            );
+        }
+        catch (Exception ex)
+        {
+            this.ShowErrorMessage(ex.Message, "Application Startup Error");
+            return;
+        }
 
         _tradePlanStateMap = new Dictionary<ActionState, Color> {
             { ActionState.Normal, Color.LimeGreen },
@@ -78,9 +86,16 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
         //lstStatusConsole.SetDoubleBuffered(true);
      }
 
-    private void IFMApp_FormClosing(object sender, FormClosingEventArgs e)
+    private async void IFMApp_FormClosing(object sender, FormClosingEventArgs e)
     {
-        _viewModel.AppShutdown();
+        try
+        {
+            await _viewModel.AppShutdown();
+        }
+        catch (Exception ex)
+        {
+            this.ShowErrorMessage(ex.Message, "Application Shutdown Error");
+        }
     }
 
     private void tradeButton_Click(object sender, EventArgs e)

@@ -20,8 +20,8 @@ public class MarketDataViewModel(IAppRoot appRoot)
     public Action OnDisableAllButtons = () => { };
     public Action<bool> OnEnableMarketSelector = (enabled) => { };
 
-    public void LoadMarketDefinitionTypes(Action<LookupTypeReadModel[]> onDataLoad)
-        => _appRoot.GetModel<ReferenceQueryModel>().Execute(async model =>
+    public Task LoadMarketDefinitionTypes(Action<LookupTypeReadModel[]> onDataLoad)
+        => _appRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model =>
             await model.LoadMarketDataDefinitionTypesAsync(mktDataDefTypes => {
                 _mktDataDefTypes = [];
                 if (mktDataDefTypes?.Count > 0)

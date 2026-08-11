@@ -43,6 +43,9 @@ public class ReferenceQueryModel : BaseModel<ReferenceQueryModel>
     public async Task LoadFuturesOptionStrikePriceDefinitionsAsync(Action<FuturesOptionStrikePriceReadModel> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetFuturesOptionStrikePriceDefinitionsAsync(), onCompleted);
 
+    public Task LoadFuturesOptionStrikePriceDefinitionsAsync(Func<FuturesOptionStrikePriceReadModel, Task> onCompleted)
+        => ExecuteAsync(() => _queryApi.GetFuturesOptionStrikePriceDefinitionsAsync(), onCompleted);
+
     /// <summary>
     /// return new fund id
     /// </summary>
@@ -137,6 +140,15 @@ public class ReferenceQueryModel : BaseModel<ReferenceQueryModel>
     public async Task LoadEconomicCalendarAsync(DateTime todaysDate, EconomicCalendarViewType calendarViewType, string countryCode,  Action<EconomicCalendarReadModel[]> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetEconomicCalendarsAsync(todaysDate, calendarViewType, countryCode), onCompleted);
 
+    public Task LoadEconomicCalendarAsync(
+        DateTime todaysDate,
+        EconomicCalendarViewType calendarViewType,
+        string countryCode,
+        Func<EconomicCalendarReadModel[], Task> onCompleted)
+        => ExecuteAsync(
+            () => _queryApi.GetEconomicCalendarsAsync(todaysDate, calendarViewType, countryCode),
+            onCompleted);
+
     /// <summary>
     /// load economic calendar
     /// </summary>
@@ -189,6 +201,9 @@ public class ReferenceQueryModel : BaseModel<ReferenceQueryModel>
     public async Task LoadLookupTypesAsync(Action<ICollection<LookupTypeReadModel>> onCompleted)
         => await ExecuteAsync(_queryApi.GetLookupTypesAsync, onCompleted);
 
+    public Task LoadLookupTypesAsync(Func<ICollection<LookupTypeReadModel>, Task> onCompleted)
+        => ExecuteAsync(_queryApi.GetLookupTypesAsync, onCompleted);
+
     /// <summary>
     /// get external economic calendars
     /// </summary>
@@ -203,5 +218,11 @@ public class ReferenceQueryModel : BaseModel<ReferenceQueryModel>
     /// <returns></returns>
     public async Task LoadMDIFowardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType, Action<MDIForwardLossRatioReadModel[]> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetMDIForwardLossRatiosAsync(trendDirection, tradeType), onCompleted);
+
+    public Task LoadMDIFowardLossRatiosAsync(
+        IntrinsicTimeTrendType trendDirection,
+        TradeType tradeType,
+        Func<MDIForwardLossRatioReadModel[], Task> onCompleted)
+        => ExecuteAsync(() => _queryApi.GetMDIForwardLossRatiosAsync(trendDirection, tradeType), onCompleted);
 
 }

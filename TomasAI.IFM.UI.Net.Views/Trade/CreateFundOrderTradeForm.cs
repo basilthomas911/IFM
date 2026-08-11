@@ -32,7 +32,7 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
         dtpTradeDate.Value = fundOrder.TradeDate.ToDateTime(TimeOnly.MinValue);
         dtpTradeDate.Enabled = false;
         dtpMaturityDate.Value = fundOrder.MaturityDate.ToDateTime(TimeOnly.MinValue);
-        dtpMaturityDate.Enabled = false;    
+        dtpMaturityDate.Enabled = false;
     }
 
     private void LoadTradeTypes()
@@ -45,27 +45,34 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
         ddlTradeType.Enabled = true;
     }
 
-    private void CreateFundOrderTradeForm_Load(object sender, EventArgs e)
+    private async void CreateFundOrderTradeForm_Load(object sender, EventArgs e)
     {
-        _appRoot.GetModel<ReferenceQueryModel>().Execute(async model =>
+        try
         {
-            await model.NewTradeIdAsync(tradeId =>
-                this.Post(() =>
-                {
-                    txtTradeId.Text = $"{tradeId}";
-                    txtTradeState.Text = $"{TradeState.NewTrade}";
-                    LoadTradeTypes();
-                    var openingFundOrderTrade = _viewModel!.GetOpeningFundOrderTrade();
-                    if (openingFundOrderTrade != null)
+            await _appRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model =>
+            {
+                await model.NewTradeIdAsync(tradeId =>
+                    this.Post(() =>
                     {
-                        SetClosingTradeType(openingFundOrderTrade!.TradeType);
-                        txtReference.Text = openingFundOrderTrade.Reference;
-                    }
-                }));
+                        txtTradeId.Text = $"{tradeId}";
+                        txtTradeState.Text = $"{TradeState.NewTrade}";
+                        LoadTradeTypes();
+                        var openingFundOrderTrade = _viewModel!.GetOpeningFundOrderTrade();
+                        if (openingFundOrderTrade != null)
+                        {
+                            SetClosingTradeType(openingFundOrderTrade!.TradeType);
+                            txtReference.Text = openingFundOrderTrade.Reference;
+                        }
+                    }));
 
-            await model.LoadSymbolsAsync(symbols =>
-                this.Post(() => LoadSymbols([.. symbols])));
-        });
+                await model.LoadSymbolsAsync(symbols =>
+                    this.Post(() => LoadSymbols([.. symbols])));
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Create Fund Order Trade Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
         return;
 
         void SetClosingTradeType(TradeType openingTradeType)
@@ -153,8 +160,8 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
         );
     }
 
- 
-    
+
+
 
     void btnSave_Click(object sender, EventArgs e)
     {
@@ -176,7 +183,7 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
     void ddlTradeType_SelectedIndexChanged(object sender, EventArgs e)
     {
         var tradeType = Enum.Parse<TradeType>($"{ddlTradeType.SelectedItem}");
-        txtTradeAction.Text = tradeType switch { 
+        txtTradeAction.Text = tradeType switch {
             TradeType.ShortIronCondor => $"{TradeAction.Sell}",
             TradeType.LongIronCondor => $"{TradeAction.Buy}",
             _ => throw new NotImplementedException()

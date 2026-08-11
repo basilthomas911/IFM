@@ -15,7 +15,7 @@ namespace TomasAI.IFM.UI.Net.Models;
 /// create market data query model
 /// </summary>
 /// <param name="appRoot"></param>
-public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQueryApi queryFeedApi) 
+public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQueryApi queryFeedApi)
     : BaseModel<MarketDataQueryModel>
 {
     readonly IMarketDataQueryApi _queryApi = IsArgumentNull.Set(queryApi);
@@ -29,6 +29,9 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
     /// <returns></returns>
     public async Task GetFuturesContractAsync(string contractId, Action<FuturesContractV2ReadModel> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetFuturesContractAsync(contractId), onCompleted);
+
+    public Task GetFuturesContractAsync(string contractId, Func<FuturesContractV2ReadModel, Task> onCompleted)
+        => ExecuteAsync(() => _queryApi.GetFuturesContractAsync(contractId), onCompleted);
 
     /// <summary>
     /// load futures contract
@@ -50,7 +53,10 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
     /// <param name="onCompleted"></param>
     public async Task GetCurrentlyTradedFuturesContractsAsync(Action< ICollection<FuturesContractV2ReadModel>> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetCurrentlyTradedFuturesContractsAsync("ES"), onCompleted);
-    
+
+    public Task GetCurrentlyTradedFuturesContractsAsync(Func<ICollection<FuturesContractV2ReadModel>, Task> onCompleted)
+        => ExecuteAsync(() => _queryApi.GetCurrentlyTradedFuturesContractsAsync("ES"), onCompleted);
+
     /// <summary>
     /// load single futures option contract
     /// </summary>
@@ -58,12 +64,12 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
     /// <param name="onCompleted"></param>
     public async Task GetFuturesOptionContractAsync(string contractId, Action<FuturesOptionContractReadModel> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetFuturesOptionContractAsync(contractId), onCompleted);
-    
+
     /// <summary>
     ///return list of existing futures option contract ids
     /// </summary>
     /// <param name="contractIds"></param>
-    public async Task GetFuturesOptionContractIdsAsync(string[] contractIds , Action<string[]> onCompleted) 
+    public async Task GetFuturesOptionContractIdsAsync(string[] contractIds , Action<string[]> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetFuturesOptionContractIdsAsync(contractIds), onCompleted);
 
     /// <summary>
@@ -79,7 +85,7 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
     /// </summary>
     /// <param name="onCompleted"></param>
     /// <returns></returns>
-    public async Task GetYieldCurveRateTimePeriodsAsync(Action<string[]> onCompleted) 
+    public async Task GetYieldCurveRateTimePeriodsAsync(Action<string[]> onCompleted)
     {
         var serviceResult = await _queryApi.GetYieldCurveRateYearsAsync();
         if (serviceResult.Success)
@@ -102,6 +108,9 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
     /// <returns></returns>
     public async Task GetValueDateAsync(Action<DateOnly?> onCompleted)
         => await ExecuteAsync(_queryApi.GetValueDateAsync, vm => onCompleted(vm?.Value));
+
+    public Task GetValueDateAsync(Func<DateOnly?, Task> onCompleted)
+        => ExecuteAsync(_queryApi.GetValueDateAsync, vm => onCompleted(vm?.Value));
 
     /// <summary>
     /// get yield curve rates by date range
@@ -150,6 +159,16 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
     /// <param name="onCompleted"></param>
     public async Task GetTradingDaysAsync(DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType, Action<int> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetTradingDaysAsync(startDate, endDate, marketType, currencyType), vm => onCompleted(vm.Value));
+
+    public Task GetTradingDaysAsync(
+        DateOnly startDate,
+        DateOnly endDate,
+        MarketType marketType,
+        CurrencyType currencyType,
+        Func<int, Task> onCompleted)
+        => ExecuteAsync(
+            () => _queryApi.GetTradingDaysAsync(startDate, endDate, marketType, currencyType),
+            vm => onCompleted(vm.Value));
 
     /// <summary>
     /// return current traded futures eod data

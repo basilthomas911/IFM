@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Reference;
 
-public class LookupTypeEditorViewModel(IAppRoot appRoot) 
+public class LookupTypeEditorViewModel(IAppRoot appRoot)
     : BaseEditorViewModel(appRoot)
 {
     Dictionary<LookupTypeShortCode, LookupTypeReadModel> _lookupTypes = [];
@@ -18,8 +18,8 @@ public class LookupTypeEditorViewModel(IAppRoot appRoot)
     /// add lookup type
     /// </summary>
     /// <param name="lookupType"></param>
-    public void AddLookupType(LookupTypeReadModel lookupType, Action onCompleted)
-        => AppRoot.GetModel<ReferenceCommandModel>().Execute(async model => {
+    public Task AddLookupType(LookupTypeReadModel lookupType, Action onCompleted)
+        => AppRoot.GetModel<ReferenceCommandModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => {
                 onCompleted?.Invoke();
                 OnError(errorCode, errorMsg); });
@@ -45,9 +45,9 @@ public class LookupTypeEditorViewModel(IAppRoot appRoot)
     /// <param name="lookupTypeId"></param>
     /// <param name="lookupType"></param>
     /// <param name="overwrite"></param>
-    /// <param name="onCompleted"></param>  
-    public void ChangeLookupType(LookupTypeId lookupTypeId, LookupTypeReadModel lookupType, bool overwrite,Action onCompleted)
-        => AppRoot.GetModel<ReferenceCommandModel>().Execute(async model => {
+    /// <param name="onCompleted"></param>
+    public Task ChangeLookupType(LookupTypeId lookupTypeId, LookupTypeReadModel lookupType, bool overwrite,Action onCompleted)
+        => AppRoot.GetModel<ReferenceCommandModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) =>
             {
                 onCompleted?.Invoke();
@@ -60,7 +60,7 @@ public class LookupTypeEditorViewModel(IAppRoot appRoot)
             LoadLookupTypeShortCodes(lookupType.LookupTypeName);
             WriteStatusConsole(LogSourceType.MarketData, $"Lookup Type {lookupTypeId} Changed");
             onCompleted?.Invoke();
-            OnDefaultCursor?.Invoke();  
+            OnDefaultCursor?.Invoke();
         });
 
     /// <summary>
@@ -68,8 +68,8 @@ public class LookupTypeEditorViewModel(IAppRoot appRoot)
     /// </summary>
     /// <param name="lookupTypeId"></param>
     /// <param name="overwrite"></param>
-    public void RemoveLookupType(LookupTypeId lookupTypeId, bool overwrite)
-        => AppRoot.GetModel<ReferenceCommandModel>().Execute(async model => {
+    public Task RemoveLookupType(LookupTypeId lookupTypeId, bool overwrite)
+        => AppRoot.GetModel<ReferenceCommandModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await model.RemoveLookupTypeAsync(lookupTypeId, overwrite);
             LoadLookupTypes();
@@ -80,8 +80,8 @@ public class LookupTypeEditorViewModel(IAppRoot appRoot)
     /// <summary>
     /// load lookup type
     /// </summary>
-    public void LoadLookupTypes()
-        => AppRoot.GetModel<ReferenceQueryModel>().Execute(async model => {
+    public Task LoadLookupTypes()
+        => AppRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             _lookupTypes = [];
             _lookupTypeNames = [];
@@ -103,8 +103,8 @@ public class LookupTypeEditorViewModel(IAppRoot appRoot)
     /// load lookup type short odes
     /// </summary>
     /// <param name="lookupTypeName"></param>
-   public void LoadLookupTypeShortCodes(string lookupTypeName)
-    => AppRoot.GetModel<ReferenceQueryModel>().Execute(async model => {
+   public Task LoadLookupTypeShortCodes(string lookupTypeName)
+    => AppRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model => {
         model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
         _lookupTypeShortCodes = [];
         await model.LoadLookupTypeShortCodesAsync(lookupTypeName, lookupTypesShortCodes => {

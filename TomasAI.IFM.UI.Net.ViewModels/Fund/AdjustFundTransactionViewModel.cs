@@ -51,8 +51,8 @@ public class AdjustFundTransactionReadModel : BaseEditorViewModel
     /// <summary>
     /// start listening for fund transaction adjustment events
     /// </summary>
-    public void StartListener()
-        => _eventModel.Execute(async e => {
+    public Task StartListener()
+        => _eventModel.ExecuteAsync(async e => {
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StartFundListenerAsync(_consumeEvents, HandleEventAsync);
         });
@@ -60,8 +60,8 @@ public class AdjustFundTransactionReadModel : BaseEditorViewModel
     /// <summary>
     /// stop listening for fund transaction adjustment events
     /// </summary>
-    public void StopListener()
-        => _eventModel.Execute(async e => {
+    public Task StopListener()
+        => _eventModel.ExecuteAsync(async e => {
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StopFundListenerAsync();
         });
@@ -70,8 +70,8 @@ public class AdjustFundTransactionReadModel : BaseEditorViewModel
     /// created adjusted fund transaction
     /// </summary>
     /// <param name="e"></param>
-    public void AdjustFundTransaction(FundTransactionReadModel e)
-        => _commandModel.Execute(async model =>  {
+    public Task AdjustFundTransaction(FundTransactionReadModel e)
+        => _commandModel.ExecuteAsync(async model =>  {
             model.OnError((_, errorMsg) => OnErrorMessage(errorMsg, "Fund Transaction Adjustment Error"));
             await model.CreateAdjustmentTransactionAsync(
                 adjustmentTransactionType: e.TransactionType,
@@ -82,7 +82,7 @@ public class AdjustFundTransactionReadModel : BaseEditorViewModel
                 valueDate: e.ValueDate,
                 tradeStatus: e.TradeStatus,
                 description: e.Description,
-                amount: e.Amount, 
+                amount: e.Amount,
                 balance: _fundBalance);
         });
 
