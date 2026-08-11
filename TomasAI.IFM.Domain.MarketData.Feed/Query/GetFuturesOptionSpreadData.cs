@@ -1,91 +1,58 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 public static class GetFuturesOptionSpreadData
 {
     internal static async ValueTask<FuturesOptionSpreadDataReadModel> GetFuturesOptionSpreadDataAsync(
-        this GetFuturesOptionSpreadDataQuery q, IMarketDataSnapshotApi marketDataSnapshotApi)
+        this GetFuturesOptionSpreadDataQuery q, ApplicationMarketDataApi marketDataApi)
         => await GetFuturesOptionSpreadDataAsync(
-            marketDataSnapshotApi,
-            q.ValueDate,
-            q.MaturityDate,
-            q.AssetPrice,
-            q.RiskFreeRate,
-            q.QueryForShortOptionContract,
-            q.QueryForLongOptionContract);
+            marketDataApi,
+            q.QueryForShortOptionContract.ContractId,
+            q.QueryForLongOptionContract.ContractId);
 
     internal static async ValueTask<FuturesOptionSpreadDataReadModel> GetFuturesOptionSpreadDataAsync(
-        IMarketDataSnapshotApi marketDataSnapshotApi,
-        DateOnly valueDate,
-        DateOnly maturityDate,
-        double assetPrice,
-        double riskFreeRate,
-        FuturesOptionContractReadModel queryForShortOptionContract,
-        FuturesOptionContractReadModel queryForLongOptionContract)
+        ApplicationMarketDataApi marketDataApi,
+        string shortFuturesOptionContractId,
+        string longFuturesOptionContractId)
     {
-        var shortRequestId = 0;
-        var longRequestId = 0;
-        FuturesOptionSpreadDataReadModel spreadData = default!;
-        try
-        {
-            await marketDataSnapshotApi.StartAsync().ConfigureAwait(false);
-            var (shortContract, longContract) = await marketDataSnapshotApi.GetFuturesOptionSpreadAsync(
-                queryForShortOptionContract, queryForLongOptionContract);
-            if (shortContract == null || longContract == null)
-            {
-                marketDataSnapshotApi.Stop();
-                throw new InvalidOperationException("MarketDataFeedQueryState.GetFuturesOptionSpreadDataAsync: Unknown futures option contract definition(s)");
-            }
-            var shortOption = default(FuturesOptionTickDataV2ReadModel);
-            shortRequestId = marketDataSnapshotApi.StreamIds.Add(shortContract.ContractId);
-            await marketDataSnapshotApi.GetFuturesOptionPriceAsync(shortRequestId, valueDate, shortContract, e => shortOption = e);
-            if (shortOption == null)
-            {
-                marketDataSnapshotApi.Stop();
-                throw new InvalidOperationException($"MarketDataFeedQueryState.GetFuturesOptionSpreadDataAsync: Unknown short futures option contract definition '{shortContract.ContractId}'");
-            }
-            var shortOptionGreeks = marketDataSnapshotApi.GetFuturesOptionGreeks(
-                valueDate, maturityDate, shortContract, shortOption.OptionPrice, assetPrice, riskFreeRate);
+        ArgumentNullException.ThrowIfNull(marketDataApi);
+        ArgumentException.ThrowIfNullOrWhiteSpace(shortFuturesOptionContractId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(longFuturesOptionContractId);
 
-            var longOption = default(FuturesOptionTickDataV2ReadModel);
-            longRequestId = marketDataSnapshotApi.StreamIds.Add(longContract.ContractId);
-            await marketDataSnapshotApi.GetFuturesOptionPriceAsync(longRequestId, valueDate, longContract, e => longOption = e);
-            if (longOption == null)
-            {
-                marketDataSnapshotApi.Stop();
-                throw new InvalidOperationException($"MarketDataFeedQueryState.GetFuturesOptionSpreadDataAsync: Unknown long futures option contract definition '{longContract.ContractId}'");
-            }
-            var longOptionGreeks = marketDataSnapshotApi.GetFuturesOptionGreeks(
-                valueDate, maturityDate, longContract, longOption.OptionPrice, assetPrice, riskFreeRate);
-            spreadData = new(
-                shortLeg: new(
-                    bidPrice: shortOption.BidPrice,
-                    askPrice: shortOption.AskPrice,
-                    impliedVolatility: shortOptionGreeks?.ImpliedVolatility ?? 0.0,
-                    delta: shortOptionGreeks?.Delta ?? 0.0,
-                    gamma: shortOptionGreeks?.Gamma ?? 0.0,
-                    theta: shortOptionGreeks?.Theta ?? 0.0),
-                longLeg: new(
-                    bidPrice: longOption.BidPrice,
-                    askPrice: longOption.AskPrice,
-                    impliedVolatility: longOptionGreeks?.ImpliedVolatility ?? 0.0,
-                    delta: longOptionGreeks?.Delta ?? 0.0,
-                    gamma: longOptionGreeks?.Gamma ?? 0.0,
-                    theta: longOptionGreeks?.Theta ?? 0.0));
-        }
-        finally
-        {
-            marketDataSnapshotApi.StreamIds.Remove(shortRequestId);
-            marketDataSnapshotApi.StreamIds.Remove(longRequestId);
-            marketDataSnapshotApi.Stop();
-        }
-        return spreadData;
+        _ = await marketDataApi.GetFuturesOptionContractsAsync(
+            [shortFuturesOptionContractId, longFuturesOptionContractId])
+            .ConfigureAwait(false);
+
+        return new FuturesOptionSpreadDataReadModel(
+            CreateLeg(marketDataApi.GetFuturesOptionLastPriceReader(
+                shortFuturesOptionContractId)),
+            CreateLeg(marketDataApi.GetFuturesOptionLastPriceReader(
+                longFuturesOptionContractId)));
     }
+
+    private static FuturesOptionDataReadModel CreateLeg(
+        IFuturesOptionLastPriceReader reader)
+    {
+        if (reader.TryGetLastQuoteWithGreeks(out var enriched))
+            return CreateLeg(enriched.Tick, enriched.Greeks);
+        if (reader.TryGetLastQuote(out var quote))
+            return CreateLeg(quote, null);
+        throw new InvalidOperationException(
+            $"No live quote is available for futures option '{reader.FuturesOptionContractId}'.");
+    }
+
+    private static FuturesOptionDataReadModel CreateLeg(
+        LastQuoteTickSnapshot quote,
+        OptionGreeksSnapshot? greeks) =>
+        new(
+            bidPrice: Convert.ToDouble(quote.BidPrice ?? 0m),
+            askPrice: Convert.ToDouble(quote.AskPrice ?? 0m),
+            impliedVolatility: greeks is { IsValid: true, ImpliedVolatility: { } iv } ? iv : 0d,
+            delta: greeks is { IsValid: true, Delta: { } delta } ? delta : 0d,
+            gamma: greeks is { IsValid: true, Gamma: { } gamma } ? gamma : 0d,
+            theta: greeks is { IsValid: true, Theta: { } theta } ? theta : 0d);
 }

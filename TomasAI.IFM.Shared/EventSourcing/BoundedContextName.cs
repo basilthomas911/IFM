@@ -37,7 +37,6 @@ public enum BoundedContextName
     TelemetryLogsBoundedContext,
     FuturesItiSignalBoundedContext,
     FuturesItiTrendBoundedContext,
-    FuturesOptionQuoteDataBoundedContext,
     TradeAlgorithmBoundedContext,
     FuturesMacdSignalBoundedContext,
     FuturesAtrSignalBoundedContext,

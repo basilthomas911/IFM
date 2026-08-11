@@ -524,13 +524,6 @@ public static class MarketDataFeedQueries
             return await e.RequestAsync<NormalCurveTableReadModel, GetNormalCurveTableQuery>(query);
         });
 
-        endpoints.MapGet(MarketDataFeedQueryUriPath.GetOptionQuoteId, async (IActorService e) =>
-        {
-            var query = new GetOptionQuoteIdQuery();
-            query.Subject = new ActorSubject(ActorType.Query, GetOptionQuoteIdQuery.Actor, GetOptionQuoteIdQuery.Verb, query.EntityId.Format());
-            return await e.RequestAsync<ScalarValue<int>, GetOptionQuoteIdQuery>(query);
-        });
-
         endpoints.MapGet(MarketDataFeedQueryUriPath.GetStreamingRequestId, async (IActorService e) =>
         {
             var query = new GetStreamingRequestIdQuery();

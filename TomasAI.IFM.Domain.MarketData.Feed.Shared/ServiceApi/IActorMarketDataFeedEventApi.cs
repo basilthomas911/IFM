@@ -34,7 +34,6 @@ public interface IActorMarketDataFeedEventApi
     ValueTask SendTradeLiveFeedAddedFailEventAsync(TradeLiveFeedAddedEvent e, Exception ex);
     ValueTask SendTradeLiveFeedRemovedFailEventAsync(TradeLiveFeedRemovedEvent e, Exception ex);
 
-    ValueTask<bool> SendFuturesOptionQuoteDataUpdatedEventAsync(FuturesOptionQuoteDataInsertedCompleteEvent e);
     ValueTask SendFuturesEodDataUpdatedEventAsync(FuturesEodDataInsertedEvent e);
 }
 

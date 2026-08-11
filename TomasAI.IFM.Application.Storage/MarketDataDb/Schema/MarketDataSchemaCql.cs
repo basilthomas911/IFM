@@ -72,31 +72,6 @@ internal static class MarketDataSchemaCql
         ) WITH CLUSTERING ORDER BY (valueDate ASC);
         """;
 
-    public const string CreateFuturesOptionQuoteTable = """
-        CREATE TABLE IF NOT EXISTS futures_option_quote (
-            quoteId INT,
-            contractId TEXT,
-            requestId INT,
-            createdBy TEXT,
-            createdOn TIMESTAMP,
-            PRIMARY KEY (quoteId, contractId, requestId)
-        ) WITH CLUSTERING ORDER BY (contractId ASC, requestId ASC);
-        """;
-
-    public const string CreateFuturesOptionQuoteDataTable = """
-        CREATE TABLE IF NOT EXISTS futures_option_quote_data (
-            quoteId INT,
-            contractId TEXT,
-            requestId INT,
-            sequenceId BIGINT,
-            askPrice DECIMAL,
-            askSize INT,
-            bidPrice DECIMAL,
-            bidSize INT,
-            PRIMARY KEY (quoteId, contractId, requestId, sequenceId)
-        ) WITH CLUSTERING ORDER BY (contractId ASC, requestId ASC, sequenceId ASC);
-        """;
-
     public const string CreateFuturesRsiSignalTable = """
         CREATE TABLE IF NOT EXISTS futures_rsi_signal (
             contractId TEXT,

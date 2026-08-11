@@ -25,18 +25,12 @@ public static async ValueTask<bool> ExecuteAsync(
         var source = $"FuturesOptionTickDataStreamingStoppedEvent for EntityId: {e.EntityId}";
         try
         {
-            var streamingRequestId = p.BlackboardService.MarketDataFeed.StreamingRequestId.Get(e.ContractId);
-            if (streamingRequestId.IsValid)
-            {
-                p.MarketDataApi.StopStreamingFuturesOptionTickData(streamingRequestId.RequestId);
-                p.BlackboardService.MarketDataFeed.StreamingRequestId.Remove(streamingRequestId);
-                await eventApi.SendFuturesOptionTickDataStreamingStoppedCompleteAsync(e);
+            _ = await p.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(
+                e.ContractId);
+            await eventApi.SendFuturesOptionTickDataStreamingStoppedCompleteAsync(e);
 
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"{e.ContractId} Streaming Stopped");
-                p.Logger.LogInformationEvent("{Source}: futures option {ContractId} streaming stopped", source, e.ContractId);
-            }
-            else
-                throw new InvalidOperationException($"Streaming request ID not found for contract {e.ContractId}.");
+            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"{e.ContractId} Streaming Stopped");
+            p.Logger.LogInformationEvent("{Source}: futures option {ContractId} streaming stopped", source, e.ContractId);
             return true;
         }
         catch (Exception ex)

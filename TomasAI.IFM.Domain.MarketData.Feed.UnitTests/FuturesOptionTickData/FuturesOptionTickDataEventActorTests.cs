@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionTickData;
 
@@ -36,8 +38,7 @@ public class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeed
     {
         public TestableFuturesOptionTickDataEventActor(
             IActorSupervisor supervisor,
-             IMarketDataApi marketDataApi,
-            IMarketDataSnapshotApi marketDataSnapshotApi,
+            ApplicationMarketDataApi marketDataApi,
             IBlackboardService blackboardService,
             IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
             IStatusConsoleWriter statusConsoleWriter,
@@ -48,7 +49,6 @@ public class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeed
                 CreateTradeCommandApiFactory(),
                 new global::TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory(),
                 marketDataApi,
-                marketDataSnapshotApi,
                 blackboardService,
                 optionTradeLiveFeedMap,
                 statusConsoleWriter,
@@ -198,15 +198,20 @@ public class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeed
     [Fact]
     public async Task ReceiveAsync_StreamingStartFails_SendsFailureEvent()
     {
-        var marketDataApi = Substitute.For<IMarketDataApi>();
-        marketDataApi.StartAsync(Arg.Any<Func<int, string, Task>>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
+        var marketDataApi = Substitute.For<ApplicationMarketDataApi>();
+        marketDataApi.GetFuturesOptionContractAsync(Arg.Any<string>())
+            .Returns(_ => Task.FromException<FuturesOptionContractReadModel?>(
+                new InvalidOperationException("provider failed to start")));
         var actor = CreateActor(marketDataApi: marketDataApi);
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateStreamingStartedEvent();
 
         await actor.InvokeReceiveAsync(context, @event);
 
-        await marketDataApi.Received(1).StartAsync(Arg.Any<Func<int, string, Task>>(), Arg.Any<CancellationToken>());
+        await marketDataApi.Received(1).StartAsync(
+            @event.ValueDate,
+            Arg.Any<Func<Guid, int, string, Task>>(),
+            Arg.Any<CancellationToken>());
         await context.Received(1)
             .SendAsync<FuturesOptionTickDataStreamingStartedFailEvent, FuturesOptionTickEntityId>(
                 Arg.Is<FuturesOptionTickDataStreamingStartedFailEvent>(value =>
@@ -216,14 +221,18 @@ public class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeed
     [Fact]
     public async Task ReceiveAsync_StreamingStopWithoutRequest_SendsFailureEvent()
     {
-        var marketDataApi = Substitute.For<IMarketDataApi>();
+        var marketDataApi = Substitute.For<ApplicationMarketDataApi>();
+        marketDataApi.StopStreamingFuturesOptionTickDataAsync(Arg.Any<string>())
+            .Returns(_ => Task.FromException<bool>(
+                new InvalidOperationException("route not found")));
         var actor = CreateActor(marketDataApi: marketDataApi);
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateStreamingStoppedEvent();
 
         await actor.InvokeReceiveAsync(context, @event);
 
-        marketDataApi.DidNotReceive().StopStreamingFuturesOptionTickData(Arg.Any<int>());
+        await marketDataApi.Received(1)
+            .StopStreamingFuturesOptionTickDataAsync(@event.ContractId);
         await context.Received(1)
             .SendAsync<FuturesOptionTickDataStreamingStoppedFailEvent, FuturesOptionTickEntityId>(
                 Arg.Is<FuturesOptionTickDataStreamingStoppedFailEvent>(value =>
@@ -346,16 +355,14 @@ public class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeed
 
     TestableFuturesOptionTickDataEventActor CreateActor(
         IActorSupervisor? supervisor = null,
-        IMarketDataApi? marketDataApi = null,
-        IMarketDataSnapshotApi? marketDataSnapshotApi = null,
+        ApplicationMarketDataApi? marketDataApi = null,
         IBlackboardService? blackboardService = null,
         IOptionTradeLiveFeedMap? optionTradeLiveFeedMap = null,
         IStatusConsoleWriter? statusConsoleWriter = null,
         ILogger<FuturesOptionTickDataEventActor>? logger = null)
         => _fixture.CreateActor(
             supervisor ?? Substitute.For<IActorSupervisor>(),
-            marketDataApi ?? Substitute.For<IMarketDataApi>(),
-            marketDataSnapshotApi ?? Substitute.For<IMarketDataSnapshotApi>(),
+            marketDataApi ?? Substitute.For<ApplicationMarketDataApi>(),
             blackboardService ?? CreateBlackboard(),
             optionTradeLiveFeedMap ?? Substitute.For<IOptionTradeLiveFeedMap>(),
             statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>(),

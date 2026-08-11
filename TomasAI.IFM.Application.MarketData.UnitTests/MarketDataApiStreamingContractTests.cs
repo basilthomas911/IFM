@@ -52,6 +52,36 @@ public sealed class MarketDataApiStreamingContractTests
     }
 
     [Fact]
+    public async Task IndividualOptionRejectsStoppedAggregationBeforeRouteAllocation()
+    {
+        var context = new MarketDataApiTestContext();
+        await context.StartAsync();
+        context.Epoch.TickAggregation.ServiceRunning = false;
+
+        var action = () => context.Api.StartStreamingFuturesOptionTickDataAsync(
+            MarketDataApiTestContext.CallId);
+
+        await action.Should().ThrowAsync<TickAggregationNotRunningException>();
+        context.Epoch.OptionRoutes.IsOwned(MarketDataApiTestContext.CallId)
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task IndividualOptionRejectsMissingUnderlyingBeforeRouteAllocation()
+    {
+        var context = new MarketDataApiTestContext();
+        await context.StartAsync();
+        context.Epoch.TickAggregation.RunningTickers.Clear();
+
+        var action = () => context.Api.StartStreamingFuturesOptionTickDataAsync(
+            MarketDataApiTestContext.CallId);
+
+        await action.Should().ThrowAsync<UnderlyingTickerNotRunningException>();
+        context.Epoch.OptionRoutes.IsOwned(MarketDataApiTestContext.CallId)
+            .Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ChainRejectsStoppedAggregationBeforeTreasuryOrRouteAllocation()
     {
         var context = new MarketDataApiTestContext();

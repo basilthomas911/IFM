@@ -105,17 +105,19 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
     }
 
     [Fact]
-    public void Given_TheCommandLogFails_When_AnOptionTickMessageIsParsed_Then_TheFailurePropagates()
+    public async Task Given_TheCommandLogFails_When_AnOptionTickMessageIsValidated_Then_TheFailurePropagates()
     {
         var db = Substitute.For<IEventSourceActorDbContext>();
         db.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new InvalidOperationException("log failed")));
         var actor = _fixture.CreateOptionTickCommandActor(db);
 
-        Action act = () => actor.InvokeParseMessage(
+        var command = actor.InvokeParseMessage(
             Substitute.For<ICommandActorContext>(), CreateMessage(CreateCommand("Insert")));
+        Func<Task> act = () => actor.InvokeOnValidateAsync(
+            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("log failed");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("log failed");
     }
 
     [Fact]

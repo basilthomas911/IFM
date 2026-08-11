@@ -2549,49 +2549,6 @@ internal static class MarketDataDbCql
         FROM normal_curve_data;
     """;
 
-    public const string InsertFuturesOptionQuote = """
-        INSERT INTO futures_option_quote (
-            QuoteId,
-            ContractId,
-            RequestId,
-            CreatedBy,
-            CreatedOn
-        ) VALUES (
-            :quoteId,
-            :contractId,
-            :requestId,
-            :createdBy,
-            :createdOn
-        );
-    """;
-
-    public const string InsertFuturesOptionQuoteData = """
-        INSERT INTO futures_option_quote_data (
-            QuoteId,
-            ContractId,
-            RequestId,
-            SequenceId,
-            BidPrice,
-            BidSize,
-            AskPrice,
-            AskSize
-        ) VALUES (
-            :quoteId,
-            :contractId,
-            :requestId,
-            :sequenceId,
-            :bidPrice,
-            :bidSize,
-            :askPrice,
-            :askSize
-        );
-    """;
-
-    public const string DeleteFuturesOptionQuotes = """
-        DELETE FROM futures_option_quote
-        WHERE QuoteId = :quoteId;
-    """;
-
     public const string InsertTradeLiveFeed = """
         INSERT INTO trade_live_feed (
             OrderId,
@@ -2615,11 +2572,6 @@ internal static class MarketDataDbCql
         DELETE FROM trade_live_feed
         WHERE orderId = :orderId 
         AND tradeId = :tradeId;
-    """;
-
-    public const string DeleteFuturesOptionQuoteData = """
-        DELETE FROM futures_option_quote_data
-        WHERE quoteId = :quoteId;
     """;
 
     public const string GetFuturesTradeSignalIdByValueDate = """

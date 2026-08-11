@@ -91,16 +91,19 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     }
 
     [Fact]
-    public void Given_ACommandLogFailure_When_Parsed_Then_TheFailurePropagates()
+    public async Task Given_ACommandLogFailure_When_Validated_Then_TheFailurePropagates()
     {
         var database = Substitute.For<IEventSourceActorDbContext>();
         database.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new InvalidOperationException("log failed")));
 
-        var act = () => _fixture.CreateMarketDataFeedCommandActor(database)
-            .InvokeParseMessage(Substitute.For<ICommandActorContext>(), CreateMessage(CreateCommand("Start")));
+        var actor = _fixture.CreateMarketDataFeedCommandActor(database);
+        var command = actor.InvokeParseMessage(
+            Substitute.For<ICommandActorContext>(), CreateMessage(CreateCommand("Start")));
+        Func<Task> act = () => actor.InvokeOnValidateAsync(
+            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("log failed");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("log failed");
     }
 
     [Theory]

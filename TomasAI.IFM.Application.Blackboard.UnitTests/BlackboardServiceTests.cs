@@ -75,8 +75,6 @@ public class BlackboardServiceTests
         sut.MarketDataFeed.FuturesEodDataRange.Should().NotBeNull();
         sut.MarketDataFeed.NormalCurveTable.Should().NotBeNull();
         sut.MarketDataFeed.VixFuturesContractId.Should().NotBeNull();
-        sut.MarketDataFeed.FuturesOptionQuote.Should().NotBeNull();
-        sut.MarketDataFeed.FuturesOptionQuoteData.Should().NotBeNull();
         sut.MarketDataFeed.FuturesOpenPrice.Should().NotBeNull();
         sut.MarketDataFeed.VixFuturesOpenPrice.Should().NotBeNull();
         sut.MarketDataFeed.StreamingRequestId.Should().NotBeNull();

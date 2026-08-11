@@ -10,7 +10,9 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 /// <remarks>
 /// Contract identifiers are canonical domain identifiers. Provider-specific
 /// symbols, instruments, requests, and subscription models do not cross this
-/// interface.
+/// interface. Contract-definition queries, hot-price access, and live-stream
+/// controls share this single application boundary; the provider implementation
+/// may use multiple protocol-specific transports internally.
 /// </remarks>
 public interface IMarketDataApi
 {
@@ -114,9 +116,4 @@ public interface IMarketDataApi
     Task<bool> StopStreamingFuturesOptionChainDataAsync(
         string futuresContractId,
         DateOnly maturityDate);
-}
-
-public interface IMarketDataSnapshotApi : IMarketDataApi
-{
-
 }

@@ -10,11 +10,12 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
 
 public class MarketDataFeedQueryActor(
-    IMarketDataSnapshotApi marketDataSnapshotApi,
+    ApplicationMarketDataApi marketDataApi,
     ISequenceIdGenerator sequenceIdGenerator,
     IDbContextFactory dbFactory,
     ILogger<MarketDataFeedQueryActor> logger)
@@ -22,7 +23,7 @@ public class MarketDataFeedQueryActor(
 {
     public const string ActorName = "MarketDataFeedQuery";
     readonly MarketDataFeedQueryParameters _qryParameters = new(
-        marketDataSnapshotApi, sequenceIdGenerator, dbFactory);
+        marketDataApi, sequenceIdGenerator, dbFactory);
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -58,7 +59,6 @@ public class MarketDataFeedQueryActor(
         [GetFuturesRiskPositionTypeQuery.Verb] = msg => msg.AsQuery<GetFuturesRiskPositionTypeQuery, RiskPositionTypeReadModel>()!,
         [GetIronCondorMarketDataFeedQuery.Verb] = msg => msg.AsQuery<GetIronCondorMarketDataFeedQuery, IronCondorMarketDataFeedReadModel>()!,
         [GetNormalCurveTableQuery.Verb] = msg => msg.AsQuery<GetNormalCurveTableQuery, NormalCurveTableReadModel>()!,
-        [GetOptionQuoteIdQuery.Verb] = msg => msg.AsQuery<GetOptionQuoteIdQuery, ScalarValue<int>>()!,
         [GetStreamingRequestIdQuery.Verb] = msg => msg.AsQuery<GetStreamingRequestIdQuery, ScalarValue<int>>()!
     };
 
@@ -88,14 +88,14 @@ public class MarketDataFeedQueryActor(
         [typeof(GetFuturesOptionContractQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetFuturesOptionContractQuery)!;
-            var result = await query.GetFuturesOptionContractFromBrokerAsync(qryParams.MarketDataSnapshotApi);
+            var result = await query.GetFuturesOptionContractFromProviderAsync(qryParams.MarketDataApi);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
                 new ServiceResult<FuturesOptionContractReadModel>(result));
         },
         [typeof(GetFuturesOptionSpreadDataQuery).Name] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetFuturesOptionSpreadDataQuery)!;
-            var result = await query.GetFuturesOptionSpreadDataAsync(qryParams.MarketDataSnapshotApi);
+            var result = await query.GetFuturesOptionSpreadDataAsync(qryParams.MarketDataApi);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionSpreadDataQuery.Verb,
                 new ServiceResult<FuturesOptionSpreadDataReadModel>(result));
         },
@@ -119,13 +119,6 @@ public class MarketDataFeedQueryActor(
             var result = await query.GetNormalCurveTableAsync(qryParams.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetNormalCurveTableQuery.Verb,
                 new ServiceResult<NormalCurveTableReadModel>(result));
-        },
-        [typeof(GetOptionQuoteIdQuery).Name] = async (ctx, qryParams, q) =>
-        {
-            var query = (q as GetOptionQuoteIdQuery)!;
-            var result = await query.GetOptionQuoteIdAsync(qryParams.SequenceIdGenerator);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionQuoteIdQuery.Verb,
-                new ServiceResult<ScalarValue<int>>(result));
         },
         [typeof(GetStreamingRequestIdQuery).Name] = async (ctx, qryParams, q) =>
         {
@@ -166,8 +159,6 @@ public class MarketDataFeedQueryActor(
                     => context.ReplyAsync(threadId, verb, new ServiceResult<IronCondorMarketDataFeedReadModel>(query.ErrorCode, ex!.Message)),
                 _ when query is GetNormalCurveTableQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<NormalCurveTableReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetOptionQuoteIdQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarValue<int>>(query.ErrorCode, ex!.Message)),
                 _ when query is GetStreamingRequestIdQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarValue<int>>(query.ErrorCode, ex!.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))

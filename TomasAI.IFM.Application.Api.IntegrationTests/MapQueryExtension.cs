@@ -59,7 +59,6 @@ public static  class MapQueryExtension
         app.MapGet(MarketDataFeedQueryUriPath.GetFuturesRiskPositionType, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetFuturesRiskPositionTypeAsync(resp));
         app.MapGet(MarketDataFeedQueryUriPath.GetFuturesEodMovingAverages, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetFuturesEodMovingAveragesAsync(resp));
         app.MapGet(MarketDataFeedQueryUriPath.GetStreamingRequestId, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetStreamingRequestIdAsync(resp));
-        app.MapGet(MarketDataFeedQueryUriPath.GetOptionQuoteId, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetOptionQuoteIdAsync(resp));
 
         // map Market Data Query APIs
         app.MapGet(MarketDataQueryUriPath.GetCurrentlyTradedFuturesContract, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetCurrentlyTradedFuturesContractAsync(resp));

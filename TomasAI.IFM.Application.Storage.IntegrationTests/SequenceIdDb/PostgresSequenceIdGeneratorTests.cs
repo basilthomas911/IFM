@@ -18,7 +18,6 @@ public class PostgresSequenceIdGeneratorTests
     [InlineData("OrderId", SequenceName.Trade_OrderId)]
     [InlineData("TradeId", SequenceName.Trade_TradeId)]
     [InlineData("ScheduledJobId", SequenceName.ScheduledJob_JobId)]
-    [InlineData("OptionQuote_QuoteId", SequenceName.OptionQuote_QuoteId)]
     public void MapsLegacyAndTypedSequenceNames(string value, SequenceName expected)
         => SequenceNameExtensions.ParseSequenceName(value).Should().Be(expected);
 
@@ -95,12 +94,9 @@ public class PostgresSequenceIdGeneratorTests
         var generator = new PostgresSequenceIdGenerator(db);
 
         var tradePlanId = await generator.GetSequenceIdAsync(SequenceName.TradePlan_SequenceId);
-        var quoteId = await generator.GetSequenceIdAsync(SequenceName.OptionQuote_QuoteId);
 
         tradePlanId.Should().Be(1);
-        quoteId.Should().Be(1);
         db.GetReservationCount(SequenceName.TradePlan_SequenceId).Should().Be(1);
-        db.GetReservationCount(SequenceName.OptionQuote_QuoteId).Should().Be(1);
     }
 
     [Fact]

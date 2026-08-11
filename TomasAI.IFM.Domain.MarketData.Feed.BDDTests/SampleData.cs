@@ -192,14 +192,6 @@ public static class SampleData
     public const int OrderId = 100;
     public const int TradeId = 200;
 
-    public const int OptionQuoteStreamId = 500;
-
-    public static readonly FuturesOptionQuoteReadModel[] FuturesOptionQuotes =
-    [
-        new FuturesOptionQuoteReadModel(OptionQuoteStreamId, "ES20250601C5500", 1001, "TestUser", new DateTime(2025, 06, 15, 10, 0, 0, DateTimeKind.Utc)),
-        new FuturesOptionQuoteReadModel(OptionQuoteStreamId, "ES20250601P5400", 1002, "TestUser", new DateTime(2025, 06, 15, 10, 0, 0, DateTimeKind.Utc)),
-    ];
-
     public static readonly FuturesOptionContractReadModel[] FuturesOptionContracts =
     [
         new FuturesOptionContractReadModel("ES20250601C5500", "ES Jun25 5500 Call", "ES", "ESM5 C5500", "FOP", "USD", "CME", "50", new DateOnly(2025, 6, 1), 5500.0, "Call"),
@@ -230,11 +222,4 @@ public static class SampleData
 
     public const double RiskFreeRate = 0.05;
 
-    public static readonly QuoteData AskPriceQuoteData = new(
-        new DateTime(2025, 06, 15, 14, 30, 0, DateTimeKind.Utc),
-        QuoteLevelType.LevelOne, 0, 1, QuoteSide.Ask, QuoteType.Price, 12.50, 0);
-
-    public static readonly QuoteData BidPriceQuoteData = new(
-        new DateTime(2025, 06, 15, 14, 30, 0, DateTimeKind.Utc),
-        QuoteLevelType.LevelOne, 0, 1, QuoteSide.Bid, QuoteType.Price, 11.25, 0);
 }

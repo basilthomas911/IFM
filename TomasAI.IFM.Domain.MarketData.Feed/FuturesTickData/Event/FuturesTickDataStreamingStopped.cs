@@ -25,13 +25,7 @@ public static async ValueTask<bool> ExecuteAsync(
         var source = $"FuturesTickDataStreamingStoppedEvent for EntityId: {e.EntityId}";
         try
         {
-            var streamId = p.MarketDataApi.StreamIds[e.ContractId];
-            if (streamId == -1)
-                throw new InvalidOperationException($"Stream ID not found for futures contract {e.ContractId}.");
-            if (!p.MarketDataApi.StopStreamingFuturesTickData(streamId))
-                throw new InvalidOperationException($"Market data API failed to stop streaming futures contract {e.ContractId}.");
-
-            p.MarketDataApi.StreamIds.Remove(streamId);
+            _ = await p.MarketDataApi.StopStreamingFuturesTickDataAsync(e.ContractId);
             await eventApi.FuturesTickDataStreamingStoppedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"futures tick data {e.ContractId} streaming stopped");
             p.Logger.LogInformationEvent(ServiceId, "{Source}: futures tick data {e.ContractId} streaming stopped", source, e.ContractId);

@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed;
 
@@ -29,7 +30,7 @@ public class MarketDataFeedEventActorTests : IClassFixture<MarketDataFeedTestFix
     {
         public TestableMarketDataFeedEventActor(
             IActorSupervisor supervisor,
-            IMarketDataApi marketDataApi,
+            ApplicationMarketDataApi marketDataApi,
             IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
             IBlackboardService blackboardService,
              IStatusConsoleWriter statusConsoleWriter,

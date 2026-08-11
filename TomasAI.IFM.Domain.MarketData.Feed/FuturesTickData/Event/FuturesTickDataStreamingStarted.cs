@@ -30,21 +30,15 @@ public static async ValueTask<bool> ExecuteAsync(
         var source = $"FuturesTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
         try
         {
-            var started = await p.MarketDataApi.StartAsync(
-                (errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, errorCode, errorMsg));
-            if (started)
-            {
-                var streamId = p.MarketDataApi.StreamIds.Add(e.Contract.ContractId);
-                if (streamId == -1)
-                    throw new InvalidOperationException($"{e.GetType().Name}: unable to create stream id from futures contract {e.Contract.ContractId} ");
-                p.MarketDataApi.StartStreamingFuturesTickData(streamId, e.ValueDate, e.Contract);
-                p.BlackboardService.MarketDataFeed.FuturesTickDataStreamingParameter.Set(streamId, new FuturesTickDataStreamingParameter(streamId, e.ValueDate, e.Contract));
-                await eventApi.FuturesTickDataStreamingStartedCompleteAsync(e);
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started");
-                p.Logger.LogInformationEvent(ServiceId, "{Source}: futures {e.Contract.ContractId} streaming started", source, e.Contract.ContractId);
-            }
-            else
-                throw new InvalidOperationException("Market data API failed to start for unknown reasons.");
+            await p.MarketDataApi.StartAsync(
+                e.ValueDate,
+                (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
+                    LogSourceType.FuturesTickDataEvent, errorCode, errorMsg));
+            _ = await p.MarketDataApi.StartStreamingFuturesTickDataAsync(
+                e.Contract.ContractId);
+            await eventApi.FuturesTickDataStreamingStartedCompleteAsync(e);
+            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started");
+            p.Logger.LogInformationEvent(ServiceId, "{Source}: futures {e.Contract.ContractId} streaming started", source, e.Contract.ContractId);
             return true;
         }
         catch (Exception ex)

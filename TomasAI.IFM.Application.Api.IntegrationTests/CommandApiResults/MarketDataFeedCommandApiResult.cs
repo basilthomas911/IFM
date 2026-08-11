@@ -74,12 +74,4 @@ public static class MarketDataFeedCommandApiResult
     public static Task FromDeleteFuturesBarDataAsync(HttpResponse resp)
         => resp.SetResult();
 
-    public static Task FromInsertFuturesOptionQuoteDataAsync(HttpResponse resp)
-        => resp.SetResult();
-
-    public static Task FromStartFuturesOptionQuoteDataStreamingAsync(HttpResponse resp)
-        => resp.SetResult();
-
-    public static Task FromStopFuturesOptionQuoteDataStreamingAsync(HttpResponse resp)
-        => resp.SetResult();
 }

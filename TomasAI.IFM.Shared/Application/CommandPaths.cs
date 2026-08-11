@@ -46,14 +46,6 @@ public class FuturesItiTrendUriPath
     public const string TrainClassModel = "/api/futures/iti/trend/model/class/train";
 }
 
-public class FuturesOptionQuoteUriPath
-{
-    public const string StartStreaming = "/api/futures/option/quote/streaming/start";
-    public const string StopStreaming = "/api/futures/option/quote/streaming/stop";
-    public const string Insert = "/api/futures/option/quote/streaming/insert";
-}
-
-
 public class FuturesOptionTickUriPath
 {
     public const string StartStreaming = "/api/futures/option/tick/streaming/start";
@@ -137,7 +129,6 @@ public class MarketDataFeedUriPath
     public const string InsertVixFuturesEodData = "/api/marketdata/futures/eod/vix/insert";
     public const string InsertFuturesBarData = "/api/marketdata/futures/bardata/insert";
     public const string DeleteFuturesBarData = "/api/marketdata/futures/bardata/delete";
-    public const string InsertFuturesOptionQuoteData = "/api/marketdata/futures/option/quote/insert";
     public const string InsertFuturesClosingPrice = "/api/marketdata/futures/closingprice/insert";
     public const string TurnTradeLiveFeedOn = "/api/marketdata/livefeed/turn/on";
     public const string TurnTradeLiveFeedOff = "/api/marketdata/livefeed/turn/off";
@@ -154,8 +145,6 @@ public class MarketDataFeedUriPath
     public const string EnableTradeLiveFeed = "/api/marketdata/livefeed/trade/enable";
     public const string DisableTradeLiveFeed = "/api/marketdata/livefeed/trade/disable";
     public const string RemoveTradeLiveFeeds = "/api/marketdata/livefeeds/trade/remove";
-    public const string StartFuturesOptionQuoteDataStreaming = "/api/marketdata/futures/option/quote/streaming/start";
-    public const string StopFuturesOptionQuoteDataStreaming = "/api/marketdata/futures/option/quote/streaming/stop";
 }
 
 public class OptionPricerUriPath

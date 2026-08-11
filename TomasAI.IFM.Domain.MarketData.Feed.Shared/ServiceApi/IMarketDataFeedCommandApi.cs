@@ -37,7 +37,6 @@ public interface IMarketDataFeedCommandApi
     Task<ServiceResult<Guid>> InsertFuturesBarDataAsync(FuturesBarDataReadModel futuresBarData);
     Task<ServiceResult<Guid>> InsertVixFuturesEodDataAsync(FuturesTickDataV2ReadModel vixFuturesTickData);
     Task<ServiceResult<Guid>> InsertFuturesClosingPriceAsync(FuturesDataId id, decimal closingPrice);
-    Task<ServiceResult<Guid>> InsertFuturesOptionQuoteDataAsync(int quoteId, string contractId, QuoteData quoteData);
 
     Task<ServiceResult<Guid>> StartFuturesOptionTickDataStreamingAsync(FuturesOptionTickEntityId entityId, FuturesOptionContractReadModel futuresOptionContract, FuturesContractV2ReadModel baseContract, DateOnly valueDate, DateOnly maturityDate, double riskFreeRate);
     Task<ServiceResult<Guid>> StopFuturesOptionTickDataStreamingAsync(FuturesOptionTickEntityId entityId, string contractId);
@@ -45,7 +44,4 @@ public interface IMarketDataFeedCommandApi
     Task<ServiceResult<Guid>> StopFuturesTickDataStreamingAsync(string contractId, DateOnly valueDate);
     Task<ServiceResult<Guid>> StartFuturesBarDataStreamingAsync(FuturesContractV2ReadModel[] contracts, DateOnly valueDate);
     Task<ServiceResult<Guid>> StopFuturesBarDataStreamingAsync(DateOnly valueDate);
-    Task<ServiceResult<Guid>> StartFuturesOptionQuoteDataStreamingAsync(int quoteId, FuturesOptionQuoteReadModel[] futuresOptionQuotes, FuturesOptionContractReadModel[] futuresOptionContracts);
-    Task<ServiceResult<Guid>> StopFuturesOptionQuoteDataStreamingAsync(int quoteId);
-
 }

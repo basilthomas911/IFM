@@ -192,13 +192,5 @@ public class MarketDataFeedQueryApi(IQueryServiceApi querySvc) : IMarketDataFeed
         return await _querySvc.ExecuteQueryAsync<ScalarValue<int>>(MarketDataFeedQueryUriPath.GetStreamingRequestId, qryParam, 1016);
     }
 
-    /// <summary>
-    /// Return an option quote id used when streaming option quotes.
-    /// </summary>
-    public async Task<ServiceResult<ScalarValue<int>>> GetOptionQuoteIdAsync()
-    {
-        var qryParam = new GetOptionQuoteIdParameter();
-        return await _querySvc.ExecuteQueryAsync<ScalarValue<int>>(MarketDataFeedQueryUriPath.GetOptionQuoteId, qryParam, 1016);
-    }
 }
 

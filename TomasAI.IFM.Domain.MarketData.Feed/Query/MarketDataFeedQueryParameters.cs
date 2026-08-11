@@ -1,21 +1,21 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Framework.SequenceId;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 internal record MarketDataFeedQueryParameters
 {
-    public IMarketDataSnapshotApi MarketDataSnapshotApi { get; init; }
+    public ApplicationMarketDataApi MarketDataApi { get; init; }
     public ISequenceIdGenerator SequenceIdGenerator { get; init; }
     public IDbContextFactory DbFactory { get; init; }
 
     public MarketDataFeedQueryParameters(
-        IMarketDataSnapshotApi marketDataSnapshotApi,
+        ApplicationMarketDataApi marketDataApi,
         ISequenceIdGenerator sequenceIdGenerator,
         IDbContextFactory dbFactory)
     {
-        MarketDataSnapshotApi = marketDataSnapshotApi;
+        MarketDataApi = marketDataApi;
         SequenceIdGenerator = sequenceIdGenerator;
         DbFactory = dbFactory;
     }

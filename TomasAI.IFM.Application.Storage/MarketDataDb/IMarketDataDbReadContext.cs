@@ -121,7 +121,6 @@ public interface IMarketDataDbReadContext
     Task<ICollection<NormalCurveDataReadModel>> GetNormalCurveDataAsync();
     Task<NormalCurveTableReadModel> GetNormalCurveTableAsync();
     Task<int> GetStreamingRequestIdAsync();
-    Task<int> GetOptionQuoteIdAsync();
     Task<ICollection<FuturesTradeSignalId>> GetFuturesTradeSignalIdByValueDateAsync(DateOnly valueDate);
     Task<ICollection<FuturesTradeSignalId>> GetFuturesTradeSignalIdByValueDateAsync(DateOnly valueDate, CancellationToken cancellationToken);
     Task<TradeLiveFeedReadModel?> GetTradeLiveFeedAsync(int orderId, int tradeId);

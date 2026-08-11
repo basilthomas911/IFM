@@ -112,15 +112,4 @@ public class MarketDataFeedQueryModel(IMarketDataFeedQueryApi marketDataFeedQuer
             : -1;
     }
 
-    /// <summary>
-    /// return option quote id 
-    /// </summary>
-    /// <returns></returns>
-    public async Task<int> GetOptionQuoteIdAsync()
-    {
-        var serviceResult = await _marketDataFeedQueryApi.GetOptionQuoteIdAsync();
-        return serviceResult.Success && serviceResult.Value is not null
-            ? serviceResult.Value.AsInteger
-            : -1;
-    }
 }

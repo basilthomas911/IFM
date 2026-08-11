@@ -13,8 +13,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query;
@@ -23,6 +21,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Query;
 using TomasAI.IFM.Domain.MarketData.Feed.Query;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -37,8 +36,6 @@ using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesClosingPrice.Fu
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesEodData.FuturesEodDataCommandActorTests;
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesEodData.FuturesEodDataEventActorTests;
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesEodData.FuturesEodDataQueryActorTests;
-using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionQuoteData.FuturesOptionQuoteDataCommandActorTests;
-using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionQuoteData.FuturesOptionQuoteDataEventActorTests;
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionTickData.FuturesOptionTickDataCommandActorTests;
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionTickData.FuturesOptionTickDataEventActorTests;
 using static TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionTickData.FuturesOptionTickDataQueryActorTests;
@@ -57,8 +54,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query.Actor;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.Actor;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query.Actor;
@@ -162,56 +157,16 @@ public class MarketDataFeedTestFixture : IDisposable
         where TActor : FuturesClosingPriceCommandActor
         => new(dbEventSource, logger);
 
-    public TestableFuturesOptionQuoteDataCommandActor CreateFuturesOptionQuoteDataCommandActor(
-        IEventSourceActorDbContext? dbEventSource = null,
-        ILogger<FuturesOptionQuoteDataCommandActor>? logger = null,
-        IReferenceLookupService? refLookupService = null)
-    {
-        var db = dbEventSource ?? Substitute.For<IEventSourceActorDbContext>();
-        var lg = logger ?? Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>();
-        var refLookup = refLookupService ?? Substitute.For<IReferenceLookupService>();
-        return new TestableFuturesOptionQuoteDataCommandActor(refLookup, db, lg);
-    }
-
-    public TestableFuturesOptionQuoteDataCommandActor CreateActor(
-        IEventSourceActorDbContext dbEventSource,
-        ILogger<FuturesOptionQuoteDataCommandActor> logger,
-        IReferenceLookupService? refLookupService = null)
-        => new(refLookupService ?? Substitute.For<IReferenceLookupService>(), dbEventSource, logger);
-
-    public TestableFuturesOptionQuoteDataEventActor CreateFuturesOptionQuoteDataEventActor(
-        IActorSupervisor? supervisor = null,
-        IMarketDataSnapshotApi marketDataSnapshotApi =  null,
-        IBlackboardService blackboardService = null,
-        IStatusConsoleWriter statusConsoleWriter = null,    
-        ILogger<FuturesOptionQuoteDataEventActor>? logger = null)
-    {
-        var su = supervisor ?? Substitute.For<IActorSupervisor>();
-        var mds = marketDataSnapshotApi ?? Substitute.For<IMarketDataSnapshotApi>();
-        var bb = blackboardService ?? Substitute.For<IBlackboardService>();
-        var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
-        var lg = logger ?? Substitute.For<ILogger<FuturesOptionQuoteDataEventActor>>();
-        return new TestableFuturesOptionQuoteDataEventActor(su, mds, bb,scw, lg);
-    }
-
-    public TestableFuturesOptionQuoteDataEventActor CreateActor(
-        IActorSupervisor supervisor,
-        IMarketDataSnapshotApi marketDataSnapshotApi,
-        IBlackboardService blackboardService,
-        IStatusConsoleWriter statusConsoleWriter,
-        ILogger<FuturesOptionQuoteDataEventActor> logger)
-        => new(supervisor, marketDataSnapshotApi, blackboardService, statusConsoleWriter, logger);
-
     public TestableMarketDataFeedEventActor CreateMarketDataFeedEventActor(
         IActorSupervisor? supervisor = null,
-        IMarketDataApi marketDataApi = null,
+        ApplicationMarketDataApi marketDataApi = null,
         IOptionTradeLiveFeedMap optionTradeLiveFeedMap = null,
         IBlackboardService blackboardService = null,
         IStatusConsoleWriter statusConsoleWriter = null,
         ILogger<MarketDataFeedEventActor>? logger = null)
     {
         var su = supervisor ?? Substitute.For<IActorSupervisor>();
-        var mda = marketDataApi ?? Substitute.For<IMarketDataApi>();
+        var mda = marketDataApi ?? Substitute.For<ApplicationMarketDataApi>();
         var lfm = optionTradeLiveFeedMap ?? Substitute.For<IOptionTradeLiveFeedMap>();
         var bb = blackboardService ?? Substitute.For<IBlackboardService>();
         var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
@@ -249,32 +204,29 @@ public class MarketDataFeedTestFixture : IDisposable
 
     public TestableFuturesOptionTickDataEventActor CreateFuturesOptionTickDataEventActor(
         IActorSupervisor? supervisor = null,
-        IMarketDataApi marketDataApi = null,
-        IMarketDataSnapshotApi marketDataSnapshotApi = null,
+        ApplicationMarketDataApi marketDataApi = null,
         IBlackboardService blackboardService = null,
         IOptionTradeLiveFeedMap optionTradeLiveFeedMap = null,
         IStatusConsoleWriter statusConsoleWriter = null,
         ILogger<FuturesOptionTickDataEventActor>? logger = null)
     {
         var su = supervisor ?? Substitute.For<IActorSupervisor>();
-        var mda = marketDataApi ?? Substitute.For<IMarketDataApi>();
-        var mdsa = marketDataSnapshotApi ?? Substitute.For<IMarketDataSnapshotApi>();
+        var mda = marketDataApi ?? Substitute.For<ApplicationMarketDataApi>();
         var bb = blackboardService ?? Substitute.For<IBlackboardService>();
         var fa = optionTradeLiveFeedMap ?? Substitute.For<IOptionTradeLiveFeedMap>();
         var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
         var lg = logger ?? Substitute.For<ILogger<FuturesOptionTickDataEventActor>>();
-        return new TestableFuturesOptionTickDataEventActor(su, mda, mdsa, bb, fa, scw, lg);
+        return new TestableFuturesOptionTickDataEventActor(su, mda, bb, fa, scw, lg);
     }
 
     public TestableFuturesOptionTickDataEventActor CreateActor(
         IActorSupervisor supervisor,
-        IMarketDataApi marketDataApi,
-        IMarketDataSnapshotApi marketDataSnapshotApi,
+        ApplicationMarketDataApi marketDataApi,
         IBlackboardService blackboardService,
         IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesOptionTickDataEventActor> logger)
-        => new(supervisor, marketDataApi, marketDataSnapshotApi, blackboardService,
+        => new(supervisor, marketDataApi, blackboardService,
             optionTradeLiveFeedMap, statusConsoleWriter, logger);
 
     public TestableFuturesTickDataCommandActor CreateFuturesTickDataCommandActor(
@@ -307,13 +259,13 @@ public class MarketDataFeedTestFixture : IDisposable
 
     public TestableFuturesTickDataEventActor CreateFuturesTickDataEventActor(
         IActorSupervisor? supervisor = null,
-        IMarketDataApi marketDataApi = null,
+        ApplicationMarketDataApi marketDataApi = null,
         IBlackboardService blackboardService = null,
         IStatusConsoleWriter statusConsoleWriter = null,
         ILogger<FuturesTickDataEventActor>? logger = null)
     {
         var su = supervisor ?? Substitute.For<IActorSupervisor>();
-        var mda  = marketDataApi ?? Substitute.For<IMarketDataApi>();
+        var mda  = marketDataApi ?? Substitute.For<ApplicationMarketDataApi>();
         var bb = blackboardService ?? Substitute.For<IBlackboardService>();
         var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
         var lg = logger ?? Substitute.For<ILogger<FuturesTickDataEventActor>>();
@@ -322,7 +274,7 @@ public class MarketDataFeedTestFixture : IDisposable
 
     public TestableFuturesTickDataEventActor CreateActor(
         IActorSupervisor supervisor,
-        IMarketDataApi marketDataApi,
+        ApplicationMarketDataApi marketDataApi,
         IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesTickDataEventActor> logger)

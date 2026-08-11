@@ -285,35 +285,4 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
         => await new DeleteFuturesBarDataParameter(id, DeleteFuturesBarDataCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.DeleteFuturesBarData, e));
 
-    /// <summary>
-    /// insert futures option quote data
-    /// </summary>
-    /// <param name="quoteId"></param>
-    /// <param name="contractId"></param>
-    /// <param name="quoteData"></param>
-    /// <returns></returns>
-    public async Task<ServiceResult<Guid>> InsertFuturesOptionQuoteDataAsync(int quoteId, string contractId, QuoteData quoteData)
-        => await new InsertFuturesOptionQuoteDataParameter(quoteId, contractId, quoteData, InsertFuturesOptionQuoteDataCommand.ErrorId)
-            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.InsertFuturesOptionQuoteData, e));
-
-    /// <summary>
-    /// start futures option quote data streaming
-    /// </summary>
-    /// <param name="quoteId"></param>
-    /// <param name="futuresOptionQuotes"></param>
-    /// <param name="futuresOptionContracts" ></param>
-    /// <returns></returns>
-    public async Task<ServiceResult<Guid>> StartFuturesOptionQuoteDataStreamingAsync(
-        int quoteId, FuturesOptionQuoteReadModel[] futuresOptionQuotes, FuturesOptionContractReadModel[] futuresOptionContracts)
-        => await new StartFuturesOptionQuoteDataStreamingParameter(quoteId, futuresOptionQuotes, futuresOptionContracts, StartFuturesOptionQuoteDataStreamingCommand.ErrorId)
-            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.StartFuturesOptionQuoteDataStreaming, e));
-
-    /// <summary>
-    /// stop futures option quote data streaming
-    /// </summary>
-    /// <param name="quoteId"></param>
-    /// <returns></returns>
-    public async Task<ServiceResult<Guid>> StopFuturesOptionQuoteDataStreamingAsync(int quoteId)
-        => await new StopFuturesOptionQuoteDataStreamingParameter(quoteId, StopFuturesOptionQuoteDataStreamingCommand.ErrorId)
-            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.StopFuturesOptionQuoteDataStreaming, e));
 }

@@ -256,17 +256,5 @@ public class MarketDataFeedQueryApi(IActorProducer actorProducer)
         return await RequestAsync<GetStreamingRequestIdQuery, ScalarValue<int>>(query.Subject, query);
     }
 
-    /// <summary>
-    /// Return an option quote id used when streaming option quotes.
-    /// </summary>
-    public async Task<ServiceResult<ScalarValue<int>>> GetOptionQuoteIdAsync()
-    {
-        var entityId = new GetOptionQuoteIdParameter();
-        GetOptionQuoteIdQuery query = new()
-        {
-            Subject = new ActorSubject(ActorType.Query, GetOptionQuoteIdQuery.Actor, GetOptionQuoteIdQuery.Verb, entityId.Format()),
-        };
-        return await RequestAsync<GetOptionQuoteIdQuery, ScalarValue<int>>(query.Subject, query);
-    }
 }
 

@@ -240,32 +240,6 @@ public sealed class ActorMarketDataFeedEventApi(IEventActorContext context)
         => SendFailAsync<TradeLiveFeedRemovedEvent, TradeLiveFeedRemovedFailEvent, TradeLiveFeedId>(e, ex);
 
     /// <summary>
-    /// Sends the futures option quote data updated event.
-    /// </summary>
-    /// <param name="e">The source domain event.</param>
-    /// <returns>A value task containing true when the event was sent; otherwise, false.</returns>
-    public async ValueTask<bool> SendFuturesOptionQuoteDataUpdatedEventAsync(
-        FuturesOptionQuoteDataInsertedCompleteEvent e)
-    {
-        FuturesOptionQuoteDataUpdatedEvent updatedEvent = new(e.OptionQuoteData)
-        {
-            Subject = new ActorSubject(
-                ActorType.Event,
-                FuturesOptionQuoteDataUpdatedEvent.Actor,
-                FuturesOptionQuoteDataUpdatedEvent.Verb,
-                e.EntityId.Format()),
-            EntityId = e.EntityId,
-            Id = Guid.NewGuid(),
-            CommandId = e.CommandId,
-            AggregateId = e.AggregateId,
-            EventSource = e.EventSource,
-            ReceivedOn = DateTime.UtcNow
-        };
-        await _context.SendAsync<FuturesOptionQuoteDataUpdatedEvent, QuoteId>(updatedEvent);
-        return true;
-    }
-
-    /// <summary>
     /// Sends the futures EOD data updated event.
     /// </summary>
     /// <param name="e">The source domain event.</param>

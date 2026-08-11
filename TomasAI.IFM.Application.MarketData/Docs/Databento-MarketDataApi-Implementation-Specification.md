@@ -2,7 +2,7 @@
 
 **Status:** Phase A implemented and runtime-validated; FMP-dependent Phase B deferred
 
-**Version:** 1.5
+**Version:** 1.6
 
 **Date:** 2026-08-10
 
@@ -29,12 +29,17 @@ readers, the multi-asset tick aggregation pipeline for futures and futures
 options, and the transient option-chain processing pipeline.
 It does not duplicate native feed, actor, or storage responsibilities.
 
-`IMarketDataApi`, `IMarketDataSnapshotApi`, their options, and their concrete
-orchestration implementation exist only in `Application.MarketData`.
+`IMarketDataApi`, its options, and its concrete orchestration implementation
+exist only in `Application.MarketData`.
 `Framework.MarketData` exposes provider-neutral service contracts, not another
 market-data API. Vendor projects such as `Framework.MarketData.DataBento`
 implement those framework contracts and are composed by the application
 implementation through dependency injection.
+
+The older `Domain.MarketData.Feed.Shared.IMarketDataSnapshotApi` belongs to the
+legacy Interactive Brokers actor path and is not referenced by this application
+contract or its DataBento implementation. It remains only until that actor path
+is migrated to the application `IMarketDataApi`.
 
 ## 2. Authoritative interface
 
@@ -100,10 +105,6 @@ public interface IMarketDataApi
     Task<bool> StopStreamingFuturesOptionChainDataAsync(
         string futuresContractId,
         DateOnly maturityDate);
-}
-
-public interface IMarketDataSnapshotApi : IMarketDataApi
-{
 }
 ```
 
@@ -1590,7 +1591,6 @@ from those abstractions and is the only registration that binds
 | --- | --- |
 | `DatabentoMarketDataApi` | Singleton |
 | `IMarketDataApi` | Same singleton |
-| `IMarketDataSnapshotApi` | Same singleton unless a separate lifecycle is explicitly designed |
 | `IDatabentoFeedFactory` | Singleton |
 | epoch factory | Singleton |
 | operation runner factory | Singleton |
@@ -1616,11 +1616,14 @@ The framework vendor registration must not reference or register
 direction as Application -> Framework contracts, with vendor implementation
 selection performed only at the composition root.
 
-Using the same singleton for `IMarketDataApi` and `IMarketDataSnapshotApi`
-prevents the marker interface from accidentally opening duplicate live feeds.
-The startup extension registers only one provider implementation of the
-Framework MarketData last-price contracts; mixed DataBento/IBKR readers inside
-one API epoch are prohibited.
+Contract-definition queries, hot-price access, and live-stream controls use the
+single application `IMarketDataApi`; there is no snapshot marker interface or
+second application API registration. DataBento may still use separate internal
+Historical/query clients and live-feed sessions when required by its protocols,
+but those transports share one date-scoped application epoch and never cross the
+application boundary. The startup extension registers only one provider
+implementation of the Framework MarketData last-price contracts; mixed
+DataBento/IBKR readers inside one API epoch are prohibited.
 
 ## 16. Concurrency and ownership invariants
 
@@ -2036,6 +2039,7 @@ Coding begins after these decisions are accepted.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 1.6 | 2026-08-10 | Removed the redundant application `IMarketDataSnapshotApi`; contract-definition queries, hot-price access, and live controls now use only `IMarketDataApi`. Clarified that one application API may own multiple protocol-specific DataBento query/feed transports inside the same epoch. |
 | 1.5 | 2026-08-10 | Recorded the Phase A production implementation: application-owned epoch/API orchestration, bounded bidirectional contract resolution, multi-asset aggregation, allocation-free DataBento hot readers, transient activation routing and publishers, non-persistent option-chain sessions/state/drain, separate DI boundaries, health, unit/live gates, and benchmark evidence. FMP rate selection, Black-76 production enrichment, and public option-chain start remain Phase B. |
 | 1.4 | 2026-08-10 | Extended `IFuturesOptionLastPriceReader` with atomic quote/trade-with-Greeks reads; made the provider-neutral Greeks and enriched snapshot contracts authoritative in Framework MarketData; specified availability-versus-validity, exact quote sequence coherence, quote-derived trade Greeks, post-stop invalidation, and ingestion-time rather than reader-time calculation. Also clarified that `TickAggregationService` is the multi-asset raw-tick pipeline for futures and futures options. |
 | 1.3 | 2026-08-10 | Made `IMarketDataApi` exclusively application-owned; removed the framework `MarketDataApi` contract location; specified that DataBento and other vendor projects implement provider-neutral `Framework.MarketData.Contracts` services and are composed into the application API through separate startup DI registrations. |

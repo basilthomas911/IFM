@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
 
@@ -18,7 +19,7 @@ public class MarketDataFeedEventActor(
     IActorSupervisor supervisor,
     IActorMarketDataFeedCommandApiFactory commandApiFactory,
     IActorMarketDataFeedEventApiFactory eventApiFactory,
-    IMarketDataApi marketDataApi,
+    ApplicationMarketDataApi marketDataApi,
     IOptionTradeLiveFeedMap optionTradeLiveFeedMap, 
     IBlackboardService blackboardService,
     IStatusConsoleWriter statusConsoleWriter,

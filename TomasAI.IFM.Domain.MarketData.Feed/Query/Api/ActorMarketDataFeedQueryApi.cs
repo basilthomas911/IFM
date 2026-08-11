@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Api;
 
@@ -17,20 +18,19 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Api;
 /// Provides direct, in-process Market Data Feed queries without actor messaging.
 /// </summary>
 /// <remarks>
-/// Storage queries use <see cref="IDbContextFactory.MarketDataDb"/>; broker snapshot queries use
-/// <see cref="IMarketDataSnapshotApi"/> and are serialized by an internal semaphore; sequence identifiers
+/// Storage queries use <see cref="IDbContextFactory.MarketDataDb"/>; provider contract and hot-price queries use
+/// the application market-data API; sequence identifiers
 /// are allocated through <see cref="ISequenceIdGenerator"/>. Every public method returns a typed service result
 /// with its query-specific error identifier. The implementation may be registered as a singleton.
 /// </remarks>
 public sealed class ActorMarketDataFeedQueryApi(
     IDbContextFactory dbFactory,
-    IMarketDataSnapshotApi marketDataSnapshotApi,
+    ApplicationMarketDataApi marketDataApi,
     ISequenceIdGenerator sequenceIdGenerator) : IActorMarketDataFeedQueryApi
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
-    readonly IMarketDataSnapshotApi _marketDataSnapshotApi = IsArgumentNull.Set(marketDataSnapshotApi);
+    readonly ApplicationMarketDataApi _marketDataApi = IsArgumentNull.Set(marketDataApi);
     readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
-    readonly SemaphoreSlim _snapshotGate = new(1, 1);
 
     /// <summary>
     /// Gets last futures tick data.
@@ -398,20 +398,11 @@ public sealed class ActorMarketDataFeedQueryApi(
     {
         try
         {
-            await _snapshotGate.WaitAsync();
-            try
-            {
-                FuturesOptionContractReadModel result =
-                    await GetFuturesOptionContract.GetFuturesOptionContractFromBrokerAsync(
-                        _marketDataSnapshotApi,
-                        contractId,
-                        queryForContract);
-                return new ServiceOk<FuturesOptionContractReadModel>(result);
-            }
-            finally
-            {
-                _snapshotGate.Release();
-            }
+            FuturesOptionContractReadModel result =
+                await GetFuturesOptionContract.GetFuturesOptionContractFromProviderAsync(
+                    _marketDataApi,
+                    contractId);
+            return new ServiceOk<FuturesOptionContractReadModel>(result);
         }
         catch (Exception ex)
         {
@@ -443,24 +434,12 @@ public sealed class ActorMarketDataFeedQueryApi(
     {
         try
         {
-            await _snapshotGate.WaitAsync();
-            try
-            {
-                FuturesOptionSpreadDataReadModel result =
-                    await GetFuturesOptionSpreadData.GetFuturesOptionSpreadDataAsync(
-                        _marketDataSnapshotApi,
-                        valueDate,
-                        maturityDate,
-                        assetPrice,
-                        riskFreeRate,
-                        qfShortOptionContract,
-                        qfLongOptionContract);
-                return new ServiceOk<FuturesOptionSpreadDataReadModel>(result);
-            }
-            finally
-            {
-                _snapshotGate.Release();
-            }
+            FuturesOptionSpreadDataReadModel result =
+                await GetFuturesOptionSpreadData.GetFuturesOptionSpreadDataAsync(
+                    _marketDataApi,
+                    qfShortOptionContract.ContractId,
+                    qfLongOptionContract.ContractId);
+            return new ServiceOk<FuturesOptionSpreadDataReadModel>(result);
         }
         catch (Exception ex)
         {
@@ -544,25 +523,6 @@ public sealed class ActorMarketDataFeedQueryApi(
         catch (Exception ex)
         {
             return new ServiceFailed<ScalarValue<int>>(GetStreamingRequestIdQuery.ErrorId, ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Gets option quote ID.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<ScalarValue<int>>> GetOptionQuoteIdAsync()
-    {
-        try
-        {
-            var result = new ScalarValue<int>(checked((int)await _sequenceIdGenerator
-                .GetSequenceIdAsync(SequenceName.OptionQuote_QuoteId)
-                .ConfigureAwait(false)));
-            return new ServiceOk<ScalarValue<int>>(result);
-        }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<ScalarValue<int>>(GetOptionQuoteIdQuery.ErrorId, ex.Message);
         }
     }
 

@@ -1,19 +1,19 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
 
 public record FuturesTickDataEventParameters
 {
-    public IMarketDataApi MarketDataApi { get; init; }
+    public ApplicationMarketDataApi MarketDataApi { get; init; }
     public IBlackboardService BlackboardService { get; init; }
     public IStatusConsoleWriter StatusConsoleWriter { get; init; }
     public ILogger Logger { get; init; }
 
     public FuturesTickDataEventParameters(
-        IMarketDataApi marketDataApi,
+        ApplicationMarketDataApi marketDataApi,
         IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger logger)

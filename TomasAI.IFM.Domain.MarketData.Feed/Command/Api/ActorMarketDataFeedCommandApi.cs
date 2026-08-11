@@ -254,31 +254,6 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
     }
 
     /// <summary>
-    /// Sends the insert futures option quote data command and awaits its typed actor reply.
-    /// </summary>
-    /// <param name="quoteId">The quote identifier.</param>
-    /// <param name="contractId">The contract identifier.</param>
-    /// <param name="quoteData">The quote data to persist.</param>
-    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
-    public ValueTask<ServiceResult<GuidResult>> InsertFuturesOptionQuoteDataAsync(
-        int quoteId,
-        string contractId,
-        QuoteData quoteData)
-    {
-        var entityId = new QuoteId(quoteId);
-        InsertFuturesOptionQuoteDataCommand command = new(quoteId, contractId, quoteData)
-        {
-            Subject = Subject<InsertFuturesOptionQuoteDataCommand>(
-                InsertFuturesOptionQuoteDataCommand.Actor,
-                InsertFuturesOptionQuoteDataCommand.Verb,
-                entityId),
-            EntityId = entityId,
-            ErrorCode = InsertFuturesOptionQuoteDataCommand.ErrorId
-        };
-        return RequestAsync<InsertFuturesOptionQuoteDataCommand, QuoteId>(command);
-    }
-
-    /// <summary>
     /// Sends the insert futures EOD data command and awaits its typed actor reply.
     /// </summary>
     /// <param name="valueDate">The applicable market value date.</param>

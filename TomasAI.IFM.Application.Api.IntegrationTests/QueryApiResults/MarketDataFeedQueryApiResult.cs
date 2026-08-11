@@ -133,6 +133,4 @@ public static class MarketDataFeedQueryApiResult
     public static Task FromGetStreamingRequestIdAsync(HttpResponse resp)
         => resp.SetResult(new ScalarValue<int>(12345));
 
-    public static Task FromGetOptionQuoteIdAsync(HttpResponse resp)
-        => resp.SetResult(new ScalarValue<int>(67890));
 }

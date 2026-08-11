@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 /// Date-scoped application orchestration over the DataBento framework
 /// services. Provider symbols and instrument IDs remain inside the epoch.
 /// </summary>
-public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDisposable
+public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 {
     private readonly IDatabentoMarketDataEpochFactory _epochFactory;
     private readonly TimeProvider _timeProvider;
@@ -17,8 +17,19 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
     private IDatabentoMarketDataEpoch? _epoch;
     private Func<Guid, int, string, Task>? _errorMessageHandler;
 
+    /// <summary>
+    /// Gets the value date of the active market-data epoch, or <see langword="null"/>
+    /// when the API is stopped.
+    /// </summary>
     public DateOnly? ActiveValueDate => Volatile.Read(ref _epoch)?.ValueDate;
 
+    /// <summary>
+    /// Returns a point-in-time health snapshot for the application API and its
+    /// active DataBento epoch.
+    /// </summary>
+    /// <returns>
+    /// A snapshot whose running flag is <see langword="false"/> when no epoch is active.
+    /// </returns>
     public DatabentoMarketDataApiHealth GetHealth()
     {
         var active = Volatile.Read(ref _epoch);
@@ -28,6 +39,22 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
                 true, active.ValueDate, active.GetHealth());
     }
 
+    /// <summary>
+    /// Initializes the application-level DataBento market-data API.
+    /// </summary>
+    /// <param name="epochFactory">Factory that creates one isolated runtime per value date.</param>
+    /// <param name="options">Freshness and application API behavior settings.</param>
+    /// <param name="timeProvider">
+    /// Time source used for deterministic last-price freshness checks. The system
+    /// provider is used when this argument is <see langword="null"/>.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="epochFactory"/> or <paramref name="options"/> is
+    /// <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when the configured maximum last-price age is not positive.
+    /// </exception>
     public DatabentoMarketDataApi(
         IDatabentoMarketDataEpochFactory epochFactory,
         DatabentoMarketDataApiOptions options,
@@ -41,6 +68,23 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
+    /// <summary>
+    /// Creates and starts the DataBento runtime for a value date.
+    /// Repeating the call for the active value date is idempotent.
+    /// </summary>
+    /// <param name="valueDate">Domain value date that scopes mappings, feeds, and readers.</param>
+    /// <param name="errorMessageHandler">
+    /// Optional best-effort callback notified when epoch startup fails. Callback
+    /// failures never replace the original startup exception.
+    /// </param>
+    /// <param name="cancellationToken">Token that cancels startup and lifecycle admission.</param>
+    /// <returns>A task that completes after the epoch is fully started.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="valueDate"/> is the default date.
+    /// </exception>
+    /// <exception cref="MarketDataApiAlreadyRunningException">
+    /// Thrown when a different value date is already active.
+    /// </exception>
     public async Task StartAsync(
         DateOnly valueDate,
         Func<Guid, int, string, Task>? errorMessageHandler = null,
@@ -74,6 +118,18 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         finally { _lifecycle.Release(); }
     }
 
+    /// <summary>
+    /// Stops and disposes the active epoch, invalidating its last-price readers.
+    /// Calling this method when the API is already stopped is idempotent.
+    /// </summary>
+    /// <param name="valueDate">Value date of the epoch to stop.</param>
+    /// <returns>A task that completes after feeds, workers, and epoch state are drained.</returns>
+    /// <exception cref="MarketDataApiValueDateMismatchException">
+    /// Thrown when <paramref name="valueDate"/> does not identify the active epoch.
+    /// </exception>
+    /// <exception cref="AggregateException">
+    /// Thrown after cleanup when one or more stop or disposal operations fail.
+    /// </exception>
     public async Task StopAsync(DateOnly valueDate)
     {
         ValidateDate(valueDate, nameof(valueDate));
@@ -97,6 +153,14 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         finally { _lifecycle.Release(); }
     }
 
+    /// <summary>
+    /// Resolves one canonical domain futures contract from the active epoch catalog.
+    /// </summary>
+    /// <param name="futuresContractId">Canonical domain futures contract identifier.</param>
+    /// <returns>The resolved futures contract, or <see langword="null"/> when it is unknown.</returns>
+    /// <exception cref="MarketDataContractKindMismatchException">
+    /// Thrown when the identifier belongs to a futures option.
+    /// </exception>
     public Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(
         string futuresContractId)
     {
@@ -107,6 +171,15 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return Task.FromResult(active.Catalog.FindFutures(futuresContractId));
     }
 
+    /// <summary>
+    /// Resolves a batch of canonical futures contract identifiers while preserving
+    /// input order and duplicates.
+    /// </summary>
+    /// <param name="futuresContractIds">Futures contract identifiers to resolve.</param>
+    /// <returns>An ordered array containing one resolved contract per input identifier.</returns>
+    /// <exception cref="MarketDataBatchResolutionException">
+    /// Thrown when any requested identifier cannot be resolved; no partial result is returned.
+    /// </exception>
     public async Task<FuturesContractV2ReadModel[]> GetFuturesContractsAsync(
         string[] futuresContractIds)
     {
@@ -127,6 +200,14 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return results;
     }
 
+    /// <summary>
+    /// Resolves one canonical domain futures-option contract from the active epoch catalog.
+    /// </summary>
+    /// <param name="futuresOptionContractId">Canonical domain futures-option contract identifier.</param>
+    /// <returns>The resolved futures option, or <see langword="null"/> when it is unknown.</returns>
+    /// <exception cref="MarketDataContractKindMismatchException">
+    /// Thrown when the identifier belongs to an underlying futures contract.
+    /// </exception>
     public Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(
         string futuresOptionContractId)
     {
@@ -137,6 +218,15 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return Task.FromResult(active.Catalog.FindFuturesOption(futuresOptionContractId));
     }
 
+    /// <summary>
+    /// Resolves a batch of canonical futures-option identifiers while preserving
+    /// input order and duplicates.
+    /// </summary>
+    /// <param name="futuresOptionContractIds">Futures-option identifiers to resolve.</param>
+    /// <returns>An ordered array containing one resolved option per input identifier.</returns>
+    /// <exception cref="MarketDataBatchResolutionException">
+    /// Thrown when any requested identifier cannot be resolved; no partial result is returned.
+    /// </exception>
     public async Task<FuturesOptionContractReadModel[]> GetFuturesOptionContractsAsync(
         string[] futuresOptionContractIds)
     {
@@ -157,6 +247,13 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return results;
     }
 
+    /// <summary>
+    /// Returns the complete configured futures-option chain for an underlying and maturity.
+    /// This is a definition query and does not start live option-chain streaming.
+    /// </summary>
+    /// <param name="futuresContractId">Canonical domain identifier of the underlying futures contract.</param>
+    /// <param name="maturityDate">Exact option maturity to query.</param>
+    /// <returns>A stably ordered array of matching option definitions; the array may be empty.</returns>
     public Task<FuturesOptionContractReadModel[]> GetFuturesOptionChainContractsAsync(
         string futuresContractId,
         DateOnly maturityDate)
@@ -167,6 +264,16 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return active.Catalog.GetOptionChainAsync(futuresContractId, maturityDate);
     }
 
+    /// <summary>
+    /// Gets the most recent fresh futures trade price from the active aggregation
+    /// epoch's in-memory last-price reader.
+    /// </summary>
+    /// <param name="futuresContractId">Canonical domain futures contract identifier.</param>
+    /// <returns>The latest accepted trade price.</returns>
+    /// <exception cref="FuturesLastPriceUnavailableException">
+    /// Thrown when no correctly mapped, current trade is available within the
+    /// configured freshness window.
+    /// </exception>
     public Task<decimal> GetFuturesPriceAsync(string futuresContractId)
     {
         var reader = GetFuturesLastPriceReader(futuresContractId);
@@ -180,6 +287,17 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return Task.FromResult(trade.Price);
     }
 
+    /// <summary>
+    /// Gets the midpoint of the most recent fresh, valid two-sided futures-option quote.
+    /// </summary>
+    /// <param name="futuresOptionContractId">Canonical domain futures-option contract identifier.</param>
+    /// <returns>
+    /// The current bid/ask midpoint, or <see langword="null"/> when no fresh
+    /// two-sided quote is available.
+    /// </returns>
+    /// <exception cref="InvalidFuturesOptionQuoteException">
+    /// Thrown when a mapped quote has a bid greater than its ask.
+    /// </exception>
     public Task<decimal?> GetFuturesOptionPriceAsync(string futuresOptionContractId)
     {
         var reader = GetFuturesOptionLastPriceReader(futuresOptionContractId);
@@ -197,6 +315,14 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
             : null);
     }
 
+    /// <summary>
+    /// Returns the epoch-bound hot reader for a futures contract.
+    /// </summary>
+    /// <param name="futuresContractId">Canonical domain futures contract identifier.</param>
+    /// <returns>
+    /// A stable reader that receives aggregation updates and reports misses after
+    /// its owning epoch is stopped or replaced.
+    /// </returns>
     public IFuturesLastPriceReader GetFuturesLastPriceReader(string futuresContractId)
     {
         var active = GetRunningEpoch();
@@ -204,6 +330,15 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return active.LastPrices.GetFuturesReader(futuresContractId, active.ValueDate);
     }
 
+    /// <summary>
+    /// Returns the epoch-bound hot reader for a futures-option contract, including
+    /// atomic quote/trade-with-Greeks read operations when enrichment is available.
+    /// </summary>
+    /// <param name="futuresOptionContractId">Canonical domain futures-option contract identifier.</param>
+    /// <returns>
+    /// A stable reader that receives aggregation updates and reports misses after
+    /// its owning epoch is stopped or replaced.
+    /// </returns>
     public IFuturesOptionLastPriceReader GetFuturesOptionLastPriceReader(
         string futuresOptionContractId)
     {
@@ -213,6 +348,15 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
             futuresOptionContractId, active.ValueDate);
     }
 
+    /// <summary>
+    /// Activates transient live quote/trade delivery for an underlying futures contract.
+    /// Durable tick aggregation remains independently active.
+    /// </summary>
+    /// <param name="futuresContractId">Canonical domain futures contract identifier.</param>
+    /// <returns>
+    /// <see langword="true"/> when the route was newly activated; otherwise
+    /// <see langword="false"/> when it was already active.
+    /// </returns>
     public Task<bool> StartStreamingFuturesTickDataAsync(string futuresContractId)
     {
         var active = GetRunningEpoch();
@@ -220,6 +364,15 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return Task.FromResult(active.StartFuturesRoute(futuresContractId));
     }
 
+    /// <summary>
+    /// Deactivates transient live quote/trade delivery for an underlying futures
+    /// contract without stopping its durable tick aggregation.
+    /// </summary>
+    /// <param name="futuresContractId">Canonical domain futures contract identifier.</param>
+    /// <returns>
+    /// <see langword="true"/> when an active route was removed; otherwise
+    /// <see langword="false"/>.
+    /// </returns>
     public Task<bool> StopStreamingFuturesTickDataAsync(string futuresContractId)
     {
         var active = GetRunningEpoch();
@@ -227,14 +380,48 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return Task.FromResult(active.StopFuturesRoute(futuresContractId));
     }
 
+    /// <summary>
+    /// Activates transient live quote/trade delivery for one futures-option contract.
+    /// </summary>
+    /// <param name="futuresOptionContractId">Canonical domain futures-option contract identifier.</param>
+    /// <returns>
+    /// <see langword="true"/> when the individual route was newly activated;
+    /// otherwise <see langword="false"/> when it was already active.
+    /// </returns>
+    /// <exception cref="MarketDataRouteConflictException">
+    /// Thrown when an option-chain session already owns the option route.
+    /// </exception>
     public Task<bool> StartStreamingFuturesOptionTickDataAsync(
         string futuresOptionContractId)
     {
         var active = GetRunningEpoch();
         RequireOption(active, futuresOptionContractId);
+        var futuresContractId = active.Catalog.FindOptionUnderlying(
+            futuresOptionContractId);
+        if (string.IsNullOrWhiteSpace(futuresContractId))
+        {
+            throw new MarketDataContractMappingException(
+                futuresOptionContractId,
+                "the option does not resolve to a configured underlying futures contract");
+        }
+
+        var status = active.GetAggregationStatus(futuresContractId);
+        if (!status.ServiceRunning)
+            throw new TickAggregationNotRunningException(futuresContractId);
+        if (!status.ContractConfigured || !status.ContractRunning)
+            throw new UnderlyingTickerNotRunningException(futuresContractId);
         return Task.FromResult(active.StartIndividualOptionRoute(futuresOptionContractId));
     }
 
+    /// <summary>
+    /// Deactivates transient live delivery for one individually routed futures option.
+    /// Durable multi-asset tick aggregation remains active.
+    /// </summary>
+    /// <param name="futuresOptionContractId">Canonical domain futures-option contract identifier.</param>
+    /// <returns>
+    /// <see langword="true"/> when an individual route was removed; otherwise
+    /// <see langword="false"/>.
+    /// </returns>
     public Task<bool> StopStreamingFuturesOptionTickDataAsync(
         string futuresOptionContractId)
     {
@@ -243,6 +430,34 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return Task.FromResult(active.StopIndividualOptionRoute(futuresOptionContractId));
     }
 
+    /// <summary>
+    /// Starts one transient futures-option chain session after verifying that the
+    /// corresponding underlying contract is configured and actively aggregating.
+    /// The session does not persist option-chain events.
+    /// </summary>
+    /// <param name="futuresContractId">Canonical domain identifier of the underlying futures contract.</param>
+    /// <param name="maturityDate">Exact maturity shared by every requested option.</param>
+    /// <param name="optionContractIds">
+    /// Non-empty set of canonical option identifiers belonging to the underlying
+    /// and maturity.
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> when a new chain session is started; otherwise
+    /// <see langword="false"/> when the identical session is already active.
+    /// </returns>
+    /// <exception cref="TickAggregationNotRunningException">
+    /// Thrown when the multi-asset aggregation service is not running.
+    /// </exception>
+    /// <exception cref="UnderlyingTickerNotRunningException">
+    /// Thrown when the requested underlying is not configured and running in aggregation.
+    /// </exception>
+    /// <exception cref="MarketDataContractMappingException">
+    /// Thrown when an option does not belong to the requested underlying and maturity.
+    /// </exception>
+    /// <exception cref="MarketDataPricingInputUnavailableException">
+    /// Thrown by the production epoch before provider-feed allocation until the
+    /// required application-supplied risk-free rate is available.
+    /// </exception>
     public Task<bool> StartStreamingFuturesOptionChainDataAsync(
         string futuresContractId,
         DateOnly maturityDate,
@@ -275,6 +490,15 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
             futuresContractId, maturityDate, optionContractIds.ToArray());
     }
 
+    /// <summary>
+    /// Stops and drains a transient option-chain session and clears its live state.
+    /// </summary>
+    /// <param name="futuresContractId">Canonical domain identifier of the underlying futures contract.</param>
+    /// <param name="maturityDate">Maturity that identifies the chain session.</param>
+    /// <returns>
+    /// <see langword="true"/> when an active session was stopped; otherwise
+    /// <see langword="false"/>.
+    /// </returns>
     public Task<bool> StopStreamingFuturesOptionChainDataAsync(
         string futuresContractId,
         DateOnly maturityDate)
@@ -285,6 +509,10 @@ public sealed class DatabentoMarketDataApi : IMarketDataSnapshotApi, IAsyncDispo
         return active.StopOptionChainAsync(futuresContractId, maturityDate);
     }
 
+    /// <summary>
+    /// Stops the active epoch, if any, and releases lifecycle synchronization resources.
+    /// </summary>
+    /// <returns>A value task that completes when owned runtime resources are released.</returns>
     public async ValueTask DisposeAsync()
     {
         var active = Volatile.Read(ref _epoch);

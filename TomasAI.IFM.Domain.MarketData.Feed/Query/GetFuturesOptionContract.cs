@@ -1,8 +1,6 @@
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
@@ -15,31 +13,20 @@ public static class GetFuturesOptionContract
     /// <param name="context"></param>
     /// <param name="p"></param>
     /// <returns></returns>
-    internal static async ValueTask<FuturesOptionContractReadModel> GetFuturesOptionContractFromBrokerAsync(
-        this GetFuturesOptionContractQuery q, IMarketDataSnapshotApi marketDataSnapshotApi)
-        => await GetFuturesOptionContractFromBrokerAsync(
-            marketDataSnapshotApi, q.ContractId, q.QueryForContract!);
+    internal static ValueTask<FuturesOptionContractReadModel> GetFuturesOptionContractFromProviderAsync(
+        this GetFuturesOptionContractQuery q, ApplicationMarketDataApi marketDataApi)
+        => GetFuturesOptionContractFromProviderAsync(marketDataApi, q.ContractId);
 
-    internal static async ValueTask<FuturesOptionContractReadModel> GetFuturesOptionContractFromBrokerAsync(
-        IMarketDataSnapshotApi marketDataSnapshotApi,
-        string contractId,
-        FuturesOptionContractReadModel queryForContract)
+    internal static async ValueTask<FuturesOptionContractReadModel> GetFuturesOptionContractFromProviderAsync(
+        ApplicationMarketDataApi marketDataApi,
+        string contractId)
     {
-        FuturesOptionContractReadModel futuresOptionContract;
-        var streamId = 0;
-        try
-        {
-            streamId = marketDataSnapshotApi.StreamIds.Add(contractId);
-            await marketDataSnapshotApi.StartAsync().ConfigureAwait(false);
-            futuresOptionContract = (await marketDataSnapshotApi.GetFuturesOptionContractAsync(
-                streamId, queryForContract))!;
-        }
-        finally
-        {
-            marketDataSnapshotApi.StreamIds.Remove(streamId);
-            marketDataSnapshotApi.Stop();
-        }
-        return futuresOptionContract;
+        ArgumentNullException.ThrowIfNull(marketDataApi);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        return await marketDataApi.GetFuturesOptionContractAsync(contractId)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                $"Futures option contract definition '{contractId}' is not configured in the active market-data epoch.");
     }
 
 }

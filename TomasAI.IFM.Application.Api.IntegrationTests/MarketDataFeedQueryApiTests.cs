@@ -336,18 +336,4 @@ public class MarketDataFeedQueryApiTests(WebApplicationFactory<Program> factory)
         response.Value.Should().BeAssignableTo<ScalarValue<int>>();
     }
 
-    /// <summary>
-    /// Tests retrieval of an option quote id.
-    /// </summary>
-    [Fact]
-    public async Task GetOptionQuoteId_Ok()
-    {
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var queryApi = new MarketDataFeedQueryApi(queryServiceApi);
-
-        var response = await queryApi.GetOptionQuoteIdAsync();
-
-        response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<ScalarValue<int>>();
-    }
 }

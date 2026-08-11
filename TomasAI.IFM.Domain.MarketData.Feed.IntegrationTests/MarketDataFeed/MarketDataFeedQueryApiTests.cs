@@ -160,22 +160,6 @@ public class MarketDataFeedQueryApiTests(WebApplicationFactory<Program> factory,
     }
 
     [Fact]
-    public async Task GetOptionQuoteIdQuery_Ok()
-    {
-        // act...
-        _httpClientFactory.CreateClient();
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
-        var response = await marketDataFeedApi.GetOptionQuoteIdAsync();
-
-        // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBeNull();
-        response.Value.AsInteger.Should().BeGreaterThan(0);
-    }
-
-    [Fact]
     public async Task GetStreamingRequestIdQuery_Ok()
     {
         // act...

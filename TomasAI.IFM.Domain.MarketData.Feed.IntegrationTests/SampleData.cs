@@ -239,13 +239,4 @@ public static class SampleData
         })
         .ToList();
 
-    public static QuoteData AskPriceQuoteData => new(
-        quoteTime: DateTime.UtcNow,
-        levelType: QuoteLevelType.LevelOne,
-        position: 0,
-        operation: 1,
-        side: QuoteSide.Ask,
-        quoteType: QuoteType.Price,
-        price: 12.50,
-        size: 0);
 }

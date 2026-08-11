@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests.Harness;
 /// </summary>
 internal sealed class DeterministicMarketDataApi(
     FakeMarketDataEpochFactory epochFactory,
-    TimeSpan maximumLastPriceAge) : IMarketDataSnapshotApi
+    TimeSpan maximumLastPriceAge) : IMarketDataApi
 {
     private readonly SemaphoreSlim lifecycle = new(1, 1);
     private FakeMarketDataEpoch? epoch;
@@ -271,6 +271,20 @@ internal sealed class DeterministicMarketDataApi(
     {
         var active = GetRunningEpoch();
         RequireOption(active, futuresOptionContractId);
+        var futuresContractId = active.Catalog.OptionUnderlyings.GetValueOrDefault(
+            futuresOptionContractId);
+        if (string.IsNullOrWhiteSpace(futuresContractId))
+        {
+            throw new MarketDataContractMappingException(
+                futuresOptionContractId,
+                "the option does not resolve to a configured underlying futures contract");
+        }
+
+        var status = active.TickAggregation.GetStatus(futuresContractId);
+        if (!status.ServiceRunning)
+            throw new TickAggregationNotRunningException(futuresContractId);
+        if (!status.TickerConfigured || !status.TickerRunning)
+            throw new UnderlyingTickerNotRunningException(futuresContractId);
         return Task.FromResult(active.OptionRoutes.StartIndividual(futuresOptionContractId));
     }
 

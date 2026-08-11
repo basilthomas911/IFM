@@ -212,22 +212,4 @@ public class MarketDataFeedCommandModel(
     public async Task StopFuturesOptionTickDataListenerAsync() 
         => await ExecuteValueTaskAsync( _futuresOptionTickDataEventConsumer.StopAsync );
 
-    /// <summary>
-    /// start streaming futures options quote data
-    /// </summary>
-    /// <param name="quoteId"></param>
-    /// <param name="futuresOptionQuotes"></param>
-    /// <param name="futuresOptionContracts"></param>
-    /// <returns></returns>
-    public async Task StartStreamingFuturesOptionQuoteDataAsync(int quoteId, FuturesOptionQuoteReadModel[] futuresOptionQuotes, FuturesOptionContractReadModel[] futuresOptionContracts)
-       => await ExecuteCommandAsync(() => _marketDataFeedCommandApi.StartFuturesOptionQuoteDataStreamingAsync(quoteId, futuresOptionQuotes, futuresOptionContracts));   
-
-    /// <summary>
-    /// stop streaming futures quote data
-    /// </summary>
-    /// <param name="quoteId"></param>
-    public async Task StopStreamingFuturesOptionQuoteDataAsync(int quoteId, Action onCompleted)
-        => await ExecuteCommandAsync(() => _marketDataFeedCommandApi.StopFuturesOptionQuoteDataStreamingAsync(quoteId), onCompleted);
-
-
 }

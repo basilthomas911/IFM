@@ -101,17 +101,19 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
     }
 
     [Fact]
-    public void Given_TheCommandLogFails_When_TheMessageIsParsed_Then_TheFailurePropagates()
+    public async Task Given_TheCommandLogFails_When_TheMessageIsValidated_Then_TheFailurePropagates()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new InvalidOperationException("log failed")));
         var actor = _fixture.CreateClosingPriceCommandActor(dbEventSource);
 
-        Action act = () => actor.InvokeParseMessage(
+        var command = actor.InvokeParseMessage(
             Substitute.For<ICommandActorContext>(), CreateMessage(CreateCommand()));
+        Func<Task> act = () => actor.InvokeOnValidateAsync(
+            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("log failed");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("log failed");
     }
 
     [Fact]

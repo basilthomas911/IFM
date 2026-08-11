@@ -25,26 +25,21 @@ public static async ValueTask<bool> ExecuteAsync(
         var source = $"FuturesOptionTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
         try
         {
-            var started = await p.MarketDataApi.StartAsync(
-                (errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, errorCode, errorMsg));
-            if (started)
-            {
-                var streamingRequestId = p.BlackboardService.MarketDataFeed.StreamingRequestId.Get(e.Contract.ContractId);
-                if (!streamingRequestId.IsValid)
-                {
-                    var requestId = await context.GetStreamingRequestIdQueryAsync(e.Contract.ContractId);
-                    streamingRequestId = new(requestId, e.Contract, e.BaseContract, e.ValueDate, e.MaturityDate, e.RiskFreeRate);
-                    p.BlackboardService.MarketDataFeed.StreamingRequestId.Set(streamingRequestId);
-                }
-                p.MarketDataApi.StartStreamingFuturesOptionTickData(streamingRequestId.RequestId, e.ValueDate, e.MaturityDate, e.Contract, e.RiskFreeRate);
-                await eventApi.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e);
+            await p.MarketDataApi.StartAsync(
+                e.ValueDate,
+                (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
+                    LogSourceType.FuturesOptionTickDataEvent, errorCode, errorMsg));
+            _ = await p.MarketDataApi.GetFuturesOptionContractAsync(
+                e.Contract.ContractId)
+                ?? throw new InvalidOperationException(
+                    $"Futures option contract '{e.Contract.ContractId}' is not configured in the active market-data epoch.");
+            _ = await p.MarketDataApi.StartStreamingFuturesOptionTickDataAsync(
+                e.Contract.ContractId);
+            await eventApi.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e);
 
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"futures option {e.Contract.ContractId} streaming started");
-                p.Logger.LogInformationEvent("{Source}: futures option {ContractId} streaming started", source, e.Contract.ContractId);
-                return true;
-            }
-            else
-                throw new InvalidOperationException("Market data API failed to start for unknown reasons.");
+            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"futures option {e.Contract.ContractId} streaming started");
+            p.Logger.LogInformationEvent("{Source}: futures option {ContractId} streaming started", source, e.Contract.ContractId);
+            return true;
         }
         catch (Exception ex)
         {

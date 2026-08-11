@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 
@@ -24,7 +25,7 @@ public class FuturesTickDataEventActor(
     IActorSupervisor supervisor,
     IActorMarketDataFeedCommandApiFactory commandApiFactory,
     IActorMarketDataFeedEventApiFactory eventApiFactory,
-    IMarketDataApi marketDataApi,
+    ApplicationMarketDataApi marketDataApi,
     IBlackboardService blackboardService,
     IStatusConsoleWriter statusConsoleWriter,
     ILogger<FuturesTickDataEventActor> logger)

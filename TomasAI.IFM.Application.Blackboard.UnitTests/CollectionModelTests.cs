@@ -93,7 +93,6 @@ public class VixFuturesEodDataModelTests
         _redisCache.Received(1).Set(key, "value");
     }
 }
-
 public class ReferenceLookupModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
@@ -224,108 +223,4 @@ public class DomainEventsModelTests
         _redisCache.Received(1).Set(key, "value");
     }
 }
-
-public class FuturesOptionQuoteModelTests
-{
-    private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
-    private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesOptionQuoteCacheModel _sut;
-
-    public FuturesOptionQuoteModelTests()
-    {
-        _sut = new FuturesOptionQuoteCacheModel(_redisCache, _jsonSerializer);
-    }
-
-    [Fact]
-    public void Get_WhenCacheHit_ReturnsDictionary()
-    {
-        // Arrange
-        var quotes = new[]
-        {
-            new FuturesOptionQuoteReadModel(1, "ESZ4_C5000", 100, "test", DateTime.UtcNow),
-            new FuturesOptionQuoteReadModel(1, "ESZ4_P5000", 101, "test", DateTime.UtcNow)
-        };
-        const string key = "FuturesOptionQuote:1";
-        _redisCache.Get(key).Returns("[{},{}]");
-        _jsonSerializer.Deserialize<FuturesOptionQuoteReadModel[]>("[{},{}]").Returns(quotes);
-
-        // Act
-        var result = _sut.Get(1);
-
-        // Assert
-        result.Should().HaveCount(2);
-        result.Should().ContainKey(100);
-        result.Should().ContainKey(101);
-    }
-
-    [Fact]
-    public void Get_WhenCacheMiss_ReturnsEmptyDictionary()
-    {
-        // Arrange
-        const string key = "FuturesOptionQuote:1";
-        _redisCache.Get(key).Returns((string?)null);
-
-        // Act
-        var result = _sut.Get(1);
-
-        // Assert
-        result.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Get_WhenCacheReturnsEmpty_ReturnsEmptyDictionary()
-    {
-        // Arrange
-        const string key = "FuturesOptionQuote:1";
-        _redisCache.Get(key).Returns(string.Empty);
-
-        // Act
-        var result = _sut.Get(1);
-
-        // Assert
-        result.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Get_WhenDeserializationReturnsNull_ReturnsEmptyDictionary()
-    {
-        // Arrange
-        const string key = "FuturesOptionQuote:1";
-        _redisCache.Get(key).Returns("[]");
-        _jsonSerializer.Deserialize<FuturesOptionQuoteReadModel[]>("[]").Returns((FuturesOptionQuoteReadModel[]?)null);
-
-        // Act
-        var result = _sut.Get(1);
-
-        // Assert
-        result.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Set_SerializesAndCachesValue()
-    {
-        // Arrange
-        var quotes = new[] { new FuturesOptionQuoteReadModel() };
-        const string key = "FuturesOptionQuote:1";
-        _jsonSerializer.Serialize(quotes).Returns("value");
-
-        // Act
-        _sut.Set(1, quotes);
-
-        // Assert
-        _redisCache.Received(1).Set(key, "value");
-    }
-
-    [Fact]
-    public void Clear_SetsEmptyStringInCache()
-    {
-        // Arrange
-        const string key = "FuturesOptionQuote:1";
-
-        // Act
-        _sut.Clear(1);
-
-        // Assert
-        _redisCache.Received(1).Set(key, string.Empty);
-    }
-}
+// Legacy quote-cache collection tests were removed.

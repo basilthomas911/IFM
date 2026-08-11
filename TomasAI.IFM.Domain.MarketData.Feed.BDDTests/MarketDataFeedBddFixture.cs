@@ -14,8 +14,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query.Actor;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.Actor;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionQuoteData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Query.Actor;
@@ -30,6 +28,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.BDDTests;
 
@@ -90,15 +89,6 @@ public sealed class MarketDataFeedBddFixture
             dbFactory ?? Substitute.For<IDbContextFactory>(),
             logger ?? Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>());
 
-    public TestableFuturesOptionQuoteDataCommandActor CreateOptionQuoteCommandActor(
-        IReferenceLookupService? referenceLookupService = null,
-        IEventSourceActorDbContext? dbEventSource = null,
-        ILogger<FuturesOptionQuoteDataCommandActor>? logger = null)
-        => new(
-            referenceLookupService ?? Substitute.For<IReferenceLookupService>(),
-            dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
-            logger ?? Substitute.For<ILogger<FuturesOptionQuoteDataCommandActor>>());
-
     public TestableFuturesTickDataCommandActor CreateTickCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,
         ILogger<FuturesTickDataCommandActor>? logger = null)
@@ -121,12 +111,12 @@ public sealed class MarketDataFeedBddFixture
             logger ?? Substitute.For<ILogger<MarketDataFeedCommandActor>>());
 
     public TestableMarketDataFeedQueryActor CreateMarketDataFeedQueryActor(
-        IMarketDataSnapshotApi? snapshotApi = null,
+        ApplicationMarketDataApi? marketDataApi = null,
         ISequenceIdGenerator? sequenceIdGenerator = null,
         IDbContextFactory? dbFactory = null,
         ILogger<MarketDataFeedQueryActor>? logger = null)
         => new(
-            snapshotApi ?? Substitute.For<IMarketDataSnapshotApi>(),
+            marketDataApi ?? Substitute.For<ApplicationMarketDataApi>(),
             sequenceIdGenerator ?? Substitute.For<ISequenceIdGenerator>(),
             dbFactory ?? Substitute.For<IDbContextFactory>(),
             logger ?? Substitute.For<ILogger<MarketDataFeedQueryActor>>());
@@ -153,11 +143,11 @@ public sealed class TestableMarketDataFeedCommandActor(
 }
 
 public sealed class TestableMarketDataFeedQueryActor(
-    IMarketDataSnapshotApi snapshotApi,
+    ApplicationMarketDataApi marketDataApi,
     ISequenceIdGenerator sequenceIdGenerator,
     IDbContextFactory dbFactory,
     ILogger<MarketDataFeedQueryActor> logger)
-    : MarketDataFeedQueryActor(snapshotApi, sequenceIdGenerator, dbFactory, logger)
+    : MarketDataFeedQueryActor(marketDataApi, sequenceIdGenerator, dbFactory, logger)
 {
     public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message) => ParseMessage(context, message);
     public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query) => ReceiveAsync(context, query);
@@ -336,38 +326,6 @@ public sealed class TestableFuturesOptionTickDataQueryActor(
     public ValueTask InvokeOnExceptionAsync(
         IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
         => OnExceptionAsync(context, threadId, query, verb, exception);
-}
-
-public sealed class TestableFuturesOptionQuoteDataCommandActor(
-    IReferenceLookupService referenceLookupService,
-    IEventSourceActorDbContext dbEventSource,
-    ILogger<FuturesOptionQuoteDataCommandActor> logger)
-    : FuturesOptionQuoteDataCommandActor(referenceLookupService, dbEventSource, logger)
-{
-    public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
-
-    public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
-        => ParseMessage(context, message);
-
-    public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
-        ICommandActorContext context, IActorState state, ICommand command)
-        => ReceiveAsync(context, state, command);
-
-    public ValueTask InvokeOnValidateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
-        => OnValidateAsync(context, threadId, command);
-
-    public ValueTask<IActorState> InvokeOnLoadStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
-        => OnLoadStateAsync(context, threadId, command);
-
-    public ValueTask InvokeOnSaveStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
-        => OnSaveStateAsync(context, threadId, state, command);
-
-    public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception exception)
-        => OnExceptionAsync(context, threadId, command, exception);
 }
 
 public sealed class TestableFuturesTickDataCommandActor(

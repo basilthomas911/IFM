@@ -56,7 +56,6 @@ public class IronCondorTradeOrderReadModel
     RiskPositionType[] _riskPositionTypes = null!;
     RiskPositionType _riskPositionType;
     Guid _liveFeedQuoteId;
-    int _quoteId;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IronCondorTradeOrderReadModel"/> class with the specified
@@ -564,8 +563,6 @@ public class IronCondorTradeOrderReadModel
         // save futures option contracts...
         _liveFeedQuoteId = Guid.NewGuid();
 
-        // create api to get next quote id
-        _quoteId = 0;
         var contracts = new List<FuturesOptionContractReadModel>();
         foreach (var contractId in _optionLegMap.Values.Select(e => new FuturesOptionContractIdReadModel(e.ContractId)))
             contracts.Add(GetFuturesOptionContract(contractId.StrikePrice, contractId.OptionType, contractId.ContractMonth));
@@ -573,40 +570,37 @@ public class IronCondorTradeOrderReadModel
         var newContracts = contracts.ToArray();
         _appRoot
             .GetModel<MarketDataCommandModel>()
-            .Execute(async model => await model.AddFuturesOptionContractsAsync(_valueDate.Year, newContracts, () => StartStreamingFuturesOptionQuoteData(newContracts)));
+            .Execute(async model => await model.AddFuturesOptionContractsAsync(
+                _valueDate.Year,
+                newContracts,
+                () => StartStreamingFuturesOptionTickData(newContracts)));
         return;
 
-        void StartStreamingFuturesOptionQuoteData( FuturesOptionContractReadModel[]  futuresOptionContracts)
+        void StartStreamingFuturesOptionTickData(
+            FuturesOptionContractReadModel[] futuresOptionContracts)
         {
-            _appRoot.GetModel<MarketDataFeedQueryModel>().Execute(async queryModel =>
+            var feedIds = futuresOptionContracts.ToDictionary(
+                contract => new FuturesOptionTickEntityId(
+                    contract.ContractId,
+                    _valueDate),
+                contract => contract.ContractId);
+            _appRoot.GetModel<MarketDataFeedCommandModel>().Execute(async model =>
             {
-                // generate request id's for each quote...
-                queryModel.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Start Streaming Quotes Error"));
-                _quoteId = await queryModel.GetOptionQuoteIdAsync();
-                var futuresOptionQuotes = new List<FuturesOptionQuoteReadModel>();
-                foreach (var e in futuresOptionContracts)
-                {
-                    var requestId = await queryModel.GetStreamingRequestIdAsync();
-                    futuresOptionQuotes.Add(new FuturesOptionQuoteReadModel(_quoteId, e.ContractId,  requestId,  "basilt", DateTime.Now));
-                }
-
-                // start streaming quotes...
-                _appRoot.GetModel<MarketDataFeedCommandModel>().Execute(async commandModel =>
-                {
-                    commandModel.OnError((_, errorMsg) => this.ShowErrorMessage(errorMsg, "Start Streaming Quotes Error"));
-                    await commandModel.StartStreamingFuturesOptionQuoteDataAsync(_quoteId, [.. futuresOptionQuotes], futuresOptionContracts);
-                });
-
-                // start quote streaming data listener...
-                _appRoot.GetModel<MarketDataFeedEventModel>().Execute(async eventModel =>
-                {
-                    eventModel.OnError((_, errorMsg) => this.ShowErrorMessage(errorMsg, "Start Streaming Quote Data Listener Error"));
-                    await eventModel.StartFuturesOptionQuoteDataListenerAsync(e => SetLiveFeedQuoteData(e.OptionQuoteData));
-                });
+                model.OnError((_, errorMsg) =>
+                    ShowErrorMessage(errorMsg, "Start Streaming Option Tick Data Error"));
+                await model.StartFuturesOptionTickDataListenerAsync(
+                    e => SetLiveFeedQuoteData(e.OptionTickData));
+                await model.StartStreamingFuturesOptionTickDataAsync(
+                    feedIds,
+                    _baseContract,
+                    _valueDate,
+                    _ironCondorTrade.MaturityDate,
+                    _riskFreeRate,
+                    () => { });
             });
         }
 
-         void SetLiveFeedQuoteData(FuturesOptionQuoteDataReadModel futuresOptionQuoteData)
+         void SetLiveFeedQuoteData(FuturesOptionTickDataV2ReadModel futuresOptionQuoteData)
             => _appRoot.GetModel<MarketDataFeedQueryModel>().Execute(async model => {
                 model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Set Live Feed Quote Data Error"));
                 await model.GetFuturesEodDataAsync(_baseContract.ContractId, _valueDate, futuresEodData => {
@@ -619,7 +613,7 @@ public class IronCondorTradeOrderReadModel
             });
     }
 
-    void SetLiveFeedQuoteDataValues(FuturesEodDataV2ReadModel futuresEodData, FuturesOptionQuoteDataReadModel futuresOptionQuoteData, Action onLiveFeedCompleted)
+    void SetLiveFeedQuoteDataValues(FuturesEodDataV2ReadModel futuresEodData, FuturesOptionTickDataV2ReadModel futuresOptionQuoteData, Action onLiveFeedCompleted)
     {
         var assetPrice = futuresEodData.ClosePrice;
         var daysToExpiry = _ironCondorTrade.MaturityDate.DayNumber - _ironCondorTrade.TradeDate.DayNumber;
@@ -736,18 +730,20 @@ public class IronCondorTradeOrderReadModel
     {
         if (_liveFeedQuoteId == Guid.Empty) return;
 
-        // stop quote streaming data listener...
-        _appRoot.GetModel<MarketDataFeedEventModel>().Execute(async model =>
-        {
-            model.OnError((_, errorMsg) => this.ShowErrorMessage(errorMsg, "Stop Streaming Quote Data Error"));
-            await model.StopFuturesOptionQuoteDataListenerAsync();
-        });
-
-        // stop streaming quotes...
         _appRoot.GetModel<MarketDataFeedCommandModel>().Execute(async model =>
         {
-            model.OnError((_, errorMsg) => this.ShowErrorMessage(errorMsg, "Stop Streaming Quotes Error"));
-            await model.StopStreamingFuturesOptionQuoteDataAsync(_quoteId, () => _liveFeedQuoteId = Guid.Empty);
+            model.OnError((_, errorMsg) =>
+                ShowErrorMessage(errorMsg, "Stop Streaming Option Tick Data Error"));
+            await model.StopFuturesOptionTickDataListenerAsync();
+            foreach (var contractId in _optionLegMap.Values
+                         .Select(optionLeg => optionLeg.ContractId)
+                         .Distinct())
+            {
+                await model.StopStreamingFuturesOptionTickDataAsync(
+                    new FuturesOptionTickEntityId(contractId, _valueDate),
+                    contractId);
+            }
+            _liveFeedQuoteId = Guid.Empty;
         });
     }
 

@@ -107,7 +107,6 @@ public class OptionTradeModelTests
         _redisCache.Received(1).Remove(expectedKey);
     }
 }
-
 public class TradePlanForwardLossLimitModelTests
 {
     private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
@@ -188,94 +187,4 @@ public class TradePlanForwardLossLimitModelTests
         _redisCache.Received(1).Remove(expectedKey);
     }
 }
-
-public class FuturesOptionQuoteDataModelTests
-{
-    private readonly IRedisCache _redisCache = Substitute.For<IRedisCache>();
-    private readonly IJsonSerializer _jsonSerializer = Substitute.For<IJsonSerializer>();
-    private readonly FuturesOptionQuoteDataCacheModel _sut;
-
-    public FuturesOptionQuoteDataModelTests()
-    {
-        _sut = new FuturesOptionQuoteDataCacheModel(_redisCache, _jsonSerializer);
-    }
-
-    [Fact]
-    public void Get_WhenCacheHit_ReturnsDeserializedValue()
-    {
-        // Arrange
-        var quoteId = new FuturesOptionQuoteId(1, "ESZ4_C5000", 100);
-        var expectedKey = "FuturesOptionQuoteData:1.ESZ4_C5000.100";
-        var cachedJson = "{}";
-        var expected = new FuturesOptionQuoteDataReadModel();
-        _redisCache.Get(expectedKey).Returns(cachedJson);
-        _jsonSerializer.Deserialize<FuturesOptionQuoteDataReadModel>(cachedJson).Returns(expected);
-
-        // Act
-        var result = _sut.Get(quoteId);
-
-        // Assert
-        result.Should().Be(expected);
-        _redisCache.Received(1).Get(expectedKey);
-        _jsonSerializer.Received(1).Deserialize<FuturesOptionQuoteDataReadModel>(cachedJson);
-    }
-
-    [Fact]
-    public void Get_WhenCacheMiss_ReturnsDefault()
-    {
-        // Arrange
-        var quoteId = new FuturesOptionQuoteId(1, "ESZ4_C5000", 100);
-        var expectedKey = "FuturesOptionQuoteData:1.ESZ4_C5000.100";
-        _redisCache.Get(expectedKey).Returns((string?)null);
-
-        // Act
-        var result = _sut.Get(quoteId);
-
-        // Assert
-        result.Should().BeNull();
-        _redisCache.Received(1).Get(expectedKey);
-        _jsonSerializer.DidNotReceive().Deserialize<FuturesOptionQuoteDataReadModel>(Arg.Any<string>());
-    }
-
-    [Fact]
-    public void Set_SerializesAndCachesValue()
-    {
-        // Arrange
-        var quoteId = new FuturesOptionQuoteId(1, "ESZ4_C5000", 100);
-        var data = new FuturesOptionQuoteDataReadModel();
-        var expectedKey = "FuturesOptionQuoteData:1.ESZ4_C5000.100";
-        var serializedValue = "value";
-        _jsonSerializer.Serialize(data).Returns(serializedValue);
-
-        // Act
-        _sut.Set(quoteId, data);
-
-        // Assert
-        _jsonSerializer.Received(1).Serialize(data);
-        _redisCache.Received(1).Set(expectedKey, serializedValue);
-    }
-
-    [Fact]
-    public void Clear_SetsEmptyStringInCache()
-    {
-        // Arrange
-        var quoteId = new FuturesOptionQuoteId(1, "ESZ4_C5000", 100);
-        var expectedKey = "FuturesOptionQuoteData:1.ESZ4_C5000.100";
-
-        // Act
-        _sut.Clear(quoteId);
-
-        // Assert
-        _redisCache.Received(1).Set(expectedKey, string.Empty);
-    }
-
-    [Fact]
-    public void BddConstructor_CreatesInstance()
-    {
-        // Arrange & Act
-        var model = new FuturesOptionQuoteDataCacheModel();
-
-        // Assert
-        model.Should().NotBeNull();
-    }
-}
+// Legacy quote-cache get/set tests were removed.

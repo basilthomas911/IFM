@@ -147,28 +147,11 @@ public static class SampleData
     public static readonly FuturesDataId FuturesClosingPriceId1 = new("ESM4", ValueDate);
     public const decimal ClosingPrice1 = 5450.25m;
 
-    // FuturesOptionQuoteData sample data
-    public const int OptionQuoteStreamId = 500;
-
-    public static readonly FuturesOptionQuoteReadModel[] FuturesOptionQuotes =
-    [
-        new FuturesOptionQuoteReadModel(OptionQuoteStreamId, "ES20240601C5500", 1001, "TestUser", new DateTime(2024, 06, 15, 10, 0, 0, DateTimeKind.Utc)),
-        new FuturesOptionQuoteReadModel(OptionQuoteStreamId, "ES20240601P5400", 1002, "TestUser", new DateTime(2024, 06, 15, 10, 0, 0, DateTimeKind.Utc)),
-    ];
-
     public static readonly FuturesOptionContractReadModel[] FuturesOptionContracts =
     [
         new FuturesOptionContractReadModel("ES20240601C5500", "ES Jun24 5500 Call", "ES", "ESM4 C5500", "FOP", "USD", "CME", "50", new DateOnly(2024, 6, 1), 5500.0, "Call"),
         new FuturesOptionContractReadModel("ES20240601P5400", "ES Jun24 5400 Put", "ES", "ESM4 P5400", "FOP", "USD", "CME", "50", new DateOnly(2024, 6, 1), 5400.0, "Put"),
     ];
-
-    public static readonly QuoteData AskPriceQuoteData = new(
-        new DateTime(2024, 06, 15, 14, 30, 0, DateTimeKind.Utc),
-        QuoteLevelType.LevelOne, 0, 1, QuoteSide.Ask, QuoteType.Price, 12.50, 0);
-
-    public static readonly QuoteData BidPriceQuoteData = new(
-        new DateTime(2024, 06, 15, 14, 30, 0, DateTimeKind.Utc),
-        QuoteLevelType.LevelOne, 0, 1, QuoteSide.Bid, QuoteType.Price, 11.25, 0);
 
     // FuturesOptionTickData sample data
     public static readonly FuturesOptionTickEntityId OptionTickStreamingFeedId = new("ES20240601C5500", ValueDate);

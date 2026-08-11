@@ -1,4 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 using FluentAssertions;
 using NATS.Client.Core;
 using NSubstitute;
@@ -27,7 +29,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
 
     public static TheoryData<string> QueryKinds => new()
     {
-        "OptionContract", "OptionSpread", "Risk", "IronCondor", "NormalCurve", "OptionQuoteId", "StreamingRequestId"
+        "OptionContract", "OptionSpread", "Risk", "IronCondor", "NormalCurve", "StreamingRequestId"
     };
 
     [Theory]
@@ -79,11 +81,10 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
     [Fact]
     public async Task Given_TheBrokerFindsAnOptionContract_When_Queried_Then_TheContractIsReturnedAndStreamIsCleanedUp()
     {
-        var snapshot = CreateSnapshot();
+        var marketDataApi = CreateMarketDataApi();
         var contract = SampleData.FuturesOptionContracts[0];
-        snapshot.StreamIds.Add(contract.ContractId).Returns(41);
-        snapshot.GetFuturesOptionContractAsync(41, Arg.Any<FuturesOptionContractReadModel>()).Returns(contract);
-        var actor = _fixture.CreateMarketDataFeedQueryActor(snapshot);
+        marketDataApi.GetFuturesOptionContractAsync(contract.ContractId).Returns(contract);
+        var actor = _fixture.CreateMarketDataFeedQueryActor(marketDataApi);
         var context = Substitute.For<IQueryActorContext>();
         var query = (GetFuturesOptionContractQuery)CreateQuery("OptionContract");
 
@@ -91,27 +92,24 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
 
         await context.Received(1).ReplyAsync(query.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
             Arg.Is<ServiceResult<FuturesOptionContractReadModel>>(result => result.Success && result.Value == contract));
-        snapshot.StreamIds.Received(1).Remove(41);
-        snapshot.Received(1).Stop();
+        await marketDataApi.Received(1).GetFuturesOptionContractAsync(contract.ContractId);
     }
 
     [Fact]
     public async Task Given_TwoOptionLegs_When_TheSpreadIsQueried_Then_BothPricesAreReturnedAndStreamsAreCleanedUp()
     {
-        var snapshot = CreateSnapshot();
+        var marketDataApi = CreateMarketDataApi();
         var shortContract = SampleData.FuturesOptionContracts[0];
         var longContract = SampleData.FuturesOptionContracts[1];
-        snapshot.GetFuturesOptionSpreadAsync(shortContract, longContract).Returns((shortContract, longContract));
-        snapshot.StreamIds.Add(shortContract.ContractId).Returns(51);
-        snapshot.StreamIds.Add(longContract.ContractId).Returns(52);
-        snapshot.GetFuturesOptionPriceAsync(Arg.Any<int>(), Arg.Any<DateOnly>(), Arg.Any<FuturesOptionContractReadModel>(),
-                Arg.Any<Action<FuturesOptionTickDataV2ReadModel>>())
-            .Returns(call =>
-            {
-                call.Arg<Action<FuturesOptionTickDataV2ReadModel>>()(SampleData.EsOptionTickData);
-                return Task.CompletedTask;
-            });
-        var actor = _fixture.CreateMarketDataFeedQueryActor(snapshot);
+        marketDataApi.GetFuturesOptionContractsAsync(Arg.Any<string[]>())
+            .Returns([shortContract, longContract]);
+        var shortReader = CreateOptionPriceReader(shortContract.ContractId);
+        var longReader = CreateOptionPriceReader(longContract.ContractId);
+        marketDataApi.GetFuturesOptionLastPriceReader(shortContract.ContractId)
+            .Returns(shortReader);
+        marketDataApi.GetFuturesOptionLastPriceReader(longContract.ContractId)
+            .Returns(longReader);
+        var actor = _fixture.CreateMarketDataFeedQueryActor(marketDataApi);
         var context = Substitute.For<IQueryActorContext>();
         var query = (GetFuturesOptionSpreadDataQuery)CreateQuery("OptionSpread");
 
@@ -119,22 +117,20 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
 
         await context.Received(1).ReplyAsync(query.Subject.ThreadId, GetFuturesOptionSpreadDataQuery.Verb,
             Arg.Is<ServiceResult<FuturesOptionSpreadDataReadModel>>(result => result.Success && result.Value != null));
-        snapshot.StreamIds.Received(1).Remove(51);
-        snapshot.StreamIds.Received(1).Remove(52);
     }
 
     [Fact]
     public async Task Given_TheBrokerCannotResolveSpreadContracts_When_Queried_Then_TheFailurePropagatesAndTheSessionStops()
     {
-        var snapshot = CreateSnapshot();
-        snapshot.GetFuturesOptionSpreadAsync(Arg.Any<FuturesOptionContractReadModel>(), Arg.Any<FuturesOptionContractReadModel>())
-            .Returns(((FuturesOptionContractReadModel?)null, (FuturesOptionContractReadModel?)null));
-        var actor = _fixture.CreateMarketDataFeedQueryActor(snapshot);
+        var marketDataApi = CreateMarketDataApi();
+        marketDataApi.GetFuturesOptionContractsAsync(Arg.Any<string[]>())
+            .Returns(_ => Task.FromException<FuturesOptionContractReadModel[]>(
+                new InvalidOperationException("Unknown futures option contract")));
+        var actor = _fixture.CreateMarketDataFeedQueryActor(marketDataApi);
 
         var act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext>(), CreateQuery("OptionSpread")).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Unknown futures option contract*");
-        snapshot.Received().Stop();
     }
 
     [Theory]
@@ -187,7 +183,6 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
     }
 
     [Theory]
-    [InlineData("OptionQuoteId", 701)]
     [InlineData("StreamingRequestId", 702)]
     public async Task Given_AnAtomicSequence_When_AnIdentifierIsQueried_Then_TheNextIdIsReturned(string kind, long nextId)
     {
@@ -246,11 +241,32 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
             Arg.Is<ServiceFailed<ActorEntityId>>(result => !result.Success && result.ErrorCode == 9999));
     }
 
-    static IMarketDataSnapshotApi CreateSnapshot()
+    static ApplicationMarketDataApi CreateMarketDataApi()
+        => Substitute.For<ApplicationMarketDataApi>();
+
+    static IFuturesOptionLastPriceReader CreateOptionPriceReader(string contractId)
     {
-        var snapshot = Substitute.For<IMarketDataSnapshotApi>();
-        snapshot.StreamIds.Returns(Substitute.For<IStreamIdCollection>());
-        return snapshot;
+        var reader = Substitute.For<IFuturesOptionLastPriceReader>();
+        reader.FuturesOptionContractId.Returns(contractId);
+        var quote = new LastQuoteTickSnapshot(
+            contractId,
+            new DateOnly(2026, 8, 10),
+            10m,
+            1,
+            1,
+            11m,
+            1,
+            1,
+            1,
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow);
+        reader.TryGetLastQuote(out Arg.Any<LastQuoteTickSnapshot>())
+            .Returns(call =>
+            {
+                call[0] = quote;
+                return true;
+            });
+        return reader;
     }
 
     static (IDbContextFactory Factory, IMarketDataDbContext Database) CreateDatabase()
@@ -272,7 +288,6 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         "IronCondor" => Route(new GetIronCondorMarketDataFeedQuery(
             SampleData.EsContract.ContractId, "ES-P-S", "ES-P-L", "ES-C-S", "ES-C-L", SampleData.ValueDate)),
         "NormalCurve" => Route(new GetNormalCurveTableQuery()),
-        "OptionQuoteId" => Route(new GetOptionQuoteIdQuery("option-quote")),
         "StreamingRequestId" => Route(new GetStreamingRequestIdQuery("stream-request")),
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
@@ -287,7 +302,6 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
             case GetFuturesRiskPositionTypeQuery value: value.Subject = subject; break;
             case GetIronCondorMarketDataFeedQuery value: value.Subject = subject; break;
             case GetNormalCurveTableQuery value: value.Subject = subject; break;
-            case GetOptionQuoteIdQuery value: value.Subject = subject; break;
             case GetStreamingRequestIdQuery value: value.Subject = subject; break;
         }
         return query;
@@ -300,7 +314,6 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         GetFuturesRiskPositionTypeQuery => GetFuturesRiskPositionTypeQuery.Verb,
         GetIronCondorMarketDataFeedQuery => GetIronCondorMarketDataFeedQuery.Verb,
         GetNormalCurveTableQuery => GetNormalCurveTableQuery.Verb,
-        GetOptionQuoteIdQuery => GetOptionQuoteIdQuery.Verb,
         GetStreamingRequestIdQuery => GetStreamingRequestIdQuery.Verb,
         _ => throw new ArgumentOutOfRangeException(nameof(query))
     };
@@ -315,7 +328,6 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         GetFuturesRiskPositionTypeQuery value => ActorExtensions.DataSerializer!.Serialize(value),
         GetIronCondorMarketDataFeedQuery value => ActorExtensions.DataSerializer!.Serialize(value),
         GetNormalCurveTableQuery value => ActorExtensions.DataSerializer!.Serialize(value),
-        GetOptionQuoteIdQuery value => ActorExtensions.DataSerializer!.Serialize(value),
         GetStreamingRequestIdQuery value => ActorExtensions.DataSerializer!.Serialize(value),
         _ => throw new ArgumentOutOfRangeException(nameof(query))
     };

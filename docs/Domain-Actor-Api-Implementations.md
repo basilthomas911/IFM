@@ -90,7 +90,7 @@ Query APIs are registered as singletons because their dependencies are applicati
 
 - Contract: `IActorMarketDataFeedQueryApi`
 - Source: `TomasAI.IFM.Domain.MarketData.Feed/Query/Api/ActorMarketDataFeedQueryApi.cs`
-- Dependencies: `IDbContextFactory`, `IMarketDataSnapshotApi`, and `IBlackboardService`
+- Dependencies: `IDbContextFactory`, application-level `IMarketDataApi`, and `IBlackboardService`
 - Execution: direct Market Data storage access, serialized broker snapshots, and in-process Blackboard sequence allocation
 - Operations: futures and option ticks, EOD and bar data, moving averages, VIX EOD data, iron-condor feed data, EOD parameters, broker option contracts/spreads, normal-curve data, risk-position classification, and streaming/quote IDs
 - Notes: broker snapshot calls are serialized by a `SemaphoreSlim`. The semaphore is always released in `finally`. Sequence IDs are allocated synchronously but returned through the asynchronous service contract.

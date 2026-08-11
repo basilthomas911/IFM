@@ -16,6 +16,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesTickData;
 
@@ -31,7 +32,7 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
     public class TestableFuturesTickDataEventActor : FuturesTickDataEventActor
     {
         public TestableFuturesTickDataEventActor(IActorSupervisor supervisor,
-            IMarketDataApi marketDataApi,
+            ApplicationMarketDataApi marketDataApi,
             IBlackboardService blackboardService,
             IStatusConsoleWriter statusConsoleWriter,
             ILogger<FuturesTickDataEventActor> logger)
@@ -187,11 +188,9 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
     [Fact]
     public async Task ReceiveAsync_StreamingStartedEvent_StartsFeedCachesParametersAndPublishesCompletion()
     {
-        var api = Substitute.For<IMarketDataApi>();
-        var streamIds = Substitute.For<IStreamIdCollection>();
-        api.StreamIds.Returns(streamIds);
-        api.StartAsync(Arg.Any<Func<int, string, Task>>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
-        streamIds.Add(SampleData.EsContract.ContractId).Returns(42);
+        var api = Substitute.For<ApplicationMarketDataApi>();
+        api.StartStreamingFuturesTickDataAsync(SampleData.EsContract.ContractId)
+            .Returns(true);
         var (blackboard, redis) = CreateBlackboard();
         var actor = CreateActor(marketDataApi: api, blackboard: blackboard);
         var context = Substitute.For<IEventActorContext>();
@@ -199,10 +198,12 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
 
         await actor.InvokeReceiveAsync(context, @event);
 
-        await api.Received(1).StartAsync(Arg.Any<Func<int, string, Task>>(), Arg.Any<CancellationToken>());
-        api.Received(1).StartStreamingFuturesTickData(42, SampleData.ValueDate, SampleData.EsContract);
-        redis.Received(1).Set(
-            Arg.Is<string>(key => key.EndsWith(":42")), Arg.Any<string>());
+        await api.Received(1).StartAsync(
+            @event.ValueDate,
+            Arg.Any<Func<Guid, int, string, Task>>(),
+            Arg.Any<CancellationToken>());
+        await api.Received(1)
+            .StartStreamingFuturesTickDataAsync(SampleData.EsContract.ContractId);
         await context.Received(1).SendAsync<FuturesTickDataStreamingStartedCompleteEvent, FuturesTickDataStreamingId>(
             Arg.Is<FuturesTickDataStreamingStartedCompleteEvent>(value =>
                 value.CommandId == @event.CommandId));
@@ -211,8 +212,10 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
     [Fact]
     public async Task ReceiveAsync_StreamingStartFailure_PublishesFailureWithoutLeakingException()
     {
-        var api = Substitute.For<IMarketDataApi>();
-        api.StartAsync(Arg.Any<Func<int, string, Task>>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
+        var api = Substitute.For<ApplicationMarketDataApi>();
+        api.StartStreamingFuturesTickDataAsync(Arg.Any<string>())
+            .Returns(_ => Task.FromException<bool>(
+                new InvalidOperationException("provider failed to start")));
         var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateStreamingStartedEvent();
@@ -228,19 +231,17 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
     [Fact]
     public async Task ReceiveAsync_StreamingStoppedEvent_StopsFeedRemovesStreamAndPublishesCompletion()
     {
-        var api = Substitute.For<IMarketDataApi>();
-        var streamIds = Substitute.For<IStreamIdCollection>();
-        api.StreamIds.Returns(streamIds);
-        streamIds[SampleData.EsContract.ContractId].Returns(42);
-        api.StopStreamingFuturesTickData(42).Returns(true);
+        var api = Substitute.For<ApplicationMarketDataApi>();
+        api.StopStreamingFuturesTickDataAsync(SampleData.EsContract.ContractId)
+            .Returns(true);
         var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateStreamingStoppedEvent();
 
         await actor.InvokeReceiveAsync(context, @event);
 
-        api.Received(1).StopStreamingFuturesTickData(42);
-        streamIds.Received(1).Remove(42);
+        await api.Received(1)
+            .StopStreamingFuturesTickDataAsync(SampleData.EsContract.ContractId);
         await context.Received(1).SendAsync<FuturesTickDataStreamingStoppedCompleteEvent, FuturesTickDataStreamingId>(
             Arg.Is<FuturesTickDataStreamingStoppedCompleteEvent>(value =>
                 value.CommandId == @event.CommandId));
@@ -249,11 +250,11 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
     [Fact]
     public async Task ReceiveAsync_StreamingStopReturnsFalse_PublishesFailure()
     {
-        var api = Substitute.For<IMarketDataApi>();
-        var streamIds = Substitute.For<IStreamIdCollection>();
-        api.StreamIds.Returns(streamIds);
-        streamIds[SampleData.EsContract.ContractId].Returns(42);
-        api.StopStreamingFuturesTickData(42).Returns(false);
+        var api = Substitute.For<ApplicationMarketDataApi>();
+        api.StopStreamingFuturesTickDataAsync(SampleData.EsContract.ContractId)
+            .Returns(_ => Task.FromException<bool>(
+                new InvalidOperationException(
+                    $"Market data API failed to stop streaming futures contract {SampleData.EsContract.ContractId}.")));
         var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
 
@@ -264,7 +265,6 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
         await context.Received(1).SendAsync<FuturesTickDataStreamingStoppedFailEvent, FuturesTickDataStreamingId>(
             Arg.Is<FuturesTickDataStreamingStoppedFailEvent>(value =>
                 value.ErrorMessage == $"Market data API failed to stop streaming futures contract {SampleData.EsContract.ContractId}."));
-        streamIds.DidNotReceive().Remove(Arg.Any<int>());
     }
 
     [Fact]
@@ -349,7 +349,7 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
 
     TestableFuturesTickDataEventActor CreateActor(
         IActorSupervisor? supervisor = null,
-        IMarketDataApi? marketDataApi = null,
+        ApplicationMarketDataApi? marketDataApi = null,
         IBlackboardService? blackboard = null,
         IStatusConsoleWriter? statusConsole = null,
         ILogger<FuturesTickDataEventActor>? logger = null)
@@ -360,12 +360,8 @@ public class FuturesTickDataEventActorTests : IClassFixture<MarketDataFeedTestFi
             statusConsole ?? Substitute.For<IStatusConsoleWriter>(),
             logger ?? Substitute.For<ILogger<FuturesTickDataEventActor>>());
 
-    static IMarketDataApi CreateMarketDataApi()
-    {
-        var api = Substitute.For<IMarketDataApi>();
-        api.StreamIds.Returns(Substitute.For<IStreamIdCollection>());
-        return api;
-    }
+    static ApplicationMarketDataApi CreateMarketDataApi()
+        => Substitute.For<ApplicationMarketDataApi>();
 
     static (IBlackboardService Blackboard, IRedisCache Redis) CreateBlackboard()
     {

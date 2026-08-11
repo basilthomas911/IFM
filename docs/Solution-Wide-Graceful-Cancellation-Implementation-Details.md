@@ -116,10 +116,7 @@ Current verification completed with a zero-warning Release solution build, 57 pa
 
 ## Explicit exclusions
 
-Do not optimize or extend cancellation specifically for:
-
-- `TomasAI.IFM.Framework.MarketData.InteractiveBrokers`;
-- `TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers`;
-- queueing code used only by that legacy feed implementation.
-
-Databento lifecycle, native ring-buffer consumption, tick-channel backpressure, and the future tick manager/aggregator actors will be handled as part of the Databento architecture rather than by extending the legacy feed.
+The removed Interactive Brokers market-data implementation remains outside this
+optimization scope. DataBento lifecycle, native ring-buffer consumption,
+tick-channel backpressure, and TickAggregation actors are handled by the DataBento
+architecture.

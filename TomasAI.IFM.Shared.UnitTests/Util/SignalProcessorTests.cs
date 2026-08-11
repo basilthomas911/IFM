@@ -5,8 +5,6 @@ using Xunit;
 using FluentAssertions;
 using TomasAI.IFM.Shared.Util;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Service.MarketDataFeed;
-using TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers;
 
 namespace TomasAI.IFM.Shared.UnitTests.Util
 {

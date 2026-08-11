@@ -7,20 +7,20 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
 public record MarketDataFeedEventParameters
 {
-    public IMarketDataApi MarketDataApi { get; init; }
+    public ApplicationMarketDataApi MarketDataApi { get; init; }
     public IOptionTradeLiveFeedMap OptionTradeLiveFeedMap { get; init; }
     public IBlackboardService BlackboardService { get; init; }
     public IStatusConsoleWriter StatusConsoleWriter { get; init; }
     public ILogger Logger { get; init; }
 
     public MarketDataFeedEventParameters(
-        IMarketDataApi marketDataApi,
+        ApplicationMarketDataApi marketDataApi,
         IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
         IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter,

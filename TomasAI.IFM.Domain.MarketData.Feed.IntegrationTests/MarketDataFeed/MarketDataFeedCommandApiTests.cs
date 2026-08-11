@@ -1,10 +1,12 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
@@ -22,6 +24,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
     readonly HttpClientTestFactory _httpClientFactory = new(factory);
     readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
+    readonly WebApplicationFactory<Program> _factory = factory;
 
     [Fact]
     public async Task StartMarketDataFeed_Ok()
@@ -49,6 +52,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
 
         // act...
         _httpClientFactory.CreateClient();
+        await ResetApplicationMarketDataApiAsync();
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.StartMarketDataFeedAsync(futuresContracts, valueDate);
@@ -61,9 +65,8 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
 
         // assert...
         marketDataFeedStartedEvent.Should().NotBeNull();
-        marketDataFeedStartedCompleteEvent.Should().BeNull();
-        marketDataFeedStartedFailEvent.Should().NotBeNull();
-        marketDataFeedStartedFailEvent.ErrorMessage.Should().Be("Market data API failed to start for unknown reasons.");
+        marketDataFeedStartedCompleteEvent.Should().NotBeNull();
+        marketDataFeedStartedFailEvent.Should().BeNull();
 
         marketDataFeedStartedEvent.ValueDate.Should().Be(valueDate);
         marketDataFeedStartedEvent.FuturesContracts.Should().NotBeNullOrEmpty();
@@ -129,6 +132,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
 
         // act...
         _httpClientFactory.CreateClient();
+        await ResetApplicationMarketDataApiAsync(valueDate);
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.StopMarketDataFeedAsync(valueDate);
@@ -207,6 +211,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
 
         // act...
         _httpClientFactory.CreateClient();
+        await ResetApplicationMarketDataApiAsync();
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.ResetMarketDataFeedAsync(futuresContracts, valueDate);
@@ -219,9 +224,8 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
 
         // assert...
         marketDataFeedResetEvent.Should().NotBeNull();
-        marketDataFeedResetCompleteEvent.Should().BeNull();
-        marketDataFeedResetFailEvent.Should().NotBeNull();
-        marketDataFeedResetFailEvent.ErrorMessage.Should().Be("Market data API failed to start for unknown reasons.");
+        marketDataFeedResetCompleteEvent.Should().NotBeNull();
+        marketDataFeedResetFailEvent.Should().BeNull();
 
         //marketDataFeedResetEvent.ValueDate.Should().Be(valueDate);
        //marketDataFeedResetEvent.FuturesContracts.Should().NotBeNullOrEmpty();
@@ -579,5 +583,14 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
                 return @event;
             }
         }
+    }
+
+    private async Task ResetApplicationMarketDataApiAsync(DateOnly? startValueDate = null)
+    {
+        var api = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
+        if (api.ActiveValueDate is { } activeValueDate)
+            await api.StopAsync(activeValueDate);
+        if (startValueDate is { } valueDate)
+            await api.StartAsync(valueDate);
     }
 }

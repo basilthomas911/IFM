@@ -35,16 +35,13 @@ public static class MarketDataFeedStarted
         var source = $"MarketDataFeedStartedEvent for EntityId: {e.EntityId}";
         try
         {
-            var started = await p.MarketDataApi.StartAsync(
-                (errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
-            if (started)
-            {
-                await eventApi.SendMarketDataFeedStartedCompleteAsync(e);
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed started");
-                p.Logger.LogInformationEvent(ServiceId, "{Source}: market data feed started", source);
-            }
-            else
-                throw new InvalidOperationException("Market data API failed to start for unknown reasons.");
+            await p.MarketDataApi.StartAsync(
+                e.ValueDate,
+                (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
+                    LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
+            await eventApi.SendMarketDataFeedStartedCompleteAsync(e);
+            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed started");
+            p.Logger.LogInformationEvent(ServiceId, "{Source}: market data feed started", source);
             return true;
         }
         catch (Exception ex)

@@ -54,11 +54,6 @@ public interface IActorMarketDataFeedCommandApi
     ValueTask<ServiceResult<GuidResult>> InsertFuturesBarDataAsync(FuturesBarDataReadModel futuresBarData);
     ValueTask<ServiceResult<GuidResult>> DeleteStreamingRequestIdAsync(FeedId feedId);
 
-    ValueTask<ServiceResult<GuidResult>> InsertFuturesOptionQuoteDataAsync(
-        int quoteId,
-        string contractId,
-        QuoteData quoteData);
-
     ValueTask<ServiceResult<GuidResult>> InsertFuturesEodDataAsync(
         DateOnly valueDate,
         FuturesTickDataV2ReadModel futuresTickData,

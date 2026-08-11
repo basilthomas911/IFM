@@ -36,7 +36,6 @@
     <Folder Include="FuturesBarData\" />
     <Folder Include="FuturesClosingPrice\" />
     <Folder Include="FuturesEodData\" />
-    <Folder Include="FuturesOptionQuoteData\" />
     <Folder Include="FuturesTickData\" />
   </ItemGroup>
 

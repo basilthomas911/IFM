@@ -9,19 +9,17 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.SequenceId;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.Query.Api;
 
 public class ActorMarketDataFeedQueryApiTests
 {
-    [Theory]
-    [InlineData(true, SequenceName.StreamingRequest_RequestId, 701)]
-    [InlineData(false, SequenceName.OptionQuote_QuoteId, 702)]
-    public async Task IdentifierQueriesUseTheSystemSequenceGenerator(
-        bool streamingRequest,
-        SequenceName sequenceName,
-        long sequenceId)
+    [Fact]
+    public async Task StreamingRequestIdentifierUsesTheSystemSequenceGenerator()
     {
+        const SequenceName sequenceName = SequenceName.StreamingRequest_RequestId;
+        const long sequenceId = 701;
         var dbFactory = Substitute.For<IDbContextFactory>();
         var generator = Substitute.For<ISequenceIdGenerator>();
         generator
@@ -29,12 +27,10 @@ public class ActorMarketDataFeedQueryApiTests
             .Returns(new ValueTask<long>(sequenceId));
         var api = new ActorMarketDataFeedQueryApi(
             dbFactory,
-            Substitute.For<IMarketDataSnapshotApi>(),
+            Substitute.For<ApplicationMarketDataApi>(),
             generator);
 
-        var result = streamingRequest
-            ? await api.GetStreamingRequestIdAsync()
-            : await api.GetOptionQuoteIdAsync();
+        var result = await api.GetStreamingRequestIdAsync();
 
         result.Success.Should().BeTrue();
         result.Value!.Value.Should().Be((int)sequenceId);
@@ -73,27 +69,22 @@ public class ActorMarketDataFeedQueryApiTests
     }
 
     [Fact]
-    public async Task SnapshotFailureStopsTheApiAndRemovesTheStreamId()
+    public async Task ProviderFailureReturnsTheQueryErrorWithoutStartingAnotherConnection()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
-        var snapshot = Substitute.For<IMarketDataSnapshotApi>();
-        var streamIds = Substitute.For<IStreamIdCollection>();
+        var marketDataApi = Substitute.For<ApplicationMarketDataApi>();
         var queryForContract = new FuturesOptionContractReadModel();
-        snapshot.StreamIds.Returns(streamIds);
-        streamIds.Add("ES-OPTION").Returns(17);
-        snapshot.GetFuturesOptionContractAsync(17, queryForContract)
+        marketDataApi.GetFuturesOptionContractAsync("ES-OPTION")
             .Returns(_ => Task.FromException<FuturesOptionContractReadModel?>(
-                new InvalidOperationException("snapshot unavailable")));
+                new InvalidOperationException("provider unavailable")));
         var api = new ActorMarketDataFeedQueryApi(
-            dbFactory, snapshot, Substitute.For<ISequenceIdGenerator>());
+            dbFactory, marketDataApi, Substitute.For<ISequenceIdGenerator>());
 
         var result = await api.GetFuturesOptionContractAsync("ES-OPTION", queryForContract);
 
         result.Success.Should().BeFalse();
         result.ErrorCode.Should().Be(GetFuturesOptionContractQuery.ErrorId);
-        await snapshot.Received(1).StartAsync(null, Arg.Any<CancellationToken>());
-        snapshot.Received(1).Stop();
-        streamIds.Received(1).Remove(17);
+        await marketDataApi.Received(1).GetFuturesOptionContractAsync("ES-OPTION");
     }
 
     static (ActorMarketDataFeedQueryApi Api, IMarketDataDbContext Db) CreateApi()
@@ -101,8 +92,8 @@ public class ActorMarketDataFeedQueryApiTests
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
-        var snapshot = Substitute.For<IMarketDataSnapshotApi>();
+        var marketDataApi = Substitute.For<ApplicationMarketDataApi>();
         var sequenceIdGenerator = Substitute.For<ISequenceIdGenerator>();
-        return (new ActorMarketDataFeedQueryApi(dbFactory, snapshot, sequenceIdGenerator), db);
+        return (new ActorMarketDataFeedQueryApi(dbFactory, marketDataApi, sequenceIdGenerator), db);
     }
 }

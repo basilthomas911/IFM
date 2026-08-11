@@ -50,14 +50,6 @@ internal readonly record struct DeleteFuturesItiTrendDeltaData(string symbol, Da
 {
     public object Bind() => new object?[] { symbol, startDate, endDate };
 }
-internal readonly record struct DeleteFuturesOptionQuoteData(int quoteId) : IBindValue
-{
-    public object Bind() => new object?[] { quoteId };
-}
-internal readonly record struct DeleteFuturesOptionQuotes(int quoteId) : IBindValue
-{
-    public object Bind() => new object?[] { quoteId };
-}
 internal readonly record struct DeleteFuturesOptionTickData(string contractId, DateOnly valueDate) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate };
@@ -455,14 +447,6 @@ internal readonly record struct InsertFuturesItiTrendDeltaModel(string symbol, D
 internal readonly record struct InsertFuturesMacdSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double macdLine, double signalLine, double histogram, string macd, string macdStrength) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, macdLine, signalLine, histogram, macd, macdStrength };
-}
-internal readonly record struct InsertFuturesOptionQuote(int quoteId, string contractId, int requestId, string createdBy, DateTime createdOn) : IBindValue
-{
-    public object Bind() => new object?[] { quoteId, contractId, requestId, createdBy, createdOn };
-}
-internal readonly record struct InsertFuturesOptionQuoteData(int quoteId, string contractId, int requestId, long sequenceId, decimal bidPrice, int bidSize, decimal askPrice, int askSize) : IBindValue
-{
-    public object Bind() => new object?[] { quoteId, contractId, requestId, sequenceId, bidPrice, bidSize, askPrice, askSize };
 }
 internal readonly record struct InsertFuturesOptionTickData(string contractId, DateOnly valueDate, long tickId, TimeOnly tickTime, double optionPrice, double bidPrice, double askPrice, int bidSize, int askSize, double impliedVolatility, double underlyingPrice, double delta, double gamma, double vega, double theta, double rho) : IBindValue
 {

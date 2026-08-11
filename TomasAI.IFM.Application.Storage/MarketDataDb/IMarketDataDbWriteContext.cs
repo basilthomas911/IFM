@@ -30,7 +30,6 @@ public interface IMarketDataDbWriteContext
     Task DeleteYieldCurveRateAsync(DateOnly valueDate);
     Task DeleteMarketHolidayAsync(MarketHolidayReadModel e);
     Task DeleteMarketHolidaysAsync(CurrencyType  currencyType);
-    Task DeleteFuturesOptionQuotesAsync(int QuoteId);
     Task DeleteRateOfReturnAsync(string symbol, DateOnly valueDate);
     Task DeleteFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod);
     Task DeleteFuturesOptionTickDataAsync(string contractId, DateOnly valueDate);
@@ -66,9 +65,6 @@ public interface IMarketDataDbWriteContext
     Task InsertYieldCurveRatesAsync(ICollection<YieldCurveRateReadModel> e);
     Task InsertMarketHolidayAsync(MarketHolidayReadModel e);
     Task InsertTradeLiveFeedAsync(TradeLiveFeedReadModel e);
-
-    Task InsertFuturesOptionQuoteAsync(ICollection<FuturesOptionQuoteReadModel> futuresOptionQuotes, ICollection<FuturesOptionQuoteDataReadModel> futuresOptionQuoteData);
-    Task InsertFuturesOptionQuoteDataAsync(FuturesOptionQuoteDataReadModel e);
 
     Task InsertFuturesEodDataAsync(FuturesEodDataV2ReadModel e);
     Task InsertFuturesEodDataAsync(ICollection<FuturesEodDataV2ReadModel> futuresEodData);

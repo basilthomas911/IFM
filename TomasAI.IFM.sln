@@ -40,8 +40,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Marke
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep", "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep\TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.csproj", "{B24478D0-5D88-4A98-AFD2-2E7C87361A14}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.MarketData.InteractiveBrokers", "TomasAI.IFM.Framework.MarketData.InteractiveBrokers\TomasAI.IFM.Framework.MarketData.InteractiveBrokers.csproj", "{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Messaging", "TomasAI.IFM.Framework.Messaging\TomasAI.IFM.Framework.Messaging.csproj", "{6EAA26CF-FD11-4419-868C-34CA825D77B4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Messaging.RestApi", "TomasAI.IFM.Framework.Messaging.RestApi\TomasAI.IFM.Framework.Messaging.RestApi.csproj", "{E3C804D6-A982-4E89-930F-5219822CD323}"
@@ -53,8 +51,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Telemetry", "TomasAI.IFM.Framework.Telemetry\TomasAI.IFM.Framework.Telemetry.csproj", "{C72BDABF-2ECA-4C5A-ADC1-BE8B99C15F85}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.Blackboard", "TomasAI.IFM.Application.Blackboard\TomasAI.IFM.Application.Blackboard.csproj", "{33ADFE54-1332-47FB-BE88-F974CE51C1A9}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers", "TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers\TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers.csproj", "{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Service.StatusConsole", "TomasAI.IFM.Service.StatusConsole\TomasAI.IFM.Service.StatusConsole.csproj", "{0A92A896-6E01-4E1E-A45B-331C0E969710}"
 EndProject
@@ -623,26 +619,6 @@ Global
 		{B24478D0-5D88-4A98-AFD2-2E7C87361A14}.Release|x64.Build.0 = Release|Any CPU
 		{B24478D0-5D88-4A98-AFD2-2E7C87361A14}.Release|x86.ActiveCfg = Release|Any CPU
 		{B24478D0-5D88-4A98-AFD2-2E7C87361A14}.Release|x86.Build.0 = Release|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Debug|ARM.ActiveCfg = Debug|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Debug|ARM.Build.0 = Debug|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Debug|ARM64.ActiveCfg = Debug|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Debug|ARM64.Build.0 = Debug|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Debug|x64.Build.0 = Debug|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Debug|x86.Build.0 = Debug|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Release|ARM.ActiveCfg = Release|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Release|ARM.Build.0 = Release|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Release|ARM64.ActiveCfg = Release|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Release|ARM64.Build.0 = Release|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Release|x64.ActiveCfg = Release|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Release|x64.Build.0 = Release|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Release|x86.ActiveCfg = Release|Any CPU
-		{F5D2ED77-B4E9-4B15-B761-0CDC5D314026}.Release|x86.Build.0 = Release|Any CPU
 		{6EAA26CF-FD11-4419-868C-34CA825D77B4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{6EAA26CF-FD11-4419-868C-34CA825D77B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6EAA26CF-FD11-4419-868C-34CA825D77B4}.Debug|ARM.ActiveCfg = Debug|Any CPU
@@ -763,26 +739,6 @@ Global
 		{33ADFE54-1332-47FB-BE88-F974CE51C1A9}.Release|x64.Build.0 = Release|Any CPU
 		{33ADFE54-1332-47FB-BE88-F974CE51C1A9}.Release|x86.ActiveCfg = Release|Any CPU
 		{33ADFE54-1332-47FB-BE88-F974CE51C1A9}.Release|x86.Build.0 = Release|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Debug|ARM.ActiveCfg = Debug|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Debug|ARM.Build.0 = Debug|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Debug|ARM64.ActiveCfg = Debug|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Debug|ARM64.Build.0 = Debug|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Debug|x64.Build.0 = Debug|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Debug|x86.Build.0 = Debug|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Release|ARM.ActiveCfg = Release|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Release|ARM.Build.0 = Release|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Release|ARM64.ActiveCfg = Release|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Release|ARM64.Build.0 = Release|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Release|x64.ActiveCfg = Release|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Release|x64.Build.0 = Release|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Release|x86.ActiveCfg = Release|Any CPU
-		{0ED27B69-E870-434F-A83F-03AE1F6A1BAD}.Release|x86.Build.0 = Release|Any CPU
 		{0A92A896-6E01-4E1E-A45B-331C0E969710}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{0A92A896-6E01-4E1E-A45B-331C0E969710}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0A92A896-6E01-4E1E-A45B-331C0E969710}.Debug|ARM.ActiveCfg = Debug|Any CPU

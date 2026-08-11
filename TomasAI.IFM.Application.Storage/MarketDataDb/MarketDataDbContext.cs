@@ -1772,25 +1772,6 @@ public partial class MarketDataDbContext(
             .SetParameters(new DeleteMarketHolidays(currencyType: currencyType.ToStringFast()))
             .ExecuteCommandAsync();
 
-    /// <summary>
-    /// Deletes futures option quotes and their associated data from the database.
-    /// </summary>
-    /// <param name="quoteId"></param>
-    /// <returns></returns>
-    public async Task DeleteFuturesOptionQuotesAsync(int quoteId)
-    {
-        var db = _dbFactory.MarketDataDb;
-        List<object> queuedCommands = [
-             db.Use(MarketDataDbCql.DeleteFuturesOptionQuotes)
-                .SetParameters(new DeleteFuturesOptionQuotes(quoteId))
-                .QueueCommand(),
-            db.Use(MarketDataDbCql.DeleteFuturesOptionQuoteData)
-                .SetParameters(new DeleteFuturesOptionQuoteData(quoteId))
-                .QueueCommand()
-        ];
-        await db.ExecuteQueuedCommandsAsync(queuedCommands);
-    }
-
     public async Task DeleteRateOfReturnAsync(string symbol, DateOnly valueDate)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.DeleteRateOfReturn)
@@ -2474,75 +2455,6 @@ public partial class MarketDataDbContext(
                 rho: e.Rho
             )))
             .ExecuteCommandAsync();
-
-    /// <summary>
-    /// Inserts a futures option quote record into the database.
-    /// </summary>
-    /// <param name="futuresOptionQuotes">The futures option quote to insert.</param>
-    /// <param name="futuresOptionQuoteData">Collection of futures option quote data to insert.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InsertFuturesOptionQuoteAsync(
-        ICollection<FuturesOptionQuoteReadModel> futuresOptionQuotes,
-        ICollection<FuturesOptionQuoteDataReadModel> futuresOptionQuoteData)
-    {
-        var db = _dbFactory.MarketDataDb;
-        List<object> queuedCommands = [];
-        foreach (var e in futuresOptionQuotes)
-        {
-            queuedCommands.Add(
-               db.Use(MarketDataDbCql.InsertFuturesOptionQuote)
-                    .SetParameters(new InsertFuturesOptionQuote(
-                        quoteId: e.QuoteId,
-                        contractId: e.ContractId,
-                        requestId: e.RequestId,
-                        createdBy: e.CreatedBy,
-                        createdOn: e.CreatedOn
-                    ))
-                    .QueueCommand());
-        }
-        foreach (var e in futuresOptionQuoteData)
-        {
-            var sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionQuoteData_SequenceId);
-            queuedCommands.Add(
-            _dbFactory.MarketDataDb
-                .Use(MarketDataDbCql.InsertFuturesOptionQuoteData)
-                .SetParameters(new InsertFuturesOptionQuoteData(
-                    quoteId: e.QuoteId,
-                    contractId: e.ContractId,
-                    requestId: e.RequestId,
-                    sequenceId,
-                    bidPrice: e.BidPrice,
-                    bidSize: e.BidSize,
-                    askPrice: e.AskPrice,
-                    askSize: e.AskSize
-                ))
-                .QueueCommand());
-        }
-
-        await db.ExecuteQueuedCommandsAsync(queuedCommands);
-    }
-
-    /// <summary>
-    /// Inserts a futures option quote data record into the database.
-    /// </summary>
-    /// <param name="futuresOptionQuoteData">Collection of  futures option quote data to insert.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InsertFuturesOptionQuoteDataAsync(FuturesOptionQuoteDataReadModel e)
-    {
-        var sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionQuoteData_SequenceId);
-        await _dbFactory.MarketDataDb.Use(MarketDataDbCql.InsertFuturesOptionQuoteData)
-            .SetParameters(new InsertFuturesOptionQuoteData(
-                quoteId: e.QuoteId,
-                contractId: e.ContractId,
-                requestId: e.RequestId,
-                sequenceId,
-                bidPrice: e.BidPrice,
-                bidSize: e.BidSize,
-                askPrice: e.AskPrice,
-                askSize: e.AskSize
-            ))
-            .ExecuteCommandAsync();
-    }
 
     /// <summary>
     /// Inserts a trade live feed record into the database.
@@ -4584,14 +4496,6 @@ public partial class MarketDataDbContext(
     /// <returns></returns>
     public async Task<int> GetStreamingRequestIdAsync()
         => Convert.ToInt32(await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.StreamingRequest_RequestId));
-
-    /// <summary>
-    /// return option quote id
-    /// </summary>
-    /// <param name="streamId"></param>
-    /// <returns></returns>
-    public async Task<int> GetOptionQuoteIdAsync()
-        => Convert.ToInt32(await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionQuote_QuoteId));
 
     /// <summary>
     /// Gets a collection of futures ITI trend direction changed signals for a given entity ID.

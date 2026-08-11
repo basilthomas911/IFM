@@ -688,45 +688,6 @@ public static class MarketDataFeedCommands
                 return await e.RequestAsync<InsertVixFuturesEodDataCommand, FuturesEodDataId>(cmd);
             });
 
-        endpoints.MapPost(MarketDataFeedUriPath.StartFuturesOptionQuoteDataStreaming, async (IActorService e, StartFuturesOptionQuoteDataStreamingParameter cmdParam)
-        => {
-            var entityId = new QuoteId(cmdParam.QuoteId);
-            StartFuturesOptionQuoteDataStreamingCommand cmd = new(cmdParam.QuoteId, cmdParam.FuturesOptionQuotes, cmdParam.FuturesOptionContracts)
-            {
-                CommandId = Guid.NewGuid(),
-                Subject = new ActorSubject(ActorType.Command, StartFuturesOptionQuoteDataStreamingCommand.Actor, StartFuturesOptionQuoteDataStreamingCommand.Verb, entityId.Format()),
-                EntityId = entityId,
-                ErrorCode = cmdParam.ErrorCode
-            };
-            return await e.RequestAsync<StartFuturesOptionQuoteDataStreamingCommand, QuoteId>(cmd);
-        });
-
-        endpoints.MapPost(MarketDataFeedUriPath.StopFuturesOptionQuoteDataStreaming, async (IActorService e, StopFuturesOptionQuoteDataStreamingParameter cmdParam)
-        => {
-            var entityId = new QuoteId(cmdParam.QuoteId);
-            StopFuturesOptionQuoteDataStreamingCommand cmd = new(cmdParam.QuoteId)
-            {
-                CommandId = Guid.NewGuid(),
-                Subject = new ActorSubject(ActorType.Command, StopFuturesOptionQuoteDataStreamingCommand.Actor, StopFuturesOptionQuoteDataStreamingCommand.Verb, entityId.Format()),
-                EntityId = entityId,
-                ErrorCode = cmdParam.ErrorCode
-            };
-            return await e.RequestAsync<StopFuturesOptionQuoteDataStreamingCommand, QuoteId>(cmd);
-        });
-
-        endpoints.MapPost(MarketDataFeedUriPath.InsertFuturesOptionQuoteData, async (IActorService e, InsertFuturesOptionQuoteDataParameter cmdParam)
-        => {
-            var entityId = new QuoteId(cmdParam.QuoteId);
-            InsertFuturesOptionQuoteDataCommand cmd = new(cmdParam.QuoteId, cmdParam.ContractId, cmdParam.QuoteData)
-            {
-                CommandId = Guid.NewGuid(),
-                Subject = new ActorSubject(ActorType.Command, InsertFuturesOptionQuoteDataCommand.Actor, InsertFuturesOptionQuoteDataCommand.Verb, entityId.Format()),
-                EntityId = entityId,
-                ErrorCode = cmdParam.ErrorCode
-            };
-            return await e.RequestAsync<InsertFuturesOptionQuoteDataCommand, QuoteId>(cmd);
-        });
-
         endpoints.MapPost(MarketDataFeedUriPath.InsertFuturesOptionTickData, async (IActorService e, InsertFuturesOptionTickDataParameter cmdParam)
             => {
                 var entityId = cmdParam.FuturesOptionTickData.EntityId;

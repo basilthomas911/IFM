@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`TomasAI.IFM.Domain.MarketData.Feed` implements ingestion and distribution actors for the market-data feed itself plus futures bars, closing prices, end-of-day data, option quotes, option ticks, and futures ticks.
+`TomasAI.IFM.Domain.MarketData.Feed` implements ingestion and distribution actors for the market-data feed itself plus futures bars, closing prices, end-of-day data, option ticks, and futures ticks.
 
 ## Root-to-leaf directory inventory
 
@@ -40,13 +40,6 @@ FuturesEodData/Event/Actor/
 FuturesEodData/Event/Extensions/
 FuturesEodData/Query/Actor/
 FuturesEodData/Query/Extensions/
-FuturesOptionQuoteData/Command/Actor/
-FuturesOptionQuoteData/Command/Exceptions/
-FuturesOptionQuoteData/Command/Model/
-FuturesOptionQuoteData/Command/State/
-FuturesOptionQuoteData/Command/Validation/
-FuturesOptionQuoteData/Event/Actor/
-FuturesOptionQuoteData/Event/Extensions/
 FuturesOptionTickData/Command/Actor/
 FuturesOptionTickData/Command/Model/
 FuturesOptionTickData/Command/State/

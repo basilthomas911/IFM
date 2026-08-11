@@ -32,21 +32,15 @@ public static class MarketDataFeedReset
         var source = $"MarketDataFeedResetEvent for EntityId: {e.EntityId}";
         try
         {
-            p.MarketDataApi.Stop();
-            await Task.Delay(TimeSpan.FromSeconds(2));
-            var started = await p.MarketDataApi.StartAsync(
-                (errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
-            if (started)
-            {
-                await eventApi.MarketDataFeedResetCompleteAsync(e);
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed reset");
-                p.Logger.LogInformationEvent(ServiceId, "{Source}: market data feed reset", source);
-                return true;
-            }
-            else
-            {
-                throw new InvalidOperationException("Market data API failed to start for unknown reasons.");
-            }
+            await p.MarketDataApi.StopAsync(e.ValueDate);
+            await p.MarketDataApi.StartAsync(
+                e.ValueDate,
+                (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
+                    LogSourceType.MarketDataFeedEvent, errorCode, errorMsg));
+            await eventApi.MarketDataFeedResetCompleteAsync(e);
+            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed reset");
+            p.Logger.LogInformationEvent(ServiceId, "{Source}: market data feed reset", source);
+            return true;
         }
         catch (Exception ex)
         {

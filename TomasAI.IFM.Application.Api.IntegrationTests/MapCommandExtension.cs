@@ -65,7 +65,6 @@ public static class MapCommandExtension
         app.MapPost(MarketDataFeedUriPath.InsertVixFuturesEodData, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromInsertVixFuturesEodDataAsync(resp));
         app.MapPost(MarketDataFeedUriPath.InsertFuturesBarData, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromInsertFuturesBarDataAsync(resp));
         app.MapPost(MarketDataFeedUriPath.DeleteFuturesBarData, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromDeleteFuturesBarDataAsync(resp));
-        app.MapPost(MarketDataFeedUriPath.InsertFuturesOptionQuoteData, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromInsertFuturesOptionQuoteDataAsync(resp));
         app.MapPost(MarketDataFeedUriPath.InsertFuturesClosingPrice, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromInsertFuturesClosingPriceAsync(resp));
         app.MapPost(MarketDataFeedUriPath.TurnTradeLiveFeedOn, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromEnableTradeLiveFeedAsync(resp));
         app.MapPost(MarketDataFeedUriPath.TurnTradeLiveFeedOff, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromDisableTradeLiveFeedAsync(resp));
@@ -82,8 +81,6 @@ public static class MapCommandExtension
         app.MapPost(MarketDataFeedUriPath.EnableTradeLiveFeed, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromEnableTradeLiveFeedAsync(resp));
         app.MapPost(MarketDataFeedUriPath.DisableTradeLiveFeed, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromDisableTradeLiveFeedAsync(resp));
         app.MapPost(MarketDataFeedUriPath.RemoveTradeLiveFeeds, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromRemoveTradeLiveFeedsAsync(resp));
-        app.MapPost(MarketDataFeedUriPath.StartFuturesOptionQuoteDataStreaming, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromStartFuturesOptionQuoteDataStreamingAsync(resp));
-        app.MapPost(MarketDataFeedUriPath.StopFuturesOptionQuoteDataStreaming, async (HttpResponse resp) => await MarketDataFeedCommandApiResult.FromStopFuturesOptionQuoteDataStreamingAsync(resp));
 
         // option pricer command api paths...
         app.MapPost(OptionPricerUriPath.InsertSpreadDistribution, async (HttpResponse resp) => await OptionPricerCommandApiResult.FromInsertSpreadDistributionAsync(resp));

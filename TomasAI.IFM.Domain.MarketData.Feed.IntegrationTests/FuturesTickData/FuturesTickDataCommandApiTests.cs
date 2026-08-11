@@ -1,11 +1,13 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
@@ -22,6 +24,7 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
     readonly HttpClientTestFactory _httpClientFactory = new(factory);
     readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
+    readonly WebApplicationFactory<Program> _factory = factory;
 
     [Fact]
     public async Task InsertFuturesTickData_Ok()
@@ -163,6 +166,7 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
 
         // act...
         _httpClientFactory.CreateClient();
+        await ResetApplicationMarketDataApiAsync();
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.StartFuturesTickDataStreamingAsync(contract, valueDate, false);
@@ -175,9 +179,8 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
 
         // assert...
         futuresTickDataStreamingStartedEvent.Should().NotBeNull();
-        futuresTickDataStreamingStartedCompleteEvent.Should().BeNull();
-        futuresTickDataStreamingStartedFailEvent.Should().NotBeNull();
-        futuresTickDataStreamingStartedFailEvent.ErrorMessage.Should().Be("Market data API failed to start for unknown reasons.");
+        futuresTickDataStreamingStartedCompleteEvent.Should().NotBeNull();
+        futuresTickDataStreamingStartedFailEvent.Should().BeNull();
 
         futuresTickDataStreamingStartedEvent.Contract.ContractId.Should().Be(contract.ContractId);
         futuresTickDataStreamingStartedEvent.ValueDate.Should().Be(valueDate);
@@ -252,6 +255,7 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
 
         // start streaming first...
         _httpClientFactory.CreateClient();
+        await ResetApplicationMarketDataApiAsync();
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var startResponse = await marketDataFeedApi.StartFuturesTickDataStreamingAsync(contract, valueDate, false);
@@ -261,9 +265,8 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
         startResponse.Value.Should().NotBe(Guid.Empty);
 
         await startTerminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        futuresTickDataStreamingStartedCompleteEvent.Should().BeNull();
-        futuresTickDataStreamingStartedFailEvent.Should().NotBeNull();
-        futuresTickDataStreamingStartedFailEvent.ErrorMessage.Should().Be("Market data API failed to start for unknown reasons.");
+        futuresTickDataStreamingStartedCompleteEvent.Should().NotBeNull();
+        futuresTickDataStreamingStartedFailEvent.Should().BeNull();
 
         // act... stop streaming
         var response = await marketDataFeedApi.StopFuturesTickDataStreamingAsync(contract.ContractId, valueDate);
@@ -277,9 +280,8 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
 
         // assert...
         futuresTickDataStreamingStoppedEvent.Should().NotBeNull();
-        futuresTickDataStreamingStoppedCompleteEvent.Should().BeNull();
-        futuresTickDataStreamingStoppedFailEvent.Should().NotBeNull();
-        futuresTickDataStreamingStoppedFailEvent.ErrorMessage.Should().Be($"Stream ID not found for futures contract {contract.ContractId}.");
+        futuresTickDataStreamingStoppedCompleteEvent.Should().NotBeNull();
+        futuresTickDataStreamingStoppedFailEvent.Should().BeNull();
 
         futuresTickDataStreamingStoppedEvent.ContractId.Should().Be(contract.ContractId);
 
@@ -328,5 +330,12 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
                 return @event;
             }
         }
+    }
+
+    private async Task ResetApplicationMarketDataApiAsync()
+    {
+        var api = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
+        if (api.ActiveValueDate is { } activeValueDate)
+            await api.StopAsync(activeValueDate);
     }
 }

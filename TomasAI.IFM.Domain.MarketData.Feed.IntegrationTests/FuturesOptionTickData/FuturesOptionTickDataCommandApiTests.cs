@@ -1,11 +1,13 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
@@ -23,6 +25,7 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
     readonly HttpClientTestFactory _httpClientFactory = new(factory);
     readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
+    readonly WebApplicationFactory<Program> _factory = factory;
 
     [Fact]
     public async Task InsertFuturesOptionTickData_Ok()
@@ -380,6 +383,12 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
 
         // act...
         _httpClientFactory.CreateClient();
+        var applicationMarketDataApi = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
+        if (applicationMarketDataApi.ActiveValueDate is { } activeValueDate
+            && activeValueDate != valueDate)
+            await applicationMarketDataApi.StopAsync(activeValueDate);
+        await applicationMarketDataApi.StartAsync(valueDate);
+        await applicationMarketDataApi.StartStreamingFuturesTickDataAsync(baseContract.ContractId);
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var response = await marketDataFeedApi.StartFuturesOptionTickDataStreamingAsync(entityId, optionContract, baseContract, valueDate, maturityDate, riskFreeRate);
@@ -392,9 +401,8 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
 
         // assert...
         futuresOptionTickDataStreamingStartedEvent.Should().NotBeNull();
-        futuresOptionTickDataStreamingStartedCompleteEvent.Should().BeNull();
-        futuresOptionTickDataStreamingStartedFailEvent.Should().NotBeNull();
-        futuresOptionTickDataStreamingStartedFailEvent.ErrorMessage.Should().Be("Market data API failed to start for unknown reasons.");
+        futuresOptionTickDataStreamingStartedCompleteEvent.Should().NotBeNull();
+        futuresOptionTickDataStreamingStartedFailEvent.Should().BeNull();
 
         futuresOptionTickDataStreamingStartedEvent.Contract.ContractId.Should().Be(optionContract.ContractId);
         futuresOptionTickDataStreamingStartedEvent.BaseContract.ContractId.Should().Be(baseContract.ContractId);
@@ -475,6 +483,12 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
 
         // act... start streaming first
         _httpClientFactory.CreateClient();
+        var applicationMarketDataApi = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
+        if (applicationMarketDataApi.ActiveValueDate is { } activeValueDate
+            && activeValueDate != valueDate)
+            await applicationMarketDataApi.StopAsync(activeValueDate);
+        await applicationMarketDataApi.StartAsync(valueDate);
+        await applicationMarketDataApi.StartStreamingFuturesTickDataAsync(baseContract.ContractId);
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
         var startResponse = await marketDataFeedApi.StartFuturesOptionTickDataStreamingAsync(entityId, optionContract, baseContract, valueDate, maturityDate, riskFreeRate);
@@ -485,9 +499,8 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
         startResponse.Value.Should().NotBe(Guid.Empty);
 
         await startTerminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        futuresOptionTickDataStreamingStartedCompleteEvent.Should().BeNull();
-        futuresOptionTickDataStreamingStartedFailEvent.Should().NotBeNull();
-        futuresOptionTickDataStreamingStartedFailEvent.ErrorMessage.Should().Be("Market data API failed to start for unknown reasons.");
+        futuresOptionTickDataStreamingStartedCompleteEvent.Should().NotBeNull();
+        futuresOptionTickDataStreamingStartedFailEvent.Should().BeNull();
 
         // act... stop streaming
         commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
@@ -502,9 +515,8 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
 
         // assert...
         futuresOptionTickDataStreamingStoppedEvent.Should().NotBeNull();
-        futuresOptionTickDataStreamingStoppedCompleteEvent.Should().BeNull();
-        futuresOptionTickDataStreamingStoppedFailEvent.Should().NotBeNull();
-        futuresOptionTickDataStreamingStoppedFailEvent.ErrorMessage.Should().Be($"Streaming request ID not found for contract {optionContract.ContractId}.");
+        futuresOptionTickDataStreamingStoppedCompleteEvent.Should().NotBeNull();
+        futuresOptionTickDataStreamingStoppedFailEvent.Should().BeNull();
 
         futuresOptionTickDataStreamingStoppedEvent.EntityId.Should().Be(entityId);
         futuresOptionTickDataStreamingStoppedEvent.ContractId.Should().Be(optionContract.ContractId);

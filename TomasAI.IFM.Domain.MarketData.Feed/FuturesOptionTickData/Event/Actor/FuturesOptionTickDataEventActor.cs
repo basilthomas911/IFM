@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 
@@ -19,8 +20,7 @@ public class FuturesOptionTickDataEventActor(
     IActorMarketDataFeedCommandApiFactory feedCommandApiFactory,
     IActorTradeCommandApiFactory tradeCommandApiFactory,
     IActorMarketDataFeedEventApiFactory eventApiFactory,
-    IMarketDataApi marketDataApi,
-    IMarketDataSnapshotApi marketDataSnapshotApi,
+    ApplicationMarketDataApi marketDataApi,
     IBlackboardService blackboardService,
     IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
     IStatusConsoleWriter statusConsoleWriter,
@@ -32,7 +32,7 @@ public class FuturesOptionTickDataEventActor(
     IActorTradeCommandApi? _tradeCommandApi;
     IActorMarketDataFeedEventApi? _eventApi;
     readonly FuturesOptionTickDataEventParameters _eventParameters = new(
-        marketDataApi, marketDataSnapshotApi, blackboardService, optionTradeLiveFeedMap, statusConsoleWriter, logger);
+        marketDataApi, blackboardService, optionTradeLiveFeedMap, statusConsoleWriter, logger);
     readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedCommandApi, IActorTradeCommandApi, IActorMarketDataFeedEventApi, FuturesOptionTickDataEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesOptionTickDataInsertedEvent).Name] = async (evt, context, _, _, eventApi, eventParams) =>

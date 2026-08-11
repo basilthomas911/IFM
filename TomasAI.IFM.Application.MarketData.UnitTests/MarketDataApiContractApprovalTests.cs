@@ -35,12 +35,14 @@ public sealed class MarketDataApiContractApprovalTests
     }
 
     [Fact]
-    public void HarnessCanBeReplacedByImplementationOfBothApplicationMarkers()
+    public void HarnessImplementsTheSoleApplicationMarketDataContract()
     {
         var context = new MarketDataApiTestContext();
 
         context.Api.Should().BeAssignableTo<IMarketDataApi>();
-        context.Api.Should().BeAssignableTo<IMarketDataSnapshotApi>();
+        typeof(IMarketDataApi).Assembly.GetType(
+                $"{typeof(IMarketDataApi).Namespace}.IMarketDataSnapshotApi")
+            .Should().BeNull();
     }
 
     [Theory]

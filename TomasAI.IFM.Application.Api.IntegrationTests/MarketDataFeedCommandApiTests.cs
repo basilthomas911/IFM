@@ -282,42 +282,5 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         response.Value.Should().NotBe(Guid.Empty);
     }
 
-    [Fact]
-    public async Task InsertFuturesOptionQuoteData_Ok()
-    {
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var api = new MarketDataFeedCommandApi(commandServiceApi);
-        var quoteId = 1;
-        var contractId = "TEST1";
-        var quoteData = new QuoteData(DateTime.Now, TomasAI.IFM.Domain.MarketData.Feed.Shared.QuoteLevelType.LevelOne, 1, 1, TomasAI.IFM.Domain.MarketData.Feed.Shared.QuoteSide.Bid, TomasAI.IFM.Domain.MarketData.Feed.Shared.QuoteType.Price, 1.0, 1);
-        var response = await api.InsertFuturesOptionQuoteDataAsync(quoteId, contractId, quoteData);
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
-    }
-
-    [Fact]
-    public async Task StartFuturesOptionQuoteDataStreaming_Ok()
-    {
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var api = new MarketDataFeedCommandApi(commandServiceApi);
-        var quoteId = 1;
-        var optionQuotes = new[] { new FuturesOptionQuoteReadModel(1, "SYM20251010C3456", 1, "user", DateTime.Now) };
-        var optionContracts = new[] { new FuturesOptionContractReadModel("SYM20251010C3456", "SYM", "SYM1", "FUT", "USD", "CME", "50", "OPT", DateOnly.FromDateTime(DateTime.Now), 1.0, "CALL") };
-        var response = await api.StartFuturesOptionQuoteDataStreamingAsync(quoteId, optionQuotes, optionContracts);
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
-    }
-
-    [Fact]
-    public async Task StopFuturesOptionQuoteDataStreaming_Ok()
-    {
-        var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
-        var api = new MarketDataFeedCommandApi(commandServiceApi);
-        var quoteId = 1;
-        var response = await api.StopFuturesOptionQuoteDataStreamingAsync(quoteId);
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBe(Guid.Empty);
-    }
-
     // Add similar [Fact] tests for each method in MarketDataFeedCommandApi following the above pattern.
 }

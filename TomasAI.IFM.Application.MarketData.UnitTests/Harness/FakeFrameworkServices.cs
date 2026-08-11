@@ -347,6 +347,11 @@ internal sealed class FakeOptionRouteRegistry
     private readonly Dictionary<string, string> owners = new(StringComparer.Ordinal);
     private readonly Dictionary<(string Underlying, DateOnly Maturity), string[]> chains = [];
 
+    internal bool IsOwned(string optionContractId)
+    {
+        lock (sync) return owners.ContainsKey(optionContractId);
+    }
+
     internal bool StartIndividual(string optionContractId)
     {
         lock (sync)

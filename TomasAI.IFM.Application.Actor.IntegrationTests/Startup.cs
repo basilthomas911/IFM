@@ -18,6 +18,7 @@ using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -48,12 +49,14 @@ using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Framework.Messaging.RestApi;
+using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Framework.MarketData.DataBento;
+using TomasAI.IFM.Framework.MarketData.TickAggregation;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Storage.Azure;
-using TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers;
 using TomasAI.IFM.TradePlan;
 using TomasAI.IFM.TradePlan.HostedService;
 using TomasAI.IFM.Service.TradePosition;
@@ -379,7 +382,6 @@ public static class Startup
             services.AddSingleton<ITradeEventProducer, TradeEventProducer>();
             services.AddSingleton<ITradePlacementEventProducer, TradePlacementEventProducer>();
             services.AddSingleton<IStatusConsoleEventProducer, StatusConsoleEventProducer>();
-            services.AddSingleton<IMarketDataFeedEventProducer, MarketDataFeedEventProducer>();
         }
 
         void RegisterHostedServices()
@@ -391,19 +393,29 @@ public static class Startup
             services.AddSingleton<IAzureStorage, AzureStorage>();
             // algo trader hosted service...
 
-            // market data feed hosted service...
-            //services.AddSingleton<IMarketDataFeedEventService, MarketDataFeedEventService>();
-            services.AddSingleton<IMarketDataApiOptions>(sp => new IBMarketDataApiOptions(
-                host: config.GetValue<string>("AppSettings:MarketDataFeedApi:Host")!,
-                port: config.GetValue<int>("AppSettings:MarketDataFeedApi:Port"),
-                clientId: config.GetValue<int>("AppSettings:MarketDataFeedApi:ClientId")));
-            services.AddSingleton<IMarketDataApi, IBMarketDataApi>();
-
-            services.AddSingleton<IMarketDataSnapshotApiOptions>(sp => new IBMarketDataSnapshotApiOptions(
-                 host: config.GetValue<string>("AppSettings:MarketDataFeedSnapshotApi:Host")!,
-                 port: config.GetValue<int>("AppSettings:MarketDataFeedSnapshotApi:Port"),
-                clientId: config.GetValue<int>("AppSettings:MarketDataFeedSnapshotApi:ClientId")));
-            services.AddSingleton<IMarketDataSnapshotApi, IBMarketDataSnapshotApi>();
+            var dataset = config.GetValue<string>("AppSettings:Databento:Dataset")
+                ?? "GLBX.MDP3";
+            var profileName = config.GetValue<string>(
+                "AppSettings:Databento:DeploymentProfile");
+            var deploymentProfile = Enum.TryParse<FeedDeploymentProfile>(
+                profileName, true, out var configuredProfile)
+                    ? configuredProfile
+                    : FeedDeploymentProfile.Development;
+            var contracts = config
+                .GetSection("AppSettings:Databento:Contracts")
+                .Get<DatabentoContractRegistration[]>() ?? [];
+            var runtimeOptions = new DatabentoMarketDataRuntimeOptions
+            {
+                FeedOptions = DatabentoFeedOptions.ForProfile(
+                    deploymentProfile, dataset),
+                Contracts = contracts
+            };
+            services.AddDatabentoMarketDataServices();
+            services.AddSingleton<IDatabentoFeedFactory,
+                IntegrationDatabentoFeedFactory>();
+            services.AddSingleton<ITickAggregationEventPublisher,
+                TickAggregationEventPublisher>();
+            services.AddApplicationMarketDataApi(runtimeOptions);
 
 
             //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();

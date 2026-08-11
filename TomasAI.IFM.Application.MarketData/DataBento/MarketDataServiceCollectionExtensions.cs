@@ -22,8 +22,6 @@ public static class MarketDataServiceCollectionExtensions
         services.TryAddSingleton<DatabentoMarketDataApi>();
         services.TryAddSingleton<IMarketDataApi>(provider =>
             provider.GetRequiredService<DatabentoMarketDataApi>());
-        services.TryAddSingleton<IMarketDataSnapshotApi>(provider =>
-            provider.GetRequiredService<DatabentoMarketDataApi>());
         return services;
     }
 }
