@@ -36,6 +36,7 @@ public class IronCondorTradeOrderViewModelTests
         viewModel.OrderPrice.Should().Be(4.25m);
         viewModel.LocalSymbol.Should().Be("ESU6 P4500");
         viewModel.OrderActionType.Should().Be(OrderActionType.Close);
+        viewModel.LiveStreamMetrics.FuturesOptionTicks.Should().BeEmpty();
         changed.Should().Contain([
             nameof(viewModel.FundBalance),
             nameof(viewModel.OrderPrice),

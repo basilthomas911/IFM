@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.EventChannel;
@@ -68,6 +69,54 @@ public class KeyedLatestValueAsyncChannelTests
         Assert.False(channel.IsOpen);
         Assert.False(channel.TryWrite("NQ", 3));
         Assert.All(channel.Metrics.Values, metrics => Assert.False(metrics.IsOpen));
+    }
+
+    [Fact]
+    public async Task PeakBurst_IsBoundedPerKeyAndConvergesToEveryLatestValue()
+    {
+        const int keyCount = 8;
+        const int valuesPerKey = 10_000;
+        var processed = new ConcurrentDictionary<string, ConcurrentQueue<int>>();
+        var firstReadersStarted = new CountdownEvent(keyCount);
+        var latestReadersCompleted = new CountdownEvent(keyCount);
+        var releaseFirstReaders = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var channel = new KeyedLatestValueAsyncChannel<string, int>(ReadAsync);
+        var keys = Enumerable.Range(0, keyCount).Select(index => $"contract-{index}").ToArray();
+
+        foreach (var key in keys)
+            Assert.True(channel.TryWrite(key, 0));
+        Assert.True(firstReadersStarted.Wait(TimeSpan.FromSeconds(5)));
+        foreach (var key in keys)
+            for (var value = 1; value < valuesPerKey; value++)
+                Assert.True(channel.TryWrite(key, value));
+
+        releaseFirstReaders.SetResult();
+        Assert.True(latestReadersCompleted.Wait(TimeSpan.FromSeconds(5)));
+        await channel.StopAsync();
+
+        Assert.Equal(keyCount, channel.Metrics.Count);
+        foreach (var key in keys)
+        {
+            Assert.Equal([0, valuesPerKey - 1], processed[key]);
+            Assert.Equal(valuesPerKey, channel.Metrics[key].AcceptedCount);
+            Assert.Equal(valuesPerKey - 2, channel.Metrics[key].CoalescedCount);
+            Assert.Equal(2, channel.Metrics[key].ProcessedCount);
+            Assert.False(channel.Metrics[key].IsOpen);
+        }
+
+        async ValueTask ReadAsync(string key, int value, CancellationToken cancellationToken)
+        {
+            processed.GetOrAdd(key, _ => new ConcurrentQueue<int>()).Enqueue(value);
+            if (value == 0)
+            {
+                firstReadersStarted.Signal();
+                await releaseFirstReaders.Task.WaitAsync(cancellationToken);
+            }
+            else if (value == valuesPerKey - 1)
+            {
+                latestReadersCompleted.Signal();
+            }
+        }
     }
 
     [Fact]

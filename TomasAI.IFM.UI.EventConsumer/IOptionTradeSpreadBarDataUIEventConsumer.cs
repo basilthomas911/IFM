@@ -4,8 +4,7 @@ namespace TomasAI.IFM.UI.EventConsumer;
 
 public interface IOptionTradeSpreadBarDataUIEventConsumer
 {
-    ValueTask StartAsync(Action<OptionTradeSpreadBarDataInsertedCompleteEvent> eventAction);
+    ValueTask StartAsync(Func<OptionTradeSpreadBarDataInsertedCompleteEvent, ValueTask> eventAction);
     ValueTask StopAsync();
 }
-
 

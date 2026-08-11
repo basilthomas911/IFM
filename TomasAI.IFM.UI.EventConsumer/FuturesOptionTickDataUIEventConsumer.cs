@@ -26,7 +26,7 @@ public class FuturesOptionTickDataUIEventConsumer(INatsEventListenerOptions opti
         [new (ActorType.Event, OptionTradeTickPriceDataUpdatedEvent.Actor)] = [OptionTradeTickPriceDataUpdatedEvent.Verb]
     };
 
-    public async ValueTask StartAsync(Action<OptionTradeTickPriceDataUpdatedEvent> eventAction) 
+    public async ValueTask StartAsync(Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> eventAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
 
@@ -34,31 +34,29 @@ public class FuturesOptionTickDataUIEventConsumer(INatsEventListenerOptions opti
         {
             try
             {
-                _ = eventVerb switch
+                await (eventVerb switch
                 {
                     _ when eventVerb == OptionTradeTickPriceDataUpdatedEvent.Verb 
                         => HandleEvent(eventMsg.AsEvent<OptionTradeTickPriceDataUpdatedEvent>(), eventAction),
-                    _ => default!
-                };
-                await ValueTask.CompletedTask;
+                    _ => ValueTask.CompletedTask
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
             }
 
-            IEvent HandleEvent(OptionTradeTickPriceDataUpdatedEvent e, Action<OptionTradeTickPriceDataUpdatedEvent> eventAction)
-            {
-                eventAction?.Invoke(e);
-                return e;
-            }
+            static ValueTask HandleEvent(
+                OptionTradeTickPriceDataUpdatedEvent e,
+                Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> eventAction)
+                => eventAction(e);
         }
     }
 }
 
 public interface IFuturesOptionTickDataUIEventConsumer
 {
-    ValueTask StartAsync(Action<OptionTradeTickPriceDataUpdatedEvent> eventAction);
+    ValueTask StartAsync(Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> eventAction);
     ValueTask StopAsync();
 }
 

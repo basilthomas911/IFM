@@ -153,6 +153,37 @@ public class UiArchitectureBaselineTests
     }
 
     [Fact]
+    public void HighRateOptionConsumers_AreAwaitableAndHaveNoDetachedRegistrations()
+    {
+        var optionTickConsumer = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.EventConsumer",
+            "FuturesOptionTickDataUIEventConsumer.cs"));
+        var spreadBarConsumerContract = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.EventConsumer",
+            "IOptionTradeSpreadBarDataUIEventConsumer.cs"));
+        var monitor = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.Net.ViewModels",
+            "Trade",
+            "IronCondor",
+            "IronCondorViewModel.cs"));
+
+        optionTickConsumer.Should().Contain(
+            "Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask>");
+        optionTickConsumer.Should().NotContain(
+            "Action<OptionTradeTickPriceDataUpdatedEvent>");
+        spreadBarConsumerContract.Should().Contain(
+            "Func<OptionTradeSpreadBarDataInsertedCompleteEvent, ValueTask>");
+        spreadBarConsumerContract.Should().NotContain(
+            "Action<OptionTradeSpreadBarDataInsertedCompleteEvent>");
+        monitor.Should().NotContain("StartFuturesOptionTickDataListenerAsync(async");
+        monitor.Should().Contain("KeyedLatestValueAsyncChannel<string, OptionTradeTickPriceDataUpdatedEvent>");
+        monitor.Should().Contain("LatestValueAsyncChannel<OptionTradeSpreadBarDataInsertedCompleteEvent>");
+    }
+
+    [Fact]
     public void FundUiConsumer_RoutesEveryAdjustmentCompletionAndFailureEvent()
     {
         var sourcePath = Path.Combine(

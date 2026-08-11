@@ -23,7 +23,7 @@ public class OptionTradeSpreadBarDataUIEventConsumer(INatsEventListenerOptions o
     /// start event consumer
     /// </summary>
     /// <param name="eventAction"></param>
-    public async ValueTask StartAsync(Action<OptionTradeSpreadBarDataInsertedCompleteEvent> eventAction)
+    public async ValueTask StartAsync(Func<OptionTradeSpreadBarDataInsertedCompleteEvent, ValueTask> eventAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
 
@@ -31,24 +31,22 @@ public class OptionTradeSpreadBarDataUIEventConsumer(INatsEventListenerOptions o
         {
             try
             {
-                _ = eventVerb switch
+                await (eventVerb switch
                 {
                     _ when eventVerb == OptionTradeSpreadBarDataInsertedCompleteEvent.Verb 
                         => HandleEvent(eventMsg.AsEvent<OptionTradeSpreadBarDataInsertedCompleteEvent>()!, eventAction),
-                    _ => default!
-                };
-                await ValueTask.CompletedTask;
+                    _ => ValueTask.CompletedTask
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
             }
 
-            IEvent HandleEvent(OptionTradeSpreadBarDataInsertedCompleteEvent e, Action<OptionTradeSpreadBarDataInsertedCompleteEvent> eventAction)
-            {
-                eventAction?.Invoke(e);
-                return e;
-            }
+            static ValueTask HandleEvent(
+                OptionTradeSpreadBarDataInsertedCompleteEvent e,
+                Func<OptionTradeSpreadBarDataInsertedCompleteEvent, ValueTask> eventAction)
+                => eventAction(e);
         }
     }
 

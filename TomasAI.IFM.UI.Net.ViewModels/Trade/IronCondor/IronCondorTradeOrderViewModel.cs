@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventChannel;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -22,6 +23,10 @@ using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
+
+/// <summary>Provides per-contract diagnostics for replaceable option-tick order-entry state.</summary>
+public sealed record IronCondorTradeOrderLiveStreamMetricsSnapshot(
+    IReadOnlyDictionary<string, LatestValueChannelMetrics> FuturesOptionTicks);
 
 /// <summary>
 /// Represents a view model for managing and executing iron condor trade orders.
@@ -34,6 +39,9 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
 {
     readonly AsyncLifecycleCoordinator _riskMarginLifecycle;
     readonly AsyncLifecycleCoordinator _liveFeedLifecycle;
+    readonly TimeProvider _timeProvider;
+    readonly object _liveStreamMetricsGate = new();
+    readonly Dictionary<string, LatestValueChannelMetrics> _futuresOptionTickMetrics = [];
     IAppRoot _appRoot;
     OptionTradeReadModel _ironCondorTrade = null!;
     OptionTradeReadModel _parentTrade = null!;
@@ -66,6 +74,9 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     long _liveFeedRevision;
     long _errorSequence;
     string _localSymbol = string.Empty;
+    KeyedLatestValueAsyncChannel<string, FuturesOptionTickDataV2ReadModel>? _futuresOptionTickChannels;
+    IronCondorTradeOrderLiveStreamMetricsSnapshot _liveStreamMetrics = new(
+        new Dictionary<string, LatestValueChannelMetrics>());
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IronCondorTradeOrderViewModel"/> class with the specified
@@ -86,7 +97,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         FuturesContractV2ReadModel baseContract,
         FundOrderReadModel fundOrder,
         FundOrderTradeReadModel fundOrderTrade,
-        OrderActionType orderActionType)
+        OrderActionType orderActionType,
+        TimeProvider? timeProvider = null)
     {
         switch(fundOrderTrade.TradeType)
         {
@@ -103,6 +115,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         _fundOrder = fundOrder;
         _fundOrderTrade = fundOrderTrade;
         _orderActionType = orderActionType;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _putSpreadStrikeWidth = 30; // change to get strike width from reference data...
         _callSpreadStrikeWidth = 15; // change to get strike width from reference data...
         _liveFeedQuoteId = Guid.Empty;
@@ -175,6 +188,11 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     {
         get => _liveFeedRevision;
         private set => SetProperty(ref _liveFeedRevision, value);
+    }
+    public IronCondorTradeOrderLiveStreamMetricsSnapshot LiveStreamMetrics
+    {
+        get => _liveStreamMetrics;
+        private set => SetProperty(ref _liveStreamMetrics, value);
     }
     public decimal? FundMaxProfit
     {
@@ -715,6 +733,12 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         async Task StartStreamingFuturesOptionTickData(
             FuturesOptionContractReadModel[] futuresOptionContracts)
         {
+            var channels = new KeyedLatestValueAsyncChannel<string, FuturesOptionTickDataV2ReadModel>(
+                ProcessFuturesOptionTickAsync,
+                minimumInterval: TimeSpan.FromMilliseconds(50),
+                timeProvider: _timeProvider,
+                metricsChanged: PublishFuturesOptionTickMetrics);
+            _futuresOptionTickChannels = channels;
             var feedIds = futuresOptionContracts.ToDictionary(
                 contract => new FuturesOptionTickEntityId(
                     contract.ContractId,
@@ -723,7 +747,12 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteObservableAsync(async model =>
             {
                 await model.StartFuturesOptionTickDataListenerAsync(
-                    e => SetLiveFeedTickData(e.OptionTickData));
+                    e =>
+                    {
+                        if (e?.OptionTickData is not null)
+                            channels.TryWrite(e.OptionTickData.ContractId, e.OptionTickData);
+                        return ValueTask.CompletedTask;
+                    });
                 await model.StartStreamingFuturesOptionTickDataAsync(
                     feedIds,
                     _baseContract,
@@ -732,6 +761,15 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                     _riskFreeRate,
                     () => { });
             });
+
+            async ValueTask ProcessFuturesOptionTickAsync(
+                string contractId,
+                FuturesOptionTickDataV2ReadModel tick,
+                CancellationToken channelCancellationToken)
+            {
+                channelCancellationToken.ThrowIfCancellationRequested();
+                await SetLiveFeedTickData(tick);
+            }
         }
 
          async Task SetLiveFeedTickData(FuturesOptionTickDataV2ReadModel futuresOptionTickData)
@@ -885,21 +923,31 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     async Task StopLiveFeedCoreAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (_liveFeedQuoteId == Guid.Empty) return;
-
-        await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteObservableAsync(async model =>
+        var channels = Interlocked.Exchange(ref _futuresOptionTickChannels, null);
+        try
         {
-            await model.StopFuturesOptionTickDataListenerAsync();
-            foreach (var contractId in _optionLegMap.Values
-                         .Select(optionLeg => optionLeg.ContractId)
-                         .Distinct())
+            if (_liveFeedQuoteId == Guid.Empty)
+                return;
+
+            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteObservableAsync(async model =>
             {
-                await model.StopStreamingFuturesOptionTickDataAsync(
-                    new FuturesOptionTickEntityId(contractId, _valueDate),
-                    contractId);
-            }
-            _liveFeedQuoteId = Guid.Empty;
-        });
+                await model.StopFuturesOptionTickDataListenerAsync();
+                foreach (var contractId in _optionLegMap.Values
+                             .Select(optionLeg => optionLeg.ContractId)
+                             .Distinct())
+                {
+                    await model.StopStreamingFuturesOptionTickDataAsync(
+                        new FuturesOptionTickEntityId(contractId, _valueDate),
+                        contractId);
+                }
+                _liveFeedQuoteId = Guid.Empty;
+            });
+        }
+        finally
+        {
+            if (channels is not null)
+                await channels.StopAsync();
+        }
     }
 
     public void CalculateTradeValues()
@@ -1445,6 +1493,16 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
 
     void PublishError(ModelOperationException exception, string caption)
         => PublishError(exception.ErrorCode, exception.Message, caption);
+
+    void PublishFuturesOptionTickMetrics(string contractId, LatestValueChannelMetrics metrics)
+    {
+        lock (_liveStreamMetricsGate)
+        {
+            _futuresOptionTickMetrics[contractId] = metrics;
+            LiveStreamMetrics = new IronCondorTradeOrderLiveStreamMetricsSnapshot(
+                new Dictionary<string, LatestValueChannelMetrics>(_futuresOptionTickMetrics));
+        }
+    }
 
     void PublishError(int errorCode, string message, string caption)
         => LastError = new PresentationError(

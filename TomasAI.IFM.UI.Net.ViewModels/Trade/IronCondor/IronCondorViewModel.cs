@@ -41,7 +41,9 @@ public sealed record IronCondorPositionSnapshot(
 public sealed record IronCondorLiveStreamMetricsSnapshot(
     LatestValueChannelMetrics FuturesEod,
     LatestValueChannelMetrics TradePosition,
-    OrderedBatchChannelMetrics TradePlan);
+    OrderedBatchChannelMetrics TradePlan,
+    IReadOnlyDictionary<string, LatestValueChannelMetrics> FuturesOptionTicks,
+    LatestValueChannelMetrics SpreadBars);
 
 /// <summary>
 /// Describes the WinForms/WPF adapter dispatch and rendering latency observed by the monitor.
@@ -75,8 +77,10 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     FuturesContractV2ReadModel _futuresContract = null!;
     List<FuturesEodDataV2ReadModel> _futuresEodData;
     LatestValueAsyncChannel<FuturesEodDataV2ReadModel>? _futuresEodChannel;
+    KeyedLatestValueAsyncChannel<string, OptionTradeTickPriceDataUpdatedEvent>? _futuresOptionTickChannels;
     LatestValueAsyncChannel<TradePositionChangeSourceReadModel>? _tradePositionChannel;
     OrderedBatchAsyncChannel<TradePlanReadModel>? _tradePlanChannel;
+    LatestValueAsyncChannel<OptionTradeSpreadBarDataInsertedCompleteEvent>? _spreadBarChannel;
     ConcurrentStack<IronCondorSpreadPathDataModel> _spreadPathQueue;
     List<TradePositionReadModel> _tradePositions;
     TradeLimitReadModel _tradeLimits = null!;
@@ -105,7 +109,13 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     long _errorSequence;
     bool _resetListenerEnabled;
     readonly object _liveStreamMetricsGate = new();
-    IronCondorLiveStreamMetricsSnapshot _liveStreamMetrics = new(default, default, default);
+    readonly Dictionary<string, LatestValueChannelMetrics> _futuresOptionTickMetrics = [];
+    IronCondorLiveStreamMetricsSnapshot _liveStreamMetrics = new(
+        default,
+        default,
+        default,
+        new Dictionary<string, LatestValueChannelMetrics>(),
+        default);
     IronCondorUiDispatchMetricsSnapshot _uiDispatchMetrics;
     long _dispatchCount;
     long _maximumDispatchDelayTicks;
@@ -826,11 +836,34 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
         async Task EnableFuturesOptionTickDataListener()
         {
+            if (_futuresOptionTickChannels is not null)
+                return;
+
+            var channels = new KeyedLatestValueAsyncChannel<string, OptionTradeTickPriceDataUpdatedEvent>(
+                ProcessFuturesOptionTickAsync,
+                minimumInterval: TimeSpan.FromMilliseconds(50),
+                timeProvider: _timeProvider,
+                metricsChanged: PublishFuturesOptionTickMetrics);
+            _futuresOptionTickChannels = channels;
             await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
             {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Enable Futures Option Tick Data Listener Error"));
-                await model.StartFuturesOptionTickDataListenerAsync(async e => await model.ExecuteAsync(async () => await OnFuturesOptionTickDataUpdateAsync(e)));
+                await model.StartFuturesOptionTickDataListenerAsync(e =>
+                {
+                    if (e?.OptionTickData is not null)
+                        channels.TryWrite(e.OptionTickData.ContractId, e);
+                    return ValueTask.CompletedTask;
+                });
             });
+
+            async ValueTask ProcessFuturesOptionTickAsync(
+                string contractId,
+                OptionTradeTickPriceDataUpdatedEvent @event,
+                CancellationToken channelCancellationToken)
+            {
+                channelCancellationToken.ThrowIfCancellationRequested();
+                await OnFuturesOptionTickDataUpdateAsync(@event);
+            }
 
             async Task OnFuturesOptionTickDataUpdateAsync(OptionTradeTickPriceDataUpdatedEvent e)
             {
@@ -1031,20 +1064,43 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         ///
         async Task EnableOptionTradeSpreadBarDataListener()
         {
-            if (!_valueDate.HasValue) return;
+            if (!_valueDate.HasValue || _spreadBarChannel is not null)
+                return;
+
+            var channel = new LatestValueAsyncChannel<OptionTradeSpreadBarDataInsertedCompleteEvent>(
+                ProcessSpreadBarRefreshAsync,
+                minimumInterval: TimeSpan.FromMilliseconds(100),
+                timeProvider: _timeProvider,
+                metricsChanged: PublishSpreadBarMetrics);
+            _spreadBarChannel = channel;
+            PublishSpreadBarMetrics(channel.Metrics);
             await _appRoot.GetModel<OptionTradeSpreadBarDataEventModel>().ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Option Trade Spread Bar Data Listener Error"));
-                await model.StartOptionTradeSpreadBarDataListenerAsync(o =>
-                    LoadOptionTradeSpreadBarData(
-                        orderId: o.OptionTradeSpreadBarData.OrderId,
-                        tradeId: o.OptionTradeSpreadBarData.TradeId,
-                        tradeType: o.OptionTradeSpreadBarData.TradeType,
-                        valueDate: o.OptionTradeSpreadBarData.ValueDate,
-                        startDate: DateTime.Now.AddHours(-6),
-                        endDate: DateTime.Now)
-                );
+                await model.StartOptionTradeSpreadBarDataListenerAsync(@event =>
+                {
+                    var spreadBar = @event.OptionTradeSpreadBarData;
+                    if (spreadBar.OrderId == OrderId
+                        && spreadBar.TradeId == TradeId
+                        && spreadBar.ValueDate == _valueDate.Value)
+                        channel.TryWrite(@event);
+                    return ValueTask.CompletedTask;
+                });
             });
 
+            async ValueTask ProcessSpreadBarRefreshAsync(
+                OptionTradeSpreadBarDataInsertedCompleteEvent @event,
+                CancellationToken channelCancellationToken)
+            {
+                channelCancellationToken.ThrowIfCancellationRequested();
+                var spreadBar = @event.OptionTradeSpreadBarData;
+                await LoadOptionTradeSpreadBarData(
+                    orderId: spreadBar.OrderId,
+                    tradeId: spreadBar.TradeId,
+                    tradeType: spreadBar.TradeType,
+                    valueDate: spreadBar.ValueDate,
+                    startDate: DateTime.Now.AddHours(-6),
+                    endDate: DateTime.Now);
+            }
         }
 
         Task UpdateDailyProfitTarget()
@@ -1168,8 +1224,20 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             }
         }
 
-        Task DisableFuturesOptionTickDataListener()
-            => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => await model.StopFuturesOptionTickDataListenerAsync());
+        async Task DisableFuturesOptionTickDataListener()
+        {
+            var channels = Interlocked.Exchange(ref _futuresOptionTickChannels, null);
+            try
+            {
+                await _appRoot.GetModel<MarketDataFeedCommandModel>()
+                    .ExecuteAsync(async model => await model.StopFuturesOptionTickDataListenerAsync());
+            }
+            finally
+            {
+                if (channels is not null)
+                    await channels.StopAsync();
+            }
+        }
 
         async ValueTask DisableTradePositionListenerAsync()
         {
@@ -1203,9 +1271,20 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             }
         }
 
-        Task DisableOptionTradeSpreadBarDataListener()
-            => _appRoot.GetModel<OptionTradeSpreadBarDataEventModel>()
-                .ExecuteAsync(async model => await model.StopOptionTradeSpreadBarDataListenerAsync());
+        async Task DisableOptionTradeSpreadBarDataListener()
+        {
+            var channel = Interlocked.Exchange(ref _spreadBarChannel, null);
+            try
+            {
+                await _appRoot.GetModel<OptionTradeSpreadBarDataEventModel>()
+                    .ExecuteAsync(async model => await model.StopOptionTradeSpreadBarDataListenerAsync());
+            }
+            finally
+            {
+                if (channel is not null)
+                    await channel.StopAsync();
+            }
+        }
     }
 
     public Task InsertOptionTradeSpreadData(decimal netForwardPrice, (TradePositionReadModel PutCreditSpread, TradePositionReadModel CallCreditSpread) e)
@@ -1332,6 +1411,25 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     {
         lock (_liveStreamMetricsGate)
             LiveStreamMetrics = LiveStreamMetrics with { TradePlan = metrics };
+    }
+
+    void PublishFuturesOptionTickMetrics(string contractId, LatestValueChannelMetrics metrics)
+    {
+        lock (_liveStreamMetricsGate)
+        {
+            _futuresOptionTickMetrics[contractId] = metrics;
+            LiveStreamMetrics = LiveStreamMetrics with
+            {
+                FuturesOptionTicks = new Dictionary<string, LatestValueChannelMetrics>(
+                    _futuresOptionTickMetrics)
+            };
+        }
+    }
+
+    void PublishSpreadBarMetrics(LatestValueChannelMetrics metrics)
+    {
+        lock (_liveStreamMetricsGate)
+            LiveStreamMetrics = LiveStreamMetrics with { SpreadBars = metrics };
     }
 
     static void UpdateMaximum(ref long location, long value)

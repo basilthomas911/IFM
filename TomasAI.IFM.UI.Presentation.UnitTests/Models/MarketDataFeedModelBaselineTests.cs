@@ -59,7 +59,7 @@ public class MarketDataFeedModelBaselineTests
     public async Task OptionTickListener_StartAndStopOwnTheConsumerCalls()
     {
         var model = CreateModel();
-        Action<OptionTradeTickPriceDataUpdatedEvent> listener = _ => { };
+        Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> listener = _ => ValueTask.CompletedTask;
         _optionTickConsumer.StartAsync(listener).Returns(ValueTask.CompletedTask);
         _optionTickConsumer.StopAsync().Returns(ValueTask.CompletedTask);
 

@@ -205,7 +205,8 @@ public class MarketDataFeedCommandModel(
     /// start listening for futures option tick data updates
     /// </summary>
     /// <param name="listenerAction"></param>
-    public async Task StartFuturesOptionTickDataListenerAsync(Action<OptionTradeTickPriceDataUpdatedEvent> listenerAction)
+    public async Task StartFuturesOptionTickDataListenerAsync(
+        Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> listenerAction)
         => await ExecuteValueTaskAsync( () => _futuresOptionTickDataEventConsumer.StartAsync(listenerAction) );
 
     /// <summary>

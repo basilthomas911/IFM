@@ -24,7 +24,9 @@ namespace TomasAI.IFM.UI.Net.Models
         /// start listening for option trade spread bar data inserted complete events
         /// </summary>
         /// <param name="listenerAction"></param>
-        public async Task StartOptionTradeSpreadBarDataListenerAsync( Action<OptionTradeSpreadBarDataInsertedCompleteEvent> listenerAction) => await _spreadBarDataEventConsumer.StartAsync(listenerAction);
+        public async Task StartOptionTradeSpreadBarDataListenerAsync(
+            Func<OptionTradeSpreadBarDataInsertedCompleteEvent, ValueTask> listenerAction)
+            => await _spreadBarDataEventConsumer.StartAsync(listenerAction);
 
         /// <summary>
         /// stop listening for  option trade spread bar data inserted complete events

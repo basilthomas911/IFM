@@ -838,14 +838,39 @@ capacity-512 ordered channels with batches of up to 32.
   removal. Shared channel suites provide the burst, backpressure, retry,
   coalescing, and shutdown coverage used by these paths.
 
-The next S1.5 step is the final real-time-path classification audit and burst
-acceptance gate. It inventories any remaining UI event callbacks, migrates any
-unbounded path found, and records peak-rate evidence before S1.6 begins.
+Progress on 2026-08-11: **the fifth and final S1.5 real-time-path audit and burst
+acceptance gate is implemented.** The audit classified sustained UI event paths
+by semantic type and found two remaining detached Iron Condor paths: option-tick
+processing used an async lambda through `Action<T>`, and spread-bar events
+discarded the returned query-refresh task. Both are now awaitable at the NATS
+consumer boundary.
 
-- Classify every UI event path as lossless or latest-value.
-- Apply bounded channels, batching, render cadence, and ordered processing.
-- Add event-rate, coalescing, lag, and dispatch-latency metrics.
-- Verify screen closure completes channels and consumers.
+| Event-path class | Processing policy |
+| --- | --- |
+| Replaceable high-rate state | Capacity-one latest-value channels; keyed by contract or symbol where independent partitions must not supersede each other |
+| Lossless business events | Fixed-capacity ordered channels with asynchronous backpressure, batching, retry, and drain-on-stop |
+| Low-rate editor/CRUD state | Direct synchronous state publication from the serialized consumer; no queued presentation backlog or detached task |
+| Lifecycle and one-shot command responses | Direct completion callbacks; not treated as sustained presentation streams |
+
+- Iron Condor option ticks now use independent capacity-one partitions per
+  option contract at a maximum 20 Hz cadence in both the monitor and order-entry
+  ViewModels. One busy leg cannot overwrite another leg's latest state.
+- Spread-bar insert events are filtered for the active order/trade/value date,
+  then coalesced as query-refresh triggers at a maximum 10 Hz cadence.
+- `IronCondorViewModel.LiveStreamMetrics` now includes per-contract option-tick
+  metrics and spread-bar refresh metrics. `IronCondorTradeOrderViewModel` exposes
+  its own per-contract option-tick metrics.
+- Both screens stop their upstream consumers before closing their owned channels,
+  and no async operation remains detached at either migrated registration.
+- The peak latest-value fixture submits 80,000 updates across eight keys and
+  verifies two processed values per key (initial and latest), 79,984 coalesced
+  pending values, fixed partition count, and closed lifecycle state.
+- The peak lossless fixture submits 10,000 ordered events through capacity 256,
+  verifies exact output order and count, and confirms closed lifecycle state.
+- Architecture tests enforce awaitable option-tick and spread-bar consumer
+  contracts and reject regression to the detached Iron Condor registrations.
+
+S1.5 is complete. S1.6 startup, shutdown, and operational validation is next.
 
 Exit: burst tests show bounded memory, correct ordering for lossless events, and responsive visual updates under expected peak rates.
 

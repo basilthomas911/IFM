@@ -80,6 +80,31 @@ public class OrderedBatchAsyncChannelTests
     }
 
     [Fact]
+    public async Task PeakBurst_DrainsTenThousandEventsInOrderWithinFixedCapacity()
+    {
+        const int eventCount = 10_000;
+        var processed = new List<int>(eventCount);
+        var channel = new OrderedBatchAsyncChannel<int>(
+            (batch, _) =>
+            {
+                processed.AddRange(batch);
+                return ValueTask.CompletedTask;
+            },
+            capacity: 256,
+            maximumBatchSize: 32);
+
+        for (var value = 0; value < eventCount; value++)
+            await channel.WriteAsync(value);
+        await channel.StopAsync();
+
+        Assert.Equal(Enumerable.Range(0, eventCount), processed);
+        Assert.Equal(eventCount, channel.Metrics.AcceptedCount);
+        Assert.Equal(eventCount, channel.Metrics.ProcessedCount);
+        Assert.Equal(256, channel.Metrics.Capacity);
+        Assert.False(channel.Metrics.IsOpen);
+    }
+
+    [Fact]
     public async Task TransientReaderFailure_RetriesTheSameBatch()
     {
         var attempts = 0;
