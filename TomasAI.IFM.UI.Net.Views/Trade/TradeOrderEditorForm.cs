@@ -119,6 +119,12 @@ public partial class TradeOrderEditorForm
         ddlOrderActionType.SelectedItem = $"{orderActionType}";
     }
 
+    public void SetTradeDate(DateOnly tradeDate)
+        => dtpTradeDate.Value = tradeDate.ToDateTime(TimeOnly.MinValue);
+
+    public void SetDaysToExpiry(DateOnly maturityDate)
+        => txtDaysToExpiry.Text = $"{maturityDate.DayNumber - DateOnly.FromDateTime(dtpTradeDate.Value).DayNumber}";
+
     async void TradeOrderForm_Load(object sender, EventArgs e)
     {
         _lastTradeIndex = -1;
@@ -296,9 +302,14 @@ public partial class TradeOrderEditorForm
                         : fundOrderTrade!.TradeDate;
                     var baseContract = _viewModel.BaseContracts.Where(e => e.Symbol == fundOrderTrade.BaseContractSymbol).FirstOrDefault();
                    baseContract = baseContract ?? _viewModel.BaseContracts.ElementAt(0);
-                   var viewModel = new IronCondorTradeOrderReadModel(_appRoot, valueDate, fundId, baseContract, fundOrder!, fundOrderTrade, orderActionType,
-                       maturityDate => this.Post(() => txtDaysToExpiry.Text = $"{(maturityDate.DayNumber - DateOnly.FromDateTime(dtpTradeDate.Value).DayNumber)}"),
-                       tradeDate => this.Post(() => dtpTradeDate.Value = tradeDate.ToDateTime(TimeOnly.MinValue)));
+                   var viewModel = new IronCondorTradeOrderViewModel(
+                       _appRoot,
+                       valueDate,
+                       fundId,
+                       baseContract,
+                       fundOrder!,
+                       fundOrderTrade,
+                       orderActionType);
                    tradeControl = new IronCondorTradeOrderView(this, viewModel);
                    break;
             }
@@ -492,11 +503,15 @@ public partial class TradeOrderEditorForm
         var orderActionType = (OrderActionType)Enum.Parse(typeof(OrderActionType), ddlOrderActionType.SelectedItem!.ToString()!);
         var tradeOrderControl = pnlTradeControl.Controls[0] as ITradeOrderControl;
         var orderConfirmation = new WinFormsTradeOrderConfirmationService(this);
-        await ObserveAsync(() => tradeOrderControl!.SubmitOrderAsync(
-            DateOnly.FromDateTime(dtpTradeDate.Value),
-            orderActionType,
-            orderConfirmation,
-            _viewModel.SetCommandId));
+        await ObserveAsync(async () =>
+        {
+            var commandId = await tradeOrderControl!.SubmitOrderAsync(
+                DateOnly.FromDateTime(dtpTradeDate.Value),
+                orderActionType,
+                orderConfirmation);
+            if (commandId != Guid.Empty)
+                _viewModel.SetCommandId(commandId);
+        });
     }
 
     void dtpTradeDate_ValueChanged(object sender, EventArgs e)
@@ -560,13 +575,14 @@ public partial class TradeOrderEditorForm
         }
     }
 
-    void ddlOrderActionType_SelectedIndexChanged(object sender, EventArgs e)
+    async void ddlOrderActionType_SelectedIndexChanged(object sender, EventArgs e)
     {
         if (pnlTradeControl.Controls.Count == 0) return;
         var orderActionType = Enum.Parse<OrderActionType>(ddlOrderActionType.SelectedItem!.ToString()!);
         _viewModel.OrderActionType = orderActionType;   
         var tradeOrderControl = pnlTradeControl.Controls[0] as ITradeOrderControl;
-        tradeOrderControl?.OrderActionTypeChanged(orderActionType);
+        if (tradeOrderControl is not null)
+            await ObserveAsync(() => tradeOrderControl.OrderActionTypeChangedAsync(orderActionType));
     }
 
     void dtpFrom_ValueChanged(object sender, EventArgs e)
@@ -613,7 +629,7 @@ public partial class TradeOrderEditorForm
         throw new NotImplementedException();
     }
 
-    void cbLiveFeed_CheckedChanged(object sender, EventArgs e)
+    async void cbLiveFeed_CheckedChanged(object sender, EventArgs e)
     {
         cbLiveFeed.BackColor = cbLiveFeed.Checked switch
         {
@@ -623,7 +639,7 @@ public partial class TradeOrderEditorForm
         };
 
         var tradeOrderControl = pnlTradeControl.Controls[0] as ITradeOrderControl;
-        tradeOrderControl!.LiveFeed(cbLiveFeed.Checked);
+        await ObserveAsync(() => tradeOrderControl!.SetLiveFeedAsync(cbLiveFeed.Checked));
     }
 
     async Task ObserveAsync(Func<Task> operation)

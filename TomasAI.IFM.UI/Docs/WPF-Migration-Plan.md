@@ -545,7 +545,8 @@ Exit: Models and ViewModels compile without WinForms, WPF, and `System.Drawing` 
 Progress on 2026-08-11: **the shared foundation, Reference/System Admin
 selectors, Fund workflows, Market Data editors, and main shell/status console
 are implemented; general trading migration is in progress.** S1.4 remains in
-progress while the embedded Iron Condor workflow retains callback-based adapters.
+progress while the Iron Condor strategy-monitor workflow retains callback-based
+adapters.
 
 - Introduce observable base state.
 - Replace view callbacks with properties, collections, and async operations one screen at a time.
@@ -711,7 +712,21 @@ Market Data workflow progress on 2026-08-11:
   completion, coded failure/retry, safe fill selection, and callback-free public
   state. Trade command models now return both end-of-day and placed-order IDs;
   the Iron Condor adapter forwards placed-order correlation to the main editor.
-  The embedded Iron Condor workflow is the remaining general-trading slice.
+- `IronCondorTradeOrderViewModel` now replaces the former callback-oriented
+  `IronCondorTradeOrderReadModel`. It exposes observable load, asset-price,
+  live-feed revision, strike-range, risk-position, fund-profit, input, and coded
+  error state. Initial queries are awaited coherently and the two listener
+  lifecycles remain owned and disposable.
+- The Iron Condor order-entry boundary now returns its placed-order command ID
+  directly. Intraday P&L, option-contract preparation, confirmation, submission,
+  live-feed toggling, trade removal, and close-order parent loading are awaited;
+  no public delegate parameters or callback properties remain on the order-entry
+  ViewModel. `IronCondorTradeOrderView` observes state and is limited to WinForms
+  rendering and framework event boundaries.
+- Order-entry tests cover observable input state, the no-callback public contract,
+  unsupported strategy rejection, and coded load failure with loading-state
+  recovery. The separate `IronCondorViewModel` strategy monitor remains the next
+  S1.4 slice before real-time stream hardening.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 

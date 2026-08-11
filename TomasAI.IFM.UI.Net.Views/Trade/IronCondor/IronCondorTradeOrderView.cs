@@ -1,27 +1,29 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
+using System.ComponentModel;
 using System.Globalization;
 using QLNet;
+using TomasAI.IFM.Domain.Fund.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Extensions;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Extensions;
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
-using TomasAI.IFM.Domain.Fund.Shared;
+using TomasAI.IFM.UI.Net.ViewModels.Operations;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
 public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, ITradeOrderControl
 {
-    IronCondorTradeOrderReadModel _viewModel;
+    readonly TradeOrderEditorForm _parentControl;
+    readonly IronCondorTradeOrderViewModel _viewModel;
+    long _lastErrorSequence;
+    bool _closed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IronCondorTradeOrderView"/> class with the specified parent control
@@ -33,61 +35,97 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
     /// <param name="parentControl">The parent control that hosts this view. This is used to interact with the parent form for certain actions.</param>
     /// <param name="viewModel">The view model that provides data and commands for the view. This view subscribes to various events and actions
     /// from the view model to update the UI accordingly.</param>
-    public IronCondorTradeOrderView(Control parentControl, IronCondorTradeOrderReadModel viewModel)
+    public IronCondorTradeOrderView(
+        TradeOrderEditorForm parentControl,
+        IronCondorTradeOrderViewModel viewModel)
     {
         InitializeComponent();
-        _viewModel = viewModel;
-        _viewModel.ShowErrorMessage = (errorMsg, caption) => this.ShowErrorMessage(errorMsg, caption);
-        _viewModel.DrawView = (drawAction) => this.Draw(drawAction);
-        _viewModel.ShowIronCondorTrade = () => parentControl.Post(() =>
-        {
-            LoadTradeActions();
-            LoadOptionTypes();
-            LoadOrderTypes();
-            SetReadOnlyControls();
-            ShowIronCondorTradeDetails();
-            ShowIronCondorTradePositions();
-        });
-        _viewModel.ShowTradeLimits = (tradeLimit, fundBalance) => this.Invoke(() => ShowTradeLimits((tradeLimit, fundBalance)));
-        _viewModel.ShowTradeTypeLimits = (putCreditSpreadTypeLimit, callCreditSpreadTypeLimit) => this.Invoke(() =>
-        {
-            ShowPutCreditSpreadTradeTypeLimit(putCreditSpreadTypeLimit);
-            ShowCallCreditSpreadTradeTypeLimit(callCreditSpreadTypeLimit);
-        });
-        _viewModel.ShowLiveFeedValues = (futuresEodData) => this.Invoke(() => ShowLiveFeedValues(futuresEodData));
-        _viewModel.ShowStrikePrices = (strikePriceRange, selectedIndex) => this.Invoke(() =>
-        {
-            var ddlStrikePrices = new ComboBox[] { ddlLeg1StrikePrice, ddlLeg2StrikePrice, ddlLeg3StrikePrice, ddlLeg4StrikePrice };
-            foreach (var e in ddlStrikePrices)
-            {
-                e.Items.Clear();
-                e.Items.AddRange(strikePriceRange);
-            }
-        });
-        _viewModel.ShowAssetPrice = assetPrice => this.Post(() => ShowAssetPrice(assetPrice));
-        _viewModel.OrderActionTypeChanged = orderActionType =>
-        {
-            _viewModel.SetOrderAction(orderActionType);
-            this.Draw(() => ((TradeOrderEditorForm)parentControl).SetOrderAction(orderActionType));
-        };
-       
-        _viewModel.FundMaxProfitChanged = e => this.Invoke(() => { 
-            txtRiskProfit.Text = $"{e.FundMaxProfit.FundMaxProfit:C}";
-            _viewModel.StopFundRiskMarginEventConsumer();
-        });
-        _viewModel.FundMaxProfitFailed = e => this.Invoke(() => {
-            this.ShowErrorMessage(e.ErrorMessage, "Setting Risk Margin Failed");
-            _viewModel.StopFundRiskMarginEventConsumer();
-        });
-        _viewModel.FundMaxProfitException = e => this.Invoke(() => {
-            this.ShowErrorMessage(e.ErrorMessage, "Setting Risk Margin Exception");
-            _viewModel.StopFundRiskMarginEventConsumer();
-        });
+        _parentControl = parentControl ?? throw new ArgumentNullException(nameof(parentControl));
+        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        _viewModel.PropertyChanged += ViewModelPropertyChanged;
     }
 
-    void IronCondorTradeOrderControl_Load(object sender, EventArgs e)
+    async void IronCondorTradeOrderControl_Load(object sender, EventArgs e)
     {
-        _viewModel.LoadIronCondorTradeOrders();
+        try
+        {
+            await _viewModel.LoadIronCondorTradeOrders();
+            RenderLoadedState();
+            _parentControl.SetTradeDate(_viewModel.TradeDate);
+            _parentControl.SetDaysToExpiry(_viewModel.MaturityDate);
+            _parentControl.SetOrderAction(_viewModel.OrderActionType);
+            await ApplyOrderActionAsync(_viewModel.OrderActionType);
+        }
+        catch (ModelOperationException)
+        {
+            ShowLatestError();
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Loading Iron Condor Trade Order Error");
+        }
+    }
+
+    void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+        => this.Post(() =>
+        {
+            switch (eventArgs.PropertyName)
+            {
+                case nameof(IronCondorTradeOrderViewModel.LastError):
+                    ShowLatestError();
+                    break;
+                case nameof(IronCondorTradeOrderViewModel.AssetPrice):
+                    ShowAssetPrice(_viewModel.AssetPrice);
+                    break;
+                case nameof(IronCondorTradeOrderViewModel.LiveFeedRevision):
+                    if (_viewModel.LiveFeedValues is not null)
+                        ShowLiveFeedValues(_viewModel.LiveFeedValues);
+                    break;
+                case nameof(IronCondorTradeOrderViewModel.FundMaxProfit):
+                    txtRiskProfit.Text = _viewModel.FundMaxProfit is null
+                        ? string.Empty
+                        : $"{_viewModel.FundMaxProfit:C}";
+                    break;
+                case nameof(IronCondorTradeOrderViewModel.IsLoading):
+                    Enabled = !_viewModel.IsLoading;
+                    break;
+            }
+        });
+
+    void ShowLatestError()
+    {
+        var error = _viewModel.LastError;
+        if (error is null || error.Sequence <= _lastErrorSequence)
+            return;
+        _lastErrorSequence = error.Sequence;
+        this.ShowErrorMessage(error.Message, error.Caption);
+    }
+
+    void RenderLoadedState()
+    {
+        LoadTradeActions();
+        LoadOptionTypes();
+        LoadOrderTypes();
+        SetReadOnlyControls();
+        foreach (var strikeSelector in new[]
+                 {
+                     ddlLeg1StrikePrice,
+                     ddlLeg2StrikePrice,
+                     ddlLeg3StrikePrice,
+                     ddlLeg4StrikePrice
+                 })
+        {
+            strikeSelector.Items.Clear();
+            strikeSelector.Items.AddRange(_viewModel.StrikePrices);
+        }
+        ShowTradeLimits((_viewModel.IronCondorTrade.TradeLimit!, _viewModel.FundBalance));
+        ShowPutCreditSpreadTradeTypeLimit(
+            _viewModel.IronCondorTrade.TradeTypeLimits!.Get(_viewModel.PutSpreadTradeType)!);
+        ShowCallCreditSpreadTradeTypeLimit(
+            _viewModel.IronCondorTrade.TradeTypeLimits!.Get(_viewModel.CallSpreadTradeType)!);
+        ShowIronCondorTradeDetails();
+        ShowIronCondorTradePositions();
+        ShowAssetPrice(_viewModel.AssetPrice);
     }
 
     public DateOnly MaturityDate => DateOnly.FromDateTime(dtmLeg1LastTradeDate.Value);
@@ -102,20 +140,26 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
     }
 
     async ValueTask IAsyncFormControl.CloseAsync()
-        => await _viewModel.StopAsync(CancellationToken.None);
+    {
+        if (_closed)
+            return;
+        _closed = true;
+        _viewModel.PropertyChanged -= ViewModelPropertyChanged;
+        await _viewModel.DisposeAsync();
+    }
 
     void IFormControl.Resize(Control parentControl)
     {
         throw new NotImplementedException();
     }
 
-    public void RemoveTrade(int fundId, int orderId, int tradeId) => _viewModel.RemoveTradeFromFundOrder( new FundOrderTradeId(fundId, orderId, tradeId));
+    public Task RemoveTradeAsync(int fundId, int orderId, int tradeId)
+        => _viewModel.RemoveTradeFromFundOrder(new FundOrderTradeId(fundId, orderId, tradeId));
 
-    public async Task SubmitOrderAsync(
+    public async Task<Guid> SubmitOrderAsync(
         DateOnly tradeDate,
         OrderActionType orderActionType,
-        ITradeOrderConfirmationService tradeOrderConfirmation,
-        Action<Guid> setCommmandId)
+        ITradeOrderConfirmationService tradeOrderConfirmation)
     {
         _viewModel.SetTradeStatus(orderActionType);
         _viewModel.SetTradeDate(tradeDate);
@@ -135,8 +179,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         var tradeFillType = TradeFillType.Manual;
         var orderAmount = _viewModel.OrderAmount;
         var totalAmount = _viewModel.TotalAmount;
-        var intraDayPnl = 0m;
-        await _viewModel.GetIntraDayPnl(value => intraDayPnl = value);
+        var intraDayPnl = await _viewModel.GetIntraDayPnl();
         var tradeOrder = new TradeOrderReadModel
             (
                 fundId: _viewModel.FundId,
@@ -168,19 +211,19 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
                 updatedBy: $"{Environment.UserDomainName}\\{Environment.UserName}"
             );
         var confirmation = await tradeOrderConfirmation.ConfirmAsync(tradeOrder);
-        if (confirmation.IsConfirmed)
-            await _viewModel.SubmitOrder(
-                tradeOrder with { TradeFillType = confirmation.TradeFillType },
-                setCommmandId);
+        return confirmation.IsConfirmed
+            ? await _viewModel.SubmitOrder(
+                tradeOrder with { TradeFillType = confirmation.TradeFillType })
+            : Guid.Empty;
     }
 
-    public void LiveFeed(bool enabled)
+    public async Task SetLiveFeedAsync(bool enabled)
     {
         ClearPrices();
         if (enabled)
-            _viewModel.TurnLiveFeedOn();
+            await _viewModel.TurnLiveFeedOn();
         else
-            _viewModel.TurnLiveFeedOff();   
+            await _viewModel.TurnLiveFeedOff();
     }
 
     public void SetNearestStrikePrices()
@@ -472,7 +515,9 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void dtmLeg1LastTradeDate_ValueChanged(object sender, EventArgs e)
     {
-        _viewModel.UpdateDaysToExpiryAction(DateOnly.FromDateTime(dtmLeg1LastTradeDate.Value));
+        var maturityDate = DateOnly.FromDateTime(dtmLeg1LastTradeDate.Value);
+        _viewModel.SetMaturityDate(maturityDate);
+        _parentControl.SetDaysToExpiry(maturityDate);
         if (_viewModel.FundOrderTrade.TradeState != TradeState.NewTrade) return;
         var dtpLastTradeDates = new List<DateTimePicker> { dtmLeg2LastTradeDate, dtmLeg3LastTradeDate, dtmLeg4LastTradeDate };
         dtpLastTradeDates.ForEach(dtp => dtp.Value = dtmLeg1LastTradeDate.Value);
@@ -806,8 +851,12 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         txtLeg4BidPrice.Text = string.Empty;
     }
 
-    public void OrderActionTypeChanged(OrderActionType orderActionType)
+    public Task OrderActionTypeChangedAsync(OrderActionType orderActionType)
+        => ApplyOrderActionAsync(orderActionType);
+
+    async Task ApplyOrderActionAsync(OrderActionType orderActionType)
     {
+        _viewModel.SetOrderAction(orderActionType);
         if (_viewModel.FundOrderTrade.TradeState != TradeState.NewTrade)
             return;
         var controls = new Control[] { dtmLeg1LastTradeDate, dtmLeg2LastTradeDate, dtmLeg3LastTradeDate, dtmLeg4LastTradeDate,
@@ -816,33 +865,33 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         {
             case TradeType.ShortIronCondor:
             case TradeType.LongIronCondor:
-                _viewModel.UpdateOrderAction(orderActionType, () => this.Invoke(() => {
-                    txtRiskMargin.Visible = false;
-                    lblRiskMargin.Visible = false;
-                    txtMaxLossLimit.Visible = false;
-                    lblMaxLossLimit.Visible = false;
-                    txtMaxProfit.Visible = false;
-                    lblMaxProfit.Visible = false;
-                    txtMaxReturn.Visible = false;
-                    lblMaxReturn.Visible = false;
-                    txtMaxProfitLimit.Visible = false;
-                    lblMinProfitLimit.Visible = false;
-                    txtMinProfitTarget.Visible = false;
-                    lblMinProfitTarget.Visible = false;
-                    ddlLeg1StrikePrice.SetSelectedIndex((int)_viewModel.GetParentOptionLeg(_viewModel.ParentOptionLeg1Action, OptionType.Put).StrikePrice);
-                    ddlLeg2StrikePrice.SetSelectedIndex((int)_viewModel.GetParentOptionLeg(_viewModel.ParentOptionLeg2Action, OptionType.Put).StrikePrice);
-                    ddlLeg3StrikePrice.SetSelectedIndex((int)_viewModel.GetParentOptionLeg(_viewModel.ParentOptionLeg3Action, OptionType.Call).StrikePrice);
-                    ddlLeg4StrikePrice.SetSelectedIndex((int)_viewModel.GetParentOptionLeg(_viewModel.ParentOptionLeg4Action, OptionType.Call).StrikePrice);
-                    txtLeg1BidPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentPutSpreadTradeType, _viewModel.ParentOptionLeg1Action, OptionType.Put)?.BidPrice ?? 0m:F2}";
-                    txtLeg1AskPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentPutSpreadTradeType, _viewModel.ParentOptionLeg1Action, OptionType.Put)?.AskPrice ?? 0m:F2}";
-                    txtLeg2BidPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentPutSpreadTradeType, _viewModel.ParentOptionLeg2Action, OptionType.Put)?.BidPrice ?? 0m:F2}";
-                    txtLeg2AskPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentPutSpreadTradeType, _viewModel.ParentOptionLeg2Action, OptionType.Put)?.AskPrice ?? 0m:F2}";
-                    txtLeg3BidPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentCallSpreadTradeType, _viewModel.ParentOptionLeg3Action, OptionType.Call)?.BidPrice ?? 0m:F2}";
-                    txtLeg3AskPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentCallSpreadTradeType, _viewModel.ParentOptionLeg3Action, OptionType.Call)?.AskPrice ?? 0m:F2}";
-                    txtLeg4BidPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentCallSpreadTradeType, _viewModel.ParentOptionLeg4Action, OptionType.Call)?.BidPrice ?? 0m:F2}";
-                    txtLeg4AskPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentCallSpreadTradeType, _viewModel.ParentOptionLeg4Action, OptionType.Call)?.AskPrice ?? 0m:F2}";
-                    nudQuantity.Value = _viewModel.ParentTradeOrderQuantity;
-                }));
+                if (!await _viewModel.UpdateOrderActionAsync(orderActionType))
+                    return;
+                txtRiskMargin.Visible = false;
+                lblRiskMargin.Visible = false;
+                txtMaxLossLimit.Visible = false;
+                lblMaxLossLimit.Visible = false;
+                txtMaxProfit.Visible = false;
+                lblMaxProfit.Visible = false;
+                txtMaxReturn.Visible = false;
+                lblMaxReturn.Visible = false;
+                txtMaxProfitLimit.Visible = false;
+                lblMinProfitLimit.Visible = false;
+                txtMinProfitTarget.Visible = false;
+                lblMinProfitTarget.Visible = false;
+                ddlLeg1StrikePrice.SetSelectedIndex((int)_viewModel.GetParentOptionLeg(_viewModel.ParentOptionLeg1Action, OptionType.Put).StrikePrice);
+                ddlLeg2StrikePrice.SetSelectedIndex((int)_viewModel.GetParentOptionLeg(_viewModel.ParentOptionLeg2Action, OptionType.Put).StrikePrice);
+                ddlLeg3StrikePrice.SetSelectedIndex((int)_viewModel.GetParentOptionLeg(_viewModel.ParentOptionLeg3Action, OptionType.Call).StrikePrice);
+                ddlLeg4StrikePrice.SetSelectedIndex((int)_viewModel.GetParentOptionLeg(_viewModel.ParentOptionLeg4Action, OptionType.Call).StrikePrice);
+                txtLeg1BidPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentPutSpreadTradeType, _viewModel.ParentOptionLeg1Action, OptionType.Put)?.BidPrice ?? 0m:F2}";
+                txtLeg1AskPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentPutSpreadTradeType, _viewModel.ParentOptionLeg1Action, OptionType.Put)?.AskPrice ?? 0m:F2}";
+                txtLeg2BidPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentPutSpreadTradeType, _viewModel.ParentOptionLeg2Action, OptionType.Put)?.BidPrice ?? 0m:F2}";
+                txtLeg2AskPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentPutSpreadTradeType, _viewModel.ParentOptionLeg2Action, OptionType.Put)?.AskPrice ?? 0m:F2}";
+                txtLeg3BidPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentCallSpreadTradeType, _viewModel.ParentOptionLeg3Action, OptionType.Call)?.BidPrice ?? 0m:F2}";
+                txtLeg3AskPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentCallSpreadTradeType, _viewModel.ParentOptionLeg3Action, OptionType.Call)?.AskPrice ?? 0m:F2}";
+                txtLeg4BidPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentCallSpreadTradeType, _viewModel.ParentOptionLeg4Action, OptionType.Call)?.BidPrice ?? 0m:F2}";
+                txtLeg4AskPrice.Text = $"{GetParentOptionLegData(_viewModel.ParentCallSpreadTradeType, _viewModel.ParentOptionLeg4Action, OptionType.Call)?.AskPrice ?? 0m:F2}";
+                nudQuantity.Value = _viewModel.ParentTradeOrderQuantity;
                 break;
         }
         return;
@@ -867,9 +916,20 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
     {
      }
 
-    void btnSetRiskProfit_Click(object sender, EventArgs e)
+    async void btnSetRiskProfit_Click(object sender, EventArgs e)
     {
         txtRiskProfit.Text = "Loading...";
-        _viewModel.SetFundMaxProfit();
+        try
+        {
+            await _viewModel.SetFundMaxProfit();
+        }
+        catch (ModelOperationException)
+        {
+            ShowLatestError();
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Setting Fund Max Profit Error");
+        }
     }
 }

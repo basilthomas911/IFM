@@ -7,13 +7,12 @@ namespace TomasAI.IFM.UI.Net.Views.Trade;
 public interface ITradeOrderControl
 {
     DateOnly MaturityDate { get; }
-    void RemoveTrade(int fundid, int orderId, int tradeId);
-    Task SubmitOrderAsync(
+    Task RemoveTradeAsync(int fundid, int orderId, int tradeId);
+    Task<Guid> SubmitOrderAsync(
         DateOnly tradeDate,
         OrderActionType orderAction,
-        ITradeOrderConfirmationService tradeOrderConfirmation,
-        Action<Guid> setCommandId);
-    void LiveFeed(bool enabled);
+        ITradeOrderConfirmationService tradeOrderConfirmation);
+    Task SetLiveFeedAsync(bool enabled);
     void SetNearestStrikePrices();
-    void OrderActionTypeChanged(OrderActionType orderActionType);
+    Task OrderActionTypeChangedAsync(OrderActionType orderActionType);
 }

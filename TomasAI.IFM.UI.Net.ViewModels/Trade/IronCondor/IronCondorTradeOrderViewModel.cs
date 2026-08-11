@@ -1,28 +1,25 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using QLNet;
-using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.UI.Net.Models;
-using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.Trade.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Domain.OptionPricer.Shared;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Extensions;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
+using TomasAI.IFM.UI.Net.ViewModels.Operations;
+using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
@@ -33,7 +30,7 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 /// setting trade dates, calculating trade values, managing live feed data, and more. It is designed to work with a
 /// trading application infrastructure, utilizing models and actions to perform operations related to option trading
 /// strategies.</remarks>
-public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
+public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
     readonly AsyncLifecycleCoordinator _riskMarginLifecycle;
     readonly AsyncLifecycleCoordinator _liveFeedLifecycle;
@@ -46,8 +43,6 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     FundOrderReadModel _fundOrder;
     FundOrderTradeReadModel _fundOrderTrade;
     OrderActionType _orderActionType;
-    Action<DateOnly> _updateDaysToExpiryAction;
-    Action<DateOnly> _updateTradeDateAction;
     DefaultFuturesContractDefinitionsReadModel _defaultFuturesContractDefinitions = null!;
     double _riskFreeRate;
     int _putSpreadStrikeWidth;
@@ -56,12 +51,24 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     Dictionary<(DateOnly ValueDate, TradeType TradeType, TradeStatus TradeStatus, OptionLegAction OptionLegAction, OptionType OptionType), OptionTradeLegDataReadModel> _optionLegDataMap = [];
     Dictionary<(DateOnly ValueDate, TradeType TradeType, TradeStatus TradeStatus), TradePositionReadModel> _tradePositionMap = [];
     Dictionary<(OptionLegAction OptionLegAction, OptionType OptionType), decimal> _optionPriceMap = [];
-    RiskPositionType[] _riskPositionTypes = null!;
     RiskPositionType _riskPositionType;
     Guid _liveFeedQuoteId;
+    decimal _fundBalance;
+    decimal _orderPrice;
+    decimal _assetPrice;
+    decimal? _fundMaxProfit;
+    object[] _strikePrices = [];
+    int _selectedStrikePriceIndex = -1;
+    FuturesEodDataV2ReadModel? _liveFeedValues;
+    PresentationError? _lastError;
+    bool _isLoaded;
+    bool _isLoading;
+    long _liveFeedRevision;
+    long _errorSequence;
+    string _localSymbol = string.Empty;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="IronCondorTradeOrderReadModel"/> class with the specified
+    /// Initializes a new instance of the <see cref="IronCondorTradeOrderViewModel"/> class with the specified
     /// parameters.
     /// </summary>
     /// <param name="appRoot">The application root interface providing access to application-wide services and resources.</param>
@@ -71,11 +78,15 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     /// <param name="fundOrder">The fund order view model that this trade order is part of.</param>
     /// <param name="fundOrderTrade">The fund order trade view model specifying the trade details.</param>
     /// <param name="orderActionType">The type of action to be performed on the order, such as buy or sell.</param>
-    /// <param name="updateDaysToExpiryAction">An action to update the days to expiry based on the provided date.</param>
-    /// <param name="updateTradeDateAction">An action to update the trade date based on the provided date.</param>
     /// <exception cref="InvalidOperationException">Thrown if the <paramref name="fundOrderTrade"/> has a trade type that is not supported by this view model.</exception>
-    public IronCondorTradeOrderReadModel(IAppRoot appRoot, DateOnly valueDate, int fundId, FuturesContractV2ReadModel baseContract, FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade,
-        OrderActionType orderActionType, Action<DateOnly> updateDaysToExpiryAction, Action<DateOnly> updateTradeDateAction)
+    public IronCondorTradeOrderViewModel(
+        IAppRoot appRoot,
+        DateOnly valueDate,
+        int fundId,
+        FuturesContractV2ReadModel baseContract,
+        FundOrderReadModel fundOrder,
+        FundOrderTradeReadModel fundOrderTrade,
+        OrderActionType orderActionType)
     {
         switch(fundOrderTrade.TradeType)
         {
@@ -83,7 +94,7 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
             case TradeType.LongIronCondor:
                 break;
             default:
-                throw new InvalidOperationException($"IronCondorTradeOrderReadModel.Constructor: invalid trade type '{fundOrderTrade.TradeType}'");
+                throw new InvalidOperationException($"IronCondorTradeOrderViewModel.Constructor: invalid trade type '{fundOrderTrade.TradeType}'");
         }
         _appRoot = appRoot;
         _valueDate = valueDate;
@@ -92,8 +103,6 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
         _fundOrder = fundOrder;
         _fundOrderTrade = fundOrderTrade;
         _orderActionType = orderActionType;
-        _updateDaysToExpiryAction = updateDaysToExpiryAction;
-        _updateTradeDateAction = updateTradeDateAction;
         _putSpreadStrikeWidth = 30; // change to get strike width from reference data...
         _callSpreadStrikeWidth = 15; // change to get strike width from reference data...
         _liveFeedQuoteId = Guid.Empty;
@@ -109,18 +118,29 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     public int FundId => _fundId;
     public FuturesContractV2ReadModel BaseContract => _baseContract;
     public FundOrderTradeReadModel FundOrderTrade => _fundOrderTrade;
-    public Action<DateOnly> UpdateDaysToExpiryAction => _updateDaysToExpiryAction;
-    public Action<DateOnly> UpdateTradeDateAction => _updateTradeDateAction;
     public DefaultFuturesContractDefinitionsReadModel DefaultFuturesContractDefinitions => _defaultFuturesContractDefinitions;
     public double RiskFreeRate => _riskFreeRate;
+    public RiskPositionType RiskPositionType
+    {
+        get => _riskPositionType;
+        private set => SetProperty(ref _riskPositionType, value);
+    }
     public OptionTradeReadModel IronCondorTrade => _ironCondorTrade;
     public OptionTradeLegReadModel[] OptionLegs => _ironCondorTrade?.OptionLegs ?? [];
     public OptionTradeLegDataReadModel[] OptionLegData => _ironCondorTrade?.TradePositions?.SelectMany(e => e.OptionLegData)?.ToArray() ?? [];
     public TradePositionReadModel[] TradePosition => _ironCondorTrade?.TradePositions ?? [];
     public OptionTradeReadModel ParentTrade => _parentTrade;
     public OrderActionType OrderActionType => _orderActionType;
-    public decimal FundBalance { get; set; }
-    public decimal OrderPrice { get; set; }
+    public decimal FundBalance
+    {
+        get => _fundBalance;
+        set => SetProperty(ref _fundBalance, value);
+    }
+    public decimal OrderPrice
+    {
+        get => _orderPrice;
+        set => SetProperty(ref _orderPrice, value);
+    }
     public int OrderQuantity => _ironCondorTrade?.OptionLegs?.Sum(e => e.Quantity) / _ironCondorTrade?.OptionLegs?.Length ?? 0;
     public int ParentTradeOrderQuantity => _parentTrade?.OptionLegs?.Sum(e => e.Quantity) / _ironCondorTrade?.OptionLegs?.Length ?? 0;
 
@@ -131,23 +151,51 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     public decimal TotalAmount => OrderAmount + TradeCommission;
     public int DaysToExpiry => _ironCondorTrade?.TradePositions?.Get(this.PutSpreadTradeType, this.TradeStatus)?.EntityId.DaysToExpiry ?? 0;
 
-    public Action<string, string> ShowErrorMessage { get; set; } = null!;
-    public Action ShowIronCondorTrade { get; set; } = null!;
-    public Action ShowTradePositions { get; set; } = null!;
-    public Action<TradeLimitReadModel, decimal> ShowTradeLimits { get; set; } = null!;
-    public Action<TradeTypeLimitReadModel, TradeTypeLimitReadModel> ShowTradeTypeLimits { get; set; } = null!;
-    public Action<FuturesEodDataV2ReadModel> ShowLiveFeedValues { get; set; } = null!;
-    public Action<object[], int> ShowStrikePrices { get; set; } = null!;
-    public Action<decimal> ShowAssetPrice { get; set; } = null!;
-    public Action HideClosingTradeControls { get; set; } = null!;
-    public Action<OrderActionType> OrderActionTypeChanged { get; set; } = null!;
-    public Action<Action> DrawView { get; set; } = null!;
-    public Action<double> ShowForwardDelta { get; set; } = null!;
-    public Action<RiskPositionType[]> ShowRiskPositionTypes { get; set; } = null!;
-    public Action<int> SetRiskPositionTypeIndex { get; set; } = null!;
-    public Action<FundMaxProfitGeneratedCompleteEvent> FundMaxProfitChanged { get; set; } = null!;
-    public Action<FundMaxProfitGeneratedFailEvent> FundMaxProfitFailed { get; set; } = null!;
-    public Action<CommandExceptionEvent> FundMaxProfitException { get; set; } = null!;
+    public object[] StrikePrices
+    {
+        get => _strikePrices;
+        private set => SetProperty(ref _strikePrices, value);
+    }
+    public int SelectedStrikePriceIndex
+    {
+        get => _selectedStrikePriceIndex;
+        private set => SetProperty(ref _selectedStrikePriceIndex, value);
+    }
+    public decimal AssetPrice
+    {
+        get => _assetPrice;
+        private set => SetProperty(ref _assetPrice, value);
+    }
+    public FuturesEodDataV2ReadModel? LiveFeedValues
+    {
+        get => _liveFeedValues;
+        private set => SetProperty(ref _liveFeedValues, value);
+    }
+    public long LiveFeedRevision
+    {
+        get => _liveFeedRevision;
+        private set => SetProperty(ref _liveFeedRevision, value);
+    }
+    public decimal? FundMaxProfit
+    {
+        get => _fundMaxProfit;
+        private set => SetProperty(ref _fundMaxProfit, value);
+    }
+    public PresentationError? LastError
+    {
+        get => _lastError;
+        private set => SetProperty(ref _lastError, value);
+    }
+    public bool IsLoaded
+    {
+        get => _isLoaded;
+        private set => SetProperty(ref _isLoaded, value);
+    }
+    public bool IsLoading
+    {
+        get => _isLoading;
+        private set => SetProperty(ref _isLoading, value);
+    }
 
     public TradeType PutSpreadTradeType => _fundOrderTrade.TradeType == TradeType.ShortIronCondor ? TradeType.PutCreditSpread : TradeType.PutDebitSpread;
     public TradeType ParentPutSpreadTradeType => _parentTrade.TradeType == TradeType.ShortIronCondor ? TradeType.PutCreditSpread : TradeType.PutDebitSpread;
@@ -171,7 +219,11 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     public int NearestCallStrike { get; set; }
     public double OTMPutProbability { get; set; }
     public double OTMCallProbability { get; set; }
-    public string LocalSymbol { get; set; } = null!;
+    public string LocalSymbol
+    {
+        get => _localSymbol;
+        set => SetProperty(ref _localSymbol, value ?? string.Empty);
+    }
 
     /// <summary>
     /// Loads the iron condor trade orders by initializing necessary data and executing required queries.
@@ -179,28 +231,39 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     /// <remarks>This method retrieves default futures contract definitions and loads additional data required
     /// for processing iron condor trades. It handles errors by displaying an error message if the loading of default
     /// futures contract definitions fails.</remarks>
-    public Task LoadIronCondorTradeOrders()
-        => _appRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model => {
-            model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Loading Default Futures Contract Definitions Error"));
-            await model.LoadDefaultFuturesContractDefinitionsAsync(defContractDef => _defaultFuturesContractDefinitions = defContractDef);
-            LoadForwardDelta();
-            LoadRiskFreeRate(() => LoadIronCondorTradeOrderData());
-        });
-
-    /// <summary>
-    /// Sets the current risk position type by finding its index in the available risk position types.
-    /// </summary>
-    /// <remarks>This method iterates through the available risk position types and invokes the  <see
-    /// cref="SetRiskPositionTypeIndex"/> action with the index of the matching type. If no match is found, the action
-    /// is not invoked.</remarks>
-    public void SetRiskPositionType()
+    public async Task LoadIronCondorTradeOrders()
     {
-        for (var index = 0; index < _riskPositionTypes.Length; index++)
-            if (_riskPositionTypes[index] == _riskPositionType)
-            {
-                SetRiskPositionTypeIndex?.Invoke(index);
-                break;
-            }
+        if (IsLoading)
+            return;
+
+        IsLoading = true;
+        IsLoaded = false;
+        try
+        {
+            await _appRoot.GetModel<ReferenceQueryModel>().ExecuteObservableAsync(
+                model => model.LoadDefaultFuturesContractDefinitionsAsync(
+                    value => _defaultFuturesContractDefinitions = value));
+            await LoadForwardDelta();
+            await LoadRiskFreeRate();
+            await LoadIronCondorTradeOrderData();
+            IsLoaded = true;
+            OnPropertyChanged(nameof(TradeDate));
+            OnPropertyChanged(nameof(MaturityDate));
+            OnPropertyChanged(nameof(IronCondorTrade));
+            OnPropertyChanged(nameof(OptionLegs));
+            OnPropertyChanged(nameof(OptionLegData));
+            OnPropertyChanged(nameof(TradePosition));
+            OnPropertyChanged(nameof(OrderActionType));
+        }
+        catch (ModelOperationException exception)
+        {
+            PublishError(exception, "Loading Iron Condor Trade Order Error");
+            throw;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
 
     /// <summary>
@@ -211,20 +274,44 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     /// process.</remarks>
     public async Task SetFundMaxProfit()
     {
-        await _riskMarginLifecycle.InitializeAsync(CancellationToken.None);
-        await _appRoot.GetModel<FundCommandModel>().ExecuteAsync(async model => {
-            model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Setting Fund Max Profit Error Error"));
-            await Task.Delay(TimeSpan.FromSeconds(1));
-            await model.GenerateFundRiskMarginAsync(_fundOrder, Domain.MarketData.Analytics.Shared.TimeFrameType.FifteenSeconds);
-        });
+        try
+        {
+            await _riskMarginLifecycle.InitializeAsync(CancellationToken.None);
+            await _appRoot.GetModel<FundCommandModel>().ExecuteObservableAsync(async model =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1));
+                await model.GenerateFundRiskMarginAsync(
+                    _fundOrder,
+                    Domain.MarketData.Analytics.Shared.TimeFrameType.FifteenSeconds);
+            });
+        }
+        catch (ModelOperationException exception)
+        {
+            PublishError(exception, "Setting Fund Max Profit Error");
+            throw;
+        }
     }
 
     Task StartFundRiskMarginConsumerCoreAsync(CancellationToken cancellationToken)
         => _appRoot.GetModel<FundCommandModel>().ExecuteAsync(async model =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await model.StartFundRiskMarginEventConsumerAsync(FundMaxProfitChanged, FundMaxProfitFailed);
+            await model.StartFundRiskMarginEventConsumerAsync(
+                HandleFundMaxProfitChanged,
+                HandleFundMaxProfitFailed);
         });
+
+    void HandleFundMaxProfitChanged(FundMaxProfitGeneratedCompleteEvent @event)
+    {
+        FundMaxProfit = @event.FundMaxProfit.FundMaxProfit;
+        _ = StopFundRiskMarginEventConsumer();
+    }
+
+    void HandleFundMaxProfitFailed(FundMaxProfitGeneratedFailEvent @event)
+    {
+        PublishError(@event.ErrorCode, @event.ErrorMessage, "Setting Risk Margin Failed");
+        _ = StopFundRiskMarginEventConsumer();
+    }
 
     /// <summary>
     /// Stops the consumer responsible for processing fund risk margin events.
@@ -259,22 +346,25 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     }
 
     /// <summary>
-    /// Retrieves the intraday profit and loss (PnL) for a specific trade and invokes a callback with the result.
+    /// Retrieves the intraday profit and loss (PnL) for the current trade.
     /// </summary>
     /// <remarks>This method queries the trade history for the specified order and calculates the sum of PnL
-    /// for trades with a status of <see cref="TradeStatus.IntraDay"/>. The result is provided to the <paramref
-    /// name="onCompletion"/> callback. Ensure that the callback is not null to handle the result
-    /// appropriately.</remarks>
-    /// <param name="onCompletion">A callback action that receives the calculated intraday PnL as a decimal. If no intraday trades are found, the
-    /// callback is invoked with 0.</param>
-    public Task GetIntraDayPnl(Action<decimal> onCompletion)
-    => _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model =>
-            await model.GetTradeHistoryAsync(_ironCondorTrade.OrderId, intraDayPnl => {
-                if (intraDayPnl is not null && intraDayPnl.Length > 0)
-                    onCompletion?.Invoke(intraDayPnl.Where(e => e.TradeStatus == TradeStatus.IntraDay).Sum(e => e.TradePnl));
-                else
-                    onCompletion?.Invoke(0m);
-            }));
+    /// for trades with a status of <see cref="TradeStatus.IntraDay"/>.</remarks>
+    public async Task<decimal> GetIntraDayPnl()
+    {
+        try
+        {
+            List<TradeHistoryReadModel> history = [];
+            await _appRoot.GetModel<TradeQueryModel>().ExecuteObservableAsync(
+                async model => history = await model.GetTradeHistoryAsync(_ironCondorTrade.OrderId));
+            return history.Where(entry => entry.TradeStatus == TradeStatus.IntraDay).Sum(entry => entry.TradePnl);
+        }
+        catch (ModelOperationException exception)
+        {
+            PublishError(exception, "Loading Intraday P&L Error");
+            throw;
+        }
+    }
 
     /// <summary>
     /// Calculates the commission for a given trade position.
@@ -293,14 +383,23 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     /// </summary>
     /// <param name="tradeDate">The date to be set as the trade date.</param>
     public void SetTradeDate(DateOnly tradeDate)
-        => _ironCondorTrade = _ironCondorTrade with { TradeDate = tradeDate };
+    {
+        _ironCondorTrade = _ironCondorTrade with { TradeDate = tradeDate };
+        OnPropertyChanged(nameof(TradeDate));
+        OnPropertyChanged(nameof(IronCondorTrade));
+    }
 
     /// <summary>
     /// Sets the maturity date for the iron condor trade.
     /// </summary>
     /// <param name="maturityDate">The new maturity date to be set for the trade.</param>
     public void SetMaturityDate(DateOnly maturityDate)
-        => _ironCondorTrade = _ironCondorTrade with { MaturityDate = maturityDate };
+    {
+        _ironCondorTrade = _ironCondorTrade with { MaturityDate = maturityDate };
+        OnPropertyChanged(nameof(MaturityDate));
+        OnPropertyChanged(nameof(DaysToExpiry));
+        OnPropertyChanged(nameof(IronCondorTrade));
+    }
 
     /// <summary>
     /// Updates the days to expiry for trade positions within the iron condor trade.
@@ -383,7 +482,13 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     /// </summary>
     /// <param name="orderActionType">The type of action to be set for the order. This value determines the operation to be performed on the order.</param>
     public void SetOrderAction(OrderActionType orderActionType)
-        => _orderActionType = orderActionType;
+    {
+        if (_orderActionType == orderActionType)
+            return;
+        _orderActionType = orderActionType;
+        OnPropertyChanged(nameof(OrderActionType));
+        OnPropertyChanged(nameof(TradeStatus));
+    }
 
     /// <summary>
     /// Determines the appropriate order action based on the trade type of the iron condor trade.
@@ -400,30 +505,22 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
         };
 
     Task LoadForwardDelta()
-        => _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async model => {
-            model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Loading Risk Position Type Error"));
-            await model.GetFuturesRiskPositionTypeAsync(_valueDate, _fundOrderTrade.TradeType,
-                e =>
-                {
-                    _riskPositionType = e.RiskPositionType;
-                });
-        });
+        => _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteObservableAsync(
+            model => model.GetFuturesRiskPositionTypeAsync(
+                _valueDate,
+                _fundOrderTrade.TradeType,
+                value => RiskPositionType = value.RiskPositionType));
 
-    Task LoadRiskFreeRate( Action onCompleted)
-        => _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model => {
-            model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Loading Risk Free Rate Error"));
-            await model.GetRiskFreeRateAsync(riskFreeRate => _riskFreeRate = riskFreeRate);
-            await LoadIronCondorTradeOrderData();
-        });
+    Task LoadRiskFreeRate()
+        => _appRoot.GetModel<MarketDataQueryModel>().ExecuteObservableAsync(
+            model => model.GetRiskFreeRateAsync(value => _riskFreeRate = value));
 
     async Task LoadIronCondorTradeOrderData()
     {
-        object[] strikePrices = [];
-        await LoadStrikePrices(values => strikePrices = values);
+        var strikePrices = await LoadStrikePrices();
 
-        await _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async tradeModel =>
+        await _appRoot.GetModel<TradeQueryModel>().ExecuteObservableAsync(async tradeModel =>
         {
-            tradeModel.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Loading Iron Condor Trade Order Error"));
             var orderId = _fundOrderTrade.OrderId;
             var tradeId = _fundOrderTrade.TradeId;
             OptionTradeReadModel? optionTrade = null;
@@ -434,35 +531,24 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
             MapOptionLegData();
             MapOptionPriceFromTradeReference(_fundOrderTrade.TradeAction, _fundOrderTrade.Reference);
 
-            await _appRoot.GetModel<FundQueryModel>().ExecuteAsync(async fundModel =>
+            await _appRoot.GetModel<FundQueryModel>().ExecuteObservableAsync(async fundModel =>
             {
-                fundModel.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Loading Fund Balance Error"));
                 await fundModel.GetFundBalanceAsync(_fundId, fundBalance =>
                 {
                     FundBalance = fundBalance;
-                    DrawView(() =>
-                    {
-                        UpdateTradeDateAction(_ironCondorTrade.TradeDate);
-                        ShowTradeLimits(_ironCondorTrade.TradeLimit!, fundBalance);
-                        ShowTradeTypeLimits(
-                           _ironCondorTrade.TradeTypeLimits!.Get(PutSpreadTradeType)!,
-                           _ironCondorTrade.TradeTypeLimits!.Get(CallSpreadTradeType)!);
-                        ShowStrikePrices(strikePrices, strikePrices.Length / 2);
-                        ShowIronCondorTrade();
-                        OrderActionTypeChanged(_orderActionType);
-                    });
+                    StrikePrices = strikePrices;
+                    SelectedStrikePriceIndex = strikePrices.Length / 2;
                 });
             });
 
-            await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async marketDataFeedModel =>
+            await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteObservableAsync(async marketDataFeedModel =>
             {
-                marketDataFeedModel.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Loading Futures Eod Data Error"));
                 await marketDataFeedModel.GetFuturesEodDataAsync(_baseContract.ContractId, _valueDate, futuresEodData =>
                 {
                     if (futuresEodData is not null)
                     {
                         LoadBaseValues(futuresEodData);
-                        ShowAssetPrice(Convert.ToDecimal(futuresEodData.ClosePrice));
+                        AssetPrice = Convert.ToDecimal(futuresEodData.ClosePrice);
                     }
                 });
             });
@@ -511,10 +597,19 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     /// order. Ensure that the <paramref name="fundOrderTradeId"/> is valid and corresponds to an existing
     /// trade.</remarks>
     /// <param name="fundOrderTradeId">The identifier of the trade to be removed from the fund order. Cannot be null.</param>
-    public Task RemoveTradeFromFundOrder(FundOrderTradeId fundOrderTradeId)
-        => _appRoot.GetModel<FundCommandModel>().ExecuteAsync(async model => {
-              await model.RemoveTradeFromFundOrderAsync(fundOrderTradeId);
-        });
+    public async Task RemoveTradeFromFundOrder(FundOrderTradeId fundOrderTradeId)
+    {
+        try
+        {
+            await _appRoot.GetModel<FundCommandModel>().ExecuteObservableAsync(
+                async model => _ = await model.RemoveTradeFromFundOrderAsync(fundOrderTradeId));
+        }
+        catch (ModelOperationException exception)
+        {
+            PublishError(exception, "Removing Trade From Fund Order Error");
+            throw;
+        }
+    }
 
     /// <summary>
     /// Submits a trade order for execution and updates the trade state.
@@ -523,8 +618,8 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     /// the addition of manual trade fills if required. It also ensures that any new futures option contracts are added
     /// before placing the order.</remarks>
     /// <param name="tradeOrder">The trade order to be submitted, containing details such as fund ID and order quantity.</param>
-    /// <param name="setCommandId">An action to set the command ID after the order is placed, using the generated GUID.</param>
-    public async Task SubmitOrder(TradeOrderReadModel tradeOrder, Action<Guid> setCommandId)
+    /// <returns>The placed-order command correlation identifier.</returns>
+    public async Task<Guid> SubmitOrder(TradeOrderReadModel tradeOrder)
     {
         // get manual trade fills if not sending to broker for trade fills...
         _ironCondorTrade = _ironCondorTrade with
@@ -537,17 +632,22 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
         AddManualTradeFills();
         //AddTradeTicketLegs();
 
-        // populate options contracts if they do not exist...
-        AddNewFuturesOptionContracts();
+        var commandId = Guid.Empty;
+        try
+        {
+            // populate options contracts if they do not exist...
+            await AddNewFuturesOptionContracts();
 
-        // place order...
-        await _appRoot.GetModel<TradeCommandModel>().ExecuteAsync(async model => {
-            model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Submit Order Error"));
-            var commandId = await model.PlaceOrderAsync(tradeOrder, _ironCondorTrade);
-            if (commandId != Guid.Empty)
-                setCommandId(commandId);
-        });
-        return;
+            // place order...
+            await _appRoot.GetModel<TradeCommandModel>().ExecuteObservableAsync(
+                async model => commandId = await model.PlaceOrderAsync(tradeOrder, _ironCondorTrade));
+            return commandId;
+        }
+        catch (ModelOperationException exception)
+        {
+            PublishError(exception, "Submit Order Error");
+            throw;
+        }
 
         void AddManualTradeFills()
         {
@@ -561,7 +661,7 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
             }
         }
 
-        void AddNewFuturesOptionContracts()
+        Task AddNewFuturesOptionContracts()
         {
             List<FuturesOptionContractReadModel> contracts = [];
             string[] contractIds = [.. _ironCondorTrade!.OptionLegs!.Select(e => e.ContractId)];
@@ -570,15 +670,26 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
                 var futuresOptionContract = GetFuturesOptionContract(contractId.StrikePrice, contractId.OptionType, contractId.ContractMonth);
                 contracts.Add(futuresOptionContract);
             }
-            _appRoot
+            return _appRoot
                 .GetModel<MarketDataCommandModel>()
-                .ExecuteAsync(async model => await model.AddFuturesOptionContractsAsync(_valueDate.Year, [.. contracts], () => { }));
+                .ExecuteObservableAsync(
+                    model => model.AddFuturesOptionContractsAsync(_valueDate.Year, [.. contracts], () => { }));
         }
 
     }
 
-    public void TurnLiveFeedOn()
-        => _ = _liveFeedLifecycle.InitializeAsync(CancellationToken.None);
+    public async Task TurnLiveFeedOn()
+    {
+        try
+        {
+            await _liveFeedLifecycle.InitializeAsync(CancellationToken.None);
+        }
+        catch (ModelOperationException exception)
+        {
+            PublishError(exception, "Start Streaming Option Tick Data Error");
+            throw;
+        }
+    }
 
     async Task StartLiveFeedCoreAsync(CancellationToken cancellationToken)
     {
@@ -594,7 +705,7 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
         var newContracts = contracts.ToArray();
         await _appRoot
             .GetModel<MarketDataCommandModel>()
-            .ExecuteAsync(async model => await model.AddFuturesOptionContractsAsync(
+            .ExecuteObservableAsync(model => model.AddFuturesOptionContractsAsync(
                 _valueDate.Year,
                 newContracts,
                 () => { }));
@@ -609,10 +720,8 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
                     contract.ContractId,
                     _valueDate),
                 contract => contract.ContractId);
-            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
+            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteObservableAsync(async model =>
             {
-                model.OnError((_, errorMsg) =>
-                    ShowErrorMessage(errorMsg, "Start Streaming Option Tick Data Error"));
                 await model.StartFuturesOptionTickDataListenerAsync(
                     e => SetLiveFeedTickData(e.OptionTickData));
                 await model.StartStreamingFuturesOptionTickDataAsync(
@@ -625,20 +734,27 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
             });
         }
 
-         Task SetLiveFeedTickData(FuturesOptionTickDataV2ReadModel futuresOptionTickData)
-            => _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async model => {
-                model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Set Live Feed Tick Data Error"));
-                await model.GetFuturesEodDataAsync(_baseContract.ContractId, _valueDate, futuresEodData => {
-                    SetLiveFeedTickDataValues(futuresEodData, futuresOptionTickData, () =>
-                    {
-                        ShowAssetPrice?.Invoke(Convert.ToDecimal(futuresEodData.ClosePrice));
-                        ShowLiveFeedValues?.Invoke(futuresEodData);
-                    });
-                });
-            });
+         async Task SetLiveFeedTickData(FuturesOptionTickDataV2ReadModel futuresOptionTickData)
+         {
+             try
+             {
+                 await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteObservableAsync(
+                     model => model.GetFuturesEodDataAsync(
+                         _baseContract.ContractId,
+                         _valueDate,
+                         futuresEodData => SetLiveFeedTickDataValues(futuresEodData, futuresOptionTickData)));
+             }
+             catch (ModelOperationException exception)
+             {
+                 PublishError(exception, "Set Live Feed Tick Data Error");
+                 throw;
+             }
+         }
     }
 
-    void SetLiveFeedTickDataValues(FuturesEodDataV2ReadModel futuresEodData, FuturesOptionTickDataV2ReadModel futuresOptionTickData, Action onLiveFeedCompleted)
+    void SetLiveFeedTickDataValues(
+        FuturesEodDataV2ReadModel futuresEodData,
+        FuturesOptionTickDataV2ReadModel futuresOptionTickData)
     {
         var assetPrice = futuresEodData.ClosePrice;
         var daysToExpiry = _ironCondorTrade.MaturityDate.DayNumber - _ironCondorTrade.TradeDate.DayNumber;
@@ -659,7 +775,9 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
             _ when IsLongCallOptionQuote() => SetLongCallOptionLegData(),
             _ => false
         };
-        onLiveFeedCompleted?.Invoke();
+        AssetPrice = Convert.ToDecimal(futuresEodData.ClosePrice);
+        LiveFeedValues = futuresEodData;
+        LiveFeedRevision++;
         return;
 
         bool IsShortPutOptionQuote()
@@ -751,18 +869,26 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
         }
     }
 
-    public Task TurnLiveFeedOff()
-        => _liveFeedLifecycle.StopAsync(CancellationToken.None);
+    public async Task TurnLiveFeedOff()
+    {
+        try
+        {
+            await _liveFeedLifecycle.StopAsync(CancellationToken.None);
+        }
+        catch (ModelOperationException exception)
+        {
+            PublishError(exception, "Stop Streaming Option Tick Data Error");
+            throw;
+        }
+    }
 
     async Task StopLiveFeedCoreAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_liveFeedQuoteId == Guid.Empty) return;
 
-        await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
+        await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteObservableAsync(async model =>
         {
-            model.OnError((_, errorMsg) =>
-                ShowErrorMessage(errorMsg, "Stop Streaming Option Tick Data Error"));
             await model.StopFuturesOptionTickDataListenerAsync();
             foreach (var contractId in _optionLegMap.Values
                          .Select(optionLeg => optionLeg.ContractId)
@@ -924,19 +1050,17 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
             dailyProfitTarget: DaysToExpiry <= 0 ? 0m : ((_ironCondorTrade?.TradeLimit?.MaxProfit ?? 0m) / DaysToExpiry) + (2 * TradeCommission));
     }
 
-    public async Task LoadStrikePrices(Action<object[]> onLoadComplete)
+    public async Task<object[]> LoadStrikePrices()
     {
         FuturesOptionStrikePriceReadModel? definition = null;
-        await _appRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async refModel =>
-        {
-            refModel.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Loading Futures Option Strike Price Definitions Error"));
-            await refModel.LoadFuturesOptionStrikePriceDefinitionsAsync(value => definition = value);
-        });
+        await _appRoot.GetModel<ReferenceQueryModel>().ExecuteObservableAsync(
+            refModel => refModel.LoadFuturesOptionStrikePriceDefinitionsAsync(value => definition = value));
 
         if (definition is null)
-            return;
+            return [];
 
-        await _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async marketDataModel =>
+        object[] strikePrices = [];
+        await _appRoot.GetModel<MarketDataQueryModel>().ExecuteObservableAsync(async marketDataModel =>
         {
             await marketDataModel.GetCurrentFuturesEodDataAsync(_valueDate, futuresEodData =>
             {
@@ -946,10 +1070,10 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
                 var strikePrice = (int)((int)futuresEodData.ClosePrice / 5) * 5;
                 var minStrike = strikePrice - 1000;
                 var maxStrike = strikePrice + 1000;
-                var strikePrices = GetStrikePriceRange(minStrike, maxStrike, definition.Increment).ToArray();
-                onLoadComplete?.Invoke(strikePrices);
+                strikePrices = GetStrikePriceRange(minStrike, maxStrike, definition.Increment).ToArray();
             });
         });
+        return strikePrices;
 
         IEnumerable<object> GetStrikePriceRange(int minStrikePrice, int maxStrikePrice, int increment)
         {
@@ -962,49 +1086,47 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
     /// update order action if short iron condor and we are closing a trade
     /// </summary>
     /// <param name="orderActionType"></param>
-    public void UpdateOrderAction(OrderActionType orderActionType, Action onUpdateComplete)
+    public async Task<bool> UpdateOrderActionAsync(OrderActionType orderActionType)
     {
-        //if (!(TradeType == TradeType.LongIronCondor && orderActionType == OrderActionType.Close)) return;
-        LoadFundOrderTrade((orderId, tradeId) => SetParentTrade(orderId, tradeId));
-        return;
-
-        Task LoadFundOrderTrade(Action<int,int> onCompleted)
-            => _appRoot.GetModel<FundQueryModel>().ExecuteAsync(async model => {
-                model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Loading Funds Error"));
-                await model.GetFundsAsync(async funds => await LoadFundsAsync(model, funds, onCompleted));
-            });
-
-        async Task LoadFundsAsync(FundQueryModel model, FundReadModel[] allFunds, Action<int, int> onCompleted)
+        SetOrderAction(orderActionType);
+        FundReadModel[] funds = [];
+        FundOrderReadModel[] fundOrders = [];
+        FundOrderTradeReadModel[] fundOrderTrades = [];
+        try
         {
-            if (allFunds?.Length > 0)
+            await _appRoot.GetModel<FundQueryModel>().ExecuteObservableAsync(async model =>
             {
-                List<FundReadModel> funds = [.. allFunds];
-                List<FundOrderReadModel> fundOrders =  [.. await model.GetFundOrdersAsync()];
-                List<FundOrderTradeReadModel> fundOrderTrades = [.. await model.GetFundOrderTradesAsync()];
-
-                var fund = funds.Where(e => e.FundId == FundId).FirstOrDefault();
-                if (fund is not null)
-                {
-                    var fundOrder = fundOrders.Where(e => e.OrderId == FundOrderTrade.OrderId).FirstOrDefault();
-                    if (fundOrder is not null)
-                    {
-                        var fundOrderTrade = fundOrderTrades.Where(e => e.OrderId == fundOrder.OrderId && e.TradeState == TradeState.TradeToOpen).FirstOrDefault();
-                        if (fundOrderTrade is not null)
-                            onCompleted(fundOrderTrade.OrderId, fundOrderTrade.TradeId);
-                    }
-                }
-            }
-        }
-
-        Task SetParentTrade(int orderId, int tradeId)
-            => _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model => {
-                model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Loading Short Iron Condor Parent Trade Error"));
-                await model.GetOptionTradeAsync(orderId, tradeId, optionTrade => {
-                    _parentTrade = optionTrade;
-                    onUpdateComplete?.Invoke();
-                });
+                await model.GetFundsAsync(values => funds = values);
+                fundOrders = await model.GetFundOrdersAsync();
+                fundOrderTrades = await model.GetFundOrderTradesAsync();
             });
 
+            var fund = funds.FirstOrDefault(value => value.FundId == FundId);
+            var fundOrder = fund is null
+                ? null
+                : fundOrders.FirstOrDefault(value => value.OrderId == FundOrderTrade.OrderId);
+            var parent = fundOrder is null
+                ? null
+                : fundOrderTrades.FirstOrDefault(value =>
+                    value.OrderId == fundOrder.OrderId
+                    && value.TradeState == TradeState.TradeToOpen);
+            if (parent is null)
+                return false;
+
+            await _appRoot.GetModel<TradeQueryModel>().ExecuteObservableAsync(
+                model => model.GetOptionTradeAsync(
+                    parent.OrderId,
+                    parent.TradeId,
+                    optionTrade => _parentTrade = optionTrade));
+            OnPropertyChanged(nameof(ParentTrade));
+            OnPropertyChanged(nameof(ParentTradeOrderQuantity));
+            return true;
+        }
+        catch (ModelOperationException exception)
+        {
+            PublishError(exception, "Loading Iron Condor Parent Trade Error");
+            throw;
+        }
     }
 
     public OptionTradeLegReadModel GetOptionLeg(OptionLegAction optionLegAction, OptionType optionType)
@@ -1184,97 +1306,6 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
             };
     }
 
-    async Task LoadLiveFeedValues(FuturesEodDataV2ReadModel futuresEodData, Action onLiveFeedCompleted)
-    {
-        var assetPrice = futuresEodData.ClosePrice;
-        var daysToExpiry = _ironCondorTrade.MaturityDate.DayNumber - _ironCondorTrade.TradeDate.DayNumber;
-        var timeValue = daysToExpiry / 365.0;
-        var pcs = GetTradePosition(this.PutSpreadTradeType, this.TradeStatus);
-        pcs = pcs! with { AssetPrice = Convert.ToDecimal(assetPrice) };
-        _ironCondorTrade.TradePositions!.Set(pcs);
-
-        var ccs = GetTradePosition(this.CallSpreadTradeType, this.TradeStatus);
-        ccs = ccs! with { AssetPrice = Convert.ToDecimal(assetPrice) };
-        _ironCondorTrade.TradePositions!.Set(ccs);
-
-        // get put credit spread market data...
-        await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async model =>
-        {
-            model.OnError((_, errorMsg) =>
-            {
-                this.ShowErrorMessage(errorMsg, "Live Feed Error");
-                onLiveFeedCompleted();
-            });
-            await model.GetFuturesOptionSpreadDataAsync(_ironCondorTrade.TradeDate, _ironCondorTrade.MaturityDate, Convert.ToDouble(assetPrice), _riskFreeRate, timeValue,
-                shortOptionContract: GetFuturesOptionContract(
-                    strikePrice: Convert.ToDouble(GetOptionLeg(this.ShortOptionLegAction, OptionType.Put).StrikePrice),
-                    futuresOptionType: OptionType.Put,
-                    contractMonth: _ironCondorTrade.MaturityDate),
-                longOptionContract: GetFuturesOptionContract(
-                    strikePrice: Convert.ToDouble(GetOptionLeg(this.LongOptionLegAction, OptionType.Put).StrikePrice),
-                    futuresOptionType: OptionType.Put,
-                    contractMonth: _ironCondorTrade.MaturityDate),
-                    onCompleted: async putData => {
-                        if (putData == null)
-                        {
-                            onLiveFeedCompleted();
-                            return;
-                        }
-                        var putOptionLegData = GetOptionLegData(this.PutSpreadTradeType, this.TradeStatus, this.ShortOptionLegAction, OptionType.Put)
-                            with { Delta = putData.ShortLeg.Delta,
-                                BidPrice = Convert.ToDecimal(putData.ShortLeg.BidPrice),
-                                AskPrice = Convert.ToDecimal(putData.ShortLeg.AskPrice) };
-                        this.OptionLegData.Set(putOptionLegData.OptionLegId, putOptionLegData);
-
-                        putOptionLegData = GetOptionLegData(this.PutSpreadTradeType, this.TradeStatus, this.LongOptionLegAction, OptionType.Put)
-                            with
-                        {
-                            BidPrice = Convert.ToDecimal(putData.LongLeg.BidPrice),
-                            AskPrice = Convert.ToDecimal(putData.LongLeg.AskPrice)
-                        };
-                        this.OptionLegData.Set(putOptionLegData.OptionLegId, putOptionLegData);
-                        UpdatePutCreditSpreadLiveFeedValues();
-
-                    // get call credit spread market data...
-                    await model.GetFuturesOptionSpreadDataAsync(_ironCondorTrade.TradeDate, _ironCondorTrade.MaturityDate, Convert.ToDouble(assetPrice), _riskFreeRate, timeValue,
-                            shortOptionContract: GetFuturesOptionContract(
-                                strikePrice: Convert.ToDouble(_ironCondorTrade.OptionLegs!.Get(this.ShortOptionLegAction, OptionType.Call)!.StrikePrice),
-                                futuresOptionType: OptionType.Call,
-                                contractMonth: _ironCondorTrade.MaturityDate),
-                            longOptionContract: GetFuturesOptionContract(
-                                strikePrice: Convert.ToDouble(_ironCondorTrade.OptionLegs!.Get(this.LongOptionLegAction, OptionType.Call)!.StrikePrice),
-                                futuresOptionType: OptionType.Call,
-                                contractMonth: _ironCondorTrade.MaturityDate),
-                                onCompleted: callData => {
-                                    if (callData == null)
-                                    {
-                                        onLiveFeedCompleted();
-                                        return;
-                                    }
-                                    var callOptionLegData = GetOptionLegData(this.CallSpreadTradeType, this.TradeStatus, this.ShortOptionLegAction, OptionType.Call)
-                                        with
-                                    {
-                                        Delta = callData.ShortLeg.Delta,
-                                        BidPrice = Convert.ToDecimal(callData.ShortLeg.BidPrice),
-                                        AskPrice = Convert.ToDecimal(callData.ShortLeg.AskPrice)
-                                    };
-                                    this.OptionLegData.Set(callOptionLegData.OptionLegId, callOptionLegData);
-
-                                    callOptionLegData = GetOptionLegData(this.CallSpreadTradeType, this.TradeStatus, this.LongOptionLegAction, OptionType.Call)
-                                        with
-                                    {
-                                        BidPrice = Convert.ToDecimal(callData.LongLeg.BidPrice),
-                                        AskPrice = Convert.ToDecimal(callData.LongLeg.AskPrice)
-                                    };
-                                    this.OptionLegData.Set(callOptionLegData.OptionLegId, callOptionLegData);
-                                    UpdateCallCreditSpreadLiveFeedValues();
-                                    onLiveFeedCompleted();
-                                });
-                    });
-
-        });
-    }
-
     FuturesOptionContractReadModel GetFuturesOptionContract(double strikePrice, OptionType futuresOptionType, DateOnly contractMonth)
     {
         return new FuturesOptionContractReadModel(
@@ -1411,5 +1442,15 @@ public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
         };
         return [.. tradeFills];
     }
+
+    void PublishError(ModelOperationException exception, string caption)
+        => PublishError(exception.ErrorCode, exception.Message, caption);
+
+    void PublishError(int errorCode, string message, string caption)
+        => LastError = new PresentationError(
+            Interlocked.Increment(ref _errorSequence),
+            errorCode,
+            message,
+            caption);
 
 }
