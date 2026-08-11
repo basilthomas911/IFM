@@ -1,114 +1,214 @@
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 
+/// <summary>
+/// Transitional WinForms adapter for observable economic-calendar state.
+/// </summary>
 public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
 {
-    MarketEconomicCalendarReadModel? _viewModel;
+    MarketEconomicCalendarViewModel? _viewModel;
+    bool _rendering;
+    long _lastErrorSequence;
 
     public MarketEconomicCalendarView()
     {
         InitializeComponent();
     }
 
-    public void LoadView(IAppRoot appRoot)
+    /// <summary>Creates, starts, and loads the lifecycle-owned calendar ViewModel.</summary>
+    public async Task LoadViewAsync(IAppRoot appRoot)
     {
-        // create calendar view model...
-        _viewModel = new MarketEconomicCalendarReadModel(appRoot)
-        {
-            // set updated actions...
-            OnErrorMessage = e => this.ShowErrorMessage(e, "Market Economic Calendar View"),
-            OnModelUpdate = e => this.Post(() => OnModelUpdate(e)),
-            OnCalendarDateUpdate = (e, ec) => this.Post(() => OnCalendarDateUpdate(e, ec)),
-            OnCountryCodesLoaded = () => this.Post(() => OnCountryCodesLoaded())
-        };
-        _viewModel.StartEventListeners(() => this.Post(() => RefreshView()));
-        _viewModel.LoadCountryCodes();
-    }
+        _viewModel = new MarketEconomicCalendarViewModel(appRoot);
+        _viewModel.PropertyChanged += ViewModelPropertyChanged;
+        _viewModel.SelectCalendarPeriod(
+            tabCalendarPeriod.SelectedTab?.Text ?? "Today",
+            DateTime.Now);
 
-    public void RefreshView()
-    {
-        var todaysDate = DateTime.Now.Date;
-        var calendarPeriod = _viewModel!.GetEconomicCalendarViewType(tabCalendarPeriod.SelectedTab!.Text);
-        _viewModel.UpdateModel(todaysDate, calendarPeriod!);
-    }
-
-    internal void OnModelUpdate(EconomicCalendarReadModel[] economicCalendar)
-    {
-        lstEconomicCalendar.Items.Clear();
-        if (economicCalendar != null && economicCalendar.Length > 0)
+        try
         {
-            foreach (var e in economicCalendar)
-                lstEconomicCalendar.Items.Add(new ListViewItem([
-                    $"{e.EventDate:t}",
-                    $"{e.CountryCode}",
-                    $"{e.EventName}"
-                ]));
-            lstEconomicCalendar.Items[0].Selected = true;
+            await _viewModel.InitializeAsync(CancellationToken.None);
+            await _viewModel.LoadCountryCodesOperation.ExecuteAsync();
+            await _viewModel.RefreshOperation.ExecuteAsync();
+            RenderObservableState();
+        }
+        catch (Exception exception)
+        {
+            ShowOperationFailure(exception, "Market Economic Calendar View");
         }
     }
 
-    internal void OnCalendarDateUpdate(string calendarDate, EconomicCalendarReadModel ec)
+    void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+        => this.Post(() =>
+        {
+            if (_viewModel is null)
+                return;
+
+            switch (eventArgs.PropertyName)
+            {
+                case nameof(MarketEconomicCalendarViewModel.CountryCodes):
+                case nameof(MarketEconomicCalendarViewModel.SelectedCountryCode):
+                    RenderCountryCodes();
+                    break;
+                case nameof(MarketEconomicCalendarViewModel.EconomicCalendars):
+                    RenderCalendars();
+                    break;
+                case nameof(MarketEconomicCalendarViewModel.CalendarDate):
+                case nameof(MarketEconomicCalendarViewModel.SelectedEconomicCalendar):
+                    RenderDetails();
+                    break;
+                case nameof(MarketEconomicCalendarViewModel.LastError):
+                    RenderLatestError();
+                    break;
+            }
+        });
+
+    void RenderObservableState()
     {
-        txtCalendarDate.Text = calendarDate;
-        txtActual.Text = !string.IsNullOrWhiteSpace(ec?.Actual) ? ec.Actual : string.Empty;
-        txtForecast.Text = !string.IsNullOrWhiteSpace(ec?.Forecast) ? ec.Forecast : string.Empty;
-        txtPrior.Text = !string.IsNullOrWhiteSpace(ec?.Prior) ? ec.Prior : string.Empty;
+        RenderCountryCodes();
+        RenderCalendars();
+        RenderDetails();
+        RenderLatestError();
     }
 
-    internal void OnCountryCodesLoaded()
+    void RenderCountryCodes()
     {
-        ddlCountryCodes.Items.Clear();
-        if (_viewModel!.CountryCodes.Count > 0)
+        if (_viewModel is null)
+            return;
+
+        _rendering = true;
+        try
         {
-            foreach (var countryCode in _viewModel.CountryCodes)
-                ddlCountryCodes.Items.Add(countryCode);
-            var selectedIndex = ddlCountryCodes.Items.IndexOf("US");
-            ddlCountryCodes.SelectedIndex = selectedIndex == -1 ? 0 : selectedIndex;
+            ddlCountryCodes.Items.Clear();
+            ddlCountryCodes.Items.AddRange(_viewModel.CountryCodes.Cast<object>().ToArray());
+            ddlCountryCodes.SelectedIndex = _viewModel.CountryCodes
+                .Select((code, index) => (code, index))
+                .Where(value => value.code == _viewModel.SelectedCountryCode)
+                .Select(value => value.index)
+                .DefaultIfEmpty(-1)
+                .First();
         }
+        finally
+        {
+            _rendering = false;
+        }
+    }
+
+    void RenderCalendars()
+    {
+        if (_viewModel is null)
+            return;
+
+        _rendering = true;
+        try
+        {
+            lstEconomicCalendar.Items.Clear();
+            lstEconomicCalendar.Items.AddRange(_viewModel.EconomicCalendars
+                .Select(calendar => new ListViewItem([
+                    $"{calendar.EventDate:t}",
+                    calendar.CountryCode,
+                    calendar.EventName]))
+                .ToArray());
+            if (lstEconomicCalendar.Items.Count > 0)
+                lstEconomicCalendar.Items[0].Selected = true;
+        }
+        finally
+        {
+            _rendering = false;
+        }
+    }
+
+    void RenderDetails()
+    {
+        if (_viewModel is null)
+            return;
+
+        var selected = _viewModel.SelectedEconomicCalendar;
+        txtCalendarDate.Text = _viewModel.CalendarDate;
+        txtActual.Text = selected?.Actual ?? string.Empty;
+        txtForecast.Text = selected?.Forecast ?? string.Empty;
+        txtPrior.Text = selected?.Prior ?? string.Empty;
+    }
+
+    void RenderLatestError()
+    {
+        if (_viewModel?.LastError is not { } error || error.Sequence <= _lastErrorSequence)
+            return;
+
+        _lastErrorSequence = error.Sequence;
+        this.ShowErrorMessage(error.Message, error.Caption);
+    }
+
+    async Task RefreshViewAsync()
+    {
+        if (_viewModel is null)
+            return;
+
+        _viewModel.SelectCalendarPeriod(
+            tabCalendarPeriod.SelectedTab?.Text ?? "Today",
+            DateTime.Now);
+        try
+        {
+            await _viewModel.RefreshOperation.ExecuteAsync();
+        }
+        catch (Exception exception)
+        {
+            ShowOperationFailure(exception, "Economic Calendar Error");
+        }
+    }
+
+    void ShowOperationFailure(Exception exception, string caption)
+    {
+        if (_viewModel?.LastError?.Message == exception.Message)
+        {
+            RenderLatestError();
+            return;
+        }
+
+        this.ShowErrorMessage(exception.Message, caption);
     }
 
     public void Open() { }
+
     void IFormControl.Resize(Control parentControl) { }
 
     public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
 
     async ValueTask IAsyncFormControl.CloseAsync()
     {
-        if (_viewModel is not null)
-            await _viewModel.StopEventListeners();
+        if (_viewModel is null)
+            return;
+
+        _viewModel.PropertyChanged -= ViewModelPropertyChanged;
+        await _viewModel.DisposeAsync();
+        _viewModel = null;
     }
 
-    private void tabCalendarPeriod_SelectedIndexChanged(object sender, EventArgs e)
+    async void tabCalendarPeriod_SelectedIndexChanged(object sender, EventArgs e)
     {
-        RefreshView();
+        if (!_rendering)
+            await RefreshViewAsync();
     }
 
-    private void lstEconomicCalendar_SelectedIndexChanged(object sender, EventArgs e)
+    void lstEconomicCalendar_SelectedIndexChanged(object sender, EventArgs e)
     {
-        if (lstEconomicCalendar.SelectedIndices.Count > 0)
+        if (_rendering || _viewModel is null || lstEconomicCalendar.SelectedIndices.Count == 0)
+            return;
+
+        _viewModel.SelectEconomicCalendar(lstEconomicCalendar.SelectedIndices[0]);
+    }
+
+    async void ddlCountryCodes_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        if (_rendering || _viewModel is null
+            || !_viewModel.SelectCountryCode(ddlCountryCodes.SelectedIndex))
         {
-            var listIndex = lstEconomicCalendar.SelectedIndices[0];
-            var economicCalendar = _viewModel!.GetEconomicCalendar(listIndex);
-            var calendarDate = _viewModel.GetCalendarDate(listIndex);
-            if (economicCalendar is not null && calendarDate.HasValue)
-                OnCalendarDateUpdate($"{calendarDate.Value.DayOfWeek}, {calendarDate.Value:MMMM} {calendarDate.Value:dd}, {calendarDate.Value:yyyy}", economicCalendar);
+            return;
         }
-    }
 
-    private void ddlCountryCodes_SelectedIndexChanged(object sender, EventArgs e)
-    {
-        _viewModel!.SetSelectedCountryCode(ddlCountryCodes.SelectedIndex);
-        // refresh calendar view...
-        RefreshView();
+        await RefreshViewAsync();
     }
 }

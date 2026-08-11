@@ -10,4 +10,8 @@
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.Models\TomasAI.IFM.UI.Net.Models.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="TomasAI.IFM.UI.Presentation.UnitTests" />
+  </ItemGroup>
+
 </Project>

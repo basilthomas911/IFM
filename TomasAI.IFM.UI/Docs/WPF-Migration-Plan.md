@@ -543,8 +543,8 @@ Exit: Models and ViewModels compile without WinForms, WPF, and `System.Drawing` 
 ### S1.4 — observable ViewModels and commands
 
 Progress on 2026-08-11: **the shared foundation, Reference/System Admin
-selectors, Fund workflows, and Market Data editors are implemented.** S1.4
-remains in progress while the remaining shell/status, trading, and Iron Condor
+selectors, Fund workflows, Market Data editors, and main shell/status console
+are implemented.** S1.4 remains in progress while the trading and Iron Condor
 workflows retain callback-based adapters.
 
 - Introduce observable base state.
@@ -646,7 +646,32 @@ Market Data workflow progress on 2026-08-11:
   correlation filtering, coded terminal failure, early import completion,
   duplicate-date/save state, coded validation failure, and the
   no-declared-callback contract. This completes the specialized Market Data
-  editor internals; main shell/status workflows are the next S1.4 slice.
+  editor internals.
+- `IFMAppViewModel` now exposes observable startup/shutdown operations, menu
+  availability, status line and bounded status-log state, coded error
+  notifications, close requests, current contracts/value date, and the owned
+  status-console ViewModel. The former twelve startup callback parameters are
+  removed. Live dashboard and trade-blotter calls remain behind the explicit
+  `IIFMAppLiveViewAdapter` transitional boundary until their scheduled slices.
+- Status logging retains the newest 500 entries and publishes a newest-first
+  immutable snapshot. Status-writer calls now return and retain their Tasks;
+  the former async lambda converted through `Action` has been removed.
+- `StatusConsoleViewModel` now owns its analytics-listener lifecycle and exposes
+  observable trend history, trade status, trend extremes, forward-loss ratios,
+  errors, and guarded reload operations. Its public callback fields and nested
+  asynchronous ratio-load callback are removed.
+- The embedded economic-calendar panel now uses
+  `MarketEconomicCalendarViewModel` with observable country, period, calendar,
+  selection, detail, and error state; guarded load/refresh operations; and an
+  owned listener that rejects refresh events after stop. Its former five public
+  callback/refresh delegates and nested asynchronous query callback are removed.
+- `IFMAppView` and `StatusConsoleView` are thin transitional adapters that
+  subscribe to property changes, marshal rendering to WinForms, await lifecycle
+  operations, and detach on shutdown. Shell/status tests cover bounded log
+  retention, repeatable error notifications, coherent query snapshots,
+  listener start/stop behavior, post-stop event rejection, coded failures, and
+  the no-declared-callback contracts. Trading and Iron Condor workflows are the
+  next S1.4 slices.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 

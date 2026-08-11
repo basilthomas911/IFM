@@ -10,8 +10,10 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.UI.Net.Views.SystemAdmin;
 using TomasAI.IFM.UI.Net.Views.MarketData;
 using TomasAI.IFM.UI.Net.Views.Trade;
@@ -26,7 +28,7 @@ using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 
-public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
+public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMAppLiveViewAdapter
 {
     private IAppRoot _appRoot;
     private readonly IViewNavigator _navigator;
@@ -35,6 +37,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
     private Dictionary<ActionState, Color> _tradePlanStateMap = null!;
     private Version _appVersion;
     private bool _shutdownComplete;
+    private long _lastErrorSequence;
 
     public IFMAppView(IAppRoot appRoot, IViewNavigator navigator)
     {
@@ -47,33 +50,17 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
 
     private async void IFMApp_Load(object sender, EventArgs e)
     {
-        _viewModel = new IFMAppViewModel(_appRoot);
+        _viewModel = new IFMAppViewModel(
+            _appRoot,
+            _appVersion,
+            _appRoot.AppEnvironment,
+            this);
+        _viewModel.PropertyChanged += ViewModelPropertyChanged;
+        RenderShellState();
         try
         {
-            await _viewModel.AppStartup(
-            appVersion: _appVersion,
-            appEnvironment: _appRoot.AppEnvironment,
-            onErrorMessage: (errorMessage, caption) => this.ShowErrorMessage(errorMessage, caption),
-            onEnableMenuBarButtons: () => this.Post(() => {
-                tradeButton.Enabled = true;
-                marketDataButton.Enabled = true;
-                fundButton.Enabled = true;
-                referenceButton.Enabled = true;
-                systemAdminButton.Enabled = true;
-            }),
-            loadStatusConsole: (contractId, valueDate) => this.Post(() => statusConsoleView1.LoadView(_appRoot, contractId, valueDate)),
-            unloadStatusConsole: () => statusConsoleView1.UnloadViewAsync(),
-            writeStatusLine: statusMessage => this.Post(() =>  lblStatus.Text = statusMessage),
-            writeStatusConsole: logItems => this.Post(() => {
-                statusConsoleView1.RefreshStatusConsole(logItems);
-            }),
-            updateMarketOutlook: futuresEodData => this.Post(() => marketOutlookView1.RefreshView(futuresEodData)),
-            updateTradeSignal: futuresTradeSignal => this.Post(() => marketOutlookView1.RefreshView(futuresTradeSignal)),
-            notifyTradePlacement: placeTrade => this.Post(() => marketOutlookView1.RefreshView(placeTrade)),
-            updateMarketData: (symbol, futuresBarData) => this.Post(() => marketDataView1.RefreshView(symbol, futuresBarData)),
-            closeTradeBlotters: CloseTradeBlottersAsync,
-            requestApplicationClose: () => this.Post(Close)
-            );
+            await _viewModel.StartupOperation.ExecuteAsync();
+            RenderShellState();
         }
         catch (Exception ex)
         {
@@ -90,6 +77,79 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
         //lstStatusConsole.SetDoubleBuffered(true);
      }
 
+    private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+        => this.Post(() =>
+        {
+            switch (eventArgs.PropertyName)
+            {
+                case nameof(IFMAppViewModel.IsMenuEnabled):
+                    RenderMenuState();
+                    break;
+                case nameof(IFMAppViewModel.StatusLine):
+                    lblStatus.Text = _viewModel.StatusLine;
+                    break;
+                case nameof(IFMAppViewModel.LatestStatusLog):
+                    if (_viewModel.LatestStatusLog is { } statusLog)
+                        statusConsoleView1.AppendStatusConsole(statusLog);
+                    break;
+                case nameof(IFMAppViewModel.StatusConsole):
+                    if (_viewModel.StatusConsole is { } statusConsole)
+                        statusConsoleView1.LoadViewModel(statusConsole);
+                    break;
+                case nameof(IFMAppViewModel.LastError):
+                    RenderLatestError();
+                    break;
+                case nameof(IFMAppViewModel.IsCloseRequested):
+                    if (_viewModel.IsCloseRequested)
+                        Close();
+                    break;
+            }
+        });
+
+    private void RenderShellState()
+    {
+        RenderMenuState();
+        lblStatus.Text = _viewModel.StatusLine;
+        statusConsoleView1.RenderStatusConsole(_viewModel.StatusLogs);
+        if (_viewModel.StatusConsole is { } statusConsole)
+            statusConsoleView1.LoadViewModel(statusConsole);
+        RenderLatestError();
+    }
+
+    private void RenderMenuState()
+    {
+        tradeButton.Enabled = _viewModel.IsMenuEnabled;
+        marketDataButton.Enabled = _viewModel.IsMenuEnabled;
+        fundButton.Enabled = _viewModel.IsMenuEnabled;
+        referenceButton.Enabled = _viewModel.IsMenuEnabled;
+        systemAdminButton.Enabled = _viewModel.IsMenuEnabled;
+    }
+
+    private void RenderLatestError()
+    {
+        if (_viewModel.LastError is not { } error || error.Sequence <= _lastErrorSequence)
+            return;
+
+        _lastErrorSequence = error.Sequence;
+        this.ShowErrorMessage(error.Message, error.Caption);
+    }
+
+    /// <inheritdoc />
+    public void UpdateMarketOutlook(FuturesEodDataUIViewModel futuresEodData)
+        => this.Post(() => marketOutlookView1.RefreshView(futuresEodData));
+
+    /// <inheritdoc />
+    public void UpdateTradeSignal(FuturesTradeSignalUIViewModel futuresTradeSignal)
+        => this.Post(() => marketOutlookView1.RefreshView(futuresTradeSignal));
+
+    /// <inheritdoc />
+    public void NotifyTradePlacement(PlaceTradeUIViewModel placeTrade)
+        => this.Post(() => marketOutlookView1.RefreshView(placeTrade));
+
+    /// <inheritdoc />
+    public void UpdateMarketData(string symbol, FuturesBarDataReadModel[] futuresBarData)
+        => this.Post(() => marketDataView1.RefreshView(symbol, futuresBarData));
+
     private async void IFMApp_FormClosing(object sender, FormClosingEventArgs e)
     {
         if (_shutdownComplete)
@@ -99,7 +159,10 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
         try
         {
             await ((IAsyncFormControl)economicCalendarView1).CloseAsync();
-            await _viewModel.AppShutdown();
+            await _viewModel.ShutdownOperation.ExecuteAsync();
+            statusConsoleView1.UnloadView();
+            _viewModel.PropertyChanged -= ViewModelPropertyChanged;
+            await _viewModel.DisposeAsync();
             _shutdownComplete = true;
             Close();
         }
@@ -115,7 +178,10 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
         var navigationResult = _navigator.ShowModal<TradeOrderEditorForm>(view =>
         {
             dlg = view;
-            view.LoadViewModel(new TradeOrderEditorViewModel(_appRoot, _viewModel.ValueDate, _viewModel.BaseContracts));
+            view.LoadViewModel(new TradeOrderEditorViewModel(
+                _appRoot,
+                _viewModel.ValueDate,
+                [.. _viewModel.BaseContracts]));
         });
         switch (navigationResult)
         {
@@ -128,7 +194,14 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
                         if (tabTradeBlotter.TabPages[index].Text == tabPageName)
                         {
                             var tabPage = tabTradeBlotter.TabPages[index];
-                            _tradeBlotter = TradeBlotterFactory.Create(tabPage, _appRoot, dlg.Fund, dlg.FundOrder, dlg.FundOrderTrade, _viewModel.ValueDate, _viewModel.BaseContracts);
+                            _tradeBlotter = TradeBlotterFactory.Create(
+                                tabPage,
+                                _appRoot,
+                                dlg.Fund,
+                                dlg.FundOrder,
+                                dlg.FundOrderTrade,
+                                _viewModel.ValueDate,
+                                [.. _viewModel.BaseContracts]);
                             if (_tradeBlotter is not null)
                                  ((IFormControl)_tradeBlotter)?.Open();
                             tabPage.BackColor = SystemColors.ControlDarkDark;
@@ -212,7 +285,8 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
             }
     }
 
-    private async ValueTask CloseTradeBlottersAsync()
+    /// <inheritdoc />
+    public async ValueTask CloseTradeBlottersAsync()
     {
         for (var tabIndex = tabTradeBlotter.TabPages.Count - 1; tabIndex >= 0; tabIndex--)
         {
@@ -247,9 +321,9 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl
 
     }
 
-    private void economicCalendarView1_Load(object sender, EventArgs e)
+    private async void economicCalendarView1_Load(object sender, EventArgs e)
     {
-        economicCalendarView1.LoadView(_appRoot);
+        await economicCalendarView1.LoadViewAsync(_appRoot);
     }
 
     private void tabTradeBlotter_SelectedIndexChanged(object sender, EventArgs e)

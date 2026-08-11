@@ -84,6 +84,8 @@ public class UiArchitectureBaselineTests
         matches.Should().BeEquivalentTo(
         [
             "TomasAI.IFM.UI.Net.Views/App/IFMAppView.cs",
+            "TomasAI.IFM.UI.Net.Views/App/MarketEconomicCalendarView.cs",
+            "TomasAI.IFM.UI.Net.Views/App/StatusConsoleView.cs",
             "TomasAI.IFM.UI.Net.Views/Fund/AdjustFundTransactionEditor.cs",
             "TomasAI.IFM.UI.Net.Views/Fund/FundTransactionEditor.cs",
             "TomasAI.IFM.UI.Net.Views/MarketData/MarketDataForm.cs",

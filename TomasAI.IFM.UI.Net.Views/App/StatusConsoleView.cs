@@ -1,8 +1,8 @@
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Shared.StatusConsole.ViewModels;
+using System.ComponentModel;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.UI.Net.Extensions;
+using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
@@ -10,9 +10,13 @@ using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 
+/// <summary>
+/// Transitional WinForms adapter for observable status-console state.
+/// </summary>
 public partial class StatusConsoleView : UserControl
 {
     StatusConsoleViewModel? _viewModel;
+    StatusConsoleLogReadModel? _latestStatusLog;
 
     public StatusConsoleView()
     {
@@ -22,58 +26,107 @@ public partial class StatusConsoleView : UserControl
         lstStatusConsole.SetDoubleBuffered(true);
     }
 
-    public void LoadView(IAppRoot appRoot, string contractId, DateOnly valueDate)
+    /// <summary>Binds a lifecycle-owned status-console ViewModel and renders its current snapshot.</summary>
+    public void LoadViewModel(StatusConsoleViewModel viewModel)
     {
-        _viewModel = new (appRoot, contractId, valueDate)
-        {
-            // set view model action events...
-            OnTradeStatusLoad = e => this.Post(() => RefreshTradeConsole(e)),
-            OnTradeStatusChanged = e => this.Post(() => RefreshTradeStatus(e)),
-            OnMDIForwardLossRatiosLoaded = e => this.Post(() => RefreshMDIForwardLossRatios(e))
-        };
-        _viewModel.StartMarketDataAnalyticsEventConsumer();
-        _viewModel.LoadTradeStatus();
-        _viewModel.LoadMDIForwardLossRatios();
+        ArgumentNullException.ThrowIfNull(viewModel);
+        if (_viewModel is not null)
+            _viewModel.PropertyChanged -= ViewModelPropertyChanged;
+
+        _viewModel = viewModel;
+        _viewModel.PropertyChanged += ViewModelPropertyChanged;
+        RenderObservableState();
     }
 
-    public async ValueTask UnloadViewAsync()
+    /// <summary>Detaches this view without stopping the shell-owned ViewModel.</summary>
+    public void UnloadView()
     {
         if (_viewModel is not null)
-            await _viewModel.StopMarketDataAnalyticsEventConsumer();
+            _viewModel.PropertyChanged -= ViewModelPropertyChanged;
+        _viewModel = null;
     }
 
-    public void RefreshStatusConsole(StatusConsoleLogReadModel[] logItems)
+    /// <summary>Renders the bounded application status-log snapshot.</summary>
+    public void RenderStatusConsole(IReadOnlyList<StatusConsoleLogReadModel> logItems)
     {
         lstStatusConsole.BeginUpdate();
-        lstStatusConsole.Items.Insert(0, new ListViewItem([
-                        $"{logItems[0].StatusDate:T}",
-                        logItems[0].Message
-                    ]));
+        lstStatusConsole.Items.Clear();
+        lstStatusConsole.Items.AddRange(logItems.Select(CreateStatusLogItem).ToArray());
+        _latestStatusLog = logItems.FirstOrDefault();
         lstStatusConsole.EndUpdate();
     }
 
-    public void RefreshTradeConsole(FuturesItiSignalV2ReadModel[] futuresItiSignals)
+    /// <summary>Prepends one newly observed application status-log entry.</summary>
+    public void AppendStatusConsole(StatusConsoleLogReadModel logItem)
+    {
+        if (EqualityComparer<StatusConsoleLogReadModel>.Default.Equals(_latestStatusLog, logItem))
+            return;
+
+        lstStatusConsole.BeginUpdate();
+        lstStatusConsole.Items.Insert(0, CreateStatusLogItem(logItem));
+        while (lstStatusConsole.Items.Count > 500)
+            lstStatusConsole.Items.RemoveAt(lstStatusConsole.Items.Count - 1);
+        _latestStatusLog = logItem;
+        lstStatusConsole.EndUpdate();
+    }
+
+    void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+        => this.Post(() =>
+        {
+            if (_viewModel is null)
+                return;
+
+            switch (eventArgs.PropertyName)
+            {
+                case nameof(StatusConsoleViewModel.TradeSignals):
+                    RefreshTradeConsole(_viewModel.TradeSignals);
+                    break;
+                case nameof(StatusConsoleViewModel.TradeStatus):
+                    RefreshTradeStatus(_viewModel.TradeStatus);
+                    break;
+                case nameof(StatusConsoleViewModel.MDIForwardLossRatios):
+                    RefreshMDIForwardLossRatios(_viewModel.MDIForwardLossRatios);
+                    break;
+                case nameof(StatusConsoleViewModel.LastError):
+                    if (_viewModel.LastError is { } error)
+                        this.ShowErrorMessage(error.Message, error.Caption);
+                    break;
+            }
+        });
+
+    void RenderObservableState()
+    {
+        if (_viewModel is null)
+            return;
+
+        RefreshTradeConsole(_viewModel.TradeSignals);
+        RefreshTradeStatus(_viewModel.TradeStatus);
+        RefreshMDIForwardLossRatios(_viewModel.MDIForwardLossRatios);
+        if (_viewModel.LastError is { } error)
+            this.ShowErrorMessage(error.Message, error.Caption);
+    }
+
+    void RefreshTradeConsole(IReadOnlyList<FuturesItiSignalV2ReadModel> futuresItiSignals)
     {
         lstTradeStatus.BeginUpdate();
         lstTradeStatus.Items.Clear();
-        lstTradeStatus.Items.AddRange([.. futuresItiSignals.Select( SetTradeStatusListViewItem )]);
+        lstTradeStatus.Items.AddRange(futuresItiSignals.Select(CreateTradeStatusItem).ToArray());
         lstTradeStatus.EndUpdate();
-        RefreshTradeStatus( _viewModel!.GetTradeStatus());
     }
 
-    public void RefreshTradeStatus(FuturesTradeStatusUIViewModel e)
+    void RefreshTradeStatus(FuturesTradeStatusUIViewModel tradeStatus)
     {
-        txtTradeStatus.Text = e.TradeStatus;
-        txtTradeStatus.ForeColor = e.TradeStatusForeColor.ToColor();
-        txtTradeStatus.BackColor = e.TradeStatusBackColor.ToColor();
+        txtTradeStatus.Text = tradeStatus.TradeStatus;
+        txtTradeStatus.ForeColor = tradeStatus.TradeStatusForeColor.ToColor();
+        txtTradeStatus.BackColor = tradeStatus.TradeStatusBackColor.ToColor();
         txtTradeStatus.Enabled = true;
     }
 
-    public void RefreshMDIForwardLossRatios(MDIForwardLossRatioUIViewModel[] mdiForwardLossRatios)
+    void RefreshMDIForwardLossRatios(IReadOnlyList<MDIForwardLossRatioUIViewModel> ratios)
     {
         lstMDIFwdLossRatio.BeginUpdate();
         lstMDIFwdLossRatio.Items.Clear();
-        lstMDIFwdLossRatio.Items.AddRange(mdiForwardLossRatios.Select(SetTradeStatusListViewItem).ToArray());
+        lstMDIFwdLossRatio.Items.AddRange(ratios.Select(CreateForwardLossRatioItem).ToArray());
         lstMDIFwdLossRatio.EndUpdate();
     }
 
@@ -83,23 +136,29 @@ public partial class StatusConsoleView : UserControl
         Height = parentControl.Height;
     }
 
-    ListViewItem SetTradeStatusListViewItem(FuturesItiSignalV2ReadModel e)
-        =>  new ([
-                        $"{e.IntrinsicTime:T}",
-                        $"{e.ContractId} - {e.IntrinsicTimeTrend} @ {e.IntrinsicPrice:F2} := {e.TargetDelta:F4}"]);
+    static ListViewItem CreateStatusLogItem(StatusConsoleLogReadModel log)
+        => new([$"{log.StatusDate:T}", log.Message]);
 
-    ListViewItem SetTradeStatusListViewItem(MDIForwardLossRatioUIViewModel e)
-        => new ([
-                        e.MDI,
-                        e.TrendDirection,
-                        e.TradeType,
-                        e.ForwardLossRatio]);
+    static ListViewItem CreateTradeStatusItem(FuturesItiSignalV2ReadModel signal)
+        => new([
+            $"{signal.IntrinsicTime:T}",
+            $"{signal.ContractId} - {signal.IntrinsicTimeTrend} @ {signal.IntrinsicPrice:F2} := {signal.TargetDelta:F4}"]);
 
-    private void tabConsoles_SelectedIndexChanged(object sender, EventArgs e)
+    static ListViewItem CreateForwardLossRatioItem(MDIForwardLossRatioUIViewModel ratio)
+        => new([ratio.MDI, ratio.TrendDirection, ratio.TradeType, ratio.ForwardLossRatio]);
+
+    async void tabConsoles_SelectedIndexChanged(object sender, EventArgs e)
     {
-        if (tabConsoles.SelectedIndex == 0)
+        if (tabConsoles.SelectedIndex != 0 || _viewModel is null)
+            return;
+
+        try
         {
-            _viewModel?.LoadTradeStatus();
+            await _viewModel.LoadTradeStatusOperation.ExecuteAsync();
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Trade Status Error");
         }
     }
 }
