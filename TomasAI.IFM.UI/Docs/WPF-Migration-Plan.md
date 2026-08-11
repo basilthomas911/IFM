@@ -745,6 +745,30 @@ Exit: every active screen consumes observable state and awaits ViewModel operati
 
 ### S1.5 — real-time stream hardening
 
+Progress on 2026-08-11: **the first Iron Condor latest-value stream slice is
+implemented.** Futures EOD and trade-position updates are classified as
+replaceable display state and are processed through owned capacity-one channels
+at a maximum 20 Hz cadence. Newer pending values supersede older pending values;
+neither channel can grow with producer rate.
+
+- Futures EOD callbacks now enqueue state and return immediately. The serialized
+  consumer publishes the newest EOD snapshot and awaits spread-distribution work,
+  removing the previous fire-and-forget operation.
+- Trade-position processing retains its latest-value policy and now shares the
+  same time provider, metrics publication, and lifecycle diagnostics as EOD.
+- `IronCondorViewModel.LiveStreamMetrics` exposes accepted event rate, processed,
+  coalesced, and failed counts, queue delay, processing duration, and open/closed
+  state for both streams.
+- Shutdown stops each upstream consumer before closing and awaiting its channel,
+  so no producer can refill a channel while the monitor is closing.
+- Shared channel tests cover concurrent bursts, latest-value convergence,
+  serialization, callback recovery, throttling, cancellation, rejected writes
+  after closure, and the published metrics.
+
+The next S1.5 slice classifies the Iron Condor trade-plan/history paths as
+lossless ordered streams, adds their bounded batching policy, and measures the
+final WinForms dispatcher/render latency.
+
 - Classify every UI event path as lossless or latest-value.
 - Apply bounded channels, batching, render cadence, and ordered processing.
 - Add event-rate, coalescing, lag, and dispatch-latency metrics.

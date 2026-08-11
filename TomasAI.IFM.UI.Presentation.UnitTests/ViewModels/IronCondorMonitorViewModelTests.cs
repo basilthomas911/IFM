@@ -30,6 +30,8 @@ public class IronCondorMonitorViewModelTests
         viewModel.TradeHistory.Should().BeEmpty();
         viewModel.TradePlans.Should().BeEmpty();
         viewModel.IsLiveFeedEnabled.Should().BeFalse();
+        viewModel.LiveStreamMetrics.FuturesEod.IsOpen.Should().BeFalse();
+        viewModel.LiveStreamMetrics.TradePosition.IsOpen.Should().BeFalse();
         await viewModel.LoadOptionTradeSpreadBarData(-1);
 
         var callbackMembers = viewModel.GetType()

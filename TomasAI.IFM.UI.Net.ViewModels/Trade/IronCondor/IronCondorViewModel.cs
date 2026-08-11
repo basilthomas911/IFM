@@ -34,6 +34,15 @@ public sealed record IronCondorPositionSnapshot(
     decimal OpeningNetSpread,
     decimal FundBalance);
 
+/// <summary>
+/// Provides diagnostics for the replaceable live state consumed by the Iron Condor monitor.
+/// </summary>
+/// <param name="FuturesEod">Metrics for the latest-value futures EOD stream.</param>
+/// <param name="TradePosition">Metrics for the latest-value trade-position stream.</param>
+public sealed record IronCondorLiveStreamMetricsSnapshot(
+    LatestValueChannelMetrics FuturesEod,
+    LatestValueChannelMetrics TradePosition);
+
 public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
     public const int GetTradeInfoErrorCode = 6000;
@@ -55,6 +64,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     List<TradeInfoReadModel> _tradeInfo = [];
     FuturesContractV2ReadModel _futuresContract = null!;
     List<FuturesEodDataV2ReadModel> _futuresEodData;
+    LatestValueAsyncChannel<FuturesEodDataV2ReadModel>? _futuresEodChannel;
     LatestValueAsyncChannel<TradePositionChangeSourceReadModel>? _tradePositionChannel;
     ConcurrentStack<IronCondorSpreadPathDataModel> _spreadPathQueue;
     ConcurrentEventQueue<TradePlanReadModel> _tradePlanConsoleQueue = null!;
@@ -84,6 +94,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     long _futuresEodRevision;
     long _errorSequence;
     bool _resetListenerEnabled;
+    readonly object _liveStreamMetricsGate = new();
+    IronCondorLiveStreamMetricsSnapshot _liveStreamMetrics = new(default, default);
 
     /// <summary>
     /// create iron condor view model
@@ -174,6 +186,14 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     {
         get => _positionRevision;
         private set => SetProperty(ref _positionRevision, value);
+    }
+    /// <summary>
+    /// Gets event-rate, coalescing, queue-delay, processing-duration, and lifecycle metrics for live display streams.
+    /// </summary>
+    public IronCondorLiveStreamMetricsSnapshot LiveStreamMetrics
+    {
+        get => _liveStreamMetrics;
+        private set => SetProperty(ref _liveStreamMetrics, value);
     }
     public OptionTradeSpreadBarUIViewModel[] SpreadBarData
     {
@@ -733,16 +753,34 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 _liveFeedLifecycle.RunAsync(RunPeriodicAsync);
             });
 
-        Task EnableFuturesEodDataListener()
-            => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+        async Task EnableFuturesEodDataListener()
+        {
+            if (_futuresEodChannel is not null)
+                return;
+
+            _futuresEodChannel = new LatestValueAsyncChannel<FuturesEodDataV2ReadModel>(
+                OnFuturesEodDataUpdateAsync,
+                minimumInterval: TimeSpan.FromMilliseconds(50),
+                timeProvider: _timeProvider,
+                metricsChanged: PublishFuturesEodMetrics);
+            PublishFuturesEodMetrics(_futuresEodChannel.Metrics);
+            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Enable Futures EOD Listener Error"));
-                await model.StartFuturesEodDataEventConsumerAsync(_siteId, e =>
-                {
-                    CurrentFuturesEodData = e.FuturesEodData;
-                    FuturesEodRevision++;
-                    GenerateSpreadDistribution();
-                });
+                await model.StartFuturesEodDataEventConsumerAsync(
+                    _siteId,
+                    e => _futuresEodChannel?.TryWrite(e.FuturesEodData));
             });
+
+            async ValueTask OnFuturesEodDataUpdateAsync(
+                FuturesEodDataV2ReadModel futuresEodData,
+                CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                CurrentFuturesEodData = futuresEodData;
+                FuturesEodRevision++;
+                await GenerateSpreadDistribution();
+            }
+        }
 
         async Task EnableFuturesOptionTickDataListener()
         {
@@ -834,7 +872,10 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
             _tradePositionChannel = new LatestValueAsyncChannel<TradePositionChangeSourceReadModel>(
                 OnTradePositionUpdateAsync,
-                minimumInterval: TimeSpan.FromMilliseconds(50));
+                minimumInterval: TimeSpan.FromMilliseconds(50),
+                timeProvider: _timeProvider,
+                metricsChanged: PublishTradePositionMetrics);
+            PublishTradePositionMetrics(_tradePositionChannel.Metrics);
             await _appRoot.GetModel<TradePositionFeedEventModel>().ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Enable Trade Position Listener Error"));
                 await model.StartTradePositionListenerAsync(e => {
@@ -1040,8 +1081,20 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 IsLiveFeedEnabled = false;
             });
 
-        Task DisableFuturesEodDataListener()
-            => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => await model.StopFuturesEodDataEventConsumerAsync(_siteId));
+        async Task DisableFuturesEodDataListener()
+        {
+            var channel = Interlocked.Exchange(ref _futuresEodChannel, null);
+            try
+            {
+                await _appRoot.GetModel<MarketDataFeedCommandModel>()
+                    .ExecuteAsync(async model => await model.StopFuturesEodDataEventConsumerAsync(_siteId));
+            }
+            finally
+            {
+                if (channel is not null)
+                    await channel.StopAsync();
+            }
+        }
 
         Task DisableFuturesOptionTickDataListener()
             => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => await model.StopFuturesOptionTickDataListenerAsync());
@@ -1052,8 +1105,14 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             if (channel is null)
                 return;
 
-            await _appRoot.GetModel<TradePositionFeedEventModel>().StopTradePositionListenerAsync();
-            await channel.StopAsync();
+            try
+            {
+                await _appRoot.GetModel<TradePositionFeedEventModel>().StopTradePositionListenerAsync();
+            }
+            finally
+            {
+                await channel.StopAsync();
+            }
         }
 
         async Task DisableTradePlanListener()
@@ -1175,6 +1234,18 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             openingNetSpread,
             fundBalance);
         PositionRevision++;
+    }
+
+    void PublishFuturesEodMetrics(LatestValueChannelMetrics metrics)
+    {
+        lock (_liveStreamMetricsGate)
+            LiveStreamMetrics = LiveStreamMetrics with { FuturesEod = metrics };
+    }
+
+    void PublishTradePositionMetrics(LatestValueChannelMetrics metrics)
+    {
+        lock (_liveStreamMetricsGate)
+            LiveStreamMetrics = LiveStreamMetrics with { TradePosition = metrics };
     }
 
     void PublishError(int errorCode, string message, string caption)

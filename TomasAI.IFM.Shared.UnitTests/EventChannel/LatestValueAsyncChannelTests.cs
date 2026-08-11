@@ -47,6 +47,54 @@ public class LatestValueAsyncChannelTests
     }
 
     [Fact]
+    public async Task BurstMetrics_ReportAcceptedCoalescedProcessedAndClosedState()
+    {
+        var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var latestProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        LatestValueChannelMetrics observedMetrics = default;
+        var channel = new LatestValueAsyncChannel<int>(
+            ReadAsync,
+            metricsChanged: metrics => observedMetrics = metrics);
+
+        Assert.True(channel.TryWrite(1));
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(channel.TryWrite(2));
+        Assert.True(channel.TryWrite(3));
+        Assert.True(channel.TryWrite(4));
+        releaseFirst.SetResult();
+        await latestProcessed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await channel.StopAsync();
+
+        var metrics = channel.Metrics;
+        Assert.Equal(4, metrics.AcceptedCount);
+        Assert.Equal(2, metrics.ProcessedCount);
+        Assert.Equal(2, metrics.CoalescedCount);
+        Assert.Equal(0, metrics.FailureCount);
+        Assert.True(metrics.MaximumQueueDelay >= TimeSpan.Zero);
+        Assert.True(metrics.MaximumProcessingDuration >= TimeSpan.Zero);
+        Assert.False(metrics.IsOpen);
+        Assert.Equal(metrics.AcceptedCount, observedMetrics.AcceptedCount);
+        Assert.Equal(metrics.ProcessedCount, observedMetrics.ProcessedCount);
+        Assert.Equal(metrics.CoalescedCount, observedMetrics.CoalescedCount);
+        Assert.Equal(metrics.FailureCount, observedMetrics.FailureCount);
+        Assert.Equal(metrics.IsOpen, observedMetrics.IsOpen);
+
+        async ValueTask ReadAsync(int value, CancellationToken cancellationToken)
+        {
+            if (value == 1)
+            {
+                firstStarted.SetResult();
+                await releaseFirst.Task.WaitAsync(cancellationToken);
+            }
+            else if (value == 4)
+            {
+                latestProcessed.SetResult();
+            }
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentWriters_AreSafeAndLatestValueWins()
     {
         var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -123,6 +171,8 @@ public class LatestValueAsyncChannelTests
         await firstAttempted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(channel.TryWrite(2));
         await secondProcessed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(1, channel.Metrics.FailureCount);
 
         ValueTask ReadAsync(int value, CancellationToken _)
         {
