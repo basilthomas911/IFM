@@ -1,24 +1,25 @@
+using System.ComponentModel;
+using System.Data;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
-using System.Data;
-using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
-using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
 public partial class IronCondorView : UserControl, IAsyncFormControl
 {
-    Control _parentControl;
-    IronCondorViewModel _viewModel;
-    Dictionary<ActionState, Color> _tradePlanStateMap;
+    readonly Control _parentControl;
+    readonly IronCondorViewModel _viewModel;
+    readonly Dictionary<ActionState, Color> _tradePlanStateMap;
+    bool _closed;
+    bool _renderingLiveFeed;
+    long _lastErrorSequence;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IronCondorView"/> class with the specified parent control and view
@@ -47,6 +48,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         ddlLiveFeed.SelectedIndex = 0;
         pbPercentProfit.Style = ProgressBarStyle.Continuous;
         pnlRt.Visible = true;
+        _viewModel.PropertyChanged += ViewModelPropertyChanged;
     }
 
     /// <summary>
@@ -88,6 +90,10 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
 
       async ValueTask IAsyncFormControl.CloseAsync()
       {
+          if (_closed)
+              return;
+          _closed = true;
+          _viewModel.PropertyChanged -= ViewModelPropertyChanged;
           await _viewModel.DisposeAsync();
       }
 
@@ -100,91 +106,145 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     /// reset the live feed and manage trade plans.</remarks>
     /// <param name="sender"></param>
     /// <param name="e"></param>
-    void IronCondorControl_Load(object sender, EventArgs e)
+    async void IronCondorControl_Load(object sender, EventArgs e)
     {
         lstTradePlanAction.SetDoubleBuffered(true);
         lstTradeHistory.SetDoubleBuffered(true);
         lstTradeHistory.Enabled = true;
         lblTradeDescription.Text = $"{_viewModel.Fund.Name} | {_viewModel.FundOrder.Reference ?? string.Empty}";
-        _viewModel.ShowErrorMessage = (errorMsg, caption) => this.ShowErrorMessage(errorMsg, caption);
-
-        _viewModel.OnFuturesEodDataHistoryLoaded = (futuresEodData) => 
-            this.Post(() => {
-                ShowFuturesEodDataHistory(futuresEodData);
-                //graphEodData.DataBind();
-                graphEodData.Series[0].Points.Clear();
-                foreach (var e in futuresEodData)
+        try
+        {
+            await _viewModel.EnableMarketDataFeedResetListener();
+            var trade = await _viewModel.LoadIronCondorTrade();
+            if (trade is null)
+            {
+                if (_viewModel.LastError is null)
                 {
-                    graphEodData.Series[0].Points.AddXY(e.ValueDate.ToDateTime(TimeOnly.MinValue), e.ClosePrice);
-                    graphEodData.Series[1].Points.AddXY(e.ValueDate.ToDateTime(TimeOnly.MinValue), e.UpperBand);
-                    graphEodData.Series[2].Points.AddXY(e.ValueDate.ToDateTime(TimeOnly.MinValue), e.Mean);
-                    graphEodData.Series[3].Points.AddXY(e.ValueDate.ToDateTime(TimeOnly.MinValue), e.LowerBand);
+                    this.ShowErrorMessage(
+                        $"No Iron Condor Trade found for orderId: {_viewModel.OrderId} tradeId: {_viewModel.TradeId}",
+                        "Loading Trade");
                 }
-                graphEodData.ChartAreas[0].RecalculateAxesScale();
-                graphEodData.Update();
-                ddlLiveFeed.Enabled = true;
-            });
-
-        _viewModel.OnFuturesEodDataLoaded = futuresEodData => this.Post(() => {
-            ShowFuturesEodData(futuresEodData);
-            //graphEodData.Update();
-        });
-
-        _viewModel.OnTradeInfoLoaded = (tradeInfo) => this.Post(() => ShowTradeInfo(tradeInfo));
-        _viewModel.OnTradeLimitsLoaded = (orderId, o) => this.Post(() => ShowTradeLimits(orderId, o));
-        _viewModel.OnIronCondorTradePositionsLoaded = (key, ironCondorTradeData, tradeLimit, openingNetSpread, fundBalance) => this.Post(() => ShowIronCondorTradePosition(key, ironCondorTradeData, tradeLimit, openingNetSpread, fundBalance));
-        _viewModel.OnIronCondorSpreadPathsLoaded = (key, ironCondorTradeData, tradeLimit, openingNetSpread, fundBalance, cancellationToken)
-            => this.PostAsync(
-                () => ShowIronCondorTradePosition(key, ironCondorTradeData, tradeLimit, openingNetSpread, fundBalance),
-                cancellationToken);
-
-        _viewModel.OnOptionTradeSpreadBarDataLoaded = optionTradeSpreadBarUIData => this.Post(() => {
-            ShowOptionTradeSpreadBarData(optionTradeSpreadBarUIData);
-        });
-
-        // Load the trade history and current trade history
-        _viewModel.OnTradeHistoryLoaded = (tradeHistory) => this.Post(() =>  {
-            var index = (tradeHistory?.Length ?? 0) - 1;
-            if (index < 0 || index >= tradeHistory?.Length)
+                _parentControl.Controls.Clear();
                 return;
-            ShowTradeHistory(tradeHistory!);
-            if (!lstTradeHistory.Items[index].Selected)
-                lstTradeHistory.Items[index].Selected = true;
-            _viewModel.LoadIronCondorTradePosition(index);
-            _viewModel.LoadOptionTradeSpreadBarData(index);
-            lstTradePlanAction.Focus();
-        });
+            }
 
-        _viewModel.OnCurrentTradeHistoryLoaded = (tradeHistory) => this.Post(() => {
-            ShowTradeHistory(tradeHistory);
-            var index = tradeHistory.Length - 1;
-            if (!lstTradeHistory.Items[index].Selected)
-                lstTradeHistory.Items[index].Selected = true;
-            lstTradePlanAction.Focus();
-        });
+            await _viewModel.LoadIronCondorTradeDetailsAsync(
+                trade,
+                _viewModel.OrderId,
+                _viewModel.TradeId);
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Loading Iron Condor Monitor Error");
+        }
+    }
 
-        _viewModel.CanResetLiveFeed = (resetLiveFeed) => this.Post(() =>  
-            resetLiveFeed(ddlLiveFeed.Text == IronCondorViewModel.LiveFeedOn));
+    void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+        => this.Post(() => RenderProperty(eventArgs.PropertyName));
 
-        _viewModel.ShowTradePlan = o => this.Post(() => ShowTradePlan(o));
-        _viewModel.ShowTradePlans = o => this.Post(() => ShowTradePlans(o));
-        _viewModel.ClearTradePlans = () => this.Post( ClearTradePlans);
-        _viewModel.EnableMarketDataFeedResetListener();
+    void RenderProperty(string? propertyName)
+    {
+        switch (propertyName)
+        {
+            case nameof(IronCondorViewModel.LastError):
+                ShowLatestError();
+                break;
+            case nameof(IronCondorViewModel.FuturesEodHistory):
+                RenderFuturesEodHistory();
+                break;
+            case nameof(IronCondorViewModel.FuturesEodRevision):
+                if (_viewModel.CurrentFuturesEodData is not null)
+                    ShowFuturesEodData(_viewModel.CurrentFuturesEodData);
+                break;
+            case nameof(IronCondorViewModel.TradeInfo):
+                ShowTradeInfo(_viewModel.TradeInfo);
+                break;
+            case nameof(IronCondorViewModel.TradeLimitSnapshot):
+                if (_viewModel.TradeLimitSnapshot is { } limits)
+                    ShowTradeLimits(limits.OrderId, (limits.TradeLimit, limits.FundBalance));
+                break;
+            case nameof(IronCondorViewModel.PositionRevision):
+                if (_viewModel.PositionSnapshot is { } position)
+                    ShowIronCondorTradePosition(
+                        position.Key,
+                        (position.PutSpread, position.CallSpread),
+                        position.TradeLimit,
+                        position.OpeningNetSpread,
+                        position.FundBalance);
+                break;
+            case nameof(IronCondorViewModel.SpreadBarData):
+                ShowOptionTradeSpreadBarData(_viewModel.SpreadBarData);
+                break;
+            case nameof(IronCondorViewModel.TradeHistory):
+                if (!_viewModel.IsLoading)
+                    RenderTradeHistory();
+                break;
+            case nameof(IronCondorViewModel.TradePlans):
+                ShowTradePlans(_viewModel.TradePlans);
+                break;
+            case nameof(IronCondorViewModel.IsLoaded):
+                if (_viewModel.IsLoaded)
+                    RenderTradeHistory();
+                break;
+            case nameof(IronCondorViewModel.IsLiveFeedEnabled):
+                RenderLiveFeedState();
+                break;
+            case nameof(IronCondorViewModel.IsLoading):
+                ddlLiveFeed.Enabled = !_viewModel.IsLoading && _viewModel.FuturesEodHistory.Length > 0;
+                break;
+        }
+    }
 
-        _viewModel.LoadIronCondorTrade(
-            onLoadComplete: (orderId, tradeId, trade) => {
-                if (trade == null)
-                {
-                    this.Post(() => {
-                        this.ShowErrorMessage($"No Iron Condor Trade found for orderId: {orderId} tradeId: {tradeId}", "Loading Trade");
-                        _parentControl.Controls.Clear();
-                    });
-                }
-                else
-                    _viewModel.LoadIronCondorTrade(trade, orderId, tradeId);
-            });
+    void RenderFuturesEodHistory()
+    {
+        var history = _viewModel.FuturesEodHistory;
+        ShowFuturesEodDataHistory(history);
+        foreach (var series in graphEodData.Series)
+            series.Points.Clear();
+        foreach (var value in history)
+        {
+            graphEodData.Series[0].Points.AddXY(value.ValueDate.ToDateTime(TimeOnly.MinValue), value.ClosePrice);
+            graphEodData.Series[1].Points.AddXY(value.ValueDate.ToDateTime(TimeOnly.MinValue), value.UpperBand);
+            graphEodData.Series[2].Points.AddXY(value.ValueDate.ToDateTime(TimeOnly.MinValue), value.Mean);
+            graphEodData.Series[3].Points.AddXY(value.ValueDate.ToDateTime(TimeOnly.MinValue), value.LowerBand);
+        }
+        graphEodData.ChartAreas[0].RecalculateAxesScale();
+        graphEodData.Update();
+        ddlLiveFeed.Enabled = !_viewModel.IsLoading;
+    }
 
-       }
+    void RenderTradeHistory()
+    {
+        var history = _viewModel.TradeHistory;
+        ShowTradeHistory(history);
+        var index = history.Length - 1;
+        if (index < 0 || index >= lstTradeHistory.Items.Count)
+            return;
+        if (!lstTradeHistory.Items[index].Selected)
+            lstTradeHistory.Items[index].Selected = true;
+        lstTradePlanAction.Focus();
+    }
+
+    void RenderLiveFeedState()
+    {
+        _renderingLiveFeed = true;
+        ddlLiveFeed.SelectedItem = _viewModel.IsLiveFeedEnabled
+            ? IronCondorViewModel.LiveFeedOn
+            : IronCondorViewModel.LiveFeedOff;
+        ddlLiveFeed.Font = new Font(
+            ddlLiveFeed.Font,
+            _viewModel.IsLiveFeedEnabled ? FontStyle.Bold : FontStyle.Regular);
+        _renderingLiveFeed = false;
+    }
+
+    void ShowLatestError()
+    {
+        var error = _viewModel.LastError;
+        if (error is null || error.Sequence <= _lastErrorSequence)
+            return;
+        _lastErrorSequence = error.Sequence;
+        this.ShowErrorMessage(error.Message, error.Caption);
+    }
 
 
     /// <summary>
@@ -644,8 +704,6 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     /// <param name="tradePlans">The trade plans to display.</param>
     void ShowTradePlans(TradePlanReadModel[] tradePlans)
     {
-        if (tradePlans.Length == 0)
-            return;
         lstTradePlanAction.BeginUpdate();
         lstTradePlanAction.Items.Clear();
         foreach (var e in tradePlans)
@@ -691,17 +749,23 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     /// <param name="e">The event arguments.</param>
     async void ddlLiveFeed_SelectedIndexChanged(object sender, EventArgs e)
     {
-        if (!ddlLiveFeed.Enabled) return;
-        switch ($"{ddlLiveFeed.SelectedItem}")
+        if (!ddlLiveFeed.Enabled || _renderingLiveFeed)
+            return;
+        try
         {
-            case IronCondorViewModel.LiveFeedOn:
-                ddlLiveFeed.Font = new Font(ddlLiveFeed.Font, FontStyle.Bold);
-                await _viewModel.EnableLiveFeedAsync();
-                break;
-            case IronCondorViewModel.LiveFeedOff:
-                ddlLiveFeed.Font = new Font(ddlLiveFeed.Font, FontStyle.Regular);
-                await _viewModel.DisableLiveFeedAsync();
-                break;
+            switch ($"{ddlLiveFeed.SelectedItem}")
+            {
+                case IronCondorViewModel.LiveFeedOn:
+                    await _viewModel.EnableLiveFeedAsync();
+                    break;
+                case IronCondorViewModel.LiveFeedOff:
+                    await _viewModel.DisableLiveFeedAsync();
+                    break;
+            }
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Iron Condor Live Feed Error");
         }
     }
 
@@ -730,14 +794,21 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     /// </summary>
     /// <param name="sender">The event sender.</param>
     /// <param name="e">The event arguments.</param>
-    void lstTradeHistory_SelectedIndexChanged(object sender, EventArgs e)
+    async void lstTradeHistory_SelectedIndexChanged(object sender, EventArgs e)
     {
         if (lstTradeHistory.SelectedIndices.Count != 1 || !lstTradeHistory.Enabled) return;
         var index = lstTradeHistory.SelectedIndices[0];
-        _viewModel.LoadIronCondorTradePosition(index);
-        _viewModel.LoadOptionTradeSpreadBarData(index);
-        _viewModel.LoadTradePlans(index);
-        _viewModel.LoadFuturesEodData(index);
+        try
+        {
+            await _viewModel.LoadIronCondorTradePosition(index);
+            await _viewModel.LoadOptionTradeSpreadBarData(index);
+            await _viewModel.LoadTradePlans(index);
+            await _viewModel.LoadFuturesEodData(index);
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Loading Iron Condor History Error");
+        }
     }
 
     /// <summary>

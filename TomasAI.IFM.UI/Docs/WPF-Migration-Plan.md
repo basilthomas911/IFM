@@ -544,9 +544,8 @@ Exit: Models and ViewModels compile without WinForms, WPF, and `System.Drawing` 
 
 Progress on 2026-08-11: **the shared foundation, Reference/System Admin
 selectors, Fund workflows, Market Data editors, and main shell/status console
-are implemented; general trading migration is in progress.** S1.4 remains in
-progress while the Iron Condor strategy-monitor workflow retains callback-based
-adapters.
+are implemented, including general trading and the Iron Condor monitor.** S1.4
+is complete; S1.5 real-time stream hardening is next.
 
 - Introduce observable base state.
 - Replace view callbacks with properties, collections, and async operations one screen at a time.
@@ -725,8 +724,20 @@ Market Data workflow progress on 2026-08-11:
   rendering and framework event boundaries.
 - Order-entry tests cover observable input state, the no-callback public contract,
   unsupported strategy rejection, and coded load failure with loading-state
-  recovery. The separate `IronCondorViewModel` strategy monitor remains the next
-  S1.4 slice before real-time stream hardening.
+  recovery.
+- `IronCondorViewModel` now publishes observable EOD history/current-price,
+  trade-info, limit, position, spread-bar, trade-history, trade-plan, live-feed,
+  loading, and coded-error state. Its initial monitor load is sequential and
+  awaited, its reset listener is idempotent, and its public callback surface has
+  been removed.
+- `IronCondorView` subscribes once to monitor state, renders typed snapshots,
+  awaits initial loading and history selection work, reflects feed lifecycle
+  state, and detaches before disposal. Live position and EOD paths publish
+  revisioned latest state suitable for the S1.5 coalescing work.
+- Monitor tests cover callback-free observable defaults, safe pre-load
+  selection, disposal without starting listeners, and coded initial-query
+  failure. This completes S1.4; real-time stream classification, bounds,
+  coalescing, and lag instrumentation move to S1.5.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 
