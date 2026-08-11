@@ -589,7 +589,7 @@ public class IronCondorTradeOrderReadModel
                 model.OnError((_, errorMsg) =>
                     ShowErrorMessage(errorMsg, "Start Streaming Option Tick Data Error"));
                 await model.StartFuturesOptionTickDataListenerAsync(
-                    e => SetLiveFeedQuoteData(e.OptionTickData));
+                    e => SetLiveFeedTickData(e.OptionTickData));
                 await model.StartStreamingFuturesOptionTickDataAsync(
                     feedIds,
                     _baseContract,
@@ -600,11 +600,11 @@ public class IronCondorTradeOrderReadModel
             });
         }
 
-         void SetLiveFeedQuoteData(FuturesOptionTickDataV2ReadModel futuresOptionQuoteData)
+         void SetLiveFeedTickData(FuturesOptionTickDataV2ReadModel futuresOptionTickData)
             => _appRoot.GetModel<MarketDataFeedQueryModel>().Execute(async model => {
-                model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Set Live Feed Quote Data Error"));
+                model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Set Live Feed Tick Data Error"));
                 await model.GetFuturesEodDataAsync(_baseContract.ContractId, _valueDate, futuresEodData => {
-                    SetLiveFeedQuoteDataValues(futuresEodData, futuresOptionQuoteData, () =>
+                    SetLiveFeedTickDataValues(futuresEodData, futuresOptionTickData, () =>
                     {
                         ShowAssetPrice?.Invoke(Convert.ToDecimal(futuresEodData.ClosePrice));
                         ShowLiveFeedValues?.Invoke(futuresEodData);
@@ -613,7 +613,7 @@ public class IronCondorTradeOrderReadModel
             });
     }
 
-    void SetLiveFeedQuoteDataValues(FuturesEodDataV2ReadModel futuresEodData, FuturesOptionTickDataV2ReadModel futuresOptionQuoteData, Action onLiveFeedCompleted)
+    void SetLiveFeedTickDataValues(FuturesEodDataV2ReadModel futuresEodData, FuturesOptionTickDataV2ReadModel futuresOptionTickData, Action onLiveFeedCompleted)
     {
         var assetPrice = futuresEodData.ClosePrice;
         var daysToExpiry = _ironCondorTrade.MaturityDate.DayNumber - _ironCondorTrade.TradeDate.DayNumber;
@@ -626,7 +626,7 @@ public class IronCondorTradeOrderReadModel
         ccs = ccs! with { AssetPrice = Convert.ToDecimal(assetPrice) };
         _ironCondorTrade?.TradePositions?.Set(ccs);
 
-        _ = futuresOptionQuoteData switch
+        _ = futuresOptionTickData switch
         {
             _ when IsShortPutOptionQuote() => SetShortPutOptionLegData(),
             _ when IsLongPutOptionQuote() => SetLongPutOptionLegData(),
@@ -643,7 +643,7 @@ public class IronCondorTradeOrderReadModel
                     strikePrice: Convert.ToDouble(GetOptionLeg(ShortOptionLegAction, OptionType.Put).StrikePrice),
                     futuresOptionType: OptionType.Put,
                     contractMonth: _ironCondorTrade!.MaturityDate);
-            return futuresOptionQuoteData.ContractId == shortPutOptionContract.ContractId;
+            return futuresOptionTickData.ContractId == shortPutOptionContract.ContractId;
         }
 
         bool SetShortPutOptionLegData()
@@ -651,8 +651,8 @@ public class IronCondorTradeOrderReadModel
             var putOptionLegData = GetOptionLegData(PutSpreadTradeType, TradeStatus, ShortOptionLegAction, OptionType.Put)
                 with
             {
-                BidPrice = Convert.ToDecimal(futuresOptionQuoteData.BidPrice),
-                AskPrice = Convert.ToDecimal(futuresOptionQuoteData.AskPrice)
+                BidPrice = Convert.ToDecimal(futuresOptionTickData.BidPrice),
+                AskPrice = Convert.ToDecimal(futuresOptionTickData.AskPrice)
             };
             OptionLegData.Set(putOptionLegData.OptionLegId, putOptionLegData);
             UpdatePutCreditSpreadLiveFeedValues();
@@ -665,7 +665,7 @@ public class IronCondorTradeOrderReadModel
                 strikePrice: Convert.ToDouble(GetOptionLeg(LongOptionLegAction, OptionType.Put).StrikePrice),
                 futuresOptionType: OptionType.Put,
                 contractMonth: _ironCondorTrade!.MaturityDate);
-            return futuresOptionQuoteData.ContractId == longPutOptionContract.ContractId;
+            return futuresOptionTickData.ContractId == longPutOptionContract.ContractId;
         }
 
         bool SetLongPutOptionLegData()
@@ -673,8 +673,8 @@ public class IronCondorTradeOrderReadModel
             var putOptionLegData = GetOptionLegData(PutSpreadTradeType, TradeStatus, LongOptionLegAction, OptionType.Put)
                      with
             {
-                BidPrice = Convert.ToDecimal(futuresOptionQuoteData.BidPrice),
-                AskPrice = Convert.ToDecimal(futuresOptionQuoteData.AskPrice)
+                BidPrice = Convert.ToDecimal(futuresOptionTickData.BidPrice),
+                AskPrice = Convert.ToDecimal(futuresOptionTickData.AskPrice)
             };
             OptionLegData.Set(putOptionLegData.OptionLegId, putOptionLegData);
             UpdatePutCreditSpreadLiveFeedValues();
@@ -687,7 +687,7 @@ public class IronCondorTradeOrderReadModel
                             strikePrice: Convert.ToDouble(_ironCondorTrade?.OptionLegs?.Get(ShortOptionLegAction, OptionType.Call)?.StrikePrice ?? 0),
                             futuresOptionType: OptionType.Call,
                             contractMonth: _ironCondorTrade!.MaturityDate);
-            return futuresOptionQuoteData.ContractId == shortCallOptionContract.ContractId;
+            return futuresOptionTickData.ContractId == shortCallOptionContract.ContractId;
         }
 
         bool SetShortCallOptionLegData()
@@ -695,8 +695,8 @@ public class IronCondorTradeOrderReadModel
             var callOptionLegData = GetOptionLegData(CallSpreadTradeType, TradeStatus, ShortOptionLegAction, OptionType.Call)
                          with
             {
-                BidPrice = Convert.ToDecimal(futuresOptionQuoteData.BidPrice),
-                AskPrice = Convert.ToDecimal(futuresOptionQuoteData.AskPrice)
+                BidPrice = Convert.ToDecimal(futuresOptionTickData.BidPrice),
+                AskPrice = Convert.ToDecimal(futuresOptionTickData.AskPrice)
             };
             OptionLegData.Set(callOptionLegData.OptionLegId, callOptionLegData);
             UpdateCallCreditSpreadLiveFeedValues();
@@ -709,7 +709,7 @@ public class IronCondorTradeOrderReadModel
                            strikePrice: Convert.ToDouble(_ironCondorTrade?.OptionLegs?.Get(LongOptionLegAction, OptionType.Call)?.StrikePrice ?? 0),
                            futuresOptionType: OptionType.Call,
                            contractMonth: _ironCondorTrade!.MaturityDate);
-            return futuresOptionQuoteData.ContractId == longCallOptiononContract.ContractId;
+            return futuresOptionTickData.ContractId == longCallOptiononContract.ContractId;
         }
 
         bool SetLongCallOptionLegData()
@@ -717,8 +717,8 @@ public class IronCondorTradeOrderReadModel
             var callOptionLegData = GetOptionLegData(CallSpreadTradeType, TradeStatus, LongOptionLegAction, OptionType.Call)
                 with
             {
-                BidPrice = Convert.ToDecimal(futuresOptionQuoteData.BidPrice),
-                AskPrice = Convert.ToDecimal(futuresOptionQuoteData.AskPrice)
+                BidPrice = Convert.ToDecimal(futuresOptionTickData.BidPrice),
+                AskPrice = Convert.ToDecimal(futuresOptionTickData.AskPrice)
             };
             OptionLegData.Set(callOptionLegData.OptionLegId, callOptionLegData);
             UpdateCallCreditSpreadLiveFeedValues();

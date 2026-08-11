@@ -95,7 +95,7 @@ public class TradePlanQueryApiTests(WebApplicationFactory<Program> factory)
 
         // assert
         response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<IronCondorTradePlanReadModel[]>();
+        response.Value.Should().BeAssignableTo<TradePlanReadModel[]>();
     }
 
     /// <summary>

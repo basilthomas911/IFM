@@ -47,7 +47,6 @@ public class TradePlanQueryApi(IQueryServiceApi querySvc)
 
     /// <summary>
     /// Return iron condor trade plans for the specified order/trade and value date.
-    /// Map returned TradePlanReadModel objects to IronCondorTradePlanReadModel.
     /// </summary>
     public async Task<ServiceResult<TradePlanReadModel[]>> GetIronCondorTradePlansAsync(int orderId, int tradeId, DateOnly valueDate)
         => await _querySvc.ExecuteQueryAsync(TradePlanQueryUriPath.GetTradePlans, new GetTradePlansQuery(orderId, tradeId, valueDate));

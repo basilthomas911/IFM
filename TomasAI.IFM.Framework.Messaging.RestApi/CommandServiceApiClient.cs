@@ -179,6 +179,14 @@ public class CommandServiceApiClient(IHttpClientFactory httpClientFactory, IJson
         try
         {
             ArgumentNullException.ThrowIfNull(command);
+            if (_httpClient is null)
+            {
+                _httpClient = _httpClientFactory.CreateClient();
+                try { _httpClient.Timeout = TimeSpan.FromMinutes(10); }
+                catch
+                { // ignore }
+                }
+            }
             var serializedContent = _serializer.Serialize(command);
             var request = new HttpRequestMessage
             {

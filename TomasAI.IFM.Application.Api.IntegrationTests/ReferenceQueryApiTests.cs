@@ -31,7 +31,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory)
         var response = await queryApi.GetMarketDataDefinitionTypesAsync();
 
         response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<LookupTypeReadModel[]>();
+        response.Value.Should().BeAssignableTo<LookupTypeCollection>();
     }
 
     /// <summary>
@@ -46,7 +46,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory)
         var response = await queryApi.GetReferenceDataDefinitionTypesAsync();
 
         response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<LookupTypeReadModel[]>();
+        response.Value.Should().BeAssignableTo<LookupTypeCollection>();
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory)
         var response = await queryApi.GetSystemAdminFunctionTypesAsync();
 
         response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<LookupTypeReadModel[]>();
+        response.Value.Should().BeAssignableTo<LookupTypeCollection>();
     }
 
     /// <summary>
@@ -76,7 +76,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory)
         var response = await queryApi.GetLookupTypesAsync();
 
         response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<LookupTypeReadModel[]>();
+        response.Value.Should().BeAssignableTo<LookupTypeCollection>();
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory)
         var response = await queryApi.GetLookupTypesAsync("Currency");
 
         response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<LookupTypeReadModel[]>();
+        response.Value.Should().BeAssignableTo<LookupTypeCollection>();
     }
 
     /// <summary>

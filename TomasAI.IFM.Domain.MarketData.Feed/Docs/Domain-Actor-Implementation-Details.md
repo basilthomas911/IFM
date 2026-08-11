@@ -78,7 +78,7 @@ obj/Release/net10.0/refint/
 
 ## Implemented actor groups
 
-Feed-wide command, event, and query actors coordinate the subsystem. Futures Bar, EOD, Option Tick, and Tick Data implement command/event/query triplets. Futures Closing Price and Futures Option Quote Data implement command/event pairs. Actor API classes provide feed command, event, and query operations to callers without exposing mailbox mechanics.
+Feed-wide command, event, and query actors coordinate the subsystem. Futures Bar, EOD, Option Tick, and Tick Data implement command/event/query triplets. Futures Closing Price implements a command/event pair. Actor API classes provide feed command, event, and query operations to callers without exposing mailbox mechanics.
 
 ## Processing model
 

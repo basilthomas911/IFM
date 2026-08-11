@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using Microsoft.AspNetCore.Http;
@@ -22,15 +23,15 @@ public static class ReferenceQueryApiResult
         });
 
     public static Task FromGetLookupTypesAsync(HttpResponse resp)
-        => resp.SetResult(new[] {
+        => resp.SetResult(new LookupTypeCollection([
             new LookupTypeReadModel("Currency", "USD", 1, "US Dollar", System.DateTime.UtcNow, "tester"),
             new LookupTypeReadModel("Exchange", "CME", 1, "CME Exchange", System.DateTime.UtcNow, "tester")
-        });
+        ]));
 
     public static Task FromGetLookupTypeAsync(HttpResponse resp)
-        => resp.SetResult(new[] {
+        => resp.SetResult(new LookupTypeCollection([
             new LookupTypeReadModel("SecurityType", "FUT", 1, "Futures", System.DateTime.UtcNow, "tester")
-        });
+        ]));
 
     public static Task FromGetLookupTypeNamesAsync(HttpResponse resp)
         => resp.SetResult(new[] { "Currency", "Exchange", "SecurityType" });
@@ -42,19 +43,19 @@ public static class ReferenceQueryApiResult
         });
 
     public static Task FromGetMarketDataDefinitionTypesAsync(HttpResponse resp)
-        => resp.SetResult(new[] {
+        => resp.SetResult(new LookupTypeCollection([
             new LookupTypeReadModel("MarketDataDefinitionType", "Futures", 1, "Futures market data", System.DateTime.UtcNow, "tester")
-        });
+        ]));
 
     public static Task FromGetReferenceDataDefinitionTypesAsync(HttpResponse resp)
-        => resp.SetResult(new[] {
+        => resp.SetResult(new LookupTypeCollection([
             new LookupTypeReadModel("ReferenceDataDefinitionType", "StrikePrice", 1, "Strike price definitions", System.DateTime.UtcNow, "tester")
-        });
+        ]));
 
     public static Task FromGetSystemAdminFunctionTypesAsync(HttpResponse resp)
-        => resp.SetResult(new[] {
+        => resp.SetResult(new LookupTypeCollection([
             new LookupTypeReadModel("SystemAdminFunctionType", "UserMgmt", 1, "User management", System.DateTime.UtcNow, "tester")
-        });
+        ]));
 
     public static Task FromGetNextSeedIdAsync(HttpResponse resp)
         => resp.SetResult(new ScalarReadModel<int>(1001));
