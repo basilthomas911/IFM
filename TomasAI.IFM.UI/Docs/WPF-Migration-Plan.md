@@ -615,8 +615,24 @@ Market Data workflow progress on 2026-08-11:
 - Futures-contract tests cover coherent state publication, guarded add and
   post-command refresh, coded reference-query failures, safe selection, the
   December futures month code, and the no-declared-callback contract.
-- Futures-option contract and yield-curve editor internals remain the next
-  incremental Market Data slices.
+- `FuturesOptionContractEditorViewModel` now publishes read-only lookup,
+  selected-symbol, and option-contract state with guarded load/reload/add/change/
+  remove operations. Its Model retains the command API's real correlation ID,
+  and mutations remain busy until the matching completion or failure event is
+  observed.
+- The option editor buffers a bounded set of terminal events that arrive before
+  the command response, ignores unrelated correlation IDs, converts matching
+  failure events to coded operation failures, refreshes contracts only after
+  successful denormalization, and cancels/awaits owned operations during stop.
+- The option-contract WinForms control now awaits ViewModel operations, renders
+  observable snapshots, reports semantic busy state to the Market Data shell,
+  and owns only view concerns such as confirmation and validation dialogs. Its
+  public ViewModel callback wiring and repeated reference-load fan-in have been
+  removed.
+- Option-editor tests cover coherent listener/load state, unrelated event
+  filtering, matching completion, coded terminal failure, the early-event race,
+  and the no-declared-callback contract. Yield-curve editor internals remain the
+  next incremental Market Data slice.
 
 Suggested order: Reference and System Admin, Fund editors, Market Data editors, main shell/status console, then trading and Iron Condor workflows.
 

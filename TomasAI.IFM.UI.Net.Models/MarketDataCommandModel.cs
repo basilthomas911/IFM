@@ -70,11 +70,9 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
     /// <param name="futuresOptionContract">The futures option contract to be added. This parameter cannot be <see langword="null"/>.</param>
     /// <param name="overwrite">A value indicating whether to overwrite an existing contract with the same identifier. <see langword="true"/> to
     /// overwrite; otherwise, <see langword="false"/>.</param>
-    /// <param name="setCommandId">A callback action that receives the unique identifier of the command associated with this operation. This
-    /// parameter cannot be <see langword="null"/>.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    public async Task AddFuturesOptionContractAsync(FuturesOptionContractReadModel futuresOptionContract, bool overwrite)
-        => await ExecuteCommandAsync(() => _commandApi.AddFuturesOptionContractAsync(futuresOptionContract, overwrite));
+    /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
+    public Task<Guid> AddFuturesOptionContractAsync(FuturesOptionContractReadModel futuresOptionContract, bool overwrite)
+        => ExecuteCommandAsync(() => _commandApi.AddFuturesOptionContractAsync(futuresOptionContract, overwrite));
 
     /// <summary>
     /// add futures option contracts
@@ -85,23 +83,23 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
         => await ExecuteCommandAsync(() => _commandApi.AddFuturesOptionContractsAsync(year, futuresOptionContracts), onCompleted);
 
     /// <summary>
-    /// change futures option contract
+    /// Changes a futures option contract and returns its event-correlation identifier.
     /// </summary>
     /// <param name="originalContractId"></param>
     /// <param name="changedFuturesOptionContract"></param>
     /// <param name="overwrite"></param>
-    /// <param name="setCommandId"></param>
-    public async Task ChangeFuturesOptionContractAsync(string originalContractId, FuturesOptionContractReadModel changedFuturesOptionContract,  bool overwrite)
-        => await ExecuteCommandAsync(() => _commandApi.ChangeFuturesOptionContractAsync(originalContractId, changedFuturesOptionContract, overwrite));
+    /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
+    public Task<Guid> ChangeFuturesOptionContractAsync(string originalContractId, FuturesOptionContractReadModel changedFuturesOptionContract,  bool overwrite)
+        => ExecuteCommandAsync(() => _commandApi.ChangeFuturesOptionContractAsync(originalContractId, changedFuturesOptionContract, overwrite));
 
     /// <summary>
-    /// remove futures option contract
+    /// Removes a futures option contract and returns its event-correlation identifier.
     /// </summary>
     /// <param name="contractId"></param>
     /// <param name="overwrite"></param>
-    /// <param name="setCommandId"></param>
-    public async Task RemoveFuturesOptionContractAsync(string contractId, bool overwrite)
-        => await ExecuteCommandAsync(() => _commandApi.RemoveFuturesOptionContractAsync(contractId,  overwrite));
+    /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
+    public Task<Guid> RemoveFuturesOptionContractAsync(string contractId, bool overwrite)
+        => ExecuteCommandAsync(() => _commandApi.RemoveFuturesOptionContractAsync(contractId,  overwrite));
 
     /// <summary>
     /// add yield curve rate

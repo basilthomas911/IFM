@@ -1,438 +1,528 @@
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.UI.Net.Extensions;
-using TomasAI.IFM.UI.Net.Models;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using PropertyChangedEventArgs = System.ComponentModel.PropertyChangedEventArgs;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
+using TomasAI.IFM.UI.Net.ViewModels.Operations;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
-public class FuturesOptionContractEditorViewModel: BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
+/// <summary>
+/// Coordinates observable futures-option editor state with correlated market-data command events.
+/// </summary>
+public sealed class FuturesOptionContractEditorViewModel
+    : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
     readonly AsyncLifecycleCoordinator _lifecycle;
-    const int ErrorCode = 9241;
-
-    List<LookupTypeReadModel> _symbols = [];
-    bool _symbolsLoaded = false;
-    List<LookupTypeReadModel> _securityTypes = [];
-    bool _securityTypesLoaded = false;
-    List<LookupTypeReadModel> _currencies = [];
-    bool _currenciesLoaded = false;
-    List<LookupTypeReadModel> _exchanges = [];
-    bool _exchangesLoaded = false;
-    List<LookupTypeReadModel> _multipliers = [];
-    bool _multipliersLoaded = false;
-    List<LookupTypeReadModel> _optionTypes = [];
-    bool _optionTypesLoaded = false;
-    List<FuturesOptionContractReadModel> _futuresOptionContracts = [];
-    ICollection<IEvent> _consumeEvents = [];
-    Guid? _commandId;
-    Action<Guid>? _setCommandId = _ => { };
-    MarketDataEventModel? _eventModel;
-    MarketDataCommandModel? _commandModel;
-    MarketDataQueryModel? _queryModel;
-    ReferenceQueryModel? _referenceQueryModel;
+    readonly MarketDataEventModel _eventModel;
+    readonly MarketDataCommandModel _commandModel;
+    readonly MarketDataQueryModel _queryModel;
+    readonly ReferenceQueryModel _referenceQueryModel;
+    readonly ICollection<IEvent> _consumeEvents;
+    readonly object _correlationGate = new();
+    readonly Dictionary<Guid, IEvent> _earlyTerminalEvents = [];
+    readonly AsyncOperation _loadOperation;
+    readonly AsyncOperation _loadContractsOperation;
+    readonly AsyncOperation _addOperation;
+    readonly AsyncOperation _changeOperation;
+    readonly AsyncOperation _removeOperation;
+    IReadOnlyList<LookupTypeReadModel> _symbols = [];
+    IReadOnlyList<LookupTypeReadModel> _securityTypes = [];
+    IReadOnlyList<LookupTypeReadModel> _currencies = [];
+    IReadOnlyList<LookupTypeReadModel> _exchanges = [];
+    IReadOnlyList<LookupTypeReadModel> _multipliers = [];
+    IReadOnlyList<LookupTypeReadModel> _optionTypes = [];
+    IReadOnlyList<FuturesOptionContractReadModel> _futuresOptionContracts = [];
+    FuturesOptionContractReadModel? _pendingAdd;
+    PendingChange? _pendingChange;
+    FuturesOptionContractReadModel? _pendingRemove;
+    TaskCompletionSource<IEvent>? _terminalCompletion;
+    Guid _commandId;
+    string _selectedSymbol = string.Empty;
+    string _lastStatusMessage = string.Empty;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="FuturesOptionContractEditorViewModel"/> class.
+    /// Creates the editor and resolves its Models from the application composition root.
     /// </summary>
-    /// <remarks>This constructor sets up the view model by initializing required models and event handlers
-    /// for managing  futures option contract operations. The <paramref name="appRoot"/> parameter is used to retrieve
-    /// instances  of the necessary models, including <see cref="MarketDataEventModel"/>, <see
-    /// cref="MarketDataCommandModel"/>,  <see cref="MarketDataQueryModel"/>, and <see cref="ReferenceQueryModel"/>.
-    /// The view model also subscribes to a predefined set of market data events related to futures option contracts,
-    /// such as addition, modification, and removal events, both for success and failure scenarios.</remarks>
-    /// <param name="appRoot">The application root object that provides access to shared models and services.</param>
-    public FuturesOptionContractEditorViewModel(IAppRoot appRoot)
-        : base(appRoot)
+    public FuturesOptionContractEditorViewModel(IAppRoot appRoot) : base(appRoot)
     {
-        _commandId = Guid.Empty;
         _eventModel = AppRoot.GetModel<MarketDataEventModel>();
         _commandModel = AppRoot.GetModel<MarketDataCommandModel>();
         _queryModel = AppRoot.GetModel<MarketDataQueryModel>();
         _referenceQueryModel = AppRoot.GetModel<ReferenceQueryModel>();
-        _setCommandId = commandId => _commandId = commandId;
-        _consumeEvents = [
-            new FuturesOptionContractAddedCompleteEvent { }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new FuturesOptionContractAddedFailEvent{ }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new FuturesOptionContractChangedCompleteEvent { }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new FuturesOptionContractChangedFailEvent{ }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new FuturesOptionContractRemovedCompleteEvent { }.SetEventSource($"{EventTopic.MarketDataEvents}"),
-            new FuturesOptionContractRemovedFailEvent{ }.SetEventSource($"{EventTopic.MarketDataEvents}")
+        _consumeEvents =
+        [
+            new FuturesOptionContractAddedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new FuturesOptionContractAddedFailEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new FuturesOptionContractChangedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new FuturesOptionContractChangedFailEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new FuturesOptionContractRemovedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new FuturesOptionContractRemovedFailEvent().SetEventSource($"{EventTopic.MarketDataEvents}")
         ];
+
+        _loadOperation = new AsyncOperation(LoadCoreAsync);
+        _loadContractsOperation = new AsyncOperation(
+            LoadContractsCoreAsync,
+            () => !string.IsNullOrWhiteSpace(SelectedSymbol));
+        _addOperation = new AsyncOperation(
+            AddCoreAsync,
+            () => _pendingAdd is not null && _lifecycle.IsRunning && !IsMutationRunning);
+        _changeOperation = new AsyncOperation(
+            ChangeCoreAsync,
+            () => _pendingChange is not null && _lifecycle.IsRunning && !IsMutationRunning);
+        _removeOperation = new AsyncOperation(
+            RemoveCoreAsync,
+            () => _pendingRemove is not null && _lifecycle.IsRunning && !IsMutationRunning);
+        _addOperation.PropertyChanged += MutationOperationPropertyChanged;
+        _changeOperation.PropertyChanged += MutationOperationPropertyChanged;
+        _removeOperation.PropertyChanged += MutationOperationPropertyChanged;
         _lifecycle = new AsyncLifecycleCoordinator(StartListenerCoreAsync, StopListenerCoreAsync);
     }
 
-    // public event properties set by editor control...
-    public Action<bool> OnDataLoaded = _ => { };
-    public Action<bool> OnAddAction = _ => { };
-    public Action<bool> OnChangeAction = _ => { };
-    public Action OnFuturesOptionContractLoaded = () => { };
-    public Action OnFuturesOptionContractAdded = () => { };
-    public Action OnFuturesOptionContractRemoved = () => { };
-    public Action OnFuturesOptionContractChanged = () => { };
-    public Action OnWaitCursor = () => { };
-    public Action OnDefaultCursor = () => { };
+    /// <summary>Gets the available underlying symbols.</summary>
+    public IReadOnlyList<LookupTypeReadModel> Symbols
+    {
+        get => _symbols;
+        private set => SetProperty(ref _symbols, value);
+    }
 
+    /// <summary>Gets the available option security types.</summary>
+    public IReadOnlyList<LookupTypeReadModel> SecurityTypes
+    {
+        get => _securityTypes;
+        private set => SetProperty(ref _securityTypes, value);
+    }
 
-    /// <summary>
-    /// start listening for futures options data editor events
-    /// </summary>
-    public Task StartListener()
-        => InitializeAsync(CancellationToken.None);
+    /// <summary>Gets the available currencies.</summary>
+    public IReadOnlyList<LookupTypeReadModel> Currencies
+    {
+        get => _currencies;
+        private set => SetProperty(ref _currencies, value);
+    }
+
+    /// <summary>Gets the available exchanges.</summary>
+    public IReadOnlyList<LookupTypeReadModel> Exchanges
+    {
+        get => _exchanges;
+        private set => SetProperty(ref _exchanges, value);
+    }
+
+    /// <summary>Gets the available contract multipliers.</summary>
+    public IReadOnlyList<LookupTypeReadModel> Multipliers
+    {
+        get => _multipliers;
+        private set => SetProperty(ref _multipliers, value);
+    }
+
+    /// <summary>Gets the available option types.</summary>
+    public IReadOnlyList<LookupTypeReadModel> OptionTypes
+    {
+        get => _optionTypes;
+        private set => SetProperty(ref _optionTypes, value);
+    }
+
+    /// <summary>Gets the option contracts for <see cref="SelectedSymbol"/>.</summary>
+    public IReadOnlyList<FuturesOptionContractReadModel> FuturesOptionContracts
+    {
+        get => _futuresOptionContracts;
+        private set => SetProperty(ref _futuresOptionContracts, value);
+    }
+
+    /// <summary>Gets the symbol whose option contracts are currently published.</summary>
+    public string SelectedSymbol
+    {
+        get => _selectedSymbol;
+        private set => SetProperty(ref _selectedSymbol, value);
+    }
+
+    /// <summary>Gets the correlated command identifier while a mutation is awaiting its terminal event.</summary>
+    public Guid CommandId
+    {
+        get
+        {
+            lock (_correlationGate)
+                return _commandId;
+        }
+    }
+
+    /// <summary>Gets the latest successful mutation status.</summary>
+    public string LastStatusMessage
+    {
+        get => _lastStatusMessage;
+        private set => SetProperty(ref _lastStatusMessage, value);
+    }
+
+    /// <summary>Gets whether all lookup dependencies required by the editor are available.</summary>
+    public bool AllLookupTypesLoaded =>
+        Symbols.Count > 0 && SecurityTypes.Count > 0 && Currencies.Count > 0 &&
+        Exchanges.Count > 0 && Multipliers.Count > 0 && OptionTypes.Count > 0;
+
+    /// <summary>Gets the operation that starts the listener and loads a coherent editor snapshot.</summary>
+    public IAsyncOperation LoadOperation => _loadOperation;
+
+    /// <summary>Gets the operation that reloads contracts for the selected symbol.</summary>
+    public IAsyncOperation LoadContractsOperation => _loadContractsOperation;
+
+    /// <summary>Gets the correlated operation that adds the prepared option contract.</summary>
+    public IAsyncOperation AddOperation => _addOperation;
+
+    /// <summary>Gets the correlated operation that changes the prepared option contract.</summary>
+    public IAsyncOperation ChangeOperation => _changeOperation;
+
+    /// <summary>Gets the correlated operation that removes the prepared option contract.</summary>
+    public IAsyncOperation RemoveOperation => _removeOperation;
+
+    /// <summary>Selects the symbol used by the next contract load.</summary>
+    public void SelectSymbol(int index)
+    {
+        SelectedSymbol = GetLookup(Symbols, index).ShortCode;
+        _loadContractsOperation.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Prepares an option contract for the next add operation.</summary>
+    public void PrepareAdd(FuturesOptionContractReadModel contract)
+    {
+        _pendingAdd = contract ?? throw new ArgumentNullException(nameof(contract));
+        PrepareMutation();
+        _addOperation.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Prepares an original identifier and replacement contract for the next change operation.</summary>
+    public void PrepareChange(string originalContractId, FuturesOptionContractReadModel contract)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(originalContractId);
+        ArgumentNullException.ThrowIfNull(contract);
+        _pendingChange = new PendingChange(originalContractId, contract);
+        PrepareMutation();
+        _changeOperation.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Prepares an option contract for the next remove operation.</summary>
+    public void PrepareRemove(FuturesOptionContractReadModel contract)
+    {
+        _pendingRemove = contract ?? throw new ArgumentNullException(nameof(contract));
+        PrepareMutation();
+        _removeOperation.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Gets an underlying symbol by presentation index.</summary>
+    public LookupTypeReadModel GetSymbol(int index) => GetLookup(Symbols, index);
+
+    /// <summary>Gets an option type by presentation index.</summary>
+    public LookupTypeReadModel GetOptionType(int index) => GetLookup(OptionTypes, index);
+
+    /// <summary>Gets a security type by presentation index.</summary>
+    public LookupTypeReadModel GetSecurityType(int index) => GetLookup(SecurityTypes, index);
+
+    /// <summary>Gets a currency by presentation index.</summary>
+    public LookupTypeReadModel GetCurrency(int index) => GetLookup(Currencies, index);
+
+    /// <summary>Gets an exchange by presentation index.</summary>
+    public LookupTypeReadModel GetExchange(int index) => GetLookup(Exchanges, index);
+
+    /// <summary>Gets a multiplier by presentation index.</summary>
+    public LookupTypeReadModel GetMultiplier(int index) => GetLookup(Multipliers, index);
+
+    /// <summary>Gets an option contract by presentation index, or <see langword="null"/> for an invalid index.</summary>
+    public FuturesOptionContractReadModel? GetFuturesOptionContract(int index)
+        => index >= 0 && index < FuturesOptionContracts.Count ? FuturesOptionContracts[index] : null;
+
+    /// <summary>Gets the presentation index of an option-type short code.</summary>
+    public int GetOptionTypeIndex(string shortCode) => GetLookupIndex(OptionTypes, shortCode);
+
+    /// <summary>Gets the presentation index of a security-type short code.</summary>
+    public int GetSecurityTypeIndex(string shortCode) => GetLookupIndex(SecurityTypes, shortCode);
+
+    /// <summary>Gets the presentation index of a currency short code.</summary>
+    public int GetCurrencyIndex(string shortCode) => GetLookupIndex(Currencies, shortCode);
+
+    /// <summary>Gets the presentation index of an exchange short code.</summary>
+    public int GetExchangeIndex(string shortCode) => GetLookupIndex(Exchanges, shortCode);
+
+    /// <summary>Gets the presentation index of a multiplier short code.</summary>
+    public int GetMultiplierIndex(string shortCode) => GetLookupIndex(Multipliers, shortCode);
+
+    /// <summary>Starts the market-data terminal-event listener once.</summary>
+    public Task StartListener() => InitializeAsync(CancellationToken.None);
+
+    /// <summary>Stops the market-data terminal-event listener and cancels editor operations.</summary>
+    public Task StopListener() => StopAsync(CancellationToken.None);
+
+    /// <inheritdoc />
+    public Task InitializeAsync(CancellationToken cancellationToken)
+        => _lifecycle.InitializeAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        CancelOperations();
+        await AwaitOperationsStoppedAsync();
+        await _lifecycle.StopAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync(CancellationToken.None);
+        _addOperation.PropertyChanged -= MutationOperationPropertyChanged;
+        _changeOperation.PropertyChanged -= MutationOperationPropertyChanged;
+        _removeOperation.PropertyChanged -= MutationOperationPropertyChanged;
+        await _lifecycle.DisposeAsync();
+    }
 
     Task StartListenerCoreAsync(CancellationToken cancellationToken)
-        => _eventModel?.ExecuteAsync(async e => {
-            cancellationToken.ThrowIfCancellationRequested();
-            e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-            await e.StartMarketDataListenerAsync(_consumeEvents, HandleEventAsync);
-        });
-
-    /// <summary>
-    /// stop listening for futures options editor events
-    /// </summary>
-    public Task StopListener()
-        => StopAsync(CancellationToken.None);
+        => _eventModel.ExecuteObservableAsync(
+            model => model.StartMarketDataListenerAsync(_consumeEvents, HandleEventAsync).AsTask(),
+            cancellationToken);
 
     Task StopListenerCoreAsync(CancellationToken cancellationToken)
-        => _eventModel?.ExecuteAsync(async e => {
-            cancellationToken.ThrowIfCancellationRequested();
-            e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-            await e.StopMarketDataListenerAsync();
-        });
+        => _eventModel.ExecuteObservableAsync(
+            model => model.StopMarketDataListenerAsync().AsTask(),
+            cancellationToken);
 
-    public Task InitializeAsync(CancellationToken cancellationToken) => _lifecycle.InitializeAsync(cancellationToken);
-    public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
-    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
-
-    /// <summary>
-    /// execute futures options editor event actions
-    /// </summary>
-    /// <param name="e"></param>
-    /// <returns></returns>
-    ValueTask HandleEventAsync(IEvent e)
+    async Task LoadCoreAsync(CancellationToken cancellationToken)
     {
-        if (_commandId != e.CommandId)
-            return ValueTask.CompletedTask;
-        return e switch
-        {
-            FuturesOptionContractAddedCompleteEvent o => AddFuturesOptionContractCompleted(o),
-            FuturesOptionContractAddedFailEvent o => AddFuturesOptionContractFailed(o),
-            FuturesOptionContractChangedCompleteEvent o => ChangeFuturesOptionContractCompleted(o),
-            FuturesOptionContractChangedFailEvent o => ChangeFuturesOptionContractFailed(o),
-            FuturesOptionContractRemovedCompleteEvent o => RemoveFuturesOptionContractCompleted(o),
-            FuturesOptionContractRemovedFailEvent o => RemoveFuturesOptionContractFailed(o),
-            _ => ValueTask.CompletedTask
-        };
+        await InitializeAsync(cancellationToken);
+        var securityTypes = await LoadLookupAsync(
+            (model, completed) => model.LoadSecurityTypesAsync(completed), cancellationToken);
+        var currencies = await LoadLookupAsync(
+            (model, completed) => model.LoadCurrenciesAsync(completed), cancellationToken);
+        var exchanges = await LoadLookupAsync(
+            (model, completed) => model.LoadExchangesAsync(completed), cancellationToken);
+        var multipliers = await LoadLookupAsync(
+            (model, completed) => model.LoadMultipliersAsync(completed), cancellationToken);
+        var optionTypes = await LoadLookupAsync(
+            (model, completed) => model.LoadOptionTypesAsync(completed), cancellationToken);
+        var symbols = await LoadLookupAsync(
+            (model, completed) => model.LoadSymbolsAsync(completed), cancellationToken);
+        var selectedSymbol = symbols.FirstOrDefault()?.ShortCode ?? string.Empty;
+        var contracts = string.IsNullOrWhiteSpace(selectedSymbol)
+            ? []
+            : await QueryContractsAsync(selectedSymbol, cancellationToken);
+
+        SecurityTypes = securityTypes;
+        Currencies = currencies;
+        Exchanges = exchanges;
+        Multipliers = multipliers;
+        OptionTypes = optionTypes;
+        Symbols = symbols;
+        SelectedSymbol = selectedSymbol;
+        FuturesOptionContracts = contracts;
+        NotifyMutationCanExecuteChanged();
+        _loadContractsOperation.NotifyCanExecuteChanged();
     }
 
-    /// <summary>
-    /// add futures option contract
-    /// </summary>
-    /// <param name="futuresOptionContract">new futures option contract</param>
-    public Task AddFuturesOptionContract(FuturesOptionContractReadModel futuresOptionContract, bool overwrite)
-        => _commandModel?.ExecuteAsync(async model => {
-             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-             IsArgumentNull.Check(futuresOptionContract);
-            OnWaitCursor?.Invoke();
-            await model.AddFuturesOptionContractAsync(futuresOptionContract, overwrite);
-            //await Task.Delay(250); // delay to allow UI to refresh
-            //RefreshFuturesOptionContracts($"Futures Option Contract {futuresOptionContract.ContractId} Added", OnFuturesOptionContractAdded);
-        });
+    async Task LoadContractsCoreAsync(CancellationToken cancellationToken)
+        => FuturesOptionContracts = await QueryContractsAsync(SelectedSymbol, cancellationToken);
 
-    async ValueTask AddFuturesOptionContractCompleted(FuturesOptionContractAddedCompleteEvent e)
+    async Task<IReadOnlyList<LookupTypeReadModel>> LoadLookupAsync(
+        Func<ReferenceQueryModel, Action<ICollection<LookupTypeReadModel>>, Task> load,
+        CancellationToken cancellationToken)
     {
-        RefreshFuturesOptionContracts($"Futures Option Contract {e.Contract!.ContractId} Added", OnFuturesOptionContractAdded);
-        OnDefaultCursor?.Invoke();
-        _commandId = Guid.Empty;
-        await ValueTask.CompletedTask;
+        ICollection<LookupTypeReadModel> result = [];
+        await _referenceQueryModel.ExecuteObservableAsync(
+            model => load(model, loaded => result = loaded ?? []),
+            cancellationToken);
+        return result.ToArray();
     }
 
-    ValueTask AddFuturesOptionContractFailed(FuturesOptionContractAddedFailEvent e)
+    async Task<IReadOnlyList<FuturesOptionContractReadModel>> QueryContractsAsync(
+        string symbol,
+        CancellationToken cancellationToken)
     {
-        OnDefaultCursor?.Invoke();
-        WriteStatusConsole(LogSourceType.MarketData, $"Futures Option Contract Add failed due to: {e.ErrorMessage}");
-        OnError?.Invoke(e.ErrorCode, $"Futures Option Contract Add failed due to: {e.ErrorMessage}");
-        _commandId = Guid.Empty;
-        return ValueTask.CompletedTask;
+        FuturesOptionContractReadModel[] result = [];
+        await _queryModel.ExecuteObservableAsync(
+            model => model.GetFuturesOptionContractsAsync(symbol, loaded => result = loaded ?? []),
+            cancellationToken);
+        return result;
     }
 
-    /// <summary>
-    /// change futures option contract
-    /// </summary>
-    /// <param name="originalContractId"></param>
-    /// <param name="futuresOptionContract">updated futures option contract</param>
-    /// <param name="overwrite"></param>
-    public Task ChangeFuturesOptionContract(string originalContractId, FuturesOptionContractReadModel futuresOptionContract, bool overwrite)
-        =>  _commandModel?.ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-            IsArgumentNull.Check(originalContractId);
-            IsArgumentNull.Check(futuresOptionContract);
-            OnWaitCursor?.Invoke();
-            WriteStatusConsole(LogSourceType.MarketData,  $"Changing Futures Option Contract {originalContractId} ...please wait");
-            await model.ChangeFuturesOptionContractAsync(originalContractId, futuresOptionContract, overwrite);
-            //await Task.Delay(250); // delay to allow UI to refresh
-            //RefreshFuturesOptionContracts($"Futures Option Contract {originalContractId} Changed", OnFuturesOptionContractChanged);
-        });
-
-    ValueTask ChangeFuturesOptionContractCompleted(FuturesOptionContractChangedCompleteEvent e)
+    Task AddCoreAsync(CancellationToken cancellationToken)
     {
-        RefreshFuturesOptionContracts($"Futures Option Contract {e.Contract!.ContractId} Changed", OnFuturesOptionContractChanged);
-        OnDefaultCursor?.Invoke();
-        OnDataLoaded?.Invoke(true);
-        _commandId = Guid.Empty;
-        return ValueTask.CompletedTask;
+        var contract = _pendingAdd
+            ?? throw new InvalidOperationException("No futures option contract is prepared for add.");
+        return ExecuteMutationAsync(
+            model => model.AddFuturesOptionContractAsync(contract, true),
+            contract.Symbol,
+            $"Futures Option Contract {contract.ContractId} Added",
+            () => _pendingAdd = null,
+            cancellationToken);
     }
 
-    ValueTask ChangeFuturesOptionContractFailed(FuturesOptionContractChangedFailEvent e)
+    Task ChangeCoreAsync(CancellationToken cancellationToken)
     {
-        OnDefaultCursor?.Invoke();
-        OnDataLoaded?.Invoke(true);
-        WriteStatusConsole(LogSourceType.MarketData, e.ErrorCode, $"Futures Option Contract Change failed due to: {e.ErrorMessage}");
-        _commandId = Guid.Empty;
-        return ValueTask.CompletedTask;
+        var change = _pendingChange
+            ?? throw new InvalidOperationException("No futures option contract is prepared for change.");
+        return ExecuteMutationAsync(
+            model => model.ChangeFuturesOptionContractAsync(
+                change.OriginalContractId, change.Contract, true),
+            change.Contract.Symbol,
+            $"Futures Option Contract {change.OriginalContractId} Changed",
+            () => _pendingChange = null,
+            cancellationToken);
     }
 
-    /// <summary>
-    /// remove futures contract
-    /// </summary>
-    /// <param name="contractId"></param>
-    /// <param name="overwrite"></param>
-    public Task RemoveFuturesOptionContract(string contractId, bool overwrite)
-        => _commandModel?.ExecuteAsync(async model => {
-                model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-                IsArgumentNull.Check(contractId);
-                OnWaitCursor?.Invoke();
-                await model.RemoveFuturesOptionContractAsync(contractId, overwrite);
-                //await Task.Delay(250); // delay to allow UI to refresh
-                //RefreshFuturesOptionContracts($"Futures Option Contract {contractId} Removed", OnFuturesOptionContractRemoved);
-        });
-
-    ValueTask RemoveFuturesOptionContractCompleted(FuturesOptionContractRemovedCompleteEvent e)
+    Task RemoveCoreAsync(CancellationToken cancellationToken)
     {
-        RefreshFuturesOptionContracts($"Futures Option Contract {e.ContractId} Removed", OnFuturesOptionContractRemoved);
-        OnDefaultCursor?.Invoke();
-        _commandId = Guid.Empty;
-        return ValueTask.CompletedTask;
+        var contract = _pendingRemove
+            ?? throw new InvalidOperationException("No futures option contract is prepared for removal.");
+        return ExecuteMutationAsync(
+            model => model.RemoveFuturesOptionContractAsync(contract.ContractId, true),
+            contract.Symbol,
+            $"Futures Option Contract {contract.ContractId} Removed",
+            () => _pendingRemove = null,
+            cancellationToken);
     }
 
-    ValueTask RemoveFuturesOptionContractFailed(FuturesOptionContractRemovedFailEvent e)
-    {
-        OnDefaultCursor?.Invoke();
-        WriteStatusConsole(LogSourceType.MarketData, e.ErrorCode, $"Futures Option Contract Remove failed due to: {e.ErrorMessage}");
-        OnError?.Invoke(e.ErrorCode, $"Futures Option Contract Remove failed due to: {e.ErrorMessage}");
-        _commandId = Guid.Empty;
-        return ValueTask.CompletedTask;
-    }
-
-    public LookupTypeReadModel GetSymbol(int index)
-        => _symbols.GetLookupType(index);
-
-    public LookupTypeReadModel GetOptionType(int index)
-        => _optionTypes.GetLookupType(index);
-
-    public LookupTypeReadModel GetSecurityType(int index)
-        => _securityTypes.GetLookupType(index);
-
-    public LookupTypeReadModel GetCurrency(int index)
-        => _currencies.GetLookupType(index);
-
-    public LookupTypeReadModel GetExchange(int index)
-        => _exchanges.GetLookupType(index);
-
-    public LookupTypeReadModel GetMultiplier(int index)
-        => _multipliers.GetLookupType(index);
-
-    public FuturesOptionContractReadModel? GetFuturesOptionContract(int index)
-        => index >= 0 && _futuresOptionContracts != null && _futuresOptionContracts.Count > index
-            ? _futuresOptionContracts[index]
-            : default;
-
-    public int GetOptionTypeIndex(string shortCode)
-        => _optionTypes.GetLookupTypeIndex(shortCode);
-
-    public int GetSecurityTypeIndex(string shortCode)
-        => _securityTypes.GetLookupTypeIndex(shortCode);
-
-    public int GetCurrencyIndex(string shortCode)
-        => _currencies.GetLookupTypeIndex(shortCode);
-
-    public int GetExchangeIndex(string shortCode)
-        => _exchanges.GetLookupTypeIndex(shortCode);
-
-    public int GetMultiplierIndex(string shortCode)
-        => _multipliers.GetLookupTypeIndex(shortCode);
-
-    /// <summary>
-    /// load option types
-    /// </summary>
-    /// <param name="optionTypesLoaded"></param>
-    public Task LoadOptionTypes(Action<LookupTypeReadModel[]> optionTypesLoaded)
-        => _referenceQueryModel?.ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-            await model.LoadOptionTypesAsync(lookupTypes =>
-            {
-                _optionTypes = [];
-                if (lookupTypes?.Count > 0)
-                {
-                    _optionTypes.AddRange(lookupTypes);
-                    optionTypesLoaded?.Invoke([.. lookupTypes]);
-                }
-                _optionTypesLoaded = true;
-                LoadFuturesOptionContracts();
-            });
-        });
-
-    /// <summary>
-    /// load security types
-    /// </summary>
-    /// <param name="securityTypesLoaded"></param>
-    public Task LoadSecurityTypes(Action<LookupTypeReadModel[]> securityTypesLoaded)
-         => _referenceQueryModel?.ExecuteAsync(async model => {
-             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-             await model.LoadSecurityTypesAsync(lookupTypes =>
-             {
-                 _securityTypes = [];
-                 if (lookupTypes?.Count  > 0)
-                 {
-                     _securityTypes.AddRange(lookupTypes);
-                     securityTypesLoaded?.Invoke([.. lookupTypes]);
-                 }
-                    _securityTypesLoaded = true;
-                 LoadFuturesOptionContracts();
-             });
-         });
-
-    /// <summary>
-    /// load currencies
-    /// </summary>
-    /// <param name="currencyTypesLoaded"></param>
-    public Task LoadCurrencies(Action<LookupTypeReadModel[]> currencyTypesLoaded)
-          => _referenceQueryModel?.ExecuteAsync(async model =>
-              await model.LoadCurrenciesAsync(lookupTypes =>  {
-                  _currencies = [];
-                  if (lookupTypes?.Count > 0)
-                  {
-                      _currencies.AddRange(lookupTypes);
-                      currencyTypesLoaded?.Invoke([.. lookupTypes]);
-                  }
-                    _currenciesLoaded = true;
-                  LoadFuturesOptionContracts();
-              }));
-
-    /// <summary>
-    /// load exchanges
-    /// </summary>
-    /// <param name="exchangesLoaded"></param>
-    public Task LoadExchanges(Action<LookupTypeReadModel[]> exchangesLoaded)
-          => _referenceQueryModel?.ExecuteAsync(async model =>
-              await model.LoadExchangesAsync((lookupTypes) => {
-                  _exchanges = [];
-                  if (lookupTypes?.Count > 0)
-                  {
-                      _exchanges.AddRange(lookupTypes);
-                      exchangesLoaded?.Invoke([.. lookupTypes]);
-                  }
-                  _exchangesLoaded = true;
-                  LoadFuturesOptionContracts();
-              }));
-
-    /// <summary>
-    /// load multipliers
-    /// </summary>
-    /// <param name="multipliersLoaded"></param>
-    public Task LoadMultipliers(Action<LookupTypeReadModel[]> multipliersLoaded)
-        => _referenceQueryModel?.ExecuteAsync(async model =>
-            await model.LoadMultipliersAsync((lookupTypes) => {
-                _multipliers = [];
-                if (lookupTypes?.Count > 0)
-                {
-                    _multipliers.AddRange(lookupTypes);
-                    multipliersLoaded?.Invoke([.. lookupTypes]);
-                }
-                _multipliersLoaded = true;
-                LoadFuturesOptionContracts();
-            }));
-
-    /// <summary>
-    /// load symbols
-    /// </summary>
-    /// <param name="symbolsLoaded"></param>
-    public Task LoadSymbols(Action<LookupTypeReadModel[]> symbolsLoaded)
-        => _referenceQueryModel?.ExecuteAsync(async model =>
-                await model.LoadSymbolsAsync(lookupTypes => {
-                    _symbols = [];
-                    if (lookupTypes?.Count > 0)
-                    {
-                        _symbols.AddRange(lookupTypes);
-                        symbolsLoaded?.Invoke([.. lookupTypes]);
-                    }
-                    _symbolsLoaded = true;
-                    LoadFuturesOptionContracts();
-                }));
-
-    /// <summary>
-    /// load futures option contracts
-    /// </summary>
-    /// <param name="symbol"></param>
-    /// <param name="onContractsLoaded"></param>
-    public Task LoadFuturesOptionContracts(string symbol, Action<List<FuturesOptionContractReadModel>> onContractsLoaded)
-        => _queryModel?.ExecuteAsync(async ctlr =>
-            await ctlr.GetFuturesOptionContractsAsync(symbol, futuresOptionContracts => {
-                _futuresOptionContracts = [];
-                if (futuresOptionContracts?.Length > 0)
-                {
-                    _futuresOptionContracts.AddRange(futuresOptionContracts);
-                    onContractsLoaded?.Invoke(_futuresOptionContracts);
-                }
-            }));
-
-    /// <summary>
-    /// Loads futures option contracts and triggers the associated event if all lookup types are loaded.
-    /// </summary>
-    /// <remarks>This method checks whether all required lookup types are loaded. If they are, it invokes the
-    /// <see cref="OnFuturesOptionContractLoaded"/> event to signal that the futures option contracts  have been
-    /// successfully loaded.</remarks>
-    void LoadFuturesOptionContracts()
-    {
-        if (AllLookupTypesLoaded())
-            OnFuturesOptionContractLoaded.Invoke();
-    }
-
-    /// <summary>
-    /// Determines whether all lookup types have been successfully loaded.
-    /// </summary>
-    /// <returns><see langword="true"/> if all lookup types, including symbols, security types, currencies, exchanges,
-    /// multipliers, and option types, are loaded; otherwise, <see langword="false"/>.</returns>
-    bool AllLookupTypesLoaded()
-        => _symbolsLoaded &&
-        _securityTypesLoaded &&
-        _currenciesLoaded &&
-        _exchangesLoaded &&
-        _multipliersLoaded &&
-        _optionTypesLoaded;
-
-    /// <summary>
-    /// show status message and execute refresh action
-    /// </summary>
-    /// <param name="statusMsg"></param>
-    /// <param name="refreshAction"></param>
-    void RefreshFuturesOptionContracts(string statusMsg, Action refreshAction)
+    async Task ExecuteMutationAsync(
+        Func<MarketDataCommandModel, Task<Guid>> submit,
+        string symbol,
+        string statusMessage,
+        Action clearPending,
+        CancellationToken cancellationToken)
     {
         try
         {
-            refreshAction?.Invoke();
-            WriteStatusConsole(LogSourceType.MarketData, statusMsg);
+            Guid commandId = Guid.Empty;
+            await _commandModel.ExecuteObservableAsync(
+                async model => commandId = await submit(model),
+                cancellationToken);
+            if (commandId == Guid.Empty)
+                throw new InvalidOperationException("The market-data command returned an empty correlation identifier.");
+
+            var terminalEvent = await AwaitTerminalEventAsync(commandId, cancellationToken);
+            if (terminalEvent is IErrorEvent error)
+                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+
+            SelectedSymbol = symbol;
+            FuturesOptionContracts = await QueryContractsAsync(symbol, cancellationToken);
+            LastStatusMessage = statusMessage;
+            clearPending();
         }
-        catch (Exception ex)
+        finally
         {
-            WriteStatusConsole(LogSourceType.MarketData, ErrorCode, $"{ex}");
+            ClearCorrelation();
         }
     }
 
+    async Task<IEvent> AwaitTerminalEventAsync(Guid commandId, CancellationToken cancellationToken)
+    {
+        IEvent? earlyEvent;
+        TaskCompletionSource<IEvent> completion;
+        lock (_correlationGate)
+        {
+            _commandId = commandId;
+            completion = new TaskCompletionSource<IEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _terminalCompletion = completion;
+            _earlyTerminalEvents.Remove(commandId, out earlyEvent);
+            _earlyTerminalEvents.Clear();
+        }
+        OnPropertyChanged(nameof(CommandId));
+        if (earlyEvent is not null)
+            completion.TrySetResult(earlyEvent);
+        return await completion.Task.WaitAsync(cancellationToken);
+    }
+
+    ValueTask HandleEventAsync(IEvent @event)
+    {
+        TaskCompletionSource<IEvent>? completion;
+        lock (_correlationGate)
+        {
+            if (_commandId == Guid.Empty)
+            {
+                if (IsMutationRunning && _earlyTerminalEvents.Count < 32)
+                    _earlyTerminalEvents[@event.CommandId] = @event;
+                return ValueTask.CompletedTask;
+            }
+            if (_commandId != @event.CommandId)
+                return ValueTask.CompletedTask;
+            completion = _terminalCompletion;
+        }
+        completion?.TrySetResult(@event);
+        return ValueTask.CompletedTask;
+    }
+
+    bool IsMutationRunning =>
+        _addOperation.IsRunning || _changeOperation.IsRunning || _removeOperation.IsRunning;
+
+    void PrepareMutation()
+    {
+        lock (_correlationGate)
+            _earlyTerminalEvents.Clear();
+        LastStatusMessage = string.Empty;
+    }
+
+    void ClearCorrelation()
+    {
+        lock (_correlationGate)
+        {
+            _commandId = Guid.Empty;
+            _terminalCompletion = null;
+            _earlyTerminalEvents.Clear();
+        }
+        OnPropertyChanged(nameof(CommandId));
+    }
+
+    void MutationOperationPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(IAsyncOperation.IsRunning))
+            NotifyMutationCanExecuteChanged();
+    }
+
+    void NotifyMutationCanExecuteChanged()
+    {
+        _addOperation.NotifyCanExecuteChanged();
+        _changeOperation.NotifyCanExecuteChanged();
+        _removeOperation.NotifyCanExecuteChanged();
+    }
+
+    void CancelOperations()
+    {
+        _loadOperation.Cancel();
+        _loadContractsOperation.Cancel();
+        _addOperation.Cancel();
+        _changeOperation.Cancel();
+        _removeOperation.Cancel();
+    }
+
+    async Task AwaitOperationsStoppedAsync()
+    {
+        await AwaitOperationStoppedAsync(_loadOperation);
+        await AwaitOperationStoppedAsync(_loadContractsOperation);
+        await AwaitOperationStoppedAsync(_addOperation);
+        await AwaitOperationStoppedAsync(_changeOperation);
+        await AwaitOperationStoppedAsync(_removeOperation);
+    }
+
+    static async Task AwaitOperationStoppedAsync(AsyncOperation operation)
+    {
+        try
+        {
+            await operation.DisposeAsync();
+        }
+        catch (Exception) when (operation.LastFailure is not null)
+        {
+            // The operation's caller already observes LastFailure; shutdown only awaits ownership cleanup.
+        }
+    }
+
+    static LookupTypeReadModel GetLookup(IReadOnlyList<LookupTypeReadModel> values, int index)
+        => index >= 0 && index < values.Count
+            ? values[index]
+            : throw new ArgumentOutOfRangeException(nameof(index));
+
+    static int GetLookupIndex(IReadOnlyList<LookupTypeReadModel> values, string shortCode)
+    {
+        for (var index = 0; index < values.Count; index++)
+            if (values[index].ShortCode.Equals(shortCode, StringComparison.OrdinalIgnoreCase))
+                return index;
+        return -1;
+    }
+
+    sealed record PendingChange(string OriginalContractId, FuturesOptionContractReadModel Contract);
 }
