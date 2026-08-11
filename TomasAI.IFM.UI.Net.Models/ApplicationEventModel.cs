@@ -20,9 +20,9 @@ namespace TomasAI.IFM.UI.Net.Models
         /// <param name="startupAction"></param>
         /// <param name="shutdownAction"></param>
         public async Task StartApplicationEventConsumerAsync(
-            Action<ApplicationStartupEvent>? startupAction = null,
-            Action<ApplicationShutdownEvent>? shutdownAction = null)
-            => await _applicationEventConsumer.StartAsync(startupAction!, shutdownAction!);
+            Func<ApplicationStartupEvent, ValueTask> startupAction,
+            Func<ApplicationShutdownEvent, ValueTask> shutdownAction)
+            => await _applicationEventConsumer.StartAsync(startupAction, shutdownAction);
 
         /// <summary>
         /// stop listening for application events

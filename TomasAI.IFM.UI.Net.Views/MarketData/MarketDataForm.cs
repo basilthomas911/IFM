@@ -12,6 +12,7 @@ public partial class MarketDataForm
     readonly Dictionary<string, Func<IAppRoot, Control>> _controlMap;
     MarketDataViewModel? _viewModel;
     IControlCommand? _ctrlCommand;
+    bool _closeComplete;
 
     public MarketDataForm(IAppRoot appRoot, IStatusConsoleEventProducer statusConsoleLog)
     {
@@ -53,15 +54,21 @@ public partial class MarketDataForm
           }));
     }
 
-    private void MarketDataForm_FormClosing(object sender, FormClosingEventArgs e)
+    private async void MarketDataForm_FormClosing(object sender, FormClosingEventArgs e)
     {
+        if (_closeComplete)
+            return;
+        e.Cancel = true;
+        await CloseActiveControlAsync();
         ResetButtons(true);
+        _closeComplete = true;
+        Close();
     }
 
-    private void ddlMarketDataSelector_SelectedIndexChanged(object sender, EventArgs e)
+    private async void ddlMarketDataSelector_SelectedIndexChanged(object sender, EventArgs e)
     {
         ResetButtons(true);
-        _ctrlCommand?.Unload();
+        await CloseActiveControlAsync();
         pnlMarketData.Controls.Clear();
         var mktDataDefType = _viewModel?.GetMarketDefinitionType(ddlMarketDataSelector.SelectedIndex);
         if (mktDataDefType != null && _controlMap.ContainsKey(mktDataDefType.ShortCode))
@@ -78,6 +85,16 @@ public partial class MarketDataForm
             }));
             control.Visible = true;
         }
+    }
+
+    async ValueTask CloseActiveControlAsync()
+    {
+        if (pnlMarketData.Controls.Count == 0)
+            return;
+        if (pnlMarketData.Controls[0] is IAsyncFormControl asyncControl)
+            await asyncControl.CloseAsync();
+        else
+            _ctrlCommand?.Unload();
     }
 
     private void btnAdd_Click(object sender, EventArgs e) => _ctrlCommand?.Add(enabled => this.Post(() => RefreshAddButton(enabled)));

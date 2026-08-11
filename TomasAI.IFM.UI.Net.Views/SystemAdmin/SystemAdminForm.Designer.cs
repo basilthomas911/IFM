@@ -99,7 +99,7 @@ namespace TomasAI.IFM.UI.Net.Views.SystemAdmin
             this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.Text = "System Admin Manager";
-            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.SystemAdminForm_FormClosed);
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.SystemAdminForm_FormClosing);
             this.Load += new System.EventHandler(this.SystemAdminForm_Load);
             this.pnlMarketDataSelector.ResumeLayout(false);
             this.pnlMarketDataSelector.PerformLayout();

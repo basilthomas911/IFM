@@ -4,8 +4,10 @@ namespace TomasAI.IFM.UI.Net.Views.SystemInfo;
 
 public partial class SystemWaitView : Form
 {
-    readonly  System.Threading.Timer _waitTimer;
     readonly EventModel _eventModel;
+    readonly CancellationTokenSource _lifetimeCancellation = new();
+    readonly Task _waitTask;
+    bool _closeComplete;
 
     public SystemWaitView(EventModel eventModel, string waitText)
     {
@@ -13,22 +15,44 @@ public partial class SystemWaitView : Form
         lblWaitInfo.Text = waitText;
         Cursor = Cursors.WaitCursor;
         _eventModel = eventModel;
-        TimerCallback timerCallback = o => _waitTimer_Tick(this, EventArgs.Empty);
-        _waitTimer = new System.Threading.Timer(timerCallback, default, 0,1000);
+        _waitTask = WaitAsync(_lifetimeCancellation.Token);
     }
 
     public void StopWaiting()
     {
+        if (!IsDisposed && !Disposing)
+            BeginInvoke(Close);
     }
 
-    private void _waitTimer_Tick(object sender, EventArgs e)
+    async Task WaitAsync(CancellationToken cancellationToken)
     {
-        if (!_eventModel.WaitingForCommandResponse)
-            this.Close();
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            if (_eventModel.WaitingForCommandResponse)
+                continue;
+            if (!IsDisposed && !Disposing)
+                BeginInvoke(Close);
+            return;
+        }
     }
 
-    private void SystemWaitView_FormClosed(object sender, FormClosedEventArgs e)
+    private async void SystemWaitView_FormClosing(object sender, FormClosingEventArgs e)
     {
+        if (_closeComplete)
+            return;
+        e.Cancel = true;
+        _lifetimeCancellation.Cancel();
+        try
+        {
+            await _waitTask;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        _lifetimeCancellation.Dispose();
         Cursor = Cursors.Default;
+        _closeComplete = true;
+        Close();
     }
 }

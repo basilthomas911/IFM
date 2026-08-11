@@ -513,7 +513,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             this.Name = "TradeEndOfDayForm";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.Text = "Run End Of Day Process";
-            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.TradeEndOfDayForm_FormClosed);
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.TradeEndOfDayForm_FormClosing);
             this.Load += new System.EventHandler(this.TradeEndOfDayForm_Load);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();

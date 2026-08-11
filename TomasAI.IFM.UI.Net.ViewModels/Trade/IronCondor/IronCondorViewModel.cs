@@ -23,10 +23,11 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
-public class IronCondorViewModel
+public class IronCondorViewModel : IAsyncLifecycle, IAsyncDisposable
 {
     public const int GetTradeInfoErrorCode = 6000;
     public const int GetTradePositionsErrorCode = 6001;
@@ -54,8 +55,9 @@ public class IronCondorViewModel
     TradeLimitReadModel _tradeLimits = null!;
     decimal _fundBalance;
     double _riskFreeRate;
-    System.Threading.Timer _snapshotTimer = null!;
-    System.Threading.Timer _spreadBarDataTimer = null!;
+    readonly TimeProvider _timeProvider;
+    readonly AsyncLifecycleCoordinator _liveFeedLifecycle;
+    CancellationTokenSource _resetListenerCancellation = new();
     Dictionary<string, OptionTradeLegDataReadModel> _optionLegDataMap;
     List<IronCondorSpreadPathDataModel> _spreadPaths;
     bool _liveFeedEnabled;
@@ -70,7 +72,8 @@ public class IronCondorViewModel
     /// <param name="valueDate"></param>
     /// <param name="baseContracts"></param>
     public IronCondorViewModel(IAppRoot appRoot, FundReadModel fund,  FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade, DateOnly? valueDate,
-        ICollection<FuturesContractV2ReadModel> baseContracts)
+        ICollection<FuturesContractV2ReadModel> baseContracts,
+        TimeProvider? timeProvider = null)
     {
         _appRoot = appRoot;
         _fund = fund;
@@ -87,6 +90,8 @@ public class IronCondorViewModel
         _spreadPathQueue = new();
         _siteId = _appRoot.GetModel<EventModel>().SiteId;
         _liveStreamsIds = [];
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _liveFeedLifecycle = new AsyncLifecycleCoordinator(EnableLiveFeedCoreAsync, DisableLiveFeedCoreAsync);
     }
 
     public IAppRoot AppRoot => _appRoot;
@@ -125,16 +130,31 @@ public class IronCondorViewModel
     public Action<Action<bool>> CanResetLiveFeed { get; set; } = null!;
 
     public Task EnableMarketDataFeedResetListener()
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
+    {
+        if (_resetListenerCancellation.IsCancellationRequested)
+        {
+            _resetListenerCancellation.Dispose();
+            _resetListenerCancellation = new CancellationTokenSource();
+        }
+        var cancellationToken = _resetListenerCancellation.Token;
+        return _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
             await model.StartMarketDataFeedResetListenerAsync(async _ => {
                if (_liveFeedEnabled)
                {
                    await DisableLiveFeedAsync();
-                   await Task.Delay(TimeSpan.FromSeconds(5));
-                   EnableLiveFeed();
-                   DeleteOptionTradeSpreadBarData();
+                   try
+                   {
+                       await Task.Delay(TimeSpan.FromSeconds(5), _timeProvider, cancellationToken);
+                   }
+                   catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                   {
+                       return;
+                   }
+                   await EnableLiveFeedAsync();
+                   await DeleteOptionTradeSpreadBarData();
                }
             }));
+    }
 
     private Task DeleteOptionTradeSpreadBarData()
         => _appRoot.GetModel<TradeCommandModel>().ExecuteAsync(async model => {
@@ -147,8 +167,11 @@ public class IronCondorViewModel
     /// disable market data feed listener
     /// </summary>
     public Task DisableMarketDataFeedResetListener()
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
+    {
+        _resetListenerCancellation.Cancel();
+        return _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
             await model.StopMarketDataFeedResetListenerAsync());
+    }
 
     /// <summary>
     /// load iron condor trade from storage
@@ -520,26 +543,49 @@ public class IronCondorViewModel
     /// <summary>
     /// enable live market data feeds
     /// </summary>
-    public void EnableLiveFeed()
+    public Task EnableLiveFeedAsync(CancellationToken cancellationToken = default)
+        => InitializeAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public Task InitializeAsync(CancellationToken cancellationToken)
+        => _liveFeedLifecycle.InitializeAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public Task StopAsync(CancellationToken cancellationToken)
+        => _liveFeedLifecycle.StopAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
     {
-        if (_liveFeedEnabled) return;
-        LoadValueDate(() => {
-            EnableFuturesEodDataListener();
-            EnableFuturesOptionTickDataListener();
-            EnableTradePositionListener();
-            EnableTradePlanListener();
-            EnableOptionTradeSpreadBarDataListener();
-            EnableTradeLiveFeed();
-            UpdateDailyProfitTarget();
-        });
+        await DisableMarketDataFeedResetListener();
+        _resetListenerCancellation.Dispose();
+        await _liveFeedLifecycle.DisposeAsync();
+    }
+
+    async Task EnableLiveFeedCoreAsync(CancellationToken cancellationToken)
+    {
+        if (_liveFeedEnabled)
+            return;
+
+        await LoadValueDate();
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_valueDate.HasValue)
+            return;
+
+        await EnableFuturesEodDataListener();
+        await EnableFuturesOptionTickDataListener();
+        await EnableTradePositionListener();
+        await EnableTradePlanListener();
+        await EnableOptionTradeSpreadBarDataListener();
+        await EnableTradeLiveFeed();
+        await UpdateDailyProfitTarget();
         return;
 
-        Task LoadValueDate(Action onDataLoad)
+        Task LoadValueDate()
             =>_appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model => {
                 model.OnError((_, errorMessage) => ShowErrorMessage(errorMessage, "Load Value Date Error"));
                 await model.GetValueDateAsync(valueDate => {
                     _valueDate = valueDate;
-                    onDataLoad();
                 });
             });
 
@@ -549,12 +595,6 @@ public class IronCondorViewModel
                 var valueDate = _valueDate ?? DateOnly.FromDateTime(DateTime.Now);
                 await model.DeleteSpreadDistributionJobsInProgressAsync(new SpreadDistributionJobEntityId(OrderId, TradeId, valueDate));
             });
-
-        void EnableTimers()
-        {
-            _snapshotTimer = new System.Threading.Timer(_ => snapshotTimer_Tick(), null, TimeSpan.Zero, TimeSpan.FromSeconds(15));
-            _spreadBarDataTimer = new System.Threading.Timer(_ => spreadBarDataTimer_Tick(), null, TimeSpan.Zero, TimeSpan.FromSeconds(15));
-        }
 
         Task EnableTradeLiveFeed()
             => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
@@ -570,9 +610,10 @@ public class IronCondorViewModel
                 }
                 var baseContract = _baseContracts.Where(e => e.Id.Symbol == _fundOrderTrade.BaseContractSymbol.Trim()).FirstOrDefault();
                 await model.StartStreamingFuturesOptionTickDataAsync(_liveStreamsIds, baseContract!, _valueDate!.Value, _optionTrade.MaturityDate, _riskFreeRate,
-                    () => DeleteSpreadDistributionJobsInProgress());
-                EnableTimers();
+                    () => { });
+                await DeleteSpreadDistributionJobsInProgress();
                 _liveFeedEnabled = true;
+                _liveFeedLifecycle.RunAsync(RunPeriodicAsync);
             });
 
         Task EnableFuturesEodDataListener()
@@ -853,22 +894,20 @@ public class IronCondorViewModel
     /// <summary>
     /// disable live market data feeds
     /// </summary>
-    public async ValueTask DisableLiveFeedAsync()
-    {
-        _liveFeedEnabled = false;
-        DisableOptionTradeSpreadBarDataListener();
-        DisableTradePlanListener();
-        DisableFuturesEodDataListener();
-        DisableFuturesOptionTickDataListener();
-        await DisableTradePositionListenerAsync();
-        DisableTradeLiveFeed();
-        return;
+    public Task DisableLiveFeedAsync(CancellationToken cancellationToken = default)
+        => StopAsync(cancellationToken);
 
-        void DisableTimers()
-        {
-            _snapshotTimer = null!;
-            _spreadBarDataTimer = null!;
-        }
+    async Task DisableLiveFeedCoreAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _liveFeedEnabled = false;
+        await DisableOptionTradeSpreadBarDataListener();
+        await DisableTradePlanListener();
+        await DisableFuturesEodDataListener();
+        await DisableFuturesOptionTickDataListener();
+        await DisableTradePositionListenerAsync();
+        await DisableTradeLiveFeed();
+        return;
 
         Task DisableTradeLiveFeed()
             => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
@@ -883,7 +922,6 @@ public class IronCondorViewModel
                     }
                     _liveStreamsIds = new();
                 }
-                DisableTimers();
                 _liveFeedEnabled = false;
             });
 
@@ -911,7 +949,7 @@ public class IronCondorViewModel
             _tradePlanConsoleQueue = null!;
         }
 
-        void DisableOptionTradeSpreadBarDataListener()
+        Task DisableOptionTradeSpreadBarDataListener()
             => _appRoot.GetModel<OptionTradeSpreadBarDataEventModel>()
                 .ExecuteAsync(async model => await model.StopOptionTradeSpreadBarDataListenerAsync());
     }
@@ -941,46 +979,65 @@ public class IronCondorViewModel
     /// <summary>
     /// check every minute to snapshot trade data
     /// </summary>
-    void snapshotTimer_Tick()
-        // only execute if we are in trading hours...
-        => _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model => {
-            await model.GetValueDateAsync(valueDate => {
-                if (valueDate.HasValue)
-                    CanResetLiveFeed(resetLiveFeed => {
-                        if (resetLiveFeed)
-                        {
-                            _appRoot.GetModel<TradeCommandModel>()
-                                .ExecuteAsync(async model => await model.SnapshotOptionTradeAsync(_optionTrade.OrderId, _optionTrade.TradeId));
-                            WriteStatusConsole($"SnapshotOptionTrade executed for {_optionTrade.OrderId}:{_optionTrade.TradeId}");
-                        }
-                    });
-            });
-        });
+    async Task SnapshotTickAsync()
+    {
+        DateOnly? valueDate = null;
+        await _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model =>
+            await model.GetValueDateAsync(value => valueDate = value));
+        if (!valueDate.HasValue)
+            return;
+
+        var resetLiveFeed = false;
+        CanResetLiveFeed(value => resetLiveFeed = value);
+        if (!resetLiveFeed)
+            return;
+
+        await _appRoot.GetModel<TradeCommandModel>()
+            .ExecuteAsync(async model => await model.SnapshotOptionTradeAsync(_optionTrade.OrderId, _optionTrade.TradeId));
+        await WriteStatusConsole($"SnapshotOptionTrade executed for {_optionTrade.OrderId}:{_optionTrade.TradeId}");
+    }
 
     /// <summary>
     /// check every minute to insert option trade spread bar data
     /// </summary>
-    Task spreadBarDataTimer_Tick()
-        => _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model => {
-            var valueDate = _valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime( DateTime.Now);
-            await model.GetOptionTradeSpreadDataAsync(_optionTrade.OrderId, _optionTrade.TradeId, _optionTrade.TradeType, valueDate, e => {
-                if (e is not null)
-                {
-                    var optionTradeSpreadBarData = new OptionTradeSpreadBarsDataModel(
-                        orderId: e.OrderId,
-                        tradeId: e.TradeId,
-                        tradeType: e.TradeType,
-                        valueDate: valueDate,
-                        barDate: DateTime.Now,
-                        lossLimit: e.LossLimit,
-                        winLimit: e.WinLimit,
-                        forwardSpread: e.ForwardSpread,
-                        netSpread: e.NetSpread);
-                    _appRoot.GetModel<TradeCommandModel>()
-                        .ExecuteAsync(async model => await model.InsertOptionTradeSpreadBarDataAsync(optionTradeSpreadBarData));
-                }
-            });
-        });
+    async Task SpreadBarDataTickAsync()
+    {
+        var valueDate = _valueDate ?? DateOnly.FromDateTime(DateTime.Now);
+        OptionTradeSpreadsDataModel? spreadData = null;
+        await _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model =>
+            await model.GetOptionTradeSpreadDataAsync(
+                _optionTrade.OrderId,
+                _optionTrade.TradeId,
+                _optionTrade.TradeType,
+                valueDate,
+                value => spreadData = value));
+        if (spreadData is null)
+            return;
+
+        var optionTradeSpreadBarData = new OptionTradeSpreadBarsDataModel(
+            orderId: spreadData.OrderId,
+            tradeId: spreadData.TradeId,
+            tradeType: spreadData.TradeType,
+            valueDate: valueDate,
+            barDate: DateTime.Now,
+            lossLimit: spreadData.LossLimit,
+            winLimit: spreadData.WinLimit,
+            forwardSpread: spreadData.ForwardSpread,
+            netSpread: spreadData.NetSpread);
+        await _appRoot.GetModel<TradeCommandModel>()
+            .ExecuteAsync(async model => await model.InsertOptionTradeSpreadBarDataAsync(optionTradeSpreadBarData));
+    }
+
+    async Task RunPeriodicAsync(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await SnapshotTickAsync();
+            await SpreadBarDataTickAsync();
+            await Task.Delay(TimeSpan.FromSeconds(15), _timeProvider, cancellationToken);
+        }
+    }
 
     Task WriteStatusConsole(int errorCode, string errorMessage)
         => _appRoot.GetModel<StatusConsoleModel>().ExecuteAsync(async model =>

@@ -8,11 +8,13 @@ using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
-public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
+public class FuturesOptionContractEditorViewModel: BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
+    readonly AsyncLifecycleCoordinator _lifecycle;
     const int ErrorCode = 9241;
 
     List<LookupTypeReadModel> _symbols = [];
@@ -63,6 +65,7 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
             new FuturesOptionContractRemovedCompleteEvent { }.SetEventSource($"{EventTopic.MarketDataEvents}"),
             new FuturesOptionContractRemovedFailEvent{ }.SetEventSource($"{EventTopic.MarketDataEvents}")
         ];
+        _lifecycle = new AsyncLifecycleCoordinator(StartListenerCoreAsync, StopListenerCoreAsync);
     }
 
     // public event properties set by editor control...
@@ -81,7 +84,11 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// start listening for futures options data editor events
     /// </summary>
     public Task StartListener()
+        => InitializeAsync(CancellationToken.None);
+
+    Task StartListenerCoreAsync(CancellationToken cancellationToken)
         => _eventModel?.ExecuteAsync(async e => {
+            cancellationToken.ThrowIfCancellationRequested();
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StartMarketDataListenerAsync(_consumeEvents, HandleEventAsync);
         });
@@ -90,10 +97,18 @@ public class FuturesOptionContractEditorViewModel: BaseEditorViewModel
     /// stop listening for futures options editor events
     /// </summary>
     public Task StopListener()
+        => StopAsync(CancellationToken.None);
+
+    Task StopListenerCoreAsync(CancellationToken cancellationToken)
         => _eventModel?.ExecuteAsync(async e => {
+            cancellationToken.ThrowIfCancellationRequested();
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StopMarketDataListenerAsync();
         });
+
+    public Task InitializeAsync(CancellationToken cancellationToken) => _lifecycle.InitializeAsync(cancellationToken);
+    public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
+    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
 
     /// <summary>
     /// execute futures options editor event actions

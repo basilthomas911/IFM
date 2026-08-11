@@ -66,21 +66,16 @@ namespace TomasAI.IFM.UI.Net.Models
              Action<DatabaseBackupCompleteEvent>? completedAction = null,
             Action<DatabaseBackupFailEvent>? failedAction = null)
         {
-            await ExecuteAsync(() =>
-            {
-                _systemAdminEventConsumer.StartAsync(backupAction!, infoMsgAction!, completedAction!, failedAction!);
-                return Task.FromResult( new ServiceResult<Guid>(Guid.NewGuid()));  
-            }, _ => { });   
+            await _systemAdminEventConsumer.StartAsync(
+                backupAction!,
+                infoMsgAction!,
+                completedAction!,
+                failedAction!);
         }
         
         public async Task StopSystemAdminEventConsumer()
         {
-            await ExecuteAsync(() =>
-            {
-                _systemAdminEventConsumer.StopAsync();
-                return Task.FromResult(new ServiceResult<Guid>(Guid.NewGuid()));
-            }, _ => { });
-
+            await _systemAdminEventConsumer.StopAsync();
         }
 
     }

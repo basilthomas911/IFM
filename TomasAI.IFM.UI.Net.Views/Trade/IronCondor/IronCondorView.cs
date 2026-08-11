@@ -86,11 +86,10 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         _ = ((IAsyncFormControl)this).CloseAsync().AsTask();
     }
 
-    async ValueTask IAsyncFormControl.CloseAsync()
-    {
-        await _viewModel.DisableLiveFeedAsync();
-        _viewModel.DisableMarketDataFeedResetListener();
-    }
+      async ValueTask IAsyncFormControl.CloseAsync()
+      {
+          await _viewModel.DisposeAsync();
+      }
 
     /// <summary>
     /// Initializes the Iron Condor control and sets up event handlers for loading trade data and updating the UI.
@@ -697,7 +696,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         {
             case IronCondorViewModel.LiveFeedOn:
                 ddlLiveFeed.Font = new Font(ddlLiveFeed.Font, FontStyle.Bold);
-                _viewModel.EnableLiveFeed();
+                await _viewModel.EnableLiveFeedAsync();
                 break;
             case IronCondorViewModel.LiveFeedOff:
                 ddlLiveFeed.Font = new Font(ddlLiveFeed.Font, FontStyle.Regular);

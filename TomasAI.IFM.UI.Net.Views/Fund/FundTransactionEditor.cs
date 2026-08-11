@@ -147,7 +147,6 @@ public partial class FundTransactionEditor
             dlg.LoadModel(new AdjustFundTransactionReadModel(_viewModel.AppRoot, fundTransaction!, _viewModel.FundBalance));
             if (dlg.ShowDialog() == DialogResult.OK)
                 _viewModel.LoadFunds();
-            dlg.UnloadModel();
         }
     }
 

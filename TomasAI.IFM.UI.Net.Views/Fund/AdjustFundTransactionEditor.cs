@@ -7,6 +7,7 @@ namespace TomasAI.IFM.UI.Net.Views.Fund;
 public partial class AdjustFundTransactionEditor : Form, IForm<AdjustFundTransactionEditor>, IFormControl
 {
     AdjustFundTransactionReadModel? _viewModel;
+    bool _closeComplete;
 
     public AdjustFundTransactionEditor()
     {
@@ -31,9 +32,10 @@ public partial class AdjustFundTransactionEditor : Form, IForm<AdjustFundTransac
         _viewModel.OnErrorMessage = (errorMsg, caption) => this.ShowErrorMessage(errorMsg, caption);
     }
 
-    public void UnloadModel()
+    public async Task UnloadModelAsync()
     {
-        _viewModel?.StopListener();
+        if (_viewModel is not null)
+            await _viewModel.StopListener();
     }
 
     private void AdjustFundTransactionForm_Load(object sender, EventArgs e)
@@ -60,8 +62,14 @@ public partial class AdjustFundTransactionEditor : Form, IForm<AdjustFundTransac
         }
     }
 
-    private void AdjustFundTransactionForm_FormClosed(object sender, FormClosedEventArgs e)
+    private async void AdjustFundTransactionForm_FormClosing(object sender, FormClosingEventArgs e)
     {
+        if (_closeComplete)
+            return;
+        e.Cancel = true;
+        await UnloadModelAsync();
+        _closeComplete = true;
+        Close();
     }
 
     private void btnSave_Click(object sender, EventArgs e)

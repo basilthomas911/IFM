@@ -53,7 +53,7 @@ namespace TomasAI.IFM.UI.Net.Views.SystemInfo
             this.Name = "SystemWaitView";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "Wait Action";
-            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.SystemWaitView_FormClosed);
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.SystemWaitView_FormClosing);
             this.ResumeLayout(false);
             this.PerformLayout();
 

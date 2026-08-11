@@ -466,11 +466,41 @@ Exit: no async lambda is convertible to `Action` in UI code; all affected operat
 
 ### S1.2 — lifecycle and cancellation
 
+Status: **Implemented on 2026-08-11.** Application and listener-backed screen
+resources now have idempotent asynchronous lifecycle ownership. WinForms close
+adapters cancel and await cleanup before allowing their form or hosted control
+to be removed.
+
 - Add application and screen `IAsyncLifecycle` ownership.
 - Give every event listener, loop, and timer a lifetime token and retained Task.
 - Replace detached reset-feed work and overlapping timers.
 - Make close paths cancel and await their work.
 - Remove normal-shutdown process termination.
+
+Implemented artifacts:
+
+- `AsyncLifecycleCoordinator` owns a lifetime cancellation source, serializes
+  initialization and shutdown, retains background Tasks, and waits for them
+  before invoking resource cleanup. Initialization and stop are idempotent and
+  failed initialization can be retried.
+- `IFMAppViewModel` owns its status, application, market-data, analytics, and
+  trade listeners through one lifecycle. Its market-data watchdog is a retained,
+  cancellable Task using `TimeProvider`; the detached `Task.Run` path is gone.
+- Application shutdown events request a UI close and return to the NATS handler;
+  the form-close path then awaits listener shutdown outside the listener's own
+  dispatch Task, avoiding a self-stop deadlock.
+- Iron Condor live-feed startup and shutdown are serialized. The two overlapping
+  `System.Threading.Timer` callbacks are now retained 15-second async loops that
+  run each operation sequentially and stop through the live-feed lifetime token.
+- Listener-backed fund, market-data, trade, status-console, economic-calendar,
+  and system-administration screens use the same lifecycle contract. Their close
+  adapters hold form closure or control removal until cleanup completes.
+- `SystemWaitView` retains and cancels its polling Task. Normal and unhandled
+  application exits no longer call `Process.Kill`.
+- Architecture ratchets require zero `Task.Run` calls, zero forced process
+  termination calls, and zero unowned `System.Threading.Timer`/
+  `System.Timers.Timer` instances in UI projects. Coordinator tests cover
+  repeated start/stop, cancellation ordering, and failed-start recovery.
 
 Exit: repeatedly opening/closing every screen and starting/stopping the app leaves no active owned UI tasks or listeners.
 

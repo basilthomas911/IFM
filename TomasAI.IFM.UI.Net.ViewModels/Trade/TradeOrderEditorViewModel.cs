@@ -10,14 +10,16 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 
 /// <summary>
 /// trade order editor view model
 /// </summary>
-public class TradeOrderEditorViewModel :BaseEditorViewModel
+public class TradeOrderEditorViewModel : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
+    readonly AsyncLifecycleCoordinator _lifecycle;
     readonly DateOnly? _valueDate;
     readonly ICollection<FuturesContractV2ReadModel> _baseContracts;
     List<FundReadModel> _funds = null!;
@@ -62,6 +64,7 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
             new FundOrderTradeStateChangedCompleteEvent{ },
             new FundOrderTradeStateChangedFailEvent{ },
         ];
+        _lifecycle = new AsyncLifecycleCoordinator(StartFundOrderListenerCoreAsync, StopFundOrderListenerCoreAsync);
     }
 
     public ICollection<FundReadModel> Funds => _funds;
@@ -280,7 +283,11 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// start fund order listener
     /// </summary>
     public Task StartFundOrderListener()
+      => InitializeAsync(CancellationToken.None);
+
+    Task StartFundOrderListenerCoreAsync(CancellationToken cancellationToken)
       => _fundOrderEventModel.ExecuteAsync(async e => {
+          cancellationToken.ThrowIfCancellationRequested();
           e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
           await e.StartFundOrderListenerAsync(HandleEventAsync);
       });
@@ -289,10 +296,19 @@ public class TradeOrderEditorViewModel :BaseEditorViewModel
     /// stop fund order listener
     /// </summary>
     public Task StopFundOrderListener()
+        => StopAsync(CancellationToken.None);
+
+    Task StopFundOrderListenerCoreAsync(CancellationToken cancellationToken)
         => _fundOrderEventModel.ExecuteAsync(async e => {
+            cancellationToken.ThrowIfCancellationRequested();
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StopFundOrderListenerAsync();
+            await StopFundOrderTradeStateListener();
         });
+
+    public Task InitializeAsync(CancellationToken cancellationToken) => _lifecycle.InitializeAsync(cancellationToken);
+    public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
+    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
 
     ValueTask HandleEventAsync(IEvent e)
     {

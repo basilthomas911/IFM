@@ -534,7 +534,7 @@ namespace TomasAI.IFM.UI.Net.Views.Fund
             SizeGripStyle = SizeGripStyle.Hide;
             StartPosition = FormStartPosition.CenterParent;
             Text = "Adjust Fund Transaction";
-            FormClosed += AdjustFundTransactionForm_FormClosed;
+            FormClosing += AdjustFundTransactionForm_FormClosing;
             Load += AdjustFundTransactionForm_Load;
             pnlAdjust.ResumeLayout(false);
             pnlAdjustLayout.ResumeLayout(false);

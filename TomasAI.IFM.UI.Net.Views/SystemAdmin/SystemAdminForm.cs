@@ -10,6 +10,7 @@ public partial class SystemAdminForm : Form, IForm<SystemAdminForm>, IFormContro
     readonly IStatusConsoleEventProducer _statusConsoleLog;
     SystemAdminViewModel _viewModel = null!;
     Dictionary<string, Func<Control>> _controlMap;
+    bool _closeComplete;
 
     public SystemAdminForm(IAppRoot appRoot, IStatusConsoleEventProducer statusConsoleLog)
     {
@@ -42,14 +43,14 @@ public partial class SystemAdminForm : Form, IForm<SystemAdminForm>, IFormContro
             }));
     }
 
-    private void ddlMarketDataSelector_SelectedIndexChanged(object sender, EventArgs e)
+    private async void ddlMarketDataSelector_SelectedIndexChanged(object sender, EventArgs e)
     {
+        foreach (IFormControl control in pnlSystemAdmin.Controls)
+            await CloseControlAsync(control);
         pnlSystemAdmin.Controls.Clear();
         var sysAdminFuncType = _viewModel.GetSystemAdminFunctionType(ddlFunctionSelector.SelectedIndex);
         if (sysAdminFuncType != null && _controlMap.ContainsKey(sysAdminFuncType.ShortCode))
         {
-            foreach (IFormControl o in pnlSystemAdmin.Controls)
-                o?.Close();
             var control = _controlMap[sysAdminFuncType.ShortCode]();
             ((IFormControl)control).Open(); 
             pnlSystemAdmin.Controls.Add(control);
@@ -58,10 +59,26 @@ public partial class SystemAdminForm : Form, IForm<SystemAdminForm>, IFormContro
 
     
 
-    private void SystemAdminForm_FormClosed(object sender, FormClosedEventArgs e)
+    private async void SystemAdminForm_FormClosing(object sender, FormClosingEventArgs e)
     {
+        if (_closeComplete)
+            return;
+        e.Cancel = true;
         foreach(IFormControl control in pnlSystemAdmin.Controls)
-            control?.Close();
+            await CloseControlAsync(control);
+        _closeComplete = true;
+        Close();
+    }
+
+    static ValueTask CloseControlAsync(IFormControl control)
+        => control is IAsyncFormControl asyncControl
+            ? asyncControl.CloseAsync()
+            : CloseSynchronously(control);
+
+    static ValueTask CloseSynchronously(IFormControl control)
+    {
+        control.Close();
+        return ValueTask.CompletedTask;
     }
 
     public void Open()

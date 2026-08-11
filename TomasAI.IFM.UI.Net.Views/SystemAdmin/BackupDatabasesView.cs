@@ -16,7 +16,7 @@ using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 
 namespace TomasAI.IFM.UI.Net.Views.SystemAdmin
 {
-    public partial class BackupDatabasesView : UserControl, IFormControl
+    public partial class BackupDatabasesView : UserControl, IAsyncFormControl
     {
         private BackupDatabasesViewModel _viewModel;
 
@@ -34,8 +34,11 @@ namespace TomasAI.IFM.UI.Net.Views.SystemAdmin
 
         public void Close()
         {
-            _viewModel.StopSystemAdminEventConsumer();
+            _ = ((IAsyncFormControl)this).CloseAsync();
         }
+
+        async ValueTask IAsyncFormControl.CloseAsync()
+            => await _viewModel.StopSystemAdminEventConsumer();
 
         void IFormControl.Resize(Control parentControl)
         {

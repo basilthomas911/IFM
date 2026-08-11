@@ -6,11 +6,13 @@ using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Fund;
 
-public class AdjustFundTransactionReadModel : BaseEditorViewModel
+public class AdjustFundTransactionReadModel : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
+    readonly AsyncLifecycleCoordinator _lifecycle;
     readonly FundTransactionReadModel _fundTransaction;
     readonly decimal _fundBalance;
     Guid _commandId;
@@ -41,6 +43,7 @@ public class AdjustFundTransactionReadModel : BaseEditorViewModel
             new UnrealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent{ },
             new UnrealizedTradePnlFundTransactionAdjustmentCreatedFailEvent{ },
         };
+        _lifecycle = new AsyncLifecycleCoordinator(StartListenerCoreAsync, StopListenerCoreAsync);
     }
 
     public FundTransactionReadModel FundTransaction => _fundTransaction;
@@ -52,7 +55,11 @@ public class AdjustFundTransactionReadModel : BaseEditorViewModel
     /// start listening for fund transaction adjustment events
     /// </summary>
     public Task StartListener()
+        => InitializeAsync(CancellationToken.None);
+
+    Task StartListenerCoreAsync(CancellationToken cancellationToken)
         => _eventModel.ExecuteAsync(async e => {
+            cancellationToken.ThrowIfCancellationRequested();
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StartFundListenerAsync(_consumeEvents, HandleEventAsync);
         });
@@ -61,10 +68,18 @@ public class AdjustFundTransactionReadModel : BaseEditorViewModel
     /// stop listening for fund transaction adjustment events
     /// </summary>
     public Task StopListener()
+        => StopAsync(CancellationToken.None);
+
+    Task StopListenerCoreAsync(CancellationToken cancellationToken)
         => _eventModel.ExecuteAsync(async e => {
+            cancellationToken.ThrowIfCancellationRequested();
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StopFundListenerAsync();
         });
+
+    public Task InitializeAsync(CancellationToken cancellationToken) => _lifecycle.InitializeAsync(cancellationToken);
+    public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
+    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
 
     /// <summary>
     /// created adjusted fund transaction

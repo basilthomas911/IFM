@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
@@ -14,8 +15,9 @@ namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 /// <remarks>This class provides functionality to add, update, remove, and import yield curve rates, as well as to
 /// load yield curve rate data for specific time periods or date ranges. It also manages event handling for operations
 /// related to yield curve rates, such as completion or failure events.</remarks>
-public class YieldCurveRateEditorViewModel : BaseEditorViewModel
+public class YieldCurveRateEditorViewModel : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
+    readonly AsyncLifecycleCoordinator _lifecycle;
     List<YieldCurveRateReadModel> _yieldCurveRates = [];
     Guid _commandId;
     Action<Guid> _setCommandId;
@@ -53,6 +55,7 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
             new YieldCurveRatesImportedCompleteEvent { }.SetEventSource($"{EventTopic.MarketDataEvents}"),
             new YieldCurveRatesImportedFailEvent{ }.SetEventSource($"{EventTopic.MarketDataEvents}"),
         ];
+        _lifecycle = new AsyncLifecycleCoordinator(StartListenerCoreAsync, StopListenerCoreAsync);
     }
 
     public bool CanChangeRemove { get; set; }
@@ -77,7 +80,11 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
     /// start listening for yield curve rate editor events
     /// </summary>
     public Task StartListener()
+        => InitializeAsync(CancellationToken.None);
+
+    Task StartListenerCoreAsync(CancellationToken cancellationToken)
         => _eventModel?.ExecuteAsync(async e => {
+            cancellationToken.ThrowIfCancellationRequested();
             await e.StartMarketDataListenerAsync(_consumeEvents, HandleEventAsync);
         });
 
@@ -85,9 +92,17 @@ public class YieldCurveRateEditorViewModel : BaseEditorViewModel
     /// stop listening for yield curve rate editor events
     /// </summary>
     public Task StopListener()
+        => StopAsync(CancellationToken.None);
+
+    Task StopListenerCoreAsync(CancellationToken cancellationToken)
         => _eventModel?.ExecuteAsync(async e => {
+            cancellationToken.ThrowIfCancellationRequested();
             await e.StopMarketDataListenerAsync();
         });
+
+    public Task InitializeAsync(CancellationToken cancellationToken) => _lifecycle.InitializeAsync(cancellationToken);
+    public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
+    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
 
     /// <summary>
     /// exute yield curve rate editor event actions

@@ -12,7 +12,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData;
 /// accordingly. The control also supports commands defined by the <see cref="IControlCommand"/> and <see
 /// cref="IFormControl"/> interfaces.</remarks>
 public partial class YieldCurveRateEditorControl 
-    : UserControl, IControlCommand, IFormControl
+    : UserControl, IControlCommand, IAsyncFormControl
 {
     YieldCurveRateEditorViewModel? _viewModel;
 
@@ -50,6 +50,7 @@ public partial class YieldCurveRateEditorControl
     /// <param name="dataLoaded">A callback action invoked with a boolean value indicating whether the data was successfully loaded.</param>
     void IControlCommand.Load(IAppRoot appRoot, Action<bool> dataLoaded)
     {
+        _viewModel?.StartListener();
         bool showError = false; 
         _viewModel?.OnDataLoaded = dataLoaded;
         
@@ -139,6 +140,7 @@ public partial class YieldCurveRateEditorControl
     /// Ensure that any dependent operations or references are completed before invoking this method.</remarks>
     void IControlCommand.Unload()
     {
+        _ = ((IAsyncFormControl)this).CloseAsync();
     }
 
     /// <summary>
@@ -280,7 +282,13 @@ public partial class YieldCurveRateEditorControl
     /// completed before calling this method.</remarks>
     /// <exception cref="NotImplementedException">This method is not yet implemented.</exception>
     public void Close()
-        => throw new NotImplementedException();
+        => _ = ((IAsyncFormControl)this).CloseAsync();
+
+    async ValueTask IAsyncFormControl.CloseAsync()
+    {
+        if (_viewModel is not null)
+            await _viewModel.StopListener();
+    }
 
     void ddlTimePeriod_SelectedIndexChanged(object sender, EventArgs e) 
         => ShowYieldCurveRates();

@@ -11,7 +11,7 @@ using TomasAI.IFM.UI.Net.ViewModels.App;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 
-public partial class MarketEconomicCalendarView : UserControl, IFormControl
+public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
 {
     MarketEconomicCalendarReadModel? _viewModel;
 
@@ -80,7 +80,13 @@ public partial class MarketEconomicCalendarView : UserControl, IFormControl
     public void Open() { }
     void IFormControl.Resize(Control parentControl) { }
 
-    public void Close() => _viewModel!.StopEventListeners();
+    public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
+
+    async ValueTask IAsyncFormControl.CloseAsync()
+    {
+        if (_viewModel is not null)
+            await _viewModel.StopEventListeners();
+    }
 
     private void tabCalendarPeriod_SelectedIndexChanged(object sender, EventArgs e)
     {

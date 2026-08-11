@@ -6,14 +6,16 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.App;
 
-public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnly    valueDate)
+public class StatusConsoleViewModel : IAsyncLifecycle, IAsyncDisposable
 {
-    IAppRoot _appRoot = appRoot;
-    string _contractId = contractId;
-    DateOnly _valueDate = valueDate;
+    readonly IAppRoot _appRoot;
+    readonly string _contractId;
+    readonly DateOnly _valueDate;
+    readonly AsyncLifecycleCoordinator _lifecycle;
     List<FuturesItiSignalV2ReadModel> _futuresItiSignals = [];
     FuturesTradeSignalV2ReadModel? _futuresTradeSignal;
     List<MDIForwardLossRatioUIViewModel> _mdiForwardLossRatios = new();
@@ -22,6 +24,14 @@ public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnl
     public Action<FuturesItiSignalV2ReadModel> OnTrendExtremeChanged = null!;
     public Action<FuturesTradeStatusUIViewModel> OnTradeStatusChanged = null!;
     public Action<MDIForwardLossRatioUIViewModel[]> OnMDIForwardLossRatiosLoaded = null!;
+
+    public StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnly valueDate)
+    {
+        _appRoot = appRoot;
+        _contractId = contractId;
+        _valueDate = valueDate;
+        _lifecycle = new AsyncLifecycleCoordinator(StartConsumerCoreAsync, StopConsumerCoreAsync);
+    }
 
     public Task LoadTradeStatus()
         => _appRoot.GetModel<MarketDataAnalyticsQueryModel>().ExecuteAsync(async model => {
@@ -59,7 +69,11 @@ public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnl
           });
 
     public async Task StartMarketDataAnalyticsEventConsumer()
+        => await InitializeAsync(CancellationToken.None);
+
+    async Task StartConsumerCoreAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         await _appRoot.GetModel<MarketDataAnalyticsEventModel>().ExecuteAsync(async model => {
                model.OnError((_, errorMessage) => OnErrorMessage?.Invoke(errorMessage));
                await model.StartFuturesItiSignalEventListenersAsync(
@@ -92,10 +106,18 @@ public class StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnl
     }
 
     public Task StopMarketDataAnalyticsEventConsumer()
+        => StopAsync(CancellationToken.None);
+
+    Task StopConsumerCoreAsync(CancellationToken cancellationToken)
         => _appRoot.GetModel<MarketDataAnalyticsEventModel>().ExecuteAsync(async model => {
+            cancellationToken.ThrowIfCancellationRequested();
             model.OnError((_, errorMessage) => OnErrorMessage?.Invoke(errorMessage));
             await model.StopFuturesItiSignalEventListenersAsync();
         });
+
+    public Task InitializeAsync(CancellationToken cancellationToken) => _lifecycle.InitializeAsync(cancellationToken);
+    public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
+    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
 
     public FuturesTradeStatusUIViewModel GetTradeStatus( )
     {

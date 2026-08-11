@@ -35,9 +35,10 @@ public partial class StatusConsoleView : UserControl
         _viewModel.LoadMDIForwardLossRatios();
     }
 
-    public void UnloadView()
+    public async ValueTask UnloadViewAsync()
     {
-        _viewModel?.StopMarketDataAnalyticsEventConsumer();
+        if (_viewModel is not null)
+            await _viewModel.StopMarketDataAnalyticsEventConsumer();
     }
 
     public void RefreshStatusConsole(StatusConsoleLogReadModel[] logItems)

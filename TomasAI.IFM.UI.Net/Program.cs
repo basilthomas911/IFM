@@ -3,7 +3,6 @@ using System.Text;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Diagnostics;
 using TomasAI.IFM.UI.Net.Views.App;
 using WinForms=System.Windows.Forms;
 
@@ -35,7 +34,6 @@ namespace TomasAI.IFM.UI.Net
             var config = AppSetup();
             var mainForm = Startup.Configure(config).GetForm<IFMAppView>();
             WinForms.Application.Run(new DelayedApplicationContext(mainForm, TimeSpan.FromSeconds(10)));
-            Process.GetCurrentProcess().Kill();
         }
 
         sealed class DelayedApplicationContext : WinForms.ApplicationContext
@@ -76,7 +74,8 @@ namespace TomasAI.IFM.UI.Net
             errorMessage.AppendLine(((Exception)e.ExceptionObject).Message);
             errorMessage.AppendLine(((Exception)e.ExceptionObject).StackTrace);
             MessageBox.Show($"{errorMessage}", "UnhandledException", WinForms.MessageBoxButtons.OK, WinForms.MessageBoxIcon.Error);
-            Process.GetCurrentProcess().Kill();
+            Environment.ExitCode = 1;
+            WinForms.Application.Exit();
         }
 
         static void Application_ThreadException(object sender, System.Threading.ThreadExceptionEventArgs e)
@@ -89,7 +88,8 @@ namespace TomasAI.IFM.UI.Net
             errorMessage.AppendLine(ex.Message);
             errorMessage.AppendLine(ex.StackTrace);
             MessageBox.Show($"{errorMessage}", "ThreadException", WinForms.MessageBoxButtons.OK, WinForms.MessageBoxIcon.Error);
-            Process.GetCurrentProcess().Kill();
+            Environment.ExitCode = 1;
+            WinForms.Application.Exit();
         }
     }
 }

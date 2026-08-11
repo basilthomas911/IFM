@@ -11,12 +11,15 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.App;
 
-public class IFMAppViewModel
+public class IFMAppViewModel : IAsyncLifecycle, IAsyncDisposable
 {
-    IAppRoot _appRoot;
+    readonly IAppRoot _appRoot;
+    readonly TimeProvider _timeProvider;
+    readonly AsyncLifecycleCoordinator _lifecycle;
     Guid _siteId;
     Version _appVersion = null!;
     string _appEnvironment = null!;
@@ -30,23 +33,23 @@ public class IFMAppViewModel
     Action<FuturesTradeSignalUIViewModel> _updateTradeSignal = null!;
     Action<PlaceTradeUIViewModel> _notifyTradePlacement = null!;
     Action<string, FuturesBarDataReadModel[]> _updateMarketData = null!;
-    Action _closeTradeBlotters = null!;
+    Func<ValueTask> _closeTradeBlotters = null!;
+    Action _requestApplicationClose = null!;
     Action<string, DateOnly> _loadStatusConsole = null!;
-    Action _unloadStatusConsole = null!;
-    CancellationTokenSource? _resetCanceller;
-    bool _resetCancelled;
+    Func<ValueTask> _unloadStatusConsole = null!;
     int _resetTicks;
 
     /// <summary>
     /// create IFM app root view model
     /// </summary>
     /// <param name="appRoot"></param>
-    public IFMAppViewModel(IAppRoot appRoot)
+    public IFMAppViewModel(IAppRoot appRoot, TimeProvider? timeProvider = null)
     {
-        _appRoot = appRoot;
+        _appRoot = appRoot ?? throw new ArgumentNullException(nameof(appRoot));
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _siteId = Guid.NewGuid();
         _appRoot.GetModel<EventModel>().SetSiteId(_siteId);
-        _resetCancelled = false;
+        _lifecycle = new AsyncLifecycleCoordinator(InitializeCoreAsync, StopCoreAsync);
     }
 
     public DateOnly? ValueDate => _valueDate;
@@ -64,14 +67,15 @@ public class IFMAppViewModel
         Action<string, string> onErrorMessage,
         Action onEnableMenuBarButtons,
         Action<string, DateOnly> loadStatusConsole,
-        Action unloadStatusConsole,
+        Func<ValueTask> unloadStatusConsole,
         Action<string> writeStatusLine,
         Action<StatusConsoleLogReadModel[]> writeStatusConsole,
         Action<FuturesEodDataUIViewModel> updateMarketOutlook,
         Action<FuturesTradeSignalUIViewModel> updateTradeSignal,
         Action<PlaceTradeUIViewModel> notifyTradePlacement,
         Action<string, FuturesBarDataReadModel[]> updateMarketData,
-        Action closeTradeBlotters)
+        Func<ValueTask> closeTradeBlotters,
+        Action requestApplicationClose)
     {
         _appVersion = appVersion;
         _appEnvironment = appEnvironment;
@@ -84,11 +88,10 @@ public class IFMAppViewModel
         _notifyTradePlacement = notifyTradePlacement;
         _updateMarketData = updateMarketData;
         _closeTradeBlotters = closeTradeBlotters;
+        _requestApplicationClose = requestApplicationClose;
         _loadStatusConsole = loadStatusConsole;
         _unloadStatusConsole = unloadStatusConsole;
-        await StartStatusConsoleListener();
-        await StartApplicationEventsListener();
-        await AppStartup();
+        await InitializeAsync(CancellationToken.None);
     }
 
     /// <summary>
@@ -97,8 +100,35 @@ public class IFMAppViewModel
     public async Task AppShutdown()
     {
         WriteStatusConsole($"IFMApp v{_appVersion} - {_appEnvironment}...shutting down");
-        _unloadStatusConsole?.Invoke();
-        _closeTradeBlotters?.Invoke();
+        if (_unloadStatusConsole is not null)
+            await _unloadStatusConsole();
+        if (_closeTradeBlotters is not null)
+            await _closeTradeBlotters();
+        await StopAsync(CancellationToken.None);
+    }
+
+    /// <inheritdoc />
+    public Task InitializeAsync(CancellationToken cancellationToken)
+        => _lifecycle.InitializeAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public Task StopAsync(CancellationToken cancellationToken)
+        => _lifecycle.StopAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
+        => _lifecycle.DisposeAsync();
+
+    async Task InitializeCoreAsync(CancellationToken cancellationToken)
+    {
+        await StartStatusConsoleListener();
+        await StartApplicationEventsListener();
+        await StartApplicationCoreAsync(cancellationToken);
+    }
+
+    async Task StopCoreAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         await StopFuturesEodDataEventConsumer();
         await StopFuturesBarDataEventConsumer();
         await StopFuturesTradeSignalEventConsumer();
@@ -106,13 +136,14 @@ public class IFMAppViewModel
         await StopFuturesRsiSignalService();
         await DisableMarketDataFeedResetListener();
         await DisableTradeLiveFeed();
-        StopResetLiveFeed();
+        await _appRoot.GetModel<ApplicationEventModel>().StopApplicationEventConsumerAsync();
+        await _appRoot.GetModel<StatusConsoleModel>().StopStatusConsoleLogListener(_siteId);
     }
 
     /// <summary>
     /// application startup
     /// </summary>
-    Task AppStartup(Action tradeStartup = default!)
+    Task StartApplicationCoreAsync(CancellationToken cancellationToken, Action? tradeStartup = null)
         => _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model =>
         {
             model.OnError((_, errorMsg) => _errorMessage($"Unable to connect to IFM servers {Environment.NewLine}{errorMsg}", "Market Data Error"));
@@ -134,14 +165,14 @@ public class IFMAppViewModel
             _valueDate = valueDate;
             await ImportYieldCurveRates(() => { });
             await ImportEconomicCalendars(() => { });
-            await StartFuturesEodDataEventConsumer();
-            await StartFuturesBarDataEventConsumer();
-            await StartFuturesTradeSignalEventConsumer();
-            await StartTradePlacementEventConsumer();
-            await EnableMarketDataFeedResetListener();
-            await EnableTradeLiveFeed();
-            StartResetLiveFeed();
-            await StartFuturesRsiSignalService();
+            await StartFuturesEodDataEventConsumer(cancellationToken);
+            await StartFuturesBarDataEventConsumer(cancellationToken);
+            await StartFuturesTradeSignalEventConsumer(cancellationToken);
+            await StartTradePlacementEventConsumer(cancellationToken);
+            await EnableMarketDataFeedResetListener(cancellationToken);
+            await EnableTradeLiveFeed(cancellationToken);
+            _lifecycle.RunAsync(ResetLiveFeedAsync);
+            await StartFuturesRsiSignalService(cancellationToken);
             WriteStatusConsole($"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete");
             tradeStartup?.Invoke();
             _loadStatusConsole?.Invoke(
@@ -173,8 +204,16 @@ public class IFMAppViewModel
         => _appRoot.GetModel<ApplicationEventModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMessage) => _errorMessage(errorMessage, "Application Events Listener Error"));
             await model.StartApplicationEventConsumerAsync(
-                startupAction: _ => AppStartup( () => StartupOpenTrades()),
-                shutdownAction: _ => AppShutdown());
+                startupAction: _ =>
+                {
+                    StartupOpenTrades();
+                    return ValueTask.CompletedTask;
+                },
+                shutdownAction: _ =>
+                {
+                    _requestApplicationClose();
+                    return ValueTask.CompletedTask;
+                });
         });
 
     /// <summary>
@@ -225,7 +264,7 @@ public class IFMAppViewModel
     /// <summary>
     /// start futures eod data event consumer
     /// </summary>
-    async Task StartFuturesEodDataEventConsumer()
+    async Task StartFuturesEodDataEventConsumer(CancellationToken cancellationToken)
     {
 
 
@@ -233,11 +272,11 @@ public class IFMAppViewModel
         {
             model.OnError((_, errorMessage) => _errorMessage(errorMessage, "Starting Futures Eod Data Event Consumer Error"));
             WriteStatusConsole("Starting Futures Eod Data Event Consumer...");
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            await DelayStartupAsync(cancellationToken);
             await model.StartFuturesEodDataEventConsumerAsync(
                 _siteId, e =>
                 {
-                    _resetTicks = 0;
+                    Interlocked.Exchange(ref _resetTicks, 0);
                     _updateMarketOutlook?.Invoke(new FuturesEodDataUIViewModel(e.FuturesEodData));
                     WriteStatusConsole($"{e.FuturesEodData.ContractId}={e.FuturesEodData.ClosePrice:F2}@{e.FuturesEodData.DailyPercentChange:P} {e.FuturesEodData.MarketDirection}:{e.FuturesEodData.MarketVolatility}:{e.FuturesEodData.PriceDirection}:{e.FuturesEodData.PriceVolatility}",
                                         LogSourceType.MarketDataFeedEvent);
@@ -258,13 +297,13 @@ public class IFMAppViewModel
     /// <summary>
     /// start futures trade signal event consumer
     /// </summary>
-    async Task StartFuturesTradeSignalEventConsumer()
+    async Task StartFuturesTradeSignalEventConsumer(CancellationToken cancellationToken)
     {
         await _appRoot.GetModel<MarketDataAnalyticsQueryModel>().ExecuteAsync(async model =>
         {
             model.OnError((_, errorMessage) => _errorMessage(errorMessage, "Starting Futures Trade Signal Event Consumer Error"));
             WriteStatusConsole("Starting Futures Trade Signal event consumer...");
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            await DelayStartupAsync(cancellationToken);
             var contractId = _baseContracts?.FirstOrDefault(e => e.Id.Symbol == "ES")?.ContractId;
             if (contractId is not null)
                 await model.GetFuturesTradeSignalAsync(
@@ -300,11 +339,11 @@ public class IFMAppViewModel
     /// <summary>
     /// start trade placement event consumer
     /// </summary>
-    Task StartTradePlacementEventConsumer()
+    Task StartTradePlacementEventConsumer(CancellationToken cancellationToken)
         => _appRoot.GetModel<TradePlacementEventModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMessage) => _errorMessage(errorMessage, "Starting Trade Placement Event Consumer Error"));
             WriteStatusConsole("Starting Trade Placement Event Consumer...");
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            await DelayStartupAsync(cancellationToken);
             await model.StartTradePlacementListenerAsync(e => _notifyTradePlacement?.Invoke(new PlaceTradeUIViewModel(e)));
             await _appRoot.GetModel<TradePlacementCommandModel>().ExecuteAsync(async tradePlacementModel => {
                 var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
@@ -338,10 +377,10 @@ public class IFMAppViewModel
     /// <summary>
     /// start futures rsi signal service
     /// </summary>
-    Task StartFuturesRsiSignalService()
+    Task StartFuturesRsiSignalService(CancellationToken cancellationToken)
         => _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMessage) => _errorMessage(errorMessage, "Starting Futures Rsi Signal Service Error"));
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            await DelayStartupAsync(cancellationToken);
             var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
             if (esContract is not null && _valueDate.HasValue)
             {
@@ -369,11 +408,11 @@ public class IFMAppViewModel
     /// <summary>
     /// start futures bar data event consumer
     /// </summary>
-    Task StartFuturesBarDataEventConsumer()
+    Task StartFuturesBarDataEventConsumer(CancellationToken cancellationToken)
         => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMessage) => _errorMessage(errorMessage, "Starting Futures Bar Data Event Consumer Error"));
             WriteStatusConsole("Starting Futures Bar Data Event Consumer...");
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            await DelayStartupAsync(cancellationToken);
             await model.StartFuturesBarDataEventConsumerAsync(
                 _siteId, async e =>
                 await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async queryModel =>
@@ -437,11 +476,11 @@ public class IFMAppViewModel
     /// <summary>
     /// enable trade live feed
     /// </summary>
-    Task EnableTradeLiveFeed()
+    Task EnableTradeLiveFeed(CancellationToken cancellationToken = default)
         => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMessage) => _errorMessage(errorMessage, "Enable Trade Live Feed Error"));
             WriteStatusConsole("Starting Trade Data Feeds...");
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            await DelayStartupAsync(cancellationToken);
             if (_valueDate is not null)
                 await model.StartDataFeedAsync(_baseContracts, _valueDate.Value);
         });
@@ -467,16 +506,13 @@ public class IFMAppViewModel
     /// <summary>
     /// enable market data feed reset listener
     /// </summary>
-    Task EnableMarketDataFeedResetListener()
+    Task EnableMarketDataFeedResetListener(CancellationToken cancellationToken)
         => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMessage) => _errorMessage(errorMessage, "Enable MarketData Feed Reset Listener Error"));
             WriteStatusConsole("Starting Market Data Feed Reset Listener...");
-            await Task.Delay(TimeSpan.FromSeconds(1));
-            await model.StartMarketDataFeedResetListenerAsync(e =>
-            {
-                EnableTradeLiveFeed();
-                return ValueTask.CompletedTask;
-            });
+            await DelayStartupAsync(cancellationToken);
+            await model.StartMarketDataFeedResetListenerAsync(
+                _ => new ValueTask(EnableTradeLiveFeed()));
         });
 
     /// <summary>
@@ -489,79 +525,38 @@ public class IFMAppViewModel
         });
 
     /// <summary>
-    /// start reset live feed
+    /// Runs the market-data watchdog until the application lifetime is cancelled.
     /// </summary>
-    void StartResetLiveFeed()
+    async Task ResetLiveFeedAsync(CancellationToken cancellationToken)
     {
-        _resetCancelled = false;
-        _resetCanceller = new CancellationTokenSource();
-        var cancellationToken = _resetCanceller.Token;
-        _ = Task.Run(async () =>
+        const int resetMaxTicks = 900;
+        while (true)
         {
-            try
-            {
-                await ResetLiveFeedAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                _resetCancelled = true;
-            }
-        }, cancellationToken);
-        return;
+            await Task.Delay(TimeSpan.FromSeconds(1), _timeProvider, cancellationToken).ConfigureAwait(false);
+            if (Interlocked.Increment(ref _resetTicks) <= resetMaxTicks)
+                continue;
 
-        /// <summary>
-        /// run every second to check if we have received any market data
-        /// if not data received after max time expired (2 minutes), send reset market data feed command
-        /// resetTicks will be cleared every time we receive data from market data feed
-        /// only execute market data reset command outside of main trading hours
-        /// </summary>
-        /// <returns></returns>
-        async Task ResetLiveFeedAsync(CancellationToken cancellationToken)
-        {
-            var resetMaxTicks = 900; // reset after 15 minutes of no market feed asset price updates...
-            while (!_resetCancelled)
-            {
-                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
-                _resetTicks++;
-                if (_resetTicks > resetMaxTicks)
-                {
-                    _resetTicks = 0;
-                    DateOnly? valueDate = null;
-                    await _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async marketDataModel =>
-                        await marketDataModel.GetValueDateAsync(value => valueDate = value));
+            Interlocked.Exchange(ref _resetTicks, 0);
+            DateOnly? valueDate = null;
+            await _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async marketDataModel =>
+                await marketDataModel.GetValueDateAsync(value => valueDate = value));
 
-                    if (valueDate.HasValue)
-                    {
-                        WriteStatusConsole("Reseting Live Feed...Market Data Feed Failing To Respond");
-                        await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
-                        {
-                            await model.ResetDataFeedAsync(_baseContracts, valueDate.Value);
-                            foreach (var contract in _baseContracts)
-                            {
-                                await model.DeleteFuturesBarDataAsync(
-                                    new FuturesBarDataId(contract.ContractId, contract.Symbol, valueDate.Value));
-                            }
-                        });
-                    }
-                }
-            }
+            if (!valueDate.HasValue)
+                continue;
+
+            WriteStatusConsole("Reseting Live Feed...Market Data Feed Failing To Respond");
+            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
+            {
+                await model.ResetDataFeedAsync(_baseContracts, valueDate.Value);
+                foreach (var contract in _baseContracts)
+                    await model.DeleteFuturesBarDataAsync(
+                        new FuturesBarDataId(contract.ContractId, contract.Symbol, valueDate.Value));
+            });
         }
     }
 
-
-    /// <summary>
-    /// stop reset live feed
-    /// </summary>
-    void StopResetLiveFeed()
-    {
-        try
-        {
-            _resetCanceller?.Cancel();
-            _resetCanceller?.Dispose();
-            _resetCanceller = null;
-        }
-        catch { }
-    }
+    Task DelayStartupAsync(CancellationToken cancellationToken)
+        => Task.Delay(TimeSpan.FromSeconds(1), _timeProvider, cancellationToken);
 
     /// <summary>
     /// write message to console

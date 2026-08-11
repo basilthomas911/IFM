@@ -184,9 +184,10 @@ public partial class TradeOrderEditorForm
     {
     }
 
-    void TradeOrderEditorForm_FormClosing(object sender, FormClosingEventArgs e)
+    async void TradeOrderEditorForm_FormClosing(object sender, FormClosingEventArgs e)
     {
-        _viewModel?.StopFundOrderListener();
+        if (_viewModel is not null)
+            await _viewModel.StopFundOrderListener();
     }
 
     void LoadOrderActionTypes()

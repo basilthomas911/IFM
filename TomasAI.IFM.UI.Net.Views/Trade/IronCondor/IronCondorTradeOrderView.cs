@@ -19,7 +19,7 @@ using TomasAI.IFM.Domain.Fund.Shared;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
-public partial class IronCondorTradeOrderView : UserControl, IFormControl, ITradeOrderControl
+public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, ITradeOrderControl
 {
     IronCondorTradeOrderReadModel _viewModel;
 
@@ -98,7 +98,11 @@ public partial class IronCondorTradeOrderView : UserControl, IFormControl, ITrad
 
     public void Close()
     {
+        _ = ((IAsyncFormControl)this).CloseAsync();
     }
+
+    async ValueTask IAsyncFormControl.CloseAsync()
+        => await _viewModel.StopAsync(CancellationToken.None);
 
     void IFormControl.Resize(Control parentControl)
     {

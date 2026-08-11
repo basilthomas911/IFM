@@ -21,7 +21,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData;
 /// model (<see cref="FuturesOptionContractEditorViewModel"/>) to handle  data operations and provides feedback to the
 /// user through UI elements such as combo boxes,  text fields, and lists.</remarks>
 public partial class FuturesOptionContractEditorControl 
-    : UserControl, IControlCommand, IFormControl
+    : UserControl, IControlCommand, IAsyncFormControl
 {
     readonly FuturesOptionContractEditorViewModel _viewModel;
     readonly MarketDataViewModel _mktDataViewModel;
@@ -194,7 +194,7 @@ public partial class FuturesOptionContractEditorControl
     /// method.</remarks>
     void IControlCommand.Unload()
     {
-        _viewModel.StopListener();
+        _ = ((IAsyncFormControl)this).CloseAsync();
     }
 
     /// <summary>
@@ -482,7 +482,10 @@ public partial class FuturesOptionContractEditorControl
         => throw new NotImplementedException();
 
     public void Close()
-        => throw new NotImplementedException();
+        => _ = ((IAsyncFormControl)this).CloseAsync();
+
+    async ValueTask IAsyncFormControl.CloseAsync()
+        => await _viewModel.StopListener();
 
     void ddlSymbol_SelectedIndexChanged(object sender, EventArgs e)
     {

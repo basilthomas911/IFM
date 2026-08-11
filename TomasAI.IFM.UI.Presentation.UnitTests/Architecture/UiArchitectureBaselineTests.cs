@@ -72,9 +72,15 @@ public class UiArchitectureBaselineTests
         matches.Should().BeEquivalentTo(
         [
             "TomasAI.IFM.UI.Net.Views/App/IFMAppView.cs",
+            "TomasAI.IFM.UI.Net.Views/Fund/AdjustFundTransactionEditor.cs",
+            "TomasAI.IFM.UI.Net.Views/MarketData/MarketDataForm.cs",
             "TomasAI.IFM.UI.Net.Views/MarketData/YieldCurveRateEditForm.cs",
+            "TomasAI.IFM.UI.Net.Views/SystemAdmin/SystemAdminForm.cs",
+            "TomasAI.IFM.UI.Net.Views/SystemInfo/SystemWaitView.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/CreateFundOrderTradeForm.cs",
-            "TomasAI.IFM.UI.Net.Views/Trade/IronCondor/IronCondorView.cs"
+            "TomasAI.IFM.UI.Net.Views/Trade/IronCondor/IronCondorView.cs",
+            "TomasAI.IFM.UI.Net.Views/Trade/TradeEndOfDayForm.cs",
+            "TomasAI.IFM.UI.Net.Views/Trade/TradeOrderEditorForm.cs"
         ]);
     }
 
@@ -82,8 +88,9 @@ public class UiArchitectureBaselineTests
     [InlineData(@"\.Execute\s*\(\s*async\b", 0, "Action-based async Model executions")]
     [InlineData(@"_appRoot\.Execute\s*\(\s*async\b", 0, "Action-based async application-root executions")]
     [InlineData(@"catch(?:\s*\([^)]*\))?\s*\{\s*\}", 15, "empty catch blocks")]
-    [InlineData(@"Task\.Run\s*\(", 2, "Task.Run calls")]
-    [InlineData(@"Process\.(?:GetCurrentProcess\(\)\.)?Kill\s*\(|GetCurrentProcess\(\)\.Kill\s*\(", 3, "forced process termination calls")]
+    [InlineData(@"Task\.Run\s*\(", 0, "Task.Run calls")]
+    [InlineData(@"System\.Threading\.Timer|new\s+System\.Timers\.Timer", 0, "unowned background timers")]
+    [InlineData(@"Process\.(?:GetCurrentProcess\(\)\.)?Kill\s*\(|GetCurrentProcess\(\)\.Kill\s*\(", 0, "forced process termination calls")]
     [InlineData(@"\.(?:Post|BeginInvoke)\s*\(", 144, "fire-and-forget UI dispatch calls")]
     public void KnownTechnicalDebt_DoesNotExceedRecordedBaseline(
         string pattern,

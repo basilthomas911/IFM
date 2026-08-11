@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
@@ -16,8 +17,9 @@ using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 
-public class EndOfDayProcessViewModel : BaseEditorViewModel
+public class EndOfDayProcessViewModel : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
+    readonly AsyncLifecycleCoordinator _lifecycle;
     readonly IAppRoot _appRoot;
     readonly TradeEndOfDayParameter _eodParam;
     decimal _openPrice;
@@ -50,6 +52,7 @@ public class EndOfDayProcessViewModel : BaseEditorViewModel
         _tradeQueryModel = _appRoot.GetModel<TradeQueryModel>();
         _mktDataFeedQueryModel = _appRoot.GetModel<MarketDataFeedQueryModel>();
         ValueDate = eodParam.ValueDate;
+        _lifecycle = new AsyncLifecycleCoordinator(StartListenerCoreAsync, StopListenerCoreAsync);
     }
 
     public int FundId => _eodParam.FundId;
@@ -83,16 +86,28 @@ public class EndOfDayProcessViewModel : BaseEditorViewModel
     public Action<string, string> ShowErrorMessage = null!;
 
     public Task StartListener()
+       => InitializeAsync(CancellationToken.None);
+
+    Task StartListenerCoreAsync(CancellationToken cancellationToken)
        => _eventModel.ExecuteAsync(async e => {
+           cancellationToken.ThrowIfCancellationRequested();
            e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
            await e.StartEndOfDayProcessListenerAsync(HandleEventAsync);
        });
 
     public Task StopListener()
+        => StopAsync(CancellationToken.None);
+
+    Task StopListenerCoreAsync(CancellationToken cancellationToken)
         => _eventModel.ExecuteAsync(async e => {
+            cancellationToken.ThrowIfCancellationRequested();
             e.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await e.StopEndOfDayProcessListenerAsync();
         });
+
+    public Task InitializeAsync(CancellationToken cancellationToken) => _lifecycle.InitializeAsync(cancellationToken);
+    public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
+    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
 
     ValueTask HandleEventAsync(IEvent e)
     {

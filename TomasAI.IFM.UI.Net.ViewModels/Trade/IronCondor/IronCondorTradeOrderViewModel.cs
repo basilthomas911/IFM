@@ -22,6 +22,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
@@ -32,8 +33,10 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 /// setting trade dates, calculating trade values, managing live feed data, and more. It is designed to work with a
 /// trading application infrastructure, utilizing models and actions to perform operations related to option trading
 /// strategies.</remarks>
-public class IronCondorTradeOrderReadModel
+public class IronCondorTradeOrderReadModel : IAsyncLifecycle, IAsyncDisposable
 {
+    readonly AsyncLifecycleCoordinator _riskMarginLifecycle;
+    readonly AsyncLifecycleCoordinator _liveFeedLifecycle;
     IAppRoot _appRoot;
     OptionTradeReadModel _ironCondorTrade = null!;
     OptionTradeReadModel _parentTrade = null!;
@@ -94,6 +97,8 @@ public class IronCondorTradeOrderReadModel
         _putSpreadStrikeWidth = 30; // change to get strike width from reference data...
         _callSpreadStrikeWidth = 15; // change to get strike width from reference data...
         _liveFeedQuoteId = Guid.Empty;
+        _riskMarginLifecycle = new AsyncLifecycleCoordinator(StartFundRiskMarginConsumerCoreAsync, StopFundRiskMarginConsumerCoreAsync);
+        _liveFeedLifecycle = new AsyncLifecycleCoordinator(StartLiveFeedCoreAsync, StopLiveFeedCoreAsync);
     }
 
     public IAppRoot AppRoot => _appRoot;
@@ -204,12 +209,21 @@ public class IronCondorTradeOrderReadModel
     /// <remarks>This method triggers the execution of a series of asynchronous operations to update the
     /// fund's maximum profit. It handles errors by displaying an error message if any issues occur during the
     /// process.</remarks>
-    public Task SetFundMaxProfit()
-        => _appRoot.GetModel<FundCommandModel>().ExecuteAsync(async model => {
+    public async Task SetFundMaxProfit()
+    {
+        await _riskMarginLifecycle.InitializeAsync(CancellationToken.None);
+        await _appRoot.GetModel<FundCommandModel>().ExecuteAsync(async model => {
             model.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Setting Fund Max Profit Error Error"));
-            await model.StartFundRiskMarginEventConsumerAsync(FundMaxProfitChanged, FundMaxProfitFailed);
             await Task.Delay(TimeSpan.FromSeconds(1));
             await model.GenerateFundRiskMarginAsync(_fundOrder, Domain.MarketData.Analytics.Shared.TimeFrameType.FifteenSeconds);
+        });
+    }
+
+    Task StartFundRiskMarginConsumerCoreAsync(CancellationToken cancellationToken)
+        => _appRoot.GetModel<FundCommandModel>().ExecuteAsync(async model =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await model.StartFundRiskMarginEventConsumerAsync(FundMaxProfitChanged, FundMaxProfitFailed);
         });
 
     /// <summary>
@@ -219,9 +233,30 @@ public class IronCondorTradeOrderReadModel
     /// processing further events. Ensure that stopping the consumer is appropriate for the application's current state,
     /// as it will cease handling incoming events.</remarks>
     public Task StopFundRiskMarginEventConsumer()
+         => _riskMarginLifecycle.StopAsync(CancellationToken.None);
+
+    Task StopFundRiskMarginConsumerCoreAsync(CancellationToken cancellationToken)
          => _appRoot.GetModel<FundCommandModel>().ExecuteAsync(async model => {
+             cancellationToken.ThrowIfCancellationRequested();
              await model.StopFundRiskMarginEventConsumerAsync();
          });
+
+    public Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _liveFeedLifecycle.StopAsync(cancellationToken);
+        await _riskMarginLifecycle.StopAsync(cancellationToken);
+    }
+    public async ValueTask DisposeAsync()
+    {
+        await _liveFeedLifecycle.DisposeAsync();
+        await _riskMarginLifecycle.DisposeAsync();
+    }
 
     /// <summary>
     /// Retrieves the intraday profit and loss (PnL) for a specific trade and invokes a callback with the result.
@@ -370,26 +405,7 @@ public class IronCondorTradeOrderReadModel
             await model.GetFuturesRiskPositionTypeAsync(_valueDate, _fundOrderTrade.TradeType,
                 e =>
                 {
-                    var tpqModel = _appRoot.GetModel<TradePlanQueryModel>();
                     _riskPositionType = e.RiskPositionType;
-                    tpqModel.OnError((_, errorMsg) => ShowErrorMessage(errorMsg, "Loading Forward Delta Error"));
-                    /*
-                    Task.Run(async () =>
-                    {
-                        await tpqModel.GetIronCondorForwardDeltaAsync(_valueDate, _fundOrderTrade.TradeType, e.RiskPositionType,
-                               forwardDelta =>
-                               {
-                                   _forwardDelta = forwardDelta;
-                                   _riskPositionTypes = new RiskPositionType[]
-                                   {
-                                            RiskPositionType.High,
-                                            RiskPositionType.Medium,
-                                            RiskPositionType.Low,
-                                   };
-                                   ShowRiskPositionTypes?.Invoke(_riskPositionTypes);
-                               });
-                    });
-                    */
                 });
         });
 
@@ -560,6 +576,9 @@ public class IronCondorTradeOrderReadModel
     }
 
     public void TurnLiveFeedOn()
+        => _ = _liveFeedLifecycle.InitializeAsync(CancellationToken.None);
+
+    async Task StartLiveFeedCoreAsync(CancellationToken cancellationToken)
     {
         if (_liveFeedQuoteId  != Guid.Empty) return;
 
@@ -571,13 +590,14 @@ public class IronCondorTradeOrderReadModel
             contracts.Add(GetFuturesOptionContract(contractId.StrikePrice, contractId.OptionType, contractId.ContractMonth));
 
         var newContracts = contracts.ToArray();
-        _appRoot
+        await _appRoot
             .GetModel<MarketDataCommandModel>()
             .ExecuteAsync(async model => await model.AddFuturesOptionContractsAsync(
                 _valueDate.Year,
                 newContracts,
-                () => StartStreamingFuturesOptionTickData(newContracts)));
-        return;
+                () => { }));
+        cancellationToken.ThrowIfCancellationRequested();
+        await StartStreamingFuturesOptionTickData(newContracts);
 
         async Task StartStreamingFuturesOptionTickData(
             FuturesOptionContractReadModel[] futuresOptionContracts)
@@ -729,8 +749,12 @@ public class IronCondorTradeOrderReadModel
         }
     }
 
-    public async Task TurnLiveFeedOff()
+    public Task TurnLiveFeedOff()
+        => _liveFeedLifecycle.StopAsync(CancellationToken.None);
+
+    async Task StopLiveFeedCoreAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (_liveFeedQuoteId == Guid.Empty) return;
 
         await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>

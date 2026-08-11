@@ -2,11 +2,13 @@ using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Domain.SystemAdmin.Shared;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 
-public class BackupDatabasesViewModel
+public class BackupDatabasesViewModel : IAsyncLifecycle, IAsyncDisposable
 {
+    readonly AsyncLifecycleCoordinator _lifecycle;
     static Dictionary<string, Queue<string>> _statusMessagesMap = null!;
     readonly IAppRoot _appRoot;
     readonly IStatusConsoleEventProducer _statusConsoleLog;
@@ -20,6 +22,7 @@ public class BackupDatabasesViewModel
         _statusConsoleLog = statusConsoleLog ?? throw new ArgumentNullException(nameof(statusConsoleLog));
         _statusMessagesMap = new Dictionary<string, Queue<string>>();
         _databaseNames = new List<string>();
+        _lifecycle = new AsyncLifecycleCoordinator(StartConsumerCoreAsync, StopConsumerCoreAsync);
     }
 
     public string[] DatabaseNames => _databaseNames.ToArray();
@@ -57,16 +60,28 @@ public class BackupDatabasesViewModel
         });
 
     public Task StartSystemAdminEventConsumer()
+        => InitializeAsync(CancellationToken.None);
+
+    Task StartConsumerCoreAsync(CancellationToken cancellationToken)
         =>  _appRoot.GetModel<SystemAdminModel>().ExecuteAsync(async model => {
+                cancellationToken.ThrowIfCancellationRequested();
                 await model.StartSystemAdminEventConsumer(
                     infoMsgAction: o => OnStatusMessagesUpdate?.Invoke(o.DatabaseName, o.InfoMessage),
                     completedAction: o => OnDatabaseBackupComplete?.Invoke(o.DatabaseName));
             });
 
     public Task StopSystemAdminEventConsumer()
+        => StopAsync(CancellationToken.None);
+
+    Task StopConsumerCoreAsync(CancellationToken cancellationToken)
         => _appRoot.GetModel<SystemAdminModel>().ExecuteAsync(async model => {
+            cancellationToken.ThrowIfCancellationRequested();
             _statusMessagesMap.Clear();
             await model.StopSystemAdminEventConsumer();
         });
+
+    public Task InitializeAsync(CancellationToken cancellationToken) => _lifecycle.InitializeAsync(cancellationToken);
+    public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
+    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
 
 }

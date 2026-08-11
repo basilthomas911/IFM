@@ -19,16 +19,16 @@ public class ApplicationUIEventConsumer(INatsEventListenerOptions options, ILogg
 {
     readonly static string EventConsumer = "ApplicationUIEventConsumer";
     readonly ILogger _logger = logger;
-    Dictionary<string, Action<IEvent>> _eventActionMap = [];
+    Dictionary<string, Func<IEvent, ValueTask>> _eventActionMap = [];
 
     public async ValueTask StartAsync(
-        Action<ApplicationStartupEvent> startupAction,
-        Action<ApplicationShutdownEvent> shutdownAction)
+        Func<ApplicationStartupEvent, ValueTask> startupAction,
+        Func<ApplicationShutdownEvent, ValueTask> shutdownAction)
     {
-        _eventActionMap = new Dictionary<string, Action<IEvent>>
+        _eventActionMap = new Dictionary<string, Func<IEvent, ValueTask>>
         {
-            { nameof(ApplicationStartupEvent), e => startupAction?.Invoke((e as ApplicationStartupEvent)! )},
-            { nameof(ApplicationShutdownEvent), e => shutdownAction?.Invoke((e as ApplicationShutdownEvent)! ) }
+            { nameof(ApplicationStartupEvent), e => startupAction((ApplicationStartupEvent)e) },
+            { nameof(ApplicationShutdownEvent), e => shutdownAction((ApplicationShutdownEvent)e) }
         };
         await StartAsync(
            EventConsumer,
@@ -45,11 +45,10 @@ public class ApplicationUIEventConsumer(INatsEventListenerOptions options, ILogg
             {
                 _ = eventVerb switch
                 {
-                    _ when eventVerb == ApplicationStartupEvent.Verb => HandleEvent(eventMsg.AsEvent<ApplicationStartupEvent>()!, nameof(ApplicationStartupEvent)),
-                    _ when eventVerb == ApplicationShutdownEvent.Verb => HandleEvent(eventMsg.AsEvent<ApplicationShutdownEvent>()!, nameof(ApplicationShutdownEvent)),
+                    _ when eventVerb == ApplicationStartupEvent.Verb => await HandleEventAsync(eventMsg.AsEvent<ApplicationStartupEvent>()!, nameof(ApplicationStartupEvent)),
+                    _ when eventVerb == ApplicationShutdownEvent.Verb => await HandleEventAsync(eventMsg.AsEvent<ApplicationShutdownEvent>()!, nameof(ApplicationShutdownEvent)),
                     _ => default!
                 };
-                await ValueTask.CompletedTask;
             }
             catch(Exception ex)
             {
@@ -57,12 +56,12 @@ public class ApplicationUIEventConsumer(INatsEventListenerOptions options, ILogg
             }
         }
 
-        IEvent HandleEvent(IEvent e, string eventName)
+        async ValueTask<IEvent> HandleEventAsync(IEvent e, string eventName)
         {
             try
             {
-                if (_eventActionMap.TryGetValue(eventName, out Action<IEvent>? value))
-                    value?.Invoke(e);
+                if (_eventActionMap.TryGetValue(eventName, out var value))
+                    await value(e);
             }
             catch (Exception ex)
             {
@@ -76,8 +75,8 @@ public class ApplicationUIEventConsumer(INatsEventListenerOptions options, ILogg
 public interface IApplicationUIEventConsumer
 {
     ValueTask StartAsync(
-        Action<ApplicationStartupEvent> startupAction,
-        Action<ApplicationShutdownEvent> shutdownction);
+        Func<ApplicationStartupEvent, ValueTask> startupAction,
+        Func<ApplicationShutdownEvent, ValueTask> shutdownAction);
     ValueTask StopAsync();
 }
 

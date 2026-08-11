@@ -10,6 +10,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
     {
         private readonly IAppRoot _appRoot;
         private readonly EndOfDayProcessViewModel _viewModel;
+        private bool _closeComplete;
 
         public TradeEndOfDayForm(IAppRoot appRoot, TradeEndOfDayParameter eodParam)
         {
@@ -31,9 +32,14 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             _viewModel.StartListener();
         }
 
-        void TradeEndOfDayForm_FormClosed(object sender, FormClosedEventArgs e)
+        async void TradeEndOfDayForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            _viewModel.StopListener();
+            if (_closeComplete)
+                return;
+            e.Cancel = true;
+            await _viewModel.StopListener();
+            _closeComplete = true;
+            Close();
         }
 
         void btnRun_Click(object sender, EventArgs e)

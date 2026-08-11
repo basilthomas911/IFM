@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.Domain.Reference.Shared;
 using System;
 using System.Collections.Generic;
@@ -9,8 +10,10 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.App
 {
-    public class MarketEconomicCalendarReadModel
+    public class MarketEconomicCalendarReadModel : IAsyncLifecycle, IAsyncDisposable
     {
+        readonly AsyncLifecycleCoordinator _lifecycle;
+        Action _refreshView = null!;
         IAppRoot _appRoot;
         List<EconomicCalendarReadModel> _economicCalendars = null!;
         List<string> _countryCodes = null!;
@@ -27,6 +30,7 @@ namespace TomasAI.IFM.UI.Net.ViewModels.App
             _appRoot = appRoot;
             _referenceQueryModel = _appRoot.GetModel<ReferenceQueryModel>();
             _eventModel = _appRoot.GetModel<EconomicCalendarEventModel>();
+            _lifecycle = new AsyncLifecycleCoordinator(StartListenersCoreAsync, StopListenersCoreAsync);
         }
 
         public IReadOnlyCollection<string> CountryCodes => _countryCodes;
@@ -98,19 +102,34 @@ namespace TomasAI.IFM.UI.Net.ViewModels.App
             };
 
         public Task StartEventListeners(Action refreshView)
+        {
+            _refreshView = refreshView;
+            return InitializeAsync(CancellationToken.None);
+        }
+
+        Task StartListenersCoreAsync(CancellationToken cancellationToken)
             => _eventModel.ExecuteAsync(async model => {
+                cancellationToken.ThrowIfCancellationRequested();
                 model.OnError((_, errorMsg) => OnErrorMessage?.Invoke(errorMsg));
                 await model.StartEconomicCalendarEventListenersAsync(
-                    addedAction: e => refreshView?.Invoke(),
-                    changedAction: e => refreshView?.Invoke(),
-                    removedAction: e => refreshView?.Invoke(),
-                    importedAction: e => refreshView?.Invoke());
+                    addedAction: e => _refreshView?.Invoke(),
+                    changedAction: e => _refreshView?.Invoke(),
+                    removedAction: e => _refreshView?.Invoke(),
+                    importedAction: e => _refreshView?.Invoke());
             });
 
         public Task StopEventListeners()
+            => StopAsync(CancellationToken.None);
+
+        Task StopListenersCoreAsync(CancellationToken cancellationToken)
             => _eventModel.ExecuteAsync(async model => {
+                cancellationToken.ThrowIfCancellationRequested();
                 model.OnError((_, errorMsg) => OnErrorMessage?.Invoke(errorMsg));
                 await model.StopEconomicCalendarEventListenersAsync();
             });
+
+        public Task InitializeAsync(CancellationToken cancellationToken) => _lifecycle.InitializeAsync(cancellationToken);
+        public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
+        public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
     }
 }
