@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.DatabaseBackup.Contracts;
@@ -282,19 +283,26 @@ LIMIT $maximum_count;
         CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
-        var changed = await ExecuteAsync(connection, null, """
+        using var transaction = connection.BeginTransaction();
+        var changed = await ExecuteAsync(connection, transaction, """
 UPDATE journal_outbox_v1
 SET published=1, published_utc=$published_utc, publish_attempts=publish_attempts+1
 WHERE event_id=$event_id AND published=0;
+UPDATE journal_run_stats_v1
+SET published=1
+WHERE (operation_id, statistics_revision) = (
+    SELECT operation_id, service_sequence FROM journal_outbox_v1 WHERE event_id=$event_id
+);
 """, cancellationToken,
             ("$published_utc", Format(publishedUtc)), ("$event_id", eventId.ToString("D"))).ConfigureAwait(false);
         if (changed == 0)
         {
-            var published = await ScalarLongAsync(connection, null,
+            var published = await ScalarLongAsync(connection, transaction,
                 "SELECT published FROM journal_outbox_v1 WHERE event_id=$event_id;", cancellationToken,
                 ("$event_id", eventId.ToString("D"))).ConfigureAwait(false);
             if (published != 1) throw new InvalidOperationException("The DatabaseBackup service event is not present in the outbox.");
         }
+        transaction.Commit();
     }
 
     public async IAsyncEnumerable<RecoverableJournalOperation> ReadRecoverableOperationsAsync(
@@ -373,6 +381,15 @@ WHERE operation_id=$operation_id;
             ("$operation_id", @event.Source.OperationId.Value.ToString("D")),
             ("$sequence", sequence), ("$event_type", serialized.TypeName), ("$event_json", serialized.Payload),
             ("$content_hash", serialized.Hash), ("$created_utc", Format(DateTimeOffset.UtcNow))).ConfigureAwait(false);
+        if (@event.Statistics is not null)
+            await ExecuteAsync(connection, transaction, """
+INSERT INTO journal_run_stats_v1
+    (operation_id, statistics_revision, statistics_json)
+VALUES ($operation_id,$sequence,$statistics_json);
+""", cancellationToken,
+                ("$operation_id", @event.Source.OperationId.Value.ToString("D")),
+                ("$sequence", sequence),
+                ("$statistics_json", JsonSerializer.Serialize(@event.Statistics))).ConfigureAwait(false);
     }
 
     async ValueTask<LeaseState?> ReadLeaseStateAsync(

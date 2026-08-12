@@ -1,8 +1,8 @@
 # Local Workstation Database Backup and Restore Code Implementation Specification
 
-**Status:** Phase 5 implemented and Gate 5 validated; Phase 6 pending review
+**Status:** Phase 6 implemented and Gate 6 validated; Phase 7 pending review
 
-**Version:** 0.7
+**Version:** 0.8
 
 **Date:** 2026-08-12
 
@@ -1226,6 +1226,9 @@ Destructive qualification tests are separately tagged and opt-in.
 
 ### Phase 6: PostgreSQL LocalWorkstation capability
 
+**Implementation status:** Complete on 2026-08-12. See
+`Local-Workstation-Backup-Restore-Phase-6-Validation-Report.md`.
+
 - Implement base backup, WAL continuity evidence, verification, fresh-target restore, stats, and disposable integration
   tests.
 
@@ -1351,3 +1354,4 @@ For each phase, the implementing agent must:
 | 0.5 | 2026-08-12 | Implemented and validated Gate 3: DatabaseBackup Command/Event/Query actors, event-sourced aggregate states and repository, service-event translation, execution-intent outbox tracking, dependency registration, and unit/integration/BDD/benchmark coverage. |
 | 0.6 | 2026-08-12 | Implemented and validated Gate 4: Core PostgreSQL SystemAdmin schema, bounded query repository, transactional idempotent projections, checkpoints, authoritative-event replay, full projection rebuild, runtime projector wiring, and live PostgreSQL integration coverage without service-journal access. |
 | 0.7 | 2026-08-12 | Implemented and validated Gate 5: destination-neutral recovery ports, fenced SQLite journal/inbox/outbox/leases, standalone host lifecycle and health, durable JetStream ingress/egress, fake native capabilities, restart recovery, and a real JetStream-to-PostgreSQL end-to-end test. |
+| 0.8 | 2026-08-12 | Implemented and validated Gate 6: allowlisted PostgreSQL native execution, physical base backup with streamed WAL evidence, native manifest verification, restart-safe capture recovery, fenced-lease renewal, bounded run statistics, isolated fresh-target boot and validation, and disposable PostgreSQL 17 restore coverage. |

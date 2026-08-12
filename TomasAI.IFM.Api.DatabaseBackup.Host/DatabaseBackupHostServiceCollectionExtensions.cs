@@ -7,6 +7,7 @@ using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Journal;
+using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.PostgreSql;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Processing;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -32,9 +33,17 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         listenerOptions.Validate();
         var producerOptions = configuration.GetSection("Nats:JetStreamProducer")
             .Get<NatsJetStreamProducerOptions>() ?? new NatsJetStreamProducerOptions();
+        var sourceOptions = configuration.GetSection(LocalWorkstationSourceOptions.SectionName)
+            .Get<LocalWorkstationSourceOptions>() ?? new LocalWorkstationSourceOptions();
+        var postgreSqlOptions = configuration.GetSection(PostgreSqlBackupOptions.SectionName)
+            .Get<PostgreSqlBackupOptions>() ?? new PostgreSqlBackupOptions();
+        var useNativePostgreSql = sourceOptions.Enabled && !sourceOptions.DryRun;
+        if (useNativePostgreSql) postgreSqlOptions.Validate();
 
         services.AddSingleton(hostOptions);
         services.AddSingleton(journalOptions);
+        services.AddSingleton(sourceOptions);
+        services.AddSingleton(postgreSqlOptions);
         services.AddSingleton<INatsJetStreamEventListenerOptions>(listenerOptions);
         services.AddSingleton<INatsJetStreamProducerOptions>(producerOptions);
         services.AddSingleton<NatsConnectionManager>();
@@ -48,7 +57,18 @@ public static class DatabaseBackupHostServiceCollectionExtensions
             provider.GetRequiredService<NatsConnectionManager>()));
 
         services.AddSingleton<IDatabaseBackupExecutionJournal, SqliteDatabaseBackupExecutionJournal>();
-        services.AddSingleton<IPostgreSqlBackupCapability, FakePostgreSqlBackupCapability>();
+        if (useNativePostgreSql)
+        {
+            services.AddSingleton<PostgreSqlBackupCapability>();
+            services.AddSingleton<IPostgreSqlBackupCapability>(static provider =>
+                provider.GetRequiredService<PostgreSqlBackupCapability>());
+            services.AddSingleton<IDatabaseNativeCapabilityValidation>(static provider =>
+                provider.GetRequiredService<PostgreSqlBackupCapability>());
+        }
+        else
+        {
+            services.AddSingleton<IPostgreSqlBackupCapability, FakePostgreSqlBackupCapability>();
+        }
         services.AddSingleton<IScyllaBackupCapability, FakeScyllaBackupCapability>();
         services.AddSingleton<LocalWorkstationDatabaseRecoveryProcessor>();
         services.AddSingleton<IDatabaseRecoveryProcessor>(static provider =>
@@ -61,6 +81,8 @@ public static class DatabaseBackupHostServiceCollectionExtensions
 
         services.AddSingleton<DatabaseBackupJournalInitializationService>();
         services.AddHostedService(static provider => provider.GetRequiredService<DatabaseBackupJournalInitializationService>());
+        services.AddSingleton<DatabaseBackupNativeCapabilityValidationService>();
+        services.AddHostedService(static provider => provider.GetRequiredService<DatabaseBackupNativeCapabilityValidationService>());
         services.AddSingleton<DatabaseBackupOutboxPublisher>();
         services.AddHostedService(static provider => provider.GetRequiredService<DatabaseBackupOutboxPublisher>());
         services.AddSingleton<DatabaseBackupStartupReconciliationService>();

@@ -49,6 +49,36 @@ internal static class DatabaseBackupServiceEventFactory
             intent, hostId, sequence, DatabaseRecoveryPhase.Verifying,
             verificationLevel: level);
 
+    public static DatabaseRestoreValidationCompletedEvent RestoreValidated(
+        DatabaseExecutionIntent intent,
+        DatabaseBackupHostId hostId,
+        long sequence,
+        PostgreSqlRestoreResult result)
+        => Create<DatabaseRestoreValidationCompletedEvent>(
+            intent, hostId, sequence, DatabaseRecoveryPhase.Validating,
+            safeDiagnosticReference: result.SafeTargetReference,
+            verificationLevel: DatabaseVerificationLevel.ApplicationValidation,
+            validationRevision: result.ValidationRevision);
+
+    public static DatabaseRecoveryRunStatisticsCapturedEvent Statistics(
+        DatabaseExecutionIntent intent,
+        DatabaseBackupHostId hostId,
+        long sequence,
+        DatabaseRecoveryPhase phase,
+        DatabaseRecoveryRunStatistics statistics)
+        => Create<DatabaseRecoveryRunStatisticsCapturedEvent>(
+            intent, hostId, sequence, phase, statistics: statistics);
+
+    public static DatabaseRestoreReadyForCutoverEvent ReadyForCutover(
+        DatabaseExecutionIntent intent,
+        DatabaseBackupHostId hostId,
+        long sequence,
+        PostgreSqlRestoreResult result)
+        => Create<DatabaseRestoreReadyForCutoverEvent>(
+            intent, hostId, sequence, DatabaseRecoveryPhase.ReadyForCutover,
+            safeDiagnosticReference: result.SafeTargetReference,
+            validationRevision: result.ValidationRevision);
+
     public static DatabaseBackupServiceEventContract Completed(
         DatabaseExecutionIntent intent,
         DatabaseBackupHostId hostId,
@@ -69,7 +99,9 @@ internal static class DatabaseBackupServiceEventFactory
         DatabaseRecoveryPhase phase,
         DatabaseRecoveryOutcome outcome = DatabaseRecoveryOutcome.None,
         string safeDiagnosticReference = "",
-        DatabaseVerificationLevel verificationLevel = DatabaseVerificationLevel.None)
+        DatabaseVerificationLevel verificationLevel = DatabaseVerificationLevel.None,
+        DatabaseRecoveryRunStatistics? statistics = null,
+        long validationRevision = 0)
         where TEvent : DatabaseBackupServiceEventContract, new()
     {
         var execution = intent.ExecutionEvent;
@@ -97,13 +129,14 @@ internal static class DatabaseBackupServiceEventFactory
             Outcome = outcome,
             SafeDiagnosticReference = safeDiagnosticReference,
             VerificationLevel = verificationLevel,
+            Statistics = statistics,
             RestorePointId = execution.RestorePointId,
             FreshTarget = execution.FreshTarget,
             RestoreClass = execution.RestoreClass,
             PolicyId = execution.PolicyId,
             Policy = execution.Policy,
             RequiredDestinations = execution.RequiredDestinations,
-            ValidationRevision = execution.ValidationRevision,
+            ValidationRevision = validationRevision == 0 ? execution.ValidationRevision : validationRevision,
             RetentionPlanId = execution.RetentionPlanId,
             RetentionPlanRevision = execution.RetentionPlanRevision,
             EvaluationBoundaryUtc = execution.EvaluationBoundaryUtc,

@@ -61,6 +61,7 @@ public sealed class DatabaseBackupHostEndToEndTests
         Assert.Equal(
         [
             typeof(DatabaseBackupJournalInitializationService),
+            typeof(DatabaseBackupNativeCapabilityValidationService),
             typeof(DatabaseBackupOutboxPublisher),
             typeof(DatabaseBackupStartupReconciliationService),
             typeof(DatabaseBackupExecutionDispatcher),
@@ -153,7 +154,7 @@ public sealed class DatabaseBackupHostEndToEndTests
                 restartedJournal, restartedProcessor, hostOptions,
                 NullLogger<DatabaseBackupExecutionDispatcher>.Instance);
             Assert.Equal(1, await dispatcher.DispatchOnceAsync(CancellationToken.None));
-            Assert.Equal(5, (await PendingAsync(restartedJournal)).Count);
+            Assert.Equal(6, (await PendingAsync(restartedJournal)).Count);
 
             var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             await serviceListener.StartAsync(
@@ -161,7 +162,7 @@ public sealed class DatabaseBackupHostEndToEndTests
                 new Dictionary<ActorMailboxId, List<string>>
                 {
                     [new ActorMailboxId(ActorType.Event, "DatabaseBackupEvent")] =
-                    ["BackupAccepted", "BackupStarted", "BackupBoundaryEstablished", "BackupVerificationCompleted", "BackupCompleted"]
+                    ["BackupAccepted", "BackupStarted", "BackupBoundaryEstablished", "BackupVerificationCompleted", "RunStatisticsCaptured", "BackupCompleted"]
                 },
                 async (verb, message) =>
                 {
@@ -183,7 +184,7 @@ public sealed class DatabaseBackupHostEndToEndTests
                 restartedJournal, transport, hostOptions,
                 NullLogger<DatabaseBackupOutboxPublisher>.Instance);
             await transport.StartAsync(CancellationToken.None);
-            Assert.Equal(5, await outbox.PublishPendingOnceAsync(CancellationToken.None));
+            Assert.Equal(6, await outbox.PublishPendingOnceAsync(CancellationToken.None));
             await completed.Task.WaitAsync(TestTimeout);
             await transport.StopAsync(CancellationToken.None);
             await serviceListener.StopAsync();
@@ -271,6 +272,7 @@ public sealed class DatabaseBackupHostEndToEndTests
             "BackupStarted" => message.AsEvent<DatabaseBackupServiceStartedEvent>()!,
             "BackupBoundaryEstablished" => message.AsEvent<DatabaseBackupBoundaryEstablishedEvent>()!,
             "BackupVerificationCompleted" => message.AsEvent<DatabaseBackupVerificationCompletedEvent>()!,
+            "RunStatisticsCaptured" => message.AsEvent<DatabaseRecoveryRunStatisticsCapturedEvent>()!,
             "BackupCompleted" => message.AsEvent<DatabaseBackupServiceCompletedEvent>()!,
             _ => throw new InvalidOperationException($"Unexpected service event '{verb}'.")
         };

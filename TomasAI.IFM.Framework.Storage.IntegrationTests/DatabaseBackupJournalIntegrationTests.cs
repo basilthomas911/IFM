@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
@@ -57,12 +58,13 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         await processor.ExecuteAsync(recoverable.Single(), CancellationToken.None);
 
         var pending = await PendingAsync(afterRestart);
-        pending.Select(static item => item.ServiceSequence).Should().Equal(1, 2, 3, 4, 5);
+        pending.Select(static item => item.ServiceSequence).Should().Equal(1, 2, 3, 4, 5, 6);
         pending.Select(static item => item.Event.GetType().Name).Should().Equal(
             "DatabaseBackupServiceAcceptedEvent",
             "DatabaseBackupServiceStartedEvent",
             "DatabaseBackupBoundaryEstablishedEvent",
             "DatabaseBackupVerificationCompletedEvent",
+            "DatabaseRecoveryRunStatisticsCapturedEvent",
             "DatabaseBackupServiceCompletedEvent");
         (await RecoverableAsync(afterRestart)).Should().BeEmpty();
     }
@@ -87,7 +89,7 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         await restartedProcessor.ExecuteAsync((await RecoverableAsync(journal)).Single(), CancellationToken.None);
 
         var pending = await PendingAsync(journal);
-        pending.Select(static item => item.ServiceSequence).Should().Equal(1, 2, 3, 4, 5);
+        pending.Select(static item => item.ServiceSequence).Should().Equal(1, 2, 3, 4, 5, 6);
         pending.Select(static item => item.Event.GetType().Name).Should().OnlyHaveUniqueItems();
     }
 
@@ -125,6 +127,51 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
             .Should().Throw<UnsupportedDatabaseBackupSourceException>();
         ((Action)(() => registry.GetRequired(BackupSource.AwsCloud)))
             .Should().Throw<UnsupportedDatabaseBackupSourceException>();
+    }
+
+    [Fact]
+    public async Task Production_restore_stops_at_ready_for_cutover_after_fresh_target_validation()
+    {
+        var journal = CreateJournal();
+        await journal.InitializeAsync(CancellationToken.None);
+        var intent = RestoreIntent();
+        await journal.AdmitAsync(intent, CancellationToken.None);
+        var processor = new LocalWorkstationDatabaseRecoveryProcessor(
+            journal, new FakePostgreSqlBackupCapability(), HostOptions());
+
+        await processor.ExecuteAsync((await RecoverableAsync(journal)).Single(), CancellationToken.None);
+
+        var pending = await PendingAsync(journal);
+        pending.Select(static item => item.ServiceSequence).Should().Equal(1, 2, 3, 4, 5);
+        pending.Select(static item => item.Event.GetType().Name).Should().Equal(
+            "DatabaseRestoreServiceAcceptedEvent",
+            "DatabaseRestoreServiceStartedEvent",
+            "DatabaseRestoreValidationCompletedEvent",
+            "DatabaseRecoveryRunStatisticsCapturedEvent",
+            "DatabaseRestoreReadyForCutoverEvent");
+        pending[^1].Event.ValidationRevision.Should().Be(1);
+        (await RunStatisticsCountAsync()).Should().Be(1);
+        (await RecoverableAsync(journal)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Long_native_work_renews_the_fenced_lease_until_checkpoint()
+    {
+        var journal = CreateJournal();
+        await journal.InitializeAsync(CancellationToken.None);
+        var intent = Intent();
+        await journal.AdmitAsync(intent, CancellationToken.None);
+        var options = HostOptions();
+        options.LeaseDuration = TimeSpan.FromMilliseconds(150);
+        var countingJournal = new CountingRenewalJournal(journal);
+        var processor = new LocalWorkstationDatabaseRecoveryProcessor(
+            countingJournal, new SlowPostgreSqlCapability(TimeSpan.FromMilliseconds(350)), options);
+
+        await processor.ExecuteAsync((await RecoverableAsync(journal)).Single(), CancellationToken.None);
+
+        (await RecoverableAsync(journal)).Should().BeEmpty();
+        (await PendingAsync(journal)).Should().HaveCount(6);
+        countingJournal.RenewalCount.Should().BeGreaterThan(0);
     }
 
     SqliteDatabaseBackupExecutionJournal CreateJournal() => new(
@@ -177,6 +224,41 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         };
     }
 
+    static DatabaseExecutionIntent RestoreIntent()
+    {
+        var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var eventId = Guid.NewGuid();
+        return new DatabaseExecutionIntent
+        {
+            ExecutionEvent = new DatabaseRestoreExecutionRequestedEvent
+            {
+                Id = eventId,
+                EventId = 1,
+                CommandId = Guid.NewGuid(),
+                EntityId = operationId,
+                AggregateId = operationId.Format(),
+                EventSource = "DatabaseBackupCommandActor",
+                ReceivedOn = DateTime.UtcNow,
+                RestorePointId = new DatabaseRestorePointId("gate6-restore-point"),
+                FreshTarget = new DatabaseFreshTargetDescriptor("disposable-validation", "gate6"),
+                RestoreClass = DatabaseRestoreClass.ProductionRecovery,
+                Source = new DatabaseSourceEnvelope
+                {
+                    SourceEventId = eventId,
+                    OperationId = operationId,
+                    Source = BackupSource.LocalWorkstation,
+                    ProtectionSetId = new DatabaseProtectionSetId("gate6-core"),
+                    PolicyRevision = 1,
+                    OperationKind = DatabaseRecoveryOperationKind.Restore,
+                    Phase = DatabaseRecoveryPhase.Requested,
+                    CorrelationId = Guid.NewGuid(),
+                    CausationId = Guid.NewGuid(),
+                    ObservedUtc = DateTimeOffset.UtcNow
+                }
+            }
+        };
+    }
+
     static async Task<List<PendingServiceEvent>> PendingAsync(IDatabaseBackupExecutionJournal journal)
     {
         var result = new List<PendingServiceEvent>();
@@ -189,6 +271,15 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         var result = new List<RecoverableJournalOperation>();
         await foreach (var item in journal.ReadRecoverableOperationsAsync(CancellationToken.None)) result.Add(item);
         return result;
+    }
+
+    async Task<long> RunStatisticsCountAsync()
+    {
+        await using var connection = new SqliteConnection($"Data Source={JournalPath};Pooling=False");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM journal_run_stats_v1;";
+        return (long)(await command.ExecuteScalarAsync() ?? 0L);
     }
 
     public Task InitializeAsync() => Task.CompletedTask;
@@ -217,6 +308,54 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
             }
             return inner.RecordCheckpointAsync(checkpoint, cancellationToken);
         }
+        public ValueTask EnqueueServiceEventAsync(DatabaseServiceEventEnvelope envelope, CancellationToken cancellationToken) => inner.EnqueueServiceEventAsync(envelope, cancellationToken);
+        public IAsyncEnumerable<PendingServiceEvent> ReadPendingServiceEventsAsync(int maximumCount, CancellationToken cancellationToken) => inner.ReadPendingServiceEventsAsync(maximumCount, cancellationToken);
+        public ValueTask MarkServiceEventPublishedAsync(Guid eventId, DateTimeOffset publishedUtc, CancellationToken cancellationToken) => inner.MarkServiceEventPublishedAsync(eventId, publishedUtc, cancellationToken);
+        public IAsyncEnumerable<RecoverableJournalOperation> ReadRecoverableOperationsAsync(CancellationToken cancellationToken) => inner.ReadRecoverableOperationsAsync(cancellationToken);
+        public ValueTask MarkCoreAcknowledgedAsync(DatabaseRecoveryOperationId operationId, long domainRevision, CancellationToken cancellationToken) => inner.MarkCoreAcknowledgedAsync(operationId, domainRevision, cancellationToken);
+    }
+
+    sealed class SlowPostgreSqlCapability(TimeSpan delay) : IPostgreSqlBackupCapability
+    {
+        readonly FakePostgreSqlBackupCapability _inner = new();
+
+        public async ValueTask<PostgreSqlBackupBoundary> CreateBaseBackupAsync(
+            PostgreSqlBackupRequest request,
+            IProgress<DatabaseNativeProgress> progress,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(delay, cancellationToken);
+            return await _inner.CreateBaseBackupAsync(request, progress, cancellationToken);
+        }
+
+        public async ValueTask<PostgreSqlVerificationResult> VerifyAsync(
+            PostgreSqlVerificationRequest request,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(delay, cancellationToken);
+            return await _inner.VerifyAsync(request, cancellationToken);
+        }
+
+        public ValueTask<PostgreSqlRestoreResult> RestoreToFreshTargetAsync(
+            PostgreSqlRestoreRequest request,
+            IProgress<DatabaseNativeProgress> progress,
+            CancellationToken cancellationToken)
+            => _inner.RestoreToFreshTargetAsync(request, progress, cancellationToken);
+    }
+
+    sealed class CountingRenewalJournal(IDatabaseBackupExecutionJournal inner) : IDatabaseBackupExecutionJournal
+    {
+        public int RenewalCount { get; private set; }
+        public ValueTask InitializeAsync(CancellationToken cancellationToken) => inner.InitializeAsync(cancellationToken);
+        public ValueTask VerifyIntegrityAsync(CancellationToken cancellationToken) => inner.VerifyIntegrityAsync(cancellationToken);
+        public ValueTask<JournalAdmissionResult> AdmitAsync(DatabaseExecutionIntent intent, CancellationToken cancellationToken) => inner.AdmitAsync(intent, cancellationToken);
+        public ValueTask<JournalLease?> TryAcquireLeaseAsync(DatabaseRecoveryOperationId operationId, DatabaseBackupHostId hostId, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.TryAcquireLeaseAsync(operationId, hostId, leaseDuration, cancellationToken);
+        public async ValueTask RenewLeaseAsync(JournalLease lease, CancellationToken cancellationToken)
+        {
+            await inner.RenewLeaseAsync(lease, cancellationToken);
+            RenewalCount++;
+        }
+        public ValueTask RecordCheckpointAsync(JournalCheckpoint checkpoint, CancellationToken cancellationToken) => inner.RecordCheckpointAsync(checkpoint, cancellationToken);
         public ValueTask EnqueueServiceEventAsync(DatabaseServiceEventEnvelope envelope, CancellationToken cancellationToken) => inner.EnqueueServiceEventAsync(envelope, cancellationToken);
         public IAsyncEnumerable<PendingServiceEvent> ReadPendingServiceEventsAsync(int maximumCount, CancellationToken cancellationToken) => inner.ReadPendingServiceEventsAsync(maximumCount, cancellationToken);
         public ValueTask MarkServiceEventPublishedAsync(Guid eventId, DateTimeOffset publishedUtc, CancellationToken cancellationToken) => inner.MarkServiceEventPublishedAsync(eventId, publishedUtc, cancellationToken);

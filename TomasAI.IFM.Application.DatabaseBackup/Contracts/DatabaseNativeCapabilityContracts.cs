@@ -8,20 +8,47 @@ public sealed record PostgreSqlBackupRequest(
     DatabaseRecoveryOperationId OperationId,
     DatabaseProtectionSetId ProtectionSetId);
 
-public sealed record PostgreSqlBackupBoundary(string SafeBoundaryReference);
+public sealed record PostgreSqlWalContinuityEvidence(
+    string Timeline,
+    string StartLsn,
+    string EndLsn,
+    int RequiredSegmentCount,
+    bool RequiredWalPresent);
+
+public sealed record PostgreSqlBackupBoundary(string SafeBoundaryReference)
+{
+    public PostgreSqlWalContinuityEvidence? WalContinuity { get; init; }
+    public DatabaseRecoveryRunStatistics? Statistics { get; init; }
+    public int NativeMajorVersion { get; init; }
+}
 
 public sealed record PostgreSqlVerificationRequest(
     DatabaseRecoveryOperationId OperationId,
     string SafeBoundaryReference);
 
-public sealed record PostgreSqlVerificationResult(DatabaseVerificationLevel Level, bool Succeeded);
+public sealed record PostgreSqlVerificationResult(DatabaseVerificationLevel Level, bool Succeeded)
+{
+    public string SafeEvidenceReference { get; init; } = string.Empty;
+    public DatabaseRecoveryRunStatistics? Statistics { get; init; }
+}
 
 public sealed record PostgreSqlRestoreRequest(
     DatabaseRecoveryOperationId OperationId,
     DatabaseRestorePointId RestorePointId,
     DatabaseFreshTargetDescriptor FreshTarget);
 
-public sealed record PostgreSqlRestoreResult(bool Succeeded, long ValidationRevision);
+public sealed record PostgreSqlRestoreResult(bool Succeeded, long ValidationRevision)
+{
+    public string SafeTargetReference { get; init; } = string.Empty;
+    public string SourceSystemIdentifier { get; init; } = string.Empty;
+    public string RestoredSystemIdentifier { get; init; } = string.Empty;
+    public DatabaseRecoveryRunStatistics? Statistics { get; init; }
+}
+
+public interface IDatabaseNativeCapabilityValidation
+{
+    ValueTask ValidateAsync(CancellationToken cancellationToken);
+}
 
 public interface IPostgreSqlBackupCapability
 {
