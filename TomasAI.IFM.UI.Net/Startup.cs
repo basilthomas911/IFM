@@ -31,6 +31,7 @@ using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 using TomasAI.IFM.UI.Net.Views.Presentation;
 using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 using TomasAI.IFM.UI.EventConsumer;
+using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 
@@ -223,6 +224,7 @@ namespace TomasAI.IFM.UI.Net
 
         static void RegisterPresentationServices()
         {
+            _container!.RegisterSingleton<YieldCurveRateEditViewModel>();
             _container!.RegisterSingleton<IViewNavigator>(() =>
                 new WinFormsViewNavigator(viewType =>
                 {

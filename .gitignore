@@ -30,6 +30,13 @@ bld/
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
+!TomasAI.IFM.UI.Net/Docs/TestResults/
+!TomasAI.IFM.UI.Net/Docs/TestResults/README.md
+!TomasAI.IFM.UI.Net.SystemTests/TestResults/
+!TomasAI.IFM.UI.Net.SystemTests/TestResults/.gitignore
+!TomasAI.IFM.UI.Net.SystemTests/TestResults/README.md
+!TomasAI.IFM.UI.Net.SystemTests/TestResults/Runs/
+!TomasAI.IFM.UI.Net.SystemTests/TestResults/Runs/.gitkeep
 [Bb]uild[Ll]og.*
 
 # NUNIT

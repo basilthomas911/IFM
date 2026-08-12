@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="TomasAI.IFM.UI.Presentation.UnitTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.UI.Net.Presentation.UnitTests" />
   </ItemGroup>
 
 </Project>

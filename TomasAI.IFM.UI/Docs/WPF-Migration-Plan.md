@@ -413,7 +413,7 @@ recorded debt without requiring a flag-day rewrite.
 
 Implemented artifacts:
 
-- `TomasAI.IFM.UI.Presentation.UnitTests` is the shared presentation safety
+- `TomasAI.IFM.UI.Net.Presentation.UnitTests` is the WinForms presentation safety
   project and is included in `TomasAI.IFM.sln`.
 - Architecture tests reject sync-over-async and UI-framework dependencies,
   allow `async void` only at the two known WinForms event boundaries, and
@@ -891,6 +891,16 @@ Implementation status on 2026-08-11:
 - The presentation architecture suite rejects restoration of the HTTP client, REST messaging, fixed startup delay, or missing NATS start/stop lifecycle.
 - The UI project build and automated presentation tests are the implementation gate. Controlled user-driven startup, workflow, reconnect, shutdown, and paper-trading/soak validation against the running backend remain required for operational approval.
 - QTS implementation and discretionary WinForms view changes are explicitly deferred until the current WinForms application passes those runtime gates. Only a demonstrated compatibility defect should cause another legacy-view change.
+
+NATS transport verification on 2026-08-11:
+
+- `Application.Api.Server` started in the Development environment, reported healthy on `/health/ready`, and hosted 81 actors plus the Core NATS command/query and JetStream event consumers.
+- The WinForms process established connections to NATS port 4222 only; it established no connection to the server's HTTP port 22543.
+- UI logs recorded typed query request/reply calls, successful actor command processing for market-data-feed stop, and 18 received status-console events.
+- A controlled main-window close stopped the UI event consumers and shared NATS producers and exited the process in 5.4 seconds.
+- Runtime verification exposed and corrected a missing `YieldCurveRateEditViewModel` composition registration without changing a WinForms view.
+- The startup audit currently has expected environment/data limitations: FMP is not yet integrated for yield curves or economic calendars, and no currently traded futures contract/deterministic market test data is configured. These are startup `BlockedDependency` results, not NATS transport defects. Yield-curve validation-rule resolution must be revalidated once a non-empty FMP curve is available rather than classified prematurely.
+- The startup-first FlaUI system-test plan, complete non-short-circuiting G0 register, evidence contract, and later WinForms UI test catalog are defined in [`TomasAI.IFM.UI.Net/Docs/UI-System-Test-Specification.md`](../../TomasAI.IFM.UI.Net/Docs/UI-System-Test-Specification.md). The WinForms harness and results are owned by `TomasAI.IFM.UI.Net.SystemTests`. `TomasAI.IFM.UI` remains the pure WPF executable and contains only WPF migration documentation as additional project folders.
 
 Exit: all Stage 1 acceptance criteria pass and the WinForms build is approved for controlled paper trading.
 

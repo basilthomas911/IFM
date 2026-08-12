@@ -10,6 +10,8 @@ The UI uses NATS for all backend communication:
 - queries use NATS request/reply through the domain query APIs in `TomasAI.IFM.Application.Api.Nats.Client`;
 - live domain and service events are consumed from NATS through `TomasAI.IFM.UI.EventConsumer`.
 
+`TomasAI.IFM.Application.Api.Server` remains the supported server process. It continues to expose HTTP endpoints for other clients while also hosting the NATS actor runtime used by this UI. Removing the WinForms HTTP dependency does not retire or replace that server or its HTTP surface.
+
 This document describes the implementation currently in the repository. The notes under [Current implementation notes](#current-implementation-notes) describe existing behavior and known constraints, not a proposed architecture.
 
 The client is split into four assemblies. `TomasAI.IFM.UI.Net` is the Windows executable and composition root; `TomasAI.IFM.UI.Net.Views` is the Windows Forms library. `TomasAI.IFM.UI.Net.ViewModels` and `TomasAI.IFM.UI.Net.Models` are framework-neutral `net10.0` class libraries.
@@ -49,7 +51,10 @@ flowchart LR
     NatsClient[NATS command or query client]
     Nats[(NATS)]
     UiConsumer[UI event consumer]
-    ActorRuntime[Event Model Actor runtime]
+    subgraph ApiServer[Application.Api.Server process]
+        ActorRuntime[Event Model Actor runtime]
+        HttpApi[HTTP API for other clients]
+    end
 
     User --> View
     View --> ViewModel
@@ -66,7 +71,7 @@ flowchart LR
     ViewModel -->|Control.Post / BeginInvoke| View
 ```
 
-The views do not address NATS subjects directly. UI models call typed application APIs, and those adapters use the shared `IActorProducer` to publish commands or perform request/reply queries. UI event consumers remain the live push path into the desktop process.
+The views do not address NATS subjects directly. UI models call typed application APIs, and those adapters use the shared `IActorProducer` to publish commands or perform request/reply queries against actors hosted by `Application.Api.Server`. UI event consumers remain the live push path into the desktop process. The server's HTTP endpoints operate independently for non-UI consumers.
 
 ## Project structure
 
@@ -348,7 +353,7 @@ When a singleton form is reopened, its load method must fully reset any state th
 - `IAppRoot.Execute`, the `BaseModelExtension` helpers, status-console methods, control-posting helpers, and several shutdown paths suppress exceptions.
 - `IFMAppViewModel` contains operational assumptions specific to the current deployment, including ES selection, a daily 14-period RSI service, and a 900-second live-feed inactivity threshold.
 - `IControlExtension.Draw` uses `user32.dll` and is Windows-only, which is consistent with the project target.
-- `TomasAI.IFM.UI.Presentation.UnitTests` enforces the NATS-only composition and readiness lifecycle. Form-specific behavior still requires targeted WinForms or manual end-to-end verification.
+- `TomasAI.IFM.UI.Net.Presentation.UnitTests` enforces the NATS-only composition and readiness lifecycle. Form-specific behavior still requires targeted WinForms or manual end-to-end verification.
 - QTS view implementation and further WinForms view changes are deferred until the existing application passes user-driven backend integration and paper-trading verification.
 
 ## Build verification
