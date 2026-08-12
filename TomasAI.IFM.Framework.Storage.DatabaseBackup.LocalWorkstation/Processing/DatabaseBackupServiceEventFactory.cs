@@ -53,12 +53,13 @@ internal static class DatabaseBackupServiceEventFactory
         DatabaseExecutionIntent intent,
         DatabaseBackupHostId hostId,
         long sequence,
-        PostgreSqlRestoreResult result)
+        string safeTargetReference,
+        long validationRevision)
         => Create<DatabaseRestoreValidationCompletedEvent>(
             intent, hostId, sequence, DatabaseRecoveryPhase.Validating,
-            safeDiagnosticReference: result.SafeTargetReference,
+            safeDiagnosticReference: safeTargetReference,
             verificationLevel: DatabaseVerificationLevel.ApplicationValidation,
-            validationRevision: result.ValidationRevision);
+            validationRevision: validationRevision);
 
     public static DatabaseRecoveryRunStatisticsCapturedEvent Statistics(
         DatabaseExecutionIntent intent,
@@ -73,11 +74,12 @@ internal static class DatabaseBackupServiceEventFactory
         DatabaseExecutionIntent intent,
         DatabaseBackupHostId hostId,
         long sequence,
-        PostgreSqlRestoreResult result)
+        string safeTargetReference,
+        long validationRevision)
         => Create<DatabaseRestoreReadyForCutoverEvent>(
             intent, hostId, sequence, DatabaseRecoveryPhase.ReadyForCutover,
-            safeDiagnosticReference: result.SafeTargetReference,
-            validationRevision: result.ValidationRevision);
+            safeDiagnosticReference: safeTargetReference,
+            validationRevision: validationRevision);
 
     public static DatabaseBackupServiceEventContract Completed(
         DatabaseExecutionIntent intent,

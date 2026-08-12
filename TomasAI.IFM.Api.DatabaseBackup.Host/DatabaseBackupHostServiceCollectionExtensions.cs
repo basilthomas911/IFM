@@ -9,6 +9,7 @@ using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuratio
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Journal;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.PostgreSql;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Processing;
+using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Scylla;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Api.DatabaseBackup.Host;
@@ -37,13 +38,21 @@ public static class DatabaseBackupHostServiceCollectionExtensions
             .Get<LocalWorkstationSourceOptions>() ?? new LocalWorkstationSourceOptions();
         var postgreSqlOptions = configuration.GetSection(PostgreSqlBackupOptions.SectionName)
             .Get<PostgreSqlBackupOptions>() ?? new PostgreSqlBackupOptions();
+        var scyllaOptions = configuration.GetSection(ScyllaBackupOptions.SectionName)
+            .Get<ScyllaBackupOptions>() ?? new ScyllaBackupOptions();
         var useNativePostgreSql = sourceOptions.Enabled && !sourceOptions.DryRun;
-        if (useNativePostgreSql) postgreSqlOptions.Validate();
+        var useNativeScylla = sourceOptions.Enabled && !sourceOptions.DryRun;
+        if (useNativePostgreSql)
+        {
+            postgreSqlOptions.Validate();
+            scyllaOptions.Validate();
+        }
 
         services.AddSingleton(hostOptions);
         services.AddSingleton(journalOptions);
         services.AddSingleton(sourceOptions);
         services.AddSingleton(postgreSqlOptions);
+        services.AddSingleton(scyllaOptions);
         services.AddSingleton<INatsJetStreamEventListenerOptions>(listenerOptions);
         services.AddSingleton<INatsJetStreamProducerOptions>(producerOptions);
         services.AddSingleton<NatsConnectionManager>();
@@ -69,7 +78,19 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         {
             services.AddSingleton<IPostgreSqlBackupCapability, FakePostgreSqlBackupCapability>();
         }
-        services.AddSingleton<IScyllaBackupCapability, FakeScyllaBackupCapability>();
+        if (useNativeScylla)
+        {
+            services.AddSingleton<ScyllaBackupCapability>();
+            services.AddSingleton<IScyllaBackupCapability>(static provider =>
+                provider.GetRequiredService<ScyllaBackupCapability>());
+            services.AddSingleton<IDatabaseNativeCapabilityValidation>(static provider =>
+                provider.GetRequiredService<ScyllaBackupCapability>());
+        }
+        else
+        {
+            services.AddSingleton<IScyllaBackupCapability, FakeScyllaBackupCapability>();
+        }
+        services.AddSingleton<IDatabaseRecoveryEngineSelector, LocalWorkstationDatabaseRecoveryEngineSelector>();
         services.AddSingleton<LocalWorkstationDatabaseRecoveryProcessor>();
         services.AddSingleton<IDatabaseRecoveryProcessor>(static provider =>
             provider.GetRequiredService<LocalWorkstationDatabaseRecoveryProcessor>());

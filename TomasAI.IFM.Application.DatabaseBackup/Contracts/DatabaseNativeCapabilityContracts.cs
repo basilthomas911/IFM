@@ -69,20 +69,54 @@ public sealed record ScyllaBackupRequest(
     DatabaseRecoveryOperationId OperationId,
     DatabaseProtectionSetId ProtectionSetId);
 
-public sealed record ScyllaBackupBoundary(string SafeBoundaryReference);
+public sealed record ScyllaTopologyEvidence(
+    string ClusterName,
+    int LiveNodeCount,
+    int TokenRangeCount,
+    bool SchemaAgreement);
+
+public sealed record ScyllaSnapshotEvidence(
+    string SnapshotTag,
+    string ManagerTaskReference,
+    string SchemaSha256,
+    string NativeManifestSha256,
+    int KeyspaceCount,
+    int TableCount,
+    int ArtifactCount,
+    string ScyllaVersion,
+    string ManagerVersion);
+
+public sealed record ScyllaBackupBoundary(string SafeBoundaryReference)
+{
+    public ScyllaTopologyEvidence? Topology { get; init; }
+    public ScyllaSnapshotEvidence? Snapshot { get; init; }
+    public DatabaseRecoveryRunStatistics? Statistics { get; init; }
+}
 
 public sealed record ScyllaVerificationRequest(
     DatabaseRecoveryOperationId OperationId,
     string SafeBoundaryReference);
 
-public sealed record ScyllaVerificationResult(DatabaseVerificationLevel Level, bool Succeeded);
+public sealed record ScyllaVerificationResult(DatabaseVerificationLevel Level, bool Succeeded)
+{
+    public string SafeEvidenceReference { get; init; } = string.Empty;
+    public ScyllaTopologyEvidence? Topology { get; init; }
+    public DatabaseRecoveryRunStatistics? Statistics { get; init; }
+}
 
 public sealed record ScyllaRestoreRequest(
     DatabaseRecoveryOperationId OperationId,
     DatabaseRestorePointId RestorePointId,
     DatabaseFreshTargetDescriptor FreshTarget);
 
-public sealed record ScyllaRestoreResult(bool Succeeded, long ValidationRevision);
+public sealed record ScyllaRestoreResult(bool Succeeded, long ValidationRevision)
+{
+    public string SafeTargetReference { get; init; } = string.Empty;
+    public string SourceClusterName { get; init; } = string.Empty;
+    public string RestoredClusterName { get; init; } = string.Empty;
+    public ScyllaTopologyEvidence? Topology { get; init; }
+    public DatabaseRecoveryRunStatistics? Statistics { get; init; }
+}
 
 public interface IScyllaBackupCapability
 {

@@ -77,7 +77,14 @@ public sealed class FakeScyllaBackupCapability : IScyllaBackupCapability
     {
         cancellationToken.ThrowIfCancellationRequested();
         progress.Report(new DatabaseNativeProgress(DatabaseRecoveryPhase.Capturing, 50));
-        return ValueTask.FromResult(new ScyllaBackupBoundary($"fake-boundary-{request.OperationId.Value:N}"));
+        return ValueTask.FromResult(new ScyllaBackupBoundary($"fake-boundary-{request.OperationId.Value:N}")
+        {
+            Topology = new ScyllaTopologyEvidence("fake-scylla", 1, 1, true),
+            Snapshot = new ScyllaSnapshotEvidence(
+                "sm_20000101000000UTC", "backup/fake", new string('a', 64), new string('b', 64),
+                1, 1, 1, "fake", "fake"),
+            Statistics = Statistics(DatabaseRecoveryPhase.Capturing, sourceBytes: 1024)
+        });
     }
 
     public ValueTask<ScyllaVerificationResult> VerifyAsync(
@@ -85,7 +92,12 @@ public sealed class FakeScyllaBackupCapability : IScyllaBackupCapability
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(new ScyllaVerificationResult(DatabaseVerificationLevel.Native, true));
+        return ValueTask.FromResult(new ScyllaVerificationResult(DatabaseVerificationLevel.Native, true)
+        {
+            SafeEvidenceReference = "fake-scylla-native-verification",
+            Topology = new ScyllaTopologyEvidence("fake-scylla", 1, 1, true),
+            Statistics = Statistics(DatabaseRecoveryPhase.Verifying, sourceBytes: 1024)
+        });
     }
 
     public ValueTask<ScyllaRestoreResult> RestoreToFreshTargetAsync(
@@ -95,6 +107,32 @@ public sealed class FakeScyllaBackupCapability : IScyllaBackupCapability
     {
         cancellationToken.ThrowIfCancellationRequested();
         progress.Report(new DatabaseNativeProgress(DatabaseRecoveryPhase.Validating, 90));
-        return ValueTask.FromResult(new ScyllaRestoreResult(true, 1));
+        return ValueTask.FromResult(new ScyllaRestoreResult(true, 1)
+        {
+            SafeTargetReference = $"fake-scylla-target-{request.OperationId.Value:N}",
+            SourceClusterName = "fake-scylla",
+            RestoredClusterName = "fake-scylla-fresh",
+            Topology = new ScyllaTopologyEvidence("fake-scylla-fresh", 1, 1, true),
+            Statistics = Statistics(DatabaseRecoveryPhase.Validating, restoredBytes: 1024)
+        });
     }
+
+    static DatabaseRecoveryRunStatistics Statistics(
+        DatabaseRecoveryPhase phase,
+        long? sourceBytes = null,
+        long? restoredBytes = null)
+        => new()
+        {
+            Engine = DatabaseEngine.ScyllaDb,
+            Phase = phase,
+            StartedUtc = DateTimeOffset.UtcNow,
+            CompletedUtc = DateTimeOffset.UtcNow,
+            Elapsed = TimeSpan.Zero,
+            SourceBytes = sourceBytes,
+            StoredBytes = sourceBytes,
+            RestoredBytes = restoredBytes,
+            ArtifactCount = 1,
+            RetryCount = 0,
+            WarningCount = 0
+        };
 }

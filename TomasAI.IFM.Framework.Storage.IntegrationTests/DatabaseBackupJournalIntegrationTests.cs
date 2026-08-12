@@ -70,6 +70,31 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    [Trait("Category", "Gate7Integration")]
+    public async Task Scylla_protection_set_routes_through_Scylla_capability_and_publishes_Scylla_statistics()
+    {
+        var journal = CreateJournal();
+        await journal.InitializeAsync(CancellationToken.None);
+        var intent = Intent();
+        await journal.AdmitAsync(intent, CancellationToken.None);
+        var scylla = new RecordingScyllaCapability();
+        var processor = new LocalWorkstationDatabaseRecoveryProcessor(
+            journal,
+            new FakePostgreSqlBackupCapability(),
+            scylla,
+            new ScyllaOnlyEngineSelector(),
+            HostOptions());
+
+        await processor.ExecuteAsync((await RecoverableAsync(journal)).Single(), CancellationToken.None);
+
+        scylla.CaptureCount.Should().Be(1);
+        scylla.VerificationCount.Should().Be(1);
+        var statistics = (await PendingAsync(journal)).Single(static item =>
+            item.Event.Statistics is not null).Event.Statistics;
+        statistics!.Engine.Should().Be(DatabaseEngine.ScyllaDb);
+    }
+
+    [Fact]
     public async Task Restart_after_outbox_write_before_checkpoint_continues_canonical_sequence()
     {
         var journal = CreateJournal();
@@ -190,6 +215,56 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         LeaseDuration = TimeSpan.FromMinutes(1),
         PollInterval = TimeSpan.FromMilliseconds(10)
     };
+
+    sealed class ScyllaOnlyEngineSelector : IDatabaseRecoveryEngineSelector
+    {
+        public DatabaseEngine Select(DatabaseProtectionSetId protectionSetId) => DatabaseEngine.ScyllaDb;
+    }
+
+    sealed class RecordingScyllaCapability : IScyllaBackupCapability
+    {
+        public int CaptureCount { get; private set; }
+        public int VerificationCount { get; private set; }
+
+        public ValueTask<ScyllaBackupBoundary> CreateBackupAsync(
+            ScyllaBackupRequest request,
+            IProgress<DatabaseNativeProgress> progress,
+            CancellationToken cancellationToken)
+        {
+            CaptureCount++;
+            return ValueTask.FromResult(new ScyllaBackupBoundary("scylla-test-boundary")
+            {
+                Statistics = Statistics(DatabaseRecoveryPhase.Capturing)
+            });
+        }
+
+        public ValueTask<ScyllaVerificationResult> VerifyAsync(
+            ScyllaVerificationRequest request,
+            CancellationToken cancellationToken)
+        {
+            VerificationCount++;
+            return ValueTask.FromResult(new ScyllaVerificationResult(DatabaseVerificationLevel.Native, true)
+            {
+                Statistics = Statistics(DatabaseRecoveryPhase.Verifying)
+            });
+        }
+
+        public ValueTask<ScyllaRestoreResult> RestoreToFreshTargetAsync(
+            ScyllaRestoreRequest request,
+            IProgress<DatabaseNativeProgress> progress,
+            CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        static DatabaseRecoveryRunStatistics Statistics(DatabaseRecoveryPhase phase) => new()
+        {
+            Engine = DatabaseEngine.ScyllaDb,
+            Phase = phase,
+            ArtifactCount = 1,
+            StartedUtc = DateTimeOffset.UtcNow,
+            CompletedUtc = DateTimeOffset.UtcNow,
+            Elapsed = TimeSpan.Zero
+        };
+    }
 
     static DatabaseExecutionIntent Intent()
     {

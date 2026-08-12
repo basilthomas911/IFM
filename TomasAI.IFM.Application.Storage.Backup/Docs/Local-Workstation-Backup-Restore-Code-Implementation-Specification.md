@@ -1,8 +1,8 @@
 # Local Workstation Database Backup and Restore Code Implementation Specification
 
-**Status:** Phase 6 implemented and Gate 6 validated; Phase 7 pending review
+**Status:** Phase 7 implemented and Gate 7 validated; Phase 8 pending review
 
-**Version:** 0.8
+**Version:** 0.9
 
 **Date:** 2026-08-12
 
@@ -1237,6 +1237,9 @@ restart scenario.
 
 ### Phase 7: Scylla LocalWorkstation capability
 
+**Implementation status:** Complete on 2026-08-12. See
+`Local-Workstation-Backup-Restore-Phase-7-Validation-Report.md`.
+
 - Implement manager/API-driven capture, schema/metadata evidence, verification, fresh-target restore, stats, and
   disposable integration tests.
 
@@ -1302,7 +1305,7 @@ LocalWorkstation implementation is complete only when all statements are true:
 - [ ] The host cannot write application projection or event-source databases.
 - [ ] SQLite journal survives container restart on an encrypted persistent mount.
 - [ ] PostgreSQL backup, verification, WAL/dependency evidence, and fresh-target restore pass.
-- [ ] Scylla backup, verification, schema/dependency evidence, and fresh-target restore pass.
+- [x] Scylla backup, verification, schema/dependency evidence, and fresh-target restore pass.
 - [ ] Signed manifests and catalog entries publish atomically without overwrite.
 - [ ] Restore drill, RPO/RTO evidence, cancellation, retention fencing, and reconciliation pass.
 - [ ] Duplicate/redelivered messages never repeat destructive native work.

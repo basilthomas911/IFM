@@ -4,16 +4,37 @@ using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuratio
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Processing;
 
-public sealed class LocalWorkstationDatabaseRecoveryProcessor(
-    IDatabaseBackupExecutionJournal journal,
-    IPostgreSqlBackupCapability postgreSql,
-    LocalWorkstationDatabaseBackupOptions options)
+public sealed class LocalWorkstationDatabaseRecoveryProcessor
     : IDatabaseRecoveryProcessor, IDatabaseRecoveryOperationExecutor
 {
-    readonly IDatabaseBackupExecutionJournal _journal = journal ?? throw new ArgumentNullException(nameof(journal));
-    readonly IPostgreSqlBackupCapability _postgreSql = postgreSql ?? throw new ArgumentNullException(nameof(postgreSql));
-    readonly LocalWorkstationDatabaseBackupOptions _options = Validate(options);
-    readonly DatabaseBackupHostId _hostId = new(options.HostId);
+    readonly IDatabaseBackupExecutionJournal _journal;
+    readonly IPostgreSqlBackupCapability _postgreSql;
+    readonly IScyllaBackupCapability _scylla;
+    readonly IDatabaseRecoveryEngineSelector _engineSelector;
+    readonly LocalWorkstationDatabaseBackupOptions _options;
+    readonly DatabaseBackupHostId _hostId;
+
+    public LocalWorkstationDatabaseRecoveryProcessor(
+        IDatabaseBackupExecutionJournal journal,
+        IPostgreSqlBackupCapability postgreSql,
+        LocalWorkstationDatabaseBackupOptions options)
+        : this(journal, postgreSql, new FakeScyllaBackupCapability(),
+            new PostgreSqlOnlyDatabaseRecoveryEngineSelector(), options) { }
+
+    public LocalWorkstationDatabaseRecoveryProcessor(
+        IDatabaseBackupExecutionJournal journal,
+        IPostgreSqlBackupCapability postgreSql,
+        IScyllaBackupCapability scylla,
+        IDatabaseRecoveryEngineSelector engineSelector,
+        LocalWorkstationDatabaseBackupOptions options)
+    {
+        _journal = journal ?? throw new ArgumentNullException(nameof(journal));
+        _postgreSql = postgreSql ?? throw new ArgumentNullException(nameof(postgreSql));
+        _scylla = scylla ?? throw new ArgumentNullException(nameof(scylla));
+        _engineSelector = engineSelector ?? throw new ArgumentNullException(nameof(engineSelector));
+        _options = Validate(options);
+        _hostId = new DatabaseBackupHostId(options.HostId);
+    }
 
     public BackupSource Source => BackupSource.LocalWorkstation;
 
@@ -47,20 +68,22 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor(
         var lastSequence = operation.LastServiceSequence;
         if (lastSequence < 2)
             await EnqueueAsync(DatabaseBackupServiceEventFactory.Started(intent, _hostId, 2), cancellationToken).ConfigureAwait(false);
-        await CheckpointAsync(lease, DatabaseRecoveryPhase.Started, terminal: false, "fake-native-started", cancellationToken).ConfigureAwait(false);
+        var engine = _engineSelector.Select(intent.ExecutionEvent.Source.ProtectionSetId);
+        await CheckpointAsync(lease, DatabaseRecoveryPhase.Started, terminal: false,
+            $"{EngineName(engine)}-native-started", cancellationToken).ConfigureAwait(false);
 
         switch (intent.ExecutionEvent.Source.OperationKind)
         {
             case DatabaseRecoveryOperationKind.Backup:
-                await ExecuteBackupAsync(intent, lease, lastSequence, cancellationToken).ConfigureAwait(false);
+                await ExecuteBackupAsync(intent, lease, lastSequence, engine, cancellationToken).ConfigureAwait(false);
                 break;
             case DatabaseRecoveryOperationKind.Restore:
             case DatabaseRecoveryOperationKind.RestoreDrill:
-                await ExecuteRestoreAsync(intent, lease, lastSequence, cancellationToken).ConfigureAwait(false);
+                await ExecuteRestoreAsync(intent, lease, lastSequence, engine, cancellationToken).ConfigureAwait(false);
                 break;
             default:
                 throw new NotSupportedException(
-                    $"The LocalWorkstation PostgreSQL processor does not implement '{intent.ExecutionEvent.Source.OperationKind}'.");
+                    $"The LocalWorkstation database processor does not implement '{intent.ExecutionEvent.Source.OperationKind}'.");
         }
     }
 
@@ -68,73 +91,126 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor(
         DatabaseExecutionIntent intent,
         JournalLease lease,
         long lastSequence,
+        DatabaseEngine engine,
         CancellationToken cancellationToken)
     {
         var progress = new Progress<DatabaseNativeProgress>();
-        var boundary = await WithLeaseHeartbeatAsync(lease, token => _postgreSql.CreateBaseBackupAsync(
-            new PostgreSqlBackupRequest(intent.OperationId, intent.ExecutionEvent.Source.ProtectionSetId),
-            progress,
-            token), cancellationToken).ConfigureAwait(false);
+        string boundaryReference;
+        DatabaseRecoveryRunStatistics? boundaryStatistics;
+        DatabaseVerificationLevel verificationLevel;
+        bool verificationSucceeded;
+        DatabaseRecoveryRunStatistics? verificationStatistics;
+        if (engine == DatabaseEngine.PostgreSql)
+        {
+            var boundary = await WithLeaseHeartbeatAsync(lease, token => _postgreSql.CreateBaseBackupAsync(
+                new PostgreSqlBackupRequest(intent.OperationId, intent.ExecutionEvent.Source.ProtectionSetId),
+                progress, token), cancellationToken).ConfigureAwait(false);
+            boundaryReference = boundary.SafeBoundaryReference;
+            boundaryStatistics = boundary.Statistics;
+            var verification = await WithLeaseHeartbeatAsync(lease, token => _postgreSql.VerifyAsync(
+                new PostgreSqlVerificationRequest(intent.OperationId, boundaryReference), token), cancellationToken)
+                .ConfigureAwait(false);
+            verificationLevel = verification.Level;
+            verificationSucceeded = verification.Succeeded;
+            verificationStatistics = verification.Statistics;
+        }
+        else
+        {
+            var boundary = await WithLeaseHeartbeatAsync(lease, token => _scylla.CreateBackupAsync(
+                new ScyllaBackupRequest(intent.OperationId, intent.ExecutionEvent.Source.ProtectionSetId),
+                progress, token), cancellationToken).ConfigureAwait(false);
+            boundaryReference = boundary.SafeBoundaryReference;
+            boundaryStatistics = boundary.Statistics;
+            var verification = await WithLeaseHeartbeatAsync(lease, token => _scylla.VerifyAsync(
+                new ScyllaVerificationRequest(intent.OperationId, boundaryReference), token), cancellationToken)
+                .ConfigureAwait(false);
+            verificationLevel = verification.Level;
+            verificationSucceeded = verification.Succeeded;
+            verificationStatistics = verification.Statistics;
+        }
         if (lastSequence < 3)
             await EnqueueAsync(DatabaseBackupServiceEventFactory.Boundary(
-                intent, _hostId, 3, boundary.SafeBoundaryReference), cancellationToken).ConfigureAwait(false);
-        await CheckpointAsync(lease, DatabaseRecoveryPhase.Capturing, terminal: false, "postgresql-boundary-created", cancellationToken).ConfigureAwait(false);
-
-        var verification = await WithLeaseHeartbeatAsync(lease, token => _postgreSql.VerifyAsync(
-            new PostgreSqlVerificationRequest(intent.OperationId, boundary.SafeBoundaryReference),
-            token), cancellationToken).ConfigureAwait(false);
-        if (!verification.Succeeded)
-            throw new InvalidOperationException("PostgreSQL native verification failed.");
+                intent, _hostId, 3, boundaryReference), cancellationToken).ConfigureAwait(false);
+        await CheckpointAsync(lease, DatabaseRecoveryPhase.Capturing, terminal: false,
+            $"{EngineName(engine)}-boundary-created", cancellationToken).ConfigureAwait(false);
+        if (!verificationSucceeded)
+            throw new InvalidOperationException($"{EngineDisplayName(engine)} native verification failed.");
         if (lastSequence < 4)
             await EnqueueAsync(DatabaseBackupServiceEventFactory.Verified(
-                intent, _hostId, 4, verification.Level), cancellationToken).ConfigureAwait(false);
-        await CheckpointAsync(lease, DatabaseRecoveryPhase.Verifying, terminal: false, "postgresql-native-verified", cancellationToken).ConfigureAwait(false);
+                intent, _hostId, 4, verificationLevel), cancellationToken).ConfigureAwait(false);
+        await CheckpointAsync(lease, DatabaseRecoveryPhase.Verifying, terminal: false,
+            $"{EngineName(engine)}-native-verified", cancellationToken).ConfigureAwait(false);
 
-        var statistics = verification.Statistics ?? boundary.Statistics;
+        var statistics = verificationStatistics ?? boundaryStatistics;
         if (statistics is not null && lastSequence < 5)
             await EnqueueAsync(DatabaseBackupServiceEventFactory.Statistics(
                 intent, _hostId, 5, DatabaseRecoveryPhase.Verifying, statistics), cancellationToken).ConfigureAwait(false);
         if (lastSequence < 6)
             await EnqueueAsync(DatabaseBackupServiceEventFactory.Completed(
                 intent, _hostId, 6), cancellationToken).ConfigureAwait(false);
-        await CheckpointAsync(lease, DatabaseRecoveryPhase.Completed, terminal: true, "postgresql-backup-completed", cancellationToken).ConfigureAwait(false);
+        await CheckpointAsync(lease, DatabaseRecoveryPhase.Completed, terminal: true,
+            $"{EngineName(engine)}-backup-completed", cancellationToken).ConfigureAwait(false);
     }
 
     async ValueTask ExecuteRestoreAsync(
         DatabaseExecutionIntent intent,
         JournalLease lease,
         long lastSequence,
+        DatabaseEngine engine,
         CancellationToken cancellationToken)
     {
         var execution = intent.ExecutionEvent;
         if (execution.RestorePointId is null || execution.FreshTarget is null)
-            throw new InvalidOperationException("PostgreSQL restore intent requires a restore point and fresh target.");
-        var result = await WithLeaseHeartbeatAsync(lease, token => _postgreSql.RestoreToFreshTargetAsync(
-            new PostgreSqlRestoreRequest(intent.OperationId, execution.RestorePointId.Value, execution.FreshTarget),
-            new Progress<DatabaseNativeProgress>(),
-            token), cancellationToken).ConfigureAwait(false);
-        if (!result.Succeeded) throw new InvalidOperationException("PostgreSQL fresh-target validation failed.");
+            throw new InvalidOperationException("Database restore intent requires a restore point and fresh target.");
+        bool succeeded;
+        long validationRevision;
+        string safeTargetReference;
+        DatabaseRecoveryRunStatistics? statistics;
+        if (engine == DatabaseEngine.PostgreSql)
+        {
+            var result = await WithLeaseHeartbeatAsync(lease, token => _postgreSql.RestoreToFreshTargetAsync(
+                new PostgreSqlRestoreRequest(intent.OperationId, execution.RestorePointId.Value, execution.FreshTarget),
+                new Progress<DatabaseNativeProgress>(), token), cancellationToken).ConfigureAwait(false);
+            succeeded = result.Succeeded;
+            validationRevision = result.ValidationRevision;
+            safeTargetReference = result.SafeTargetReference;
+            statistics = result.Statistics;
+        }
+        else
+        {
+            var result = await WithLeaseHeartbeatAsync(lease, token => _scylla.RestoreToFreshTargetAsync(
+                new ScyllaRestoreRequest(intent.OperationId, execution.RestorePointId.Value, execution.FreshTarget),
+                new Progress<DatabaseNativeProgress>(), token), cancellationToken).ConfigureAwait(false);
+            succeeded = result.Succeeded;
+            validationRevision = result.ValidationRevision;
+            safeTargetReference = result.SafeTargetReference;
+            statistics = result.Statistics;
+        }
+        if (!succeeded) throw new InvalidOperationException($"{EngineDisplayName(engine)} fresh-target validation failed.");
         if (lastSequence < 3)
             await EnqueueAsync(DatabaseBackupServiceEventFactory.RestoreValidated(
-                intent, _hostId, 3, result), cancellationToken).ConfigureAwait(false);
-        await CheckpointAsync(lease, DatabaseRecoveryPhase.Validating, terminal: false, "postgresql-fresh-target-validated", cancellationToken).ConfigureAwait(false);
+                intent, _hostId, 3, safeTargetReference, validationRevision), cancellationToken).ConfigureAwait(false);
+        await CheckpointAsync(lease, DatabaseRecoveryPhase.Validating, terminal: false,
+            $"{EngineName(engine)}-fresh-target-validated", cancellationToken).ConfigureAwait(false);
 
-        if (result.Statistics is not null && lastSequence < 4)
+        if (statistics is not null && lastSequence < 4)
             await EnqueueAsync(DatabaseBackupServiceEventFactory.Statistics(
-                intent, _hostId, 4, DatabaseRecoveryPhase.Validating, result.Statistics), cancellationToken).ConfigureAwait(false);
+                intent, _hostId, 4, DatabaseRecoveryPhase.Validating, statistics), cancellationToken).ConfigureAwait(false);
         if (execution.Source.OperationKind == DatabaseRecoveryOperationKind.Restore)
         {
             if (lastSequence < 5)
                 await EnqueueAsync(DatabaseBackupServiceEventFactory.ReadyForCutover(
-                    intent, _hostId, 5, result), cancellationToken).ConfigureAwait(false);
-            await CheckpointAsync(lease, DatabaseRecoveryPhase.ReadyForCutover, terminal: true, "postgresql-ready-for-cutover", cancellationToken).ConfigureAwait(false);
+                    intent, _hostId, 5, safeTargetReference, validationRevision), cancellationToken).ConfigureAwait(false);
+            await CheckpointAsync(lease, DatabaseRecoveryPhase.ReadyForCutover, terminal: true,
+                $"{EngineName(engine)}-ready-for-cutover", cancellationToken).ConfigureAwait(false);
         }
         else
         {
             if (lastSequence < 5)
                 await EnqueueAsync(DatabaseBackupServiceEventFactory.Completed(
                     intent, _hostId, 5), cancellationToken).ConfigureAwait(false);
-            await CheckpointAsync(lease, DatabaseRecoveryPhase.Completed, terminal: true, "postgresql-restore-drill-completed", cancellationToken).ConfigureAwait(false);
+            await CheckpointAsync(lease, DatabaseRecoveryPhase.Completed, terminal: true,
+                $"{EngineName(engine)}-restore-drill-completed", cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -203,4 +279,7 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor(
         options.Validate();
         return options;
     }
+
+    static string EngineName(DatabaseEngine engine) => engine == DatabaseEngine.ScyllaDb ? "scylla" : "postgresql";
+    static string EngineDisplayName(DatabaseEngine engine) => engine == DatabaseEngine.ScyllaDb ? "Scylla" : "PostgreSQL";
 }
