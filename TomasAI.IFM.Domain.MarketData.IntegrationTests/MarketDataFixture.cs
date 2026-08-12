@@ -6,13 +6,17 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using StackExchange.Redis;
+using TomasAI.IFM.Framework.Caching.Redis;
 
 namespace TomasAI.IFM.Domain.MarketData.IntegrationTests;
 
@@ -22,11 +26,28 @@ public class MarketDataFixture : IDisposable
     public IMarketDataDbContext MarketDataDb { get; private set; }
     public SequenceIdDbContext SeqIdDatabase { get; private set; }
     public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
+    public EventSourceActorDbContext ActorEventSourceDb { get; private set; } = default!;
+    public BlackboardService BlackboardService { get; private set; } = default!;
 
     public MarketDataFixture()
     {
         SetSeqIdDatabase();
         SetDbFactory();
+        SetEventSourceDatabase();
+    }
+
+    void SetEventSourceDatabase()
+    {
+        var settings = new DbConnectionSettings()
+            .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+        var repositories = new Dictionary<Type, EventSourceActorDbContext>();
+        var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
+        var redisCache = new RedisCache(ConnectionMultiplexer.Connect("localhost:6379"));
+        BlackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
+        var logger = Substitute.For<ILogger<DbProvider>>();
+        repositories.Add(typeof(IObjectRepository<EventSourceActorDbContext>),
+            new EventSourceActorDbContext(settings, factory, BlackboardService, logger));
+        ActorEventSourceDb = (EventSourceActorDbContext)factory.ActorEventSourceDb;
     }
 
     void SetDbFactory()
@@ -43,6 +64,9 @@ public class MarketDataFixture : IDisposable
         var blackboardService = new BlackboardService(redisCahe, new SystemTextJsonSerializer());
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
+        new MarketDataSchemaDb(dbConn, logger)
+            .CreateAsync(["economic_calendar", "economic_calendar_by_country_month_v2"])
+            .GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<MarketDataDbContext>), new MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), SeqIdDatabase);
         DbFactory = dbFactory;

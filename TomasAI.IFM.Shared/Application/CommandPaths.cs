@@ -115,6 +115,10 @@ public class MarketDataUriPath
     public const string ChangeYieldCurveRate = "/api/marketdata/yieldcurverate/change";
     public const string RemoveYieldCurveRate = "/api/marketdata/yieldcurverate/remove";
     public const string ImportYieldCurveRates = "/api/marketdata/yieldcurverates/import";
+    public const string ChangeEconomicCalendar = "/api/marketdata/economiccalendar/change";
+    public const string RemoveEconomicCalendar = "/api/marketdata/economiccalendar/remove";
+    public const string AddEconomicCalendar = "/api/marketdata/economiccalendar/add";
+    public const string ImportEconomicCalendars = "/api/marketdata/economiccalendars/import";
 
 }
 
@@ -177,10 +181,6 @@ public class OptionTradeUriPath
 
 public class ReferenceUriPath
 {
-    public const string ChangeEconomicCalendar = "/api/reference/economiccalendar/change";
-    public const string RemoveEconomicCalendar = "/api/reference/economiccalendar/remove";
-    public const string AddEconomicCalendar = "/api/reference/economiccalendar/add";
-    public const string ImportEconomicCalendars = "/api/reference/economiccalendars/import";
     public const string AddLookupType = "/api/reference/lookuptype/add";
     public const string ChangeLookupType = "/api/reference/lookuptype/change";
     public const string RemoveLookupType = "/api/reference/lookuptype/remove";

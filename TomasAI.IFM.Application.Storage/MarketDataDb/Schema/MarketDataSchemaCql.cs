@@ -2,6 +2,37 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 
 internal static class MarketDataSchemaCql
 {
+    public const string CreateEconomicCalendarTable = """
+    CREATE TABLE IF NOT EXISTS economic_calendar (
+    eventDate timestamp,
+    countryCode text,
+    eventName text,
+    actual text,
+    forecast text,
+    prior text,
+    createdOn timestamp,
+    createdBy text,
+    PRIMARY KEY (eventDate, countryCode, eventName)
+    )
+    WITH CLUSTERING ORDER BY (countryCode ASC, eventName ASC);
+    """;
+
+    public const string CreateEconomicCalendarByCountryMonthV2Table = """
+    CREATE TABLE IF NOT EXISTS economic_calendar_by_country_month_v2 (
+    countryCode text,
+    monthBucket int,
+    eventDate timestamp,
+    eventName text,
+    actual text,
+    forecast text,
+    prior text,
+    createdOn timestamp,
+    createdBy text,
+    PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)
+    )
+    WITH CLUSTERING ORDER BY (eventDate DESC, eventName ASC);
+    """;
+
     public const string CreateTickQuoteItemType = """
         CREATE TYPE IF NOT EXISTS tick_quote_item (
             source_sequence bigint,

@@ -5,6 +5,18 @@ namespace TomasAI.IFM.Application.Api.IntegrationTests.CommandApiResults;
 
 public static class MarketDataCommandApiResult
 {
+    public static Task FromAddEconomicCalendarAsync(HttpResponse resp)
+        => resp.SetResult();
+
+    public static Task FromRemoveEconomicCalendarAsync(HttpResponse resp)
+        => resp.SetResult();
+
+    public static Task FromChangeEconomicCalendarAsync(HttpResponse resp)
+        => resp.SetResult();
+
+    public static Task FromImportEconomicCalendarsAsync(HttpResponse resp)
+        => resp.SetResult();
+
     public static Task FromAddFuturesContractAsync(HttpResponse resp)
         => resp.SetResult();
 

@@ -23,6 +23,27 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
 {
     readonly IMarketDataCommandApi _commandApi = IsArgumentNull.Set(commandApi);
 
+    public Task<Guid> AddEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar)
+        => ExecuteCommandAsync(() => _commandApi.AddEconomicCalendarAsync(economicCalendar));
+
+    public Task<Guid> ChangeEconomicCalendarAsync(
+        EconomicCalendarId economicCalendarId,
+        EconomicCalendarReadModel economicCalendar,
+        bool overwrite)
+        => ExecuteCommandAsync(() => _commandApi.ChangeEconomicCalendarAsync(
+            economicCalendarId, economicCalendar, overwrite));
+
+    public Task<Guid> RemoveEconomicCalendarAsync(EconomicCalendarId economicCalendarId, bool overwrite)
+        => ExecuteCommandAsync(() => _commandApi.RemoveEconomicCalendarAsync(economicCalendarId, overwrite));
+
+    public Task ImportEconomicCalendarsAsync(
+        DateTime importDate,
+        EconomicCalendarReadModel[] economicCalendars,
+        Action onCompleted)
+        => ExecuteCommandAsync(
+            () => _commandApi.ImportEconomicCalendarsAsync(importDate, economicCalendars),
+            onCompleted);
+
     /// <summary>
     /// add futures contract
     /// </summary>

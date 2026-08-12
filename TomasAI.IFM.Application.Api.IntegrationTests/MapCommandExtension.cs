@@ -106,10 +106,10 @@ public static class MapCommandExtension
         app.MapPost(OptionTradeUriPath.DeleteOptionTrades, async (HttpResponse resp) => await OptionTradeCommandApiResult.FromDeleteOptionTradesAsync(resp));
 
         // reference command api paths...
-        app.MapPost(ReferenceUriPath.ChangeEconomicCalendar, async (HttpResponse resp) => await ReferenceCommandApiResult.FromChangeEconomicCalendarAsync(resp));
-        app.MapPost(ReferenceUriPath.AddEconomicCalendar, async (HttpResponse resp) => await ReferenceCommandApiResult.FromAddEconomicCalendarAsync(resp));
-        app.MapPost(ReferenceUriPath.RemoveEconomicCalendar, async (HttpResponse resp) => await ReferenceCommandApiResult.FromRemoveEconomicCalendarAsync(resp));
-        app.MapPost(ReferenceUriPath.ImportEconomicCalendars, async (HttpResponse resp) => await ReferenceCommandApiResult.FromImportEconomicCalendarsAsync(resp));
+        app.MapPost(MarketDataUriPath.ChangeEconomicCalendar, async (HttpResponse resp) => await MarketDataCommandApiResult.FromChangeEconomicCalendarAsync(resp));
+        app.MapPost(MarketDataUriPath.AddEconomicCalendar, async (HttpResponse resp) => await MarketDataCommandApiResult.FromAddEconomicCalendarAsync(resp));
+        app.MapPost(MarketDataUriPath.RemoveEconomicCalendar, async (HttpResponse resp) => await MarketDataCommandApiResult.FromRemoveEconomicCalendarAsync(resp));
+        app.MapPost(MarketDataUriPath.ImportEconomicCalendars, async (HttpResponse resp) => await MarketDataCommandApiResult.FromImportEconomicCalendarsAsync(resp));
         app.MapPost(ReferenceUriPath.AddLookupType, async (HttpResponse resp) => await ReferenceCommandApiResult.FromAddLookupTypeAsync(resp));
         app.MapPost(ReferenceUriPath.ChangeLookupType, async (HttpResponse resp) => await ReferenceCommandApiResult.FromChangeLookupTypeAsync(resp));
         app.MapPost(ReferenceUriPath.RemoveLookupType, async (HttpResponse resp) => await ReferenceCommandApiResult.FromRemoveLookupTypeAsync(resp));

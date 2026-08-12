@@ -1,6 +1,8 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.Extensions.Logging;
 using System.Collections.Immutable;
 using TomasAI.IFM.Framework.Storage;
@@ -30,7 +32,6 @@ public class ReferenceDbContext(
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
     public const string ReferenceDbConnection = "ReferenceDbConnection";
-    const string EconomicCalendarProjectionName = "economic_calendar_by_country_month_v2";
     const string ScheduledJobProjectionName = "scheduled_job_by_name_v3";
     const string ScheduledJobIdOwnershipScope = "job-id";
     const string ScheduledJobNameOwnershipScope = "job-name";
@@ -73,23 +74,6 @@ public class ReferenceDbContext(
     static LookupTypeNameReadModel MapToLookupTypeName(IObjectDataRecord e)
         => new(
             lookupTypeName: e.GetString(0)
-        );
-
-    static EconomicCalendarReadModel MapToEconomicCalendar(IObjectDataRecord e)
-        => new(
-            eventDate: NormalizeScyllaTimestamp(e.GetDateTime(0)),
-            countryCode: e.GetString(1),
-            eventName: e.GetString(2),
-            actual: e.GetString(3),
-            forecast: e.GetString(4),
-            prior: e.GetString(5),
-            createdOn: e.GetDateTime(6),
-            createdBy: e.GetString(7)
-        );
-
-    static EconomicCalendarCountryCodeReadModel MapToEconomicCalendarCountryCode(IObjectDataRecord e)
-        => new(
-            countryCode: e.GetString(0)
         );
 
     static ScheduledJobReadModel MapToScheduledJob<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -157,70 +141,6 @@ public class ReferenceDbContext(
             e.GetGuid(2),
             e.GetDateTime(3));
 
-    static EconomicCalendarProjectionKey MapToEconomicCalendarSourceKey(IObjectDataRecord e)
-    {
-        var eventDate = NormalizeScyllaTimestamp(e.GetDateTime(1));
-        return new(
-            e.GetString(0),
-            GetMonthBucket(eventDate),
-            eventDate,
-            e.GetString(2),
-            e.GetString(3),
-            e.GetString(4),
-            e.GetString(5),
-            e.GetDateTime(6),
-            e.GetString(7));
-    }
-
-    static EconomicCalendarProjectionKey MapToEconomicCalendarProjectionKey(IObjectDataRecord e)
-        => new(
-            e.GetString(0),
-            e.GetInt(1),
-            NormalizeScyllaTimestamp(e.GetDateTime(2)),
-            e.GetString(3),
-            e.GetString(4),
-            e.GetString(5),
-            e.GetString(6),
-            e.GetDateTime(7),
-            e.GetString(8));
-
-    internal static DateTime NormalizeScyllaTimestamp(DateTime value)
-    {
-        var utc = ProjectionMutationSafety.AsUtc(value);
-        return new DateTime(
-            utc.Ticks - (utc.Ticks % TimeSpan.TicksPerMillisecond),
-            DateTimeKind.Utc);
-    }
-
-    internal static int GetMonthBucket(DateTime value)
-    {
-        var utc = NormalizeScyllaTimestamp(value);
-        return checked((utc.Year * 100) + utc.Month);
-    }
-
-    static long GetScyllaTimestampMilliseconds(DateTime value)
-        => new DateTimeOffset(NormalizeScyllaTimestamp(value)).ToUnixTimeMilliseconds();
-
-    static void ValidateEconomicCalendarLogicalKeys(
-        IEnumerable<EconomicCalendarReadModel> economicCalendars)
-    {
-        var logicalKeys = new HashSet<EconomicCalendarLogicalKey>();
-        foreach (var calendar in economicCalendars)
-        {
-            var key = new EconomicCalendarLogicalKey(
-                GetScyllaTimestampMilliseconds(calendar.EventDate),
-                calendar.CountryCode,
-                calendar.EventName);
-            if (!logicalKeys.Add(key))
-            {
-                throw new ArgumentException(
-                    $"Economic-calendar batch contains duplicate key " +
-                    $"({calendar.CountryCode}, {calendar.EventName}, {key.EventDateUnixMilliseconds}ms).",
-                    nameof(economicCalendars));
-            }
-        }
-    }
-
     static void ValidateMdiForwardLossRatioLogicalKeys(
         IEnumerable<MDIForwardLossRatioReadModel> mdiForwardLossRatios)
     {
@@ -241,34 +161,9 @@ public class ReferenceDbContext(
         }
     }
 
-    static IEnumerable<int> GetMonthBuckets(DateTime startDate, DateTime endDate)
-    {
-        startDate = NormalizeScyllaTimestamp(startDate);
-        endDate = NormalizeScyllaTimestamp(endDate);
-        if (endDate < startDate)
-            yield break;
-
-        var month = new DateTime(startDate.Year, startDate.Month, 1);
-        var lastMonth = new DateTime(endDate.Year, endDate.Month, 1);
-        while (month <= lastMonth)
-        {
-            yield return GetMonthBucket(month);
-            if (month.Year == DateTime.MaxValue.Year && month.Month == DateTime.MaxValue.Month)
-                yield break;
-            month = month.AddMonths(1);
-        }
-    }
-
-    internal static string GetEconomicCalendarProjectionScope(string countryCode, int monthBucket)
-        => FormattableString.Invariant(
-            $"{EconomicCalendarProjectionName}{ProjectionScopeSeparator}{countryCode.Length}:{countryCode}{ProjectionScopeSeparator}{monthBucket:D6}");
-
     internal static string GetScheduledJobProjectionScope(string scheduledJobName)
         => FormattableString.Invariant(
             $"{ScheduledJobProjectionName}{ProjectionScopeSeparator}{scheduledJobName.Length}:{scheduledJobName}");
-
-    static string GetEconomicCalendarProjectionScope(EconomicCalendarBucketKey bucket)
-        => GetEconomicCalendarProjectionScope(bucket.CountryCode, bucket.MonthBucket);
 
     static async Task<int?> GetScheduledJobProjectionIdAsync(
         IObjectRepository db,
@@ -954,41 +849,6 @@ public class ReferenceDbContext(
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(firstError).Throw();
     }
 
-    static async Task<EconomicCalendarProjectionWriteState> SuspendEconomicCalendarProjectionAsync(
-        IObjectRepository db,
-        IEnumerable<EconomicCalendarBucketKey> buckets)
-    {
-        var state = await SuspendProjectionScopesAsync(
-            db,
-            EconomicCalendarProjectionName,
-            buckets.Select(GetEconomicCalendarProjectionScope));
-        return new(state);
-    }
-
-    static async Task RestoreEconomicCalendarProjectionAsync(
-        IObjectRepository db,
-        EconomicCalendarProjectionWriteState state)
-    {
-        await FinishProjectionScopesAsync(db, state.State, succeeded: true);
-    }
-
-    static Task AbandonEconomicCalendarProjectionAsync(
-        IObjectRepository db,
-        EconomicCalendarProjectionWriteState state)
-        => FinishProjectionScopesAsync(db, state.State, succeeded: false);
-
-    static Task FinishEconomicCalendarProjectionMutationAsync(
-        IObjectRepository db,
-        EconomicCalendarProjectionWriteState state,
-        bool succeeded,
-        bool targetMutationSubmissionStarted)
-        => succeeded || ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
-                targetMutationSubmissionStarted)
-            ? succeeded
-                ? RestoreEconomicCalendarProjectionAsync(db, state)
-                : AbandonEconomicCalendarProjectionAsync(db, state)
-            : Task.CompletedTask;
-
     static Task FinishProjectionScopesAfterMutationAttemptAsync(
         IObjectRepository db,
         ReferenceProjectionWriteState state,
@@ -1296,45 +1156,6 @@ public class ReferenceDbContext(
         }
     }
 
-     /// <summary>
-    /// delete economic calendar
-    /// </summary>
-    /// <param name="id">economic calendar id</param>
-    /// <returns></returns>
-    public async Task DeleteEconomicCalendarAsync(EconomicCalendarId id)
-    {
-        var db = _dbFactory.ReferenceDb;
-        var eventDate = NormalizeScyllaTimestamp(id.EventDate);
-        var projectionState = await SuspendEconomicCalendarProjectionAsync(
-            db,
-            [new EconomicCalendarBucketKey(id.CountryCode, GetMonthBucket(eventDate))]);
-        var succeeded = false;
-        var targetMutationSubmissionStarted = false;
-        try
-        {
-            var queuedCommands = new List<object>
-            {
-                db.Use(ReferenceDbCql.DeleteEconomicCalendar)
-                    .SetParameters(new DeleteEconomicCalendar(eventDate, id.CountryCode, id.EventName))
-                    .QueueCommand(),
-                db.Use(ReferenceDbCql.DeleteEconomicCalendarByCountryMonthV2)
-                    .SetParameters(new DeleteEconomicCalendarByCountryMonthV2(id.CountryCode, GetMonthBucket(eventDate), eventDate, id.EventName))
-                    .QueueCommand()
-            };
-            targetMutationSubmissionStarted = true;
-            await db.ExecuteQueuedCommandsAsync(queuedCommands);
-            succeeded = true;
-        }
-        finally
-        {
-            await FinishEconomicCalendarProjectionMutationAsync(
-                db,
-                projectionState,
-                succeeded,
-                targetMutationSubmissionStarted);
-        }
-    }
-
     /// <summary>
     /// return next seed id by seed type
     /// </summary>
@@ -1368,255 +1189,6 @@ public class ReferenceDbContext(
                 SequenceNameExtensions.ParseSequenceName(seedType),
                 cancellationToken)
             .ConfigureAwait(false));
-
-    /// <summary>
-    /// return list of economic calendar events for selected event date
-    /// </summary>
-    /// <param name="eventDate"></param>
-    /// <returns></returns>
-    public async Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId id)
-        => await _dbFactory.ReferencePool.GetAsync( async db =>
-            await db.Use(ReferenceDbCql.GetEconomicCalendarById)
-                .SetParameters(new GetEconomicCalendarById(NormalizeScyllaTimestamp(id.EventDate), id.CountryCode, id.EventName))
-                .ExecuteSingleAsync(MapToEconomicCalendar!));
-
-    public async Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(
-        EconomicCalendarId id,
-        CancellationToken cancellationToken)
-        => await _dbFactory.ReferencePool.GetAsync(async db =>
-            await db.Use(ReferenceDbCql.GetEconomicCalendarById)
-                .SetParameters(new GetEconomicCalendarById(NormalizeScyllaTimestamp(id.EventDate), id.CountryCode, id.EventName))
-                .ExecuteSingleAsync(MapToEconomicCalendar!, cancellationToken));
-
-    /// <summary>
-    /// return list of economic calendar events for selected event date
-    /// </summary>
-    /// <param name="eventDate"></param>
-    /// <returns></returns>
-    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode)
-        => GetEconomicCalendarsAsync(
-            eventDate.Date,
-            eventDate.Date == DateTime.MaxValue.Date
-                ? DateTime.MaxValue
-                : eventDate.Date.AddDays(1).AddTicks(-1),
-            countryCode);
-
-    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
-        DateTime eventDate,
-        string countryCode,
-        CancellationToken cancellationToken)
-        => GetEconomicCalendarsAsync(
-            eventDate.Date,
-            eventDate.Date == DateTime.MaxValue.Date
-                ? DateTime.MaxValue
-                : eventDate.Date.AddDays(1).AddTicks(-1),
-            countryCode,
-            cancellationToken);
-            
-    /// <summary>
-    /// return list of all economic calendar events 
-    /// </summary>
-    /// <returns></returns>
-    public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync()
-        => [.. (await _dbFactory.ReferenceDb
-               .Use(ReferenceDbCql.GetEconomicCalendarsAll)
-               .ExecuteQueryAsync(MapToEconomicCalendar!)).OrderByDescending(e => e.EventDate)];
-
-    public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync(
-        CancellationToken cancellationToken)
-        => [.. (await _dbFactory.ReferenceDb
-            .Use(ReferenceDbCql.GetEconomicCalendarsAll)
-            .ExecuteQueryAsync(MapToEconomicCalendar!, cancellationToken))
-            .OrderByDescending(e => e.EventDate)];
-
-    /// <summary>
-    /// return list of economic calendar events for selected date range
-    /// </summary>
-    /// <param name="eventDate"></param>
-    /// <returns></returns>
-    public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode)
-    {
-        startDate = NormalizeScyllaTimestamp(startDate);
-        endDate = NormalizeScyllaTimestamp(endDate);
-        if (endDate < startDate)
-            return [];
-
-        var db = _dbFactory.ReferenceDb;
-        var monthBuckets = GetMonthBuckets(startDate, endDate).ToArray();
-        var readTokens = new Dictionary<int, ReferenceProjectionReadToken>(monthBuckets.Length);
-        var allScopesReady = true;
-        foreach (var batch in monthBuckets.Chunk(8))
-        {
-            var tokens = await Task.WhenAll(batch.Select(async monthBucket => (
-                MonthBucket: monthBucket,
-                Token: await GetScopedProjectionReadTokenAsync(
-                    db,
-                    EconomicCalendarProjectionName,
-                    GetEconomicCalendarProjectionScope(countryCode, monthBucket)))));
-            foreach (var token in tokens)
-            {
-                if (token.Token is null)
-                    allScopesReady = false;
-                else
-                    readTokens.Add(token.MonthBucket, token.Token.Value);
-            }
-        }
-
-        if (allScopesReady)
-        {
-            var projected = new List<EconomicCalendarReadModel>();
-            foreach (var batch in monthBuckets.Chunk(8))
-            {
-                var pages = await Task.WhenAll(batch.Select(monthBucket => db.Use(ReferenceDbCql.GetEconomicCalendars)
-                    .SetParameters(new GetEconomicCalendars(countryCode, monthBucket, startDate, endDate))
-                    .ExecuteQueryAsync(MapToEconomicCalendar!)));
-                foreach (var rows in pages)
-                    projected.AddRange(rows);
-            }
-
-            var allTokensValid = true;
-            foreach (var batch in monthBuckets.Chunk(8))
-            {
-                var validity = await Task.WhenAll(batch.Select(monthBucket =>
-                    IsScopedProjectionReadTokenValidAsync(
-                        db,
-                        EconomicCalendarProjectionName,
-                        GetEconomicCalendarProjectionScope(countryCode, monthBucket),
-                        readTokens[monthBucket])));
-                if (validity.Any(static isValid => !isValid))
-                    allTokensValid = false;
-            }
-
-            if (allTokensValid)
-            {
-                projected.Sort(static (left, right) => right.EventDate.CompareTo(left.EventDate));
-                return projected;
-            }
-        }
-
-        var canonical = new List<EconomicCalendarReadModel>();
-        await foreach (var row in db.Use(ReferenceDbCql.GetEconomicCalendarsAll)
-            .ExecuteStreamAsync(MapToEconomicCalendar!))
-        {
-            if (string.Equals(row.CountryCode, countryCode, StringComparison.Ordinal)
-                && row.EventDate >= startDate
-                && row.EventDate <= endDate)
-            {
-                canonical.Add(row);
-            }
-        }
-        canonical.Sort(static (left, right) => right.EventDate.CompareTo(left.EventDate));
-        return canonical;
-    }
-
-    public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
-        DateTime startDate,
-        DateTime endDate,
-        string countryCode,
-        CancellationToken cancellationToken)
-    {
-        startDate = NormalizeScyllaTimestamp(startDate);
-        endDate = NormalizeScyllaTimestamp(endDate);
-        if (endDate < startDate)
-            return [];
-
-        var db = _dbFactory.ReferenceDb;
-        var monthBuckets = GetMonthBuckets(startDate, endDate).ToArray();
-        var readTokens = new Dictionary<int, ReferenceProjectionReadToken>(monthBuckets.Length);
-        var allScopesReady = true;
-        foreach (var batch in monthBuckets.Chunk(8))
-        {
-            var tokens = await Task.WhenAll(batch.Select(async monthBucket => (
-                MonthBucket: monthBucket,
-                Token: await GetScopedProjectionReadTokenAsync(
-                    db,
-                    EconomicCalendarProjectionName,
-                    GetEconomicCalendarProjectionScope(countryCode, monthBucket),
-                    cancellationToken))));
-            foreach (var token in tokens)
-            {
-                if (token.Token is null)
-                    allScopesReady = false;
-                else
-                    readTokens.Add(token.MonthBucket, token.Token.Value);
-            }
-        }
-
-        if (allScopesReady)
-        {
-            var projected = new List<EconomicCalendarReadModel>();
-            foreach (var batch in monthBuckets.Chunk(8))
-            {
-                var pages = await Task.WhenAll(batch.Select(monthBucket => db.Use(ReferenceDbCql.GetEconomicCalendars)
-                    .SetParameters(new GetEconomicCalendars(countryCode, monthBucket, startDate, endDate))
-                    .ExecuteQueryAsync(MapToEconomicCalendar!, cancellationToken)));
-                foreach (var rows in pages)
-                    projected.AddRange(rows);
-            }
-
-            var allTokensValid = true;
-            foreach (var batch in monthBuckets.Chunk(8))
-            {
-                var validity = await Task.WhenAll(batch.Select(monthBucket =>
-                    IsScopedProjectionReadTokenValidAsync(
-                        db,
-                        EconomicCalendarProjectionName,
-                        GetEconomicCalendarProjectionScope(countryCode, monthBucket),
-                        readTokens[monthBucket],
-                        cancellationToken)));
-                if (validity.Any(static isValid => !isValid))
-                    allTokensValid = false;
-            }
-
-            if (allTokensValid)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                projected.Sort(static (left, right) => right.EventDate.CompareTo(left.EventDate));
-                return projected;
-            }
-        }
-
-        var canonical = new List<EconomicCalendarReadModel>();
-        await foreach (var row in db.Use(ReferenceDbCql.GetEconomicCalendarsAll)
-            .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
-        {
-            if (string.Equals(row.CountryCode, countryCode, StringComparison.Ordinal)
-                && row.EventDate >= startDate
-                && row.EventDate <= endDate)
-            {
-                canonical.Add(row);
-            }
-        }
-        cancellationToken.ThrowIfCancellationRequested();
-        canonical.Sort(static (left, right) => right.EventDate.CompareTo(left.EventDate));
-        return canonical;
-    }
-
-    /// <summary>
-    /// return list of economic calendar country codes
-    /// </summary>
-    /// <returns></returns>
-    public async Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync()
-    {
-        var countryCodes = await _dbFactory.ReferenceDb
-               .Use(ReferenceDbCql.GetEconomicCalendarCountryCodes)
-               .ExecuteQueryAsync(MapToEconomicCalendarCountryCode);
-        if (countryCodes is null || countryCodes.Count == 0)
-            return [];
-        return countryCodes.DistinctBy(e => e.CountryCode).ToImmutableList();
-    }
-
-    public async Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync(
-        CancellationToken cancellationToken)
-    {
-        var countryCodes = await _dbFactory.ReferenceDb
-            .Use(ReferenceDbCql.GetEconomicCalendarCountryCodes)
-            .ExecuteQueryAsync(MapToEconomicCalendarCountryCode, cancellationToken);
-        if (countryCodes is null || countryCodes.Count == 0)
-            return [];
-        cancellationToken.ThrowIfCancellationRequested();
-        return countryCodes.DistinctBy(e => e.CountryCode).ToImmutableList();
-    }
 
     /// <summary>
     /// return lookup type from lookup type id
@@ -1845,37 +1417,6 @@ public class ReferenceDbContext(
                .SetParameters(new InsertLookupType(e.LookupTypeName, e.ShortCode, e.OrderId, e.Description, e.CreatedOn, e.CreatedBy))
                .ExecuteCommandAsync();
 
-     /// <summary>
-    /// insert economic calendar
-    /// </summary>
-    /// <param name="e"></param>
-    public async Task InsertEconomicCalendarAsync(EconomicCalendarReadModel e)
-    {
-        await _dbFactory.ReferencePool.ExecuteAsync(async db =>
-        {
-            var projectionState = await SuspendEconomicCalendarProjectionAsync(
-                db,
-                [new EconomicCalendarBucketKey(e.CountryCode, GetMonthBucket(e.EventDate))]);
-            var succeeded = false;
-            var targetMutationSubmissionStarted = false;
-            try
-            {
-                var queuedCommands = CreateEconomicCalendarInsertCommands(db, e);
-                targetMutationSubmissionStarted = true;
-                await db.ExecuteQueuedCommandsAsync(queuedCommands);
-                succeeded = true;
-            }
-            finally
-            {
-                await FinishEconomicCalendarProjectionMutationAsync(
-                    db,
-                    projectionState,
-                    succeeded,
-                    targetMutationSubmissionStarted);
-            }
-        });
-    }
-
     public async Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync(CancellationToken cancellationToken)
     {
         var db = _dbFactory.ReferenceDb;
@@ -1890,45 +1431,6 @@ public class ReferenceDbContext(
                 e.DaysOfWeek = jobDaysOfWeek;
         }
         return scheduledJobs;
-    }
-
-    /// <summary>
-    /// insert collection of economic calendars into storage
-    /// </summary>
-    /// <param name="economicCalendars"></param>
-    /// <returns></returns>
-    public async Task InsertEconomicCalendarsAsync(ICollection<EconomicCalendarReadModel> economicCalendars)
-    {
-        if (economicCalendars.Count == 0)
-            return;
-        ValidateEconomicCalendarLogicalKeys(economicCalendars);
-
-        var db = _dbFactory.ReferenceDb;
-        var projectionState = await SuspendEconomicCalendarProjectionAsync(
-            db,
-            economicCalendars.Select(static e =>
-                new EconomicCalendarBucketKey(e.CountryCode, GetMonthBucket(e.EventDate))));
-        var succeeded = false;
-        var targetMutationSubmissionStarted = false;
-        try
-        {
-            targetMutationSubmissionStarted = true;
-            await db.Use(ReferenceDbCql.InsertEconomicCalendar)
-                .SetParameters(economicCalendars.Select(static o => new InsertEconomicCalendar(NormalizeScyllaTimestamp(o.EventDate), o.CountryCode, o.EventName, o.Actual, o.Forecast, o.Prior, o.CreatedOn, o.CreatedBy)))
-                .ExecuteCommandAsync();
-            await db.Use(ReferenceDbCql.InsertEconomicCalendarByCountryMonthV2)
-                .SetParameters(economicCalendars.Select(static o => new InsertEconomicCalendarByCountryMonthV2(o.CountryCode, GetMonthBucket(o.EventDate), NormalizeScyllaTimestamp(o.EventDate), o.EventName, o.Actual, o.Forecast, o.Prior, o.CreatedOn, o.CreatedBy)))
-                .ExecuteCommandAsync();
-            succeeded = true;
-        }
-        finally
-        {
-            await FinishEconomicCalendarProjectionMutationAsync(
-                db,
-                projectionState,
-                succeeded,
-                targetMutationSubmissionStarted);
-        }
     }
 
     /// <summary>
@@ -2187,70 +1689,6 @@ public class ReferenceDbContext(
     }
     
     /// <summary>
-    /// update economic calendar
-    /// </summary>
-    /// <param name="id"></param>
-    /// <param name="e"></param>
-    /// <returns></returns>
-    public async Task UpdateEconomicCalendarAsync(EconomicCalendarId id, EconomicCalendarReadModel e)
-    {
-        var db = _dbFactory.ReferenceDb;
-        var oldEventDate = NormalizeScyllaTimestamp(id.EventDate);
-        var newEventDate = NormalizeScyllaTimestamp(e.EventDate);
-        var projectionState = await SuspendEconomicCalendarProjectionAsync(
-            db,
-            [
-                new EconomicCalendarBucketKey(id.CountryCode, GetMonthBucket(oldEventDate)),
-                new EconomicCalendarBucketKey(e.CountryCode, GetMonthBucket(newEventDate))
-            ]);
-        var succeeded = false;
-        var targetMutationSubmissionStarted = false;
-        try
-        {
-            var queuedCommands = new List<object>
-            {
-                db.Use(ReferenceDbCql.DeleteEconomicCalendar)
-                    .SetParameters(new DeleteEconomicCalendar(oldEventDate, id.CountryCode, id.EventName))
-                    .QueueCommand(),
-                db.Use(ReferenceDbCql.DeleteEconomicCalendarByCountryMonthV2)
-                    .SetParameters(new DeleteEconomicCalendarByCountryMonthV2(id.CountryCode, GetMonthBucket(oldEventDate), oldEventDate, id.EventName))
-                    .QueueCommand(),
-                db.Use(ReferenceDbCql.InsertEconomicCalendar)
-                    .SetParameters(new InsertEconomicCalendar(newEventDate, e.CountryCode, e.EventName, e.Actual, e.Forecast, e.Prior, e.CreatedOn, e.CreatedBy))
-                    .QueueCommand(),
-                db.Use(ReferenceDbCql.InsertEconomicCalendarByCountryMonthV2)
-                    .SetParameters(new InsertEconomicCalendarByCountryMonthV2(e.CountryCode, GetMonthBucket(newEventDate), newEventDate, e.EventName, e.Actual, e.Forecast, e.Prior, e.CreatedOn, e.CreatedBy))
-                    .QueueCommand()
-            };
-            targetMutationSubmissionStarted = true;
-            await db.ExecuteQueuedCommandsAsync(queuedCommands);
-            succeeded = true;
-        }
-        finally
-        {
-            await FinishEconomicCalendarProjectionMutationAsync(
-                db,
-                projectionState,
-                succeeded,
-                targetMutationSubmissionStarted);
-        }
-    }
-
-    static List<object> CreateEconomicCalendarInsertCommands(IObjectRepository db, EconomicCalendarReadModel e)
-    {
-        var eventDate = NormalizeScyllaTimestamp(e.EventDate);
-        return
-        [
-            db.Use(ReferenceDbCql.InsertEconomicCalendar)
-                .SetParameters(new InsertEconomicCalendar(eventDate, e.CountryCode, e.EventName, e.Actual, e.Forecast, e.Prior, e.CreatedOn, e.CreatedBy))
-                .QueueCommand(),
-            db.Use(ReferenceDbCql.InsertEconomicCalendarByCountryMonthV2)
-                .SetParameters(new InsertEconomicCalendarByCountryMonthV2(e.CountryCode, GetMonthBucket(eventDate), eventDate, e.EventName, e.Actual, e.Forecast, e.Prior, e.CreatedOn, e.CreatedBy))
-                .QueueCommand()
-        ];
-    }
-
-    /// <summary>
     /// update lookup type
     /// </summary>
     /// <param name="id"></param>
@@ -2357,68 +1795,19 @@ public class ReferenceDbContext(
                 cancellationToken).ConfigureAwait(false);
             await RecoverVerifiedInactiveProjectionMutationsAsync(
                 db,
-                [EconomicCalendarProjectionName, ScheduledJobProjectionName],
+                [ScheduledJobProjectionName],
                 verifiedInactiveCutoffUtc,
                 cancellationToken);
         }
-        long economicCalendarCount = 0;
         long scheduledJobCount = 0;
-        ReferenceProjectionMutation? economicCalendarMutation = null;
         ReferenceProjectionMutation? scheduledJobMutation = null;
-        var economicCalendarBatch = new List<InsertEconomicCalendarByCountryMonthV2>(batchSize);
         var published = false;
         var targetMutationSubmissionStarted = false;
         try
         {
-            economicCalendarMutation = await SuspendProjectionAsync(
-                db,
-                EconomicCalendarProjectionName);
             scheduledJobMutation = await SuspendProjectionAsync(
                 db,
                 ScheduledJobProjectionName);
-
-            // Discover both canonical and projected buckets without retaining calendar rows.
-            // Resetting their union makes replay remove stale/mis-bucketed projection rows.
-            var economicCalendarBuckets = new HashSet<EconomicCalendarBucketKey>();
-            await foreach (var key in db.Use(ReferenceDbCql.GetEconomicCalendarKeysAll)
-                .ExecuteStreamAsync(MapToEconomicCalendarSourceKey, cancellationToken))
-            {
-                economicCalendarBuckets.Add(new EconomicCalendarBucketKey(key.CountryCode, key.MonthBucket));
-                economicCalendarCount++;
-            }
-            await foreach (var key in db.Use(ReferenceDbCql.GetEconomicCalendarProjectionKeysV2All)
-                .ExecuteStreamAsync(MapToEconomicCalendarProjectionKey, cancellationToken))
-            {
-                economicCalendarBuckets.Add(new EconomicCalendarBucketKey(key.CountryCode, key.MonthBucket));
-            }
-
-            foreach (var bucketBatch in economicCalendarBuckets.Chunk(batchSize))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                targetMutationSubmissionStarted = true;
-                await db.Use(ReferenceDbCql.DeleteEconomicCalendarCountryMonthV2)
-                    .SetParameters(bucketBatch.Select(static bucket =>
-                        new DeleteEconomicCalendarCountryMonthV2(bucket.CountryCode, bucket.MonthBucket)))
-                    .ExecuteCommandAsync(cancellationToken);
-            }
-
-            await foreach (var row in db.Use(ReferenceDbCql.GetEconomicCalendarsAll)
-                .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
-            {
-                economicCalendarBatch.Add(new InsertEconomicCalendarByCountryMonthV2(
-                    row.CountryCode,
-                    GetMonthBucket(row.EventDate),
-                    row.EventDate,
-                    row.EventName,
-                    row.Actual,
-                    row.Forecast,
-                    row.Prior,
-                    row.CreatedOn,
-                    row.CreatedBy));
-                if (economicCalendarBatch.Count == batchSize)
-                    await FlushEconomicCalendarsAsync();
-            }
-            await FlushEconomicCalendarsAsync();
 
             var scheduledJobs = new Dictionary<string, int>(StringComparer.Ordinal);
             var scheduledJobNamesById = new Dictionary<int, string>();
@@ -2458,9 +1847,7 @@ public class ReferenceDbContext(
             {
                 throw new StorageException(
                     "ReferenceDb V2 projection backfill did not reconcile " +
-                    $"(calendar missing={reconciliation.MissingEconomicCalendars}, " +
-                    $"calendar unexpected={reconciliation.UnexpectedEconomicCalendars}, " +
-                    $"jobs missing={reconciliation.MissingScheduledJobs}, " +
+                    $"(jobs missing={reconciliation.MissingScheduledJobs}, " +
                     $"jobs unexpected={reconciliation.UnexpectedScheduledJobs}, " +
                     $"jobs tokenless={reconciliation.TokenlessScheduledJobReservations}). " +
                     "Replay the backfill before cutover.");
@@ -2472,18 +1859,14 @@ public class ReferenceDbContext(
             targetMutationSubmissionStarted = true;
             await ClearScopedProjectionStatesAsync(
                 db,
-                [EconomicCalendarProjectionName, ScheduledJobProjectionName],
+                [ScheduledJobProjectionName],
                 cancellationToken);
 
-            var economicCalendarCompleted = await TryCompleteProjectionAsync(
-                db,
-                EconomicCalendarProjectionName,
-                economicCalendarMutation.Value);
             var scheduledJobCompleted = await TryCompleteProjectionAsync(
                 db,
                 ScheduledJobProjectionName,
                 scheduledJobMutation.Value);
-            if (!economicCalendarCompleted || !scheduledJobCompleted)
+            if (!scheduledJobCompleted)
             {
                 throw new StorageException(
                     "ReferenceDb V2 projection cutover was superseded by a concurrent mutation. " +
@@ -2492,28 +1875,17 @@ public class ReferenceDbContext(
 
             await DeleteProjectionMutationAsync(
                 db,
-                EconomicCalendarProjectionName,
-                economicCalendarMutation.Value.Generation);
-            await DeleteProjectionMutationAsync(
-                db,
                 ScheduledJobProjectionName,
                 scheduledJobMutation.Value.Generation);
             published = true;
-            return new ReferenceProjectionBackfillResult(economicCalendarCount, scheduledJobCount);
+            return new ReferenceProjectionBackfillResult(scheduledJobCount);
         }
         finally
         {
             if (!published && ProjectionMutationSafety.CanRemoveMutationJournalAfterFailure(
                 targetMutationSubmissionStarted))
             {
-                var cleanupTasks = new List<Task>(2);
-                if (economicCalendarMutation.HasValue)
-                {
-                    cleanupTasks.Add(AbandonProjectionAsync(
-                        db,
-                        EconomicCalendarProjectionName,
-                        economicCalendarMutation.Value));
-                }
+                var cleanupTasks = new List<Task>(1);
                 if (scheduledJobMutation.HasValue)
                 {
                     cleanupTasks.Add(AbandonProjectionAsync(
@@ -2526,16 +1898,6 @@ public class ReferenceDbContext(
             }
         }
 
-        async Task FlushEconomicCalendarsAsync()
-        {
-            if (economicCalendarBatch.Count == 0)
-                return;
-            targetMutationSubmissionStarted = true;
-            await db.Use(ReferenceDbCql.InsertEconomicCalendarByCountryMonthV2)
-                .SetParameters(economicCalendarBatch)
-                .ExecuteCommandAsync(cancellationToken);
-            economicCalendarBatch.Clear();
-        }
     }
 
     /// <summary>
@@ -2545,24 +1907,6 @@ public class ReferenceDbContext(
         CancellationToken cancellationToken = default)
     {
         var db = _dbFactory.ReferenceDb;
-        long sourceCalendarCount = 0;
-        var sourceCalendars = new HashSet<EconomicCalendarProjectionKey>();
-        await foreach (var key in db.Use(ReferenceDbCql.GetEconomicCalendarKeysAll)
-            .ExecuteStreamAsync(MapToEconomicCalendarSourceKey, cancellationToken))
-        {
-            sourceCalendars.Add(key);
-            sourceCalendarCount++;
-        }
-
-        long projectedCalendarCount = 0;
-        var projectedCalendars = new HashSet<EconomicCalendarProjectionKey>();
-        await foreach (var key in db.Use(ReferenceDbCql.GetEconomicCalendarProjectionKeysV2All)
-            .ExecuteStreamAsync(MapToEconomicCalendarProjectionKey, cancellationToken))
-        {
-            projectedCalendars.Add(key);
-            projectedCalendarCount++;
-        }
-
         long sourceJobCount = 0;
         var sourceJobs = new HashSet<ScheduledJobProjectionKey>();
         await foreach (var row in db.Use(ReferenceDbCql.GetScheduledJobs)
@@ -2585,10 +1929,6 @@ public class ReferenceDbContext(
         }
 
         return new ReferenceProjectionReconciliationResult(
-            sourceCalendarCount,
-            projectedCalendarCount,
-            sourceCalendars.Except(projectedCalendars).LongCount(),
-            projectedCalendars.Except(sourceCalendars).LongCount(),
             sourceJobCount,
             projectedJobCount,
             sourceJobs.Except(projectedJobs).LongCount(),
@@ -2612,11 +1952,6 @@ internal sealed record ScheduledJobWriteOperation(
     Guid OperationId,
     DateTime StartedOn,
     List<ScheduledJobWriteOwnership> Ownerships);
-internal readonly record struct EconomicCalendarBucketKey(string CountryCode, int MonthBucket);
-internal readonly record struct EconomicCalendarLogicalKey(
-    long EventDateUnixMilliseconds,
-    string CountryCode,
-    string EventName);
 internal readonly record struct MdiForwardLossRatioLogicalKey(
     string TrendDirection,
     string TradeType,
@@ -2640,17 +1975,5 @@ internal sealed record ReferenceProjectionWriteState(
     string ProjectionName,
     ReferenceProjectionMutation GroupMutation,
     IReadOnlyList<ReferenceProjectionScopedMutation> ScopeMutations);
-internal readonly record struct EconomicCalendarProjectionWriteState(
-    ReferenceProjectionWriteState State);
-internal readonly record struct EconomicCalendarProjectionKey(
-    string CountryCode,
-    int MonthBucket,
-    DateTime EventDate,
-    string EventName,
-    string Actual,
-    string Forecast,
-    string Prior,
-    DateTime CreatedOn,
-    string CreatedBy);
 internal sealed record ScheduledJobIdRow(int Value);
 

@@ -18,8 +18,6 @@ public static class SampleData
     static readonly DateTime _jobScheduledDate = new DateTime(2025, 01, 01, 0, 0, 0);
     static readonly DateTime _jobCreatedOn = new DateTime(2025, 01, 01, 0, 0, 0);
     static readonly DateTime _jobUpdatedOn = new DateTime(2025, 01, 01, 0, 0, 0);
-    static readonly DateTime _economicEventDate = new DateTime(2025, 02, 15, 14, 30, 0);
-    static readonly DateTime _economicCalendarCreatedOn = new DateTime(2025, 01, 01, 0, 0, 0);
     static readonly DateTime _mdiCreatedOn = new DateTime(2025, 01, 01, 0, 0, 0);
     
     static SampleData()
@@ -61,16 +59,6 @@ public static class SampleData
             sunday: false
         )
     };
-
-    public static readonly EconomicCalendarReadModel EconomicCalendar = new EconomicCalendarReadModel(
-        eventDate: _economicEventDate,
-        countryCode: "US",
-        eventName: "Non-Farm Payrolls",
-        actual: "250K",
-        forecast: "240K",
-        prior: "230K",
-        createdOn: _economicCalendarCreatedOn,
-        createdBy: "admin");
 
     public static readonly DefaultFuturesContractDefinitionsReadModel DefaultFuturesContractDefinitions = new DefaultFuturesContractDefinitionsReadModel
     {

@@ -19,6 +19,75 @@ public class MarketDataCommandApiTests(WebApplicationFactory<Program> factory)
     readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
 
     [Fact]
+    public async Task AddEconomicCalendar_Ok()
+    {
+        var api = CreateApi();
+        var economicCalendar = EconomicCalendar("Test Event");
+
+        var response = await api.AddEconomicCalendarAsync(economicCalendar);
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().NotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task RemoveEconomicCalendar_Ok()
+    {
+        var api = CreateApi();
+        var id = new EconomicCalendarId(DateTime.Now.Date, "USA", "Test Event");
+
+        var response = await api.RemoveEconomicCalendarAsync(id, overwrite: true);
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().NotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task ChangeEconomicCalendar_Ok()
+    {
+        var api = CreateApi();
+        var id = new EconomicCalendarId(DateTime.Now.Date, "USA", "Test Event");
+
+        var response = await api.ChangeEconomicCalendarAsync(
+            id,
+            EconomicCalendar(id.EventName, id.EventDate),
+            overwrite: true);
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().NotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task ImportEconomicCalendars_Ok()
+    {
+        var api = CreateApi();
+
+        var response = await api.ImportEconomicCalendarsAsync(
+            DateTime.Now.Date,
+            [EconomicCalendar("Imported Event")]);
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().NotBe(Guid.Empty);
+    }
+
+    MarketDataCommandApi CreateApi()
+        => new(new CommandServiceApiClient(
+            _httpClientFactory,
+            _jsonSerializer,
+            new CommandServiceApiOptions("http://localhost")));
+
+    static EconomicCalendarReadModel EconomicCalendar(string eventName, DateTime? eventDate = null)
+        => new(
+            eventDate ?? DateTime.Now,
+            "USA",
+            eventName,
+            "1",
+            "2",
+            "0",
+            DateTime.Now,
+            "TestUser");
+
+    [Fact]
     public async Task AddFuturesContract_Ok()
     {
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));

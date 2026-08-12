@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Application.Api.Client;
 /// </summary>
 /// <remarks>This API serves as a centralized interface for retrieving various types of market data information. It includes methods for querying contracts, rates, trading days, and iron condor analytics over specified time periods.</remarks>
 /// <param name="querySvc"></param>
-public class MarketDataQueryApi(IQueryServiceApi querySvc) : IMarketDataQueryApi
+public partial class MarketDataQueryApi(IQueryServiceApi querySvc) : IMarketDataQueryApi
 {
     readonly IQueryServiceApi _querySvc = IsArgumentNull.Set(querySvc);
 

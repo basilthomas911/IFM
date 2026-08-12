@@ -1,12 +1,15 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 
 public interface IMarketDataQueryApi
 {
+    Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode);
+    Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync();
+    Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync();
+    Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarType);
+    Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>> GetEconomicCalendarCountryCodesAsync();
     Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(string symbol);
     Task<ServiceResult<FuturesContractV2ReadModel[]>> GetCurrentlyTradedFuturesContractsAsync(string symbol);
     Task<ServiceResult<FuturesContractV2ReadModel>> GetFuturesContractAsync(string contractId);

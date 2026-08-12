@@ -29,7 +29,6 @@ internal static class Program
 
     static readonly string[] ReferenceProjectionObjects =
     [
-        "economic_calendar_by_country_month_v2",
         "reference_projection_state_v3",
         "reference_projection_mutation_v3",
         "reference_projection_ownership_v3",
@@ -180,11 +179,9 @@ internal static class Program
             .ConfigureAwait(false);
 
         Console.WriteLine(
-            $"Reference backfill: calendars={backfill.EconomicCalendars}, scheduledJobs={backfill.ScheduledJobs}.");
+            $"Reference backfill: scheduledJobs={backfill.ScheduledJobs}.");
         Console.WriteLine(
-            $"Reference reconciliation: calendar source/projected={reconciliation.SourceEconomicCalendars}/{reconciliation.ProjectedEconomicCalendars}, " +
-            $"missing/unexpected={reconciliation.MissingEconomicCalendars}/{reconciliation.UnexpectedEconomicCalendars}; " +
-            $"scheduled-job source/projected={reconciliation.SourceScheduledJobs}/{reconciliation.ProjectedScheduledJobs}, " +
+            $"Reference reconciliation: scheduled-job source/projected={reconciliation.SourceScheduledJobs}/{reconciliation.ProjectedScheduledJobs}, " +
             $"missing/unexpected/tokenless={reconciliation.MissingScheduledJobs}/{reconciliation.UnexpectedScheduledJobs}/" +
             $"{reconciliation.TokenlessScheduledJobReservations}.");
 

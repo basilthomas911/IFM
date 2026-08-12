@@ -229,7 +229,7 @@ public static class ReferenceCommands
     public static IEndpointRouteBuilder MapReferenceCommands(this IEndpointRouteBuilder endpoints)
     {
         // Economic Calendar Commands
-        endpoints.MapPost(ReferenceUriPath.AddEconomicCalendar, async (IActorService e, AddEconomicCalendarParameter cmdParam)
+        endpoints.MapPost(MarketDataUriPath.AddEconomicCalendar, async (IActorService e, AddEconomicCalendarParameter cmdParam)
             => {
                 var entityId = new EconomicCalendarId(cmdParam.EconomicCalendar.EventDate, cmdParam.EconomicCalendar.CountryCode, cmdParam.EconomicCalendar.EventName);
                 AddEconomicCalendarCommand cmd = new(cmdParam.EconomicCalendar)
@@ -241,7 +241,7 @@ public static class ReferenceCommands
                 return await e.RequestAsync<AddEconomicCalendarCommand, EconomicCalendarId>(cmd!);
             });
 
-        endpoints.MapPost(ReferenceUriPath.ChangeEconomicCalendar, async (IActorService e, ChangeEconomicCalendarParameter cmdParam)
+        endpoints.MapPost(MarketDataUriPath.ChangeEconomicCalendar, async (IActorService e, ChangeEconomicCalendarParameter cmdParam)
             => {
                 var entityId = cmdParam.EconomicCalendarId;
                 ChangeEconomicCalendarCommand cmd = new(cmdParam.EconomicCalendarId, cmdParam.EconomicCalendar, cmdParam.Overwrite)
@@ -253,7 +253,7 @@ public static class ReferenceCommands
                 return await e.RequestAsync<ChangeEconomicCalendarCommand, EconomicCalendarId>(cmd!);
             });
 
-        endpoints.MapPost(ReferenceUriPath.RemoveEconomicCalendar, async (IActorService e, RemoveEconomicCalendarParameter cmdParam)
+        endpoints.MapPost(MarketDataUriPath.RemoveEconomicCalendar, async (IActorService e, RemoveEconomicCalendarParameter cmdParam)
             => {
                 var entityId = cmdParam.EconomicCalendarId;
                 RemoveEconomicCalendarCommand cmd = new(cmdParam.EconomicCalendarId, cmdParam.Overwrite)
@@ -265,7 +265,7 @@ public static class ReferenceCommands
                 return await e.RequestAsync<RemoveEconomicCalendarCommand, EconomicCalendarId>(cmd!);
             });
 
-        endpoints.MapPost(ReferenceUriPath.ImportEconomicCalendars, async (IActorService e, ImportEconomicCalendarsParameter cmdParam)
+        endpoints.MapPost(MarketDataUriPath.ImportEconomicCalendars, async (IActorService e, ImportEconomicCalendarsParameter cmdParam)
             => {
                 var entityId = new EconomicCalendarId(cmdParam.ImportedDate, "ZZ", "ImportEconomicCalendars");
                 ImportEconomicCalendarsCommand cmd = new(cmdParam.EconomicCalendars, cmdParam.ImportedDate)

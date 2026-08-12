@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Reference.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;

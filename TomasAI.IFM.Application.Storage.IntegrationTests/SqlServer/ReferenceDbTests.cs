@@ -24,67 +24,6 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         public ReferenceFixture TestFixture { get; }
 
         [Fact]
-        public async Task InsertEconomicCalendarAsyncOk()
-        {
-            var db = TestFixture.Database;
-            await db.Use("delete from economic_calendar").ExecuteCommandAsync();
-            await db.InsertEconomicCalendarAsync(SampleData.EconomicCalendar);
-            var rowCount = await db.Use($"select count(*) from economic_calendar where EventName = '{SampleData.EconomicCalendar.EventName}'").ExecuteScalarAsync<int>();
-            Assert.True(rowCount == 1);
-
-            // delete test rows...
-            await db.Use($"delete from economic_calendar where EventName = '{SampleData.EconomicCalendar.EventName}'").ExecuteCommandAsync();
-        }
-
-        [Fact]
-        public async Task DeleteEconomicCalendarAsyncOk()
-        {
-            var db = TestFixture.Database;
-            await db.Use("delete from economic_calendar").ExecuteCommandAsync();
-            await db.InsertEconomicCalendarAsync(SampleData.EconomicCalendar);
-            var rowCount = await db.Use($"select count(*) from economic_calendar where EventName = '{SampleData.EconomicCalendar.EventName}'").ExecuteScalarAsync<int>();
-            Assert.True(rowCount == 1);
-
-            await db.DeleteEconomicCalendarAsync(SampleData.EconomicCalendar.Id);
-            rowCount = await db.Use($"select count(*) from economic_calendar where EventName = '{SampleData.EconomicCalendar.EventName}'").ExecuteScalarAsync<int>();
-            Assert.True(rowCount == 0);
-
-            // delete test rows...
-            await db.Use($"delete from economic_calendar where EventName = '{SampleData.EconomicCalendar.EventName}'").ExecuteCommandAsync();
-        }
-
-        [Fact]
-        public async Task GetEconomicCalendarAsyncOk()
-        {
-            var db = TestFixture.Database;
-            await db.Use("delete from economic_calendar").ExecuteCommandAsync();
-            await db.InsertEconomicCalendarAsync(SampleData.EconomicCalendar);
-            var result = await db.GetEconomicCalendarAsync(SampleData.EconomicCalendar.Id);
-            result.Should().NotBeNull();
-            result.EventName.Should().Be(SampleData.EconomicCalendar.EventName);
-
-            // delete test rows...
-            await db.Use($"delete from economic_calendar where EventName = '{SampleData.EconomicCalendar.EventName}'").ExecuteCommandAsync();
-        }
-
-        [Fact]
-        public async Task GetEconomicCalendarsAsyncOk()
-        {
-            var db = TestFixture.Database;
-            await db.Use("delete from economic_calendar").ExecuteCommandAsync();
-            await db.InsertEconomicCalendarAsync(SampleData.EconomicCalendar);
-            await db.InsertEconomicCalendarAsync(SampleData.EconomicCalendar with { EventDate = SampleData.EconomicCalendar.EventDate.AddDays(5), EventName = "FOMC Meeting" });
-            var result = await db.GetEconomicCalendarsAsync(SampleData.EconomicCalendar.EventDate, SampleData.EconomicCalendar.EventDate.AddDays(5), SampleData.EconomicCalendar.CountryCode);
-            result.Should().NotBeNull();
-            result.Count.Should().Be(2);
-            result.ElementAt(0).EventName.Should().Be(SampleData.EconomicCalendar.EventName);
-            result.ElementAt(1).EventName.Should().Be("FOMC Meeting");
-
-            // delete test rows...
-            await db.Use($"delete from economic_calendar").ExecuteCommandAsync();
-        }
-
-        [Fact]
         public async Task InsertScheduledJobOk()
         {
             var jobScheduleDate = new DateTime(2019, 4, 10);

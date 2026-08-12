@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using System;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System.Collections.Generic;
 using System.Text;
 using Xunit;

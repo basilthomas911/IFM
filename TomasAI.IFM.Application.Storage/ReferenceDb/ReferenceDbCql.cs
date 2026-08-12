@@ -3,27 +3,6 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 
 internal class ReferenceDbCql
 {
-    public const string DeleteEconomicCalendar = """
-    delete from economic_calendar
-    where EventDate = :eventDate
-    and CountryCode = :countryCode
-    and EventName = :eventName;
-    """;
-
-    public const string DeleteEconomicCalendarByCountryMonthV2 = """
-    DELETE FROM economic_calendar_by_country_month_v2
-    WHERE countryCode = :countryCode
-    AND monthBucket = :monthBucket
-    AND eventDate = :eventDate
-    AND eventName = :eventName;
-    """;
-
-    public const string DeleteEconomicCalendarCountryMonthV2 = """
-    DELETE FROM economic_calendar_by_country_month_v2
-    WHERE countryCode = :countryCode
-    AND monthBucket = :monthBucket;
-    """;
-
     public const string DeleteReferenceProjectionStateV3 = """
     DELETE FROM reference_projection_state_v3
     WHERE projectionName = :projectionName;
@@ -78,47 +57,6 @@ internal class ReferenceDbCql
     WHERE scopeType = :scopeType
     AND scopeKey = :scopeKey
     IF operationId = :operationId;
-    """;
-
-    public const string GetEconomicCalendarById = """
-    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
-    FROM economic_calendar
-    where EventDate = :eventDate
-    and CountryCode = :countryCode
-    and EventName = :eventName
-    """;
-
-    public const string GetEconomicCalendarCountryCodes = """
-    select countryCode as "CountryCode"
-    from economic_calendar
-    """;
-
-    public const string GetEconomicCalendars = """
-    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
-    FROM economic_calendar_by_country_month_v2
-    WHERE countryCode = :countryCode
-    AND monthBucket = :monthBucket
-    AND eventDate >= :startDate
-    AND eventDate <= :endDate;
-    """;
-
-    public const string GetEconomicCalendarsAll = """
-    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
-    FROM economic_calendar;
-    """;
-
-    public const string GetEconomicCalendarKeysAll = """
-    SELECT countryCode AS "CountryCode", eventDate AS "EventDate", eventName AS "EventName",
-        actual AS "Actual", forecast AS "Forecast", prior AS "Prior",
-        createdOn AS "CreatedOn", createdBy AS "CreatedBy"
-    FROM economic_calendar;
-    """;
-
-    public const string GetEconomicCalendarProjectionKeysV2All = """
-    SELECT countryCode AS "CountryCode", monthBucket AS "MonthBucket", eventDate AS "EventDate", eventName AS "EventName",
-        actual AS "Actual", forecast AS "Forecast", prior AS "Prior",
-        createdOn AS "CreatedOn", createdBy AS "CreatedBy"
-    FROM economic_calendar_by_country_month_v2;
     """;
 
     public const string GetReferenceProjectionStateV3 = """
@@ -270,16 +208,6 @@ internal class ReferenceDbCql
     public const string GetScheduledJobWriteOwnershipsV3All = """
     SELECT scopeType, scopeKey, operationId, startedOn
     FROM scheduled_job_write_ownership_v3;
-    """;
-
-    public const string InsertEconomicCalendar = """
-    INSERT INTO economic_calendar (eventDate, countryCode, eventName, actual, forecast, prior, createdOn, createdBy)
-    VALUES (:eventDate, :countryCode, :eventName, :actual, :forecast, :prior, :createdOn, :createdBy);
-    """;
-
-    public const string InsertEconomicCalendarByCountryMonthV2 = """
-    INSERT INTO economic_calendar_by_country_month_v2 (countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, createdOn, createdBy)
-    VALUES (:countryCode, :monthBucket, :eventDate, :eventName, :actual, :forecast, :prior, :createdOn, :createdBy);
     """;
 
     public const string InsertLookupType = """

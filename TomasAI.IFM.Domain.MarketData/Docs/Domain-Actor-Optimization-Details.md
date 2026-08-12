@@ -4,7 +4,7 @@ Date: 2026-08-06
 
 ## Scope and invariants
 
-The recurring review covers the root MarketData query actors and API plus the YieldCurveRate command, event, query, validation, state, and repository paths. Specialized Analytics, Feed, and Securities actors have their own optimization reports.
+The recurring review covers the root MarketData query actors and API plus the EconomicCalendar and YieldCurveRate command, event, query, validation, state, and repository paths. Specialized Analytics, Feed, and Securities actors have their own optimization reports. Economic-calendar optimization benchmarks migrated here from the former Reference ownership.
 
 The following contracts remain unchanged:
 

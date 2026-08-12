@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Reference.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using System;
 using System.Collections.Generic;
 using System.Linq;

@@ -2,6 +2,40 @@
 
 internal static class MarketDataDbCql
 {
+    public const string DeleteEconomicCalendar = """
+    DELETE FROM economic_calendar
+    WHERE eventDate = :eventDate AND countryCode = :countryCode AND eventName = :eventName;
+    """;
+    public const string DeleteEconomicCalendarByCountryMonthV2 = """
+    DELETE FROM economic_calendar_by_country_month_v2
+    WHERE countryCode = :countryCode AND monthBucket = :monthBucket
+    AND eventDate = :eventDate AND eventName = :eventName;
+    """;
+    public const string GetEconomicCalendarById = """
+    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
+    FROM economic_calendar WHERE eventDate = :eventDate AND countryCode = :countryCode AND eventName = :eventName;
+    """;
+    public const string GetEconomicCalendarCountryCodes = """
+    SELECT countryCode AS "CountryCode" FROM economic_calendar;
+    """;
+    public const string GetEconomicCalendars = """
+    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
+    FROM economic_calendar_by_country_month_v2
+    WHERE countryCode = :countryCode AND monthBucket = :monthBucket AND eventDate >= :startDate AND eventDate <= :endDate;
+    """;
+    public const string GetEconomicCalendarsAll = """
+    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
+    FROM economic_calendar;
+    """;
+    public const string InsertEconomicCalendar = """
+    INSERT INTO economic_calendar (eventDate, countryCode, eventName, actual, forecast, prior, createdOn, createdBy)
+    VALUES (:eventDate, :countryCode, :eventName, :actual, :forecast, :prior, :createdOn, :createdBy);
+    """;
+    public const string InsertEconomicCalendarByCountryMonthV2 = """
+    INSERT INTO economic_calendar_by_country_month_v2 (countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, createdOn, createdBy)
+    VALUES (:countryCode, :monthBucket, :eventDate, :eventName, :actual, :forecast, :prior, :createdOn, :createdBy);
+    """;
+
     public const string InsertTickTradeData = """
         INSERT INTO tick_trade_data (
             asset_type_id, contract_id, value_date, aggregation_time, sequence_id,

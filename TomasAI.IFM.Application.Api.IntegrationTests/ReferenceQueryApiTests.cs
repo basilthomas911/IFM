@@ -1,4 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -197,81 +199,6 @@ public class ReferenceQueryApiTests(WebApplicationFactory<Program> factory)
 
         response.Success.Should().BeTrue();
         response.Value.Should().BeAssignableTo<ScalarReadModel<bool>>();
-    }
-
-    /// <summary>
-    /// Tests retrieval of economic calendars for a date, view type and country.
-    /// </summary>
-    [Fact]
-    public async Task GetEconomicCalendars_ByParams_Ok()
-    {
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var queryApi = new ReferenceQueryApi(queryServiceApi);
-
-        var response = await queryApi.GetEconomicCalendarAsync(DateTime.UtcNow, EconomicCalendarViewType.Today, "US");
-
-        response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<EconomicCalendarReadModel[]>();
-    }
-
-    /// <summary>
-    /// Tests retrieval of all economic calendars.
-    /// </summary>
-    [Fact]
-    public async Task GetEconomicCalendars_All_Ok()
-    {
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var queryApi = new ReferenceQueryApi(queryServiceApi);
-
-        var response = await queryApi.GetEconomicCalendarsAsync();
-
-        response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<EconomicCalendarReadModel[]>();
-    }
-
-    /// <summary>
-    /// Tests retrieval of external economic calendars.
-    /// </summary>
-    [Fact]
-    public async Task GetExternalEconomicCalendars_Ok()
-    {
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var queryApi = new ReferenceQueryApi(queryServiceApi);
-
-        var response = await queryApi.GetExternalEconomicCalendarsAsync();
-
-        response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<EconomicCalendarReadModel[]>();
-    }
-
-    /// <summary>
-    /// Tests retrieval of economic calendar date string.
-    /// </summary>
-    [Fact]
-    public async Task GetEconomicCalendarDate_Ok()
-    {
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var queryApi = new ReferenceQueryApi(queryServiceApi);
-
-        var response = await queryApi.GetEconomicCalendarDateAsync(System.DateTime.UtcNow.Date, EconomicCalendarViewType.Today);
-
-        response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<string>();
-    }
-
-    /// <summary>
-    /// Tests retrieval of economic calendar country codes.
-    /// </summary>
-    [Fact]
-    public async Task GetEconomicCalendarCountryCodes_Ok()
-    {
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var queryApi = new ReferenceQueryApi(queryServiceApi);
-
-        var response = await queryApi.GetEconomicCalendarCountryCodesAsync();
-
-        response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<EconomicCalendarCountryCodeReadModel[]>();
     }
 
     /// <summary>

@@ -1,6 +1,4 @@
-using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.Reference.EconomicCalendar.Query;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
@@ -96,54 +94,6 @@ public sealed partial class ActorReferenceQueryApi
             async () => new ScalarReadModel<bool>(await _dbFactory.ReferenceDb
                 .LookupTypeShortCodeExistsAsync(lookupTypeName, shortCode, cancellationToken)));
 
-    public Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(
-        DateTime todaysDate,
-        EconomicCalendarViewType calendarType,
-        string countryCode,
-        CancellationToken cancellationToken)
-        => ExecuteAsync<EconomicCalendarReadModel[]>(
-            GetEconomicCalendarQuery.ErrorId,
-            cancellationToken,
-            async () => [.. await GetEconomicCalendar.GetEconomicCalendarAsync(
-                _dbFactory.ReferenceDb,
-                todaysDate,
-                calendarType,
-                countryCode,
-                cancellationToken)]);
-
-    public Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(
-        CancellationToken cancellationToken)
-        => ExecuteAsync<EconomicCalendarReadModel[]>(
-            GetEconomicCalendarAllQuery.ErrorId,
-            cancellationToken,
-            async () => [.. await _dbFactory.ReferenceDb.GetEconomicCalendarAllAsync(cancellationToken)]);
-
-    public Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync(
-        CancellationToken cancellationToken)
-        => ExecuteAsync<EconomicCalendarReadModel[]>(
-            GetExternalEconomicCalendarsQuery.ErrorId,
-            cancellationToken,
-            async () => _dbFactory.EconomicCalendarsDb is not IEconomicCalendarsDbContext db
-                ? []
-                : [.. await db.ReadAsync(cancellationToken)]);
-
-    public Task<ServiceResult<string>> GetEconomicCalendarDateAsync(
-        DateTime todaysDate,
-        EconomicCalendarViewType calendarType,
-        CancellationToken cancellationToken)
-        => ExecuteAsync(
-            GetEconomicCalendarDateQuery.ErrorId,
-            cancellationToken,
-            () => Task.FromResult(GetEconomicCalendarDate
-                .GetEconomicCalendarEventDate(todaysDate, calendarType)));
-
-    public Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>> GetEconomicCalendarCountryCodesAsync(
-        CancellationToken cancellationToken)
-        => ExecuteAsync<EconomicCalendarCountryCodeReadModel[]>(
-            GetEconomicCalendarCountryCodesQuery.ErrorId,
-            cancellationToken,
-            async () => [.. await _dbFactory.ReferenceDb
-                .GetEconomicCalendarCountryCodesAsync(cancellationToken)]);
 
     public Task<ServiceResult<MDIForwardLossRatioReadModel[]>> GetMDIForwardLossRatiosAsync(
         IntrinsicTimeTrendType trendDirection,

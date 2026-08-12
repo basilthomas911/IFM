@@ -287,18 +287,6 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
             UpdatedBy: "basil"
         );
 
-        public static EconomicCalendarReadModel EconomicCalendar => new EconomicCalendarReadModel
-        (
-            EventDate: new DateTime(2020, 10, 10),
-            CountryCode: "US",
-            EventName: "US Employment Report",
-            Actual: "9000000",
-            Forecast: "10000000",
-            Prior: string.Empty,
-            CreatedOn: new DateTime(2020, 10, 10),
-            CreatedBy: "basil"
-        );
-
         public static TradeOrderReadModel TradeOrder => new TradeOrderReadModel(
             FundId: 1234,
             OrderId: 2345,

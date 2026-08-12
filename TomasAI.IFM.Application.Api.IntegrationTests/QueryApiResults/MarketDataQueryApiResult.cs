@@ -10,6 +10,30 @@ namespace TomasAI.IFM.Application.Api.IntegrationTests.QueryApiResults;
 
 public static class MarketDataQueryApiResult
 {
+    public static Task FromGetEconomicCalendarsAsync(HttpResponse resp)
+        => resp.SetResult(new[] {
+            new EconomicCalendarReadModel(System.DateTime.UtcNow.Date, "US", "NFP", "1000", "950", "900", System.DateTime.UtcNow, "tester")
+        });
+
+    public static Task FromGetEconomicCalendarAllAsync(HttpResponse resp)
+        => resp.SetResult(new[] {
+            new EconomicCalendarReadModel(System.DateTime.UtcNow.Date, "US", "NFP", "1000", "950", "900", System.DateTime.UtcNow, "tester")
+        });
+
+    public static Task FromGetExternalEconomicCalendarsAsync(HttpResponse resp)
+        => resp.SetResult(new[] {
+            new EconomicCalendarReadModel(System.DateTime.UtcNow.Date, "US", "NFP", "1000", "950", "900", System.DateTime.UtcNow, "external")
+        });
+
+    public static Task FromGetEconomicCalendarDateAsync(HttpResponse resp)
+        => resp.SetResult(System.DateTime.UtcNow.Date.ToString("yyyy-MM-dd"));
+
+    public static Task FromGetEconomicCalendarCountryCodesAsync(HttpResponse resp)
+        => resp.SetResult(new[] {
+            new EconomicCalendarCountryCodeReadModel("US"),
+            new EconomicCalendarCountryCodeReadModel("GB")
+        });
+
     public static Task FromGetCurrentlyTradedFuturesContractAsync(HttpResponse resp)
         => resp.SetResult(new FuturesContractV2ReadModel(
             "ES20251010", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 10), true));

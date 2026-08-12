@@ -2,18 +2,6 @@ using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 
-internal readonly record struct DeleteEconomicCalendar(DateTime eventDate, string countryCode, string eventName) : IBindValue
-{
-    public object Bind() => new object?[] { eventDate, countryCode, eventName };
-}
-internal readonly record struct DeleteEconomicCalendarByCountryMonthV2(string countryCode, int monthBucket, DateTime eventDate, string eventName) : IBindValue
-{
-    public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName };
-}
-internal readonly record struct DeleteEconomicCalendarCountryMonthV2(string countryCode, int monthBucket) : IBindValue
-{
-    public object Bind() => new object?[] { countryCode, monthBucket };
-}
 internal readonly record struct DeleteReferenceProjectionStateV3(string projectionName) : IBindValue
 {
     public object Bind() => new object?[] { projectionName };
@@ -59,14 +47,6 @@ internal readonly record struct ReleaseScheduledJobWriteOwnershipV3(
     Guid operationId) : IBindValue
 {
     public object Bind() => new object?[] { scopeType, scopeKey, operationId };
-}
-internal readonly record struct GetEconomicCalendarById(DateTime eventDate, string countryCode, string eventName) : IBindValue
-{
-    public object Bind() => new object?[] { eventDate, countryCode, eventName };
-}
-internal readonly record struct GetEconomicCalendars(string countryCode, int monthBucket, DateTime startDate, DateTime endDate) : IBindValue
-{
-    public object Bind() => new object?[] { countryCode, monthBucket, startDate, endDate };
 }
 internal readonly record struct GetReferenceProjectionStateV3(string projectionName) : IBindValue
 {
@@ -133,14 +113,6 @@ internal readonly record struct GetScheduledJobWriteOwnershipV3(
     string scopeKey) : IBindValue
 {
     public object Bind() => new object?[] { scopeType, scopeKey };
-}
-internal readonly record struct InsertEconomicCalendar(DateTime eventDate, string countryCode, string eventName, string actual, string forecast, string prior, DateTime createdOn, string createdBy) : IBindValue
-{
-    public object Bind() => new object?[] { eventDate, countryCode, eventName, actual, forecast, prior, createdOn, createdBy };
-}
-internal readonly record struct InsertEconomicCalendarByCountryMonthV2(string countryCode, int monthBucket, DateTime eventDate, string eventName, string actual, string forecast, string prior, DateTime createdOn, string createdBy) : IBindValue
-{
-    public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, createdOn, createdBy };
 }
 internal readonly record struct InsertLookupType(string lookupTypeName, string shortCode, int orderId, string description, DateTime createdOn, string createdBy) : IBindValue
 {

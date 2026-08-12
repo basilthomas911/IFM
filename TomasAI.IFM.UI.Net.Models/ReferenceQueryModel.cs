@@ -131,52 +131,6 @@ public class ReferenceQueryModel : BaseModel<ReferenceQueryModel>
         => await ExecuteAsync(() => _queryApi.GetLookupTypesAsync("OptionType"), onCompleted);
 
     /// <summary>
-    /// load economic calendar
-    /// </summary>
-    /// <param name="todaysDate"></param>
-    /// <param name="calendarViewType"></param>
-    /// <param name="onCompleted"></param>
-    /// <returns></returns>
-    public async Task LoadEconomicCalendarAsync(DateTime todaysDate, EconomicCalendarViewType calendarViewType, string countryCode,  Action<EconomicCalendarReadModel[]> onCompleted)
-        => await ExecuteAsync(() => _queryApi.GetEconomicCalendarsAsync(todaysDate, calendarViewType, countryCode), onCompleted);
-
-    public Task LoadEconomicCalendarAsync(
-        DateTime todaysDate,
-        EconomicCalendarViewType calendarViewType,
-        string countryCode,
-        Func<EconomicCalendarReadModel[], Task> onCompleted)
-        => ExecuteAsync(
-            () => _queryApi.GetEconomicCalendarsAsync(todaysDate, calendarViewType, countryCode),
-            onCompleted);
-
-    /// <summary>
-    /// load economic calendar
-    /// </summary>
-    /// <param name="onCompleted"></param>
-    /// <returns></returns>
-    public async Task LoadEconomicCalendarsAsync(DateOnly eventDate, string countryCode, Action<EconomicCalendarReadModel[]> onCompleted)
-        => await ExecuteAsync(() => _queryApi.GetEconomicCalendarsAsync(eventDate.ToDateTime(TimeOnly.MinValue), EconomicCalendarViewType.Today, countryCode), onCompleted);
-
-    /// <summary>
-    /// load economic calendar country codes
-    /// </summary>
-    /// <param name="onCompleted"></param>
-    /// <returns></returns>
-    public async Task LoadEconomicCalendarCountryCodesAsync(Action<EconomicCalendarCountryCodeReadModel[]> onCompleted)
-        => await ExecuteAsync(() => _queryApi.GetEconomicCalendarCountryCodesAsync(), onCompleted);
-
-
-    /// <summary>
-    /// load economic calendar date
-    /// </summary>
-    /// <param name="todaysDate"></param>
-    /// <param name="calendarViewType"></param>
-    /// <param name="onCompleted"></param>
-    /// <returns></returns>
-    public async Task LoadEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarViewType, Action<string> onCompleted)
-        => await ExecuteAsync(() => _queryApi.GetEconomicCalendarDateAsync(todaysDate, calendarViewType), onCompleted);
-
-    /// <summary>
     /// load lookup type names
     /// </summary>
     /// <param name="onCompleted"></param>
@@ -203,13 +157,6 @@ public class ReferenceQueryModel : BaseModel<ReferenceQueryModel>
 
     public Task LoadLookupTypesAsync(Func<ICollection<LookupTypeReadModel>, Task> onCompleted)
         => ExecuteAsync(_queryApi.GetLookupTypesAsync, onCompleted);
-
-    /// <summary>
-    /// get external economic calendars
-    /// </summary>
-    /// <returns></returns>
-    public async Task GetExternalEconomicCalendarsAsync(Action<EconomicCalendarReadModel[]> onCompleted)
-        => await ExecuteAsync(_queryApi.GetExternalEconomicCalendarsAsync, onCompleted);
 
     /// <summary>
     /// load MDI forward loss ratios

@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Application.Api.Client;
 /// </summary>
 /// <param name="commandSvc">The command service API client.</param>
 /// <exception cref="ArgumentNullException">Thrown when commandSvc is null.</exception>
-public class MarketDataCommandApi(ICommandServiceApi commandSvc) : IMarketDataCommandApi
+public partial class MarketDataCommandApi(ICommandServiceApi commandSvc) : IMarketDataCommandApi
 {
     readonly ICommandServiceApi _commandSvc = IsArgumentNull.Set(commandSvc);
 

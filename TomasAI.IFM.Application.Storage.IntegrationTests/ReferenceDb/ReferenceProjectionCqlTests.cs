@@ -11,55 +11,6 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;
 public sealed class ReferenceProjectionCqlTests
 {
     [Fact]
-    public void EconomicCalendarProjection_UsesLegalCountryMonthPartitionAndInclusiveRange()
-    {
-        var schema = Normalize(ReferenceSchemaCql.CreateEconomicCalendarByCountryMonthV2Table);
-        var query = Normalize(ReferenceDbCql.GetEconomicCalendars);
-
-        schema.Should().Contain("primary key ((countrycode, monthbucket), eventdate, eventname)");
-        schema.Should().Contain("clustering order by (eventdate desc, eventname asc)");
-        query.Should().Contain("where countrycode = :countrycode and monthbucket = :monthbucket");
-        query.Should().Contain("eventdate >= :startdate and eventdate <= :enddate");
-        query.Should().NotContain("allow filtering");
-
-        new GetEconomicCalendars(
-                "US",
-                204502,
-                new DateTime(2045, 2, 1),
-                new DateTime(2045, 3, 1))
-            .Bind()
-            .Should().BeEquivalentTo(
-                new object[]
-                {
-                    "US",
-                    204502,
-                    new DateTime(2045, 2, 1),
-                    new DateTime(2045, 3, 1)
-                },
-                options => options.WithStrictOrdering());
-    }
-
-    [Fact]
-    public void EconomicCalendarTimestamp_NormalizesLocalMonthBoundaryToUtcMilliseconds()
-    {
-        var probe = new DateTime(2045, 4, 1, 0, 0, 0, DateTimeKind.Local);
-        var offset = TimeZoneInfo.Local.GetUtcOffset(probe);
-        var localBoundary = offset <= TimeSpan.Zero
-            ? new DateTime(2045, 3, 31, 23, 59, 59, 999, DateTimeKind.Local).AddTicks(9_999)
-            : new DateTime(2045, 4, 1, 0, 0, 0, DateTimeKind.Local).AddTicks(9_999);
-
-        var normalized = ReferenceDbContext.NormalizeScyllaTimestamp(localBoundary);
-
-        normalized.Kind.Should().Be(DateTimeKind.Utc);
-        (normalized.Ticks % TimeSpan.TicksPerMillisecond).Should().Be(0);
-        ReferenceDbContext.GetMonthBucket(localBoundary)
-            .Should().Be((normalized.Year * 100) + normalized.Month);
-        if (offset != TimeSpan.Zero)
-            normalized.Month.Should().NotBe(localBoundary.Month,
-                "a local instant at this boundary belongs to the adjacent UTC month");
-    }
-
-    [Fact]
     public void ProjectionState_UsesGenerationCheckedCutover()
     {
         var schema = Normalize(ReferenceSchemaCql.CreateReferenceProjectionStateV3Table);
@@ -172,22 +123,6 @@ public sealed class ReferenceProjectionCqlTests
     }
 
     [Fact]
-    public void DisjointReferenceWrites_UseIndependentLengthPrefixedReadinessScopes()
-    {
-        var usJanuary = ReferenceDbContext.GetEconomicCalendarProjectionScope("US", 204501);
-        var usFebruary = ReferenceDbContext.GetEconomicCalendarProjectionScope("US", 204502);
-        var countryContainingSeparator = ReferenceDbContext.GetEconomicCalendarProjectionScope("US\u001f204502", 204501);
-        var firstJob = ReferenceDbContext.GetScheduledJobProjectionScope("Daily\u001fBackup");
-        var secondJob = ReferenceDbContext.GetScheduledJobProjectionScope("Daily");
-
-        usJanuary.Should().NotBe(usFebruary);
-        usJanuary.Should().NotBe(countryContainingSeparator);
-        firstJob.Should().NotBe(secondJob);
-        Normalize(ReferenceSchemaCql.CreateReferenceProjectionMutationV3Table)
-            .Should().Contain("primary key ((projectionname), mutationid)");
-    }
-
-    [Fact]
     public void StaleRecoveryInventory_ContainsScopeNameMutationIdAndStartedOn()
     {
         var inventory = Normalize(ReferenceDbCql.GetReferenceProjectionMutationsV3All);
@@ -196,15 +131,6 @@ public sealed class ReferenceProjectionCqlTests
         inventory.Should().Contain("mutationid");
         inventory.Should().Contain("startedon");
         inventory.Should().NotContain("allow filtering");
-    }
-
-    [Fact]
-    public void EconomicCalendarReconciliationQuery_IncludesThePhysicalMonthBucket()
-    {
-        var query = Normalize(ReferenceDbCql.GetEconomicCalendarProjectionKeysV2All);
-
-        query.Should().Contain("monthbucket");
-        query.Should().Contain("from economic_calendar_by_country_month_v2");
     }
 
     [Fact]
@@ -282,10 +208,6 @@ public sealed class ReferenceProjectionCqlTests
     public void ReferenceReconciliation_TokenlessScheduledJobReservationFailsReadiness()
     {
         var result = new ReferenceProjectionReconciliationResult(
-            SourceEconomicCalendars: 1,
-            ProjectedEconomicCalendars: 1,
-            MissingEconomicCalendars: 0,
-            UnexpectedEconomicCalendars: 0,
             SourceScheduledJobs: 1,
             ProjectedScheduledJobs: 1,
             MissingScheduledJobs: 0,

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -7,7 +7,6 @@ using System.Data;
 using System.Linq;
 using System.Windows.Forms;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.Reference

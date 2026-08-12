@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Linq;

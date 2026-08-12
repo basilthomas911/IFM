@@ -26,39 +26,6 @@ namespace TomasAI.IFM.UI.Net.Models
         }
 
         /// <summary>
-        /// add economic calendar
-        /// </summary>
-        /// <param name="economicCalendar"></param>
-        public async Task<Guid> AddEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar)
-            => await ExecuteCommandAsync(() => _commandApi.AddEconomicCalendarAsync(economicCalendar));
-
-        /// <summary>
-        /// change economic calendar
-        /// </summary>
-        /// <param name="economicCalendarId"></param>
-        /// <param name="economicCalendar"></param>
-        /// <param name="overwrite"></param>
-        public async Task<Guid> ChangeEconomicCalendarAsync(EconomicCalendarId economicCalendarId, EconomicCalendarReadModel economicCalendar, bool overwrite)
-            => await ExecuteCommandAsync(() => _commandApi.ChangeEconomicCalendarAsync(economicCalendarId, economicCalendar, overwrite));
-
-        /// <summary>
-        /// remove economic calendar
-        /// </summary>
-        /// <param name="economicCalendarId"></param>
-        /// <param name="overwrite"></param>
-        public async Task<Guid> RemoveEconomicCalendarAsync(EconomicCalendarId economicCalendarId, bool overwrite)
-            => await ExecuteCommandAsync(() => _commandApi.RemoveEconomicCalendarAsync(economicCalendarId, overwrite));
-
-        /// <summary>
-        /// import economic calendars
-        /// </summary>
-        /// <param name="importDate"></param>
-        /// <param name="economicCalendars"></param>
-        /// <param name="onCompleted"></param>
-        public async Task ImportEconomicCalendarsAsync(DateTime importDate, EconomicCalendarReadModel[] economicCalendars, Action onCompleted)
-            => await ExecuteCommandAsync(() => _commandApi.ImportEconomicCalendarsAsync(importDate, economicCalendars), onCompleted);
-
-        /// <summary>
         /// add lookup type
         /// </summary>
         /// <param name="lookupType"></param>

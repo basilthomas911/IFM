@@ -261,35 +261,35 @@ public static class ReferenceQueries
             return await e.RequestAsync<LookupTypeCollection, GetLookupTypeQuery>(query);
         });
 
-        endpoints.MapGet(ReferenceQueryUriPath.GetEconomicCalendars, async (IActorService e, EconomicCalendarViewType calendarViewType, string countryCode, DateTime todaysDate) =>
+        endpoints.MapGet(MarketDataQueryUriPath.GetEconomicCalendars, async (IActorService e, EconomicCalendarViewType calendarViewType, string countryCode, DateTime todaysDate) =>
         {
             var query = new GetEconomicCalendarQuery(todaysDate, calendarViewType, countryCode);
             query.Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarQuery.Actor, GetEconomicCalendarQuery.Verb, query.EntityId.Format());
             return await e.RequestAsync<EconomicCalendarReadModel[], GetEconomicCalendarQuery>(query);
         });
 
-        endpoints.MapGet(ReferenceQueryUriPath.GetEconomicCalendarAll, async (IActorService e) =>
+        endpoints.MapGet(MarketDataQueryUriPath.GetEconomicCalendarAll, async (IActorService e) =>
         {
             var query = new GetEconomicCalendarAllQuery();
             query.Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarAllQuery.Actor, GetEconomicCalendarAllQuery.Verb, query.EntityId.Format());
             return await e.RequestAsync<EconomicCalendarReadModel[], GetEconomicCalendarAllQuery>(query);
         });
 
-        endpoints.MapGet(ReferenceQueryUriPath.GetExternalEconomicCalendars, async (IActorService e) =>
+        endpoints.MapGet(MarketDataQueryUriPath.GetExternalEconomicCalendars, async (IActorService e) =>
         {
             var query = new GetExternalEconomicCalendarsQuery();
             query.Subject = new ActorSubject(ActorType.Query, GetExternalEconomicCalendarsQuery.Actor, GetExternalEconomicCalendarsQuery.Verb, query.EntityId.Format());
             return await e.RequestAsync<EconomicCalendarReadModel[], GetExternalEconomicCalendarsQuery>(query);
         });
 
-        endpoints.MapGet(ReferenceQueryUriPath.GetEconomicCalendarDate, async (IActorService e, DateTime todaysDate, EconomicCalendarViewType calendarViewType) =>
+        endpoints.MapGet(MarketDataQueryUriPath.GetEconomicCalendarDate, async (IActorService e, DateTime todaysDate, EconomicCalendarViewType calendarViewType) =>
         {
             var query = new GetEconomicCalendarDateQuery(todaysDate, calendarViewType);
             query.Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarDateQuery.Actor, GetEconomicCalendarDateQuery.Verb, query.EntityId.Format());
             return await e.RequestAsync<string, GetEconomicCalendarDateQuery>(query);
         });
 
-        endpoints.MapGet(ReferenceQueryUriPath.GetEconomicCalendarCountryCodes, async (IActorService e) =>
+        endpoints.MapGet(MarketDataQueryUriPath.GetEconomicCalendarCountryCodes, async (IActorService e) =>
         {
             var query = new GetEconomicCalendarCountryCodesQuery();
             query.Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarCountryCodesQuery.Actor, GetEconomicCalendarCountryCodesQuery.Verb, query.EntityId.Format());

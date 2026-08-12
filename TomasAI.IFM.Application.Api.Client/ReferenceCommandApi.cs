@@ -4,8 +4,6 @@ using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Framework.Messaging;
@@ -16,46 +14,6 @@ public class ReferenceCommandApi(ICommandServiceApi commandSvc)
     : IReferenceCommandApi
 {
     readonly ICommandServiceApi _commandSvc = IsArgumentNull.Set(commandSvc);
-
-    /// <summary>
-    /// add economic calendar
-    /// </summary>
-    /// <param name="economicCalendar"></param>
-    /// <returns></returns>
-    public async Task<ServiceResult<Guid>> AddEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar)
-        => await new AddEconomicCalendarParameter(IsArgumentNull.Set(economicCalendar), AddEconomicCalendarCommand.ErrorId)
-            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(ReferenceUriPath.AddEconomicCalendar, e));
-
-    /// <summary>
-    /// change economic calendar
-    /// </summary>
-    /// <param name="economicCalendarId"></param>
-    /// <param name="economicCalendar"></param>
-    /// <param name="overwrite"></param>
-    /// <returns></returns>
-    public async Task<ServiceResult<Guid>> ChangeEconomicCalendarAsync(EconomicCalendarId economicCalendarId, EconomicCalendarReadModel economicCalendar, bool overwrite)
-        => await new ChangeEconomicCalendarParameter(IsArgumentNull.Set(economicCalendarId), IsArgumentNull.Set(economicCalendar), overwrite, ChangeEconomicCalendarCommand.ErrorId)
-            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(ReferenceUriPath.ChangeEconomicCalendar, e));
-
-    /// <summary>
-    /// remove economic calendar
-    /// </summary>
-    /// <param name="economicCalendarId"></param>
-    /// <param name="overwrite"></param>
-    /// <returns></returns>
-    public async Task<ServiceResult<Guid>> RemoveEconomicCalendarAsync(EconomicCalendarId economicCalendarId, bool overwrite)
-        => await new RemoveEconomicCalendarParameter(IsArgumentNull.Set(economicCalendarId), overwrite, RemoveEconomicCalendarCommand.ErrorId)
-            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(ReferenceUriPath.RemoveEconomicCalendar, e));
-
-    /// <summary>
-    /// import economic calendars
-    /// </summary>
-    /// <param name="importedDate"></param>
-    /// <param name="economicCalendars"></param>
-    /// <returns></returns>
-    public async Task<ServiceResult<Guid>> ImportEconomicCalendarsAsync(DateTime importedDate, EconomicCalendarReadModel[] economicCalendars)
-        => await new ImportEconomicCalendarsParameter(importedDate, IsArgumentNull.Set(economicCalendars), ImportEconomicCalendarsCommand.ErrorId)
-            .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(ReferenceUriPath.ImportEconomicCalendars, e));
 
     /// <summary>
     /// add lookup type

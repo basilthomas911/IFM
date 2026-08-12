@@ -9,9 +9,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
@@ -175,71 +172,6 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
     }
 
     /// <summary>
-    /// Returns economic calendars for a date, view type and country.
-    /// </summary>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode)
-    {
-        var entityId = new GetEconomicCalendarParameter(todaysDate, calendarType, countryCode);
-        GetEconomicCalendarQuery query = new(todaysDate, calendarType, countryCode)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarQuery.Actor, GetEconomicCalendarQuery.Verb, entityId.Format()),
-        };
-        return await RequestAsync<GetEconomicCalendarQuery, EconomicCalendarReadModel[]>(query.Subject, query);
-    }
-
-    /// <summary>
-    /// Returns all economic calendars.
-    /// </summary>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync()
-    {
-        var entityId = new GetEconomicCalendarAllParameter();
-        GetEconomicCalendarAllQuery query = new()
-        {
-            Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarAllQuery.Actor, GetEconomicCalendarAllQuery.Verb, entityId.Format()),
-        };
-        return await RequestAsync<GetEconomicCalendarAllQuery, EconomicCalendarReadModel[]>(query.Subject, query);
-    }
-
-    /// <summary>
-    /// Returns external economic calendars.
-    /// </summary>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync()
-    {
-        var entityId = new GetExternalEconomicCalendarsParameter();
-        GetExternalEconomicCalendarsQuery query = new()
-        {
-            Subject = new ActorSubject(ActorType.Query, GetExternalEconomicCalendarsQuery.Actor, GetExternalEconomicCalendarsQuery.Verb, entityId.Format()),
-        };
-        return await RequestAsync<GetExternalEconomicCalendarsQuery, EconomicCalendarReadModel[]>(query.Subject, query);
-    }
-
-    /// <summary>
-    /// Returns economic calendar date string for the given parameters.
-    /// </summary>
-    public async Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarViewType)
-    {
-        var entityId = new GetEconomicCalendarDateParameter(todaysDate, calendarViewType);
-        GetEconomicCalendarDateQuery query = new(todaysDate, calendarViewType)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarDateQuery.Actor, GetEconomicCalendarDateQuery.Verb, entityId.Format()),
-        };
-        return await RequestAsync<GetEconomicCalendarDateQuery, string>(query.Subject, query);
-    }
-
-    /// <summary>
-    /// Returns economic calendar country codes.
-    /// </summary>
-    public async Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>> GetEconomicCalendarCountryCodesAsync()
-    {
-        var entityId = new GetEconomicCalendarCountryCodesParameter();
-        GetEconomicCalendarCountryCodesQuery query = new()
-        {
-            Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarCountryCodesQuery.Actor, GetEconomicCalendarCountryCodesQuery.Verb, entityId.Format()),
-        };
-        return await RequestAsync<GetEconomicCalendarCountryCodesQuery, EconomicCalendarCountryCodeReadModel[]>(query.Subject, query);
-    }
-
-    /// <summary>
     /// Returns MDI forward loss ratios for a trend direction and trade type.
     /// </summary>
     public async Task<ServiceResult<MDIForwardLossRatioReadModel[]>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType)
@@ -252,12 +184,5 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         return await RequestAsync<GetMDIForwardLossRatiosQuery, MDIForwardLossRatioReadModel[]>(query.Subject, query);
     }
 
-    /// <summary>
-    /// Alias to support interface variations: returns economic calendars for a date, view type and country.
-    /// </summary>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime todaysDate, EconomicCalendarViewType calendarViewType, string countryCode)
-        => await GetEconomicCalendarAsync(todaysDate, calendarViewType, countryCode);
-
-  
 }
 

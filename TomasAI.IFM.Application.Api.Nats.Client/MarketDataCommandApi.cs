@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// </summary>
 /// <param name="commandSvc">The command service API client.</param>
 /// <exception cref="ArgumentNullException">Thrown when commandSvc is null.</exception>
-public class MarketDataCommandApi(IActorProducer actorProducer)
+public partial class MarketDataCommandApi(IActorProducer actorProducer)
     : NatsCommandApi(actorProducer) , IMarketDataCommandApi
 {
     /// <summary>

@@ -2,7 +2,7 @@
 
 ## Scope and constraints
 
-This report records the root-to-leaf optimization pass completed on 2026-08-05 for `TomasAI.IFM.Domain.Reference` and its directly consumed blackboard and Reference storage paths. The review covered garbage collection, threading, locking, async/sync patterns, memory use, concurrency, latency, throughput, and code complexity.
+This report records the root-to-leaf optimization pass completed on 2026-08-05. Economic-calendar code, tests, benchmarks, and storage ownership have since moved from Reference to MarketData; calendar-specific measurements below remain historical evidence for the implementation now owned there.
 
 The following domain rules were preserved:
 
@@ -10,9 +10,9 @@ The following domain rules were preserved:
 - State recovery begins with the snapshot type required by the command stream.
 - Missing snapshots or requested events produce the best available, possibly empty, state; application code does not manufacture replay exceptions.
 - Command success remains distinct from state mutation. A successful command is not forced to produce an event.
-- `EconomicCalendarEventActor` and `LookupTypeEventActor` remain intentionally empty default event targets.
+- `LookupTypeEventActor` remains an intentionally empty default event target. The Economic Calendar event actor moved to MarketData.
 - Dictionary dispatch remains in place. A generated jump table is deferred until paper-trading telemetry shows dispatch to be material.
-- The solution-wide cancellation pass now covers all Reference query actors, handlers, direct API operations, storage reads, and external calendar parsing.
+- The solution-wide cancellation pass covers the remaining Reference query actors, handlers, direct API operations, and Reference storage reads. External calendar parsing moved to MarketData.
 
 ## Top ten issues found and resolved
 
@@ -110,12 +110,12 @@ The arithmetic path has constant bounded cost and fixes `NextWeek` on Monday so 
 - Final Release unit tests: 19 passed, including actor and direct-API cancellation coverage.
 - Final Release BDD tests: 1 passed.
 - Live Reference integration verification: 28 of 31 tests passed. Both optimized short-code existence cases passed after validating the deployed Scylla clustering order (existing code and missing code). The remaining failures were shared-fixture state issues: one remove test could not perform its prerequisite add, and two calendar-range fixtures did not find their directly inserted rows among stale shared projections.
-- Production, benchmark, API server, actor integration-test, and Reference integration-test projects build successfully with zero warnings and errors. One existing obsolete `RowSet.Dispose()` warning can appear while rebuilding the transitive Framework.Storage project and is outside this domain pass.
+- Production, benchmark, API server, and actor integration-test projects built successfully at the time of the original pass. The calendar unit, integration, and benchmark gates now run from the MarketData projects.
 - BenchmarkDotNet completed all 30 configured cases.
 - Reproduce the measurements from the repository root with:
 
 ```powershell
-dotnet run -c Release --project TomasAI.IFM.Domain.Reference.Benchmarks -- --filter '*' --join
+dotnet run -c Release --project TomasAI.IFM.Domain.MarketData.Benchmarks -- --filter '*Calendar*' --join
 ```
 
 ## Deferred work

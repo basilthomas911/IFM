@@ -12,6 +12,10 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbWriteContext
 {
+    Task DeleteEconomicCalendarAsync(EconomicCalendarId id);
+    Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar);
+    Task InsertEconomicCalendarsAsync(ICollection<EconomicCalendarReadModel> economicCalendars);
+    Task UpdateEconomicCalendarAsync(EconomicCalendarId id, EconomicCalendarReadModel economicCalendar);
     Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e);
     Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e);
     Task<MarketDataProjectionBackfillResult> BackfillQueryProjectionsV2Async(

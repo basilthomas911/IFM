@@ -110,6 +110,11 @@ public class FuturesBarDataQueryUriPath
     public const string GetExternalYieldCurveRates = "/api/marketdata/yieldcurve/externalrates";
     public const string GetIronCondorMarketData = "/api/marketdata/ironcondor";
     public const string GetFuturesOptionContractIds = "/api/marketdata/futures/option/contractids";
+    public const string GetEconomicCalendars = "/api/marketdata/economiccalendar";
+    public const string GetEconomicCalendarAll = "/api/marketdata/economiccalendar/all";
+    public const string GetExternalEconomicCalendars = "/api/marketdata/external/economiccalendars";
+    public const string GetEconomicCalendarDate = "/api/marketdata/economiccalendar/date";
+    public const string GetEconomicCalendarCountryCodes = "/api/marketdata/economiccalendar/countrycodes";
 }
 
 /// <summary>
@@ -145,11 +150,6 @@ public class ReferenceQueryUriPath
     public const string GetNextSeedId = "/api/reference/nextseedid";
     public const string GetCurrentSeedId = "/api/reference/currentseedid";
     public const string GetFuturesOptionStrikePriceDefinitions = "/api/reference/futuresoptionstrikepricedefinitions";
-    public const string GetEconomicCalendars = "/api/reference/economiccalendar";
-    public const string GetEconomicCalendarAll = "/api/reference/economiccalendar/all";
-    public const string GetExternalEconomicCalendars = "/api/reference/external/economiccalendars";
-    public const string GetEconomicCalendarDate = "/api/reference/economiccalendar/date";
-    public const string GetEconomicCalendarCountryCodes = "/api/reference/economiccalendar/countrycodes";
     public const string GetMDIForwardLossRatios = "/api/reference/mdiforwardlossratios";
 }
 

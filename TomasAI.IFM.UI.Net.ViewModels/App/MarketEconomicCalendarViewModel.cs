@@ -1,5 +1,7 @@
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
@@ -15,7 +17,7 @@ namespace TomasAI.IFM.UI.Net.ViewModels.App;
 public sealed class MarketEconomicCalendarViewModel
     : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
-    readonly ReferenceQueryModel _referenceQueryModel;
+    readonly MarketDataQueryModel _marketDataQueryModel;
     readonly EconomicCalendarEventModel _eventModel;
     readonly AsyncLifecycleCoordinator _lifecycle;
     IReadOnlyList<EconomicCalendarReadModel> _economicCalendars = [];
@@ -33,7 +35,7 @@ public sealed class MarketEconomicCalendarViewModel
     public MarketEconomicCalendarViewModel(IAppRoot appRoot)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
-        _referenceQueryModel = appRoot.GetModel<ReferenceQueryModel>();
+        _marketDataQueryModel = appRoot.GetModel<MarketDataQueryModel>();
         _eventModel = appRoot.GetModel<EconomicCalendarEventModel>();
         _lifecycle = new AsyncLifecycleCoordinator(StartListenersCoreAsync, StopListenersCoreAsync);
         LoadCountryCodesOperation = new AsyncOperation(LoadCountryCodesCoreAsync);
@@ -138,7 +140,7 @@ public sealed class MarketEconomicCalendarViewModel
         try
         {
             EconomicCalendarCountryCodeReadModel[] loaded = [];
-            await _referenceQueryModel.ExecuteObservableAsync(
+            await _marketDataQueryModel.ExecuteObservableAsync(
                 async model => await model.LoadEconomicCalendarCountryCodesAsync(
                     values => loaded = values ?? []),
                 cancellationToken);
@@ -161,7 +163,7 @@ public sealed class MarketEconomicCalendarViewModel
         {
             EconomicCalendarReadModel[] calendars = [];
             var calendarDate = string.Empty;
-            await _referenceQueryModel.ExecuteObservableAsync(
+            await _marketDataQueryModel.ExecuteObservableAsync(
                 async model =>
                 {
                     await model.LoadEconomicCalendarAsync(

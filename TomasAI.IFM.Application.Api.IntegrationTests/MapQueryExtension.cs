@@ -99,11 +99,11 @@ public static  class MapQueryExtension
         app.MapGet(ReferenceQueryUriPath.GetCurrentSeedId, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetCurrentSeedIdAsync(resp));
         app.MapGet(ReferenceQueryUriPath.GetFuturesOptionStrikePriceDefinitions, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetFuturesOptionStrikePriceDefinitionsAsync(resp));
         app.MapGet(ReferenceQueryUriPath.LookupTypeShortCodeExists, async (HttpResponse resp) => await ReferenceQueryApiResult.FromLookupTypeShortCodeExistsAsync(resp));
-        app.MapGet(ReferenceQueryUriPath.GetEconomicCalendars, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetEconomicCalendarsAsync(resp));
-        app.MapGet(ReferenceQueryUriPath.GetEconomicCalendarAll, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetEconomicCalendarAllAsync(resp));
-        app.MapGet(ReferenceQueryUriPath.GetExternalEconomicCalendars, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetExternalEconomicCalendarsAsync(resp));
-        app.MapGet(ReferenceQueryUriPath.GetEconomicCalendarDate, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetEconomicCalendarDateAsync(resp));
-        app.MapGet(ReferenceQueryUriPath.GetEconomicCalendarCountryCodes, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetEconomicCalendarCountryCodesAsync(resp));
+        app.MapGet(MarketDataQueryUriPath.GetEconomicCalendars, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarsAsync(resp));
+        app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarAll, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarAllAsync(resp));
+        app.MapGet(MarketDataQueryUriPath.GetExternalEconomicCalendars, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetExternalEconomicCalendarsAsync(resp));
+        app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarDate, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarDateAsync(resp));
+        app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarCountryCodes, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarCountryCodesAsync(resp));
         app.MapGet(ReferenceQueryUriPath.GetMDIForwardLossRatios, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetMDIForwardLossRatiosAsync(resp));
 
         // map System Admin Query APIs

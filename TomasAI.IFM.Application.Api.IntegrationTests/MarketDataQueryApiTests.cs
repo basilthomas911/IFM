@@ -21,6 +21,62 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory)
     readonly HttpClientTestFactory _httpClientFactory = new(factory);
     readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
 
+    [Fact]
+    public async Task GetEconomicCalendars_ByParams_Ok()
+    {
+        var response = await CreateApi().GetEconomicCalendarsAsync(
+            DateTime.UtcNow,
+            EconomicCalendarViewType.Today,
+            "US");
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().BeAssignableTo<EconomicCalendarReadModel[]>();
+    }
+
+    [Fact]
+    public async Task GetEconomicCalendars_All_Ok()
+    {
+        var response = await CreateApi().GetEconomicCalendarsAsync();
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().BeAssignableTo<EconomicCalendarReadModel[]>();
+    }
+
+    [Fact]
+    public async Task GetExternalEconomicCalendars_Ok()
+    {
+        var response = await CreateApi().GetExternalEconomicCalendarsAsync();
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().BeAssignableTo<EconomicCalendarReadModel[]>();
+    }
+
+    [Fact]
+    public async Task GetEconomicCalendarDate_Ok()
+    {
+        var response = await CreateApi().GetEconomicCalendarDateAsync(
+            DateTime.UtcNow.Date,
+            EconomicCalendarViewType.Today);
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().BeAssignableTo<string>();
+    }
+
+    [Fact]
+    public async Task GetEconomicCalendarCountryCodes_Ok()
+    {
+        var response = await CreateApi().GetEconomicCalendarCountryCodesAsync();
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().BeAssignableTo<EconomicCalendarCountryCodeReadModel[]>();
+    }
+
+    MarketDataQueryApi CreateApi()
+        => new(new QueryServiceApiClient(
+            _httpClientFactory,
+            _jsonSerializer,
+            new QueryServiceApiOptions("http://localhost")));
+
     /// <summary>
     /// Tests retrieval of the currently traded futures contract.
     /// </summary>

@@ -9,6 +9,11 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 /// <remarks>Implementations must not use HTTP, NATS, or actor messaging.</remarks>
 public interface IActorMarketDataQueryApi : IMarketDataQueryApi
 {
+    Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode, CancellationToken cancellationToken);
+    Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(CancellationToken cancellationToken);
+    Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync(CancellationToken cancellationToken);
+    Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, CancellationToken cancellationToken);
+    Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>> GetEconomicCalendarCountryCodesAsync(CancellationToken cancellationToken);
     Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(string symbol, CancellationToken cancellationToken);
     Task<ServiceResult<FuturesContractV2ReadModel[]>> GetCurrentlyTradedFuturesContractsAsync(string symbol, CancellationToken cancellationToken);
     Task<ServiceResult<FuturesContractV2ReadModel>> GetFuturesContractAsync(string contractId, CancellationToken cancellationToken);

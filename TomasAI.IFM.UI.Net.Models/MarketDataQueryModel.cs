@@ -1,10 +1,7 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
@@ -20,6 +17,48 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
 {
     readonly IMarketDataQueryApi _queryApi = IsArgumentNull.Set(queryApi);
     readonly IMarketDataFeedQueryApi _queryFeedApi = IsArgumentNull.Set(queryFeedApi);
+
+    public Task LoadEconomicCalendarAsync(
+        DateTime todaysDate,
+        EconomicCalendarViewType calendarViewType,
+        string countryCode,
+        Action<EconomicCalendarReadModel[]> onCompleted)
+        => ExecuteAsync(
+            () => _queryApi.GetEconomicCalendarsAsync(todaysDate, calendarViewType, countryCode),
+            onCompleted);
+
+    public Task LoadEconomicCalendarAsync(
+        DateTime todaysDate,
+        EconomicCalendarViewType calendarViewType,
+        string countryCode,
+        Func<EconomicCalendarReadModel[], Task> onCompleted)
+        => ExecuteAsync(
+            () => _queryApi.GetEconomicCalendarsAsync(todaysDate, calendarViewType, countryCode),
+            onCompleted);
+
+    public Task LoadEconomicCalendarsAsync(
+        DateOnly eventDate,
+        string countryCode,
+        Action<EconomicCalendarReadModel[]> onCompleted)
+        => ExecuteAsync(
+            () => _queryApi.GetEconomicCalendarsAsync(
+                eventDate.ToDateTime(TimeOnly.MinValue), EconomicCalendarViewType.Today, countryCode),
+            onCompleted);
+
+    public Task LoadEconomicCalendarCountryCodesAsync(
+        Action<EconomicCalendarCountryCodeReadModel[]> onCompleted)
+        => ExecuteAsync(_queryApi.GetEconomicCalendarCountryCodesAsync, onCompleted);
+
+    public Task LoadEconomicCalendarDateAsync(
+        DateTime todaysDate,
+        EconomicCalendarViewType calendarViewType,
+        Action<string> onCompleted)
+        => ExecuteAsync(
+            () => _queryApi.GetEconomicCalendarDateAsync(todaysDate, calendarViewType),
+            onCompleted);
+
+    public Task GetExternalEconomicCalendarsAsync(Action<EconomicCalendarReadModel[]> onCompleted)
+        => ExecuteAsync(_queryApi.GetExternalEconomicCalendarsAsync, onCompleted);
 
     /// <summary>
     /// load futures contract

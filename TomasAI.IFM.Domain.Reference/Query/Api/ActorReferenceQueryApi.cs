@@ -1,7 +1,5 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.Reference.EconomicCalendar.Query;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
@@ -250,114 +248,6 @@ public sealed partial class ActorReferenceQueryApi(IDbContextFactory dbFactory) 
         }
     }
 
-    /// <summary>
-    /// Gets economic calendars.
-    /// </summary>
-    /// <param name="todaysDate">The date used to select calendar events.</param>
-    /// <param name="calendarType">The economic-calendar view type.</param>
-    /// <param name="countryCode">The economic-calendar country code.</param>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(
-        DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode)
-    {
-        try
-        {
-            EconomicCalendarReadModel[] result =
-                [.. await GetEconomicCalendar.GetEconomicCalendarAsync(
-                    _dbFactory.ReferenceDb,
-                    todaysDate,
-                    calendarType,
-                    countryCode)];
-            return new ServiceOk<EconomicCalendarReadModel[]>(result);
-        }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<EconomicCalendarReadModel[]>(GetEconomicCalendarQuery.ErrorId, ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Gets economic calendars.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync()
-    {
-        try
-        {
-            EconomicCalendarReadModel[] result =
-                [.. await _dbFactory.ReferenceDb.GetEconomicCalendarAllAsync()];
-            return new ServiceOk<EconomicCalendarReadModel[]>(result);
-        }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<EconomicCalendarReadModel[]>(
-                GetEconomicCalendarAllQuery.ErrorId,
-                ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Gets external economic calendars.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync()
-    {
-        try
-        {
-            if (_dbFactory.EconomicCalendarsDb is not IEconomicCalendarsDbContext db)
-                return new ServiceOk<EconomicCalendarReadModel[]>([]);
-            EconomicCalendarReadModel[] result = [.. await db.ReadAsync()];
-            return new ServiceOk<EconomicCalendarReadModel[]>(result);
-        }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<EconomicCalendarReadModel[]>(
-                GetExternalEconomicCalendarsQuery.ErrorId,
-                ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Gets economic calendar date.
-    /// </summary>
-    /// <param name="todaysDate">The date used to select calendar events.</param>
-    /// <param name="calendarType">The economic-calendar view type.</param>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public Task<ServiceResult<string>> GetEconomicCalendarDateAsync(
-        DateTime todaysDate, EconomicCalendarViewType calendarType)
-    {
-        try
-        {
-            string result = GetEconomicCalendarDate.GetEconomicCalendarEventDate(todaysDate, calendarType);
-            return Task.FromResult<ServiceResult<string>>(new ServiceOk<string>(result));
-        }
-        catch (Exception ex)
-        {
-            return Task.FromResult<ServiceResult<string>>(
-                new ServiceFailed<string>(GetEconomicCalendarDateQuery.ErrorId, ex.Message));
-        }
-    }
-
-    /// <summary>
-    /// Gets economic calendar country codes.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>>
-        GetEconomicCalendarCountryCodesAsync()
-    {
-        try
-        {
-            EconomicCalendarCountryCodeReadModel[] result =
-                [.. await _dbFactory.ReferenceDb.GetEconomicCalendarCountryCodesAsync()];
-            return new ServiceOk<EconomicCalendarCountryCodeReadModel[]>(result);
-        }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<EconomicCalendarCountryCodeReadModel[]>(
-                GetEconomicCalendarCountryCodesQuery.ErrorId,
-                ex.Message);
-        }
-    }
 
     /// <summary>
     /// Gets MDI forward loss ratios.

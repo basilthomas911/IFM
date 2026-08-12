@@ -25,11 +25,6 @@ namespace TomasAI.IFM.Domain.Reference.Shared.ServiceApi
         Task<ServiceResult<DefaultFuturesContractDefinitionsReadModel>> GetDefaultFuturesContractDefinitionsAsync();
         Task<ServiceResult<FuturesOptionStrikePriceReadModel>> GetFuturesOptionStrikePriceDefinitionsAsync();
         Task<ServiceResult<ScalarReadModel<bool>>> LookupTypeShortCodeExistsAsync(string lookupTypeName, string shortCode);
-        Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime todaysDate,EconomicCalendarViewType calendarType, string countryCode);
-        Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync();
-        Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync();
-        Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarType);
-        Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>> GetEconomicCalendarCountryCodesAsync();
         Task<ServiceResult<MDIForwardLossRatioReadModel[]>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType);
     }
 }

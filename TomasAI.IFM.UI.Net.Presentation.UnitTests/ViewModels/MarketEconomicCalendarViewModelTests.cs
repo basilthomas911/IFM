@@ -1,9 +1,10 @@
 using FluentAssertions;
 using NSubstitute;
-using TomasAI.IFM.Domain.Reference.Shared;
-using TomasAI.IFM.Domain.Reference.Shared.Events;
-using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -108,7 +109,7 @@ public class MarketEconomicCalendarViewModelTests
         ]);
         calendars ??= new ServiceOk<EconomicCalendarReadModel[]>([]);
 
-        var api = Substitute.For<IReferenceQueryApi>();
+        var api = Substitute.For<IMarketDataQueryApi>();
         api.GetEconomicCalendarCountryCodesAsync().Returns(Task.FromResult(countries));
         api.GetEconomicCalendarsAsync(
                 Arg.Any<DateTime>(),
@@ -122,9 +123,10 @@ public class MarketEconomicCalendarViewModelTests
                 new ServiceOk<string>("Tuesday, August 11, 2026")));
 
         var consumer = Substitute.For<IEconomicCalendarUIEventConsumer>();
+        var feedApi = Substitute.For<IMarketDataFeedQueryApi>();
         var eventSource = new TestEventSource(consumer);
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<ReferenceQueryModel>().Returns(new ReferenceQueryModel(api));
+        appRoot.GetModel<MarketDataQueryModel>().Returns(new MarketDataQueryModel(api, feedApi));
         appRoot.GetModel<EconomicCalendarEventModel>()
             .Returns(new EconomicCalendarEventModel(consumer));
         return new Subject(new MarketEconomicCalendarViewModel(appRoot), api, eventSource);
@@ -133,12 +135,12 @@ public class MarketEconomicCalendarViewModelTests
     static EconomicCalendarReadModel Calendar(DateTime date, string countryCode, string eventName)
         => new(date, countryCode, eventName, "1", "2", "3", Today, "test");
 
-    static async Task WaitForCalendarQueriesAsync(IReferenceQueryApi api, int expected)
+    static async Task WaitForCalendarQueriesAsync(IMarketDataQueryApi api, int expected)
     {
         for (var attempt = 0; attempt < 100; attempt++)
         {
             var calls = api.ReceivedCalls().Count(call =>
-                call.GetMethodInfo().Name == nameof(IReferenceQueryApi.GetEconomicCalendarsAsync));
+                call.GetMethodInfo().Name == nameof(IMarketDataQueryApi.GetEconomicCalendarsAsync));
             if (calls >= expected)
                 return;
             await Task.Delay(5);
@@ -149,7 +151,7 @@ public class MarketEconomicCalendarViewModelTests
 
     sealed record Subject(
         MarketEconomicCalendarViewModel ViewModel,
-        IReferenceQueryApi Api,
+        IMarketDataQueryApi Api,
         TestEventSource EventSource);
 
     sealed class TestEventSource

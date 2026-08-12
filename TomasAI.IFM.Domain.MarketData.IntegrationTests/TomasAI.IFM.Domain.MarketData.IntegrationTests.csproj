@@ -34,6 +34,7 @@
   <ItemGroup>
 	  <ProjectReference Include="..\TomasAI.IFM.Application.Actor.IntegrationTests\TomasAI.IFM.Application.Actor.IntegrationTests.csproj" />
 	  <ProjectReference Include="..\TomasAI.IFM.Application.Api.Client\TomasAI.IFM.Application.Api.Client.csproj" />
+	  <ProjectReference Include="..\TomasAI.IFM.Application.Api.Nats.Client\TomasAI.IFM.Application.Api.Nats.Client.csproj" />
 	  <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
 	  <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData\TomasAI.IFM.Domain.MarketData.csproj" />
 	  <ProjectReference Include="..\TomasAI.IFM.Framework.Caching\TomasAI.IFM.Framework.Caching.csproj" />
@@ -43,6 +44,10 @@
 	  <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
       <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
       <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
   </ItemGroup>
 
 </Project>

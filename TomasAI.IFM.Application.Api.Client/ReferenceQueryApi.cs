@@ -7,8 +7,6 @@ using TomasAI.IFM.Domain.Reference.Shared;
 using System;
 using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Messaging;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -134,51 +132,6 @@ public class ReferenceQueryApi(IQueryServiceApi querySvc) : IReferenceQueryApi
     }
 
     /// <summary>
-    /// Returns economic calendars for a date, view type and country.
-    /// </summary>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode)
-    {
-        var qryParam = new GetEconomicCalendarParameter(todaysDate, calendarType, countryCode);
-        return await _querySvc.ExecuteQueryAsync<EconomicCalendarReadModel[]>(ReferenceQueryUriPath.GetEconomicCalendars, qryParam, GetEconomicCalendarQuery.ErrorId);
-    }
-
-    /// <summary>
-    /// Returns all economic calendars.
-    /// </summary>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync()
-    {
-        var qryParam = new GetEconomicCalendarAllParameter();
-        return await _querySvc.ExecuteQueryAsync<EconomicCalendarReadModel[]>(ReferenceQueryUriPath.GetEconomicCalendarAll, qryParam, GetEconomicCalendarAllQuery.ErrorId);
-    }
-
-    /// <summary>
-    /// Returns external economic calendars.
-    /// </summary>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync()
-    {
-        var qryParam = new GetExternalEconomicCalendarsParameter();
-        return await _querySvc.ExecuteQueryAsync<EconomicCalendarReadModel[]>(ReferenceQueryUriPath.GetExternalEconomicCalendars, qryParam, GetExternalEconomicCalendarsQuery.ErrorId);
-    }
-
-    /// <summary>
-    /// Returns economic calendar date string for the given parameters.
-    /// </summary>
-    public async Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarViewType)
-    {
-        var qryParam = new GetEconomicCalendarDateParameter(todaysDate, calendarViewType);
-        return await _querySvc.ExecuteQueryAsync<string>(ReferenceQueryUriPath.GetEconomicCalendarDate, qryParam, GetEconomicCalendarDateQuery.ErrorId);
-    }
-
-    /// <summary>
-    /// Returns economic calendar country codes.
-    /// </summary>
-    public async Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>> GetEconomicCalendarCountryCodesAsync()
-    {
-        var qryParam = new GetEconomicCalendarCountryCodesParameter();
-        return await _querySvc.ExecuteQueryAsync<EconomicCalendarCountryCodeReadModel[]>(ReferenceQueryUriPath.GetEconomicCalendarCountryCodes, qryParam, GetEconomicCalendarCountryCodesQuery.ErrorId);
-    }
-
-    /// <summary>
     /// Returns MDI forward loss ratios for a trend direction and trade type.
     /// </summary>
     public async Task<ServiceResult<MDIForwardLossRatioReadModel[]>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType)
@@ -187,10 +140,5 @@ public class ReferenceQueryApi(IQueryServiceApi querySvc) : IReferenceQueryApi
         return await _querySvc.ExecuteQueryAsync<MDIForwardLossRatioReadModel[]>(ReferenceQueryUriPath.GetMDIForwardLossRatios, qryParam, GetMDIForwardLossRatiosQuery.ErrorId);
     }
 
-    /// <summary>
-    /// Alias to support interface variations: returns economic calendars for a date, view type and country.
-    /// </summary>
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime todaysDate, EconomicCalendarViewType calendarViewType, string countryCode)
-        => await GetEconomicCalendarAsync(todaysDate, calendarViewType, countryCode);
 }
 

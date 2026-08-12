@@ -12,7 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
-public class MarketDataQueryApi(IActorProducer actorProducer)
+public partial class MarketDataQueryApi(IActorProducer actorProducer)
     : NatsCommandApi(actorProducer), IMarketDataQueryApi
 {
     /// <inheritdoc />

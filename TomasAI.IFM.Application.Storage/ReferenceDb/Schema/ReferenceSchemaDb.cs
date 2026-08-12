@@ -10,8 +10,6 @@ public sealed class ReferenceSchemaDb(IDbConnectionSettings connectionSettings, 
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
-        new("economic_calendar", ReferenceSchemaCql.CreateEconomicCalendarTable, "DROP TABLE IF EXISTS economic_calendar;"),
-        new("economic_calendar_by_country_month_v2", ReferenceSchemaCql.CreateEconomicCalendarByCountryMonthV2Table, "DROP TABLE IF EXISTS economic_calendar_by_country_month_v2;"),
         new("reference_projection_state_v3", ReferenceSchemaCql.CreateReferenceProjectionStateV3Table, "DROP TABLE IF EXISTS reference_projection_state_v3;"),
         new("reference_projection_mutation_v3", ReferenceSchemaCql.CreateReferenceProjectionMutationV3Table, "DROP TABLE IF EXISTS reference_projection_mutation_v3;"),
         new("reference_projection_ownership_v3", ReferenceSchemaCql.CreateReferenceProjectionOwnershipV3Table, "DROP TABLE IF EXISTS reference_projection_ownership_v3;"),

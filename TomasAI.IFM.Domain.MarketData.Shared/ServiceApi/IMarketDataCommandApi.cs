@@ -9,6 +9,10 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi
 {
     public interface IMarketDataCommandApi
     {
+        Task<ServiceResult<Guid>> AddEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar);
+        Task<ServiceResult<Guid>> RemoveEconomicCalendarAsync(EconomicCalendarId economicCalendarId, bool overwrite);
+        Task<ServiceResult<Guid>> ChangeEconomicCalendarAsync(EconomicCalendarId economicCalendarId, EconomicCalendarReadModel economicCalendar, bool overwrite);
+        Task<ServiceResult<Guid>> ImportEconomicCalendarsAsync(DateTime importedDate, EconomicCalendarReadModel[] economicCalendars);
         Task<ServiceResult<Guid>> AddFuturesOptionContractAsync(FuturesOptionContractReadModel futuresOptionContract, bool overwrite);
         Task<ServiceResult<Guid>> AddFuturesOptionContractsAsync(int year, FuturesOptionContractReadModel[] futuresOptionContracts);
         Task<ServiceResult<Guid>> RemoveFuturesOptionContractAsync(string contractId, bool overwrite);

@@ -852,13 +852,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// import economic calendars
     /// </summary>
     Task ImportEconomicCalendars(Action onCompleted)
-        => _appRoot.GetModel<ReferenceCommandModel>()
+        => _appRoot.GetModel<MarketDataCommandModel>()
             .ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) =>
                     PublishError(errorCode, errorMsg, "Import Economic Calendars Error"));
                 EconomicCalendarReadModel[] economicCalendars = [];
                 var importDate = DateTime.Now;
-                await _appRoot.GetModel<ReferenceQueryModel>().GetExternalEconomicCalendarsAsync(e => economicCalendars = e);
+                await _appRoot.GetModel<MarketDataQueryModel>().GetExternalEconomicCalendarsAsync(e => economicCalendars = e);
                 var imported = false;
                 await model.ImportEconomicCalendarsAsync(
                     importDate,
