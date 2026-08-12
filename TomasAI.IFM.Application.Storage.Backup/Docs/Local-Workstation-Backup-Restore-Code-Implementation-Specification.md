@@ -1,8 +1,8 @@
 # Local Workstation Database Backup and Restore Code Implementation Specification
 
-**Status:** Phase 0 implemented and Gate 0 validated; Phase 1 pending review
+**Status:** Phase 1 implemented and Gate 1 validated; Phase 2 pending review
 
-**Version:** 0.2
+**Version:** 0.3
 
 **Date:** 2026-08-12
 
@@ -1334,3 +1334,4 @@ For each phase, the implementing agent must:
 | --- | --- | --- |
 | 0.1 | 2026-08-11 | Initial code implementation specification for LocalWorkstation, including `IJSActorEventListener`, actor contracts, SystemAdmin projections, SQLite journal, native capabilities, Docker/Aspire host, Console, WinForms migration, tests, and gated delivery phases. |
 | 0.2 | 2026-08-12 | Changed the paper-trading sequence to standalone .NET 10 Worker development, deferred Ubuntu 24.04 Docker packaging to Gate 10, deferred Aspire to a future full-system Linux production migration, and excluded other capability-host designs. |
+| 0.3 | 2026-08-12 | Implemented and validated Gate 1: distinct Core/JetStream listener contracts and DI registrations, durable explicit-ack JetStream event listening, bounded admission, failure redelivery, restart recovery, metrics, and real-NATS tests. |

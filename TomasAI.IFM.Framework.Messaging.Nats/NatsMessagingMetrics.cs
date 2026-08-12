@@ -61,6 +61,10 @@ internal static class NatsMessagingMetrics
         "ifm.nats.messages.redelivered",
         description: "JetStream deliveries whose server delivery count is greater than one.");
 
+    public static readonly UpDownCounter<long> JetStreamListenerPending = Meter.CreateUpDownCounter<long>(
+        "ifm.nats.listener.pending",
+        description: "JetStream event-listener deliveries admitted to bounded dispatch and awaiting settlement.");
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static long StartOperation()
         => OperationDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
