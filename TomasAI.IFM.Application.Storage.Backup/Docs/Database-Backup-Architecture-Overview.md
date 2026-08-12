@@ -1,8 +1,8 @@
 # IFM Database Backup and Restore Architecture Overview
 
-Status: Approved architecture; version 0.8 amendment proposed for review
-Version: 0.8
-Date: 2026-08-11
+Status: Approved architecture; paper-trading deployment amendment approved
+Version: 0.9
+Date: 2026-08-12
 Scope: Shared architecture for PostgreSQL and ScyllaDB backup and restore using AWS cloud and local destinations
 
 ## 1. Purpose
@@ -53,14 +53,13 @@ The target architecture is based on these decisions:
 10. Normal backup operations require the Core Actor Host. Disaster recovery must also provide a tightly controlled
     break-glass path that does not depend on Core or NATS.
 11. Database backup and restore behavior runs from the first implementation in the dedicated
-    `TomasAI.IFM.Api.DatabaseBackup.Host` process, packaged as a Docker container and composed as an Aspire project
-    resource. It never runs inside `Api.Server`, actor handlers, or actor threads.
+    `TomasAI.IFM.Api.DatabaseBackup.Host` Worker process. It never runs inside `Api.Server`, actor handlers, or actor
+    threads. Ubuntu 24.04 Docker packaging is qualified after the functional paper-trading gates.
 12. The SystemAdmin Command Actor controls authoritative state and intent; the SystemAdmin Event Actor processes service
     events into commands; the SystemAdmin Query Actor serves projected read models; and the Database Backup Service
     controls long-running execution behavior and recoverable operational journals.
 13. The separate Database Backup Host is the process, resource, credential, and deployment boundary from the first
-    implementation. Aspire composes and observes it but correctness cannot depend on the Aspire AppHost remaining
-    online after the container starts.
+    implementation. A later Aspire deployment may compose and observe it, but correctness cannot depend on an AppHost.
 14. PostgreSQL and ScyllaDB behavior is exposed to the application through allowlisted, high-level backup and restore
     capability interfaces. Actor messages never contain utility commands, arbitrary arguments, database credentials,
     or host paths.
@@ -97,7 +96,8 @@ This overview does not:
 
 ## 3. Relationship to the IFM host architecture
 
-This design conforms to the [Aspire migration overview](../../Documents/system/Aspire%20migration%20overview.md):
+This design prepares for, but does not yet implement, the later
+[Aspire migration overview](../../Documents/system/Aspire%20migration%20overview.md):
 
 - the Core Actor Host remains the owner of business-domain actors and normal application-database clients;
 - the Database Backup Host is a satellite capability host from the first implementation;
@@ -110,9 +110,10 @@ The Database Backup Service runs in `TomasAI.IFM.Api.DatabaseBackup.Host`. It is
 SystemAdmin actor thread, and does not expose arbitrary reads from PostgreSQL or ScyllaDB. It accepts only allowlisted
 backup and restore operations over versioned capability contracts.
 
-Aspire declares the host as a separate Docker-backed project resource beside the Core Actor Host, NATS, PostgreSQL,
+During paper-trading development the Worker is started independently beside the Core Actor Host, NATS, PostgreSQL,
 ScyllaDB, and observability resources. NATS is the service communication boundary from the first implementation; no
-in-process `Api.Server` transport or later extraction migration is part of this architecture.
+in-process `Api.Server` transport or later extraction migration is part of this architecture. Docker and Aspire later
+compose the same already-separated boundary.
 
 ## 4. System context
 
@@ -135,7 +136,7 @@ Operator / UI        Database Backup Console       SystemAdmin ScheduledTask fea
               | committed NATS execution events
               v
        Database Backup Service
-      - dedicated Docker/Aspire host
+      - dedicated standalone Worker; Ubuntu 24.04 container later
       - native backup coordination
       - artifact movement
       - verification and retention
@@ -1818,9 +1819,19 @@ The Database Backup Service owns bootstrap configuration that allows its host to
 Configuration is versioned. Startup fails closed when mandatory configuration is absent, unsafe, or incompatible. Normal
 development defaults to disabled or dry-run operation and cannot target production protection sets.
 
-### 23.3 Aspire and Docker composition
+### 23.3 Paper-trading host and deferred production composition
 
-Aspire is the development and orchestration model from the first implementation:
+The paper-trading implementation begins as an independently runnable .NET 10 Worker process. It is developed and
+functionally qualified without an Aspire AppHost so backup behavior, actor contracts, journal recovery, native
+capabilities, UI, and Console workflows can mature before production orchestration is introduced. The Worker remains
+outside `Api.Server` and communicates with Core over NATS from the first implementation.
+
+After functional paper-trading gates pass, the same host executable is packaged as a Linux container using the
+official .NET 10 Ubuntu 24.04 image. Docker qualification proves mounted-volume durability, Linux path and permission
+behavior, native-tool compatibility, non-root execution, restart recovery, and NATS reconnection. Docker packaging
+does not create a second implementation or change actor contracts.
+
+Aspire is deferred to a later full-system Linux production migration plan. That plan may compose:
 
 ```text
 TomasAI.IFM.AppHost
@@ -1837,9 +1848,10 @@ TomasAI.IFM.AppHost
   +-- destination resource references appropriate to the environment
 ```
 
-The Aspire AppHost may provide project discovery, startup ordering, development resource references, health visibility,
-and local developer orchestration. Shared Service Defaults may configure telemetry, health, resilience baselines, and
-service discovery for executable hosts.
+The later Aspire AppHost may provide project discovery, startup ordering, resource references, health visibility, and
+production-oriented orchestration. Shared Service Defaults may configure telemetry, health, resilience baselines, and
+service discovery for executable hosts. OpenTelemetry-compatible instrumentation and health endpoints remain design
+requirements before Aspire so their semantics are proven during paper trading.
 
 Aspire does not:
 
@@ -1851,9 +1863,8 @@ Aspire does not:
 - remain a mandatory runtime dependency after the hosts are started; or
 - remove the requirement for production deployment, recovery, and security procedures outside a developer dashboard.
 
-The Database Backup Host must be runnable and testable directly as a container without starting the complete application
-estate. Integration environments may use Aspire to compose only the host, NATS, disposable databases, and disposable
-backup destinations required by a backup or restore test.
+The Database Backup Host must run directly as a Worker during development and directly as a container without starting
+the complete application estate. Integration tests use explicit disposable dependencies until a later Aspire migration.
 
 ## 24. Credential and native-executor boundary
 
@@ -1972,12 +1983,13 @@ The shared architecture is satisfied only when the AWS and local designs conform
 15. Secrets never enter actor messages, artifacts, manifests, logs, metrics, or UI models.
 16. Legacy per-database and `.bak` assumptions are absent from the replacement designs.
 17. All native backup and restore behavior executes behind the Database Backup Service boundary and never in an actor;
-    the service runs in the dedicated Docker-packaged `TomasAI.IFM.Api.DatabaseBackup.Host` from its first
-    implementation.
+    the service runs in the dedicated `TomasAI.IFM.Api.DatabaseBackup.Host` Worker from its first implementation and
+    is packaged in an Ubuntu 24.04/.NET 10 container at the paper-trading Docker qualification gate.
 18. SystemAdmin owns authoritative control state while the service owns recoverable execution journals.
 19. Core and the Database Backup Host can restart, deploy, throttle, and fail independently, and reconciliation resumes
     incomplete operations without duplicating native work.
-20. Aspire composes the separate Docker resources without becoming an authoritative state or runtime dependency.
+20. Aspire is deferred to a later full-system Linux production migration and can compose the separate Docker resources
+    without becoming an authoritative state or runtime dependency.
 21. SystemAdmin execution intent is published to the service only after its domain event is durably committed.
 22. Service observations update SystemAdmin state only after the Event Actor translates them into commands and the
     Command Actor appends accepted domain events.
@@ -2038,7 +2050,7 @@ The following decisions must be accepted or revised before this overview is sign
 | Multi-source operation | One source-bound `OperationId` per BackupSource, coordinated through a shared `BackupSetId` |
 | Operator and scheduler integration | UI, Console, and ScheduledTask invoke the same DatabaseBackup commands and queries with distinct RequestOrigin and requesting identity |
 | ScheduledTask events | Deferred to the ScheduledTask architecture; ScheduledTask does not consume raw Database Backup Service events |
-| Backup execution deployment | Dedicated Docker-packaged `TomasAI.IFM.Api.DatabaseBackup.Host` composed as an Aspire resource from the first implementation |
+| Backup execution deployment | Dedicated standalone `TomasAI.IFM.Api.DatabaseBackup.Host` Worker during development; Ubuntu 24.04/.NET 10 Docker packaging at the paper-trading qualification gate; Aspire deferred to the full-system production migration |
 | Service communication | Committed SystemAdmin intent and service observations cross the host boundary over NATS; service events are translated into SystemAdmin commands; HTTP remains limited to observability, diagnostics, database-native service APIs, and secured break-glass recovery |
 | Native database capability API | High-level allowlisted PostgreSQL and ScyllaDB backup/restore interfaces hide replication protocol, native utilities, Scylla Manager REST, and any permitted CLI fallback from actors and clients |
 | State ownership | SystemAdmin event sourcing owns authoritative backup state; `SystemAdminDbContext` owns rebuildable read projections; Database Backup Service owns recoverable execution journals; destinations own immutable recovery evidence |
@@ -2046,7 +2058,7 @@ The following decisions must be accepted or revised before this overview is sign
 | Run statistics | Bounded phase/final summaries enter through service event -> Event Actor command -> Command Actor domain event -> idempotent projection; raw telemetry remains outside SystemAdminDb |
 | Execution journal | Private host journal on durable storage outside protected databases and the container writable layer; implementation is adapter-specific but its semantics are common |
 | Post-restore reconciliation | Replay restored event streams, validate newer destination/host evidence, record accepted evidence through commands and domain events, then rebuild projections |
-| Aspire role | Host orchestration, Docker composition, startup dependencies, and shared observability defaults from the first implementation; not a correctness or state dependency |
+| Aspire role | Deferred full-system Linux production orchestration, service discovery, startup dependencies, and shared observability defaults; never a correctness or state dependency |
 
 The AWS architecture resolves AWS-specific durability, identity, encryption, lifecycle, regional, and cost decisions.
 The local architecture resolves filesystem, device, capacity, encryption, offline-copy, and local disaster-boundary
@@ -2078,3 +2090,4 @@ decisions while preserving the approved common model.
 | 0.6 | 2026-08-10 | Approved the shared architecture after scoping the three-actor model to the SystemAdmin DatabaseBackup feature, establishing ScheduledTask as a separate shared command/query caller, making every DatabaseBackup event source-independent through mandatory BackupSource, and deferring ScheduledTask event design. |
 | 0.7 | 2026-08-11 | Proposed the direct Docker/Aspire Database Backup Host, explicit `None`, `LocalWorkstation`, and `AwsCloud` BackupSource semantics, shared UI/Console/ScheduledTask actor API, `Domain.SystemAdmin/DatabaseBackup` feature layout, and high-level PostgreSQL/Scylla backup and restore capability boundary. This supersedes the staged `Api.Server` deployment described in 0.3. |
 | 0.8 | 2026-08-11 | Proposed the four-store persistence model: authoritative SystemAdmin event streams, rebuildable `SystemAdminDbContext` projections and structured run statistics, a private external Database Backup Host execution journal, and destination-resident immutable manifests/run evidence with post-restore reconciliation. |
+| 0.9 | 2026-08-12 | Approved the paper-trading deployment sequence: standalone .NET 10 Database Backup Host development first, Ubuntu 24.04 Docker qualification after functional gates, and Aspire deferred to a later full-system Linux production migration while preserving host, NATS, health, and OpenTelemetry boundaries. |

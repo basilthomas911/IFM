@@ -14,7 +14,7 @@ using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
-namespace TomasAI.IFM.Application.Storage.Backup;
+namespace TomasAI.IFM.Application.Storage.ProjectionMigration;
 
 internal static class Program
 {

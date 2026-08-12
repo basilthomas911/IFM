@@ -1,10 +1,10 @@
 # Local Workstation Database Backup and Restore Code Implementation Specification
 
-**Status:** Draft for implementation review
+**Status:** Phase 0 implemented and Gate 0 validated; Phase 1 pending review
 
-**Version:** 0.1
+**Version:** 0.2
 
-**Date:** 2026-08-11
+**Date:** 2026-08-12
 
 **Implementation target:** `BackupSource.LocalWorkstation`
 
@@ -18,10 +18,10 @@
 
 This specification turns the approved common and local-workstation backup architecture into an ordered code plan for
 IFM. It defines the projects, folders, contracts, actors, storage, messaging, dependency-injection registrations,
-Docker/Aspire host, console and WinForms integration, tests, migration steps, and acceptance gates needed to implement
+standalone host, deferred Docker/Aspire deployment, console and WinForms integration, tests, migration steps, and acceptance gates needed to implement
 local PostgreSQL and ScyllaDB backup and restore.
 
-The first production implementation is local-workstation only. Its public actor contracts remain source-neutral and
+The first paper-trading implementation is local-workstation only. Its public actor contracts remain source-neutral and
 carry `BackupSource.LocalWorkstation` as data. The later AWS implementation must use the same commands, queries,
 domain events, service events, and read models with `BackupSource.AwsCloud`.
 
@@ -39,9 +39,9 @@ The following decisions are fixed for this implementation:
 5. The Query Actor reads `ISystemAdminDbContext` projections only.
 6. UI, Console, and ScheduledTask use the same commands and queries through `IActorProducer`.
 7. UI and Console use `IActorEventListener`/`NatsActorEventListener` for public domain-event notifications.
-8. The Docker Database Backup Host uses `IJSActorEventListener`/`NatsJetStreamEventListener` for durable inbound
+8. The standalone Database Backup Host uses `IJSActorEventListener`/`NatsJetStreamEventListener` for durable inbound
    execution-intent events.
-9. The Docker host uses `IJSActorProducer`/`NatsJetStreamActorProducer` for durable outbound service events.
+9. The host uses `IJSActorProducer`/`NatsJetStreamActorProducer` for durable outbound service events.
 10. Core Event actors continue to use the existing `IJSActorConsumer`/`NatsJetStreamActorConsumer` runtime path.
 11. The host never writes `SystemAdminDbContext` and never owns application aggregate state.
 12. `SystemAdminDbContext` is a rebuildable PostgreSQL projection; it is not authoritative.
@@ -70,14 +70,16 @@ The following work is outside the LocalWorkstation implementation gates:
 - changing the future WPF application beyond keeping shared models and contracts compatible;
 - using HTTP from the WinForms UI for this feature; and
 - using the existing projection-migration executable as the backup processor.
+- adding Aspire orchestration during functional paper-trading development; and
+- designing MarketData, TradeBroker, GeneralLedger, or other future capability hosts in this implementation.
 
 ## 4. Current-state migration constraint
 
-`TomasAI.IFM.Application.Storage.Backup` is currently an executable whose `Program.cs` performs projection migration
+Before Phase 0, `TomasAI.IFM.Application.Storage.Backup` was an executable whose `Program.cs` performed projection migration
 and reconciliation for Reference, Securities, Fund, and Market projections. It is not a database backup application.
 Repurposing it in place would mix unrelated operational tools and make deployment unsafe.
 
-Before creating the new backup code, rename that existing executable and namespace to:
+Phase 0 renames that existing executable and namespace to:
 
 ```text
 TomasAI.IFM.Application.Storage.ProjectionMigration/
@@ -87,7 +89,7 @@ TomasAI.IFM.Application.Storage.ProjectionMigration/
 ```
 
 The rename must preserve its behavior and tests. The new backup orchestration library may then use the unambiguous
-name `TomasAI.IFM.Application.DatabaseBackup`; the Database Backup Console and Docker host remain separate executable
+name `TomasAI.IFM.Application.DatabaseBackup`; the Database Backup Console and standalone host remain separate executable
 projects. The architecture documents may remain under the current documentation directory until a documentation-only
 move is approved.
 
@@ -107,7 +109,7 @@ new contracts.
 | `TomasAI.IFM.Application.Api.Nats.Client` | library | Typed DatabaseBackup command/query client wrappers over `IActorProducer` |
 | `TomasAI.IFM.Application.DatabaseBackup` | library | Destination-neutral service orchestration, journal and native capability ports, workflow coordinators |
 | `TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation` | library | SQLite journal, local vault/media, manifest/catalog, PostgreSQL, Scylla, filesystem, signing, and native process adapters |
-| `TomasAI.IFM.Api.DatabaseBackup.Host` | worker executable | Durable execution listener, processor registry, work dispatch, reconciliation, service-event outbox, health |
+| `TomasAI.IFM.Api.DatabaseBackup.Host` | worker executable | Standalone durable execution listener, processor registry, work dispatch, reconciliation, service-event outbox, health; packaged for Ubuntu 24.04 later |
 | `TomasAI.IFM.Application.DatabaseBackup.Console` | console executable | Operator commands, queries, follow mode, deterministic exit codes |
 | existing `TomasAI.IFM.UI.Net.*` projects | WinForms | Legacy views with new NATS-only models/view-models and public event consumption |
 | `TomasAI.IFM.Application.Storage.ProjectionMigration` | console executable | Renamed existing projection migration tool; unrelated to backup execution |
@@ -858,9 +860,10 @@ On startup or explicit request, the host:
 
 Core accepts recovered facts only through the Event Actor -> translated command -> Command Actor -> domain event path.
 
-## 16. Docker Database Backup Host
+## 16. Standalone Database Backup Host
 
-Create `TomasAI.IFM.Api.DatabaseBackup.Host` as a .NET 10 Worker/hosted-service executable with a Dockerfile. Its
+Create `TomasAI.IFM.Api.DatabaseBackup.Host` as an independently runnable .NET 10 Worker/hosted-service executable. Do
+not add a Dockerfile or Aspire dependency during the functional implementation gates. Its
 composition root registers:
 
 - validated host and source options;
@@ -893,7 +896,7 @@ within the configured grace period, flush the outbox where possible, release lea
 
 The host exposes only health/metrics management endpoints. It does not expose an HTTP backup/restore command API.
 
-## 17. Configuration and Aspire
+## 17. Configuration and deployment
 
 Add a dedicated `DatabaseBackup` configuration root. Core-owned policy is transported in versioned execution intent;
 host bootstrap configuration contains only what the service needs to execute safely.
@@ -918,7 +921,11 @@ Nats:JetStreamProducer
 Configuration contains secret references, not secret values copied into domain messages. Development defaults are
 disabled or dry-run and cannot target production protection-set IDs.
 
-Add the host to the Aspire composition when an AppHost project is introduced or identified:
+After the functional paper-trading gates pass, package the unchanged Worker using the official .NET 10 Ubuntu 24.04
+image. The Docker gate adds persistent journal, vault/media/workspace mounts, non-root execution, Linux native tools,
+health checks, and restart tests. It does not change domain or NATS contracts.
+
+A future full-system Linux production migration plan may add Aspire composition:
 
 ```text
 Api.Server -> NATS, CorePostgresCluster, Scylla
@@ -926,8 +933,10 @@ Api.DatabaseBackup.Host -> NATS, persistent encrypted journal mount,
                            vault/media/workspace mounts, backup-native secret refs
 ```
 
-Aspire supplies discovery, references, startup ordering, and health visibility. It does not run native backup logic or
-merge the host into `Api.Server`. The host container must also run independently for integration and recovery use.
+Aspire may later supply discovery, references, startup ordering, shared OpenTelemetry defaults, and health visibility.
+It does not run native backup logic or merge the host into `Api.Server`. The Worker and eventual container must run
+independently for integration and recovery use. OpenTelemetry-compatible instrumentation and health semantics are
+developed before Aspire so paper trading validates them.
 
 ## 18. Typed NATS client APIs
 
@@ -1159,6 +1168,9 @@ Destructive qualification tests are separately tagged and opt-in.
 
 ### Phase 0: Baseline and naming cleanup
 
+**Implementation status:** Complete on 2026-08-12. See
+`Local-Workstation-Backup-Restore-Phase-0-Validation-Report.md`.
+
 - Rename the existing projection-migration executable.
 - Record baseline solution build and relevant test counts.
 - Add new empty projects/folders and solution references.
@@ -1231,9 +1243,10 @@ reconciliation tests pass.
 **Gate 9:** Console and UI use the new commands/queries; UI remains responsive; FlaUI smoke workflow passes against the
 disposable backend.
 
-### Phase 10: Runtime qualification and legacy removal
+### Phase 10: Ubuntu 24.04 Docker qualification, runtime validation, and legacy removal
 
-- Run Docker/Aspire end-to-end backup, crash recovery, restore drill, and fresh-target restore.
+- Package the existing Worker with the official Ubuntu 24.04/.NET 10 image; do not add Aspire in this phase.
+- Run standalone Docker end-to-end backup, crash recovery, restore drill, and fresh-target restore.
 - Remove deprecated SystemAdmin backup messages, APIs, event listeners, model methods, and per-database assumptions.
 - Verify no legacy type references remain with `rg` and compile all solution projects.
 
@@ -1279,7 +1292,7 @@ LocalWorkstation implementation is complete only when all statements are true:
 - [ ] Restore drill, RPO/RTO evidence, cancellation, retention fencing, and reconciliation pass.
 - [ ] Duplicate/redelivered messages never repeat destructive native work.
 - [ ] Public events and storage contain no secrets, arbitrary paths, or raw native output.
-- [ ] Docker/Aspire and standalone-container smoke tests pass.
+- [ ] Standalone Worker and Ubuntu 24.04 Docker smoke tests pass; Aspire remains outside this implementation.
 - [ ] Legacy backup contracts and call sites are removed only after the replacement is validated.
 - [ ] AWS can later implement the same application capability contracts without changing public actor schemas.
 
@@ -1320,3 +1333,4 @@ For each phase, the implementing agent must:
 | Version | Date | Change |
 | --- | --- | --- |
 | 0.1 | 2026-08-11 | Initial code implementation specification for LocalWorkstation, including `IJSActorEventListener`, actor contracts, SystemAdmin projections, SQLite journal, native capabilities, Docker/Aspire host, Console, WinForms migration, tests, and gated delivery phases. |
+| 0.2 | 2026-08-12 | Changed the paper-trading sequence to standalone .NET 10 Worker development, deferred Ubuntu 24.04 Docker packaging to Gate 10, deferred Aspire to a future full-system Linux production migration, and excluded other capability-host designs. |

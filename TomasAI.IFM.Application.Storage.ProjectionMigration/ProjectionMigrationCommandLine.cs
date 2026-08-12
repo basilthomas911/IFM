@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TomasAI.IFM.Application.Storage.Backup;
+namespace TomasAI.IFM.Application.Storage.ProjectionMigration;
 
 internal enum ProjectionMigrationTarget
 {
@@ -34,10 +34,10 @@ internal static class ProjectionMigrationCommandLine
 {
     internal const string Usage = """
         Usage:
-          dotnet run --project TomasAI.IFM.Application.Storage.Backup -- reference [options]
-          dotnet run --project TomasAI.IFM.Application.Storage.Backup -- securities [options]
-          dotnet run --project TomasAI.IFM.Application.Storage.Backup -- fund --fund-id <id> --start-date <yyyy-MM-dd> --end-date <yyyy-MM-dd> [options]
-          dotnet run --project TomasAI.IFM.Application.Storage.Backup -- market [options]
+          dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- reference [options]
+          dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- securities [options]
+          dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- fund --fund-id <id> --start-date <yyyy-MM-dd> --end-date <yyyy-MM-dd> [options]
+          dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- market [options]
 
         Options:
           --apply-schema

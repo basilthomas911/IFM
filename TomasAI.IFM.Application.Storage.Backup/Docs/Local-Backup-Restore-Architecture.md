@@ -1,10 +1,10 @@
 # IFM Local Workstation Database Backup and Restore Architecture
 
-Status: Draft for architecture review
-Version: 0.3
-Date: 2026-08-11
+Status: Draft for architecture review; paper-trading deployment amendment approved
+Version: 0.4
+Date: 2026-08-12
 Scope: Local workstation protection for PostgreSQL and ScyllaDB using encrypted online and rotated offline storage
-Parent architecture: Database-Backup-Architecture-Overview.md version 0.8
+Parent architecture: Database-Backup-Architecture-Overview.md version 0.9
 Reference architecture: AWS-Cloud-Backup-Restore-Architecture.md version 0.4
 BackupSource: LocalWorkstation
 
@@ -53,9 +53,9 @@ This design inherits these non-negotiable rules:
    source of truth.
 9. The Database Backup Service executes native capture, transfer, verification, retention, restore, and local-media
    behavior outside actor threads.
-10. The service runs from the first implementation in the Docker-packaged
-    **TomasAI.IFM.Api.DatabaseBackup.Host**, composed as a separate Aspire resource and communicating with Core over
-    NATS.
+10. The service runs from the first implementation as the independently runnable
+    **TomasAI.IFM.Api.DatabaseBackup.Host** .NET 10 Worker and communicates with Core over NATS. Ubuntu 24.04 Docker
+    packaging is a later paper-trading qualification gate; Aspire is deferred to the full-system production migration.
 11. The actors live under **TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup** and retain exactly the shared Command,
     Event, and Query roles; LocalWorkstation does not introduce source-specific actor types.
 12. PostgreSQL and ScyllaDB are protected at physical cluster or declared protection-set boundaries.
@@ -1365,7 +1365,7 @@ recovery behavior.
 Forecasts include database growth, WAL volatility, SSTable churn, complete dependency chains, incoming duplication,
 rotation delay, diagnostic retention, filesystem overhead, offline self-contained sets, and restore workspace.
 
-## 29. Configuration and Aspire composition
+## 29. Configuration and deployment composition
 
 ### 29.1 Core-owned configuration
 
@@ -1404,7 +1404,7 @@ Configuration contains secret references, not recovery secrets.
 
 ### 29.3 Database Backup Host resource
 
-From the first implementation, Docker-packaged **TomasAI.IFM.Api.DatabaseBackup.Host** receives:
+From the first implementation, standalone **TomasAI.IFM.Api.DatabaseBackup.Host** receives:
 
 - its own process and service identity;
 - exclusive local vault permissions;
@@ -1415,9 +1415,11 @@ From the first implementation, Docker-packaged **TomasAI.IFM.Api.DatabaseBackup.
 - local health and telemetry; and
 - no normal application database credentials.
 
-Aspire composes the host, NATS, databases, health dependencies, and local resource references for development and
-integration testing. Aspire is not needed for media recovery or after the host container starts, and it owns no
-authoritative operation state.
+Development and functional paper-trading tests start the Worker and disposable dependencies explicitly without Aspire.
+After functional gates pass, the same executable is packaged in an Ubuntu 24.04/.NET 10 container and qualified with
+persistent journal, vault, media, and restore-workspace mounts. Aspire composition, shared Service Defaults, and the
+full production OpenTelemetry deployment are deferred to a separate full-system Linux production migration plan.
+Neither Docker nor Aspire owns authoritative operation state.
 
 ## 30. Environment and test strategy
 
@@ -1530,8 +1532,8 @@ The local design is accepted only when:
 32. Media retirement does not rely on ordinary file deletion as secure erasure.
 33. The independent Database Backup Host and Core can restart separately and reconcile through the external journal
     without duplicating native work.
-34. The service runs as a Docker-packaged Aspire resource from the first implementation and never executes inside
-    Api.Server or an actor.
+34. The service runs as a standalone .NET 10 Worker from the first implementation, never executes inside Api.Server or
+    an actor, and passes an Ubuntu 24.04 Docker qualification gate before paper-trading deployment; Aspire is deferred.
 35. Representative benchmarks and drills demonstrate acceptable application impact, RPO, and RTO.
 36. PostgreSQL and ScyllaDB execution is available only through the shared high-level allowlisted capabilities; no
     actor or client can supply native commands, arbitrary arguments, credentials, or paths.
@@ -1573,7 +1575,7 @@ The local design is accepted only when:
 | Secure disposal | Cryptographic erase, approved secure erase, or physical destruction |
 | ScheduledTask | Same DatabaseBackup commands and queries; raw service events remain isolated |
 | Console | Same actor commands, queries, and bounded events as UI; no direct native or host execution path |
-| Deployment | Dedicated Docker-packaged Database Backup Host composed by Aspire from the first implementation |
+| Deployment | Dedicated standalone Database Backup Host Worker during functional development; Ubuntu 24.04 Docker qualification before paper-trading deployment; Aspire deferred |
 | SystemAdmin persistence | Rebuildable `SystemAdminDbContext` projections and `DatabaseRecoveryRunStats` in Core PostgreSQL; no direct processor writes |
 | Local execution journal | Transactional embedded database, preferably durable SQLite, on an encrypted persistent Docker/bind-mounted volume separate from protected databases and backup media |
 | Recovery reconciliation | Replay restored events, validate newer signed local evidence, append accepted reconciliation events, then update projections |
@@ -1620,3 +1622,4 @@ The local design is accepted only when:
 | 0.1 | 2026-08-10 | Created the LocalWorkstation reference architecture covering encrypted online and rotated offline vaults, stable media identity, durable publication, Windows/Linux storage, PostgreSQL and Scylla workflows, common source-independent events, retention, restore, break-glass recovery, security, observability, testing, and decisions for review. |
 | 0.2 | 2026-08-11 | Aligned local backup with overview 0.7: direct Docker/Aspire host deployment, shared three-value BackupSource semantics, the common UI/Console/ScheduledTask actor API, the Domain.SystemAdmin DatabaseBackup feature boundary, and typed PostgreSQL/Scylla native capability adapters. |
 | 0.3 | 2026-08-11 | Proposed the shared four-store persistence model for LocalWorkstation: `SystemAdminDbContext` projections/run statistics, a durable embedded execution journal on an encrypted persistent volume, immutable local manifest run evidence, and event-gated post-restore reconciliation. |
+| 0.4 | 2026-08-12 | Approved standalone Worker development for paper trading, Ubuntu 24.04/.NET 10 Docker qualification after functional gates, and deferral of Aspire to the later full-system Linux production migration. |

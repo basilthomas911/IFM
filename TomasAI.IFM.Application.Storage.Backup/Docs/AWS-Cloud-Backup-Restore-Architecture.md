@@ -1,10 +1,10 @@
 # IFM AWS Cloud Database Backup and Restore Architecture
 
-Status: Draft for architecture review; Section 29 decisions approved; version 0.4 amendment proposed
-Version: 0.4
-Date: 2026-08-11
+Status: Draft for architecture review; Section 29 decisions approved; paper-trading deployment amendment approved
+Version: 0.5
+Date: 2026-08-12
 Scope: AWS reference architecture for PostgreSQL and ScyllaDB backup, restore, retention, and disaster recovery
-Parent architecture: Database-Backup-Architecture-Overview.md version 0.8
+Parent architecture: Database-Backup-Architecture-Overview.md version 0.9
 
 ## 1. Purpose
 
@@ -40,8 +40,9 @@ This document inherits the following non-negotiable rules from the overview:
 4. The SystemAdmin Query Actor reads projected models and never queries AWS or the Database Backup Service as a hidden
    source of truth.
 5. The Database Backup Service executes all native backup, transfer, verification, retention, and restore behavior.
-6. The service runs from the first implementation in Docker-packaged **TomasAI.IFM.Api.DatabaseBackup.Host** as a
-   separate Aspire-managed project resource and never runs inside **Api.Server**.
+6. The service boundary is implemented first as the standalone **TomasAI.IFM.Api.DatabaseBackup.Host** Worker and never
+   runs inside **Api.Server**. Ubuntu 24.04 Docker packaging follows functional paper-trading qualification; Aspire is
+   deferred to the later full-system Linux production migration.
 7. NATS carries bounded control and outcome events between Core and the Database Backup Host in every environment.
    Native backup payloads never travel through NATS or actor mailboxes.
 8. PostgreSQL and ScyllaDB are protected at their physical cluster or declared protection-set boundaries.
@@ -124,7 +125,7 @@ The AWS architecture must:
 - support fresh-target restore drills and production recovery;
 - measure actual RPO and RTO;
 - constrain cost without weakening declared recovery objectives; and
-- run in an independently constrained Docker/Aspire Database Backup Host from the first implementation.
+- run in an independently constrained Database Backup Host, with Docker/Aspire deployment added at their approved gates.
 
 ### 4.2 Non-goals
 
@@ -1424,7 +1425,7 @@ Forecasting uses:
 - lifecycle minimum durations; and
 - at least one simultaneous recovery reserve where policy requires it.
 
-## 26. Configuration ownership and Aspire composition
+## 26. Configuration ownership and deployment composition
 
 ### 26.1 Core-owned configuration
 
@@ -1464,7 +1465,7 @@ Startup fails closed when a mandatory production control is absent or weaker tha
 
 ### 26.3 Database Backup Host resource
 
-From the first implementation, Docker-packaged **TomasAI.IFM.Api.DatabaseBackup.Host** receives:
+The independently runnable **TomasAI.IFM.Api.DatabaseBackup.Host** receives:
 
 - its own workload identity;
 - its own network policy and endpoints;
@@ -1473,9 +1474,10 @@ From the first implementation, Docker-packaged **TomasAI.IFM.Api.DatabaseBackup.
 - independent deployment and restart lifecycle; and
 - NATS event transport using the same contracts for UI, Console, and ScheduledTask callers.
 
-The Aspire AppHost composes the Docker host, NATS, database dependencies, AWS resource references, development
-resources, and observability. It does not hold backup state, own credentials, execute backup behavior, or remain
-required after the service container starts.
+Paper-trading development and functional tests run the Worker without Aspire. Ubuntu 24.04 Docker packaging is
+qualified after the functional gates. A later full-system Linux production migration may use Aspire to compose the
+Docker host, NATS, database dependencies, AWS resource references, and observability. Aspire does not hold backup state,
+own credentials, execute backup behavior, or remain required after the service container starts.
 
 ## 27. Environment strategy
 
@@ -1557,8 +1559,8 @@ The AWS design is accepted only when evidence demonstrates:
     type; BackupSource **None** is rejected for operations and source-bound events.
 30. UI, Console, and ScheduledTask callers use the same DatabaseBackup command and query surface without consuming raw
     AWS service events.
-31. The service runs as a Docker-packaged Aspire resource from the first implementation and never executes inside
-    Api.Server or an actor.
+31. The service runs as a standalone Worker from the first implementation and never executes inside Api.Server or an
+    actor; Docker packaging and Aspire orchestration are introduced only at their approved qualification/migration gates.
 32. PostgreSQL and ScyllaDB execution is available only through the shared typed, allowlisted backup/restore
     capabilities.
 33. The Console follows the same actor API and bounded events as the UI and cannot bypass SystemAdmin.
@@ -1598,7 +1600,7 @@ implementation-level substitution:
 | Break-glass identity | Independent federation, strong MFA, short role sessions, no static keys |
 | Cutover | Separate approval after fresh-target validation |
 | Operator clients — v0.3 proposal | UI and Console use the same DatabaseBackup actor commands, queries, and authorized bounded domain events; no direct execution path and no raw service/execution event subscription |
-| Deployment — v0.3 proposal | Dedicated Docker-packaged Database Backup Host composed by Aspire from the first implementation |
+| Deployment — v0.5 | Standalone Database Backup Host for functional paper-trading development; Ubuntu 24.04 Docker qualification later; Aspire deferred to the full-system Linux production migration |
 | SystemAdmin persistence — v0.4 proposal | Rebuildable `SystemAdminDbContext` projections and `DatabaseRecoveryRunStats` in Core PostgreSQL; no direct AwsCloud writes |
 | Production execution journal — v0.4 proposal | Encrypted workload-account DynamoDB adapter using conditional lease/revision writes and PITR; development/single-host profile may use the encrypted embedded journal |
 | Recovery evidence — v0.4 proposal | Immutable S3 manifest/run-evidence objects carry the bounded final summary and remain usable without Core or the execution journal |
@@ -1677,3 +1679,4 @@ infrastructure provides a weaker failure boundary than this AWS reference.
 | 0.2 | 2026-08-10 | Recorded approval of Section 29 and aligned with overview version 0.6 by assigning BackupSource AwsCloud to shared DatabaseBackup events, preserving primary/recovery replica identities, and confirming the shared UI and ScheduledTask command/query surface. |
 | 0.3 | 2026-08-11 | Proposed alignment with overview 0.7: direct Docker/Aspire host deployment, shared three-value BackupSource semantics, the common UI/Console/ScheduledTask actor API, and typed PostgreSQL/Scylla native capability adapters. |
 | 0.4 | 2026-08-11 | Proposed the shared four-store persistence model for AwsCloud: `SystemAdminDbContext` projections/run statistics, a conditional durable production execution journal, immutable S3 run evidence, and event-gated post-restore reconciliation. |
+| 0.5 | 2026-08-12 | Aligned deployment sequencing with paper trading: standalone Worker development, later Ubuntu 24.04 Docker qualification, and Aspire deferred to the full-system Linux production migration. |

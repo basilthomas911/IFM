@@ -151,7 +151,7 @@ A partial recovery therefore stays fail-closed or remains on canonical fallback 
 
 ## Operator CLI
 
-`TomasAI.IFM.Application.Storage.Backup` is the executable storage-operations entry point for these backfills. Each
+`TomasAI.IFM.Application.Storage.ProjectionMigration` is the executable storage-operations entry point for these backfills. Each
 command reads a credential-free connection string from its own environment variable. The Scylla userid/password JSON
 continues to come from the Framework.Storage credential variable selected by `DOTNET_ENVIRONMENT`:
 
@@ -184,10 +184,10 @@ truncate canonical ITI/RSI tables. It is safe to repeat because each selected de
 `CREATE ... IF NOT EXISTS`.
 
 ~~~powershell
-dotnet run --project TomasAI.IFM.Application.Storage.Backup -- reference --apply-schema --batch-size 256
-dotnet run --project TomasAI.IFM.Application.Storage.Backup -- securities --apply-schema --batch-size 256
-dotnet run --project TomasAI.IFM.Application.Storage.Backup -- fund --apply-schema --fund-id <fund-id> --start-date <yyyy-MM-dd> --end-date <yyyy-MM-dd> --batch-size 500
-dotnet run --project TomasAI.IFM.Application.Storage.Backup -- market --apply-schema --batch-size 256
+dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- reference --apply-schema --batch-size 256
+dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- securities --apply-schema --batch-size 256
+dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- fund --apply-schema --fund-id <fund-id> --start-date <yyyy-MM-dd> --end-date <yyyy-MM-dd> --batch-size 500
+dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- market --apply-schema --batch-size 256
 ~~~
 
 The Fund command rebuilds and verifies the global order-ID lookup before rebuilding the selected fund's complete
@@ -202,7 +202,7 @@ For abandoned-operation recovery, first drain and prevent every affected writer 
 the explicit UTC cutoff and the confirmation flag; the CLI rejects either option by itself:
 
 ~~~powershell
-dotnet run --project TomasAI.IFM.Application.Storage.Backup -- securities --batch-size 256 --stale-operation-cutoff-utc 2026-08-03T14:30:00Z --confirm-writers-drained
+dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- securities --batch-size 256 --stale-operation-cutoff-utc 2026-08-03T14:30:00Z --confirm-writers-drained
 ~~~
 
 Use the same guarded pair with `reference`, `fund`, or `market` when that context needs recovery. Never script a
