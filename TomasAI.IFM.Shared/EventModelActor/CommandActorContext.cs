@@ -21,8 +21,7 @@ public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId ac
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
     readonly ConcurrentDictionary<(ActorThreadId ThreadId, string Verb), ActorMessageInfo> _messageInfo = [];
 
-    IActorProducer? _producer;
-    IJSActorProducer? _jsProducer;
+    readonly ActorEventPublisher _eventPublisher = new(supervisor);
 
     /// <summary>
     /// Gets the mailbox identifier for the actor associated with this context.
@@ -54,12 +53,7 @@ public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId ac
         var started = ActorRuntimeMetrics.StartStage();
         try
         {
-            var actorId = @event.Subject.ActorId;
-            await (_jsProducer ??= _supervisor.GetJSProducer(actorId))
-                .SendAsync<TEvent, TEntityId>(@event.Subject, @event, cancellationToken)
-                .ConfigureAwait(false);
-            await (_producer ??= _supervisor.GetProducer(actorId))
-                .SendAsync<TEvent, TEntityId>(@event.Subject, @event, cancellationToken)
+            await _eventPublisher.SendAsync<TEvent, TEntityId>(@event, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch

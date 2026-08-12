@@ -10,6 +10,9 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
     readonly IDatabaseBackupExecutionJournal _journal;
     readonly IPostgreSqlBackupCapability _postgreSql;
     readonly IScyllaBackupCapability _scylla;
+    readonly IDatabaseBackupPublicationCapability _publication;
+    readonly IDatabaseRestoreSourceCapability _restoreSources;
+    readonly IDatabaseRecoveryEvidenceStore _evidence;
     readonly IDatabaseRecoveryEngineSelector _engineSelector;
     readonly LocalWorkstationDatabaseBackupOptions _options;
     readonly DatabaseBackupHostId _hostId;
@@ -19,7 +22,11 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         IPostgreSqlBackupCapability postgreSql,
         LocalWorkstationDatabaseBackupOptions options)
         : this(journal, postgreSql, new FakeScyllaBackupCapability(),
-            new PostgreSqlOnlyDatabaseRecoveryEngineSelector(), options) { }
+            new PostgreSqlOnlyDatabaseRecoveryEngineSelector(), options,
+            new FakeDatabaseBackupPublicationCapability(),
+            new FakeDatabaseRestoreSourceCapability(),
+            new FakeDatabaseRecoveryEvidenceStore())
+    { }
 
     public LocalWorkstationDatabaseRecoveryProcessor(
         IDatabaseBackupExecutionJournal journal,
@@ -27,10 +34,28 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         IScyllaBackupCapability scylla,
         IDatabaseRecoveryEngineSelector engineSelector,
         LocalWorkstationDatabaseBackupOptions options)
+        : this(journal, postgreSql, scylla, engineSelector, options,
+            new FakeDatabaseBackupPublicationCapability(),
+            new FakeDatabaseRestoreSourceCapability(),
+            new FakeDatabaseRecoveryEvidenceStore())
+    { }
+
+    public LocalWorkstationDatabaseRecoveryProcessor(
+        IDatabaseBackupExecutionJournal journal,
+        IPostgreSqlBackupCapability postgreSql,
+        IScyllaBackupCapability scylla,
+        IDatabaseRecoveryEngineSelector engineSelector,
+        LocalWorkstationDatabaseBackupOptions options,
+        IDatabaseBackupPublicationCapability publication,
+        IDatabaseRestoreSourceCapability restoreSources,
+        IDatabaseRecoveryEvidenceStore evidence)
     {
         _journal = journal ?? throw new ArgumentNullException(nameof(journal));
         _postgreSql = postgreSql ?? throw new ArgumentNullException(nameof(postgreSql));
         _scylla = scylla ?? throw new ArgumentNullException(nameof(scylla));
+        _publication = publication ?? throw new ArgumentNullException(nameof(publication));
+        _restoreSources = restoreSources ?? throw new ArgumentNullException(nameof(restoreSources));
+        _evidence = evidence ?? throw new ArgumentNullException(nameof(evidence));
         _engineSelector = engineSelector ?? throw new ArgumentNullException(nameof(engineSelector));
         _options = Validate(options);
         _hostId = new DatabaseBackupHostId(options.HostId);
@@ -66,9 +91,15 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         if (lease is null) return;
 
         var lastSequence = operation.LastServiceSequence;
+        var engine = _engineSelector.Select(intent.ExecutionEvent.Source.ProtectionSetId);
+        if (intent.ExecutionEvent.Source.OperationKind == DatabaseRecoveryOperationKind.Backup)
+            await _publication.ValidateAsync(
+                new DatabaseBackupPublicationPreflightRequest(
+                    intent.ExecutionEvent.Source.ProtectionSetId,
+                    engine,
+                    intent.ExecutionEvent.RequiredDestinations), cancellationToken).ConfigureAwait(false);
         if (lastSequence < 2)
             await EnqueueAsync(DatabaseBackupServiceEventFactory.Started(intent, _hostId, 2), cancellationToken).ConfigureAwait(false);
-        var engine = _engineSelector.Select(intent.ExecutionEvent.Source.ProtectionSetId);
         await CheckpointAsync(lease, DatabaseRecoveryPhase.Started, terminal: false,
             $"{EngineName(engine)}-native-started", cancellationToken).ConfigureAwait(false);
 
@@ -142,12 +173,33 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
             $"{EngineName(engine)}-native-verified", cancellationToken).ConfigureAwait(false);
 
         var statistics = verificationStatistics ?? boundaryStatistics;
-        if (statistics is not null && lastSequence < 5)
+        var publication = await WithLeaseHeartbeatAsync(lease, token => _publication.PublishAsync(
+            new DatabaseBackupPublicationRequest(
+                intent.OperationId,
+                intent.ExecutionEvent.Source.ProtectionSetId,
+                engine,
+                boundaryReference,
+                intent.ExecutionEvent.RequiredDestinations,
+                statistics), token), cancellationToken).ConfigureAwait(false);
+        var sequence = 5L;
+        foreach (var replica in publication.Replicas)
+        {
+            if (lastSequence < sequence)
+                await EnqueueAsync(DatabaseBackupServiceEventFactory.ReplicaPublished(
+                    intent, _hostId, sequence, replica, publication.RestorePointId, publication.ManifestRevision),
+                    cancellationToken).ConfigureAwait(false);
+            sequence++;
+        }
+        await CheckpointAsync(lease, DatabaseRecoveryPhase.Transferring, terminal: false,
+            $"{EngineName(engine)}-manifest-{publication.ManifestId}-published", cancellationToken).ConfigureAwait(false);
+
+        if (statistics is not null && lastSequence < sequence)
             await EnqueueAsync(DatabaseBackupServiceEventFactory.Statistics(
-                intent, _hostId, 5, DatabaseRecoveryPhase.Verifying, statistics), cancellationToken).ConfigureAwait(false);
-        if (lastSequence < 6)
+                intent, _hostId, sequence, DatabaseRecoveryPhase.Verifying, statistics), cancellationToken).ConfigureAwait(false);
+        sequence++;
+        if (lastSequence < sequence)
             await EnqueueAsync(DatabaseBackupServiceEventFactory.Completed(
-                intent, _hostId, 6), cancellationToken).ConfigureAwait(false);
+                intent, _hostId, sequence), cancellationToken).ConfigureAwait(false);
         await CheckpointAsync(lease, DatabaseRecoveryPhase.Completed, terminal: true,
             $"{EngineName(engine)}-backup-completed", cancellationToken).ConfigureAwait(false);
     }
@@ -162,6 +214,10 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         var execution = intent.ExecutionEvent;
         if (execution.RestorePointId is null || execution.FreshTarget is null)
             throw new InvalidOperationException("Database restore intent requires a restore point and fresh target.");
+        var restoreStartedUtc = DateTimeOffset.UtcNow;
+        var prepared = await WithLeaseHeartbeatAsync(lease, token => _restoreSources.PrepareAsync(
+            new DatabaseRestoreSourceRequest(intent.OperationId, execution.RestorePointId.Value, engine), token),
+            cancellationToken).ConfigureAwait(false);
         bool succeeded;
         long validationRevision;
         string safeTargetReference;
@@ -169,7 +225,7 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         if (engine == DatabaseEngine.PostgreSql)
         {
             var result = await WithLeaseHeartbeatAsync(lease, token => _postgreSql.RestoreToFreshTargetAsync(
-                new PostgreSqlRestoreRequest(intent.OperationId, execution.RestorePointId.Value, execution.FreshTarget),
+                new PostgreSqlRestoreRequest(intent.OperationId, prepared.NativeRestorePointId, execution.FreshTarget),
                 new Progress<DatabaseNativeProgress>(), token), cancellationToken).ConfigureAwait(false);
             succeeded = result.Succeeded;
             validationRevision = result.ValidationRevision;
@@ -179,7 +235,7 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         else
         {
             var result = await WithLeaseHeartbeatAsync(lease, token => _scylla.RestoreToFreshTargetAsync(
-                new ScyllaRestoreRequest(intent.OperationId, execution.RestorePointId.Value, execution.FreshTarget),
+                new ScyllaRestoreRequest(intent.OperationId, prepared.NativeRestorePointId, execution.FreshTarget),
                 new Progress<DatabaseNativeProgress>(), token), cancellationToken).ConfigureAwait(false);
             succeeded = result.Succeeded;
             validationRevision = result.ValidationRevision;
@@ -206,6 +262,22 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         }
         else
         {
+            var completedUtc = DateTimeOffset.UtcNow;
+            var achievedRto = statistics?.AchievedRto ?? completedUtc - restoreStartedUtc;
+            var achievedRpo = statistics?.AchievedRpo ?? TimeSpan.Zero;
+            _ = await WithLeaseHeartbeatAsync(lease, token => _evidence.WriteDrillEvidenceAsync(
+                new DatabaseRestoreDrillEvidence(
+                    intent.OperationId,
+                    execution.RestorePointId.Value,
+                    prepared.ReplicaId,
+                    engine,
+                    restoreStartedUtc,
+                    completedUtc,
+                    achievedRpo,
+                    achievedRto,
+                    NativeValidationSucceeded: true,
+                    ApplicationValidationSucceeded: true,
+                    safeTargetReference), token), cancellationToken).ConfigureAwait(false);
             if (lastSequence < 5)
                 await EnqueueAsync(DatabaseBackupServiceEventFactory.Completed(
                     intent, _hostId, 5), cancellationToken).ConfigureAwait(false);

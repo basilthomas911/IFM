@@ -91,26 +91,13 @@ public interface IActorProducer
 }
 
 /// <summary>
-/// Defines a contract for producing NATS JetStream actors, enabling asynchronous communication by sending commands and
-/// events to actor subjects and managing their lifecycle.
+/// Defines a contract for producing durable actor events through NATS JetStream.
 /// </summary>
 /// <remarks>Implementations of this interface should ensure thread safety when interacting with actors. The
 /// methods provided allow for non-blocking operations, supporting a reactive programming model. The IsRunning property
 /// indicates whether the actor producer is currently active.</remarks>
 public interface IJSActorProducer
 {
-    ValueTask SendAsync<TCommand, TEntityId>(ActorSubject subject, TCommand command, TEntityId entityId)
-        where TCommand : class, ICommand<TEntityId>
-        where TEntityId : IActorEntityId;
-
-    ValueTask SendAsync<TCommand, TEntityId>(ActorSubject subject, TCommand command, TEntityId entityId, CancellationToken cancellationToken)
-        where TCommand : class, ICommand<TEntityId>
-        where TEntityId : IActorEntityId
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return SendAsync(subject, command, entityId);
-    }
-
     ValueTask SendAsync<TEvent, TEntityId>(ActorSubject subject, TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId;

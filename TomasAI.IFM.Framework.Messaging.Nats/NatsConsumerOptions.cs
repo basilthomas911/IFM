@@ -74,10 +74,10 @@ public class NatsConsumerOptions : INatsConsumerOptions
                 throw new InvalidOperationException($"Unknown actor type '{actorType}' in Core NATS traffic classification.");
             if (!Enum.IsDefined(trafficClass))
                 throw new InvalidOperationException($"Unknown Core NATS traffic class '{trafficClass}'.");
-            if (trafficClass == CoreNatsTrafficClass.DurableLiveCopy && actorType != ActorType.Event)
+            if (actorType.GetDeliveryType() != ActorDeliveryType.NatsCore)
             {
                 throw new InvalidOperationException(
-                    $"{CoreNatsTrafficClass.DurableLiveCopy} is valid only for {ActorType.Event} traffic.");
+                    $"Core NATS traffic cannot be configured for actor type '{actorType}'.");
             }
         }
 

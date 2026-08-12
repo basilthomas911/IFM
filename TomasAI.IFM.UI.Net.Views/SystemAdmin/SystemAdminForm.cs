@@ -19,7 +19,7 @@ public partial class SystemAdminForm : Form, IForm<SystemAdminForm>, IFormContro
         InitializeComponent();
         _controlMap = new Dictionary<string, Func<Control>>
         {
-            { "BackupDatabases", () => new BackupDatabasesView(new BackupDatabasesViewModel(appRoot, statusConsoleLog)) },
+            { "BackupDatabases", () => new BackupDatabasesView(new DatabaseBackupViewModel(appRoot)) },
         };
         
     }

@@ -1,8 +1,8 @@
 # Local Workstation Database Backup and Restore Code Implementation Specification
 
-**Status:** Phase 7 implemented and Gate 7 validated; Phase 8 pending review
+**Status:** Phase 9 implemented and Gate 9 validated; Phase 10 pending review
 
-**Version:** 0.9
+**Version:** 1.1
 
 **Date:** 2026-08-12
 
@@ -1248,6 +1248,9 @@ restart scenario.
 
 ### Phase 8: Vault, offline media, manifest, catalog, retention, and drills
 
+**Implementation status:** Complete on 2026-08-12. See
+`Local-Workstation-Backup-Restore-Phase-8-Validation-Report.md`.
+
 - Implement safe publication, signed shared manifest, media enrollment/rotation, retention plan/execute split,
   restore-source selection, drill evidence, and break-glass record.
 
@@ -1255,6 +1258,9 @@ restart scenario.
 reconciliation tests pass.
 
 ### Phase 9: Console and WinForms migration
+
+**Implementation status:** Complete on 2026-08-12. See
+`Local-Workstation-Backup-Restore-Phase-9-Validation-Report.md`.
 
 - Implement console and NATS-only WinForms model/view-model/event-consumer migration with minimal view changes.
 
@@ -1297,7 +1303,7 @@ LocalWorkstation implementation is complete only when all statements are true:
 
 - [ ] Common contracts contain `BackupSource` and no source-specific message types.
 - [ ] DatabaseBackup has exactly Command, Event, and Query actor roles.
-- [ ] UI and Console submit commands/queries through NATS actor APIs only.
+- [x] UI and Console submit commands/queries through NATS actor APIs only.
 - [ ] The host consumes execution intent through `IJSActorEventListener` with durable explicit acknowledgement.
 - [ ] The host publishes service events through the existing `IJSActorProducer` and journaled outbox.
 - [ ] Event Actor acknowledgement follows durable Command Actor acceptance.
@@ -1358,3 +1364,6 @@ For each phase, the implementing agent must:
 | 0.6 | 2026-08-12 | Implemented and validated Gate 4: Core PostgreSQL SystemAdmin schema, bounded query repository, transactional idempotent projections, checkpoints, authoritative-event replay, full projection rebuild, runtime projector wiring, and live PostgreSQL integration coverage without service-journal access. |
 | 0.7 | 2026-08-12 | Implemented and validated Gate 5: destination-neutral recovery ports, fenced SQLite journal/inbox/outbox/leases, standalone host lifecycle and health, durable JetStream ingress/egress, fake native capabilities, restart recovery, and a real JetStream-to-PostgreSQL end-to-end test. |
 | 0.8 | 2026-08-12 | Implemented and validated Gate 6: allowlisted PostgreSQL native execution, physical base backup with streamed WAL evidence, native manifest verification, restart-safe capture recovery, fenced-lease renewal, bounded run statistics, isolated fresh-target boot and validation, and disposable PostgreSQL 17 restore coverage. |
+| 0.9 | 2026-08-12 | Implemented and validated Gate 7: allowlisted Scylla Manager capture/restore, topology/schema/native-manifest evidence, restart-safe verification, fresh-target validation, bounded run statistics, and disposable native SSTable restore coverage. |
+| 1.0 | 2026-08-12 | Implemented and validated Gate 8: no-overwrite online/offline publication, ECDSA-signed manifests/commits/catalog/enrollment/evidence, dependency-complete source selection, capacity admission, exact revision-bound retention, immutable drill evidence, and offline break-glass reconciliation. |
+| 1.1 | 2026-08-12 | Implemented and validated Gate 9: NATS-only operator console parsing/API/exit codes, immutable WinForms backup dashboard state, protection-set/source selection, non-blocking command acceptance, bounded query refresh, public-event refresh signaling, UI-thread ownership, and FlaUI startup/responsiveness smoke coverage. |

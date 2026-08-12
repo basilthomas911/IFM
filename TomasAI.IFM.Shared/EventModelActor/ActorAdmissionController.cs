@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </summary>
 public sealed class ActorAdmissionController
 {
-    static readonly int ActorTypeCount = Enum.GetValues<ActorType>().Length;
+    static readonly int ActorTypeCapacity = Enum.GetValues<ActorType>().Max(static value => (int)value) + 1;
     static readonly ActorAdmissionController DisabledController = new(new ActorAdmissionOptions());
 
     readonly ActorAdmissionMode _mode;
@@ -32,10 +32,10 @@ public sealed class ActorAdmissionController
         _globalByteLimit = options.GlobalByteLimit;
         _maximumPayloadBytes = options.MaximumPayloadBytes;
 
-        _typeMessageLimits = new long[ActorTypeCount];
-        _typeByteLimits = new long[ActorTypeCount];
-        _typeMessages = new long[ActorTypeCount];
-        _typeBytes = new long[ActorTypeCount];
+        _typeMessageLimits = new long[ActorTypeCapacity];
+        _typeByteLimits = new long[ActorTypeCapacity];
+        _typeMessages = new long[ActorTypeCapacity];
+        _typeBytes = new long[ActorTypeCapacity];
         foreach (var actorType in Enum.GetValues<ActorType>())
         {
             var limits = options.GetLimits(actorType);
@@ -189,7 +189,13 @@ public sealed class ActorAdmissionController
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int NormalizeActorType(ActorType actorType)
-        => (uint)actorType < (uint)ActorTypeCount ? (int)actorType : (int)ActorType.Default;
+        => actorType is ActorType.Command
+            or ActorType.Event
+            or ActorType.Query
+            or ActorType.Notify
+            or ActorType.Realtime
+            ? (int)actorType
+            : (int)ActorType.Unknown;
 }
 
 readonly record struct ActorAdmissionCharge(bool IsTracked, ActorType ActorType, int PayloadBytes);

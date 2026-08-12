@@ -91,6 +91,7 @@ public class UiArchitectureBaselineTests
             "TomasAI.IFM.UI.Net.Views/MarketData/MarketDataForm.cs",
             "TomasAI.IFM.UI.Net.Views/MarketData/YieldCurveRateEditForm.cs",
             "TomasAI.IFM.UI.Net.Views/Reference/ReferenceForm.cs",
+            "TomasAI.IFM.UI.Net.Views/SystemAdmin/BackupDatabasesView.cs",
             "TomasAI.IFM.UI.Net.Views/SystemAdmin/SystemAdminForm.cs",
             "TomasAI.IFM.UI.Net.Views/SystemInfo/SystemWaitView.cs",
             "TomasAI.IFM.UI.Net.Views/Trade/CreateFundOrderTradeForm.cs",

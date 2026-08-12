@@ -138,6 +138,7 @@ public class NatsActorProducer(
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
+        EnsureCoreSubject(subject, ActorType.Command);
         try
         {
             IsArgumentNull.Check(subject);
@@ -177,6 +178,7 @@ public class NatsActorProducer(
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        subject.ActorType.EnsureDeliveryType(ActorDeliveryType.NatsCore, nameof(NatsActorProducer));
         try
         {
             IsArgumentNull.Check(subject);
@@ -207,6 +209,7 @@ public class NatsActorProducer(
     public async ValueTask SendAsync<TEvent>(ActorSubject subject, TEvent @event)
         where TEvent : class
     {
+        subject.ActorType.EnsureDeliveryType(ActorDeliveryType.NatsCore, nameof(NatsActorProducer));
         try
         {
             IsArgumentNull.Check(subject);
@@ -248,6 +251,7 @@ public class NatsActorProducer(
         where TQuery : class,IQuery<TResult>
         where TResult : class
     {
+        EnsureCoreSubject(subject, ActorType.Query);
         ServiceResult<TResult> result;
         var started = NatsMessagingMetrics.StartOperation();
         try
@@ -311,6 +315,7 @@ public class NatsActorProducer(
         where TEntityId : IActorEntityId
         where TResult : class
     {
+        EnsureCoreSubject(subject, ActorType.Command);
         ServiceResult<TResult> result;
         try
         {
@@ -381,6 +386,16 @@ public class NatsActorProducer(
         finally
         {
             NatsMessagingMetrics.RecordOperation(started, NatsMessagingMetrics.CoreRequestOperation);
+        }
+    }
+
+    static void EnsureCoreSubject(ActorSubject subject, ActorType expectedActorType)
+    {
+        subject.ActorType.EnsureDeliveryType(ActorDeliveryType.NatsCore, nameof(NatsActorProducer));
+        if (subject.ActorType != expectedActorType)
+        {
+            throw new InvalidOperationException(
+                $"A {expectedActorType} message cannot be published to actor type '{subject.ActorType}'.");
         }
     }
 }

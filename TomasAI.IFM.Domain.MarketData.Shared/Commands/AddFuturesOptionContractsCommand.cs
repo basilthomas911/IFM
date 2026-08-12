@@ -24,7 +24,7 @@ public record AddFuturesOptionContractsCommand
 
     // Serialized members (base keys 0..5)
     [Key(0)] public Guid CommandId { get; init; }
-    [Key(1)] public ActorSubject Subject { get; init; } = ActorSubject.Default;
+    [Key(1)] public ActorSubject Subject { get; init; } = ActorSubject.Unknown;
     [Key(2)] public bool PostEvents { get; init; }
     [Key(3)] public FuturesOptionContractsEntityId EntityId { get; init; }
     [Key(4)] public int ErrorCode { get; init; }

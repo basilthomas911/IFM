@@ -12,7 +12,7 @@ public static class ActorRuntimeStartup
 {
     const string ServiceId = nameof(ActorRuntimeStartup);
     static readonly ActorType[] ConsumerTypes =
-        [ActorType.Command, ActorType.Query];
+        [ActorType.Command, ActorType.Query, ActorType.Notify, ActorType.Realtime];
     static readonly ActorType[] JetStreamConsumerTypes = [ActorType.Event];
 
     /// <summary>
@@ -48,7 +48,7 @@ public static class ActorRuntimeStartup
                 if (producer is not null)
                     supervisor.AddProducer(actor.Id, producer);
 
-                if (actor.Id.ActorType == ActorType.Event)
+                if (actor.Id.ActorType.GetDeliveryType() == ActorDeliveryType.NatsJetStream)
                 {
                     var jetStreamProducer = supervisor.Container.Resolve<IJSActorProducer>();
                     if (jetStreamProducer is not null)

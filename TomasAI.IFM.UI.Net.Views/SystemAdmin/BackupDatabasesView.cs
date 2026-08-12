@@ -1,156 +1,165 @@
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Drawing;
-using System.Data;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 
-namespace TomasAI.IFM.UI.Net.Views.SystemAdmin
+namespace TomasAI.IFM.UI.Net.Views.SystemAdmin;
+
+/// <summary>Displays the NATS-only database-backup protection-set dashboard.</summary>
+public partial class BackupDatabasesView : UserControl, IAsyncFormControl
 {
-    public partial class BackupDatabasesView : UserControl, IAsyncFormControl
+    readonly DatabaseBackupViewModel _viewModel;
+    Task? _initializeTask;
+
+    /// <summary>Creates the database-backup view.</summary>
+    public BackupDatabasesView(DatabaseBackupViewModel viewModel)
     {
-        private BackupDatabasesViewModel _viewModel;
+        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        InitializeComponent();
+    }
 
-        public BackupDatabasesView(BackupDatabasesViewModel viewModel)
+    /// <inheritdoc />
+    public void Open()
+        => _initializeTask ??= _viewModel.InitializeAsync(CancellationToken.None);
+
+    /// <inheritdoc />
+    public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
+
+    async ValueTask IAsyncFormControl.CloseAsync()
+    {
+        Unsubscribe();
+        await _viewModel.StopAsync(CancellationToken.None);
+        await _viewModel.DisposeAsync();
+    }
+
+    void IFormControl.Resize(Control parentControl) { }
+
+    async void BackupDatabasesView_Load(object sender, EventArgs e)
+    {
+        ConfigureControls();
+        Subscribe();
+        try
         {
-            _viewModel = viewModel;
-            InitializeComponent();
+            _initializeTask ??= _viewModel.InitializeAsync(CancellationToken.None);
+            await _initializeTask;
+            BindState();
         }
-
-        public void Open()
+        catch (Exception exception)
         {
-            _viewModel.StartSystemAdminEventConsumer(); 
+            this.ShowErrorMessage(exception.Message, "Database Backup");
         }
+    }
 
+    void ConfigureControls()
+    {
+        radDiffBackup.Text = "Local Workstation";
+        radFullBackup.Text = "AWS Cloud";
+        radDiffBackup.Checked = true;
+        radFullBackup.Checked = false;
+        lblCommandTimeout.Visible = false;
+        nudCommandTimeout.Visible = false;
+        btnRun.Text = "Request Backup";
+        _viewModel.SelectSource(BackupSource.LocalWorkstation);
+    }
 
-        public void Close()
+    void Subscribe()
+    {
+        _viewModel.StateChanged += StateChanged;
+        _viewModel.Error += ShowSafeError;
+        _viewModel.RefreshRequested += RefreshRequested;
+    }
+
+    void Unsubscribe()
+    {
+        _viewModel.StateChanged -= StateChanged;
+        _viewModel.Error -= ShowSafeError;
+        _viewModel.RefreshRequested -= RefreshRequested;
+    }
+
+    void StateChanged() => this.Post(BindState);
+
+    void ShowSafeError(string message)
+        => this.Post(() => this.ShowErrorMessage(message, "Database Backup"));
+
+    void RefreshRequested(Guid operationId)
+        => this.Post(() => _ = RefreshOnUiAsync());
+
+    async Task RefreshOnUiAsync()
+    {
+        await _viewModel.RefreshAsync();
+        BindState();
+    }
+
+    void BindState()
+    {
+        btnRun.Enabled = !_viewModel.IsBusy;
+        Cursor = _viewModel.IsBusy ? Cursors.WaitCursor : Cursors.Default;
+        var selected = clbDatabases.SelectedItem?.ToString();
+        var checkedIds = clbDatabases.CheckedItems.Cast<object>()
+            .Select(item => item.ToString()).Where(item => item is not null).ToHashSet();
+        clbDatabases.Items.Clear();
+        foreach (var protectionSet in _viewModel.State.ProtectionSets)
         {
-            _ = ((IAsyncFormControl)this).CloseAsync();
+            var index = clbDatabases.Items.Add(protectionSet.Id);
+            clbDatabases.SetItemChecked(index, checkedIds.Contains(protectionSet.Id));
         }
-
-        async ValueTask IAsyncFormControl.CloseAsync()
-            => await _viewModel.StopSystemAdminEventConsumer();
-
-        void IFormControl.Resize(Control parentControl)
+        if (clbDatabases.Items.Count > 0)
         {
+            var selectedIndex = Math.Max(0, clbDatabases.Items.IndexOf(selected));
+            clbDatabases.SelectedIndex = selectedIndex;
         }
+        clbDatabases.Enabled = !_viewModel.IsBusy && clbDatabases.Items.Count > 0;
+        BindOperationStatus(clbDatabases.SelectedItem?.ToString());
+    }
 
-        private void BackupDatabasesView_Load(object sender, EventArgs e)
+    void BindOperationStatus(string? protectionSet)
+    {
+        lbStatusMessages.Items.Clear();
+        if (string.IsNullOrWhiteSpace(protectionSet))
+            return;
+        var latestVerified = _viewModel.State.LatestVerified;
+        var latestRestoreTested = _viewModel.State.LatestRestoreTested;
+        lbStatusMessages.Items.Add(latestVerified is null
+            ? "Latest verified point: none"
+            : $"Latest verified point: {latestVerified.RestorePointId} ({latestVerified.VerifiedUtc:u})");
+        lbStatusMessages.Items.Add(latestRestoreTested is null
+            ? "Latest restore-tested point: none"
+            : $"Latest restore-tested point: {latestRestoreTested.RestorePointId} ({latestRestoreTested.RestoreTestedUtc:u})");
+        foreach (var operation in _viewModel.State.RecentOperations.Where(item => item.ProtectionSet == protectionSet))
         {
-            _viewModel.OnStatusMessagesUpdate = (databaseName, statusMessage) => this.Post(() =>
-            {
-                _viewModel.SetStatusMessage(databaseName, statusMessage);
-                for (var index = 0; index < clbDatabases.Items.Count; index++)
-                {
-                    if (clbDatabases.SelectedIndex == index)
-                        ShowStatusMessages(databaseName);
-                }
-            });
-            _viewModel.OnDatabaseNamesLoaded = () => this.Post(() => ShowDatabaseNames());
-            _viewModel.OnDatabaseBackupComplete = (databaseName) => this.Post(() => CheckBackupComplete(databaseName));
-            _viewModel.LoadDatabaseNames();
-            SetDefaults();
+            lbStatusMessages.Items.Add(
+                $"{operation.OperationId:N} | {operation.Phase} | {operation.ProgressPercent}% | {operation.Outcome} | {operation.SafeDiagnosticReference}");
         }
+    }
 
-        private void ShowDatabaseNames()
-        {
-            clbDatabases.Items.Clear();
-            clbDatabases.Enabled = false;
-            if (_viewModel.DatabaseNames == null || _viewModel.DatabaseNames.Length == 0) return;
-            foreach (var name in _viewModel.DatabaseNames)
-                clbDatabases.Items.Add(name);
-            clbDatabases.SelectedIndex = 0;
-            clbDatabases.Enabled = true;
-        }
+    async void btnRun_Click(object sender, EventArgs e)
+    {
+        var protectionSets = clbDatabases.CheckedItems.Cast<object>()
+            .Select(item => item.ToString()).Where(item => !string.IsNullOrWhiteSpace(item)).Cast<string>().ToArray();
+        await _viewModel.RequestBackupsAsync(protectionSets);
+        await _viewModel.RefreshAsync();
+    }
 
-        private void ShowStatusMessages(string databaseName)
-        {
-            lbStatusMessages.Items.Clear();
-            var statusMessages = _viewModel.GetStatusMessages(databaseName);
-            if (statusMessages is null || statusMessages.Length == 0) 
-                return;
-            foreach (var statusMsg in statusMessages)
-                lbStatusMessages.Items.Add(statusMsg);
-        }
+    async void radDiffBackup_CheckedChanged(object sender, EventArgs e)
+    {
+        if (!radDiffBackup.Checked) return;
+        _viewModel.SelectSource(BackupSource.LocalWorkstation);
+        await _viewModel.RefreshAsync();
+    }
 
+    async void radFullBackup_CheckedChanged(object sender, EventArgs e)
+    {
+        if (!radFullBackup.Checked) return;
+        _viewModel.SelectSource(BackupSource.AwsCloud);
+        await _viewModel.RefreshAsync();
+    }
 
-        private void SetDefaults()
-        {
-            switch (DateTime.Now.DayOfWeek)
-            {
-                case DayOfWeek.Monday:
-                case DayOfWeek.Tuesday:
-                case DayOfWeek.Wednesday:
-                case DayOfWeek.Thursday:
-                    radDiffBackup.Checked = true;
-                    radFullBackup.Checked = false;
-                    nudCommandTimeout.Value = 15;
-                    break;
-                case DayOfWeek.Friday:
-                default:
-                    radDiffBackup.Checked = false;
-                    radFullBackup.Checked = true;
-                    nudCommandTimeout.Value = 60;
-                    break;
-            }
-            _viewModel.SetBackupType(radFullBackup.Checked);
-        }
+    void nudCommandTimeout_ValueChanged(object sender, EventArgs e) { }
 
-        private void CheckBackupComplete(string databaseName)
-        {
-            for (var index = 0; index < clbDatabases.Items.Count; index++)
-            {
-                var listItem = clbDatabases.Items[index];
-                if ($"{listItem}" == databaseName)
-                {
-                    //ShowStatusMessages(databaseName);
-                    clbDatabases.SetItemChecked(index, false);
-                    break;
-                }
-            }
-            if (clbDatabases.CheckedItems.Count == 0)
-            {
-                btnRun.Enabled = true;
-                this.Cursor = Cursors.Default;
-                _viewModel.DatabaseBackupCompleted();
-            }
-
-        }
-
-        private void btnRun_Click(object sender, EventArgs e)
-        {
-            btnRun.Enabled = false;
-            this.Cursor = Cursors.WaitCursor;
-            var databaseNames = new List<string>();
-            for (var index = 0; index < clbDatabases.Items.Count; index++)
-            {
-                var listItem = clbDatabases.Items[index];
-                if (clbDatabases.GetItemChecked(index))
-                    databaseNames.Add($"{listItem}");
-            }
-            _viewModel.RunDatabaseBackup(databaseNames);
-        }
-
-        private void radDiffBackup_CheckedChanged(object sender, EventArgs e) => _viewModel.SetBackupType(radFullBackup.Checked);
-
-        private void radFullBackup_CheckedChanged(object sender, EventArgs e) => _viewModel.SetBackupType(radFullBackup.Checked);
-        
-        private void nudCommandTimeout_ValueChanged(object sender, EventArgs e) => _viewModel.SetCommandTimeout(nudCommandTimeout.Value);
-
-        private void clbDatabases_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            var databaseName = $"{clbDatabases.SelectedItem}";
-            ShowStatusMessages(databaseName);
-        }
-
+    void clbDatabases_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        var protectionSet = clbDatabases.SelectedItem?.ToString();
+        _viewModel.SelectProtectionSet(protectionSet);
+        BindOperationStatus(protectionSet);
     }
 }

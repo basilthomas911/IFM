@@ -9,6 +9,7 @@ using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuratio
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Journal;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.PostgreSql;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Processing;
+using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Publication;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Scylla;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -40,12 +41,15 @@ public static class DatabaseBackupHostServiceCollectionExtensions
             .Get<PostgreSqlBackupOptions>() ?? new PostgreSqlBackupOptions();
         var scyllaOptions = configuration.GetSection(ScyllaBackupOptions.SectionName)
             .Get<ScyllaBackupOptions>() ?? new ScyllaBackupOptions();
+        var publicationOptions = configuration.GetSection(DatabaseBackupPublicationOptions.SectionName)
+            .Get<DatabaseBackupPublicationOptions>() ?? new DatabaseBackupPublicationOptions();
         var useNativePostgreSql = sourceOptions.Enabled && !sourceOptions.DryRun;
         var useNativeScylla = sourceOptions.Enabled && !sourceOptions.DryRun;
         if (useNativePostgreSql)
         {
             postgreSqlOptions.Validate();
             scyllaOptions.Validate();
+            publicationOptions.Validate(requirePrivateKey: true);
         }
 
         services.AddSingleton(hostOptions);
@@ -53,6 +57,7 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         services.AddSingleton(sourceOptions);
         services.AddSingleton(postgreSqlOptions);
         services.AddSingleton(scyllaOptions);
+        services.AddSingleton(publicationOptions);
         services.AddSingleton<INatsJetStreamEventListenerOptions>(listenerOptions);
         services.AddSingleton<INatsJetStreamProducerOptions>(producerOptions);
         services.AddSingleton<NatsConnectionManager>();
@@ -89,6 +94,43 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         else
         {
             services.AddSingleton<IScyllaBackupCapability, FakeScyllaBackupCapability>();
+        }
+        if (useNativePostgreSql)
+        {
+            services.AddSingleton<IBackupPathPolicy, LocalBackupPathPolicy>();
+            services.AddSingleton<IArtifactChecksumService, Sha256ArtifactChecksumService>();
+            services.AddSingleton<ILocalBackupCapacityReader, LocalBackupCapacityReader>();
+            services.AddSingleton<IManifestSignatureService, EcdsaManifestSignatureService>();
+            services.AddSingleton<LocalBackupManifestStore>();
+            services.AddSingleton<IDatabaseBackupManifestWriter>(static provider =>
+                provider.GetRequiredService<LocalBackupManifestStore>());
+            services.AddSingleton<IDatabaseBackupManifestReader>(static provider =>
+                provider.GetRequiredService<LocalBackupManifestStore>());
+            services.AddSingleton<LocalBackupRepository>();
+            services.AddSingleton<IDatabaseBackupPublicationCapability>(static provider =>
+                provider.GetRequiredService<LocalBackupRepository>());
+            services.AddSingleton<IDatabaseRestoreSourceCapability>(static provider =>
+                provider.GetRequiredService<LocalBackupRepository>());
+            services.AddSingleton<ILocalBackupVault>(static provider =>
+                provider.GetRequiredService<LocalBackupRepository>());
+            services.AddSingleton<IOfflineBackupMediaProvider>(static provider =>
+                provider.GetRequiredService<LocalBackupRepository>());
+            services.AddSingleton<IRestoreWorkspace>(static provider =>
+                provider.GetRequiredService<LocalBackupRepository>());
+            services.AddSingleton<IDatabaseBackupCatalog>(static provider =>
+                provider.GetRequiredService<LocalBackupRepository>());
+            services.AddSingleton<LocalBackupGovernanceStore>();
+            services.AddSingleton<IDatabaseRetentionCapability>(static provider =>
+                provider.GetRequiredService<LocalBackupGovernanceStore>());
+            services.AddSingleton<IDatabaseRecoveryEvidenceStore>(static provider =>
+                provider.GetRequiredService<LocalBackupGovernanceStore>());
+            services.AddSingleton<IDatabaseRecoveryRunStatsCollector, DatabaseRecoveryRunStatsCollector>();
+        }
+        else
+        {
+            services.AddSingleton<IDatabaseBackupPublicationCapability, FakeDatabaseBackupPublicationCapability>();
+            services.AddSingleton<IDatabaseRestoreSourceCapability, FakeDatabaseRestoreSourceCapability>();
+            services.AddSingleton<IDatabaseRecoveryEvidenceStore, FakeDatabaseRecoveryEvidenceStore>();
         }
         services.AddSingleton<IDatabaseRecoveryEngineSelector, LocalWorkstationDatabaseRecoveryEngineSelector>();
         services.AddSingleton<LocalWorkstationDatabaseRecoveryProcessor>();

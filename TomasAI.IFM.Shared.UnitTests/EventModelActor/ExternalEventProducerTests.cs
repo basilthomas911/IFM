@@ -36,8 +36,6 @@ public sealed class ExternalEventProducerTests
     {
         public int StopCount;
         public bool IsRunning { get; private set; }
-        public ValueTask SendAsync<TCommand, TEntityId>(ActorSubject subject, TCommand command, TEntityId entityId)
-            where TCommand : class, ICommand<TEntityId> where TEntityId : IActorEntityId => ValueTask.CompletedTask;
         public ValueTask SendAsync<TEvent, TEntityId>(ActorSubject subject, TEvent @event)
             where TEvent : class, IEvent<TEntityId> where TEntityId : IActorEntityId => ValueTask.CompletedTask;
         public ValueTask StartAsync(ActorMailboxId mailboxId) { IsRunning = true; return ValueTask.CompletedTask; }

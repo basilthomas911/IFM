@@ -29,7 +29,7 @@ public sealed class ActorAdmissionStressTests(ITestOutputHelper output)
             ActorType.Query,
             ActorType.Event,
             ActorType.Notify,
-            ActorType.UI
+            ActorType.Realtime
         };
         var messages = actorTypes.Select((actorType, index) =>
             new StressMessage(actorType, 128 + index * 32)).ToArray();

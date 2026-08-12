@@ -33,7 +33,7 @@ public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole)
         var logEvent = new StatusConsoleLoggedEvent
         {
             CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Event, StatusConsoleLoggedEvent.Actor, StatusConsoleLoggedEvent.Verb, logSourceType.ToStringFast()),
+            Subject = new ActorSubject(ActorType.Notify, StatusConsoleLoggedEvent.Actor, StatusConsoleLoggedEvent.Verb, logSourceType.ToStringFast()),
             EntityId = new ActorEntityId(logSourceType.ToStringFast()),
             StatusConsoleLog = new StatusConsoleLogReadModel
             (
@@ -59,7 +59,7 @@ public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole)
         var logEvent = new StatusConsoleLoggedEvent
         {
             CommandId = Guid.NewGuid(),
-            Subject = new ActorSubject(ActorType.Event, StatusConsoleLoggedEvent.Actor, StatusConsoleLoggedEvent.Verb, logSourceType.ToStringFast()),
+            Subject = new ActorSubject(ActorType.Notify, StatusConsoleLoggedEvent.Actor, StatusConsoleLoggedEvent.Verb, logSourceType.ToStringFast()),
             EntityId = new ActorEntityId(logSourceType.ToStringFast()),
             StatusConsoleLog = new StatusConsoleLogReadModel
             (

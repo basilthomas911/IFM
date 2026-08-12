@@ -123,7 +123,7 @@ public abstract class NatsEventProducer : IEventProducer
         where TEvent : class, IEvent
     {
         // Parameterless construction is the established transport-free BDD test mode.
-        if (_producer is null)
+        if (_producer is null && _jetStreamProducer is null)
             return;
 
         ActorSubject subject = default;
@@ -142,8 +142,30 @@ public abstract class NatsEventProducer : IEventProducer
             return;
         }
 
+        switch (subject.ActorType.GetDeliveryType())
+        {
+            case ActorDeliveryType.NatsCore:
+                await PublishCoreAsync(operation, subject, eventValue).ConfigureAwait(false);
+                break;
+            case ActorDeliveryType.NatsJetStream:
+                await PublishJetStreamAsync(operation, subject, eventValue).ConfigureAwait(false);
+                break;
+            default:
+                _logger?.LogError(
+                    "{ProducerName}: actor type {ActorType} does not define a delivery transport.",
+                    _producerName,
+                    subject.ActorType);
+                break;
+        }
+    }
+
+    private async Task PublishCoreAsync<TEvent>(string operation, ActorSubject subject, TEvent eventValue)
+        where TEvent : class, IEvent
+    {
         try
         {
+            if (_producer is null)
+                throw new InvalidOperationException("A Core NATS producer is not configured.");
             await EnsureProducerStartedAsync(subject.ActorId).ConfigureAwait(false);
             await _producer.SendAsync<TEvent>(subject, eventValue).ConfigureAwait(false);
             _logger?.LogInformationEvent(_producerName, "produce: {Subject}", subject);
@@ -158,19 +180,19 @@ public abstract class NatsEventProducer : IEventProducer
                 eventValue.EventName ?? eventValue.GetType().Name,
                 subject);
         }
+    }
 
-        if (_jetStreamProducer is null)
-            return;
-
+    private async Task PublishJetStreamAsync<TEvent>(string operation, ActorSubject subject, TEvent eventValue)
+        where TEvent : class, IEvent
+    {
         try
         {
+            if (_jetStreamProducer is null)
+                throw new InvalidOperationException("A JetStream producer is not configured.");
             if (!TryGetEntityIdType(eventValue.GetType(), out var entityIdType))
             {
-                _logger?.LogDebug(
-                    "{ProducerName}: event {EventName} is not entity-scoped and was published to core NATS only.",
-                    _producerName,
-                    eventValue.GetType().Name);
-                return;
+                throw new InvalidOperationException(
+                    $"Durable event {eventValue.GetType().Name} must implement IEvent<TEntityId>.");
             }
 
             await EnsureJetStreamProducerStartedAsync(subject.ActorId).ConfigureAwait(false);
@@ -274,7 +296,7 @@ public abstract class NatsEventProducer : IEventProducer
     }
 
     internal static bool IsValid(ActorSubject subject, bool requireEntityId)
-        => subject.ActorType != ActorType.Default &&
+        => subject.ActorType != ActorType.Unknown &&
            !string.IsNullOrWhiteSpace(subject.Name) &&
            !subject.Name.Equals("none", StringComparison.OrdinalIgnoreCase) &&
            !string.IsNullOrWhiteSpace(subject.Verb) &&

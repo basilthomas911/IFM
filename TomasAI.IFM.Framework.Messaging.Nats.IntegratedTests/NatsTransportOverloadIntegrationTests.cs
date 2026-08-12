@@ -95,7 +95,7 @@ public sealed class NatsTransportOverloadIntegrationTests
         var streamName = $"IFM_OVERLOAD_{resourceId}";
         var durableName = $"overload-{resourceId}";
         var actorName = $"OverloadEvent{resourceId}";
-        var subject = new ActorSubject(ActorType.Notify, actorName, "Recorded", "42");
+        var subject = new ActorSubject(ActorType.Event, actorName, "Recorded", "42");
         var queues = Substitute.For<IActorThreadQueues>();
         var recovered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstAttemptTimestamp = 0L;
@@ -152,7 +152,7 @@ public sealed class NatsTransportOverloadIntegrationTests
 
         try
         {
-            await consumer.StartAsync(supervisor, ActorType.Notify, durableName);
+            await consumer.StartAsync(supervisor, ActorType.Event, durableName);
             var publish = await jetStream.PublishAsync(
                 subject.ToString(),
                 new byte[128],
@@ -164,13 +164,15 @@ public sealed class NatsTransportOverloadIntegrationTests
             attempts.Should().Be(2);
             Stopwatch.GetElapsedTime(firstAttemptTimestamp, secondAttemptTimestamp)
                 .Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(100));
-            var serverConsumer = await jetStream.GetConsumerAsync(streamName, $"NotifyConsumer-{durableName}");
+            var serverConsumer = await jetStream.GetConsumerAsync(consumer.StreamName, consumer.ConsumerName);
             serverConsumer.Info.Delivered.ConsumerSeq.Should().BeGreaterThanOrEqualTo(2);
         }
         finally
         {
             await consumer.StopAsync();
-            await TryDeleteStreamAsync(jetStream, streamName);
+            await TryDeleteConsumerAsync(jetStream, consumer.StreamName, consumer.ConsumerName);
+            if (string.Equals(consumer.StreamName, streamName, StringComparison.Ordinal))
+                await TryDeleteStreamAsync(jetStream, streamName);
         }
     }
 
@@ -208,6 +210,23 @@ public sealed class NatsTransportOverloadIntegrationTests
         try
         {
             await jetStream.DeleteStreamAsync(streamName);
+        }
+        catch (NatsJSApiException)
+        {
+        }
+    }
+
+    static async ValueTask TryDeleteConsumerAsync(
+        INatsJSContext jetStream,
+        string streamName,
+        string consumerName)
+    {
+        if (string.IsNullOrEmpty(streamName) || string.IsNullOrEmpty(consumerName))
+            return;
+
+        try
+        {
+            await jetStream.DeleteConsumerAsync(streamName, consumerName);
         }
         catch (NatsJSApiException)
         {

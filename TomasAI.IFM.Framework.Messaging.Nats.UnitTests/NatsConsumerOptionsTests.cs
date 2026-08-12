@@ -123,7 +123,7 @@ public sealed class NatsConsumerOptionsTests
     }
 
     [Theory]
-    [InlineData(ActorType.Supervisor, CoreNatsTrafficClass.Unknown)]
+    [InlineData(ActorType.Unknown, CoreNatsTrafficClass.Unknown)]
     [InlineData(ActorType.Command, CoreNatsTrafficClass.Optional)]
     public async Task EnforcedConsumer_BlocksIncompatibleManuallyStartedTrafficType(
         ActorType actorType,

@@ -62,6 +62,7 @@ public class NatsActorConsumer(
         string consumerName,
         CancellationToken cancellationToken)
     {
+        actorType.EnsureDeliveryType(ActorDeliveryType.NatsCore, nameof(NatsActorConsumer));
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -81,13 +82,12 @@ public class NatsActorConsumer(
     /// Initializes the NATS client connection and subscribes to all messages matching the subject pattern
     /// <c>{actorType}.&gt;</c>. If the consumer is already started, the call is a no-op.
     /// <para>
-    /// The <paramref name="actorType"/> determines the messaging pattern used by the background loop:
+    /// The <paramref name="actorType"/> determines the Core NATS messaging pattern used by the background loop:
     /// <list type="bullet">
-    ///   <item><description><see cref="ActorType.Supervisor"/>, <see cref="ActorType.Command"/>, <see cref="ActorType.Event"/>,
-    ///   <see cref="ActorType.Notify"/>, and <see cref="ActorType.Denormalizer"/> use a publish-subscribe loop
-    ///   for fire-and-forget message delivery.</description></item>
-    ///   <item><description><see cref="ActorType.Query"/> and <see cref="ActorType.CommandRequest"/> use a request-reply loop
-    ///   to support response-based interactions.</description></item>
+    ///   <item><description><see cref="ActorType.Notify"/> and <see cref="ActorType.Realtime"/> use a
+    ///   publish-subscribe loop for non-durable message delivery.</description></item>
+    ///   <item><description><see cref="ActorType.Query"/> and <see cref="ActorType.Command"/> use request-reply
+    ///   loops to support response-based interactions.</description></item>
     /// </list>
     /// </para>
     /// <para>
@@ -283,8 +283,7 @@ public class NatsActorConsumer(
     public bool IsRunning => _isRunning;
 
     /// <summary>
-    /// Runs the publish-subscribe message loop for fire-and-forget actor message types, including
-    /// supervisor, command, event, notification, and denormalizer messages. Continuously reads messages
+    /// Runs the Core NATS message loop for request/reply and non-durable actor message types. Continuously reads messages
     /// from the NATS subscription and dispatches them to the corresponding actor mailboxes.
     /// </summary>
     /// <param name="ctsRequestToken">The cancellation token used to signal the loop to stop.</param>
@@ -295,9 +294,8 @@ public class NatsActorConsumer(
         {
             switch (_actorType)
             {
-                case ActorType.Supervisor:
-                case ActorType.Event:
                 case ActorType.Notify:
+                case ActorType.Realtime:
                     await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     break;
                 case ActorType.Command:

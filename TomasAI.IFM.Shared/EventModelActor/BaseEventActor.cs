@@ -49,11 +49,24 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
 
         if (Interlocked.CompareExchange(ref _lifecycle, 1, 0) != 0)
             return;
-        IJSActorProducer? producer = null;
+        IActorProducer? coreProducer = null;
+        IJSActorProducer? jetStreamProducer = null;
         try
         {
-            producer = _supervisor.GetJSProducer(_actorId);
-            await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
+            switch (_actorId.ActorType.GetDeliveryType())
+            {
+                case ActorDeliveryType.NatsCore:
+                    coreProducer = _supervisor.GetProducer(_actorId);
+                    await coreProducer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
+                    break;
+                case ActorDeliveryType.NatsJetStream:
+                    jetStreamProducer = _supervisor.GetJSProducer(_actorId);
+                    await jetStreamProducer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Actor type '{_actorId.ActorType}' does not define a delivery transport.");
+            }
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
             _context = new EventActorContext(_supervisor, _actorId);
@@ -62,9 +75,14 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
         }
         catch
         {
-            if (producer is not null)
+            if (coreProducer is not null)
             {
-                try { await producer.StopAsync().ConfigureAwait(false); }
+                try { await coreProducer.StopAsync().ConfigureAwait(false); }
+                catch (Exception cleanupException) { _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId); }
+            }
+            if (jetStreamProducer is not null)
+            {
+                try { await jetStreamProducer.StopAsync().ConfigureAwait(false); }
                 catch (Exception cleanupException) { _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId); }
             }
             Volatile.Write(ref _lifecycle, 0);
@@ -85,9 +103,19 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
             return;
         try
         {
-            var producer = _supervisor.GetJSProducer(_actorId);
             // Once shutdown owns the actor lifecycle transition, finish cleanup atomically.
-            await producer.StopAsync().ConfigureAwait(false);
+            switch (_actorId.ActorType.GetDeliveryType())
+            {
+                case ActorDeliveryType.NatsCore:
+                    await _supervisor.GetProducer(_actorId).StopAsync().ConfigureAwait(false);
+                    break;
+                case ActorDeliveryType.NatsJetStream:
+                    await _supervisor.GetJSProducer(_actorId).StopAsync().ConfigureAwait(false);
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Actor type '{_actorId.ActorType}' does not define a delivery transport.");
+            }
             _logger.LogInformation("Stopped {MailboxId} producer.", _actorId);
         }
         finally

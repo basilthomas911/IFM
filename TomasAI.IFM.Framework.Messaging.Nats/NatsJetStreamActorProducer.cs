@@ -109,44 +109,6 @@ public class NatsJetStreamActorProducer(
     }
 
     /// <summary>
-    /// Sends a command to the specified actor subject using JetStream publish with acknowledgement.
-    /// </summary>
-    /// <typeparam name="TCommand">The type of the command to send. Must implement <see cref="ICommand{TEntityId}"/>.</typeparam>
-    /// <typeparam name="TEntityId">The type of the entity identifier. Must implement <see cref="IActorEntityId"/>.</typeparam>
-    /// <param name="subject">The actor subject to which the command will be published. Cannot be <see langword="null"/>.</param>
-    /// <param name="command">The command instance to send. Cannot be <see langword="null"/>.</param>
-    /// <param name="entityId">The entity identifier associated with the command. Cannot be <see langword="null"/>.</param>
-    /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
-    public async ValueTask SendAsync<TCommand, TEntityId>(ActorSubject subject, TCommand command, TEntityId entityId)
-        where TCommand : class, ICommand<TEntityId>
-        where TEntityId : IActorEntityId
-        => await SendAsync(subject, command, entityId, CancellationToken.None).ConfigureAwait(false);
-
-    public async ValueTask SendAsync<TCommand, TEntityId>(
-        ActorSubject subject,
-        TCommand command,
-        TEntityId entityId,
-        CancellationToken cancellationToken)
-        where TCommand : class, ICommand<TEntityId>
-        where TEntityId : IActorEntityId
-    {
-        try
-        {
-            IsArgumentNull.Check(subject);
-            IsArgumentNull.Check(command);
-            IsArgumentNull.Check(entityId);
-            await PublishAsync(subject.ToString(), command.ToCommand<TCommand, TEntityId>(), cancellationToken).ConfigureAwait(false);
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("Published command to JetStream subject {Subject} CommandId={CommandId}", subject, command.CommandId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to publish command to JetStream subject {Subject}", subject);
-            throw;
-        }
-    }
-
-    /// <summary>
     /// Sends an event to the specified actor subject using JetStream publish with acknowledgement.
     /// </summary>
     /// <typeparam name="TEvent">The type of the event to send. Must implement <see cref="IEvent{TEntityId}"/>.</typeparam>
@@ -163,6 +125,11 @@ public class NatsJetStreamActorProducer(
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        subject.ActorType.EnsureDeliveryType(
+            ActorDeliveryType.NatsJetStream,
+            nameof(NatsJetStreamActorProducer));
+        if (subject.ActorType != ActorType.Event)
+            throw new InvalidOperationException("JetStream actor producers accept Event subjects only.");
         try
         {
             IsArgumentNull.Check(subject);

@@ -36,8 +36,8 @@ public readonly record struct ActorSubject
         => $"{ActorType}.{Name}.{EntityId}";
 
     [IgnoreMember]
-    public static ActorSubject Default
-        => new(ActorType.Default, "none", "none", "none");
+    public static ActorSubject Unknown
+        => new(ActorType.Unknown, "none", "none", "none");
 
     public override string ToString()
         => $"{ActorType}.{Name}.{Verb}.{EntityId}";

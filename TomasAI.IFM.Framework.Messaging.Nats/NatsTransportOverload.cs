@@ -49,7 +49,7 @@ internal static class NatsTransportOverload
                 return;
             }
 
-            if (trafficClass is CoreNatsTrafficClass.Optional or CoreNatsTrafficClass.DurableLiveCopy)
+            if (trafficClass == CoreNatsTrafficClass.Optional)
             {
                 NatsMessagingMetrics.RecordOptionalDrop(actorType, trafficClass);
                 logger.LogWarning(

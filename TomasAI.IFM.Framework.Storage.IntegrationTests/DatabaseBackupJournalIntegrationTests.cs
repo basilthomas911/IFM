@@ -58,12 +58,13 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         await processor.ExecuteAsync(recoverable.Single(), CancellationToken.None);
 
         var pending = await PendingAsync(afterRestart);
-        pending.Select(static item => item.ServiceSequence).Should().Equal(1, 2, 3, 4, 5, 6);
+        pending.Select(static item => item.ServiceSequence).Should().Equal(1, 2, 3, 4, 5, 6, 7);
         pending.Select(static item => item.Event.GetType().Name).Should().Equal(
             "DatabaseBackupServiceAcceptedEvent",
             "DatabaseBackupServiceStartedEvent",
             "DatabaseBackupBoundaryEstablishedEvent",
             "DatabaseBackupVerificationCompletedEvent",
+            "DatabaseBackupArtifactReplicaUpdatedEvent",
             "DatabaseRecoveryRunStatisticsCapturedEvent",
             "DatabaseBackupServiceCompletedEvent");
         (await RecoverableAsync(afterRestart)).Should().BeEmpty();
@@ -114,7 +115,7 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         await restartedProcessor.ExecuteAsync((await RecoverableAsync(journal)).Single(), CancellationToken.None);
 
         var pending = await PendingAsync(journal);
-        pending.Select(static item => item.ServiceSequence).Should().Equal(1, 2, 3, 4, 5, 6);
+        pending.Select(static item => item.ServiceSequence).Should().Equal(1, 2, 3, 4, 5, 6, 7);
         pending.Select(static item => item.Event.GetType().Name).Should().OnlyHaveUniqueItems();
     }
 
@@ -195,7 +196,7 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         await processor.ExecuteAsync((await RecoverableAsync(journal)).Single(), CancellationToken.None);
 
         (await RecoverableAsync(journal)).Should().BeEmpty();
-        (await PendingAsync(journal)).Should().HaveCount(6);
+        (await PendingAsync(journal)).Should().HaveCount(7);
         countingJournal.RenewalCount.Should().BeGreaterThan(0);
     }
 

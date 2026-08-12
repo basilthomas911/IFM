@@ -9,7 +9,6 @@ public enum CoreNatsTrafficClass
 {
     Unknown,
     RequestReplyOnly,
-    DurableLiveCopy,
     Optional,
     RequiredNonDurable
 }

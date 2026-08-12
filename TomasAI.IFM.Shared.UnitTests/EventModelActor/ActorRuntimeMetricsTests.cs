@@ -73,7 +73,7 @@ public sealed class ActorRuntimeMetricsTests
         {
             foreach (var tag in tags)
             {
-                if (tag.Key == "actor.type" && Equals(tag.Value, nameof(ActorType.UI)))
+                if (tag.Key == "actor.type" && Equals(tag.Value, nameof(ActorType.Realtime)))
                     measurements.Add(value);
             }
         });
@@ -81,7 +81,7 @@ public sealed class ActorRuntimeMetricsTests
 
         using (var started = new ActorThreadQueueV2())
         {
-            started.SetId(new ActorThreadId(ActorType.UI, "MetricsTest", "1"));
+            started.SetId(new ActorThreadId(ActorType.Realtime, "MetricsTest", "1"));
             started.Start();
             started.Dispose();
         }

@@ -21,6 +21,7 @@ public class DenormalizerActorContext(IActorSupervisor supervisor, ActorMailboxI
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
     IActorProducer? _producer;
+    readonly ActorEventPublisher _eventPublisher = new(supervisor);
     readonly ConcurrentDictionary<ActorThreadId, ActorMessageInfo> _messageInfo = [];
 
     /// <summary>
@@ -48,9 +49,7 @@ public class DenormalizerActorContext(IActorSupervisor supervisor, ActorMailboxI
         var started = ActorRuntimeMetrics.StartStage();
         try
         {
-            await (_producer ??= _supervisor.GetProducer(_actorId))
-                .SendAsync<TEvent, TEntityId>(@event.Subject, @event)
-                .ConfigureAwait(false);
+            await _eventPublisher.SendAsync<TEvent, TEntityId>(@event).ConfigureAwait(false);
         }
         catch
         {

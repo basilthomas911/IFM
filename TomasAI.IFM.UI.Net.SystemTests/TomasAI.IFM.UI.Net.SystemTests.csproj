@@ -4,6 +4,7 @@
     <TargetFramework>net10.0-windows10.0.17763.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -12,8 +13,16 @@
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
     <PackageReference Include="FluentAssertions" Version="8.10.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="NSubstitute" Version="6.0.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.UI.Net.Models\TomasAI.IFM.UI.Net.Models.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.UI.Net.ViewModels\TomasAI.IFM.UI.Net.ViewModels.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.UI.Net.Views\TomasAI.IFM.UI.Net.Views.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.UI.EventConsumer\TomasAI.IFM.UI.EventConsumer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

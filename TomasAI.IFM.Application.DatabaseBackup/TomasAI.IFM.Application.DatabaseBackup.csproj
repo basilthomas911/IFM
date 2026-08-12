@@ -11,4 +11,8 @@
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation" />
+  </ItemGroup>
+
 </Project>

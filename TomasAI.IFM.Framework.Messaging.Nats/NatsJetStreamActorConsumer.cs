@@ -52,6 +52,9 @@ public class NatsJetStreamActorConsumer(
     Task? _loopTask;
     bool _isRunning;
 
+    internal string StreamName { get; private set; } = string.Empty;
+    internal string ConsumerName { get; private set; } = string.Empty;
+
     // striped dispatch channels for concurrent mailbox delivery with deferred ACK
     Channel<(NatsMsg<byte[]> Msg, ActorSubject Subject, INatsJSMsg<byte[]>? JsMsg, bool IsRoutedMessage)>[]? _stripeChannels;
     Channel<(NatsOwnedEventMessage Msg, ActorSubject Subject, EventFanoutDelivery Delivery)>[]?
@@ -67,6 +70,9 @@ public class NatsJetStreamActorConsumer(
         string consumerName,
         CancellationToken cancellationToken)
     {
+        actorType.EnsureDeliveryType(
+            ActorDeliveryType.NatsJetStream,
+            nameof(NatsJetStreamActorConsumer));
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -133,9 +139,15 @@ public class NatsJetStreamActorConsumer(
                 ? streamSubject
                 : _options.FilterSubject;
 
-            // A subject overlap is a configuration error. Never delete server streams implicitly:
-            // another service may own the overlapping stream and its retained messages.
-            await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamSubject]));
+            // JetStream permits only one stream to own a subject namespace. Reuse the stream
+            // already covering Event.> so actor consumers and durable UI listeners can each
+            // create their own durable consumer without duplicating the published message.
+            var stream = await ResolveStreamAsync(
+                js,
+                streamName,
+                streamSubject,
+                cancellationToken).ConfigureAwait(false);
+            streamName = stream.Info.Config.Name;
 
             // Create or update the durable consumer...
             var consumer = await js.CreateOrUpdateConsumerAsync(streamName, new ConsumerConfig(durableName)
@@ -145,6 +157,8 @@ public class NatsJetStreamActorConsumer(
                 DeliverPolicy = ConsumerConfigDeliverPolicy.All,
                 MaxAckPending = GetOutstandingLimit()
             });
+            StreamName = streamName;
+            ConsumerName = durableName;
 
             _consumerOpts = new()
             {
@@ -236,6 +250,49 @@ public class NatsJetStreamActorConsumer(
         {
             _lifecycleGate.Release();
         }
+    }
+
+    static async ValueTask<INatsJSStream> ResolveStreamAsync(
+        INatsJSContext jetStream,
+        string configuredStreamName,
+        string streamSubject,
+        CancellationToken cancellationToken)
+    {
+        await foreach (var stream in jetStream.ListStreamsAsync(
+            streamSubject,
+            cancellationToken).ConfigureAwait(false))
+        {
+            return stream;
+        }
+
+        INatsJSStream? configuredStream = null;
+        await foreach (var stream in jetStream.ListStreamsAsync(
+            cancellationToken: cancellationToken).ConfigureAwait(false))
+        {
+            if (string.Equals(stream.Info.Config.Name, configuredStreamName, StringComparison.Ordinal))
+            {
+                configuredStream = stream;
+                break;
+            }
+        }
+
+        if (configuredStream is null)
+        {
+            return await jetStream.CreateStreamAsync(
+                new StreamConfig(configuredStreamName, [streamSubject]),
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        var config = configuredStream.Info.Config;
+        var subjects = config.Subjects ?? [];
+        if (!subjects.Contains(streamSubject, StringComparer.Ordinal))
+        {
+            config.Subjects = [.. subjects, streamSubject];
+            configuredStream = await jetStream.UpdateStreamAsync(config, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return configuredStream;
     }
 
     int GetDispatcherCapacity()

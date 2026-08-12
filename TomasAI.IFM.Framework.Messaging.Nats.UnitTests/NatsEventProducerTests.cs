@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -61,6 +62,49 @@ public class NatsEventProducerTests
             .WithMessage("*does not expose a valid public static Actor route*");
     }
 
+    [Fact]
+    public async Task Core_producer_rejects_durable_event_before_connecting()
+    {
+        var producer = new NatsActorProducer(
+            new NatsProducerOptions(),
+            NullLogger<NatsActorProducer>.Instance);
+        var @event = CreateEntityEvent(ActorType.Event);
+
+        var act = async () => await producer.SendAsync<EntityTestEvent, ActorEntityId>(
+            @event.Subject,
+            @event);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*requires delivery 'NatsJetStream'*");
+    }
+
+    [Fact]
+    public async Task JetStream_producer_rejects_nondurable_event_before_connecting()
+    {
+        var producer = new NatsJetStreamActorProducer(
+            new NatsJetStreamProducerOptions(),
+            NullLogger<NatsJetStreamActorProducer>.Instance);
+        var @event = CreateEntityEvent(ActorType.Realtime);
+
+        var act = async () => await producer.SendAsync<EntityTestEvent, ActorEntityId>(
+            @event.Subject,
+            @event);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*requires delivery 'NatsCore'*");
+    }
+
+    static EntityTestEvent CreateEntityEvent(ActorType actorType) => new()
+    {
+        Subject = new ActorSubject(actorType, "TestEvent", "Updated", "1"),
+        Id = Guid.NewGuid(),
+        CommandId = Guid.NewGuid(),
+        EntityId = ActorEntityId.Default,
+        AggregateId = "1",
+        EventSource = "unit-test",
+        ReceivedOn = DateTime.UtcNow
+    };
+
     private record RoutedTestEvent : TestEvent
     {
         public const string Actor = "TestEvent";
@@ -68,6 +112,11 @@ public class NatsEventProducerTests
     }
 
     private record UnroutedTestEvent : TestEvent;
+
+    private sealed record EntityTestEvent : TestEvent, IEvent<ActorEntityId>
+    {
+        public ActorEntityId EntityId { get; init; }
+    }
 
     private abstract record TestEvent : IEvent
     {

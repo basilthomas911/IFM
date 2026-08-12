@@ -19,8 +19,7 @@ public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actor
 {
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
-    IJSActorProducer? _jsProducer;
-    IActorProducer? _producer;
+    readonly ActorEventPublisher _eventPublisher = new(supervisor);
     readonly ConcurrentDictionary<(ActorThreadId ThreadId, string Verb), ActorMessageInfo>
         _messageInfo = [];
 
@@ -50,9 +49,7 @@ public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         var started = ActorRuntimeMetrics.StartStage();
         try
         {
-            var actorId = @event.Subject.ActorId;
-            await (_jsProducer ??= _supervisor.GetJSProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
-            await (_producer ??= _supervisor.GetProducer(actorId)).SendAsync<TEvent, TEntityId>(@event.Subject, @event);
+            await _eventPublisher.SendAsync<TEvent, TEntityId>(@event).ConfigureAwait(false);
         }
         catch
         {

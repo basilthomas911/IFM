@@ -206,7 +206,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
 
     static IntegrationEvent CreateEvent(string value) => new()
     {
-        Subject = ActorSubject.Default,
+        Subject = ActorSubject.Unknown,
         Id = Guid.NewGuid(),
         EventId = Random.Shared.NextInt64(1, long.MaxValue),
         CommandId = Guid.NewGuid(),

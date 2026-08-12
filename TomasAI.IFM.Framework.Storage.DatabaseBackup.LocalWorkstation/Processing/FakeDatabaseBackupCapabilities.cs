@@ -136,3 +136,79 @@ public sealed class FakeScyllaBackupCapability : IScyllaBackupCapability
             WarningCount = 0
         };
 }
+
+public sealed class FakeDatabaseBackupPublicationCapability : IDatabaseBackupPublicationCapability
+{
+    public ValueTask ValidateAsync(
+        DatabaseBackupPublicationPreflightRequest request,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask<DatabaseBackupPublicationResult> PublishAsync(
+        DatabaseBackupPublicationRequest request,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var restorePoint = new DatabaseRestorePointId(request.OperationId.Format());
+        var replicaId = request.RequiredDestinations.Length == 0
+            ? new DatabaseArtifactReplicaId("fake-online-vault")
+            : new DatabaseArtifactReplicaId(request.RequiredDestinations[0].Name);
+        return ValueTask.FromResult(new DatabaseBackupPublicationResult(
+            restorePoint,
+            $"fake-manifest-{request.OperationId.Value:N}",
+            1,
+            [new DatabaseArtifactReplicaDescriptor
+            {
+                ArtifactId = new DatabaseArtifactId($"fake-artifact-{request.OperationId.Value:N}"),
+                ReplicaId = replicaId,
+                Engine = request.Engine,
+                State = DatabaseArtifactReplicaState.Published,
+                SafeDestinationReference = $"{replicaId.Value}:{restorePoint.Value}",
+                Bytes = request.Statistics?.StoredBytes
+            }]));
+    }
+}
+
+public sealed class FakeDatabaseRestoreSourceCapability : IDatabaseRestoreSourceCapability
+{
+    public ValueTask<DatabasePreparedRestoreSource> PrepareAsync(
+        DatabaseRestoreSourceRequest request,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(new DatabasePreparedRestoreSource(
+            request.RestorePointId,
+            request.PreferredReplicaId ?? new DatabaseArtifactReplicaId("fake-online-vault"),
+            $"fake-manifest-{request.RestorePointId.Value}",
+            1,
+            1024,
+            1));
+    }
+}
+
+public sealed class FakeDatabaseRecoveryEvidenceStore : IDatabaseRecoveryEvidenceStore
+{
+    public ValueTask<string> WriteDrillEvidenceAsync(
+        DatabaseRestoreDrillEvidence evidence,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult($"fake-drill-{evidence.OperationId.Value:N}");
+    }
+
+    public ValueTask<string> WriteBreakGlassRecordAsync(
+        DatabaseBreakGlassRecoveryRecord record,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult($"fake-recovery-{record.RecoveryOperationId.Value:N}");
+    }
+
+    public ValueTask<DatabaseBreakGlassRecoveryRecord> ReconcileBreakGlassRecordAsync(
+        DatabaseRecoveryOperationId operationId,
+        CancellationToken cancellationToken)
+        => throw new FileNotFoundException("The fake evidence store has no persisted break-glass records.");
+}
