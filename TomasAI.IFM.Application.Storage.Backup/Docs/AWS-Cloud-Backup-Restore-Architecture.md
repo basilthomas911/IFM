@@ -1,16 +1,16 @@
 # IFM AWS Cloud Database Backup and Restore Architecture
 
-Status: Draft for architecture review; Section 29 decisions approved
-Version: 0.2
-Date: 2026-08-10
+Status: Draft for architecture review; Section 29 decisions approved; version 0.4 amendment proposed
+Version: 0.4
+Date: 2026-08-11
 Scope: AWS reference architecture for PostgreSQL and ScyllaDB backup, restore, retention, and disaster recovery
-Parent architecture: Database-Backup-Architecture-Overview.md version 0.6
+Parent architecture: Database-Backup-Architecture-Overview.md version 0.8
 
 ## 1. Purpose
 
 This document defines the AWS reference architecture for protecting and recovering the IFM PostgreSQL and ScyllaDB
 clusters. It specializes the shared architecture in Database-Backup-Architecture-Overview.md without changing its
-SystemAdmin actors, event-sourced state model, database-native recovery formats, restore governance, or future Aspire
+SystemAdmin actors, event-sourced state model, database-native recovery formats, restore governance, or Docker/Aspire
 host boundary.
 
 The design answers the AWS-specific questions intentionally deferred by the overview:
@@ -40,10 +40,10 @@ This document inherits the following non-negotiable rules from the overview:
 4. The SystemAdmin Query Actor reads projected models and never queries AWS or the Database Backup Service as a hidden
    source of truth.
 5. The Database Backup Service executes all native backup, transfer, verification, retention, and restore behavior.
-6. The service initially runs as an isolated hosted service inside **Api.Server** and later moves, without behavioral
-   redesign, into **TomasAI.IFM.Api.DatabaseBackup.Host** as an Aspire-managed project resource.
-7. NATS carries bounded control and outcome events after host extraction. Native backup payloads never travel through
-   NATS or actor mailboxes.
+6. The service runs from the first implementation in Docker-packaged **TomasAI.IFM.Api.DatabaseBackup.Host** as a
+   separate Aspire-managed project resource and never runs inside **Api.Server**.
+7. NATS carries bounded control and outcome events between Core and the Database Backup Host in every environment.
+   Native backup payloads never travel through NATS or actor mailboxes.
 8. PostgreSQL and ScyllaDB are protected at their physical cluster or declared protection-set boundaries.
 9. Restore uses fresh targets by default and stops at **ReadyForCutover** until separately approved.
 10. A break-glass recovery path works without Core, NATS, PostgreSQL, or ScyllaDB.
@@ -51,10 +51,18 @@ This document inherits the following non-negotiable rules from the overview:
     verification levels, retention dependencies, and restore qualification.
 12. AWS credentials exist only within the Database Backup Service trust boundary. Core actors and ordinary database
     workloads never receive them.
-13. DatabaseBackup event, command, and query types are shared with local workstation backup. Every AWS source-bound
-    event carries BackupSource **AwsCloud**; no AWS-specific event type is introduced.
-14. UI callers and SystemAdmin ScheduledTask actors use the same DatabaseBackup command and query contracts.
-    ScheduledTask event integration remains outside this document.
+13. DatabaseBackup event, command, and query types are shared with local workstation backup. The shared BackupSource
+    enum is **None**, **LocalWorkstation**, and **AwsCloud**. This processor accepts only **AwsCloud** operations; every
+    AWS source-bound event carries it and no AWS-specific event type is introduced.
+14. UI callers, Database Backup Console callers, and SystemAdmin ScheduledTask actors use the same DatabaseBackup
+    command and query contracts with distinct RequestOrigin and authenticated identities. ScheduledTask event
+    integration remains outside this document.
+15. PostgreSQL and ScyllaDB operations are exposed only through the shared high-level, allowlisted backup/restore
+    capability interfaces; database-native protocols, utilities, and Manager APIs are adapter details.
+16. `SystemAdminDbContext` stores rebuildable projections and bounded run statistics in Core PostgreSQL; the AwsCloud
+    processor never writes that context directly.
+17. The Database Backup Host owns an external durable execution journal, while immutable S3 manifests and run evidence
+    remain independently usable when Core, the journal, or the workload account is unavailable.
 
 If this document conflicts with the approved overview, the overview controls until both documents are deliberately
 revised and reviewed.
@@ -82,11 +90,13 @@ The AWS design adopts these decisions for production:
 | PostgreSQL | Periodic physical base backup plus continuous WAL archiving for PITR |
 | ScyllaDB | Scylla Manager coordinates cluster-native capture; AWS movement remains controlled by the Backup Service |
 | Native AWS access | Database and Scylla agents do not receive AWS credentials under this architecture |
-| BackupSource | AwsCloud; AwsPrimary and AwsRecovery remain physical replica identities within that source |
+| BackupSource | Shared enum is `None`, `LocalWorkstation`, and `AwsCloud`; this processor accepts `AwsCloud`; `AwsPrimary` and `AwsRecovery` remain physical replica identities within that source |
 | AWS Backup service | Optional tertiary protection only; it does not replace native capture or the IFM catalog |
 | Audit | Organization CloudTrail plus S3 object data events, KMS events, configuration checks, and immutable log storage |
 | Deep archive | Policy-controlled and allowed only when its retrieval time still satisfies the recovery class |
 | Deletion | A revision-matched retention plan and a separate deletion role; never an unbounded bucket sweep |
+| SystemAdmin projections | `SystemAdminDbContext` in Core PostgreSQL; rebuildable and never an execution authority |
+| Execution journal | Common execution-journal capability; production AWS profile uses conditional, encrypted durable storage in the workload trust boundary, while immutable recovery evidence remains in the backup/recovery accounts |
 
 Production uses three AWS trust domains:
 
@@ -114,7 +124,7 @@ The AWS architecture must:
 - support fresh-target restore drills and production recovery;
 - measure actual RPO and RTO;
 - constrain cost without weakening declared recovery objectives; and
-- preserve identical logical behavior during the Stage 1 to Stage 2 host extraction.
+- run in an independently constrained Docker/Aspire Database Backup Host from the first implementation.
 
 ### 4.2 Non-goals
 
@@ -135,11 +145,15 @@ This design does not:
 
 The normal production data path is:
 
-    SystemAdmin Command Actor
+    UI, Console, or ScheduledTask
+        |
+        | common DatabaseBackup command/query API
+        v
+    SystemAdmin DatabaseBackup actors
         |
         | committed execution-intent event
         v
-    Database Backup Service
+    Docker/Aspire Database Backup Service
         |-- PostgreSQL replication/backup interface
         |-- PostgreSQL WAL ingress
         |-- Scylla Manager and service-controlled staging
@@ -160,7 +174,8 @@ The control path remains:
         -> SystemAdmin Command Actor
         -> committed domain event
         -> read-model projection
-        -> SystemAdmin Query Actor and UI
+        -> SystemAdmin Query Actor
+        -> UI, Console, or ScheduledTask query caller
 
 AWS service notifications and metrics are infrastructure observations. They first enter the Database Backup Service,
 which correlates them with its operation journal and publishes a bounded service event. They do not write SystemAdmin
@@ -170,9 +185,10 @@ state directly.
 
 ### 6.1 Workload account
 
-The workload account owns the compute identity used by the Database Backup Service. It does not own either production
-vault, either vault KMS key, Object Lock configuration, replication configuration, lifecycle policy, or recovery audit
-trail.
+The workload account owns the compute identity used by the Database Backup Service and, for the production AWS-hosted
+profile, the encrypted DynamoDB execution-journal table and its least-privilege access policy. It does not own either
+production vault, either vault KMS key, Object Lock configuration, replication configuration, lifecycle policy, or
+recovery audit trail. Journal loss or mutation therefore cannot erase immutable recovery evidence.
 
 The service assumes narrowly scoped roles in the primary backup account. A compromise of the normal application role,
 Core actors, or ordinary application database credentials must not grant:
@@ -279,8 +295,8 @@ after backup objects already exist.
 
 ### 7.3 Object Lock policy
 
-Published production artifacts, manifests, commit records, catalog entries, verification records, and recovery records
-use S3 Object Lock Compliance mode for their declared retention interval.
+Published production artifacts, manifests, run-evidence objects, commit records, catalog entries, verification records,
+and recovery records use S3 Object Lock Compliance mode for their declared retention interval.
 
 The policy progression is:
 
@@ -333,12 +349,16 @@ The normative logical layout is:
               native-manifest/{NativeManifestId}
               ifm-engine-manifest/{ManifestId}
               verification/{VerificationId}
+              run-evidence/{StatisticsRevision}
             backup-set/{BackupSetId}/manifest/{ManifestId}
             publication/{PublicationId}/commit
           catalog/entries/{UtcDate}/{BackupSetId}/{CatalogEntryId}
           recovery-records/{RecoveryOperationId}/{RecordId}
 
 Identifiers are opaque and stable. The manifest contains the bounded descriptive metadata needed to interpret them.
+Run evidence contains the final structured `DatabaseRecoveryRunStats` summary for successful, failed, or cancelled work
+when enough evidence exists to publish it safely. Only eligible completed recovery points are referenced by catalog
+entries.
 
 ### 8.2 Object identity
 
@@ -374,8 +394,8 @@ Large artifacts use bounded parallel multipart upload. The service:
 - aborts abandoned multipart uploads after the diagnostic window; and
 - does not publish a manifest until the completed object passes a HEAD and checksum check.
 
-Concurrency is limited by configured memory, network, disk, and KMS request budgets. Multipart performance cannot create
-unbounded buffers inside **Api.Server** during Stage 1.
+Concurrency is limited by configured memory, network, disk, and KMS request budgets. The independent Database Backup
+Host enforces those bounds without consuming **Api.Server** process resources.
 
 ### 8.4 Atomic publication in S3
 
@@ -568,6 +588,12 @@ identity, and repeating the security review.
 
 ## 12. PostgreSQL AWS backup design
 
+The AwsCloud processor consumes the shared typed PostgreSQL capability for preflight, base backup, status,
+verification, WAL recovery-range management, fresh-target restore, validation, cancellation, and reconciliation.
+PostgreSQL has no general backup REST API: the adapter privately uses the PostgreSQL replication protocol and supported
+native utilities such as `pg_basebackup` and `pg_verifybackup`. Actor messages cannot select tools, arguments,
+credentials, or host paths.
+
 ### 12.1 Recovery model
 
 PostgreSQL protection consists of:
@@ -667,6 +693,11 @@ The service restores to a fresh encrypted volume and compatible PostgreSQL runti
 No restore writes over an active production PostgreSQL data volume.
 
 ## 13. ScyllaDB AWS backup design
+
+The AwsCloud processor consumes the shared typed ScyllaDB capability for preflight, start/status/cancel cluster backup,
+schema-first restore, start/status/cancel data restore, node/token coverage validation, and reconciliation. The adapter
+prefers the Scylla Manager REST/Swagger API. Any required `sctool` fallback stays behind the same allowlist and never
+becomes an actor, UI, or Console contract.
 
 ### 13.1 Recovery model
 
@@ -792,7 +823,7 @@ Object Lock enabled. Replication includes:
 - legal-hold state;
 - publication commit records;
 - catalog entries; and
-- verification and recovery records required by policy.
+- run-evidence, verification, and recovery records required by policy.
 
 SSE-KMS replication explicitly selects the destination customer-managed key. The destination uses bucket-owner-enforced
 ownership so the recovery account owns the replica.
@@ -1055,8 +1086,10 @@ Every AWS DatabaseBackup domain event, execution-intent event, service event, an
 carries BackupSource **AwsCloud**. The event type and payload schema are the same ones used by LocalWorkstation
 processing. Logical replicas such as **AwsPrimary** and **AwsRecovery** do not replace BackupSource.
 
-UI callers and SystemAdmin ScheduledTask actors invoke the same source-scoped commands and queries. RequestOrigin
-records which caller path initiated the contract; it does not select the AWS processor.
+UI, Database Backup Console, and SystemAdmin ScheduledTask callers invoke the same source-scoped commands and queries.
+RequestOrigin records which caller path initiated the contract; it does not select the AWS processor.
+BackupSource **None** is allowed only for unselected/default state or an explicit all-sources query and is rejected for
+accepted operations and source-bound events.
 
 ### 21.2 AWS-related service observations
 
@@ -1071,6 +1104,7 @@ The service uses existing event families to report AWS state:
 | Retention plan derived from exact AWS versions | **DatabaseRetentionPlanCreatedEvent** |
 | Approved version deletions completed or stopped | **DatabaseRetentionExecutionCompletedEvent** or **DatabaseRetentionExecutionFailedEvent** |
 | Reconciliation found journal, S3, or SystemAdmin divergence | **DatabaseBackupServiceReconciliationEvent** |
+| Bounded phase or final run measurements captured | **DatabaseRecoveryRunStatisticsCapturedEvent** |
 
 The SystemAdmin Event Actor maps each observation to the internal commands defined by the overview. It does not parse
 CloudTrail records or call AWS.
@@ -1092,10 +1126,23 @@ Meaningful persisted checkpoints include:
 
 High-cardinality details stay in service metrics, traces, logs, journal records, and immutable operation evidence.
 
-### 21.4 UI presentation
+### 21.4 SystemAdmin projections and AWS evidence reconciliation
 
-The UI continues to use SystemAdmin commands and projected query models. AWS-specific read-model fields are limited to
-safe operational facts:
+`SystemAdminDbContext` stores the shared operation, phase, restore-point, replica, structured error, health, and
+`DatabaseRecoveryRunStats` projections in `CorePostgresCluster`. The AwsCloud processor never receives its connection
+and never writes it directly. Statistics enter Core only through the common service event, Event Actor translation,
+Command Actor domain event, and idempotent projector path.
+
+After Core recovery, restored event streams rebuild the projection tables. The reconciliation workflow then validates
+newer S3 manifests, catalog entries, immutable run-evidence objects, verification records, and break-glass recovery
+records. Accepted facts are submitted as authenticated reconciliation commands and recorded as new domain events before
+projection. S3 objects, DynamoDB journal items, Inventory, and CloudTrail never update `SystemAdminDbContext` directly.
+
+### 21.5 Operator clients
+
+The UI continues to use SystemAdmin commands and projected query models and may react to the same authorized bounded
+DatabaseBackup domain events as the Console. It never consumes execution-intent or raw service-response events.
+AWS-specific read-model fields are limited to safe operational facts:
 
 - logical replica identity;
 - account trust boundary and Region alias;
@@ -1108,6 +1155,12 @@ safe operational facts:
 
 The normal UI does not expose credentials, role sessions, raw bucket policy, presigned URLs, full object keys, or
 unbounded manifests. Production restore and cutover retain the separate approvals defined by the overview.
+
+The Console uses RequestOrigin **Console**, the same commands and queries, and the same authorized bounded domain events
+as the UI. It follows work by OperationId, may expose script-safe output and exit codes, and recovers a disconnected
+session through queries. It cannot consume execution-intent or raw service-response events or call AWS, the Database
+Backup Host, PostgreSQL tools, or Scylla Manager directly. The normal Console remains separate from the independently
+secured break-glass recovery workflow.
 
 ## 22. Observability, audit, and alerting
 
@@ -1194,10 +1247,28 @@ The Database Backup Service journal is outside the protected application databas
 - verification state;
 - replication state;
 - outbound service-event sequence and acknowledgement;
+- bounded phase/final run statistics awaiting Core acknowledgement;
+- journal schema revision and reconciliation checkpoint;
 - retry state; and
 - cleanup eligibility.
 
-Stage 1 journal durability must survive an **Api.Server** restart. Stage 2 moves it with the extracted host.
+The journal belongs to the independent Database Backup Host and survives host restarts. Core and the service reconcile
+after either side or NATS restarts without duplicating native work.
+
+Production AWS-hosted deployments use a DynamoDB execution-journal adapter in the workload account. The adapter uses
+conditional writes for lease/fencing and revision checks, encrypted storage, strongly consistent reads where admission
+or ownership requires them, and point-in-time recovery. Terminal-item expiry or compaction is allowed only after the
+SystemAdmin outcome is acknowledged and required immutable S3 manifest/run evidence is durable. TTL is cleanup, never
+the correctness boundary.
+
+A single-host development or workstation deployment may use the same durable embedded journal profile as
+LocalWorkstation on an encrypted persistent Docker/bind-mounted volume. It cannot claim the production multi-host
+fencing profile. Both adapters implement the same private execution-journal capability and do not change actor
+commands, events, queries, or BackupSource behavior.
+
+Loss of the workload-account journal makes ambiguous incomplete work non-resumable but does not invalidate immutable
+published S3 evidence. Recovery reconstructs published results from exact object versions, manifests, commits, catalog
+entries, and run evidence, then uses the common reconciliation flow rather than inferring success.
 
 ### 23.2 Failure matrix
 
@@ -1205,7 +1276,7 @@ Stage 1 journal durability must survive an **Api.Server** restart. Stage 2 moves
 | --- | --- |
 | Core unavailable before dispatch | No service operation begins; SystemAdmin retains intent and reports capability risk |
 | Core unavailable after dispatch | Service continues only to the policy-approved safe boundary, journals events, and reconciles later |
-| NATS unavailable after extraction | Same as Core communication loss; no duplicate operation on reconnect |
+| NATS unavailable | Same as Core communication loss; no duplicate operation on reconnect |
 | Backup Service restart | Reconcile journal, multipart state, native process, S3 versions, and last service sequence |
 | Duplicate execution event | Resolve to existing OperationId and policy revision |
 | Reordered or missing service observation | Detect service-sequence gap, stop unsafe state advancement, and reconcile before acknowledgement |
@@ -1309,8 +1380,8 @@ The service configures separate bounded limits for:
 - concurrent engine restores.
 
 Backup I/O is subordinate to database latency policy. Restore drills may use higher limits on isolated infrastructure.
-Stage 1 limits protect Core actor responsiveness despite the shared process. Stage 2 gives the host independent CPU,
-memory, disk, and network budgets.
+The dedicated Database Backup Host has independent CPU, memory, disk, and network budgets and does not share the
+**Api.Server** process.
 
 ### 25.2 Object sizing
 
@@ -1353,12 +1424,13 @@ Forecasting uses:
 - lifecycle minimum durations; and
 - at least one simultaneous recovery reserve where policy requires it.
 
-## 26. Configuration ownership and Aspire evolution
+## 26. Configuration ownership and Aspire composition
 
 ### 26.1 Core-owned configuration
 
 Core owns destination-neutral policy:
 
+- the `SystemAdminDbContext` projection connection, schema version, migration policy, and projector checkpoint policy;
 - protection sets and classifications;
 - schedules;
 - RPO and RTO classes;
@@ -1381,6 +1453,8 @@ The Database Backup Service owns validated bootstrap configuration:
 - S3 endpoint and network controls;
 - multipart, bandwidth, retry, and KMS limits;
 - staging and journal locations;
+- journal provider/table identity, KMS reference, consistency/fencing policy, PITR, schema revision, retention, and
+  compaction settings;
 - inventory and audit integration;
 - archive retrieval policy;
 - native database endpoint or agent configuration; and
@@ -1388,33 +1462,20 @@ The Database Backup Service owns validated bootstrap configuration:
 
 Startup fails closed when a mandatory production control is absent or weaker than policy.
 
-### 26.3 Stage 1
+### 26.3 Database Backup Host resource
 
-Inside **Api.Server**, the Database Backup Service:
-
-- receives only its typed AWS configuration and secret references;
-- obtains temporary AWS credentials independently of actors;
-- uses dedicated bounded queues and resource limits;
-- maintains a restart-safe external operation journal;
-- exposes service-specific health and telemetry; and
-- remains testable without starting all business domains.
-
-This is a logical boundary, not strong process isolation. AWS access in the shared process remains an accepted temporary
-risk.
-
-### 26.4 Stage 2
-
-After extraction, **TomasAI.IFM.Api.DatabaseBackup.Host** receives:
+From the first implementation, Docker-packaged **TomasAI.IFM.Api.DatabaseBackup.Host** receives:
 
 - its own workload identity;
 - its own network policy and endpoints;
 - its own AWS configuration and temporary role path;
 - independent CPU, memory, disk, and network constraints;
 - independent deployment and restart lifecycle; and
-- NATS event transport using unchanged contracts.
+- NATS event transport using the same contracts for UI, Console, and ScheduledTask callers.
 
-The Aspire AppHost composes development resources and observability but does not hold backup state, own credentials,
-execute backup behavior, or remain required after the service starts.
+The Aspire AppHost composes the Docker host, NATS, database dependencies, AWS resource references, development
+resources, and observability. It does not hold backup state, own credentials, execute backup behavior, or remain
+required after the service container starts.
 
 ## 27. Environment strategy
 
@@ -1434,6 +1495,9 @@ An isolated AWS integration environment validates:
 - object-version identity;
 - Object Lock Governance mode;
 - signed manifest publication;
+- DynamoDB conditional lease/fencing, duplicate admission, unacknowledged event/statistics replay, PITR configuration,
+  schema compatibility, and safe terminal compaction;
+- idempotent `SystemAdminDbContext` projections and projection rebuild from domain events;
 - replication and destination ownership;
 - KMS re-encryption;
 - inventory and CloudTrail evidence;
@@ -1484,19 +1548,36 @@ The AWS design is accepted only when evidence demonstrates:
 23. SystemAdmin authoritative state changes only through Command Actor domain events.
 24. AWS observations enter Core only through service events, Event Actor translation, and durable Command Actor
     application.
-25. Stage 1 restart recovery and Stage 2 independent-host recovery use the same operation and manifest semantics.
+25. The independent Database Backup Host and Core restart and reconcile separately using the same operation and
+    manifest semantics without duplicating native work.
 26. Actual RPO and RTO are measured using representative data.
 27. Cost forecasts include storage, replication, KMS, audit, lifecycle, retrieval, and restore compute.
 28. No acceptance criterion depends on the Aspire AppHost remaining online.
 29. Every AWS source-bound event carries BackupSource **AwsCloud** while retaining the shared source-independent event
-    type.
-30. UI and ScheduledTask callers use the same DatabaseBackup command and query surface without consuming raw AWS
-    service events.
+    type; BackupSource **None** is rejected for operations and source-bound events.
+30. UI, Console, and ScheduledTask callers use the same DatabaseBackup command and query surface without consuming raw
+    AWS service events.
+31. The service runs as a Docker-packaged Aspire resource from the first implementation and never executes inside
+    Api.Server or an actor.
+32. PostgreSQL and ScyllaDB execution is available only through the shared typed, allowlisted backup/restore
+    capabilities.
+33. The Console follows the same actor API and bounded events as the UI and cannot bypass SystemAdmin.
+34. UI and Console observe only authorized bounded DatabaseBackup domain events, never execution-intent or raw service
+    events.
+35. `SystemAdminDbContext` contains only rebuildable event projections and bounded run statistics and is never written
+    directly by the AwsCloud processor.
+36. The production AWS execution journal provides durable conditional lease/fencing and revision updates outside the
+    protected databases, and retains unacknowledged outbound events/statistics for replay.
+37. Immutable S3 manifests/run evidence retain bounded final statistics required to interpret and reconcile completed
+    recovery points without Core or the workload-account journal.
+38. After restore, newer AWS evidence enters SystemAdmin only through authenticated reconciliation commands and domain
+    events before projection.
 
-## 29. Approved architecture decisions
+## 29. Approved architecture decisions and proposed amendments
 
-The following production directions were approved on 2026-08-10. Later changes require an explicit architecture
-revision rather than an implementation-level substitution:
+The existing production directions were approved on 2026-08-10. Rows explicitly labeled **proposal** are additions
+for this architecture review. Later changes require an explicit architecture revision rather than an
+implementation-level substitution:
 
 | Decision | Proposed production direction |
 | --- | --- |
@@ -1509,16 +1590,23 @@ revision rather than an implementation-level substitution:
 | Recovery replica | Required for production policy compliance |
 | Object publication | Artifact versions, signed manifests, commit record, append-only catalog |
 | Scylla AWS movement | Service-controlled staging and upload; no AWS credentials on Scylla agents |
+| Native capability API — v0.3 proposal | Shared typed PostgreSQL and Scylla backup/restore ports; PostgreSQL protocol/utilities and Scylla Manager REST or allowlisted CLI fallback remain adapter details |
 | PostgreSQL WAL acknowledgement | After verified primary-vault durability |
 | Deep archive | Allowed only for explicitly delayed recovery classes |
 | AWS Backup | Optional tertiary control, not the native backup or catalog authority |
 | Retention deletion | Separate approved exact-version plan per vault |
 | Break-glass identity | Independent federation, strong MFA, short role sessions, no static keys |
 | Cutover | Separate approval after fresh-target validation |
+| Operator clients — v0.3 proposal | UI and Console use the same DatabaseBackup actor commands, queries, and authorized bounded domain events; no direct execution path and no raw service/execution event subscription |
+| Deployment — v0.3 proposal | Dedicated Docker-packaged Database Backup Host composed by Aspire from the first implementation |
+| SystemAdmin persistence — v0.4 proposal | Rebuildable `SystemAdminDbContext` projections and `DatabaseRecoveryRunStats` in Core PostgreSQL; no direct AwsCloud writes |
+| Production execution journal — v0.4 proposal | Encrypted workload-account DynamoDB adapter using conditional lease/revision writes and PITR; development/single-host profile may use the encrypted embedded journal |
+| Recovery evidence — v0.4 proposal | Immutable S3 manifest/run-evidence objects carry the bounded final summary and remain usable without Core or the execution journal |
+| Post-restore reconciliation — v0.4 proposal | Replay restored events, validate newer AWS evidence, append accepted reconciliation events, then update projections |
 
 ## 30. Follow-on relationship to the local design
 
-The future **Local-Backup-Restore-Architecture.md** must preserve:
+The **Local-Backup-Restore-Architecture.md** preserves:
 
 - operation, backup-set, artifact, and replica identities;
 - signed manifest and commit semantics;
@@ -1530,7 +1618,7 @@ The future **Local-Backup-Restore-Architecture.md** must preserve:
 - fresh-target restore and separate cutover; and
 - break-glass recovery evidence.
 
-It will replace AWS account, Region, S3, IAM, KMS, Object Lock, CRR, and archive-class mechanisms with explicit local
+It replaces AWS account, Region, S3, IAM, KMS, Object Lock, CRR, and archive-class mechanisms with explicit local
 filesystem, device, encryption, capacity, media-rotation, and offline-copy controls. It must state clearly where local
 infrastructure provides a weaker failure boundary than this AWS reference.
 
@@ -1564,14 +1652,22 @@ infrastructure provides a weaker failure boundary than this AWS reference.
 - [S3 gateway VPC endpoints](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html)
 - [CloudTrail data events](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-events.html#data-events)
 - [AWS backup and recovery approaches](https://docs.aws.amazon.com/prescriptive-guidance/latest/backup-recovery/introduction.html)
+- [DynamoDB condition expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html)
+- [DynamoDB read consistency](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html)
+- [DynamoDB encryption at rest](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html)
+- [DynamoDB point-in-time recovery](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Point-in-time-recovery.html)
+- [DynamoDB time to live](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html)
 
 ### Database-native recovery
 
 - [PostgreSQL pg_basebackup](https://www.postgresql.org/docs/current/app-pgbasebackup.html)
+- [PostgreSQL replication protocol](https://www.postgresql.org/docs/current/protocol-replication.html)
+- [PostgreSQL pg_verifybackup](https://www.postgresql.org/docs/current/app-pgverifybackup.html)
 - [PostgreSQL continuous archiving and PITR](https://www.postgresql.org/docs/current/continuous-archiving.html)
 - [Scylla Manager backup](https://manager.docs.scylladb.com/stable/backup/)
 - [Scylla Manager backup format](https://manager.docs.scylladb.com/stable/backup/specification.html)
 - [Scylla Manager restore](https://manager.docs.scylladb.com/stable/restore/)
+- [Scylla Manager REST API](https://manager.docs.scylladb.com/stable/swagger/index.html)
 
 ## 32. Revision history
 
@@ -1579,3 +1675,5 @@ infrastructure provides a weaker failure boundary than this AWS reference.
 | --- | --- | --- |
 | 0.1 | 2026-08-10 | Created the AWS reference architecture covering three-account isolation, immutable S3 vaults, KMS, IAM, one-way cross-Region replication, native PostgreSQL and Scylla workflows, signed publication, restore, retention, break-glass recovery, audit, cost, Aspire extraction, and acceptance criteria. |
 | 0.2 | 2026-08-10 | Recorded approval of Section 29 and aligned with overview version 0.6 by assigning BackupSource AwsCloud to shared DatabaseBackup events, preserving primary/recovery replica identities, and confirming the shared UI and ScheduledTask command/query surface. |
+| 0.3 | 2026-08-11 | Proposed alignment with overview 0.7: direct Docker/Aspire host deployment, shared three-value BackupSource semantics, the common UI/Console/ScheduledTask actor API, and typed PostgreSQL/Scylla native capability adapters. |
+| 0.4 | 2026-08-11 | Proposed the shared four-store persistence model for AwsCloud: `SystemAdminDbContext` projections/run statistics, a conditional durable production execution journal, immutable S3 run evidence, and event-gated post-restore reconciliation. |

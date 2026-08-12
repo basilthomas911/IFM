@@ -1,20 +1,20 @@
 # IFM Database Backup and Restore Architecture Overview
 
-Status: Approved architecture
-Version: 0.6
-Date: 2026-08-10
+Status: Approved architecture; version 0.8 amendment proposed for review
+Version: 0.8
+Date: 2026-08-11
 Scope: Shared architecture for PostgreSQL and ScyllaDB backup and restore using AWS cloud and local destinations
 
 ## 1. Purpose
 
 This document defines the common database backup and restore architecture for IFM. It is the authoritative shared
-design for the later AWS cloud and local reference architectures.
+design inherited by the AWS cloud and local reference architectures.
 
 The architecture protects database clusters rather than treating every logical database or keyspace as an independent
 physical backup target. It retains the SystemAdmin actor as the authoritative application coordinator, redesigns all
 backup commands, events, and queries, and makes restore capability as important as backup creation.
 
-The following documents will elaborate this overview after it is approved:
+The following documents elaborate this overview:
 
 - `AWS-Cloud-Backup-Restore-Architecture.md`, the reference cloud architecture;
 - `Local-Backup-Restore-Architecture.md`, the local architecture conforming to the AWS logical model; and
@@ -52,22 +52,32 @@ The target architecture is based on these decisions:
    unavailable.
 10. Normal backup operations require the Core Actor Host. Disaster recovery must also provide a tightly controlled
     break-glass path that does not depend on Core or NATS.
-11. Database backup and restore behavior initially runs in a dedicated Database Backup Service hosted by `Api.Server`,
-    outside actor handlers and actor threads.
+11. Database backup and restore behavior runs from the first implementation in the dedicated
+    `TomasAI.IFM.Api.DatabaseBackup.Host` process, packaged as a Docker container and composed as an Aspire project
+    resource. It never runs inside `Api.Server`, actor handlers, or actor threads.
 12. The SystemAdmin Command Actor controls authoritative state and intent; the SystemAdmin Event Actor processes service
     events into commands; the SystemAdmin Query Actor serves projected read models; and the Database Backup Service
     controls long-running execution behavior and recoverable operational journals.
-13. The service boundary is extraction-ready from the first implementation. It later moves without behavioral redesign
-    into `TomasAI.IFM.Api.DatabaseBackup.Host` as an Aspire-managed project resource.
-14. Aspire extraction creates the final process, resource, credential, and deployment boundary. Correctness cannot
-    depend on the Aspire AppHost remaining online.
+13. The separate Database Backup Host is the process, resource, credential, and deployment boundary from the first
+    implementation. Aspire composes and observes it but correctness cannot depend on the Aspire AppHost remaining
+    online after the container starts.
+14. PostgreSQL and ScyllaDB behavior is exposed to the application through allowlisted, high-level backup and restore
+    capability interfaces. Actor messages never contain utility commands, arbitrary arguments, database credentials,
+    or host paths.
 15. Database backup event names and schemas are source-independent. Every DatabaseBackup domain event,
     execution-intent event, service event, and translated service-event command carries one concrete **BackupSource**
     value.
-16. **BackupSource** selects the cloud or local execution capability. Initial values are **AwsCloud** and
-    **LocalWorkstation**. It is not the same as the UI or ScheduledTask request origin.
-17. The UI and SystemAdmin ScheduledTask actors exercise the same DatabaseBackup command and query contracts.
+16. **BackupSource** selects the cloud or local execution capability. The shared enum values are **None**,
+    **LocalWorkstation**, and **AwsCloud**. **None** is only an unselected/default value or an explicit all-sources query
+    filter; no accepted operation or source-bound event may carry it.
+17. The UI, Database Backup Console, and SystemAdmin ScheduledTask actors exercise the same DatabaseBackup command and
+    query contracts through actor messaging.
     ScheduledTask-to-DatabaseBackup event integration is deferred until the ScheduledTask architecture is designed.
+18. Backup persistence uses four deliberately different stores: the authoritative SystemAdmin event stream, rebuildable
+    `SystemAdminDbContext` projections and run statistics, the Database Backup Host's external execution journal, and
+    destination-resident immutable manifests and run evidence.
+19. `SystemAdminDbContext` is the normal query store, never the command authority or the host-resume journal. Loss of
+    its projection tables cannot prevent break-glass restore and must be recoverable by replay and reconciliation.
 
 ### 2.2 Non-goals
 
@@ -90,31 +100,31 @@ This overview does not:
 This design conforms to the [Aspire migration overview](../../Documents/system/Aspire%20migration%20overview.md):
 
 - the Core Actor Host remains the owner of business-domain actors and normal application-database clients;
-- the future Database Backup Host is a satellite capability host;
+- the Database Backup Host is a satellite capability host from the first implementation;
 - cross-host application control uses NATS;
 - observability uses HTTP and OpenTelemetry-compatible export;
 - backup destination credentials belong only to the Database Backup Host; and
 - satellites do not become alternate application query or mutation paths.
 
-The Database Backup Service is initially an isolated hosted-service capability inside `Api.Server`. It is not an actor,
-does not execute work on a SystemAdmin actor thread, and does not expose arbitrary reads from PostgreSQL or ScyllaDB. It
-accepts only allowlisted backup and restore operations over versioned capability contracts.
+The Database Backup Service runs in `TomasAI.IFM.Api.DatabaseBackup.Host`. It is not an actor, does not execute work on a
+SystemAdmin actor thread, and does not expose arbitrary reads from PostgreSQL or ScyllaDB. It accepts only allowlisted
+backup and restore operations over versioned capability contracts.
 
-The target project boundary is `TomasAI.IFM.Api.DatabaseBackup.Host`. Aspire will later declare it as a separate project
-resource beside the Core Actor Host, NATS, PostgreSQL, ScyllaDB, and observability resources. The initial architecture
-must preserve an extraction seam so that moving the service changes hosting and transport, not backup policy, operation
-state, manifests, verification, or restore behavior.
+Aspire declares the host as a separate Docker-backed project resource beside the Core Actor Host, NATS, PostgreSQL,
+ScyllaDB, and observability resources. NATS is the service communication boundary from the first implementation; no
+in-process `Api.Server` transport or later extraction migration is part of this architecture.
 
 ## 4. System context
 
 ### 4.1 Normal operating path
 
 ```text
-Operator / UI              SystemAdmin ScheduledTask feature
-      |                                 |
-      | same DatabaseBackup commands    | same DatabaseBackup commands
-      | and queries                     | and queries
-      +----------------+----------------+
+Operator / UI        Database Backup Console       SystemAdmin ScheduledTask feature
+      |                         |                                  |
+      | same commands and queries; UI/Console also observe public |
+      | DatabaseBackup domain events; ScheduledTask event design  |
+      | remains deferred                                           |
+      +-------------------------+----------------------------------+
                        |
                        v
       SystemAdmin DatabaseBackup actors in Core
@@ -122,12 +132,10 @@ Operator / UI              SystemAdmin ScheduledTask feature
       - Event: source-bound service-event ingestion
       - Query: source-filtered projected read models
               |
-              | committed events
-              | in-process now / NATS after extraction
+              | committed NATS execution events
               v
        Database Backup Service
-      - hosted in Api.Server initially
-      - separate Aspire host later
+      - dedicated Docker/Aspire host
       - native backup coordination
       - artifact movement
       - verification and retention
@@ -175,37 +183,14 @@ only after native and minimum application validation pass.
 Break-glass recovery is intentionally separate from the normal UI path. It must be authenticated, audited outside the
 application database, documented in a recovery runbook, and exercised regularly.
 
-### 4.4 Database Backup Service deployment evolution
+### 4.4 Database Backup Service deployment boundary
 
-The Database Backup Service has two planned deployment stages.
+The first implementation runs in `TomasAI.IFM.Api.DatabaseBackup.Host`, with its own process, dependency-injection
+composition root, configuration, credentials, recoverable operation journal, resource limits, health endpoints,
+metrics, logs, traces, deployment identity, and release lifecycle. It is packaged as a Docker container and declared by
+the Aspire AppHost as an independently health-checked project resource.
 
-#### Stage 1: isolated service inside `Api.Server`
-
-The first implementation runs as a dedicated hosted service within the current `Api.Server` process. It has:
-
-- a dedicated service boundary and dependency-registration module;
-- versioned execution-intent and service-outcome event contracts;
-- a bounded work admission path separate from actor mailboxes;
-- its own recoverable operation journal outside actor state;
-- service-specific configuration, validation, telemetry, and health state;
-- explicit CPU, memory, native-process, disk, and network concurrency limits; and
-- no references from backup behavior to business-domain actor implementations.
-
-SystemAdmin actors authorize operations, record authoritative state, and publish execution-intent events. The Database
-Backup Service event listener receives those events after their durable actor-state commit. Actors never invoke native
-utilities directly, wait synchronously for completion, or hold long-running backup resources.
-
-Stage 1 is a logical and behavioral separation, not a strong process or secret-isolation boundary. An `Api.Server`
-process failure can interrupt both actors and backup behavior, and service credentials loaded into the process share its
-operating-system trust boundary. These limitations are accepted temporarily and remain visible as migration risks.
-
-#### Stage 2: separate Aspire project resource
-
-The service moves into `TomasAI.IFM.Api.DatabaseBackup.Host`, with its own process, dependency-injection composition
-root, configuration, credentials, resource limits, health endpoints, metrics, logs, traces, deployment identity, and
-release lifecycle.
-
-The target host boundary provides:
+The host boundary provides:
 
 - native backup utilities and large artifact transfers must not consume the Core actor thread pool;
 - backup CPU, memory, disk, and network budgets must be independently constrained;
@@ -214,28 +199,58 @@ The target host boundary provides:
 - backup failures, process crashes, or dependency upgrades must not stop business-domain actors;
 - the backup service can be restarted and upgraded independently;
 - backup behavior has a substantially different security and operational profile from business-domain processing; and
-- the future Aspire topology can orchestrate and observe the capability as a distinct project resource.
+- Aspire can orchestrate and observe the capability as a distinct project resource.
 
-Stage 2 turns the Stage 1 logical boundary into a process and trust boundary. No shared static state, direct service
-reference, or `Api.Server` configuration dependency may prevent extraction.
+SystemAdmin actors authorize operations, record authoritative state, and publish execution-intent events over NATS
+after their durable actor-state commit. Actors never invoke native utilities directly, wait synchronously for
+completion, or hold long-running backup resources. The Database Backup Host has no `Api.Server` runtime dependency,
+shared static state, or direct service reference.
 
-### 4.5 Control state versus execution behavior
+### 4.5 Persistence and state ownership
 
-The architecture deliberately separates two kinds of state:
+The architecture deliberately separates four persistence responsibilities:
 
-| State owner | State | Examples |
+| Store and owner | Authority and purpose | Examples |
 | --- | --- | --- |
-| SystemAdmin Command Actor in Core | Authoritative event-sourced application control state | Requested operation, policy revision, authorization, approvals, expected protection set, high-level lifecycle, audit correlation, terminal outcome |
-| Database Backup Service | Recoverable execution state | Native process phase, staging path, transfer checkpoint, per-artifact checksum status, destination retry state, lease ownership, restart journal |
-| Backup destination | Independent recovery evidence | Immutable artifacts, manifests, catalog entries, verification records, retention and legal-hold metadata |
+| SystemAdmin event stream, written only through the DatabaseBackup Command Actor | Authoritative application control history | Request, policy revision, authorization, approvals, accepted phase checkpoints, recognized errors, validation, cutover readiness, terminal outcome |
+| `SystemAdminDbContext`, written by idempotent domain-event projectors | Rebuildable query and reporting state | Current operation status, backup/restore history, restore points, replicas, phase timing, final run statistics, health and recovery-objective compliance |
+| Database Backup Host execution journal | Private resumable execution state outside the protected databases | Native task/process identity, staging path, transfer checkpoint, destination retry, lease/fencing, last service sequence, cancellation and reconciliation state |
+| Backup destination | Independent recovery evidence available without Core | Immutable artifacts, manifests, catalog entries, bounded final run summary, verification/drill records, retention and legal-hold metadata |
 
 The SystemAdmin Command Actor's event stream remains the source of truth for what IFM authorized and what outcome the
 application recognizes.
-The Database Backup Service remains the source of truth for how an accepted operation is currently being executed. The
-destination remains the source of truth for what recoverable evidence physically exists.
+`SystemAdminDbContext` is a disposable projection of that recognized state and is the normal read source for the Query
+Actor, UI, Console, and ScheduledTask. The Database Backup Service journal remains the source of truth for how accepted
+native work can safely resume. The destination remains the source of truth for what recoverable evidence physically
+exists when Core is unavailable.
 
 These records are correlated by `OperationId`, `BackupSetId`, policy revision, and monotonic state revision. No layer is
 expected to persist every detail owned by another layer.
+
+`SystemAdminDbContext` resides in the protected Core PostgreSQL cluster, so it is intentionally not required while that
+cluster is unavailable or being restored. After recovery, its tables are restored with the selected database recovery
+point and then brought current by replaying retained SystemAdmin domain events and reconciling newer destination and
+host-journal evidence. The destination catalog and break-glass workflow never depend on this context.
+
+```text
+Command Actor
+    | append authoritative domain event
+    +-----------------> SystemAdmin event stream
+                            |
+                            | idempotent projection
+                            v
+                       SystemAdminDbContext
+                       status/history/run stats
+
+committed execution intent
+    |
+    v
+Database Backup Host <----> external execution journal
+    |
+    +---- bounded service observations ----> Event Actor ----> Command Actor
+    |
+    +---- artifacts + immutable manifest/run evidence ----> AWS or local destination
+```
 
 ### 4.6 Service communication boundary
 
@@ -258,22 +273,19 @@ SystemAdmin Command Actor                           |
       |                                             |
       | persist domain event -> update read model   |
       v                                             |
-SystemAdmin Query Actor / UI                        |
+SystemAdmin Query Actor / UI / Console              |
 ```
 
-In Stage 1, an in-process event publisher delivers committed SystemAdmin execution-intent events to the Database Backup
-Service event listener. The service publishes its own progress and outcome events to the SystemAdmin Event Actor.
-Delivery is asynchronous and must not execute backup behavior on the actor call stack.
-
-In Stage 2, the two listeners retain the same logical contracts while NATS becomes the cross-host event transport.
-Contracts are bounded, idempotent, versioned, authorized, and safe for at-least-once delivery. Actor commands, domain
-events, read models, and operation state do not change when transport changes.
+NATS is the cross-host event transport in every environment. The service listener consumes committed SystemAdmin
+execution-intent events and publishes progress and outcome events to the SystemAdmin Event Actor. Contracts are
+bounded, idempotent, versioned, authorized, and safe for at-least-once delivery. Delivery is asynchronous and never
+executes backup behavior on an actor call stack.
 
 The service never updates SystemAdmin event-sourced state directly. A host-to-Core event is an observation from the
 execution service. The SystemAdmin Event Actor converts it into a command, and the SystemAdmin Command Actor decides
 whether the observation is valid for the current operation revision before emitting a new durable domain event.
 
-In both stages, HTTP is limited to health, readiness, metrics, diagnostic management, and explicitly secured break-glass
+HTTP is limited to health, readiness, metrics, diagnostic management, database-native management APIs, and explicitly secured break-glass
 recovery. A normal HTTP endpoint must not bypass SystemAdmin authorization to start a production backup or restore.
 
 Native database traffic flows between the Database Backup Service or approved native agent and the database backup
@@ -282,12 +294,9 @@ Core or NATS.
 
 ### 4.7 Lifecycle and availability
 
-In Stage 1, the service shares the `Api.Server` process lifecycle but has an independent readiness state. Core reports the
-backup capability as unavailable, retains scheduled intent according to policy, and alerts when an RPO or schedule is at
-risk if the hosted service cannot accept work.
-
-In Stage 2, the Database Backup Host may be offline without stopping Core and gains an independent deployment and
-restart lifecycle.
+The Database Backup Host may be offline without stopping Core and has an independent deployment and restart lifecycle.
+Core reports the backup capability as unavailable, retains scheduled intent according to policy, and alerts when an RPO
+or schedule is at risk if the service cannot accept work.
 
 The service normally requires Core to authorize new operations. After accepting an operation, a temporary Core or NATS
 outage does not require the service to abandon a safe native capture or artifact transfer. It journals execution,
@@ -296,15 +305,20 @@ continues only to the policy-approved safe boundary, and reconciles state when c
 The service must not invent new scheduled or production restore operations while Core is unavailable. The only
 exception is the separately authenticated break-glass disaster-recovery path.
 
-After an `Api.Server` restart in Stage 1, or reconnect in Stage 2, Core and the service reconcile by `OperationId` and
-state revision. Core does not blindly create a new operation, and the service does not overwrite a newer authoritative
-actor decision.
+After a Database Backup Host, Core, or NATS restart, Core and the service reconcile by `OperationId` and state revision.
+Core does not blindly create a new operation, and the service does not overwrite a newer authoritative actor decision.
 
 ## 5. Responsibilities
 
 ### 5.1 SystemAdmin DatabaseBackup actor group
 
 The SystemAdmin DatabaseBackup feature uses exactly three actors with non-overlapping responsibilities.
+
+The feature is rooted at `TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/`. Its domain implementation is organized under
+`Command/Actor`, `Command/State`, `Command/Validation`, `Event/Actor`, and `Query/Actor`, with shared commands, events,
+queries, parameters, identifiers, enums, and read models in the corresponding
+`TomasAI.IFM.Domain.SystemAdmin.Shared/DatabaseBackup/` contract folders. The folder boundary makes DatabaseBackup a
+cohesive SystemAdmin feature without creating a fourth actor role.
 
 Unless explicitly qualified as ScheduledTask, references below to the SystemAdmin Command Actor, Event Actor, or Query
 Actor mean the corresponding actor in the DatabaseBackup feature.
@@ -313,7 +327,7 @@ Actor mean the corresponding actor in the DatabaseBackup feature.
 
 The Command Actor owns:
 
-- validation of UI, API, ScheduledTask, policy, and internally translated service commands;
+- validation of UI, Console, API, ScheduledTask, policy, and internally translated service commands;
 - accepted backup and restore policy revisions;
 - backup requests from authorized callers and references to accepted ScheduledTask identities;
 - authorization and approval state;
@@ -358,7 +372,7 @@ The Query Actor owns:
 - the database-backup query contract;
 - validation and routing of query requests;
 - reading event-projected backup, restore, policy, retention, service-health, and recovery-readiness models;
-- returning bounded query results to UI, API, and authorized ScheduledTask actor clients; and
+- returning bounded query results to UI, Console, API, and authorized ScheduledTask actor clients; and
 - reporting projection availability or staleness without falling back to the execution service as a hidden data source.
 
 The Query Actor is read-only. It does not load command aggregates, issue execution intent, or query PostgreSQL/Scylla
@@ -392,10 +406,10 @@ No ScheduledTask-specific event integration is required by this version. If late
 notifications, that design must define an explicit feature-to-feature contract rather than coupling ScheduledTask actors
 to Database Backup Service events.
 
-### 5.2 Database Backup Service and future host
+### 5.2 Database Backup Service and host
 
-The Database Backup Service is the behavior boundary. It initially runs inside `Api.Server`; the future Database Backup
-Host becomes its executable and process boundary under Aspire.
+The Database Backup Service is the behavior boundary and `TomasAI.IFM.Api.DatabaseBackup.Host` is its executable and
+process boundary under Aspire.
 
 The Database Backup Service owns:
 
@@ -421,8 +435,7 @@ changes event names, payload schemas, actor commands, queries, or operation stat
 It must not expose general SQL, CQL, arbitrary paths, arbitrary process execution, or a generic object-storage API.
 
 The service must not reference or instantiate business-domain actors. It consumes only shared SystemAdmin backup
-contracts and infrastructure abstractions needed to perform authorized behavior. This rule applies even while both
-components share the `Api.Server` process.
+contracts and infrastructure abstractions needed to perform authorized behavior.
 
 ### 5.3 Native database backup capability
 
@@ -440,12 +453,35 @@ Regardless of placement, it must:
 - never modify active application data as part of backup creation; and
 - never treat file copy completion as proof of recoverability.
 
+The service exposes one engine-neutral orchestration boundary and two engine-specific high-level capability ports:
+
+| Capability port | High-level operations | Approved native control surface |
+| --- | --- | --- |
+| PostgreSQL backup/restore | Preflight, start base backup, stream/capture WAL, verify backup, prepare fresh restore, recover to target, validate, cancel/status | PostgreSQL replication protocol and supported tools such as `pg_basebackup`, `pg_verifybackup`, WAL archive/restore commands, and version-compatible recovery utilities |
+| ScyllaDB backup/restore | Preflight, start/status/cancel cluster backup, restore schema, start/status/cancel data restore, validate node/token coverage | Scylla Manager REST API described by its Swagger contract; a supported `sctool` adapter may be used only behind the same capability port |
+
+PostgreSQL does not provide a general backup REST API. Its capability adapter wraps the replication protocol and
+versioned native tools behind typed, allowlisted operations. Scylla Manager does provide a REST/Swagger management
+surface and CLI; the REST client is preferred for structured control and status. Neither adapter accepts arbitrary SQL,
+CQL, shell text, command-line fragments, paths, or credentials from actor messages.
+
 ### 5.4 UI
 
 The UI owns operator interaction only. It displays policies, operations, restore points, health, approvals, and audit
-results by using SystemAdmin actor commands and queries. It never connects to a database, AWS, or a local backup drive.
+results by using SystemAdmin actor commands and queries and may react to authorized, bounded DatabaseBackup domain
+events. It never consumes service-response or execution-intent events and never connects to a database, AWS, or a local
+backup drive.
 
-### 5.5 Backup destinations
+### 5.5 Database Backup Console
+
+The Database Backup Console is a normal actor client for unattended administration, diagnostics, and scripted operator
+workflows while Core and NATS are available. It submits the same commands, executes the same queries, and observes the
+same authorized bounded domain events as the UI, with `RequestOrigin.Console`. It never consumes raw execution-intent
+or service-response events and never calls the Database Backup Host, PostgreSQL,
+Scylla Manager, AWS, or local media adapters directly. Break-glass recovery remains a separate secured workflow because
+normal actor messaging cannot operate when Core or NATS is unavailable.
+
+### 5.6 Backup destinations
 
 AWS and local destinations own durable artifact storage, but not application operation state. Every destination must be
 self-describing through immutable manifests and catalog entries so that recovery does not require the application
@@ -605,17 +641,21 @@ The initial contract values are:
 
 | BackupSource | Processing capability |
 | --- | --- |
+| None | No source selected, or no source filter on an explicitly all-sources query; invalid for accepted operations and source-bound events |
+| LocalWorkstation | The local workstation backup/restore processor defined by the local reference architecture |
 | AwsCloud | The AWS cloud backup/restore processor defined by the AWS reference architecture |
-| LocalWorkstation | The local workstation backup/restore processor to be defined by the local reference architecture |
 
 BackupSource is not a bucket, directory, drive, Region, account, endpoint, credential, or replica identifier. Those
-details remain service configuration and destination metadata. BackupSource is also not the request origin: UI and
-ScheduledTask identify who initiated a command, while BackupSource identifies which execution capability processes it.
+details remain service configuration and destination metadata. BackupSource is also not the request origin: UI,
+Console, and ScheduledTask identify who initiated a command, while BackupSource identifies which execution capability
+processes it.
 
-Every DatabaseBackup event carries exactly one recognized BackupSource. Values such as **Any**, **Both**, null, or an
-unknown future value are rejected. A policy requiring AWS and local processing creates distinct source-bound operations
-with distinct OperationId values under one BackupSetId. This prevents two processors from accepting the same operation
-while preserving coordinated recovery reporting.
+Every source-bound DatabaseBackup event and accepted operation carries exactly one concrete BackupSource:
+**LocalWorkstation** or **AwsCloud**. **None**, values such as **Any** or **Both**, null, and unknown future values are
+rejected at execution admission. A list query may use **None** only as the explicit no-source-filter value. A policy
+requiring AWS and local processing creates distinct source-bound operations with distinct OperationId values under one
+BackupSetId. This prevents two processors from accepting the same operation while preserving coordinated recovery
+reporting.
 
 BackupSource is immutable after an operation is created. It is copied from accepted command intent into every domain
 event, execution-intent event, service response event, translated command, projection, manifest summary, and terminal
@@ -710,11 +750,12 @@ applicable, and audit context. Secrets and arbitrary executable arguments are pr
 
 Every source-scoped command includes one concrete BackupSource. A policy command may describe more than one enabled
 source, but the Command Actor emits a separate source-bound domain and execution event for each resulting operation.
-The command audit envelope distinguishes a UI caller from a ScheduledTask actor through RequestOrigin and requesting
+The command audit envelope distinguishes UI, Console, and ScheduledTask callers through RequestOrigin and requesting
 identity; RequestOrigin is never used to route execution.
 
-A UI- or ScheduledTask-originated command never directly invokes a native database utility. It is handled by the
-DatabaseBackup Command Actor, which validates current event-sourced state and emits one or more durable domain events.
+A UI-, Console-, or ScheduledTask-originated command never directly invokes a native database utility. It is handled by
+the DatabaseBackup Command Actor, which validates current event-sourced state and emits one or more durable domain
+events.
 
 ### 9.2 SystemAdmin-to-service execution events
 
@@ -756,27 +797,21 @@ rebound to another BackupSource.
 
 The service event listener owns the execution-event subscription and admission boundary.
 
-In Stage 1:
+The listener:
 
-- it subscribes to the committed in-process SystemAdmin event publication stream;
-- it routes only to a processor registered for the event's BackupSource;
-- it copies the bounded event envelope into the recoverable service journal before acknowledging acceptance;
-- it schedules work outside the actor call stack; and
-- it publishes service events through the in-process service-event publisher.
-
-In Stage 2:
-
-- it subscribes to the corresponding authorized NATS subjects, which may include BackupSource as a routing token;
-- durable delivery and acknowledgement replace the in-process transport;
-- the service journal remains the execution restart boundary; and
-- the event names and semantics remain unchanged.
+- subscribes to authorized NATS subjects, which may include BackupSource as a routing token;
+- routes only to a processor registered for the event's concrete BackupSource;
+- copies the bounded event envelope into the recoverable service journal before acknowledging acceptance;
+- schedules work outside the actor call stack;
+- uses durable delivery and acknowledgement from the first implementation; and
+- publishes source-independent service events over NATS.
 
 The listener is not a domain actor. It does not own SystemAdmin state, create operator approvals, or infer authority from
 the ability to receive an event.
 
-NATS subject or in-process subscription filtering is an optimization and authorization boundary, not the source of
-truth. The listener validates the BackupSource inside the event envelope, the processor capability, and the producing
-host or service identity before admission.
+NATS subject filtering is an optimization and authorization boundary, not the source of truth. The listener validates
+the BackupSource inside the event envelope, the processor capability, and the producing host or service identity before
+admission.
 
 ### 9.4 Service-to-SystemAdmin events
 
@@ -820,6 +855,17 @@ for that source.
 | `DatabaseRestoreServiceFailedEvent` | The restore, validation, drill, or cutover reached a terminal failure |
 | `DatabaseRestoreServiceCancelledEvent` | Restore cancellation reached a safe terminal boundary |
 
+#### Shared run-statistics event
+
+| Service event | Meaning |
+| --- | --- |
+| `DatabaseRecoveryRunStatisticsCapturedEvent` | A bounded phase or final measurement summary was captured for a backup, restore, verification, drill, reconciliation, or retention run; the payload is keyed by OperationId, phase, engine, logical replica, and statistics revision |
+
+This event may describe successful, failed, or cancelled work. It carries structured measurements only: elapsed time,
+bytes, artifact counts, throughput summaries, retry/warning counts, verification time, achieved RPO/RTO where
+applicable, and a bounded native recovery-boundary summary. It never carries raw samples, process output, arbitrary
+labels, object paths, credentials, SQL/CQL, or unbounded collections.
+
 #### Policy, retention, and reconciliation events
 
 | Service event | Meaning |
@@ -861,6 +907,7 @@ the only normal path by which host observations enter the authoritative backup-s
 | Retention plan or outcome | `RecordDatabaseRetentionResultCommand` |
 | Reconciliation | `ReconcileDatabaseBackupServiceStateCommand` |
 | Capability change | `RecordDatabaseBackupServiceCapabilityCommand` |
+| Run statistics | `RecordDatabaseRecoveryRunStatisticsCommand` |
 
 The translated command preserves the source service event ID, BackupSource, service sequence, operation ID,
 correlation ID, host identity, and observed time. The SystemAdmin Event Actor sends that command to the Command Actor,
@@ -906,6 +953,7 @@ Representative SystemAdmin domain events include:
 - `DatabaseBackupBoundaryRecordedEvent`;
 - `DatabaseBackupArtifactReplicaRecordedEvent`;
 - `DatabaseBackupVerifiedEvent`;
+- `DatabaseRecoveryRunStatisticsRecordedEvent`;
 - `DatabaseBackupCompletedEvent`, `DatabaseBackupFailedEvent`, or `DatabaseBackupCancelledEvent`;
 - corresponding restore, validation, cutover-readiness, completion, failure, and cancellation events;
 - backup-set checkpoint and completeness events;
@@ -953,10 +1001,50 @@ A persisted error contains:
 
 Repeated identical transient errors may be coalesced while retaining first occurrence, last occurrence, and count.
 
-### 9.8 Read models
+### 9.8 SystemAdminDbContext projections and run statistics
 
 SystemAdmin domain-event projectors maintain database backup read models. The UI and query APIs read these models; they
 do not query the Database Backup Service directly for authoritative application state.
+
+The concrete projection boundary is `ISystemAdminDbContext` / `SystemAdminDbContext` in
+`TomasAI.IFM.Application.Storage/SystemAdminDb/`. It owns a logical SystemAdmin projection schema in the protected
+`CorePostgresCluster`; the context name does not require a separate PostgreSQL physical cluster. Its schema, commands,
+queries, mappings, and migration/version metadata remain in that storage feature. Domain actors depend on its contract
+through dependency injection and do not embed SQL or provider-specific behavior.
+
+The initial logical tables are:
+
+| Projection table | Cardinality and purpose |
+| --- | --- |
+| `DatabaseRecoveryOperation` | One current/history row per `OperationId`, covering backup, restore, verification, restore drill, reconciliation, and retention operation kinds |
+| `DatabaseRecoveryPhase` | One bounded row per recognized phase/attempt transition, including start/end time and outcome; never one row per byte, file, WAL segment, SSTable, or tool-output line |
+| `DatabaseRecoveryRunStats` | Structured per-operation summaries, optionally dimensioned by engine and logical replica, containing measured durations, sizes, throughput, retries, verification time, achieved RPO/RTO, and native recovery boundary summaries |
+| `DatabaseRestorePoint` | Queryable eligible and ineligible recovery points, dependency-chain identity, source, verification, and restore-test state |
+| `DatabaseArtifactReplica` | Logical AWS/local replica lifecycle, checksum/verification summary, and safe destination reference |
+| `DatabaseRecoveryError` | Bounded structured errors with code, category, phase, first/last occurrence, count, classification, and safe diagnostic reference |
+
+`DatabaseRecoveryRunStats` is preferred over an unstructured `StatsLog`. It stores durable measurements useful for
+history, comparison, capacity planning, and the UI. Detailed process output and high-frequency measurements stay in
+service logs, metrics, traces, or the private execution journal. Run-stat rows are not modified directly by the host:
+
+Each statistics revision contains `OperationId`, operation kind, BackupSource, protection set, engine and optional
+logical replica, phase, outcome, queue/start/end timestamps, elapsed durations, source/stored/transferred/restored byte
+counts, artifact count, average and bounded peak throughput, compression ratio where applicable, retry/warning counts,
+verification duration/result, achieved RPO/RTO where meaningful, native boundary summary, producing host, tool/policy
+revisions, and the source domain-event revision. Fields that do not apply remain explicitly absent rather than zero.
+No row contains raw paths, object keys, process output, credentials, or unrestricted native metadata.
+
+1. the Database Backup Host calculates a bounded phase or final run summary;
+2. it records the summary in its journal and, for a completed or published recovery point, the immutable destination
+   evidence;
+3. it publishes the appropriate source-independent service event;
+4. the Event Actor translates that event into a command;
+5. the Command Actor validates it and appends a SystemAdmin domain event; and
+6. an idempotent projector upserts the corresponding `SystemAdminDbContext` rows by `OperationId` and event revision.
+
+This ordering prevents projection state from getting ahead of authoritative actor state. A duplicate event produces no
+duplicate phase, error, or statistics row. A projection write failure is retried or replayed and never causes the
+service observation to be treated as authoritatively accepted before the domain event is committed.
 
 | Read model | Primary contents |
 | --- | --- |
@@ -968,11 +1056,39 @@ do not query the Database Backup Service directly for authoritative application 
 | `DatabaseBackupPolicyReadModel` | Enabled BackupSources, effective policy, ScheduledTask bindings, retention, required destinations, RPO/RTO, service enforcement revision |
 | `DatabaseBackupHealthReadModel` | Per-source service readiness, latest completed/verified/restore-tested ages, policy violations and alerts |
 | `DatabaseRetentionReadModel` | Forecast, protected chains, legal holds, proposed and executed retention plans |
+| `DatabaseRecoveryRunStatsReadModel` | Per-operation and engine/replica measured size, duration, throughput, retry, verification, RPO, and RTO summaries |
 
 Projectors are idempotent and checkpointed. They can rebuild from the event store. A projection failure cannot authorize
 service behavior or change the underlying operation outcome.
 
-### 9.9 Queries
+### 9.9 Projection recovery and reconciliation
+
+`SystemAdminDbContext` is backed up as part of `CorePostgresCluster`, but restore may return it to an earlier recovery
+point than the latest destination evidence. Recovery therefore follows this order:
+
+1. restore and validate the selected PostgreSQL recovery point;
+2. initialize or migrate the SystemAdmin projection schema to a compatible version;
+3. replay retained SystemAdmin domain events from the restored event store into empty or revision-checked projections;
+4. reconcile incomplete and post-recovery operations with the Database Backup Host journal when that host survives;
+5. scan and validate destination manifests, catalogs, final run summaries, and break-glass recovery records that are
+   newer than the restored SystemAdmin checkpoint;
+6. submit authenticated reconciliation commands so the Command Actor records any accepted recovered evidence as new
+   domain events; and
+7. project those events before declaring SystemAdmin backup history current.
+
+Destination evidence is never written straight into projection tables. Recovered facts pass through validation and the
+Command Actor so actor state and queries converge on the same history. If the event store and `SystemAdminDbContext`
+were both lost, destination evidence can reconstruct the recovery catalog and seed a controlled reconciliation history,
+but it cannot invent an authorization or outcome that the evidence does not prove.
+
+This also resolves the unavoidable self-reference: the completion event and final statistics for a PostgreSQL backup
+normally occur after that backup's physical consistency boundary, so they cannot be assumed to exist inside the backup
+that they describe. The signed destination manifest/run evidence closes that gap. Likewise, while
+`CorePostgresCluster` itself is unavailable during disaster restore, the host journal or break-glass recovery record
+captures restore progress and results; after Core returns, those observations enter the normal reconciliation-command
+and domain-event path before projections are updated.
+
+### 9.10 Queries
 
 The redesigned SystemAdmin query surface includes:
 
@@ -988,17 +1104,19 @@ The redesigned SystemAdmin query surface includes:
 - `GetDatabaseRecoveryObjectiveComplianceQuery`;
 - `GetDatabaseRestoreOperationQuery`;
 - `ListDatabaseRestoreDrillsQuery`;
-- `GetDatabaseRetentionForecastQuery`; and
-- `GetDatabaseBackupServiceHealthQuery`.
+- `GetDatabaseRetentionForecastQuery`;
+- `GetDatabaseBackupServiceHealthQuery`; and
+- `GetDatabaseRecoveryRunStatsQuery`.
 
 Queries return bounded read models. Large logs and manifests are accessed through authorized management endpoints or
 destination tools, not embedded into actor query replies.
 
-The UI and authorized ScheduledTask actors use these same query types. Source-specific queries require BackupSource;
-list and compliance queries may use an optional BackupSource filter but return the source on every source-bound item.
-The query envelope identifies and authorizes the caller independently from BackupSource.
+The UI, Database Backup Console, and authorized ScheduledTask actors use these same query types. Source-specific queries
+require **LocalWorkstation** or **AwsCloud**; list and compliance queries use `BackupSource.None` as the explicit
+all-sources filter and return the concrete source on every source-bound item. The query envelope identifies and
+authorizes the caller independently from BackupSource.
 
-### 9.10 Event and command envelope invariants
+### 9.11 Event and command envelope invariants
 
 Every service-facing event and translated command carries:
 
@@ -1013,11 +1131,12 @@ Every service-facing event and translated command carries:
 - producing host identity;
 - monotonic service sequence or progress revision where applicable;
 - operation kind and phase; and
-- authenticated subject authorization in the cross-host stage.
+- authenticated subject authorization on the cross-host transport.
 
-Every translated service-event command also carries BackupSource. Every UI- or ScheduledTask-originated command and
-query carries caller identity and RequestOrigin. These fields answer different questions and must not be substituted:
-BackupSource selects the execution capability, while RequestOrigin identifies who invoked the DatabaseBackup contract.
+Every translated service-event command also carries BackupSource. Every UI-, Console-, or ScheduledTask-originated
+command and query carries caller identity and RequestOrigin. These fields answer different questions and must not be
+substituted: BackupSource selects the execution capability, while RequestOrigin identifies who invoked the
+DatabaseBackup contract.
 
 At-least-once delivery is assumed in both directions. Listeners and actors must be idempotent and reject stale revisions,
 sequence regressions, conflicting operation definitions, unauthorized producers, and illegal state transitions.
@@ -1025,7 +1144,7 @@ sequence regressions, conflicting operation definitions, unauthorized producers,
 A detected service-sequence gap triggers reconciliation. It is not silently ignored, and later progress does not imply
 that missing state was safely persisted.
 
-## 10. UI architecture
+## 10. Operator-client architecture
 
 ### 10.1 Backup dashboard
 
@@ -1037,8 +1156,6 @@ The backup dashboard presents:
 - effective AWS and local destination policy;
 - last completed, last verified, and last restore-tested recovery points;
 - measured recovery-point age;
-- current operations and bounded progress;
-- capacity, retention, and replica-health warnings; and
 - Database Backup Host availability and policy revision.
 
 ### 10.2 Manual backup workflow
@@ -1076,12 +1193,20 @@ environment. A restore request does not imply cutover approval.
 Backup UI models consume asynchronous actor updates through the existing UI-safe dispatch abstraction. They must not
 block the WinForms or future WPF UI thread, poll aggressively, or mutate view state from a NATS callback thread.
 
+### 10.5 Console workflow
+
+The Database Backup Console provides equivalent non-graphical workflows for commands and queries. It prints the
+accepted `OperationId`, may follow bounded operation events or query until a terminal state, returns deterministic exit
+codes, and supports cancellation tokens. It does not remain attached for the duration of native work unless the user
+explicitly requests a follow mode. Console and UI requests produce identical domain behavior for the same caller
+authorization, command payload, and BackupSource.
+
 ## 11. Backup orchestration
 
 ### 11.1 Normal sequence
 
-1. An authorized UI caller or ScheduledTask actor submits the same `RequestDatabaseBackupCommand` with one concrete
-   BackupSource and its own RequestOrigin.
+1. An authorized UI caller, Console client, or ScheduledTask actor submits the same `RequestDatabaseBackupCommand` with
+   one concrete BackupSource and its own RequestOrigin.
 2. The DatabaseBackup Command Actor validates policy, caller identity, BackupSource, concurrency, and environment.
 3. Core allocates a source-bound `OperationId` and, when required, `BackupSetId`.
 4. Core establishes the required application checkpoint or maintenance mode.
@@ -1362,6 +1487,8 @@ Every engine operation has an immutable, versioned manifest containing at least:
 - encryption and key-reference metadata without secret material;
 - destination replica status;
 - native and checksum verification results;
+- bounded final run statistics including phase durations, bytes, artifact count, throughput summary, retries, achieved
+  RPO/RTO where applicable, and a statistics schema revision;
 - retention class and legal-hold status;
 - audit identity; and
 - compatibility constraints and known warnings.
@@ -1482,8 +1609,9 @@ When work is due, an authorized ScheduledTask actor:
    identity, and one concrete BackupSource; and
 4. receives command acceptance without waiting for the long-running backup behavior.
 
-The UI uses RequestOrigin **Ui** and an operator identity. Both paths exercise one DatabaseBackup command and query
-surface; neither receives a special execution path.
+The UI uses RequestOrigin **Ui** and an operator identity. The Console uses RequestOrigin **Console** and an operator or
+automation identity. All three paths exercise one DatabaseBackup command and query surface; none receives a special
+execution path.
 
 ScheduledTask does not publish DatabaseBackup execution-intent events or consume Database Backup Service events. The
 DatabaseBackup Command Actor owns event publication, and the DatabaseBackup Event Actor owns service-event ingestion.
@@ -1528,17 +1656,42 @@ After restart, the Database Backup Host:
 5. preserves diagnostic artifacts according to policy; and
 6. reconciles the resulting state with the SystemAdmin actor.
 
-During Stage 1, restarting `Api.Server` restarts both Core actors and the Database Backup Service, so the external
-operation journal must support whole-process recovery. During Stage 2, Core and the Database Backup Service have
-independent process lifecycles. Contract compatibility rules determine which rolling-version combinations may
-communicate.
+Core and the Database Backup Service have independent process lifecycles. Restarting either process must recover through
+the external operation journal and source-bound reconciliation. Contract compatibility rules determine which
+rolling-version combinations may communicate.
 
-### 20.3 Partial destination failure
+### 20.3 Execution-journal persistence
+
+The Database Backup Host accesses its private journal through a destination-neutral execution-journal capability. The
+journal implementation is external to the protected PostgreSQL and ScyllaDB clusters and is stored on durable storage
+mounted or attached to the host independently from its disposable container filesystem. A local deployment may use an
+embedded transactional database on an encrypted Docker persistent volume; an AWS deployment may use an equivalently
+durable managed or attached-volume implementation. The shared actor API is unaffected by that adapter choice.
+
+At minimum, a journal entry stores:
+
+- `OperationId`, optional `BackupSetId`, BackupSource, operation kind, policy revision, and protection set;
+- admission identity, active lease, fencing token, owner host, and journal schema revision;
+- current native phase, allowlisted native task/process identifier, and whether that phase is safely resumable;
+- staging identity, reserved capacity, artifact/checksum state, and transfer or multipart checkpoints;
+- destination replica state and exact immutable publication identities where already known;
+- cancellation and cleanup state;
+- last inbound execution-event identity;
+- every outbound service event, service sequence, publish/acknowledgement state, and bounded run statistics not yet
+  accepted by Core; and
+- reconciliation status and safe diagnostic references.
+
+The journal does not store application rows, arbitrary commands, raw credentials, or an alternative SystemAdmin
+aggregate. Terminal journal entries may be compacted only after the authoritative domain outcome is acknowledged and
+the required destination manifest/run evidence is durable. Journal loss cannot invalidate an already published backup,
+but it can make incomplete work non-resumable; reconciliation must fail such work safely rather than infer completion.
+
+### 20.4 Partial destination failure
 
 One destination being unavailable does not corrupt another completed replica. The host records replica-specific state
 and may repair the missing replica from a verified source without recapturing the database when policy permits.
 
-### 20.4 Backpressure
+### 20.5 Backpressure
 
 The Database Backup Host enforces bounded work queues and resource budgets. Overload produces an explicit queued,
 delayed, or rejected state. It never starts unlimited concurrent copies or silently drops a required operation.
@@ -1602,6 +1755,11 @@ At minimum, the architecture exposes:
 
 High-cardinality identifiers such as `OperationId` belong in logs and traces, not unbounded metric labels.
 
+Prometheus/OpenTelemetry metrics are optimized for fleet monitoring and may be sampled or retained independently.
+`DatabaseRecoveryRunStats` is the bounded, operation-correlated historical projection used for UI history and run
+comparison. Neither replaces immutable destination evidence. Raw telemetry is never copied wholesale into
+`SystemAdminDbContext`.
+
 ### 22.3 Alerts
 
 Alerts include:
@@ -1622,17 +1780,18 @@ Alerts include:
 
 ### 23.1 Service configuration boundary
 
-Stage 1 uses a dedicated, validated Database Backup Service configuration section inside `Api.Server`. Backup code
-receives only its typed configuration and secret references, but this is not a hard security boundary because all
-components share one process.
-
-Stage 2 moves that configuration unchanged in meaning into the Database Backup Host configuration root. Core and the
-host then receive only the configuration and secret references required by their responsibilities.
+The Database Backup Host owns a dedicated, validated configuration root. Core and the host receive only the
+configuration and secret references required by their responsibilities; backup destination and native-administration
+credentials never enter `Api.Server` or the Core Actor Host.
 
 Core configuration contains DatabaseBackup policy, authorization, protection-set identity, enabled BackupSources,
 source-specific service capability expectations, recovery objectives, and ScheduledTask configuration. Service
 configuration contains supported BackupSources, staging, destination, native backup, throttling, journal, and
 break-glass settings.
+
+Core also owns the `SystemAdminDbContext` projection connection and schema-migration policy. The Database Backup Host
+does not receive that connection and cannot write projection tables directly. The host owns only its execution-journal
+adapter, durable-volume or managed-store reference, encryption, retention/compaction, and schema-migration settings.
 
 Each host receives only the configuration and secret references required by its responsibility.
 
@@ -1648,7 +1807,7 @@ Core owns authoritative non-secret configuration:
 - retention classes; and
 - authorization policy references.
 
-The Database Backup Service owns bootstrap configuration that will later allow its host to contact Core:
+The Database Backup Service owns bootstrap configuration that allows its host to contact Core:
 
 - NATS and host identity;
 - destination endpoints and secret references;
@@ -1659,18 +1818,20 @@ The Database Backup Service owns bootstrap configuration that will later allow i
 Configuration is versioned. Startup fails closed when mandatory configuration is absent, unsafe, or incompatible. Normal
 development defaults to disabled or dry-run operation and cannot target production protection sets.
 
-### 23.3 Aspire evolution
+### 23.3 Aspire and Docker composition
 
-Aspire is the preferred future development and orchestration model after extraction:
+Aspire is the development and orchestration model from the first implementation:
 
 ```text
 TomasAI.IFM.AppHost
   +-- TomasAI.IFM.Api.Server.Host
   |     +-- SystemAdmin actor and authoritative control state
+  |     +-- SystemAdminDbContext projection writers/readers
   +-- TomasAI.IFM.Api.DatabaseBackup.Host
   |     +-- Database Backup Service and execution journal
   +-- NATS
   +-- PostgreSQL
+  |     +-- authoritative event store and SystemAdmin projection schema
   +-- ScyllaDB
   +-- observability resources
   +-- destination resource references appropriate to the environment
@@ -1680,7 +1841,7 @@ The Aspire AppHost may provide project discovery, startup ordering, development 
 and local developer orchestration. Shared Service Defaults may configure telemetry, health, resilience baselines, and
 service discovery for executable hosts.
 
-After extraction, Aspire does not:
+Aspire does not:
 
 - merge Core and backup into one process;
 - distribute all secrets to all resources;
@@ -1690,10 +1851,9 @@ After extraction, Aspire does not:
 - remain a mandatory runtime dependency after the hosts are started; or
 - remove the requirement for production deployment, recovery, and security procedures outside a developer dashboard.
 
-Before extraction, the Database Backup Service must be testable through an `Api.Server` service fixture without starting
-the complete application estate. After extraction, the Database Backup Host must also be runnable and testable directly.
-Integration environments may then use Aspire to compose only the host, NATS, disposable databases, and disposable backup
-destinations required by a backup or restore test.
+The Database Backup Host must be runnable and testable directly as a container without starting the complete application
+estate. Integration environments may use Aspire to compose only the host, NATS, disposable databases, and disposable
+backup destinations required by a backup or restore test.
 
 ## 24. Credential and native-executor boundary
 
@@ -1701,9 +1861,8 @@ The existing Core-only application credential rule remains intact. Native physic
 infrastructure mechanism that can communicate with PostgreSQL replication/backup interfaces and Scylla administration
 interfaces.
 
-The Database Backup Service owns native backup and restore behavior in both deployment stages. During Stage 1 it shares
-the `Api.Server` process with Core, but actors never run the native executor. During Stage 2 the executor moves with the
-service into the separate host.
+The Database Backup Service owns native backup and restore behavior in the separate Database Backup Host. Actors never
+run the native executor.
 
 ### 24.1 Backup-only infrastructure identities
 
@@ -1714,8 +1873,7 @@ The host receives separate, least-privilege native backup identities:
 
 This identity separation means:
 
-- backup CPU, memory, process, and I/O coordination stays outside actor execution and moves outside the Core process in
-  Stage 2;
+- backup CPU, memory, process, and I/O coordination stays outside actor execution and the Core process;
 - the host can operate destination transfer and native capture as one recoverable workflow;
 - native tools follow their intended network model;
 - normal application connection strings, database users, and query APIs remain exclusive to Core; and
@@ -1723,8 +1881,8 @@ This identity separation means:
 
 Constraints:
 
-- Stage 1 cannot provide strong process-level credential separation from Core;
-- Stage 2 is an explicit infrastructure exception to the statement that no satellite holds any database endpoint credential;
+- the Database Backup Host is an explicit infrastructure exception to the statement that no satellite holds any
+  database endpoint credential;
 - network and identity policies must technically prevent application queries; and
 - break-glass access requires stronger independent controls.
 
@@ -1747,9 +1905,9 @@ retention, restore workflow, and status sent to SystemAdmin. An agent cannot acc
 
 ### 24.3 Rejected actor placement
 
-Running the native backup executor in a SystemAdmin or business actor is rejected. The transitional hosted service may
-share the `Api.Server` process, but native tooling, transfer load, destination dependencies, backup credentials, and
-long-running behavior stay behind the Database Backup Service boundary.
+Running the native backup executor in a SystemAdmin actor, business actor, `Api.Server`, UI process, or Console process
+is rejected. Native tooling, transfer load, destination dependencies, backup credentials, and long-running behavior
+stay in the dedicated Database Backup Host behind the Database Backup Service boundary.
 
 The architecture must not replace native physical backup with actor queries or bulk data over NATS.
 
@@ -1814,12 +1972,12 @@ The shared architecture is satisfied only when the AWS and local designs conform
 15. Secrets never enter actor messages, artifacts, manifests, logs, metrics, or UI models.
 16. Legacy per-database and `.bak` assumptions are absent from the replacement designs.
 17. All native backup and restore behavior executes behind the Database Backup Service boundary and never in an actor;
-    the service starts inside `Api.Server` and is extraction-ready.
+    the service runs in the dedicated Docker-packaged `TomasAI.IFM.Api.DatabaseBackup.Host` from its first
+    implementation.
 18. SystemAdmin owns authoritative control state while the service owns recoverable execution journals.
-19. Stage 1 safely recovers from a shared `Api.Server` restart; Stage 2 allows Core and the service to restart, deploy,
-    throttle, and fail independently.
-20. Aspire later composes the extracted hosts as separate resources without becoming an authoritative state or runtime
-    dependency.
+19. Core and the Database Backup Host can restart, deploy, throttle, and fail independently, and reconciliation resumes
+    incomplete operations without duplicating native work.
+20. Aspire composes the separate Docker resources without becoming an authoritative state or runtime dependency.
 21. SystemAdmin execution intent is published to the service only after its domain event is durably committed.
 22. Service observations update SystemAdmin state only after the Event Actor translates them into commands and the
     Command Actor appends accepted domain events.
@@ -1828,9 +1986,10 @@ The shared architecture is satisfied only when the AWS and local designs conform
     telemetry as domain state.
 25. SystemAdmin contains separate DatabaseBackup and ScheduledTask features with separate actor state and
     responsibilities.
-26. UI callers and ScheduledTask actors use the same DatabaseBackup command and query contracts.
+26. UI callers, Console callers, and ScheduledTask actors use the same DatabaseBackup command and query contracts and
+    differ only in authenticated identity and RequestOrigin.
 27. Every DatabaseBackup domain event, execution-intent event, service event, and translated service-event command
-    carries one concrete BackupSource.
+    carries one concrete BackupSource. `BackupSource.None` is rejected for accepted operations and source-bound events.
 28. AWS and local processing use the same event type names and schemas; no source-specific event class is introduced.
 29. An operation is permanently bound to one BackupSource, and a multi-source policy creates distinct operations under
     one BackupSetId.
@@ -1838,6 +1997,22 @@ The shared architecture is satisfied only when the AWS and local designs conform
     authorized for that source.
 31. ScheduledTask actors do not publish DatabaseBackup execution events, consume raw service events, or call the
     Database Backup Service directly.
+32. PostgreSQL and ScyllaDB are invoked only through high-level, allowlisted backup/restore capabilities; actor messages
+    cannot select arbitrary utilities, arguments, credentials, or filesystem paths.
+33. The normal Console is an actor client rather than a second execution path; break-glass recovery remains an
+    independently secured workflow for loss of Core or NATS.
+34. UI and Console clients may observe the same authorized bounded DatabaseBackup domain events, but neither consumes
+    raw service-response or execution-intent events.
+35. `SystemAdminDbContext` persists only event-derived projections and bounded run statistics; it cannot authorize,
+    resume, complete, or reconcile native work by itself.
+36. The Database Backup Host journal is transactionally durable outside the protected databases and disposable
+    container filesystem, and it retains unacknowledged outbound events and statistics for replay.
+37. Destination manifests contain a bounded final run summary sufficient to interpret and reconcile a recovery point
+    without `SystemAdminDbContext`.
+38. Projection tables can be rebuilt idempotently from domain events, and post-restore destination evidence enters
+    SystemAdmin only through authenticated reconciliation commands and new domain events.
+39. Failed, cancelled, and successful operations retain structured run statistics without persisting high-frequency
+    telemetry or raw native process output as domain or projection state.
 
 ## 28. Decisions required for sign-off
 
@@ -1859,17 +2034,22 @@ The following decisions must be accepted or revised before this overview is sign
 | Legacy contracts | Deprecated and replaced; serialized values are not repurposed |
 | SystemAdmin feature model | Separate DatabaseBackup and ScheduledTask features; DatabaseBackup has exactly three roles: Command Actor owns state transitions, Event Actor processes service events into commands, Query Actor serves projected read models; ScheduledTask owns a separate actor set whose design is deferred |
 | Source-independent contracts | AWS and local use identical command, query, domain-event, execution-event, and service-event types |
-| BackupSource | Required concrete value on every DatabaseBackup event; initial values are `AwsCloud` and `LocalWorkstation`; no `Any` or `Both` event value |
+| BackupSource | Shared enum is `None`, `LocalWorkstation`, and `AwsCloud`; `None` means unselected/default or an explicit all-sources query filter and is invalid for accepted operations and source-bound events |
 | Multi-source operation | One source-bound `OperationId` per BackupSource, coordinated through a shared `BackupSetId` |
-| UI and ScheduledTask integration | Both invoke the same DatabaseBackup commands and queries with distinct RequestOrigin and requesting identity |
+| Operator and scheduler integration | UI, Console, and ScheduledTask invoke the same DatabaseBackup commands and queries with distinct RequestOrigin and requesting identity |
 | ScheduledTask events | Deferred to the ScheduledTask architecture; ScheduledTask does not consume raw Database Backup Service events |
-| Backup execution deployment | Stage 1: isolated hosted service inside `Api.Server`; Stage 2: extracted `TomasAI.IFM.Api.DatabaseBackup.Host` Aspire resource |
-| Service communication | Stage 1 committed in-process event listeners; Stage 2 equivalent NATS event listeners; service events are translated into SystemAdmin commands; HTTP remains limited to observability, diagnostics, and secured break-glass recovery |
-| State ownership | SystemAdmin event sourcing owns all authoritative backup state and read-model projections; Database Backup Service owns recoverable execution journals; destinations own immutable recovery evidence |
-| Aspire role | Future host orchestration, development composition, and shared observability defaults; not a correctness or state dependency |
+| Backup execution deployment | Dedicated Docker-packaged `TomasAI.IFM.Api.DatabaseBackup.Host` composed as an Aspire resource from the first implementation |
+| Service communication | Committed SystemAdmin intent and service observations cross the host boundary over NATS; service events are translated into SystemAdmin commands; HTTP remains limited to observability, diagnostics, database-native service APIs, and secured break-glass recovery |
+| Native database capability API | High-level allowlisted PostgreSQL and ScyllaDB backup/restore interfaces hide replication protocol, native utilities, Scylla Manager REST, and any permitted CLI fallback from actors and clients |
+| State ownership | SystemAdmin event sourcing owns authoritative backup state; `SystemAdminDbContext` owns rebuildable read projections; Database Backup Service owns recoverable execution journals; destinations own immutable recovery evidence |
+| SystemAdmin query persistence | `SystemAdminDbContext` in `Application.Storage/SystemAdminDb` stores rebuildable operation, phase, restore-point, replica, error, health, and `DatabaseRecoveryRunStats` projections in the protected Core PostgreSQL cluster |
+| Run statistics | Bounded phase/final summaries enter through service event -> Event Actor command -> Command Actor domain event -> idempotent projection; raw telemetry remains outside SystemAdminDb |
+| Execution journal | Private host journal on durable storage outside protected databases and the container writable layer; implementation is adapter-specific but its semantics are common |
+| Post-restore reconciliation | Replay restored event streams, validate newer destination/host evidence, record accepted evidence through commands and domain events, then rebuild projections |
+| Aspire role | Host orchestration, Docker composition, startup dependencies, and shared observability defaults from the first implementation; not a correctness or state dependency |
 
 The AWS architecture resolves AWS-specific durability, identity, encryption, lifecycle, regional, and cost decisions.
-The local architecture will resolve filesystem, device, capacity, encryption, offline-copy, and local disaster-boundary
+The local architecture resolves filesystem, device, capacity, encryption, offline-copy, and local disaster-boundary
 decisions while preserving the approved common model.
 
 ## 29. References
@@ -1877,9 +2057,13 @@ decisions while preserving the approved common model.
 - [AWS cloud backup and restore architecture](AWS-Cloud-Backup-Restore-Architecture.md)
 - [PostgreSQL current backup and restore documentation](https://www.postgresql.org/docs/current/backup.html)
 - [PostgreSQL `pg_basebackup`](https://www.postgresql.org/docs/current/app-pgbasebackup.html)
+- [PostgreSQL replication protocol](https://www.postgresql.org/docs/current/protocol-replication.html)
+- [PostgreSQL `pg_verifybackup`](https://www.postgresql.org/docs/current/app-pgverifybackup.html)
 - [PostgreSQL continuous archiving and point-in-time recovery](https://www.postgresql.org/docs/current/continuous-archiving.html)
 - [ScyllaDB backup and restore](https://docs.scylladb.com/manual/stable/operating-scylla/procedures/backup-restore/backup.html)
 - [ScyllaDB Manager backup](https://manager.docs.scylladb.com/stable/backup/)
+- [ScyllaDB Manager restore](https://manager.docs.scylladb.com/stable/restore/)
+- [ScyllaDB Manager REST API](https://manager.docs.scylladb.com/stable/swagger/index.html)
 - [NATS JetStream disaster recovery](https://docs.nats.io/running-a-nats-service/nats_admin/jetstream_admin/disaster_recovery)
 
 ## 30. Revision history
@@ -1892,3 +2076,5 @@ decisions while preserving the approved common model.
 | 0.4 | 2026-08-10 | Defined the bidirectional event contract: committed SystemAdmin execution events drive the service listener; service progress and outcomes are translated into idempotent SystemAdmin commands; accepted state, progress, and errors are persisted as domain events and projected into backup read models. |
 | 0.5 | 2026-08-10 | Defined the three-actor SystemAdmin model: Command Actor owns event-sourced transitions and outbound intent, Event Actor validates service events and translates them into commands, and Query Actor serves event-projected read models. |
 | 0.6 | 2026-08-10 | Approved the shared architecture after scoping the three-actor model to the SystemAdmin DatabaseBackup feature, establishing ScheduledTask as a separate shared command/query caller, making every DatabaseBackup event source-independent through mandatory BackupSource, and deferring ScheduledTask event design. |
+| 0.7 | 2026-08-11 | Proposed the direct Docker/Aspire Database Backup Host, explicit `None`, `LocalWorkstation`, and `AwsCloud` BackupSource semantics, shared UI/Console/ScheduledTask actor API, `Domain.SystemAdmin/DatabaseBackup` feature layout, and high-level PostgreSQL/Scylla backup and restore capability boundary. This supersedes the staged `Api.Server` deployment described in 0.3. |
+| 0.8 | 2026-08-11 | Proposed the four-store persistence model: authoritative SystemAdmin event streams, rebuildable `SystemAdminDbContext` projections and structured run statistics, a private external Database Backup Host execution journal, and destination-resident immutable manifests/run evidence with post-restore reconciliation. |

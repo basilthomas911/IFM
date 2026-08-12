@@ -1,11 +1,11 @@
 # IFM Local Workstation Database Backup and Restore Architecture
 
 Status: Draft for architecture review
-Version: 0.1
-Date: 2026-08-10
+Version: 0.3
+Date: 2026-08-11
 Scope: Local workstation protection for PostgreSQL and ScyllaDB using encrypted online and rotated offline storage
-Parent architecture: Database-Backup-Architecture-Overview.md version 0.6
-Reference architecture: AWS-Cloud-Backup-Restore-Architecture.md version 0.2
+Parent architecture: Database-Backup-Architecture-Overview.md version 0.8
+Reference architecture: AWS-Cloud-Backup-Restore-Architecture.md version 0.4
 BackupSource: LocalWorkstation
 
 ## 1. Purpose
@@ -39,24 +39,34 @@ This design inherits these non-negotiable rules:
 
 1. The SystemAdmin DatabaseBackup feature has Command, Event, and Query actors with the responsibilities defined by the
    overview.
-2. The separate SystemAdmin ScheduledTask feature and the UI invoke the same DatabaseBackup commands and queries.
+2. The UI, Database Backup Console, and separate SystemAdmin ScheduledTask feature invoke the same DatabaseBackup
+   commands and queries using different RequestOrigin and authenticated identities.
 3. ScheduledTask does not consume raw Database Backup Service events or call backup executors directly.
-4. Every DatabaseBackup event uses the common source-independent type and carries BackupSource
+4. The shared BackupSource enum is **None**, **LocalWorkstation**, and **AwsCloud**. This processor accepts only
+   **LocalWorkstation** operations; **None** is limited to unselected/default state or explicit all-sources queries.
+5. Every source-bound DatabaseBackup event uses the common source-independent type and carries BackupSource
    **LocalWorkstation** for this processor.
-5. The DatabaseBackup Command Actor owns authoritative event-sourced control state and committed execution intent.
-6. The DatabaseBackup Event Actor translates service observations into commands and acknowledges only after durable
+6. The DatabaseBackup Command Actor owns authoritative event-sourced control state and committed execution intent.
+7. The DatabaseBackup Event Actor translates service observations into commands and acknowledges only after durable
    Command Actor application or idempotent prior application.
-7. The DatabaseBackup Query Actor reads projected models and never queries a vault or execution journal as a hidden
+8. The DatabaseBackup Query Actor reads projected models and never queries a vault or execution journal as a hidden
    source of truth.
-8. The Database Backup Service executes native capture, transfer, verification, retention, restore, and local-media
+9. The Database Backup Service executes native capture, transfer, verification, retention, restore, and local-media
    behavior outside actor threads.
-9. The service initially runs inside **Api.Server** and later moves into
-   **TomasAI.IFM.Api.DatabaseBackup.Host** without changing contracts or operation semantics.
-10. PostgreSQL and ScyllaDB are protected at physical cluster or declared protection-set boundaries.
-11. Native artifacts never travel through actor mailboxes, NATS, or HTTP management endpoints.
-12. Restore uses fresh targets and requires separate production cutover approval.
-13. Destination manifests and catalogs remain usable without Core, NATS, or the protected databases.
-14. Break-glass recovery is mandatory.
+10. The service runs from the first implementation in the Docker-packaged
+    **TomasAI.IFM.Api.DatabaseBackup.Host**, composed as a separate Aspire resource and communicating with Core over
+    NATS.
+11. The actors live under **TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup** and retain exactly the shared Command,
+    Event, and Query roles; LocalWorkstation does not introduce source-specific actor types.
+12. PostgreSQL and ScyllaDB are protected at physical cluster or declared protection-set boundaries.
+13. Native artifacts never travel through actor mailboxes, NATS, or HTTP management endpoints.
+14. Restore uses fresh targets and requires separate production cutover approval.
+15. Destination manifests and catalogs remain usable without Core, NATS, or the protected databases.
+16. Break-glass recovery is mandatory.
+17. `SystemAdminDbContext` stores rebuildable event projections and bounded run statistics in Core PostgreSQL; the
+    LocalWorkstation processor never writes it directly.
+18. The local Database Backup Host stores its private execution journal on an encrypted persistent volume separate
+    from the protected databases, removable backup media, and disposable container filesystem.
 
 If this document conflicts with the approved overview, the overview controls. Where this document offers weaker
 protection than the AWS reference, the limitation must be visible in policy, read models, UI, alerts, and recovery
@@ -92,7 +102,7 @@ The local reference design adopts:
 
 | Concern | Decision |
 | --- | --- |
-| BackupSource | LocalWorkstation |
+| BackupSource | The shared enum is `None`, `LocalWorkstation`, and `AwsCloud`; this processor admits only `LocalWorkstation` operations |
 | Fast recovery copy | Dedicated encrypted online vault on a different physical storage device from active databases |
 | Offline recovery copy | At least two encrypted removable media devices in rotation |
 | Production local readiness | Requires a current verified offline replica stored separately; online-only is degraded |
@@ -153,7 +163,7 @@ This design does not:
 
 The normal local path is:
 
-    UI or SystemAdmin ScheduledTask actor
+    UI, Console, or SystemAdmin ScheduledTask actor
                   |
                   | common source-scoped command
                   v
@@ -162,7 +172,7 @@ The normal local path is:
                   | committed event
                   | BackupSource = LocalWorkstation
                   v
-    Database Backup Service
+    Docker/Aspire Database Backup Service
        LocalWorkstation processor
           |-- native PostgreSQL/Scylla coordination
           |-- checksum and publication
@@ -575,6 +585,18 @@ The same native formats and consistency boundaries used by AWS apply locally:
 The LocalWorkstation processor owns local destination behavior. It does not change database consistency merely because
 the destination is faster or physically nearby.
 
+The processor consumes the same high-level, allowlisted engine capability interfaces as the AwsCloud processor:
+
+| Capability | Local implementation boundary |
+| --- | --- |
+| PostgreSQL backup/restore | Preflight, start base backup, observe status, verify manifest, manage WAL recovery range, restore to a fresh target, validate, and cancel through a typed capability backed by the PostgreSQL replication protocol and supported native utilities such as `pg_basebackup` and `pg_verifybackup` |
+| ScyllaDB backup/restore | Preflight, start/observe/cancel cluster backup, restore schema before data, start/observe/cancel data restore, and validate node/token coverage through a typed capability backed primarily by the Scylla Manager REST/Swagger API |
+
+PostgreSQL does not expose a general backup REST API, so its native protocol and utilities remain private implementation
+details of the capability adapter. Scylla Manager's structured REST API is preferred; if `sctool` is required for a
+supported operation, it is hidden behind the same interface and allowlist. Actor messages cannot carry executable
+names, arbitrary arguments, raw SQL/CQL, database credentials, or host filesystem paths.
+
 ## 14. PostgreSQL local backup design
 
 ### 14.1 Base backup
@@ -738,8 +760,9 @@ attestation or operational record; it is not inferred from device absence.
 
 ### 17.2 Rotation workflow
 
-1. ScheduledTask or an authorized UI caller submits a common DatabaseBackup command. A backup command may require the
-   offline replica, while verification or reconciliation may repair an already captured eligible artifact set.
+1. ScheduledTask, an authorized UI caller, or an authorized Console caller submits a common DatabaseBackup command. A
+   backup command may require the offline replica, while verification or reconciliation may repair an already captured
+   eligible artifact set.
 2. The LocalWorkstation processor identifies the expected rotation slot and waits without blocking actor threads.
 3. The UI asks the operator to attach the specific MediaId.
 4. The service validates physical, volume, encryption, filesystem, enrollment, and environment identity.
@@ -864,6 +887,7 @@ Local manifests contain every common field plus:
 - replica fault-boundary grade;
 - online or offline availability;
 - last full media verification;
+- bounded final `DatabaseRecoveryRunStats` summary and statistics schema revision;
 - storage and retrieval compatibility; and
 - local capability limitations.
 
@@ -1032,6 +1056,7 @@ The processor reports local behavior through common events:
 | Retention plan or execution changed | Common retention plan/completion/failure events |
 | Source capability or expected medium changed | DatabaseBackupServiceCapabilityChangedEvent |
 | Journal and vault state reconciled | DatabaseBackupServiceReconciliationEvent |
+| Bounded phase or final run measurements captured | DatabaseRecoveryRunStatisticsCapturedEvent |
 
 The service response echoes LocalWorkstation, OperationId, sequence, MediaId or logical replica where applicable, and
 the producing host identity. The DatabaseBackup Event Actor rejects a source mismatch.
@@ -1042,11 +1067,24 @@ Durable progress is emitted for phase, aggregate byte threshold, replica transit
 level, restore milestone, or policy heartbeat. It is not emitted per file, WAL segment, SSTable, buffer, or filesystem
 operation.
 
-## 24. UI and ScheduledTask integration
+### 23.4 SystemAdmin projections and local evidence reconciliation
+
+`SystemAdminDbContext` stores the shared operation, phase, restore-point, replica, structured error, health, and
+`DatabaseRecoveryRunStats` projections in `CorePostgresCluster`. The LocalWorkstation processor has no connection to
+that context. A bounded statistics summary reaches it only through the shared service event, Event Actor translation,
+Command Actor domain event, and idempotent projector path.
+
+After a local restore, SystemAdmin projection tables are replayed from restored domain events. The reconciliation
+workflow then validates any newer online-vault or offline-media manifests, catalog entries, media seals, final run
+summaries, and signed recovery records. Accepted evidence becomes a reconciliation command and new domain event before
+it appears in `SystemAdminDbContext`; local files never update projection tables directly.
+
+## 24. UI, Console, and ScheduledTask integration
 
 ### 24.1 UI
 
-The UI uses common DatabaseBackup commands and queries with RequestOrigin **Ui**. Local views show:
+The UI uses common DatabaseBackup commands and queries with RequestOrigin **Ui** and reacts to the authorized bounded
+DatabaseBackup domain events shared with the Console. Local views show:
 
 - LocalWorkstation source health;
 - online vault identity alias and fault-boundary grade;
@@ -1061,9 +1099,19 @@ The UI uses common DatabaseBackup commands and queries with RequestOrigin **Ui**
 - structured capability limitations; and
 - approval and audit state.
 
-The UI never accepts a raw arbitrary backup path or displays recovery secrets.
+The UI never accepts a raw arbitrary backup path, displays recovery secrets, or consumes execution-intent or raw
+service-response events.
 
-### 24.2 ScheduledTask
+### 24.2 Database Backup Console
+
+The Console uses the same commands and queries with RequestOrigin **Console**, listens to the same authorized bounded
+domain events as the UI, and uses OperationId to follow or cancel work. It may support interactive and script-friendly
+output, deterministic exit codes, and query-based recovery after a disconnected session. It does not consume
+execution-intent or raw service-response events and does not invoke PostgreSQL tools, Scylla Manager, vault adapters,
+or the Database Backup Host directly. The normal Console is distinct from the independently secured break-glass
+recovery kit.
+
+### 24.3 ScheduledTask
 
 ScheduledTask actors use the same queries and commands with RequestOrigin **ScheduledTask**. They may trigger:
 
@@ -1100,11 +1148,21 @@ The restart-safe journal records:
 - manifest, commit, and catalog state;
 - copy and verification checkpoints;
 - media lease and rotation phase;
-- outbound service-event sequence; and
+- outbound service-event sequence and acknowledgement state;
+- bounded phase/final run statistics awaiting Core acknowledgement;
+- journal schema revision and last reconciliation state; and
 - cleanup eligibility.
 
 The journal is outside the protected databases. It must not be stored only on the removable medium currently being
-written.
+written or in the container writable layer. The initial LocalWorkstation implementation uses a transactional embedded
+journal database, preferably SQLite configured for durable commits, on an encrypted persistent Docker volume or
+validated encrypted bind-mounted volume. The volume is separate from active PostgreSQL/Scylla data and removable
+backup media. The single Database Backup Host writer owns journal migrations and locking; actors and clients never open
+the file.
+
+Loss of this journal makes incomplete work non-resumable but does not invalidate a committed vault manifest. On journal
+loss, the processor reconstructs published evidence from manifests and catalogs, fails or quarantines ambiguous
+incomplete work, and reconciles through the common actor flow. It never infers completion from files alone.
 
 ### 25.2 Failure matrix
 
@@ -1272,8 +1330,8 @@ service has separate limits for:
 - restore hydration; and
 - filesystem operations.
 
-Stage 1 limits protect actor and API responsiveness in the shared process. Stage 2 moves the processor into the
-independently constrained Database Backup Host.
+The independently constrained Database Backup Host protects actor/API responsiveness and allows backup CPU, memory,
+I/O, and lifecycle limits to be applied without sharing the Api.Server process.
 
 ### 28.2 Physical topology
 
@@ -1307,12 +1365,13 @@ recovery behavior.
 Forecasts include database growth, WAL volatility, SSTable churn, complete dependency chains, incoming duplication,
 rotation delay, diagnostic retention, filesystem overhead, offline self-contained sets, and restore workspace.
 
-## 29. Configuration and Aspire evolution
+## 29. Configuration and Aspire composition
 
 ### 29.1 Core-owned configuration
 
 Core owns:
 
+- the `SystemAdminDbContext` projection connection, schema version, migration policy, and projector checkpoint policy;
 - LocalWorkstation enablement;
 - protection sets and classifications;
 - recovery objectives;
@@ -1334,6 +1393,7 @@ The service owns validated non-domain configuration:
 - filesystem and encryption requirements;
 - stable identity providers;
 - journal and restore-workspace location;
+- journal provider, schema revision, encryption/durability settings, and compaction policy;
 - buffer, bandwidth, checksum, and concurrency limits;
 - capacity reserves;
 - native database endpoint or agent path;
@@ -1342,34 +1402,22 @@ The service owns validated non-domain configuration:
 
 Configuration contains secret references, not recovery secrets.
 
-### 29.3 Stage 1
+### 29.3 Database Backup Host resource
 
-Inside **Api.Server**, LocalWorkstation behavior:
-
-- runs outside actor call stacks;
-- has a dedicated configuration and registration module;
-- uses bounded queues;
-- maintains a restart-safe journal;
-- exposes source-specific health;
-- supports both UI and ScheduledTask command origins; and
-- remains testable without all business domains.
-
-The shared process cannot provide strong credential or crash isolation.
-
-### 29.4 Stage 2
-
-After extraction, **TomasAI.IFM.Api.DatabaseBackup.Host** receives:
+From the first implementation, Docker-packaged **TomasAI.IFM.Api.DatabaseBackup.Host** receives:
 
 - its own process and service identity;
 - exclusive local vault permissions;
 - independent CPU, memory, and I/O limits;
 - direct removable-media observation;
-- source-independent NATS contracts;
+- source-independent NATS contracts used identically by UI, Console, and ScheduledTask callers;
 - independent deployment and restart;
 - local health and telemetry; and
 - no normal application database credentials.
 
-Aspire may compose the host for development but is not needed for media recovery or after host startup.
+Aspire composes the host, NATS, databases, health dependencies, and local resource references for development and
+integration testing. Aspire is not needed for media recovery or after the host container starts, and it owns no
+authoritative operation state.
 
 ## 30. Environment and test strategy
 
@@ -1380,6 +1428,9 @@ Tests cover:
 - BackupSource LocalWorkstation routing;
 - rejection of AwsCloud events by the local processor;
 - shared event schema compatibility;
+- idempotent `SystemAdminDbContext` operation, phase, error, replica, and run-stat projection;
+- projection rebuild from SystemAdmin domain events;
+- durable local journal restart, duplicate event, unacknowledged statistics replay, and schema migration;
 - path normalization and traversal;
 - volume/media identity;
 - no-overwrite publication;
@@ -1444,8 +1495,9 @@ Production local readiness requires:
 
 The local design is accepted only when:
 
-1. Every source-bound event carries BackupSource **LocalWorkstation** and uses the common event type.
-2. UI and ScheduledTask actors use the common DatabaseBackup command and query surface.
+1. Every source-bound event carries BackupSource **LocalWorkstation** and uses the common event type;
+   BackupSource **None** is rejected for operations and source-bound events.
+2. UI, Console, and ScheduledTask actors use the common DatabaseBackup command and query surface.
 3. ScheduledTask does not consume raw local service events.
 4. The online vault is on a different physical device from active databases and the operating system.
 5. At least two encrypted offline media devices are enrolled for production local protection.
@@ -1476,15 +1528,30 @@ The local design is accepted only when:
 30. Local ACLs and mounted encryption are not described as AWS-equivalent immutability.
 31. Ransomware procedure prevents known-clean media from being attached to a suspect host.
 32. Media retirement does not rely on ordinary file deletion as secure erasure.
-33. Stage 1 survives Api.Server restart through the external journal.
-34. Stage 2 moves unchanged behavior into the Database Backup Host.
+33. The independent Database Backup Host and Core can restart separately and reconcile through the external journal
+    without duplicating native work.
+34. The service runs as a Docker-packaged Aspire resource from the first implementation and never executes inside
+    Api.Server or an actor.
 35. Representative benchmarks and drills demonstrate acceptable application impact, RPO, and RTO.
+36. PostgreSQL and ScyllaDB execution is available only through the shared high-level allowlisted capabilities; no
+    actor or client can supply native commands, arbitrary arguments, credentials, or paths.
+37. The Console observes the same actor API and events as the UI and cannot bypass the DatabaseBackup actors.
+38. UI and Console observe only authorized bounded DatabaseBackup domain events, never execution-intent or raw service
+    events.
+39. `SystemAdminDbContext` contains only rebuildable event projections and bounded run statistics and is never written
+    directly by the LocalWorkstation processor.
+40. The local execution journal uses a transactional store on an encrypted persistent volume outside protected
+    databases, removable media, and the container writable layer.
+41. Successful, failed, and cancelled local operations retain bounded structured run statistics; immutable completed
+    manifests retain the final summary needed for disaster reconciliation.
+42. After restore, newer vault/media evidence enters SystemAdmin only through authenticated reconciliation commands and
+    domain events before projection.
 
 ## 32. Decisions requested during review
 
 | Decision | Proposed direction |
 | --- | --- |
-| BackupSource | LocalWorkstation |
+| BackupSource | Shared enum is `None`, `LocalWorkstation`, and `AwsCloud`; this processor accepts `LocalWorkstation`, while `None` is only unselected/default or an all-sources query filter |
 | Minimum topology | One dedicated encrypted online vault plus two encrypted rotated offline media devices |
 | Production readiness | Requires a current verified offline medium stored separately |
 | Windows encryption | BitLocker for fixed and removable volumes |
@@ -1500,10 +1567,16 @@ The local design is accepted only when:
 | PostgreSQL WAL acknowledgement | After verified online-vault durability |
 | Offline RPO | Separate metric based on last verified sealed medium |
 | Scylla capture | Scylla Manager with service-controlled local target/staging |
+| Native capability API | Shared typed PostgreSQL and Scylla backup/restore ports; PostgreSQL protocol/utilities and Scylla Manager REST or allowlisted CLI fallback remain adapter details |
 | Restore workspace | Separate encrypted workspace; vault files never restored in place |
 | Retention | Exact-path approved plan; offline work waits for exact MediaId |
 | Secure disposal | Cryptographic erase, approved secure erase, or physical destruction |
 | ScheduledTask | Same DatabaseBackup commands and queries; raw service events remain isolated |
+| Console | Same actor commands, queries, and bounded events as UI; no direct native or host execution path |
+| Deployment | Dedicated Docker-packaged Database Backup Host composed by Aspire from the first implementation |
+| SystemAdmin persistence | Rebuildable `SystemAdminDbContext` projections and `DatabaseRecoveryRunStats` in Core PostgreSQL; no direct processor writes |
+| Local execution journal | Transactional embedded database, preferably durable SQLite, on an encrypted persistent Docker/bind-mounted volume separate from protected databases and backup media |
+| Recovery reconciliation | Replay restored events, validate newer signed local evidence, append accepted reconciliation events, then update projections |
 | Cutover | Separate approval after fresh-target validation |
 
 ## 33. References
@@ -1533,12 +1606,17 @@ The local design is accepted only when:
 ### Database-native recovery
 
 - [PostgreSQL pg_basebackup](https://www.postgresql.org/docs/current/app-pgbasebackup.html)
+- [PostgreSQL replication protocol](https://www.postgresql.org/docs/current/protocol-replication.html)
+- [PostgreSQL pg_verifybackup](https://www.postgresql.org/docs/current/app-pgverifybackup.html)
 - [PostgreSQL continuous archiving and PITR](https://www.postgresql.org/docs/current/continuous-archiving.html)
 - [Scylla Manager backup](https://manager.docs.scylladb.com/stable/backup/)
 - [Scylla Manager restore](https://manager.docs.scylladb.com/stable/restore/)
+- [Scylla Manager REST API](https://manager.docs.scylladb.com/stable/swagger/index.html)
 
 ## 34. Revision history
 
 | Version | Date | Summary |
 | --- | --- | --- |
 | 0.1 | 2026-08-10 | Created the LocalWorkstation reference architecture covering encrypted online and rotated offline vaults, stable media identity, durable publication, Windows/Linux storage, PostgreSQL and Scylla workflows, common source-independent events, retention, restore, break-glass recovery, security, observability, testing, and decisions for review. |
+| 0.2 | 2026-08-11 | Aligned local backup with overview 0.7: direct Docker/Aspire host deployment, shared three-value BackupSource semantics, the common UI/Console/ScheduledTask actor API, the Domain.SystemAdmin DatabaseBackup feature boundary, and typed PostgreSQL/Scylla native capability adapters. |
+| 0.3 | 2026-08-11 | Proposed the shared four-store persistence model for LocalWorkstation: `SystemAdminDbContext` projections/run statistics, a durable embedded execution journal on an encrypted persistent volume, immutable local manifest run evidence, and event-gated post-restore reconciliation. |
