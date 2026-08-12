@@ -21,6 +21,7 @@ using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
+using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 
 namespace TomasAI.IFM.Application.Storage;
 
@@ -45,6 +46,7 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public ISecuritiesDbContext SecuritiesDb => _dbContextResolver.Resolve<SecuritiesDbContext>() as ISecuritiesDbContext;
     public ITradeDbContext TradeDb => _dbContextResolver.Resolve<TradeDbContext>() as ITradeDbContext;
     public IYieldCurveRatesDbContext YieldCurveRatesDb => _dbContextResolver.Resolve<YieldCurveRatesDbContext>() as IYieldCurveRatesDbContext;
+    public ISystemAdminDbContext SystemAdminDb => _dbContextResolver.Resolve<SystemAdminDbContext>() as ISystemAdminDbContext;
     public IObjectRepository<EconomicCalendarsDbContext> EconomicCalendarsDb => _dbContextResolver.Resolve<EconomicCalendarsDbContext>();
 
     public EventSourceSchemaDb EventSourceSchema => (_dbContextResolver.Resolve<EventSourceSchemaDb>() as EventSourceSchemaDb)!;
@@ -57,6 +59,7 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public ReferenceSchemaDb ReferenceSchema => (_dbContextResolver.Resolve<ReferenceSchemaDb>() as ReferenceSchemaDb)!;
     public SecuritiesSchemaDb SecuritiesSchema => (_dbContextResolver.Resolve<SecuritiesSchemaDb>() as SecuritiesSchemaDb)!;
     public TradeSchemaDb TradeSchema => (_dbContextResolver.Resolve<TradeSchemaDb>() as TradeSchemaDb)!;
+    public SystemAdminSchemaDb SystemAdminSchema => (_dbContextResolver.Resolve<SystemAdminSchemaDb>() as SystemAdminSchemaDb)!;
 
     public IDbContextPool<ReferenceDbContext> ReferencePool => GetPool<ReferenceDbContext>();
 

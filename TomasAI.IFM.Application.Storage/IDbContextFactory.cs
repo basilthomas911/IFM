@@ -21,6 +21,7 @@ using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
+using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 
 namespace TomasAI.IFM.Application.Storage;
 
@@ -44,6 +45,7 @@ public interface IDbContextFactory
     ITradeDbContext TradeDb { get; }
     IObjectRepository<EconomicCalendarsDbContext> EconomicCalendarsDb { get; }
     IYieldCurveRatesDbContext YieldCurveRatesDb { get; }
+    ISystemAdminDbContext SystemAdminDb { get; }
 
     EventSourceSchemaDb EventSourceSchema { get; }
     LogSchemaDb LogSchema { get; }
@@ -55,5 +57,6 @@ public interface IDbContextFactory
     ReferenceSchemaDb ReferenceSchema { get; }
     SecuritiesSchemaDb SecuritiesSchema { get; }
     TradeSchemaDb TradeSchema { get; }
+    SystemAdminSchemaDb SystemAdminSchema { get; }
 
 }

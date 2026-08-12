@@ -38,6 +38,7 @@ using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
+using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 using TomasAI.IFM.Domain.Fund;
 using TomasAI.IFM.Domain.MarketData;
 using TomasAI.IFM.Domain.MarketData.Analytics;
@@ -46,6 +47,7 @@ using TomasAI.IFM.Domain.MarketData.Securities;
 using TomasAI.IFM.Domain.Reference;
 using TomasAI.IFM.Domain.Reference.Services;
 using TomasAI.IFM.Domain.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
 using TomasAI.IFM.Domain.Trade;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
@@ -352,6 +354,8 @@ public static class Startup
             services.AddSingleton(_ =>
             new DbConnectionSettings()
                 .Add("EventSourceActorDbConnection", config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
+                .Add("SystemAdminDbConnection", config.GetConnectionString("SystemAdminDbConnection")
+                    ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("LogDbConnection", config.GetConnectionString("LogDbConnection")!, "System.Data.Postgres")
                 .Add("SequenceIdDbConnection", config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
                 .Add("FundDbConnection", config.GetConnectionString("FundDbConnection")!, "System.Data.ScyllaDb")
@@ -388,6 +392,7 @@ public static class Startup
             services.AddSingleton<ReferenceSchemaDb>();
             services.AddSingleton<SecuritiesSchemaDb>();
             services.AddSingleton<TradeSchemaDb>();
+            services.AddSingleton<SystemAdminSchemaDb>();
             services.AddSingleton(_ =>
                    new StorageUrlSettings()
                         .Add("DomainData", config.GetValue<string>("AppSettings:DomainDataStorageBaseUri")!)
@@ -503,6 +508,8 @@ public static class Startup
             // register open generic handlers...
             logger.LogInformationEvent("ApiServer", "register open generic handlers...");
             _siContainer.RegisterSingleton<IDataCacheService, DataCacheService>();
+            _siContainer.RegisterSingleton<ISystemAdminDbContext, SystemAdminDbContext>();
+            _siContainer.RegisterSingleton<IDatabaseBackupExecutionOutbox, DatabaseBackupExecutionOutbox>();
             var projectorReliabilityOptions = app.Configuration
                 .GetSection(EventProjectorReliabilityOptions.SectionName)
                 .Get<EventProjectorReliabilityOptions>() ?? new EventProjectorReliabilityOptions();

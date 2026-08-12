@@ -33,6 +33,7 @@
     <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage.Azure\TomasAI.IFM.Framework.Storage.Azure.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage\TomasAI.IFM.Framework.Storage.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation\TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Reference.Shared\TomasAI.IFM.Domain.Reference.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />

@@ -1,8 +1,8 @@
 # Local Workstation Database Backup and Restore Code Implementation Specification
 
-**Status:** Phase 1 implemented and Gate 1 validated; Phase 2 pending review
+**Status:** Phase 5 implemented and Gate 5 validated; Phase 6 pending review
 
-**Version:** 0.3
+**Version:** 0.7
 
 **Date:** 2026-08-12
 
@@ -1187,12 +1187,18 @@ Destructive qualification tests are separately tagged and opt-in.
 
 ### Phase 2: Shared contracts and typed client API
 
+**Implementation status:** Complete on 2026-08-12. See
+`Local-Workstation-Backup-Restore-Phase-2-Validation-Report.md`.
+
 - Add IDs, enums, envelopes, commands, execution events, service events, domain events, queries, read models.
 - Add MessagePack/validation tests and NATS client wrappers.
 
 **Gate 2:** serialization compatibility, contract validation, and API wrapper tests pass with no native dependencies.
 
 ### Phase 3: Domain actors
+
+**Implementation status:** Complete on 2026-08-12. See
+`Local-Workstation-Backup-Restore-Phase-3-Validation-Report.md`.
 
 - Implement Command state machines/repositories, Event translations, Query handlers, registration, and event outbox.
 - Add unit, integration, BDD, and initial benchmark tests.
@@ -1201,11 +1207,17 @@ Destructive qualification tests are separately tagged and opt-in.
 
 ### Phase 4: `SystemAdminDbContext` and projectors
 
+**Implementation status:** Complete on 2026-08-12. See
+`Local-Workstation-Backup-Restore-Phase-4-Validation-Report.md`.
+
 - Add schema, repositories, read models, projectors, checkpointing, replay, and reconciliation query support.
 
 **Gate 4:** PostgreSQL integration and full projection rebuild tests pass; actors cannot query the service journal.
 
 ### Phase 5: Host and SQLite journal skeleton
+
+**Implementation status:** Complete on 2026-08-12. See
+`Local-Workstation-Backup-Restore-Phase-5-Validation-Report.md`.
 
 - Add application ports, LocalWorkstation processor registry, SQLite journal/inbox/outbox/leases, host lifecycle,
   health, and NATS plumbing using fake native capabilities.
@@ -1335,3 +1347,7 @@ For each phase, the implementing agent must:
 | 0.1 | 2026-08-11 | Initial code implementation specification for LocalWorkstation, including `IJSActorEventListener`, actor contracts, SystemAdmin projections, SQLite journal, native capabilities, Docker/Aspire host, Console, WinForms migration, tests, and gated delivery phases. |
 | 0.2 | 2026-08-12 | Changed the paper-trading sequence to standalone .NET 10 Worker development, deferred Ubuntu 24.04 Docker packaging to Gate 10, deferred Aspire to a future full-system Linux production migration, and excluded other capability-host designs. |
 | 0.3 | 2026-08-12 | Implemented and validated Gate 1: distinct Core/JetStream listener contracts and DI registrations, durable explicit-ack JetStream event listening, bounded admission, failure redelivery, restart recovery, metrics, and real-NATS tests. |
+| 0.4 | 2026-08-12 | Implemented and validated Gate 2: versioned DatabaseBackup IDs, enums, envelopes, commands, execution/service/domain events, queries, read models, validation, MessagePack compatibility coverage, and cancellation-aware typed NATS client APIs. |
+| 0.5 | 2026-08-12 | Implemented and validated Gate 3: DatabaseBackup Command/Event/Query actors, event-sourced aggregate states and repository, service-event translation, execution-intent outbox tracking, dependency registration, and unit/integration/BDD/benchmark coverage. |
+| 0.6 | 2026-08-12 | Implemented and validated Gate 4: Core PostgreSQL SystemAdmin schema, bounded query repository, transactional idempotent projections, checkpoints, authoritative-event replay, full projection rebuild, runtime projector wiring, and live PostgreSQL integration coverage without service-journal access. |
+| 0.7 | 2026-08-12 | Implemented and validated Gate 5: destination-neutral recovery ports, fenced SQLite journal/inbox/outbox/leases, standalone host lifecycle and health, durable JetStream ingress/egress, fake native capabilities, restart recovery, and a real JetStream-to-PostgreSQL end-to-end test. |

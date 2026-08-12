@@ -29,6 +29,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Fund\TomasAI.IFM.Domain.Fund.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.SystemAdmin\TomasAI.IFM.Domain.SystemAdmin.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Application.Shared\TomasAI.IFM.Domain.Application.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId\TomasAI.IFM.Framework.SequenceId.csproj" />
