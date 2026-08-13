@@ -8,6 +8,23 @@ public sealed class LocalWorkstationSourceOptions
 
     public bool Enabled { get; set; }
     public bool DryRun { get; set; } = true;
+    public bool PostgreSqlEnabled { get; set; } = true;
+    public bool ScyllaEnabled { get; set; } = true;
+
+    public void Validate()
+    {
+        if (Enabled && !DryRun && !PostgreSqlEnabled && !ScyllaEnabled)
+            throw new InvalidOperationException(
+                "At least one native database engine must be enabled when LocalWorkstation dry-run mode is disabled.");
+    }
+
+    public bool IsEngineEnabled(DatabaseEngine engine)
+        => !Enabled || DryRun || engine switch
+        {
+            DatabaseEngine.PostgreSql => PostgreSqlEnabled,
+            DatabaseEngine.ScyllaDb => ScyllaEnabled,
+            _ => false
+        };
 }
 
 public sealed class PostgreSqlBackupOptions

@@ -129,8 +129,7 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         var common = new[]
         {
             "restore", "--cluster", target.ManagerCluster, "--location", source.BackupLocation,
-            "--snapshot-tag", capture.SnapshotTag, "--keyspace", string.Join(',', source.Keyspaces),
-            "--num-retries=0"
+            "--snapshot-tag", capture.SnapshotTag, "--num-retries=0"
         };
         progress.Report(new DatabaseNativeProgress(Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseRecoveryPhase.Transferring, 5));
         var schema = await RunAsync(ScyllaManagerOperation.RestoreSchema,
@@ -141,7 +140,8 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         await AwaitTaskAsync(target.ManagerCluster, schemaTask, progress, cancellationToken).ConfigureAwait(false);
         progress.Report(new DatabaseNativeProgress(Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseRecoveryPhase.Transferring, 45));
         var tables = await RunAsync(ScyllaManagerOperation.RestoreTables,
-            [.. common, "--restore-tables", "--name", "ifm-tables-" + operationId.Format()],
+            [.. common, "--keyspace", string.Join(',', source.Keyspaces),
+                "--restore-tables", "--name", "ifm-tables-" + operationId.Format()],
             _options.OperationTimeout, cancellationToken).ConfigureAwait(false);
         var tablesTask = TaskPattern().Match(tables.StandardOutput).Value;
         if (string.IsNullOrEmpty(tablesTask)) tablesTask = "restore/ifm-tables-" + operationId.Format();
@@ -212,21 +212,19 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         var deadline = DateTimeOffset.UtcNow + _options.OperationTimeout;
         while (DateTimeOffset.UtcNow < deadline)
         {
-            var result = await RunAsync(ScyllaManagerOperation.Progress,
-                ["progress", "--cluster", cluster, taskReference], _options.OperationTimeout, cancellationToken)
+            var result = await RunAsync(ScyllaManagerOperation.Tasks,
+                ["tasks", "--cluster", cluster], _options.OperationTimeout, cancellationToken)
                 .ConfigureAwait(false);
-            var text = result.StandardOutput;
-            if (text.Contains("Status:", StringComparison.OrdinalIgnoreCase)
-                && text.Contains("DONE", StringComparison.OrdinalIgnoreCase))
+            var taskRow = result.StandardOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(static line => SplitTableRow(line))
+                .FirstOrDefault(cells => cells.Length > 0
+                    && string.Equals(cells[0], taskReference, StringComparison.OrdinalIgnoreCase));
+            if (taskRow?.Contains("DONE", StringComparer.OrdinalIgnoreCase) == true)
                 return;
-            if (text.Contains("ERROR", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("ABORTED", StringComparison.OrdinalIgnoreCase))
+            if (taskRow?.Any(static cell => cell.Equals("ERROR", StringComparison.OrdinalIgnoreCase)
+                    || cell.Equals("ABORTED", StringComparison.OrdinalIgnoreCase)
+                    || cell.Equals("STOPPED", StringComparison.OrdinalIgnoreCase)) == true)
                 throw new InvalidOperationException("The Scylla Manager task did not complete successfully.");
-            var percent = PercentPattern().Match(text);
-            if (percent.Success)
-                progress.Report(new DatabaseNativeProgress(
-                    Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseRecoveryPhase.Capturing,
-                    Math.Clamp(int.Parse(percent.Groups[1].Value, CultureInfo.InvariantCulture), 1, 99)));
             await Task.Delay(_options.PollInterval, cancellationToken).ConfigureAwait(false);
         }
         throw new TimeoutException("The Scylla Manager task exceeded its configured timeout.");
@@ -293,9 +291,6 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
 
     [GeneratedRegex(@"\b[0-9a-f]{8}-[0-9a-f-]{27}\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TokenRangePattern();
-
-    [GeneratedRegex(@"Progress:\s*(\d+)%", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex PercentPattern();
 
     [GeneratedRegex(@"^\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9._-]+)?$", RegexOptions.CultureInvariant)]
     private static partial Regex SemanticVersionPattern();

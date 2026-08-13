@@ -1,0 +1,41 @@
+name: ifm-scylladb
+
+services:
+  scylladb:
+    image: ifm/scylla-with-manager-agent:6.2.2-3.4.2
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ifm-scylladb
+    command:
+      - --broadcast-rpc-address
+      - 172.30.20.10
+    ports:
+      - "9042:9042"
+    volumes:
+      - scylla-data:/var/lib/scylla
+      - type: bind
+        source: ${IFM_SCYLLA_MANAGER_AGENT_CONFIG:-E:/IFM/DatabaseBackup/secrets/scylla-manager-agent.yaml}
+        target: /etc/scylla-manager-agent/scylla-manager-agent.yaml
+        read_only: true
+    networks:
+      scylla-management:
+        ipv4_address: 172.30.20.10
+    restart: always
+    stop_grace_period: 2m
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "--silent", "http://127.0.0.1:10000/storage_service/scylla_release_version" ]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 20
+
+volumes:
+  scylla-data:
+    external: true
+    name: docker_scylla
+
+networks:
+  scylla-management:
+    external: true
+    name: ifm_scylla_management

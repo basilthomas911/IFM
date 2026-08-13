@@ -1,0 +1,74 @@
+name: ifm-database-backup-development
+
+services:
+  database-backup-host:
+    image: ifm/database-backup-host:development
+    build:
+      context: ../..
+      dockerfile: TomasAI.IFM.Api.DatabaseBackup.Host/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Container
+      ASPNETCORE_URLS: http://+:8080
+      Nats__JetStreamEventListener__Url: ${IFM_NATS_URL:-nats://host.docker.internal:4222}
+      Nats__JetStreamEventListener__DurableConsumerNamePrefix: ${IFM_BACKUP_CONSUMER_PREFIX:-ifm-database-backup-development}
+      Nats__JetStreamEventListener__DeliverPolicy: ${IFM_BACKUP_DELIVER_POLICY:-1}
+      Nats__JetStreamProducer__Url: ${IFM_NATS_URL:-nats://host.docker.internal:4222}
+      DatabaseBackup__Host__HostId: ${IFM_BACKUP_HOST_ID:-development-database-backup-host}
+      DatabaseBackup__EnvironmentId: ${IFM_ENVIRONMENT:-development}
+      DatabaseBackup__Sources__LocalWorkstation__Enabled: ${IFM_BACKUP_ENABLED:-true}
+      DatabaseBackup__Sources__LocalWorkstation__DryRun: ${IFM_BACKUP_DRY_RUN:-false}
+      DatabaseBackup__Sources__LocalWorkstation__PostgreSqlEnabled: ${IFM_POSTGRES_BACKUP_ENABLED:-true}
+      DatabaseBackup__Sources__LocalWorkstation__ScyllaEnabled: ${IFM_SCYLLA_BACKUP_ENABLED:-false}
+      DatabaseBackup__Scylla__ManagerApiUrl: ${IFM_SCYLLA_MANAGER_API_URL:-http://host.docker.internal:5080/api/v1}
+      IFM_POSTGRES_BACKUP_CONNECTION: ${IFM_POSTGRES_BACKUP_CONNECTION:?Set IFM_POSTGRES_BACKUP_CONNECTION before starting the native development host}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - "127.0.0.1:${IFM_BACKUP_HEALTH_PORT:-8088}:8080"
+    volumes:
+      - type: bind
+        source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/journal
+        target: /var/lib/ifm/database-backup/journal
+      - type: bind
+        source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/online-vault
+        target: /var/lib/ifm/database-backup/online-vault
+      - type: bind
+        source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/offline-media
+        target: /var/lib/ifm/database-backup/offline-media
+      - type: bind
+        source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/native/postgresql
+        target: /var/lib/ifm/database-backup/postgresql
+      - type: bind
+        source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/native/scylla
+        target: /var/lib/ifm/database-backup/scylla
+      - type: bind
+        source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/restore/workspace
+        target: /var/lib/ifm/database-restore/workspace
+      - type: bind
+        source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/restore/postgresql
+        target: /var/lib/ifm/database-restore/postgresql
+      - type: bind
+        source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/restore/scylla
+        target: /var/lib/ifm/database-restore/scylla
+      - type: bind
+        source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/secrets
+        target: /run/secrets
+        read_only: true
+      - type: bind
+        source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/tools/scylla-manager
+        target: /opt/scylla-manager/bin
+        read_only: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/health/ready" ]
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 6

@@ -120,7 +120,7 @@ public sealed class ScyllaBackupCapabilityIntegrationTests : IDisposable
             ["read-model-scylla"] = new()
             {
                 ManagerCluster = "gate7-source",
-                BackupLocation = "localstorage:gate7-backups",
+                BackupLocation = "s3:gate7-backups",
                 Keyspaces = ["gate7_keyspace"],
                 RequiredLiveNodes = 3
             }

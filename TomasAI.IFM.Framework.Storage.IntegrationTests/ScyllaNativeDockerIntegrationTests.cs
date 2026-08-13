@@ -86,7 +86,7 @@ public sealed class ScyllaNativeDockerIntegrationTests : IAsyncLifetime
             ["read-model-scylla"] = new()
             {
                 ManagerCluster = "gate7-source-disposable",
-                BackupLocation = "localstorage:gate7-native",
+                BackupLocation = "s3:gate7-native",
                 Keyspaces = ["gate7_keyspace"],
                 RequiredLiveNodes = 1
             }

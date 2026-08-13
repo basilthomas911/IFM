@@ -1,0 +1,152 @@
+name: ifm-scylla-manager
+
+services:
+  aio-init:
+    image: scylladb/scylla:6.2.2
+    container_name: ifm-scylla-aio-init
+    privileged: true
+    entrypoint: [ "/usr/sbin/sysctl" ]
+    command: [ "-w", "fs.aio-max-nr=${IFM_SCYLLA_AIO_MAX_NR:-262144}" ]
+    restart: "no"
+
+  scylla-backup-s3:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: ifm-scylla-backup-s3
+    command: [ "server", "/data", "--console-address", ":9001" ]
+    env_file:
+      - ${IFM_SCYLLA_MINIO_ENV:-E:/IFM/DatabaseBackup/secrets/scylla-manager-minio.env}
+    ports:
+      - "127.0.0.1:19000:9000"
+      - "127.0.0.1:19001:9001"
+    volumes:
+      - type: bind
+        source: ${IFM_SCYLLA_MANAGER_OBJECT_ROOT:-E:/IFM/DatabaseBackup/scylla-manager/object-storage}
+        target: /data
+    networks:
+      scylla-management:
+        ipv4_address: 172.30.20.22
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
+
+  scylla-backup-s3-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: ifm-scylla-backup-s3-init
+    depends_on:
+      scylla-backup-s3:
+        condition: service_healthy
+    env_file:
+      - ${IFM_SCYLLA_MINIO_ENV:-E:/IFM/DatabaseBackup/secrets/scylla-manager-minio.env}
+    entrypoint: [ "/bin/sh", "-c" ]
+    command:
+      - >-
+        mc alias set ifm http://scylla-backup-s3:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" &&
+        mc mb --ignore-existing ifm/ifm-development
+    networks:
+      - scylla-management
+    restart: "no"
+
+  scylla-manager-db:
+    image: scylladb/scylla:6.2.2
+    container_name: ifm-scylla-manager-db
+    command: [ "--smp", "1", "--memory", "1G", "--overprovisioned", "1", "--developer-mode", "1" ]
+    volumes:
+      - manager-db-data:/var/lib/scylla
+    networks:
+      scylla-management:
+        ipv4_address: 172.30.20.21
+    restart: unless-stopped
+    depends_on:
+      aio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "--silent", "http://127.0.0.1:10000/storage_service/scylla_release_version" ]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 20
+
+  scylla-manager:
+    image: scylladb/scylla-manager:3.4.2
+    container_name: ifm-scylla-manager
+    depends_on:
+      scylla-manager-db:
+        condition: service_healthy
+      scylla-backup-s3-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:5080:5080"
+      - "127.0.0.1:5090:5090"
+    networks:
+      scylla-management:
+        ipv4_address: 172.30.20.20
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "sctool", "version" ]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+
+  sctool-export:
+    image: scylladb/scylla-manager:3.4.2
+    profiles: [ "tools" ]
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: [ "install -m 0755 /usr/bin/sctool /export/sctool" ]
+    volumes:
+      - type: bind
+        source: ${IFM_SCYLLA_MANAGER_TOOL_ROOT:-E:/IFM/DatabaseBackup/tools/scylla-manager}
+        target: /export
+
+  scylla-restore-validation:
+    profiles: [ "validation" ]
+    image: ifm/scylla-with-manager-agent:6.2.2-3.4.2
+    build:
+      context: ../ScyllaDb
+      dockerfile: Dockerfile
+    container_name: ifm-scylla-restore-validation
+    depends_on:
+      aio-init:
+        condition: service_completed_successfully
+    command:
+      - --smp
+      - "1"
+      - --memory
+      - 2G
+      - --overprovisioned
+      - "1"
+      - --developer-mode
+      - "1"
+      - --broadcast-rpc-address
+      - 172.30.20.11
+    volumes:
+      - restore-validation-data:/var/lib/scylla
+      - type: bind
+        source: ${IFM_SCYLLA_MANAGER_AGENT_CONFIG:-E:/IFM/DatabaseBackup/secrets/scylla-manager-agent.yaml}
+        target: /etc/scylla-manager-agent/scylla-manager-agent.yaml
+        read_only: true
+    networks:
+      scylla-management:
+        ipv4_address: 172.30.20.11
+    stop_grace_period: 2m
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "--silent", "http://127.0.0.1:10000/storage_service/scylla_release_version" ]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 20
+
+volumes:
+  manager-db-data:
+    name: ifm_scylla_manager_db_data
+  restore-validation-data:
+    name: ifm_scylla_restore_validation_data
+
+networks:
+  scylla-management:
+    external: true
+    name: ifm_scylla_management

@@ -63,6 +63,9 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
 
     public BackupSource Source => BackupSource.LocalWorkstation;
 
+    public bool CanProcess(DatabaseProtectionSetId protectionSetId)
+        => _engineSelector.CanSelect(protectionSetId);
+
     public async ValueTask<DatabaseExecutionAdmission> AdmitAsync(
         DatabaseExecutionIntent intent,
         CancellationToken cancellationToken)

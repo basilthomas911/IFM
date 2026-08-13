@@ -1,0 +1,23 @@
+name: ifm-redis
+
+services:
+  redis:
+    image: redis:7.0.9
+    container_name: redis
+    command: [ "redis-server", "--appendonly", "yes" ]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: always
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 6
+
+volumes:
+  redis-data:
+    external: true
+    name: ${IFM_REDIS_VOLUME:-09fcb93400cc29ebc204581aee6d891a8f65963e69ae93f3c1856dce064eaeff}

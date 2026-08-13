@@ -1,0 +1,27 @@
+name: ifm-postgres
+
+services:
+  postgres:
+    image: postgres:17.2
+    container_name: ifm_db
+    environment:
+      POSTGRES_DB: ${IFM_POSTGRES_DATABASE:-ifm_db}
+      POSTGRES_USER: ${IFM_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${IFM_POSTGRES_PASSWORD:?Set IFM_POSTGRES_PASSWORD in the local environment}
+      PGDATA: /tmp/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/tmp/pgdata
+    restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"" ]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 10
+
+volumes:
+  postgres-data:
+    external: true
+    name: docker_postgres_data

@@ -37,20 +37,23 @@ public static class DatabaseBackupHostServiceCollectionExtensions
             .Get<NatsJetStreamProducerOptions>() ?? new NatsJetStreamProducerOptions();
         var sourceOptions = configuration.GetSection(LocalWorkstationSourceOptions.SectionName)
             .Get<LocalWorkstationSourceOptions>() ?? new LocalWorkstationSourceOptions();
+        sourceOptions.Validate();
         var postgreSqlOptions = configuration.GetSection(PostgreSqlBackupOptions.SectionName)
             .Get<PostgreSqlBackupOptions>() ?? new PostgreSqlBackupOptions();
         var scyllaOptions = configuration.GetSection(ScyllaBackupOptions.SectionName)
             .Get<ScyllaBackupOptions>() ?? new ScyllaBackupOptions();
         var publicationOptions = configuration.GetSection(DatabaseBackupPublicationOptions.SectionName)
             .Get<DatabaseBackupPublicationOptions>() ?? new DatabaseBackupPublicationOptions();
-        var useNativePostgreSql = sourceOptions.Enabled && !sourceOptions.DryRun;
-        var useNativeScylla = sourceOptions.Enabled && !sourceOptions.DryRun;
+        var useNativePostgreSql = sourceOptions.Enabled && !sourceOptions.DryRun
+            && sourceOptions.PostgreSqlEnabled;
+        var useNativeScylla = sourceOptions.Enabled && !sourceOptions.DryRun
+            && sourceOptions.ScyllaEnabled;
         if (useNativePostgreSql)
-        {
             postgreSqlOptions.Validate();
+        if (useNativeScylla)
             scyllaOptions.Validate();
+        if (useNativePostgreSql || useNativeScylla)
             publicationOptions.Validate(requirePrivateKey: true);
-        }
 
         services.AddSingleton(hostOptions);
         services.AddSingleton(journalOptions);
@@ -58,6 +61,7 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         services.AddSingleton(postgreSqlOptions);
         services.AddSingleton(scyllaOptions);
         services.AddSingleton(publicationOptions);
+        services.AddSingleton(publicationOptions.Manifest);
         services.AddSingleton<INatsJetStreamEventListenerOptions>(listenerOptions);
         services.AddSingleton<INatsJetStreamProducerOptions>(producerOptions);
         services.AddSingleton<NatsConnectionManager>();
@@ -95,7 +99,7 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         {
             services.AddSingleton<IScyllaBackupCapability, FakeScyllaBackupCapability>();
         }
-        if (useNativePostgreSql)
+        if (useNativePostgreSql || useNativeScylla)
         {
             services.AddSingleton<IBackupPathPolicy, LocalBackupPathPolicy>();
             services.AddSingleton<IArtifactChecksumService, Sha256ArtifactChecksumService>();

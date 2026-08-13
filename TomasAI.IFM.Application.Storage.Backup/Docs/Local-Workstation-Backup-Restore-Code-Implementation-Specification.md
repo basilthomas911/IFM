@@ -1,8 +1,8 @@
 # Local Workstation Database Backup and Restore Code Implementation Specification
 
-**Status:** Phase 10 implementation and runtime qualification complete except administrator-only host encryption evidence; Gate 10 is blocked on that single proof
+**Status:** Phase 10 development implementation and runtime qualification complete
 
-**Version:** 1.3
+**Version:** 1.5
 
 **Date:** 2026-08-12
 
@@ -1273,8 +1273,9 @@ disposable backend.
 health, non-root runtime, persistent-journal restart, pinned PostgreSQL 16.14 and Scylla 6.2.2 native qualifications,
 fresh-target restores, relevant regression suites, scheduled-task migration, and legacy removal passed by 2026-08-13.
 See `Local-Workstation-Backup-Restore-Phase-10-Container-Packaging-Validation-Report.md` and
-`Local-Workstation-Backup-Restore-Phase-10-Validation-Report.md`. Gate 10 remains blocked only because the current
-non-administrator Windows session cannot read BitLocker status for the Docker Desktop backing volume.
+`Local-Workstation-Backup-Restore-Phase-10-Validation-Report.md`. Development backup storage is not required to be
+encrypted, although it must not contain production data or production secrets. Production backup storage remains
+subject to the encrypted-at-rest requirements in the production architecture and deployment gates.
 
 - Package the existing Worker with the official Ubuntu 24.04/.NET 10 image; do not add Aspire in this phase.
 - Run standalone Docker end-to-end backup, crash recovery, restore drill, and fresh-target restore.
@@ -1376,3 +1377,5 @@ For each phase, the implementing agent must:
 | 1.1 | 2026-08-12 | Implemented and validated Gate 9: NATS-only operator console parsing/API/exit codes, immutable WinForms backup dashboard state, protection-set/source selection, non-blocking command acceptance, bounded query refresh, public-event refresh signaling, UI-thread ownership, and FlaUI startup/responsiveness smoke coverage. |
 | 1.2 | 2026-08-12 | Started Phase 10 and validated its container-packaging slice: official Ubuntu 24.04/.NET 10 images, standalone NATS composition, non-root/read-only runtime, health probes, persistent backup/restore mounts, PostgreSQL 16 native tools, and SQLite journal reuse across Worker restart. Gate 10 remains open for native end-to-end qualification, encrypted-mount evidence, and legacy removal. |
 | 1.3 | 2026-08-13 | Completed Phase 10 code and runtime qualification with pinned PostgreSQL 16.14 and Scylla 6.2.2 native fresh-target restores, PostgreSQL 16 manifest compatibility, scheduled-task migration, complete legacy SystemAdmin backup removal, regression coverage, and repeat Ubuntu container/restart validation. Gate 10 remains blocked only on administrator-only BitLocker evidence for the Docker backing volume. |
+| 1.4 | 2026-08-13 | Confirmed Docker Desktop's `CustomWslDistroDir` as `D:\Docker\wsl\data` and corrected the encryption evidence target. The elevated `C:` result is non-applicable, and `manage-bde -status D:` reports that `D:` is not a valid BitLocker volume. Gate 10 awaits alternative encryption evidence or encrypted-storage remediation. |
+| 1.5 | 2026-08-13 | Clarified the environment boundary: workstation development storage may be unencrypted, while production backup storage still requires encryption at rest. Added independent PostgreSQL/Scylla native-source selection and the `E:\IFM\DatabaseBackup` development composition/runbook. |

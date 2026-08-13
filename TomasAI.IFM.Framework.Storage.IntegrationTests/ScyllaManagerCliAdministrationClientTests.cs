@@ -47,13 +47,18 @@ public sealed class ScyllaManagerCliAdministrationClientTests : IDisposable
         runner.Invocations.Should().Contain(static value =>
             value.Operation == ScyllaManagerOperation.Backup
             && value.Arguments.Contains("--num-retries=0")
-            && value.Arguments.Contains("localstorage:gate7-backups"));
+            && value.Arguments.Contains("s3:gate7-backups"));
         runner.Invocations.Should().Contain(static value =>
             value.Operation == ScyllaManagerOperation.RestoreSchema
-            && value.Arguments.Contains("--restore-schema"));
+            && value.Arguments.Contains("--restore-schema")
+            && !value.Arguments.Contains("--keyspace"));
         runner.Invocations.Should().Contain(static value =>
             value.Operation == ScyllaManagerOperation.RestoreTables
-            && value.Arguments.Contains("--restore-tables"));
+            && value.Arguments.Contains("--restore-tables")
+            && value.Arguments.Contains("--keyspace"));
+        runner.Invocations.Should().Contain(static value =>
+            value.Operation == ScyllaManagerOperation.Tasks
+            && value.Arguments.SequenceEqual(new[] { "tasks", "--cluster", "gate7-source" }));
         runner.Invocations.SelectMany(static value => value.Arguments)
             .Should().NotContain(static argument => argument.Contains(';') || argument.Contains("password", StringComparison.OrdinalIgnoreCase));
     }
@@ -69,7 +74,7 @@ public sealed class ScyllaManagerCliAdministrationClientTests : IDisposable
             ["read-model-scylla"] = new()
             {
                 ManagerCluster = "gate7-source",
-                BackupLocation = "localstorage:gate7-backups",
+                BackupLocation = "s3:gate7-backups",
                 Keyspaces = ["gate7_keyspace"],
                 RequiredLiveNodes = 3
             }
@@ -108,7 +113,7 @@ public sealed class ScyllaManagerCliAdministrationClientTests : IDisposable
                 ScyllaManagerOperation.Version => "sctool version 3.11.2",
                 ScyllaManagerOperation.Status => Status,
                 ScyllaManagerOperation.Backup => "backup/11111111-1111-1111-1111-111111111111",
-                ScyllaManagerOperation.Progress => "Status: DONE\nProgress: 100%",
+                ScyllaManagerOperation.Tasks => Tasks,
                 ScyllaManagerOperation.BackupList => "sm_20260812010203UTC",
                 ScyllaManagerOperation.BackupFiles => Artifacts,
                 ScyllaManagerOperation.RestoreSchema => "restore/22222222-2222-2222-2222-222222222222",
@@ -126,8 +131,15 @@ public sealed class ScyllaManagerCliAdministrationClientTests : IDisposable
             """;
 
         const string Artifacts = """
-            localstorage/gate7/schema.cql|gate7_keyspace|probe
-            localstorage/gate7/me-1-big-Data.db|gate7_keyspace|probe
+            s3/gate7/schema.cql|gate7_keyspace|probe
+            s3/gate7/me-1-big-Data.db|gate7_keyspace|probe
+            """;
+
+        const string Tasks = """
+            | Task                                         | Status | Next |
+            | backup/11111111-1111-1111-1111-111111111111 | DONE   |      |
+            | restore/22222222-2222-2222-2222-222222222222| DONE   |      |
+            | restore/33333333-3333-3333-3333-333333333333| DONE   |      |
             """;
     }
 }

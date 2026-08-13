@@ -1,23 +1,24 @@
-version: '3.8'
+name: natsjetstream
 
 services:
   nats:
-    image: nats:latest
+    image: nats:2.12.0-alpine
     container_name: ifm-nats-server
+    command: [ "-js", "-sd", "/data", "-p", "4222", "-m", "8222" ]
     ports:
-      - "4222:4222" # Client port
-      - "8222:8222" # Monitoring port (HTTP)
+      - "4222:4222"
+      - "127.0.0.1:8222:8222"
     volumes:
-      - nats_data:/data # Mount a named volume for JetStream data persistence
-    command:
-      - "-js" # Enable JetStream
-      - "-sd" # Specify store directory for JetStream
-      - "/data" # Path to the store directory inside the container
-      - "-p" # Client port
-      - "4222"
-      - "-m" # Monitoring port
-      - "8222"
+      - nats-data:/data
+    restart: always
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8222/healthz" ]
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 6
 
 volumes:
-  nats_data:
-    driver: local
+  nats-data:
+    external: true
+    name: natsjetstream_nats_data

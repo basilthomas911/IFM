@@ -220,6 +220,7 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
     sealed class ScyllaOnlyEngineSelector : IDatabaseRecoveryEngineSelector
     {
         public DatabaseEngine Select(DatabaseProtectionSetId protectionSetId) => DatabaseEngine.ScyllaDb;
+        public bool CanSelect(DatabaseProtectionSetId protectionSetId) => true;
     }
 
     sealed class RecordingScyllaCapability : IScyllaBackupCapability

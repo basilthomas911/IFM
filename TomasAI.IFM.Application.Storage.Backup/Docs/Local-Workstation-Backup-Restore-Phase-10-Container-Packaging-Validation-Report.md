@@ -4,7 +4,7 @@
 
 **Slice:** Standalone container packaging and restart-persistence smoke
 
-**Status:** Passed; superseded by the final Phase 10 report, with Gate 10 blocked only on host-encryption proof
+**Status:** Passed; superseded by the final Phase 10 report
 
 **Date:** 2026-08-12
 
@@ -116,5 +116,7 @@ the SQLite journal survives a Worker restart on persistent storage.
 
 The later `Local-Workstation-Backup-Restore-Phase-10-Validation-Report.md` records successful pinned PostgreSQL and
 Scylla native fresh-target restores, final regression execution, scheduled-task migration, and repository-wide legacy
-API removal. Gate 10 remains blocked only on administrator-readable BitLocker evidence for the host volume backing
-Docker Desktop; this packaging slice does not claim that proof.
+API removal. Docker Desktop data resides beneath `D:\Docker\wsl\data` on the qualification host and that drive is not
+managed by BitLocker. This is acceptable for the development qualification because no production data or production
+secrets are used. The report does not claim encrypted storage; production deployment retains a separate mandatory
+encryption-at-rest gate.

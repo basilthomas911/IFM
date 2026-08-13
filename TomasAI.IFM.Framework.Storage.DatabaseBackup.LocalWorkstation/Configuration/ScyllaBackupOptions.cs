@@ -102,7 +102,7 @@ public sealed partial class ScyllaBackupOptions
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,254}$", RegexOptions.CultureInvariant)]
     private static partial Regex ManagerIdentifierPattern();
 
-    [GeneratedRegex(@"^(?:[A-Za-z0-9_.-]+:)?(?:localstorage|s3|gcs|azure):[A-Za-z0-9][A-Za-z0-9.-]{0,127}$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?:[A-Za-z0-9_.-]+:)?(?:s3|gcs|azure):[A-Za-z0-9][A-Za-z0-9.-]{0,127}$", RegexOptions.CultureInvariant)]
     private static partial Regex BackupLocationPattern();
 }
 
