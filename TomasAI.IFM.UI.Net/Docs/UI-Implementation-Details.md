@@ -4,7 +4,9 @@
 
 The UI.Net project family is the Windows Forms desktop client for the IFM application. It presents the operational fund, trade, market-data, reference-data, system-administration, and status-console workflows. It does not host domain actors or access storage directly.
 
-The UI uses NATS for all backend communication:
+The UI uses NATS for all backend communication. The proposed system-wide design for future callback and `IAsyncEnumerable` event listeners, realtime-grid synchronization, and paged projection queries is documented in [`Actor Event Streaming and Paged Query Contracts`](../../Documents/system/Actor-Event-Streaming-and-Paged-Query-Contracts.md). That document is not yet an implementation description; this document continues to describe the active WinForms behavior.
+
+Current communication behavior:
 
 - commands are sent through the domain command APIs in `TomasAI.IFM.Application.Api.Nats.Client`;
 - queries use NATS request/reply through the domain query APIs in `TomasAI.IFM.Application.Api.Nats.Client`;

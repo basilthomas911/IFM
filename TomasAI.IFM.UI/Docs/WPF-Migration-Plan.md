@@ -15,6 +15,8 @@
 
 This document is the controlling migration plan for the IFM desktop client. The existing [`UI.Net implementation details`](../../TomasAI.IFM.UI.Net/Docs/UI-Implementation-Details.md) remain the description of the current WinForms implementation. This document describes the target state and the controlled path from that implementation to WPF.
 
+The future system-wide contracts for callback and `IAsyncEnumerable` NATS event consumption, realtime-grid snapshot reconciliation, and paged projection queries are defined in [`Actor Event Streaming and Paged Query Contracts`](../../Documents/system/Actor-Event-Streaming-and-Paged-Query-Contracts.md). Those contracts are design-only until a separate implementation plan is approved. WinForms and WPF event-streaming changes must reference that system document rather than defining a UI-specific transport or acknowledgement model.
+
 ## Executive decision
 
 The migration is divided into two independently valuable stages:
