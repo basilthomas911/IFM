@@ -47,7 +47,10 @@ public sealed class DatabaseBackupEventProjector : BaseEventProjector<DatabaseBa
     public override IReadOnlyCollection<Type> ProjectedEventTypes => EventTypes;
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
 
-    static EventProjectionDescriptor Describe(Type eventType, ISystemAdminDbContext db)
+    static EventProjectionDescriptor Describe(
+        Type eventType,
+        ISystemAdminDbContext db,
+        bool useDurableReplay = true)
         => new(
             eventType,
             EventProjectionIdempotencyStrategy.TargetReceipt,
@@ -60,7 +63,8 @@ public sealed class DatabaseBackupEventProjector : BaseEventProjector<DatabaseBa
                 return new EventProjectionApplyResult(outcome);
             },
             domainEvent => Complete((DatabaseBackupEventContract)domainEvent),
-            (domainEvent, exception) => Fail((DatabaseBackupEventContract)domainEvent, exception));
+            (domainEvent, exception) => Fail((DatabaseBackupEventContract)domainEvent, exception),
+            useDurableReplay: useDurableReplay);
 
     static DatabaseBackupProjectionCompletedEvent Complete(DatabaseBackupEventContract source) => new()
     {

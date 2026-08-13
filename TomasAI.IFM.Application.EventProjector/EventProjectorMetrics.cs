@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.EventProjector.ReadModels;
 
 namespace TomasAI.IFM.Application.EventProjector;
 
-/// <summary>Low-cardinality OpenTelemetry instruments for durable event projection.</summary>
+/// <summary>Low-cardinality OpenTelemetry instruments for durable and non-durable event projection.</summary>
 internal static class EventProjectorMetrics
 {
     public const string MeterName = "TomasAI.IFM.Application.EventProjector";

@@ -14,7 +14,8 @@ public sealed record EventProjectionDescriptor
         Func<IEvent, ProjectionExecutionContext, ValueTask<EventProjectionApplyResult>> applyAsync,
         Func<IEvent, ICompleteEvent?> completedEventFactory,
         Func<IEvent, Exception, IErrorEvent?> failedEventFactory,
-        bool publishProcessingEvent = true)
+        bool publishProcessingEvent = true,
+        bool useDurableReplay = true)
     {
         ArgumentNullException.ThrowIfNull(sourceEventType);
         if (!typeof(IEvent).IsAssignableFrom(sourceEventType))
@@ -28,6 +29,7 @@ public sealed record EventProjectionDescriptor
         CompletedEventFactory = completedEventFactory ?? throw new ArgumentNullException(nameof(completedEventFactory));
         FailedEventFactory = failedEventFactory ?? throw new ArgumentNullException(nameof(failedEventFactory));
         PublishProcessingEvent = publishProcessingEvent;
+        UseDurableReplay = useDurableReplay;
     }
 
     public Type SourceEventType { get; }
@@ -36,4 +38,9 @@ public sealed record EventProjectionDescriptor
     public Func<IEvent, ICompleteEvent?> CompletedEventFactory { get; }
     public Func<IEvent, Exception, IErrorEvent?> FailedEventFactory { get; }
     public bool PublishProcessingEvent { get; }
+    /// <summary>
+    /// Gets whether this event type uses the durable JetStream process/replay workflow. When false, the event is
+    /// executed once through the projector's non-durable in-memory queue.
+    /// </summary>
+    public bool UseDurableReplay { get; init; }
 }

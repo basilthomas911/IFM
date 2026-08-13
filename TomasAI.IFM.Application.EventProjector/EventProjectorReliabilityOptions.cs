@@ -35,6 +35,8 @@ public sealed record EventProjectorReliabilityOptions
     public TimeSpan OutboxPollingInterval { get; init; } = TimeSpan.FromMilliseconds(250);
     public TimeSpan OutboxDispatchLeaseDuration { get; init; } = TimeSpan.FromMinutes(2);
     public TimeSpan MetricsPollingInterval { get; init; } = TimeSpan.FromSeconds(5);
+    /// <summary>Gets the bounded capacity of each projector's process-local non-durable queue.</summary>
+    public int NonDurableQueueCapacity { get; init; } = 8_192;
 
     public EventProjectorReliabilityOptions Validate()
     {
@@ -43,6 +45,7 @@ public sealed record EventProjectorReliabilityOptions
         ValidateRange(MaximumReplayAttempts, 1, 20, nameof(MaximumReplayAttempts));
         ValidateRange(OutboxBatchSize, 1, 2_048, nameof(OutboxBatchSize));
         ValidateRange(MaximumOutboxAttempts, 1, 100, nameof(MaximumOutboxAttempts));
+        ValidateRange(NonDurableQueueCapacity, 1, 1_048_576, nameof(NonDurableQueueCapacity));
         if (TransactionalOutboxEnabled && !FencedExecutionEnabled)
             throw new InvalidOperationException("Transactional outbox dispatch requires fenced execution.");
         if (InitialReplayDelay <= TimeSpan.Zero)

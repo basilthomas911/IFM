@@ -2,8 +2,9 @@
 
 ## Purpose and current status
 
-`TomasAI.IFM.Application.EventProjector` projects committed event-sourced domain events into target read stores through
-a durable NATS JetStream queue. SWO-06 Tranches A-E are implemented:
+`TomasAI.IFM.Application.EventProjector` projects committed event-sourced domain events into target read stores.
+Descriptors use a durable NATS JetStream process/replay queue by default and may explicitly select a bounded
+process-local non-durable queue. SWO-06 Tranches A-E are implemented:
 
 - additive PostgreSQL execution state and compare-and-set fencing;
 - bounded, joined-keyset startup recovery;
@@ -24,7 +25,8 @@ a durable NATS JetStream queue. SWO-06 Tranches A-E are implemented:
 
 | File | Responsibility |
 | --- | --- |
-| `BaseEventProjector.cs` | Validates descriptors, owns lifecycle and readiness, initializes durable intake, selects legacy or fenced execution, and publishes typed actor events. |
+| `BaseEventProjector.cs` | Validates descriptors, routes each event to one delivery lane, owns lifecycle/readiness, selects execution, and publishes typed actor events. |
+| `EventProjectorTransientQueue.cs` | Runs explicitly non-durable descriptors through a bounded, ordered, process-local channel. |
 | `EventProjectorExecutionEngine.cs` | Claims a leased execution, applies fenced stage transitions, releases failed claims for retry, terminalizes failures, and creates explicit target-operation contexts. |
 | `EventProjectorOutboxDispatcher.cs` | Claims bounded outbox batches with `SKIP LOCKED`, publishes typed events, and records delivery or bounded retry. |
 | `EventProjectorOutboxSerializer.cs` | Serializes concrete MessagePack payloads and assigns deterministic consumer-visible event IDs from stage-effect identities. |
@@ -48,11 +50,33 @@ Every supported source event has exactly one `EventProjectionDescriptor` contain
 - a target operation accepting `ProjectionExecutionContext`;
 - a completion-event factory;
 - a failure-event factory; and
-- the processing-publication policy.
+- the processing-publication policy; and
+- the `UseDurableReplay` delivery policy, defaulted to `true`.
 
 Startup rejects an empty table, duplicate source types, or any mismatch between `ProjectionDescriptors` and
 `ProjectedEventTypes`. A target operation returns `Applied`, `AlreadyApplied`, `Superseded`, or `Failed`. An
 `Unspecified` idempotency strategy is invalid.
+
+Concrete `Describe` helpers expose `useDurableReplay` as their last optional parameter. Existing calls remain durable:
+
+```csharp
+Describe<FundCreatedEvent, FundCreatedCompleteEvent, FundCreatedFailEvent>(applyAsync);
+Describe<RealtimeProjectionEvent, RealtimeProjectionCompleteEvent, RealtimeProjectionFailEvent>(
+    applyAsync,
+    useDurableReplay: false);
+```
+
+## Command actor adoption convention
+
+Every command actor should eventually own a corresponding EventProjector. The projector is the command actor's
+standard boundary for applying its committed domain events to read models and for publishing processing,
+completion, or failure outcomes. Adoption may remain incremental while existing command actors are migrated, but new
+command actors should include their projector and immutable descriptor table as part of their initial design.
+
+This convention does not require every projection to use durable replay. Each descriptor selects its delivery lane:
+durable JetStream process/replay remains the default, while explicitly best-effort projections may set the final
+`Describe` parameter to `useDurableReplay: false`. A command actor with mixed projection requirements may own both
+descriptor modes in the same EventProjector.
 
 `ProjectionExecutionContext` carries the durable projector name, event ID, event-stream ID, execution token,
 deterministic target-effect identity, strategy, and cancellation token. The effect identity is stable across retries;
@@ -82,13 +106,14 @@ Therefore Tranche C does not add a ScyllaDB receipt table. A future operation wi
 `StartAsync` performs these phases in order:
 
 1. validate and freeze descriptors;
-2. set the queue maximum attempts and register one stable terminal callback;
-3. prepare JetStream resources without starting consumption;
-4. register the single process/replay handler;
-5. inventory and enqueue recovery candidates;
-6. start the outbox dispatcher when independently enabled;
-7. start process and replay workers; and
-8. publish readiness.
+2. start the bounded transient worker when any descriptor has `UseDurableReplay = false`;
+3. when durable descriptors exist, set maximum attempts and register one stable terminal callback;
+4. prepare JetStream resources without starting consumption;
+5. register the single process/replay handler;
+6. inventory and enqueue recovery candidates for durable descriptors only;
+7. start the outbox dispatcher when independently enabled;
+8. start process and replay workers; and
+9. publish readiness after every required lane is ready.
 
 Any startup failure stops partially started workers, clears the actor context, leaves readiness false, records the
 failure reason, and rethrows.
@@ -99,6 +124,29 @@ independent streams concurrently. Normal events are enqueued without a recovery-
 single claim path. Multiple projector instances may attempt to publish the same recovery candidate, but the durable
 queue uses a stable NATS message ID so JetStream de-duplicates the publication. An event that cannot be deserialized is
 claimed and terminalized with `BlockedReason = unknown-source-event` because it cannot enter typed dispatch.
+
+## Optional non-durable execution
+
+`EventProjectionDescriptor.UseDurableReplay` is immutable and defaults to `true`. When it is `false`, live intake
+writes the event to a bounded `Channel<IEvent>` with multiple writers, one reader, and `Wait` full-mode backpressure.
+No NATS Core or JetStream work-queue message is published. Processing/completion/failure actor events still use their
+normal actor delivery convention. The single reader preserves local projector enqueue order and drains accepted work
+during a graceful stop.
+
+The transient worker publishes the optional processing event, resolves the committed event-stream ID without creating
+projector state, invokes `ApplyAsync` once, and then publishes either completion or failure once. A processing-event
+publication error is logged but does not suppress the target action. Apply exceptions and explicit `Failed` results
+run the failure factory. Completion/failure conversion or publication errors are logged and dropped; none of these
+failures enter replay.
+
+The transient lane never creates legacy or fenced projector state, Blackboard state, claims, recovery candidates, or
+transactional outbox rows. `RetryExactAsync` returns `false` for a non-durable descriptor. Bounded recovery filters its
+source event types from the frozen descriptor table, so a mixed projector routes each event to exactly one lane.
+
+This mode intentionally accepts loss on crash or forced shutdown, has no cross-instance ordering fence, and provides
+one process-local execution attempt. It is for projections whose business contract accepts those guarantees. The
+target action should remain idempotent because duplicate upstream commands or source events can still request another
+execution.
 
 ## Fenced intake and execution
 
@@ -204,13 +252,15 @@ Current application settings:
     "FencedExecutionEnabled": false,
     "TransactionalOutboxEnabled": false,
     "BacklogMetricsPollingEnabled": false,
-    "MetricsPollingInterval": "00:00:05"
+    "MetricsPollingInterval": "00:00:05",
+    "NonDurableQueueCapacity": 8192
   }
 }
 ```
 
-`MetricsPollingInterval` must be between one second and five minutes. Polling is an independent operational switch;
-the event counters and histograms are available whenever the host OTLP meter pipeline is enabled.
+`MetricsPollingInterval` must be between one second and five minutes. `NonDurableQueueCapacity` must be between one
+and 1,048,576. Polling is an independent operational switch; the event counters and histograms are available whenever
+the host OTLP meter pipeline is enabled.
 
 ## OpenTelemetry and Grafana contract
 

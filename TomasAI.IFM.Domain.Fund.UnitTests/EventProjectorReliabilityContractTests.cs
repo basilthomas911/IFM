@@ -53,12 +53,14 @@ public sealed class EventProjectorReliabilityContractTests
         var invalidLease = new EventProjectorReliabilityOptions { ClaimLeaseDuration = TimeSpan.Zero };
         var outboxWithoutFence = new EventProjectorReliabilityOptions { TransactionalOutboxEnabled = true };
         var invalidMetricsPolling = new EventProjectorReliabilityOptions { MetricsPollingInterval = TimeSpan.FromMilliseconds(500) };
+        var invalidNonDurableCapacity = new EventProjectorReliabilityOptions { NonDurableQueueCapacity = 0 };
 
         invalidBatch.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
         invalidConcurrency.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
         invalidLease.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
         outboxWithoutFence.Invoking(options => options.Validate()).Should().Throw<InvalidOperationException>();
         invalidMetricsPolling.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
+        invalidNonDurableCapacity.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
     }
 
     [Fact]

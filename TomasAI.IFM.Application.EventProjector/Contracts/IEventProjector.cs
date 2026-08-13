@@ -33,7 +33,7 @@ public interface IEventProjector
     public EventProjectorReadinessSnapshot Readiness { get; }
 
     /// <summary>
-    /// Starts the projector's durable process and replay queue workers.
+    /// Starts the durable and/or non-durable workers required by the projector's descriptors.
     /// </summary>
     /// <param name="context">The runtime context created for the command actor that owns the projector.</param>
     /// <param name="cancellationToken">A token that cancels projector startup and the workers started by it.</param>
@@ -41,7 +41,7 @@ public interface IEventProjector
     ValueTask StartAsync(ICommandActorContext context, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Stops the projector's durable process and replay queue workers.
+    /// Stops the projector's active durable and non-durable workers.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the wait to begin the stop operation.</param>
     /// <returns>A task-like value that represents the asynchronous shutdown operation.</returns>

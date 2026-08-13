@@ -72,7 +72,9 @@ public class FundEventProjector(
     public override IReadOnlyCollection<Type> ProjectedEventTypes => _projectedEventTypes;
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _projectionDescriptors;
 
-    static EventProjectionDescriptor Describe<TEvent, TComplete, TFail>(Func<TEvent, Task> applyAsync)
+    static EventProjectionDescriptor Describe<TEvent, TComplete, TFail>(
+        Func<TEvent, Task> applyAsync,
+        bool useDurableReplay = true)
         where TEvent : class, IEvent<FundId>
         where TComplete : class, ICompleteEvent<FundId>
         where TFail : class, IErrorEvent<FundId>
@@ -85,5 +87,6 @@ public class FundEventProjector(
                 return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
             },
             domainEvent => ((TEvent)domainEvent).ToCompleteEvent<TComplete, FundId>(),
-            (domainEvent, exception) => ((TEvent)domainEvent).ToFailEvent<TFail, FundId>(exception));
+            (domainEvent, exception) => ((TEvent)domainEvent).ToFailEvent<TFail, FundId>(exception),
+            useDurableReplay: useDurableReplay);
 }

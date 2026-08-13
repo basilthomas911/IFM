@@ -25,9 +25,8 @@ namespace TomasAI.IFM.Application.EventProjector;
 /// The logger used by the projector for operational and diagnostic messages.
 /// </param>
 /// <remarks>
-/// The base implementation owns the durable queue lifecycle for the projector. Startup registers
-/// the projection handler before starting the process and replay workers, while event-batch handling
-/// records projection state and durably enqueues each event for asynchronous processing.
+/// The base implementation owns both delivery lanes. Descriptors use the durable process/replay queue by default;
+/// descriptors that explicitly opt out run once through a bounded process-local queue.
 /// </remarks>
 public abstract class BaseEventProjector<TActor> (
     IDurableReplayQueue durableReplayQueue,
@@ -44,6 +43,7 @@ public abstract class BaseEventProjector<TActor> (
     EventProjectorExecutionEngine? _executionEngine;
     EventProjectorOutboxDispatcher? _outboxDispatcher;
     EventProjectorMetricsObserver? _metricsObserver;
+    IEventProjectorTransientQueue? _transientQueue;
     static readonly ConcurrentDictionary<Type, Func<ICommandActorContext, IEvent, CancellationToken, ValueTask>>
         EventPublishers = new();
     ICommandActorContext? _context;
@@ -86,6 +86,13 @@ public abstract class BaseEventProjector<TActor> (
             return;
         }
 
+        if (!descriptor.UseDurableReplay)
+        {
+            await ExecuteTransientDescriptorAsync(domainEvent, descriptor, CancellationToken.None)
+                .ConfigureAwait(false);
+            return;
+        }
+
         if (_reliabilityOptions.FencedExecutionEnabled)
             await ExecutionEngine.ExecuteAsync(domainEvent, descriptor).ConfigureAwait(false);
         else
@@ -117,7 +124,7 @@ public abstract class BaseEventProjector<TActor> (
     public ILogger Logger { get; init; }  = IsArgumentNull.Set(logger);
 
     /// <summary>
-    /// Registers the projector's event handler and starts its durable process and replay queue workers.
+    /// Starts the durable and/or non-durable workers required by the projector's descriptors.
     /// </summary>
     /// <param name="context">The runtime context created for the command actor that owns this projector.</param>
     /// <param name="cancellationToken">A token that cancels startup and the workers started by this call.</param>
@@ -133,43 +140,70 @@ public abstract class BaseEventProjector<TActor> (
         CancellationToken cancellationToken = default)
     {
         _context = IsArgumentNull.Set(context);
-        _ = GetDescriptorMap();
+        var descriptors = GetDescriptorMap().Values;
+        var hasDurableDescriptors = descriptors.Any(static descriptor => descriptor.UseDurableReplay);
+        var hasTransientDescriptors = descriptors.Any(static descriptor => !descriptor.UseDurableReplay);
         SetReadiness(false, 0, 0);
         var startupStarted = EventProjectorMetrics.GetStartupTimestamp();
         try
         {
+            var workerCapacity = (hasDurableDescriptors ? 2 : 0)
+                + (hasTransientDescriptors ? 1 : 0)
+                + (hasDurableDescriptors && _reliabilityOptions.TransactionalOutboxEnabled ? 1 : 0);
             EventProjectorMetrics.RegisterProjector(
                 ProjectorName,
-                workerCapacity: _reliabilityOptions.TransactionalOutboxEnabled ? 3 : 2);
-            DurableReplayQueue.SetMaxReplayAttemps(
-                ProjectorName,
-                _reliabilityOptions.MaximumReplayAttempts);
-            DurableReplayQueue.SetMaxAttemptsReachedAction(
-                ProjectorName,
-                HandleMaximumAttemptsAsync);
-            await DurableReplayQueue.PrepareAsync(
-                ProjectorName,
-                _reliabilityOptions.InitialReplayDelay,
-                cancellationToken).ConfigureAwait(false);
-            await DurableReplayQueue.DequeueAsync(
-                ProjectorName,
-                ProcessQueuedDomainEventAsync,
-                cancellationToken).ConfigureAwait(false);
-            var recovery = _reliabilityOptions.BoundedRecoveryEnabled
-                ? await CreateRecoveryCoordinator().RecoverAsync(
-                    ActorName,
+                workerCapacity);
+
+            if (hasTransientDescriptors)
+            {
+                var transientQueue = _transientQueue ??= new EventProjectorTransientQueue(
                     ProjectorName,
-                    ProjectedEventTypes,
-                    cancellationToken).ConfigureAwait(false)
-                : await RecoverUncompletedEventsAsync(cancellationToken).ConfigureAwait(false);
-            if (_reliabilityOptions.TransactionalOutboxEnabled)
-                await OutboxDispatcher.StartAsync(cancellationToken).ConfigureAwait(false);
-            if (_reliabilityOptions.BacklogMetricsPollingEnabled)
-                await MetricsObserver.StartAsync(cancellationToken).ConfigureAwait(false);
-            await DurableReplayQueue.StartAsync(
-                ProjectorName,
-                _reliabilityOptions.InitialReplayDelay,
-                cancellationToken).ConfigureAwait(false);
+                    _reliabilityOptions.NonDurableQueueCapacity,
+                    Logger);
+                await transientQueue.StartAsync(
+                    ProcessTransientQueuedDomainEventAsync,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            var recovery = new EventProjectorRecoveryResult(0, 0, 0, 0);
+            if (hasDurableDescriptors)
+            {
+                DurableReplayQueue.SetMaxReplayAttemps(
+                    ProjectorName,
+                    _reliabilityOptions.MaximumReplayAttempts);
+                DurableReplayQueue.SetMaxAttemptsReachedAction(
+                    ProjectorName,
+                    HandleMaximumAttemptsAsync);
+                await DurableReplayQueue.PrepareAsync(
+                    ProjectorName,
+                    _reliabilityOptions.InitialReplayDelay,
+                    cancellationToken).ConfigureAwait(false);
+                await DurableReplayQueue.DequeueAsync(
+                    ProjectorName,
+                    ProcessQueuedDomainEventAsync,
+                    cancellationToken).ConfigureAwait(false);
+                var durableEventTypes = descriptors
+                    .Where(static descriptor => descriptor.UseDurableReplay)
+                    .Select(static descriptor => descriptor.SourceEventType)
+                    .ToArray();
+                recovery = _reliabilityOptions.BoundedRecoveryEnabled
+                    ? await CreateRecoveryCoordinator().RecoverAsync(
+                        ActorName,
+                        ProjectorName,
+                        durableEventTypes,
+                        cancellationToken).ConfigureAwait(false)
+                    : await RecoverUncompletedEventsAsync(
+                        durableEventTypes,
+                        cancellationToken).ConfigureAwait(false);
+                if (_reliabilityOptions.TransactionalOutboxEnabled)
+                    await OutboxDispatcher.StartAsync(cancellationToken).ConfigureAwait(false);
+                if (_reliabilityOptions.BacklogMetricsPollingEnabled)
+                    await MetricsObserver.StartAsync(cancellationToken).ConfigureAwait(false);
+                await DurableReplayQueue.StartAsync(
+                    ProjectorName,
+                    _reliabilityOptions.InitialReplayDelay,
+                    cancellationToken).ConfigureAwait(false);
+            }
             SetReadiness(true, recovery.Discovered, recovery.Queued);
             EventProjectorMetrics.RecordStartup(ProjectorName, "ready", startupStarted);
         }
@@ -197,13 +231,27 @@ public abstract class BaseEventProjector<TActor> (
                     Logger.LogWarning(stopException, "Unable to roll back projector outbox startup for {ProjectorName}.", ProjectorName);
                 }
             }
-            try
+            if (hasTransientDescriptors && _transientQueue is not null)
             {
-                await DurableReplayQueue.StopAsync(ProjectorName, CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    await _transientQueue.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception stopException)
+                {
+                    Logger.LogWarning(stopException, "Unable to roll back projector transient queue startup for {ProjectorName}.", ProjectorName);
+                }
             }
-            catch (Exception stopException)
+            if (hasDurableDescriptors)
             {
-                Logger.LogWarning(stopException, "Unable to roll back projector queue startup for {ProjectorName}.", ProjectorName);
+                try
+                {
+                    await DurableReplayQueue.StopAsync(ProjectorName, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception stopException)
+                {
+                    Logger.LogWarning(stopException, "Unable to roll back projector queue startup for {ProjectorName}.", ProjectorName);
+                }
             }
             _context = null;
             EventProjectorMetrics.UnregisterProjector(ProjectorName);
@@ -225,19 +273,25 @@ public abstract class BaseEventProjector<TActor> (
     public async ValueTask StopAsync(CancellationToken cancellationToken = default)
     {
         SetReadiness(false, Readiness.RecoveryEventsDiscovered, Readiness.RecoveryEventsQueued);
+        var descriptors = GetDescriptorMap().Values;
+        var hasDurableDescriptors = descriptors.Any(static descriptor => descriptor.UseDurableReplay);
+        var hasTransientDescriptors = descriptors.Any(static descriptor => !descriptor.UseDurableReplay);
+        if (hasTransientDescriptors && _transientQueue is not null)
+            await _transientQueue.StopAsync(cancellationToken).ConfigureAwait(false);
         if (_outboxDispatcher is not null)
             await _outboxDispatcher.StopAsync(cancellationToken).ConfigureAwait(false);
         if (_metricsObserver is not null)
             await _metricsObserver.StopAsync(cancellationToken).ConfigureAwait(false);
-        await DurableReplayQueue.StopAsync(ProjectorName, cancellationToken).ConfigureAwait(false);
+        if (hasDurableDescriptors)
+            await DurableReplayQueue.StopAsync(ProjectorName, cancellationToken).ConfigureAwait(false);
         EventProjectorMetrics.UnregisterProjector(ProjectorName);
     }
 
     /// <summary>
-    /// Publishes a collection of domain events to the projector's durable process queue.
+    /// Routes domain events to the durable or non-durable process queue selected by each descriptor.
     /// </summary>
     /// <param name="domainEvents">The domain events to enqueue for asynchronous projection.</param>
-    /// <returns>A completed task-like value after all events have been durably enqueued.</returns>
+    /// <returns>A completed task-like value after all events have been accepted by their selected queues.</returns>
     /// <remarks>
     /// The projector must be started through <see cref="StartAsync(ICommandActorContext, CancellationToken)"/>
     /// during its owning actor's lifecycle.
@@ -250,6 +304,16 @@ public abstract class BaseEventProjector<TActor> (
             if (!GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
                 throw new InvalidOperationException(
                     $"Event type '{domainEvent.GetType().FullName}' is not registered by projector '{ProjectorName}'.");
+
+            if (!descriptor.UseDurableReplay)
+            {
+                var transientQueue = _transientQueue
+                    ?? throw new InvalidOperationException(
+                        $"Projector '{ProjectorName}' must be started before non-durable events can be queued.");
+                await transientQueue.EnqueueAsync(domainEvent).ConfigureAwait(false);
+                EventProjectorMetrics.RecordEvent(ProjectorName, "accepted", "transient");
+                continue;
+            }
 
             if (_reliabilityOptions.FencedExecutionEnabled)
             {
@@ -292,7 +356,9 @@ public abstract class BaseEventProjector<TActor> (
         if (eventLog is null)
             return false;
         var domainEvent = eventLog.ToDomainEvent();
-        if (domainEvent is UnknownEvent || !GetDescriptorMap().ContainsKey(domainEvent.GetType()))
+        if (domainEvent is UnknownEvent
+            || !GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor)
+            || !descriptor.UseDurableReplay)
             return false;
         var state = await DbEventSource.TryRetryEventProjectorExecutionAsync(
             eventId, ProjectorName, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
@@ -311,6 +377,17 @@ public abstract class BaseEventProjector<TActor> (
 
     async Task ProcessQueuedDomainEventAsync(IEvent domainEvent)
     {
+        if (GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor)
+            && !descriptor.UseDurableReplay)
+        {
+            Logger.LogWarning(
+                "Ignoring durable delivery for non-durable event {EventId} ({EventType}) in projector {ProjectorName}.",
+                domainEvent.EventId,
+                domainEvent.GetType().Name,
+                ProjectorName);
+            return;
+        }
+
         if (_reliabilityOptions.FencedExecutionEnabled)
         {
             await ProcessDomainEventAsync(domainEvent).ConfigureAwait(false);
@@ -336,6 +413,227 @@ public abstract class BaseEventProjector<TActor> (
             ProjectorName,
             currentState);
         await ProcessDomainEventAsync(domainEvent);
+    }
+
+    async ValueTask ProcessTransientQueuedDomainEventAsync(
+        IEvent domainEvent,
+        CancellationToken cancellationToken)
+    {
+        if (!GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
+        {
+            EventProjectorMetrics.RecordEvent(ProjectorName, "unregistered", "transient");
+            Logger.LogError(
+                "Dropping unregistered non-durable event {EventId} ({EventType}) for projector {ProjectorName}.",
+                domainEvent.EventId,
+                domainEvent.GetType().FullName,
+                ProjectorName);
+            return;
+        }
+        if (descriptor.UseDurableReplay)
+        {
+            EventProjectorMetrics.RecordEvent(ProjectorName, "misrouted", "transient");
+            Logger.LogError(
+                "Dropping durable event {EventId} ({EventType}) routed to the non-durable queue for projector {ProjectorName}.",
+                domainEvent.EventId,
+                domainEvent.GetType().FullName,
+                ProjectorName);
+            return;
+        }
+
+        await ExecuteTransientDescriptorAsync(domainEvent, descriptor, cancellationToken).ConfigureAwait(false);
+    }
+
+    async ValueTask ExecuteTransientDescriptorAsync(
+        IEvent domainEvent,
+        EventProjectionDescriptor descriptor,
+        CancellationToken cancellationToken)
+    {
+        EventProjectorMetrics.WorkerBusy(ProjectorName);
+        try
+        {
+            if (descriptor.PublishProcessingEvent)
+            {
+                try
+                {
+                    await PublishProjectionEventAsync(domainEvent, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    EventProjectorMetrics.RecordEvent(
+                        ProjectorName,
+                        "processing-publication-failed",
+                        "transient");
+                    Logger.LogWarning(
+                        ex,
+                        "Non-durable processing publication failed for event {EventId} in projector {ProjectorName}; the target action will still run.",
+                        domainEvent.EventId,
+                        ProjectorName);
+                }
+            }
+
+            EventProjectionApplyResult result;
+            try
+            {
+                var eventStreamId = await ResolveTransientEventStreamIdAsync(
+                    domainEvent,
+                    cancellationToken).ConfigureAwait(false);
+                if (eventStreamId <= 0)
+                    throw new InvalidOperationException(
+                        $"Event stream identity is missing for event {domainEvent.EventId}.");
+
+                result = await descriptor.ApplyAsync(
+                    domainEvent,
+                    new ProjectionExecutionContext(
+                        ProjectorName,
+                        domainEvent.EventId,
+                        eventStreamId,
+                        new EventProjectorEffectIdentity(
+                            ProjectorName,
+                            domainEvent.EventId,
+                            EventProjectorEffectKind.TargetProjection),
+                        Guid.NewGuid(),
+                        descriptor.IdempotencyStrategy,
+                        cancellationToken)).ConfigureAwait(false)
+                    ?? throw new InvalidOperationException("The projection action returned no result.");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                EventProjectorMetrics.RecordEvent(ProjectorName, "apply-failed", "transient");
+                await PublishTransientFailureAsync(
+                    domainEvent,
+                    descriptor,
+                    ex,
+                    cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            switch (result.Outcome)
+            {
+                case EventProjectionApplyOutcome.Applied:
+                case EventProjectionApplyOutcome.AlreadyApplied:
+                    await PublishTransientCompletionAsync(
+                        domainEvent,
+                        descriptor,
+                        cancellationToken).ConfigureAwait(false);
+                    EventProjectorMetrics.RecordEvent(ProjectorName, "completed", "transient");
+                    break;
+
+                case EventProjectionApplyOutcome.Superseded:
+                    EventProjectorMetrics.RecordEvent(ProjectorName, "superseded", "transient");
+                    break;
+
+                case EventProjectionApplyOutcome.Failed:
+                    EventProjectorMetrics.RecordEvent(ProjectorName, "apply-failed", "transient");
+                    await PublishTransientFailureAsync(
+                        domainEvent,
+                        descriptor,
+                        new InvalidOperationException(result.ErrorMessage),
+                        cancellationToken).ConfigureAwait(false);
+                    break;
+
+                default:
+                    EventProjectorMetrics.RecordEvent(ProjectorName, "apply-failed", "transient");
+                    await PublishTransientFailureAsync(
+                        domainEvent,
+                        descriptor,
+                        new InvalidOperationException(
+                            $"Unsupported projection outcome '{result.Outcome}'."),
+                        cancellationToken).ConfigureAwait(false);
+                    break;
+            }
+        }
+        finally
+        {
+            EventProjectorMetrics.WorkerAvailable(ProjectorName);
+        }
+    }
+
+    async ValueTask<long> ResolveTransientEventStreamIdAsync(
+        IEvent domainEvent,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(domainEvent.AggregateId))
+        {
+            var eventStreamId = await DbEventSource.GetEventStreamIdAsync(
+                domainEvent.AggregateId,
+                cancellationToken).ConfigureAwait(false);
+            if (eventStreamId > 0)
+                return eventStreamId;
+        }
+
+        var eventLog = await DbEventSource.GetEventLogByEventIdAsync(
+            domainEvent.EventId,
+            cancellationToken).ConfigureAwait(false);
+        return eventLog?.EventStreamId ?? 0;
+    }
+
+    async ValueTask PublishTransientCompletionAsync(
+        IEvent domainEvent,
+        EventProjectionDescriptor descriptor,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var completedEvent = descriptor.CompletedEventFactory(domainEvent)
+                ?? throw new InvalidOperationException(
+                    $"The completion-event factory returned null for {domainEvent.GetType().Name}.");
+            await PublishProjectionEventAsync(completedEvent, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            EventProjectorMetrics.RecordEvent(
+                ProjectorName,
+                "terminal-publication-failed",
+                "transient");
+            Logger.LogWarning(
+                ex,
+                "Non-durable completion publication failed for event {EventId} in projector {ProjectorName}; it will not be replayed.",
+                domainEvent.EventId,
+                ProjectorName);
+        }
+    }
+
+    async ValueTask PublishTransientFailureAsync(
+        IEvent domainEvent,
+        EventProjectionDescriptor descriptor,
+        Exception failure,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var failedEvent = descriptor.FailedEventFactory(domainEvent, failure)
+                ?? throw new InvalidOperationException(
+                    $"The failure-event factory returned null for {domainEvent.GetType().Name}.");
+            await PublishProjectionEventAsync(failedEvent, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            EventProjectorMetrics.RecordEvent(
+                ProjectorName,
+                "terminal-publication-failed",
+                "transient");
+            Logger.LogWarning(
+                ex,
+                "Non-durable failure publication failed for event {EventId} in projector {ProjectorName}; it will not be replayed.",
+                domainEvent.EventId,
+                ProjectorName);
+        }
     }
 
     async ValueTask ExecuteLegacyDescriptorAsync(
@@ -503,9 +801,11 @@ public abstract class BaseEventProjector<TActor> (
         await PersistLegacyStateAsync(state, clearCache: true).ConfigureAwait(false);
     }
 
-    async ValueTask<EventProjectorRecoveryResult> RecoverUncompletedEventsAsync(CancellationToken cancellationToken)
+    async ValueTask<EventProjectorRecoveryResult> RecoverUncompletedEventsAsync(
+        IReadOnlyCollection<Type> durableEventTypes,
+        CancellationToken cancellationToken)
     {
-        var eventNames = ProjectedEventTypes
+        var eventNames = durableEventTypes
             .Select(eventType => eventType.Name)
             .Distinct(StringComparer.Ordinal)
             .ToArray();

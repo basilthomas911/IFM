@@ -160,6 +160,54 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
     }
 
     [Fact]
+    public async Task Non_durable_projection_uses_local_queue_without_projector_state_or_JetStream()
+    {
+        var context = new RecordingCommandActorContext();
+        var durableQueue = Substitute.For<IDurableReplayQueue>();
+        var projector = new TransientFundEventProjector(
+            database.DbFactory,
+            durableQueue,
+            database.ActorEventSourceDb,
+            database.BlackboardService,
+            Substitute.For<ILogger<FundEventProjector>>(),
+            new EventProjectorReliabilityOptions
+            {
+                BoundedRecoveryEnabled = true,
+                FencedExecutionEnabled = true,
+                TransactionalOutboxEnabled = true,
+                BacklogMetricsPollingEnabled = true,
+                MetricsPollingInterval = TimeSpan.FromSeconds(1)
+            });
+        var repository = CreateRepository(projector);
+        var (fund, command, state) = CreateFundState();
+        Track(fund.FundId, command.StreamId);
+        await database.FundDb.DeleteFundAsync(fund.FundId);
+        await projector.StartAsync(context);
+
+        try
+        {
+            await repository.SaveStateAsync(context, state, command);
+            var domainEvent = state.Events.Should().ContainSingle().Subject;
+
+            (await WaitForFundAsync(fund.FundId)).Name.Should().Be(fund.Name);
+            await WaitForEventAsync<FundCreatedCompleteEvent>(context, domainEvent.EventId);
+            (await database.ActorEventSourceDb.GetEventProjectorStateAsync(
+                domainEvent.EventId,
+                projector.ProjectorName)).Should().BeNull();
+            (await database.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(
+                domainEvent.EventId,
+                projector.ProjectorName)).Should().BeNull();
+            context.Events.Should().Contain(e => e is FundCreatedEvent && e.EventId == domainEvent.EventId);
+            context.Events.Should().Contain(e => e is FundCreatedCompleteEvent && e.EventId == domainEvent.EventId);
+            durableQueue.ReceivedCalls().Should().BeEmpty();
+        }
+        finally
+        {
+            await projector.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task Process_and_replay_workers_preserve_same_stream_order_until_predecessor_completes()
     {
         var context = new RecordingCommandActorContext();
@@ -578,6 +626,33 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
         }
 
         public void ReleaseProcessing() => _release.TrySetResult();
+    }
+
+    sealed class TransientFundEventProjector : FundEventProjector
+    {
+        readonly IReadOnlyCollection<EventProjectionDescriptor> _transientDescriptors;
+
+        public TransientFundEventProjector(
+            IDbContextFactory dbFactory,
+            IDurableReplayQueue durableReplayQueue,
+            IEventSourceActorDbContext dbEventSource,
+            IBlackboardService blackboardService,
+            ILogger<FundEventProjector> logger,
+            EventProjectorReliabilityOptions reliabilityOptions)
+            : base(
+                dbFactory,
+                durableReplayQueue,
+                dbEventSource,
+                blackboardService,
+                logger,
+                reliabilityOptions)
+        {
+            _transientDescriptors = [.. base.ProjectionDescriptors.Select(
+                static descriptor => descriptor with { UseDurableReplay = false })];
+        }
+
+        public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors
+            => _transientDescriptors;
     }
 
     sealed class OrderingGatedFundEventProjector(
