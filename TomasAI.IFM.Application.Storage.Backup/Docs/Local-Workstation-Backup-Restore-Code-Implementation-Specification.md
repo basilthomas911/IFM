@@ -1,8 +1,8 @@
 # Local Workstation Database Backup and Restore Code Implementation Specification
 
-**Status:** Phase 9 implemented and Gate 9 validated; Phase 10 pending review
+**Status:** Phase 9 implemented and Gate 9 validated; Phase 10 container-packaging slice validated, native qualification and legacy removal pending
 
-**Version:** 1.1
+**Version:** 1.2
 
 **Date:** 2026-08-12
 
@@ -1269,6 +1269,12 @@ disposable backend.
 
 ### Phase 10: Ubuntu 24.04 Docker qualification, runtime validation, and legacy removal
 
+**Implementation status:** In progress. The standalone Ubuntu 24.04/.NET 10 container-packaging, health, non-root,
+native PostgreSQL-tool, and persistent-journal restart smoke slice passed on 2026-08-12. See
+`Local-Workstation-Backup-Restore-Phase-10-Container-Packaging-Validation-Report.md`. Native PostgreSQL and Scylla
+end-to-end qualification, encrypted-mount evidence, crash recovery, restore drills, fresh-target restores, and legacy
+removal remain pending; Gate 10 is not yet passed.
+
 - Package the existing Worker with the official Ubuntu 24.04/.NET 10 image; do not add Aspire in this phase.
 - Run standalone Docker end-to-end backup, crash recovery, restore drill, and fresh-target restore.
 - Remove deprecated SystemAdmin backup messages, APIs, event listeners, model methods, and per-database assumptions.
@@ -1316,7 +1322,7 @@ LocalWorkstation implementation is complete only when all statements are true:
 - [ ] Restore drill, RPO/RTO evidence, cancellation, retention fencing, and reconciliation pass.
 - [ ] Duplicate/redelivered messages never repeat destructive native work.
 - [ ] Public events and storage contain no secrets, arbitrary paths, or raw native output.
-- [ ] Standalone Worker and Ubuntu 24.04 Docker smoke tests pass; Aspire remains outside this implementation.
+- [x] Standalone Worker and Ubuntu 24.04 Docker smoke tests pass; Aspire remains outside this implementation.
 - [ ] Legacy backup contracts and call sites are removed only after the replacement is validated.
 - [ ] AWS can later implement the same application capability contracts without changing public actor schemas.
 
@@ -1367,3 +1373,4 @@ For each phase, the implementing agent must:
 | 0.9 | 2026-08-12 | Implemented and validated Gate 7: allowlisted Scylla Manager capture/restore, topology/schema/native-manifest evidence, restart-safe verification, fresh-target validation, bounded run statistics, and disposable native SSTable restore coverage. |
 | 1.0 | 2026-08-12 | Implemented and validated Gate 8: no-overwrite online/offline publication, ECDSA-signed manifests/commits/catalog/enrollment/evidence, dependency-complete source selection, capacity admission, exact revision-bound retention, immutable drill evidence, and offline break-glass reconciliation. |
 | 1.1 | 2026-08-12 | Implemented and validated Gate 9: NATS-only operator console parsing/API/exit codes, immutable WinForms backup dashboard state, protection-set/source selection, non-blocking command acceptance, bounded query refresh, public-event refresh signaling, UI-thread ownership, and FlaUI startup/responsiveness smoke coverage. |
+| 1.2 | 2026-08-12 | Started Phase 10 and validated its container-packaging slice: official Ubuntu 24.04/.NET 10 images, standalone NATS composition, non-root/read-only runtime, health probes, persistent backup/restore mounts, PostgreSQL 16 native tools, and SQLite journal reuse across Worker restart. Gate 10 remains open for native end-to-end qualification, encrypted-mount evidence, and legacy removal. |

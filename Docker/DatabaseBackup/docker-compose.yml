@@ -1,0 +1,56 @@
+name: ifm-database-backup-qualification
+
+services:
+  nats:
+    image: nats:2.11-alpine
+    command: [ "--jetstream", "--store_dir=/data", "--http_port=8222" ]
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8222/healthz" ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  database-backup-host:
+    image: ifm/database-backup-host:gate10
+    build:
+      context: ../..
+      dockerfile: TomasAI.IFM.Api.DatabaseBackup.Host/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Container
+      ASPNETCORE_URLS: http://+:8080
+    depends_on:
+      nats:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8088:8080"
+    volumes:
+      - backup-journal:/var/lib/ifm/database-backup/journal
+      - online-vault:/var/lib/ifm/database-backup/online-vault
+      - offline-media:/var/lib/ifm/database-backup/offline-media
+      - postgres-backup:/var/lib/ifm/database-backup/postgresql
+      - scylla-backup:/var/lib/ifm/database-backup/scylla
+      - restore-workspace:/var/lib/ifm/database-restore/workspace
+      - postgres-restore:/var/lib/ifm/database-restore/postgresql
+      - scylla-restore:/var/lib/ifm/database-restore/scylla
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+volumes:
+  nats-data:
+  backup-journal:
+  online-vault:
+  offline-media:
+  postgres-backup:
+  scylla-backup:
+  restore-workspace:
+  postgres-restore:
+  scylla-restore:
