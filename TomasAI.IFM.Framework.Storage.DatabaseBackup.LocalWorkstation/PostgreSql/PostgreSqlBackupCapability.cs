@@ -107,7 +107,8 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
         {
             await ReadVersionAsync(PostgreSqlNativeTool.BaseBackup, cancellationToken).ConfigureAwait(false),
             await ReadVersionAsync(PostgreSqlNativeTool.VerifyBackup, cancellationToken).ConfigureAwait(false),
-            await ReadVersionAsync(PostgreSqlNativeTool.Control, cancellationToken).ConfigureAwait(false)
+            await ReadVersionAsync(PostgreSqlNativeTool.Control, cancellationToken).ConfigureAwait(false),
+            await ReadVersionAsync(PostgreSqlNativeTool.ControlData, cancellationToken).ConfigureAwait(false)
         };
         if (versions.Distinct().Count() != 1)
             throw new InvalidOperationException("PostgreSQL backup, verification, and control tools must have the same major version.");
@@ -173,7 +174,7 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
         }
 
         var data = Path.Combine(staging, "data");
-        var manifest = await PostgreSqlBackupManifestReader.ReadAsync(data, cancellationToken).ConfigureAwait(false);
+        var manifest = await ReadManifestAsync(data, cancellationToken).ConfigureAwait(false);
         var expectedBoundary = SafeBoundary(manifest.ManifestSha256);
         EnsureBoundary(expectedBoundary, request.SafeBoundaryReference);
         var started = Stopwatch.GetTimestamp();
@@ -351,7 +352,7 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
         TimeSpan elapsed,
         CancellationToken cancellationToken)
     {
-        var manifest = await PostgreSqlBackupManifestReader.ReadAsync(data, cancellationToken).ConfigureAwait(false);
+        var manifest = await ReadManifestAsync(data, cancellationToken).ConfigureAwait(false);
         if (!manifest.WalContinuity.RequiredWalPresent)
             throw new InvalidDataException("The PostgreSQL base backup does not contain its required streamed WAL.");
         return new PostgreSqlBackupBoundary(SafeBoundary(manifest.ManifestSha256))
@@ -360,6 +361,24 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
             NativeMajorVersion = Volatile.Read(ref _nativeMajorVersion),
             Statistics = Statistics(DatabaseRecoveryPhase.Capturing, manifest.SourceBytes, manifest.FileCount, elapsed)
         };
+    }
+
+    async ValueTask<PostgreSqlManifestEvidence> ReadManifestAsync(
+        string data,
+        CancellationToken cancellationToken)
+    {
+        var manifest = await PostgreSqlBackupManifestReader.ReadAsync(data, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(manifest.SystemIdentifier)) return manifest;
+
+        var result = await _runner.RunAsync(new PostgreSqlNativeInvocation(
+            PostgreSqlNativeTool.ControlData,
+            ["--pgdata", data],
+            EmptyEnvironment,
+            _options.ProcessTimeout), cancellationToken).ConfigureAwait(false);
+        var match = SystemIdentifierPattern().Match(result.StandardOutput + " " + result.StandardError);
+        if (!match.Success)
+            throw new InvalidDataException("PostgreSQL control data did not contain a database system identifier.");
+        return manifest with { SystemIdentifier = match.Groups[1].Value };
     }
 
     static PostgreSqlBackupBoundary Boundary(PostgreSqlBackupEvidence evidence)
@@ -449,4 +468,7 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
 
     [GeneratedRegex(@"(?:PostgreSQL\)?\s+)(\d+)(?:\.|\s|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VersionPattern();
+
+    [GeneratedRegex(@"Database system identifier:\s*(\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex SystemIdentifierPattern();
 }

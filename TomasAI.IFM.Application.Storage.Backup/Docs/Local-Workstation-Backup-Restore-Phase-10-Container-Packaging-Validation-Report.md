@@ -4,7 +4,7 @@
 
 **Slice:** Standalone container packaging and restart-persistence smoke
 
-**Status:** Passed; Gate 10 remains in progress
+**Status:** Passed; superseded by the final Phase 10 report, with Gate 10 blocked only on host-encryption proof
 
 **Date:** 2026-08-12
 
@@ -108,17 +108,13 @@ Build succeeded.
 0 Error(s)
 ```
 
-## Slice result and remaining Gate 10 work
+## Slice result and Phase 10 follow-up
 
 The standalone Worker/Ubuntu 24.04 packaging smoke passed. The image builds, the Worker connects to the standalone
 NATS JetStream service, Linux readiness and liveness are observable, the process runs without root privileges, and
 the SQLite journal survives a Worker restart on persistent storage.
 
-Gate 10 remains open. The following work is deliberately not claimed by this report:
-
-- encrypted persistent-mount evidence from the qualification host;
-- native PostgreSQL end-to-end backup, verification, crash recovery, restore drill, and fresh-target restore in the
-  standalone composition;
-- approved Scylla Manager CLI packaging/mounting and the equivalent native Scylla qualification;
-- complete relevant unit, integration, BDD, and system-test execution for the final gate; and
-- removal and repository-wide absence verification of the legacy SystemAdmin backup API.
+The later `Local-Workstation-Backup-Restore-Phase-10-Validation-Report.md` records successful pinned PostgreSQL and
+Scylla native fresh-target restores, final regression execution, scheduled-task migration, and repository-wide legacy
+API removal. Gate 10 remains blocked only on administrator-readable BitLocker evidence for the host volume backing
+Docker Desktop; this packaging slice does not claim that proof.

@@ -123,7 +123,7 @@ internal static class PostgreSqlBackupManifestReader
         var digest = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
         using var document = JsonDocument.Parse(bytes);
         var root = document.RootElement;
-        var systemIdentifier = RequiredIdentifier(root, "System-Identifier");
+        var systemIdentifier = OptionalIdentifier(root, "System-Identifier");
         var files = root.GetProperty("Files");
         var sourceBytes = 0L;
         foreach (var file in files.EnumerateArray()) sourceBytes = checked(sourceBytes + file.GetProperty("Size").GetInt64());
@@ -155,18 +155,16 @@ internal static class PostgreSqlBackupManifestReader
             : value;
     }
 
-    static string RequiredIdentifier(JsonElement source, string name)
+    static string OptionalIdentifier(JsonElement source, string name)
     {
-        var element = source.GetProperty(name);
+        if (!source.TryGetProperty(name, out var element)) return string.Empty;
         var value = element.ValueKind switch
         {
             JsonValueKind.String => element.GetString(),
             JsonValueKind.Number => element.GetRawText(),
             _ => null
         };
-        return string.IsNullOrWhiteSpace(value)
-            ? throw new InvalidDataException($"The PostgreSQL manifest field '{name}' is missing.")
-            : value;
+        return value ?? string.Empty;
     }
 
     static bool IsWalSegment(string fileName)

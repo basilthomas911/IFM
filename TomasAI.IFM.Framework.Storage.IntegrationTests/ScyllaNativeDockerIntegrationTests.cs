@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Framework.Storage.IntegratedTests;
 
 public sealed class ScyllaNativeDockerIntegrationTests : IAsyncLifetime
 {
-    const string Image = "scylladb/scylla:latest";
+    const string Image = "scylladb/scylla:6.2.2";
     readonly string _id = Guid.NewGuid().ToString("N")[..12];
     readonly string _root = Path.Combine(Path.GetTempPath(), "ifm-gate7-native", Guid.NewGuid().ToString("N"));
     string SourceContainer => $"ifm-gate7-source-{_id}";
@@ -35,6 +35,7 @@ public sealed class ScyllaNativeDockerIntegrationTests : IAsyncLifetime
 
     [Fact]
     [Trait("Category", "Gate7NativeIntegration")]
+    [Trait("Category", "Gate10NativeIntegration")]
     public async Task Native_snapshot_SSTables_restore_to_fresh_disposable_node_after_host_restart()
     {
         var options = Options();

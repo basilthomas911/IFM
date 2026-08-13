@@ -78,7 +78,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
@@ -322,7 +321,6 @@ public static class Startup
             services.AddSingleton<IActorTradeQueryApi, TomasAI.IFM.Domain.Trade.Query.Api.ActorTradeQueryApi>();
             services.AddSingleton<IReferenceQueryApi, ReferenceQueryApi>();
             services.AddSingleton<IActorReferenceQueryApi, TomasAI.IFM.Domain.Reference.Query.Api.ActorReferenceQueryApi>();
-            services.AddSingleton<IActorSystemAdminQueryApi, TomasAI.IFM.Domain.SystemAdmin.Query.Api.ActorSystemAdminQueryApi>();
         }
 
         void RegisterStorageServices()

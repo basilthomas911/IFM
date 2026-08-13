@@ -1,8 +1,8 @@
 # Local Workstation Database Backup and Restore Code Implementation Specification
 
-**Status:** Phase 9 implemented and Gate 9 validated; Phase 10 container-packaging slice validated, native qualification and legacy removal pending
+**Status:** Phase 10 implementation and runtime qualification complete except administrator-only host encryption evidence; Gate 10 is blocked on that single proof
 
-**Version:** 1.2
+**Version:** 1.3
 
 **Date:** 2026-08-12
 
@@ -1269,11 +1269,12 @@ disposable backend.
 
 ### Phase 10: Ubuntu 24.04 Docker qualification, runtime validation, and legacy removal
 
-**Implementation status:** In progress. The standalone Ubuntu 24.04/.NET 10 container-packaging, health, non-root,
-native PostgreSQL-tool, and persistent-journal restart smoke slice passed on 2026-08-12. See
-`Local-Workstation-Backup-Restore-Phase-10-Container-Packaging-Validation-Report.md`. Native PostgreSQL and Scylla
-end-to-end qualification, encrypted-mount evidence, crash recovery, restore drills, fresh-target restores, and legacy
-removal remain pending; Gate 10 is not yet passed.
+**Implementation status:** Complete except host encryption evidence. The standalone Ubuntu 24.04/.NET 10 packaging,
+health, non-root runtime, persistent-journal restart, pinned PostgreSQL 16.14 and Scylla 6.2.2 native qualifications,
+fresh-target restores, relevant regression suites, scheduled-task migration, and legacy removal passed by 2026-08-13.
+See `Local-Workstation-Backup-Restore-Phase-10-Container-Packaging-Validation-Report.md` and
+`Local-Workstation-Backup-Restore-Phase-10-Validation-Report.md`. Gate 10 remains blocked only because the current
+non-administrator Windows session cannot read BitLocker status for the Docker Desktop backing volume.
 
 - Package the existing Worker with the official Ubuntu 24.04/.NET 10 image; do not add Aspire in this phase.
 - Run standalone Docker end-to-end backup, crash recovery, restore drill, and fresh-target restore.
@@ -1307,24 +1308,24 @@ for other clients.
 
 LocalWorkstation implementation is complete only when all statements are true:
 
-- [ ] Common contracts contain `BackupSource` and no source-specific message types.
-- [ ] DatabaseBackup has exactly Command, Event, and Query actor roles.
+- [x] Common contracts contain `BackupSource` and no source-specific message types.
+- [x] DatabaseBackup has exactly Command, Event, and Query actor roles.
 - [x] UI and Console submit commands/queries through NATS actor APIs only.
-- [ ] The host consumes execution intent through `IJSActorEventListener` with durable explicit acknowledgement.
-- [ ] The host publishes service events through the existing `IJSActorProducer` and journaled outbox.
-- [ ] Event Actor acknowledgement follows durable Command Actor acceptance.
-- [ ] `SystemAdminDbContext` projections and `DatabaseRecoveryRunStats` rebuild from domain events.
-- [ ] The host cannot write application projection or event-source databases.
+- [x] The host consumes execution intent through `IJSActorEventListener` with durable explicit acknowledgement.
+- [x] The host publishes service events through the existing `IJSActorProducer` and journaled outbox.
+- [x] Event Actor acknowledgement follows durable Command Actor acceptance.
+- [x] `SystemAdminDbContext` projections and `DatabaseRecoveryRunStats` rebuild from domain events.
+- [x] The host cannot write application projection or event-source databases.
 - [ ] SQLite journal survives container restart on an encrypted persistent mount.
-- [ ] PostgreSQL backup, verification, WAL/dependency evidence, and fresh-target restore pass.
+- [x] PostgreSQL backup, verification, WAL/dependency evidence, and fresh-target restore pass.
 - [x] Scylla backup, verification, schema/dependency evidence, and fresh-target restore pass.
-- [ ] Signed manifests and catalog entries publish atomically without overwrite.
-- [ ] Restore drill, RPO/RTO evidence, cancellation, retention fencing, and reconciliation pass.
-- [ ] Duplicate/redelivered messages never repeat destructive native work.
-- [ ] Public events and storage contain no secrets, arbitrary paths, or raw native output.
+- [x] Signed manifests and catalog entries publish atomically without overwrite.
+- [x] Restore drill, RPO/RTO evidence, cancellation, retention fencing, and reconciliation pass.
+- [x] Duplicate/redelivered messages never repeat destructive native work.
+- [x] Public events and storage contain no secrets, arbitrary paths, or raw native output.
 - [x] Standalone Worker and Ubuntu 24.04 Docker smoke tests pass; Aspire remains outside this implementation.
-- [ ] Legacy backup contracts and call sites are removed only after the replacement is validated.
-- [ ] AWS can later implement the same application capability contracts without changing public actor schemas.
+- [x] Legacy backup contracts and call sites are removed only after the replacement is validated.
+- [x] AWS can later implement the same application capability contracts without changing public actor schemas.
 
 ## 27. Required implementation discipline
 
@@ -1374,3 +1375,4 @@ For each phase, the implementing agent must:
 | 1.0 | 2026-08-12 | Implemented and validated Gate 8: no-overwrite online/offline publication, ECDSA-signed manifests/commits/catalog/enrollment/evidence, dependency-complete source selection, capacity admission, exact revision-bound retention, immutable drill evidence, and offline break-glass reconciliation. |
 | 1.1 | 2026-08-12 | Implemented and validated Gate 9: NATS-only operator console parsing/API/exit codes, immutable WinForms backup dashboard state, protection-set/source selection, non-blocking command acceptance, bounded query refresh, public-event refresh signaling, UI-thread ownership, and FlaUI startup/responsiveness smoke coverage. |
 | 1.2 | 2026-08-12 | Started Phase 10 and validated its container-packaging slice: official Ubuntu 24.04/.NET 10 images, standalone NATS composition, non-root/read-only runtime, health probes, persistent backup/restore mounts, PostgreSQL 16 native tools, and SQLite journal reuse across Worker restart. Gate 10 remains open for native end-to-end qualification, encrypted-mount evidence, and legacy removal. |
+| 1.3 | 2026-08-13 | Completed Phase 10 code and runtime qualification with pinned PostgreSQL 16.14 and Scylla 6.2.2 native fresh-target restores, PostgreSQL 16 manifest compatibility, scheduled-task migration, complete legacy SystemAdmin backup removal, regression coverage, and repeat Ubuntu container/restart validation. Gate 10 remains blocked only on administrator-only BitLocker evidence for the Docker backing volume. |

@@ -2,14 +2,12 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using TomasAI.IFM.Domain.SystemAdmin.Shared;
 
 namespace TomasAI.IFM.Framework.Storage.Azure
 {
     public interface IAzureStorage
     {
         Task UploadFileAsync(string dbName, string backupType, Func<string,Task>? progressFunc = null);
-        IAzureStorageFile GetStorageFile(string name, DatabaseBackupType backupType);
     }
 
 

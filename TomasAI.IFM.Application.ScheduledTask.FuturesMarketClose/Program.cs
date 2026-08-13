@@ -1,57 +1,38 @@
-using System;
-using System.IO;
-using System.Diagnostics;
-using Serilog;
-using Serilog.Extensions.Logging;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
-using TomasAI.IFM.Framework.Serialization;
-using TomasAI.IFM.Framework.Messaging;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Framework.Messaging.NatsJetStream;
-using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
-using TomasAI.IFM.Shared.SystemAdmin.ServiceApi;
-using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Application.Command.Client;
-using TomasAI.IFM.Application.Query.Client;
-using TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose;
-using TomasAI.IFM.UI.EventConsumer;
+using Microsoft.Extensions.Hosting;
+using Serilog;
+using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ServiceApi;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
-try 
-{ 
-    var host = Host.CreateDefaultBuilder(args)
-        .ConfigureAppConfiguration((hostCtx, config)
-           => config.SetBasePath(Directory.GetCurrentDirectory())
-               .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-               .AddJsonFile($"appsettings.{hostCtx.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true))
+namespace TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose;
 
-    .ConfigureServices((hostCtx, services) =>
-    {
-        Log.Logger = new LoggerConfiguration()
-            .ReadFrom.Configuration(hostCtx.Configuration)
-            .CreateLogger();
-        var loggerFactory = new SerilogLoggerFactory(Log.Logger);
-        services.AddLogging(configure => configure.AddSerilog());
-        services.AddSingleton(loggerFactory.CreateLogger("IFM-ScheduledTask-FuturesMarketClose"));
-        services.AddSingleton<INatsEventListenerOptions, NatsEventListenerOptions>();
-        services.AddSingleton<ISystemAdminUIEventConsumer, SystemAdminUIEventConsumer>();
-        services.AddSingleton<IRestApiSerializer, NewtonSoftJsonSerializer>();
-        services.AddSingleton<ICommandServiceRestApiOptions>(sp => new CommandServiceRestApiOptions(hostCtx.Configuration.GetValue<string>("AppSettings:CommandServerBaseUri")));
-        services.AddSingleton<ICommandService, CommandServiceRestApiClient>();
-        services.AddSingleton<ISystemAdminCommandApi, SystemAdminCommandApi>();
-        services.AddSingleton<IQueryServiceRestApiOptions>(sp => new QueryServiceRestApiOptions(hostCtx.Configuration.GetValue<string>("AppSettings:QueryServerBaseUri")));
-        services.AddSingleton<IQueryService, QueryServiceRestClientApi>();
-        services.AddSingleton<ISystemAdminQueryApi, SystemAdminQueryApi>();
-        services.AddSingleton<IApplicationCommandApi, ApplicationCommandApi>();
-        services.AddHostedService<Worker>();
-    })
-    .Build();
-    await host.RunAsync();
-}
-catch { }
-finally
+internal static class Program
 {
-    Process.GetCurrentProcess().Kill();
+    public static async Task Main(string[] args)
+    {
+        var builder = Host.CreateApplicationBuilder(args);
+        Log.Logger = new LoggerConfiguration()
+            .ReadFrom.Configuration(builder.Configuration)
+            .CreateLogger();
+        builder.Services.AddSerilog();
+
+        builder.Services.AddSingleton<NatsConnectionManager>();
+        builder.Services.AddSingleton<IActorProducer>(services => new NatsActorProducer(
+            new NatsProducerOptions
+            {
+                Url = builder.Configuration["Nats:Url"] ?? "nats://localhost:4222"
+            },
+            NullLogger.Instance,
+            services.GetRequiredService<NatsConnectionManager>()));
+        builder.Services.AddSingleton<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
+        builder.Services.AddSingleton<IApplicationCommandApi, ApplicationCommandApi>();
+        builder.Services.AddHostedService<Worker>();
+
+        using var host = builder.Build();
+        await host.RunAsync().ConfigureAwait(false);
+    }
 }

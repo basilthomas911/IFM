@@ -27,8 +27,6 @@ using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.CommandParameters;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.SystemAdmin.Shared;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
@@ -50,11 +48,9 @@ public static class MapCommandExtension
             .MapOptionPricerCommands()
             .MapTradeCommands()
             .MapTradePlanCommands()
-            .MapReferenceCommands()
-            .MapSystemAdminCommands();
+            .MapReferenceCommands();
     }
 }
-
 /// <summary>
 /// Provides extension methods for mapping fund-related command endpoints to an ASP.NET Core routing builder.
 /// </summary>
@@ -166,7 +162,6 @@ public static class FundCommands
         return endpoints;
     }
 }
-
 /// <summary>
 /// Provides extension methods for mapping fund transaction-related command endpoints to an ASP.NET Core routing builder.
 /// </summary>
@@ -216,7 +211,6 @@ public static class FundTransactionCommands
         return endpoints;
     }
 }
-
 /// <summary>
 /// Provides extension methods for mapping reference-related command endpoints to an ASP.NET Core routing builder.
 /// </summary>
@@ -1287,24 +1281,4 @@ public static class TradePlanCommands
         return endpoints;
     }
 }
-
-public static class SystemAdminCommands
-{
-    public static IEndpointRouteBuilder MapSystemAdminCommands(this IEndpointRouteBuilder endpoints)
-    {
-        endpoints.MapPost(SystemAdminUriPath.BackupDatabase, async (IActorService e, BackupDatabaseCommand cp)
-            => {
-                var entityId = new DatabaseBackupId(cp.DatabaseName);
-                BackupDatabaseCommand cmd = new(cp.DatabaseName, cp.BackupType, cp.CommandTimeout)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, BackupDatabaseCommand.Actor, BackupDatabaseCommand.Verb, entityId.Format()),
-                    EntityId = entityId,
-                    ErrorCode = BackupDatabaseCommand.ErrorId
-                };
-                return await e.RequestAsync<BackupDatabaseCommand, DatabaseBackupId>(cmd!);
-            });
-
-        return endpoints;
-    }
-}
+// Legacy SystemAdmin backup routes are intentionally absent; callers use the DatabaseBackup actor API.

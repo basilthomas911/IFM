@@ -12,6 +12,7 @@ namespace TomasAI.IFM.Framework.Storage.IntegratedTests;
 
 public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
 {
+    const string Image = "postgres:16.14";
     const string ConnectionVariable = "IFM_GATE6_DOCKER_POSTGRES_CONNECTION";
     const string Password = "gate6-disposable-password";
     readonly string _id = Guid.NewGuid().ToString("N")[..12];
@@ -27,7 +28,7 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
         _targetPort = FreePort();
         await DockerAsync(["run", "--detach", "--name", SourceContainer,
             "--publish", $"127.0.0.1:{_sourcePort}:5432",
-            "--env", $"POSTGRES_PASSWORD={Password}", "postgres:latest"]);
+            "--env", $"POSTGRES_PASSWORD={Password}", Image]);
         var connectionString = $"Host=127.0.0.1;Port={_sourcePort};Database=postgres;Username=postgres;Password={Password};SSL Mode=Disable;Pooling=false";
         Environment.SetEnvironmentVariable(ConnectionVariable, connectionString);
         await WaitForPostgreSqlAsync(connectionString);
@@ -40,6 +41,7 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
 
     [Fact]
     [Trait("Category", "Gate6NativeIntegration")]
+    [Trait("Category", "Gate10NativeIntegration")]
     public async Task Physical_base_backup_is_verified_and_boots_as_an_isolated_fresh_target()
     {
         var options = Options();
@@ -68,7 +70,7 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
 
         recoveredBoundary.SafeBoundaryReference.Should().Be(boundary.SafeBoundaryReference);
         recoveredBoundary.WalContinuity.Should().Be(boundary.WalContinuity);
-        boundary.NativeMajorVersion.Should().Be(17);
+        boundary.NativeMajorVersion.Should().Be(16);
         boundary.WalContinuity!.RequiredWalPresent.Should().BeTrue();
         boundary.WalContinuity.RequiredSegmentCount.Should().BeGreaterThan(0);
         verification.Succeeded.Should().BeTrue();
@@ -96,8 +98,8 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
                 StartupTimeout = TimeSpan.FromMinutes(1)
             }
         },
-        MinimumMajorVersion = 17,
-        MaximumMajorVersion = 17,
+        MinimumMajorVersion = 16,
+        MaximumMajorVersion = 16,
         ProcessTimeout = TimeSpan.FromMinutes(5),
         RequirePersistentBackupRoot = false
     };
@@ -204,7 +206,7 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
             string output;
             if (invocation.Arguments.SequenceEqual(["--version"]))
             {
-                output = await DockerAsync(["run", "--rm", "postgres:latest", Tool(invocation.Tool), "--version"]);
+                output = await DockerAsync(["run", "--rm", Image, Tool(invocation.Tool), "--version"]);
             }
             else if (invocation.Tool == PostgreSqlNativeTool.BaseBackup)
             {
@@ -216,7 +218,7 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
                     "--mount", $"type=bind,source={Path.GetFullPath(data)},target=/backup",
                     "--env", "PGHOST=127.0.0.1", "--env", "PGPORT=5432",
                     "--env", "PGUSER=postgres", "--env", $"PGPASSWORD={password}", "--env", "PGDATABASE=postgres",
-                    "postgres:latest", "pg_basebackup", .. translated]);
+                    Image, "pg_basebackup", .. translated]);
             }
             else if (invocation.Tool == PostgreSqlNativeTool.VerifyBackup)
             {
@@ -224,7 +226,14 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
                 var translated = invocation.Arguments.Take(invocation.Arguments.Count - 1).Append("/backup").ToArray();
                 output = await DockerAsync(["run", "--rm",
                     "--mount", $"type=bind,source={Path.GetFullPath(data)},target=/backup,readonly",
-                    "postgres:latest", "pg_verifybackup", .. translated]);
+                    Image, "pg_verifybackup", .. translated]);
+            }
+            else if (invocation.Tool == PostgreSqlNativeTool.ControlData)
+            {
+                var data = ValueAfter(invocation.Arguments, "--pgdata");
+                output = await DockerAsync(["run", "--rm",
+                    "--mount", $"type=bind,source={Path.GetFullPath(data)},target=/backup,readonly",
+                    Image, "pg_controldata", "--pgdata", "/backup"]);
             }
             else if (invocation.Tool == PostgreSqlNativeTool.Control && invocation.Arguments[0] == "start")
             {
@@ -232,7 +241,7 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
                 output = await DockerAsync(["run", "--detach", "--name", targetContainer,
                     "--publish", $"127.0.0.1:{targetPort}:5432",
                     "--mount", $"type=bind,source={Path.GetFullPath(data)},target=/var/lib/postgresql/data",
-                    "--env", $"POSTGRES_PASSWORD={password}", "postgres:latest"]);
+                    "--env", $"POSTGRES_PASSWORD={password}", Image]);
             }
             else
             {
@@ -247,6 +256,7 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
             PostgreSqlNativeTool.BaseBackup => "pg_basebackup",
             PostgreSqlNativeTool.VerifyBackup => "pg_verifybackup",
             PostgreSqlNativeTool.Control => "pg_ctl",
+            PostgreSqlNativeTool.ControlData => "pg_controldata",
             _ => throw new ArgumentOutOfRangeException(nameof(tool))
         };
 

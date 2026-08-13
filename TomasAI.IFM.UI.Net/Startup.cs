@@ -25,7 +25,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.ServiceApi;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
@@ -122,14 +121,12 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<IFundQueryApi, FundQueryApi>();
             _container!.RegisterSingleton<ITradeQueryApi, OptionTradeQueryApi>();
             _container!.RegisterSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
-           _container!.RegisterSingleton<ISystemAdminQueryApi, SystemAdminQueryApi>();
             _container!.RegisterSingleton<IDatabaseBackupQueryApi, DatabaseBackupQueryApi>();
         }
 
         static void RegisterCommandServices()
         {
             _container!.RegisterSingleton<IApplicationCommandApi, ApplicationCommandApi>();
-            _container!.RegisterSingleton<ISystemAdminCommandApi, SystemAdminCommandApi>();
             _container!.RegisterSingleton<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
             _container!.RegisterSingleton<ITradeCommandApi, OptionTradeCommandApi>();
             _container!.RegisterSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();

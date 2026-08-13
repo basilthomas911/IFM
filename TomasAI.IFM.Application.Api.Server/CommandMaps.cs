@@ -24,8 +24,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.CommandParameters;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
-using TomasAI.IFM.Domain.SystemAdmin.Shared;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Shared.WebService;
@@ -53,8 +51,7 @@ static public class CommandMaps
             .MapOptionPricerCommands()
             .MapTradeCommands()
             .MapTradePlanCommands()
-            .MapReferenceCommands()
-            .MapSystemAdminCommands();
+            .MapReferenceCommands();
     }
 
 }
@@ -1379,26 +1376,4 @@ public static class TradePlanCommands
         return endpoints;
     }
 }
-
-public static class SystemAdminCommands
-{
-    public static IEndpointRouteBuilder MapSystemAdminCommands(this IEndpointRouteBuilder endpoints)
-    {
-        endpoints.MapPost(SystemAdminUriPath.BackupDatabase, async (IActorService e, BackupDatabaseCommand cp)
-            => {
-                var entityId = new DatabaseBackupId(cp.DatabaseName);
-                BackupDatabaseCommand cmd = new(cp.DatabaseName, cp.BackupType, cp.CommandTimeout)
-                {
-                    CommandId = Guid.NewGuid(),
-                    Subject = new ActorSubject(ActorType.Command, BackupDatabaseCommand.Actor, BackupDatabaseCommand.Verb, entityId.Format()),
-                    EntityId = entityId,
-                    ErrorCode = BackupDatabaseCommand.ErrorId
-                };
-                return await e.RequestAsync<BackupDatabaseCommand, DatabaseBackupId>(cmd!);
-            });
-
-        return endpoints;
-    }
-}
-
 

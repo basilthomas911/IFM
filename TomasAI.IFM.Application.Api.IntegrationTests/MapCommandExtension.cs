@@ -125,8 +125,5 @@ public static class MapCommandExtension
         app.MapPost(TradePlanUriPath.UpdateForwardLossLimit, async (HttpResponse resp) => await TradePlanCommandApiResult.FromUpdateTradePlanForwardLossLimitAsync(resp));
         app.MapPost(TradePlanUriPath.ClearForwardLossLimit, async (HttpResponse resp) => await TradePlanCommandApiResult.FromClearTradePlanForwardLossLimitAsync(resp));
 
-        // system admin command api paths...
-        app.MapPost(SystemAdminUriPath.BackupDatabase, async (HttpResponse resp) => await SystemAdminCommandApiResult.FromBackupDatabaseAsync(resp));
-
     }
 }

@@ -5,7 +5,6 @@ public class ApplicationUriPath
     public const string Start = "/api/application/start";
     public const string Shutdown = "/api/application/shutdown";
 }
-
 public class FundUriPath
 {
     public const string Create = "/api/fund/create";
@@ -202,9 +201,4 @@ public class TradePlanUriPath
     public const string UpdateIronCondorTradePlan = "/api/trade/plan/ironcondor/update";
     public const string UpdateForwardLossLimit = "/api/trade/plan/forwardlosslimit/update";
     public const string ClearForwardLossLimit = "/api/trade/plan/forwardlosslimit/clear";
-}
-
-public class SystemAdminUriPath
-{
-    public const string BackupDatabase = "/api/systemadmin/backup";
 }

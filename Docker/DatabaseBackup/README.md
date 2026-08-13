@@ -11,7 +11,8 @@ liveness/readiness probes without executing native backup or restore work.
 - The container root filesystem is read-only; `/tmp` is a bounded `tmpfs`.
 - SQLite journal, online/offline vault, PostgreSQL/Scylla backup roots, and restore workspaces are named persistent
   volumes outside the disposable application layer.
-- PostgreSQL 16 native tools are installed beneath `/usr/lib/postgresql/16/bin`.
+- PostgreSQL 16 `pg_basebackup`, `pg_verifybackup`, `pg_ctl`, and `pg_controldata` tools are installed beneath
+  `/usr/lib/postgresql/16/bin`.
 - Native Scylla qualification must mount the approved `sctool` binary read-only at
   `/opt/scylla-manager/bin/sctool` before enabling the source. The qualification image does not download credentials
   or third-party binaries during startup.
@@ -39,4 +40,5 @@ Compare `stat -c '%d:%i:%s' /var/lib/ifm/database-backup/journal/execution-journ
 before and after restart to prove the Worker reopens the same persistent journal. Use `docker compose ... down` to
 stop the services. Do not use `down --volumes` during restart-survival qualification; the journal volume must remain
 attached across host recreation. Full Gate 10 native backup, crash recovery, restore drill, fresh-target restore, and
-encrypted-mount evidence are later qualification slices and are not claimed by this packaging smoke.
+encrypted-mount evidence are recorded in the Phase 10 validation report. Host encryption still requires an elevated
+Windows BitLocker-status check before the encrypted-mount gate item can be certified.

@@ -2761,13 +2761,4 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         }
     }
 
-    /// <summary>
-    /// backup fund database
-    /// </summary>
-    /// <param name="backupType"></param>
-    /// <param name="commandTimeout"></param>
-    /// <param name="onInfoMessage"></param>
-    /// <returns></returns>
-    public async Task BackupDatabaseAsync(DatabaseBackupType backupType, int commandTimeout, Action<string> onInfoMessage)
-            => throw new NotImplementedException();
 }

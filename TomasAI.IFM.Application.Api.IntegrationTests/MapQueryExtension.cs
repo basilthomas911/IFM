@@ -106,9 +106,6 @@ public static  class MapQueryExtension
         app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarCountryCodes, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarCountryCodesAsync(resp));
         app.MapGet(ReferenceQueryUriPath.GetMDIForwardLossRatios, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetMDIForwardLossRatiosAsync(resp));
 
-        // map System Admin Query APIs
-        app.MapGet(SystemAdminQueryUriPath.GetDatabaseNames, async (HttpResponse resp) => await SystemAdminQueryApiResult.FromGetDatabaseNamesAsync(resp));
-
         // map Trade Plan Query APIs
         app.MapGet(TradePlanQueryUriPath.GetLossProbability, async (HttpResponse resp) => await TradePlanQueryApiResult.FromGetLossProbabilityAsync(resp));
         app.MapGet(TradePlanQueryUriPath.GetLossProbabilityDistribution, async (HttpResponse resp) => await TradePlanQueryApiResult.FromGetLossProbabilityDistributionAsync(resp));

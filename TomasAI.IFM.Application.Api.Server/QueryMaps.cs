@@ -22,9 +22,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Queries;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.Queries;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.QueryParameters;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
@@ -66,8 +63,7 @@ static public class QueryMaps
             .MapMarketDataAnalyticsQueries()
             .MapOptionPricerQueries()
             .MapTradeQueries()
-            .MapOptionTradeQueries()
-            .MapSystemAdminQueries();
+            .MapOptionTradeQueries();
     }
 }
 
@@ -858,23 +854,4 @@ public static class OptionTradeQueries
         return endpoints;
     }
 }
-
-public static class SystemAdminQueries
-{
-    public static IEndpointRouteBuilder MapSystemAdminQueries(this IEndpointRouteBuilder endpoints)
-    {
-        endpoints.MapGet(SystemAdminQueryUriPath.GetDatabaseNames, async (IActorService e) =>
-        {
-            var entityId = new GetDatabaseNamesParameter();
-            var query = new GetDatabaseNamesQuery()
-            {
-                Subject = new ActorSubject(ActorType.Query, GetDatabaseNamesQuery.Actor, GetDatabaseNamesQuery.Verb, entityId.Format())
-            };
-            return await e.RequestAsync<DatabaseNamesReadModel, GetDatabaseNamesQuery>(query);
-        });
-
-        return endpoints;
-    }
-}
-
 

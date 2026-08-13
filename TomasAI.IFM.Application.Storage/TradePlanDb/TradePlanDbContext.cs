@@ -40,7 +40,6 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb
 
         public enum StoredProcedure
         {
-            spBackupDatabase,
             spGetIronCondorTradePlans,
             spGetIronCondorTradePlanByDateRange,
             spGetIronCondorTradePlanForwardLossRatio,
@@ -182,19 +181,6 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb
                     createdBy = e.CreatedBy })
                .ExecuteCommandAsync();
 
-        /// <summary>
-        /// backup trade plan database
-        /// </summary>
-        /// <param name="backupType"></param>
-        /// <returns></returns>
-        public async Task BackupDatabaseAsync(DatabaseBackupType backupType, int commandTimeout, Action<string> onInfoMessage)
-            => await _dbFactory.TradePlanDb
-                .Use(StoredProcedure.spBackupDatabase)
-                .SetParameters(new {backupType = $"{backupType}"})
-                .WithNoTransaction()
-                .SetCommandTimeout(commandTimeout)
-                .ExecuteCommandAsync(onInfoMessage);
-        
     }
 
 }

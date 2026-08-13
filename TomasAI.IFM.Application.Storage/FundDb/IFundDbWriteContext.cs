@@ -39,5 +39,4 @@ public interface IFundDbWriteContext
         => throw new NotSupportedException();
     Task UpdateFundOrderStatusAsync(int fundId, int orderId, Domain.Fund.Shared.OrderStatus orderStatus);
     Task UpdateFundOrderTradeStateAsync(int fundId, int orderId, int tradeId, TradeState tradeState, DateTime updatedOn, string updatedBy);
-    Task BackupDatabaseAsync(DatabaseBackupType backupType, int commandTimeout, Action<string> onInfoMessage);
 }

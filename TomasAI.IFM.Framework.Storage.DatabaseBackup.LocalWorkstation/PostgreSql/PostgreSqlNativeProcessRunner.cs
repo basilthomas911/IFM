@@ -8,7 +8,8 @@ internal enum PostgreSqlNativeTool
 {
     BaseBackup,
     VerifyBackup,
-    Control
+    Control,
+    ControlData
 }
 
 internal sealed record PostgreSqlNativeInvocation(
@@ -97,6 +98,7 @@ internal sealed class PostgreSqlNativeProcessRunner(PostgreSqlBackupOptions opti
             PostgreSqlNativeTool.BaseBackup => OperatingSystem.IsWindows() ? "pg_basebackup.exe" : "pg_basebackup",
             PostgreSqlNativeTool.VerifyBackup => OperatingSystem.IsWindows() ? "pg_verifybackup.exe" : "pg_verifybackup",
             PostgreSqlNativeTool.Control => OperatingSystem.IsWindows() ? "pg_ctl.exe" : "pg_ctl",
+            PostgreSqlNativeTool.ControlData => OperatingSystem.IsWindows() ? "pg_controldata.exe" : "pg_controldata",
             _ => throw new ArgumentOutOfRangeException(nameof(tool))
         };
         var path = Path.GetFullPath(Path.Combine(_options.ToolDirectory, fileName));
@@ -137,6 +139,7 @@ internal sealed class PostgreSqlNativeToolUnavailableException(PostgreSqlNativeT
         PostgreSqlNativeTool.BaseBackup => "base-backup",
         PostgreSqlNativeTool.VerifyBackup => "verification",
         PostgreSqlNativeTool.Control => "control",
+        PostgreSqlNativeTool.ControlData => "control-data",
         _ => "native"
     };
 }
@@ -157,6 +160,7 @@ internal sealed class PostgreSqlNativeOperationException(
         PostgreSqlNativeTool.BaseBackup => "base-backup",
         PostgreSqlNativeTool.VerifyBackup => "verification",
         PostgreSqlNativeTool.Control => "control",
+        PostgreSqlNativeTool.ControlData => "control-data",
         _ => "native"
     };
 }

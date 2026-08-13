@@ -184,6 +184,7 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
                     await VerifyAsync(invocation.Arguments[^1], cancellationToken);
                     break;
                 case PostgreSqlNativeTool.Control:
+                case PostgreSqlNativeTool.ControlData:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();

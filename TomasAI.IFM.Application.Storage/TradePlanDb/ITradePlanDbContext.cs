@@ -11,7 +11,5 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb
     {
         ITradePlanDbReadContext DbReader { get; }
         ITradePlanDbWriteContext DbWriter { get; }
-
-        Task BackupDatabaseAsync(DatabaseBackupType backupType, int commandTimeout, Action<string> onInfoMessage);
     }
 }

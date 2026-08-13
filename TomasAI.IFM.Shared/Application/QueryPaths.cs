@@ -201,10 +201,3 @@ public class TradeQueryUriPath
 /// <summary>
 /// Provides a collection of URI paths for querying system administrator endpoints.
 /// </summary>
-/// <remarks>This class contains constant string fields representing the URI paths for various endpoints in the
-/// system administrator API. These endpoints are used to retrieve database names and other administrative functions.
-/// The URIs are intended to be used as part of HTTP requests to the API.</remarks>
-public class SystemAdminQueryUriPath
-{
-    public const string GetDatabaseNames = "/api/systemadmin/databasenames";
-}

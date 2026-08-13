@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
 using Azure.Storage.Blobs;
-using TomasAI.IFM.Domain.SystemAdmin.Shared;
 
 namespace TomasAI.IFM.Framework.Storage.Azure
 {
@@ -47,8 +46,6 @@ namespace TomasAI.IFM.Framework.Storage.Azure
                 await progressFunc.Invoke($"Unable to upload {dbName} due to {ex.Message}");
             }
         }
-
-        public IAzureStorageFile GetStorageFile(string name, DatabaseBackupType backupType) => _options.GetStorageFile(name, $"{backupType}".ToLower());
 
     }
 }
