@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
@@ -90,7 +91,21 @@ internal static class ApplicationPriceBenchmark
         public DateOnly ValueDate { get; }
         public IDatabentoMarketDataCatalog Catalog => _catalog;
         public IDatabentoLastPriceReaderProvider LastPrices => _store;
-        public ITickerDataReaderFactory TickerReaders { get; } = new UnsupportedTickerReaders();
+        public bool TryGetLastTickPrice(
+            string contractId,
+            out FuturesMarketPriceSnapshot snapshot)
+        {
+            snapshot = default;
+            return false;
+        }
+        public bool TryGetLastOptionTickPrice(
+            string contractId,
+            out OptionTickerPriceSnapshot snapshot)
+        {
+            snapshot = default;
+            return false;
+        }
+        public bool IsTickDataStreamActive(string contractId) => false;
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task StopAsync()
         {
@@ -101,10 +116,10 @@ internal static class ApplicationPriceBenchmark
             new(contractId, AssetTypeId.Futures, true, true, true);
         public DatabentoMarketDataEpochHealth GetHealth() => new(
             ValueDate, true, true, 1, 1, true, 0, 1, 0);
-        public bool StartFuturesRoute(string futuresContractId) => true;
-        public bool StopFuturesRoute(string futuresContractId) => true;
-        public bool StartIndividualOptionRoute(string futuresOptionContractId) => true;
-        public bool StopIndividualOptionRoute(string futuresOptionContractId) => true;
+        public bool StartFuturesRoute(TickerStreamOwner owner, string futuresContractId) => true;
+        public bool StopFuturesRoute(TickerStreamOwner owner, string futuresContractId) => true;
+        public bool StartIndividualOptionRoute(TickerStreamOwner owner, string futuresOptionContractId) => true;
+        public bool StopIndividualOptionRoute(TickerStreamOwner owner, string futuresOptionContractId) => true;
         public Task<bool> StartOptionChainAsync(
             string futuresContractId,
             DateOnly maturityDate,
@@ -117,16 +132,6 @@ internal static class ApplicationPriceBenchmark
             _store.Dispose();
             return ValueTask.CompletedTask;
         }
-    }
-
-    private sealed class UnsupportedTickerReaders : ITickerDataReaderFactory
-    {
-        public ValueTask<ITickerDataReader> CreateAsync(
-            TickerReaderOwner owner,
-            string contractId,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromException<ITickerDataReader>(
-                new NotSupportedException("Ticker-reader creation is outside this price benchmark."));
     }
 
     private sealed class BenchmarkCatalog : IDatabentoMarketDataCatalog

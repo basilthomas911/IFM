@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
@@ -12,16 +13,44 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 {
     /// <summary>
-    /// Creates a transient TickAggregation reader for one workflow owner and contract.
+    /// Reads the active epoch's normalized market-price hot-cache snapshot without checking stream ownership.
     /// </summary>
-    public ValueTask<ITickerDataReader> CreateTickerDataReaderAsync(
-        TickerReaderOwner owner,
+    public bool TryGetLastTickPrice(
         string contractId,
-        CancellationToken cancellationToken = default)
+        out FuturesMarketPriceSnapshot snapshot)
     {
-        var active = GetRunningEpoch();
-        RequireConfigured(active, contractId);
-        return active.TickerReaders.CreateAsync(owner, contractId, cancellationToken);
+        ValidateContractId(contractId, nameof(contractId));
+        var active = Volatile.Read(ref _epoch);
+        if (active is null)
+        {
+            snapshot = default;
+            return false;
+        }
+        return active.TryGetLastTickPrice(contractId, out snapshot);
+    }
+
+    /// <summary>
+    /// Reads the latest futures-option snapshot without checking stream ownership.
+    /// </summary>
+    public bool TryGetLastOptionTickPrice(
+        string contractId,
+        out OptionTickerPriceSnapshot snapshot)
+    {
+        ValidateContractId(contractId, nameof(contractId));
+        var active = Volatile.Read(ref _epoch);
+        if (active is null)
+        {
+            snapshot = default;
+            return false;
+        }
+        return active.TryGetLastOptionTickPrice(contractId, out snapshot);
+    }
+
+    /// <summary>Returns whether at least one workflow owns the contract's live tick route.</summary>
+    public bool IsTickDataStreamActive(string contractId)
+    {
+        ValidateContractId(contractId, nameof(contractId));
+        return Volatile.Read(ref _epoch)?.IsTickDataStreamActive(contractId) == true;
     }
 
     private readonly IDatabentoMarketDataEpochFactory _epochFactory;
@@ -368,14 +397,18 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// </summary>
     /// <param name="futuresContractId">Canonical domain futures contract identifier.</param>
     /// <returns>
-    /// <see langword="true"/> when the route was newly activated; otherwise
-    /// <see langword="false"/> when it was already active.
+    /// <see langword="true"/> when the supplied owner was newly registered;
+    /// otherwise <see langword="false"/> when that owner was already registered.
     /// </returns>
-    public Task<bool> StartStreamingFuturesTickDataAsync(string futuresContractId)
+    public Task<bool> StartStreamingFuturesTickDataAsync(
+        string futuresContractId,
+        TickerStreamOwner? owner = null)
     {
         var active = GetRunningEpoch();
         RequireFutures(active, futuresContractId);
-        return Task.FromResult(active.StartFuturesRoute(futuresContractId));
+        return Task.FromResult(active.StartFuturesRoute(
+            owner ?? CreateDefaultStreamOwner(active, "futures"),
+            futuresContractId));
     }
 
     /// <summary>
@@ -384,14 +417,18 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// </summary>
     /// <param name="futuresContractId">Canonical domain futures contract identifier.</param>
     /// <returns>
-    /// <see langword="true"/> when an active route was removed; otherwise
-    /// <see langword="false"/>.
+    /// <see langword="true"/> when the supplied owner was removed; otherwise
+    /// <see langword="false"/> when that owner was not registered.
     /// </returns>
-    public Task<bool> StopStreamingFuturesTickDataAsync(string futuresContractId)
+    public Task<bool> StopStreamingFuturesTickDataAsync(
+        string futuresContractId,
+        TickerStreamOwner? owner = null)
     {
         var active = GetRunningEpoch();
         RequireFutures(active, futuresContractId);
-        return Task.FromResult(active.StopFuturesRoute(futuresContractId));
+        return Task.FromResult(active.StopFuturesRoute(
+            owner ?? CreateDefaultStreamOwner(active, "futures"),
+            futuresContractId));
     }
 
     /// <summary>
@@ -399,14 +436,15 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// </summary>
     /// <param name="futuresOptionContractId">Canonical domain futures-option contract identifier.</param>
     /// <returns>
-    /// <see langword="true"/> when the individual route was newly activated;
-    /// otherwise <see langword="false"/> when it was already active.
+    /// <see langword="true"/> when the supplied owner was newly registered;
+    /// otherwise <see langword="false"/> when that owner was already registered.
     /// </returns>
     /// <exception cref="MarketDataRouteConflictException">
     /// Thrown when an option-chain session already owns the option route.
     /// </exception>
     public Task<bool> StartStreamingFuturesOptionTickDataAsync(
-        string futuresOptionContractId)
+        string futuresOptionContractId,
+        TickerStreamOwner? owner = null)
     {
         var active = GetRunningEpoch();
         RequireOption(active, futuresOptionContractId);
@@ -424,7 +462,9 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             throw new TickAggregationNotRunningException(futuresContractId);
         if (!status.ContractConfigured || !status.ContractRunning)
             throw new UnderlyingTickerNotRunningException(futuresContractId);
-        return Task.FromResult(active.StartIndividualOptionRoute(futuresOptionContractId));
+        return Task.FromResult(active.StartIndividualOptionRoute(
+            owner ?? CreateDefaultStreamOwner(active, "option"),
+            futuresOptionContractId));
     }
 
     /// <summary>
@@ -437,11 +477,14 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// <see langword="false"/>.
     /// </returns>
     public Task<bool> StopStreamingFuturesOptionTickDataAsync(
-        string futuresOptionContractId)
+        string futuresOptionContractId,
+        TickerStreamOwner? owner = null)
     {
         var active = GetRunningEpoch();
         RequireOption(active, futuresOptionContractId);
-        return Task.FromResult(active.StopIndividualOptionRoute(futuresOptionContractId));
+        return Task.FromResult(active.StopIndividualOptionRoute(
+            owner ?? CreateDefaultStreamOwner(active, "option"),
+            futuresOptionContractId));
     }
 
     /// <summary>
@@ -537,6 +580,13 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 
     private IDatabentoMarketDataEpoch GetRunningEpoch() =>
         Volatile.Read(ref _epoch) ?? throw new MarketDataApiNotRunningException();
+
+    private static TickerStreamOwner CreateDefaultStreamOwner(
+        IDatabentoMarketDataEpoch epoch,
+        string legId) => new(
+        nameof(DatabentoMarketDataApi),
+        $"compatibility:{epoch.ValueDate:yyyy-MM-dd}",
+        legId);
 
     private static FuturesContractV2ReadModel RequireFutures(
         IDatabentoMarketDataEpoch epoch,

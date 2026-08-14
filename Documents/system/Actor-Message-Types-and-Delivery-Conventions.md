@@ -226,6 +226,8 @@ Realtime routing follows these rules:
 
 If downstream delivery must depend on successful primary processing or requires a transformed contract, the primary actor emits a distinct message after processing instead of relying on realtime fan-out ordering.
 
+For futures market prices, TickAggregation first atomically stores the normalized `FuturesMarketPriceSnapshot` in its stream-independent hot cache and then publishes `FuturesMarketPriceUpdatedRealtimeEvent` containing that same snapshot. Trade observations trigger the realtime publication; quote observations refresh only the cached quote side until a dedicated observer contract is designed. Realtime ITI actors use the event payload directly. Slower timer-derived signal workflows check `IsTickDataStreamActive` when live data is required and then sample `TryGetLastTickPrice` at their time boundary. Futures-option consumers use the equivalent `TryGetLastOptionTickPrice` hot-cache operation. Price reads never acquire ownership or extend stream lifetime.
+
 ## 7. Actor and non-actor interaction matrix
 
 | Sender | Receiver | Intent | Message type | Transport | Receiver participation |

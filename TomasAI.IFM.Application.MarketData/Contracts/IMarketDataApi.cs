@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
@@ -18,13 +19,24 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 public interface IMarketDataApi
 {
     /// <summary>
-    /// Creates an idempotent, workflow-owned reader whose lease is validated by
-    /// TickAggregation on every contract or price read.
+    /// Reads the latest normalized market-price hot-cache snapshot without checking stream ownership.
     /// </summary>
-    ValueTask<ITickerDataReader> CreateTickerDataReaderAsync(
-        TickerReaderOwner owner,
+    bool TryGetLastTickPrice(
         string contractId,
-        CancellationToken cancellationToken = default);
+        out FuturesMarketPriceSnapshot snapshot);
+
+    /// <summary>
+    /// Reads the latest futures-option hot-cache snapshot without checking stream ownership.
+    /// </summary>
+    bool TryGetLastOptionTickPrice(
+        string contractId,
+        out OptionTickerPriceSnapshot snapshot);
+
+    /// <summary>
+    /// Returns whether at least one workflow currently owns the contract's transient tick stream.
+    /// This check is independent from the last-price cache.
+    /// </summary>
+    bool IsTickDataStreamActive(string contractId);
 
     Task StartAsync(
         DateOnly valueDate,
@@ -81,16 +93,20 @@ public interface IMarketDataApi
         string futuresOptionContractId);
 
     Task<bool> StartStreamingFuturesTickDataAsync(
-        string futuresContractId);
+        string futuresContractId,
+        TickerStreamOwner? owner = null);
 
     Task<bool> StopStreamingFuturesTickDataAsync(
-        string futuresContractId);
+        string futuresContractId,
+        TickerStreamOwner? owner = null);
 
     Task<bool> StartStreamingFuturesOptionTickDataAsync(
-        string futuresOptionContractId);
+        string futuresOptionContractId,
+        TickerStreamOwner? owner = null);
 
     Task<bool> StopStreamingFuturesOptionTickDataAsync(
-        string futuresOptionContractId);
+        string futuresOptionContractId,
+        TickerStreamOwner? owner = null);
 
     /// <summary>
     /// Starts one futures-option chain using domain contract identifiers.

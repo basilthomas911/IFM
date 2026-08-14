@@ -120,7 +120,7 @@ until the implementation and its required live tests pass.
 | 15 | `StopStreamingFuturesOptionTickDataAsync` | Validated | None | Provider feed supports bounded stop/drain | Per-option deactivation barrier without stopping unrelated options | Phase A runtime gate passed |
 | 16 | `StartStreamingFuturesOptionChainDataAsync` | Validated structurally | **Required** | Chain definitions, resolved chain subscription, one shared reader, underlying ticker status exist | Session manager, chain tick service, transient publishers/state, Black-76 adapter, underlying hot price, application-supplied FMP Treasury rate | **DEFERRED-FMP** |
 | 17 | `StopStreamingFuturesOptionChainDataAsync` | Validated | None to stop | Option-chain feed supports stop and disposal | Session lookup, drain, transient-state removal, dependency lease release | Phase A manager/stop gate passed; end-to-end deferred with #16 |
-| 18 | `CreateTickerDataReaderAsync` | Validated | None for raw trade/quote; existing pricing context for optional Greeks | Multi-asset TickAggregation state and epoch hot readers | Owner-idempotent leases, first/last route transitions, generation validation, decimal combined snapshots, shutdown invalidation | Unit and cross-component integration gates passed |
+| 18 | `IsTickDataStreamActive`, `TryGetLastTickPrice`, `TryGetLastOptionTickPrice` | Validated | None for raw trade/quote; existing pricing context for optional Greeks | Multi-asset TickAggregation owner registry and hot cache | Owner-idempotent first/final route transitions, stream-independent decimal snapshots, sequence-aligned optional Greeks, shutdown route cleanup | Unit and cross-component integration gates passed |
 
 ### Feasibility conclusion
 

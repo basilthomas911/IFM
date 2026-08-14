@@ -4,6 +4,7 @@ using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 
@@ -79,15 +80,50 @@ internal sealed class FakeMarketDataEpoch :
     internal FakeMarketDataCatalog Catalog { get; }
     IDatabentoMarketDataCatalog IDatabentoMarketDataEpoch.Catalog => Catalog;
     public IDatabentoLastPriceReaderProvider LastPrices => this;
-    public ITickerDataReaderFactory TickerReaders { get; internal set; } =
-        new UnsupportedTickerReaderFactory();
     internal FakeTickAggregationStatus TickAggregation { get; } = new();
     internal FakeTreasuryCurve TreasuryCurve { get; } = new();
     internal FakeOptionRouteRegistry OptionRoutes { get; } = new();
     internal HashSet<string> ActiveFuturesRoutes { get; } = new(StringComparer.Ordinal);
+    internal HashSet<(string ContractId, TickerStreamOwner Owner)> ActiveStreamOwners { get; } = [];
     internal object FuturesRouteSync { get; } = new();
     internal int StopCount { get; private set; }
     internal int DisposeCount { get; private set; }
+    internal FuturesMarketPriceSnapshot? LastMarketPrice { get; set; }
+
+    public bool TryGetLastTickPrice(
+        string contractId,
+        out FuturesMarketPriceSnapshot snapshot)
+    {
+        if (LastMarketPrice is { } current
+            && StringComparer.Ordinal.Equals(current.ContractId, contractId))
+        {
+            snapshot = current;
+            return true;
+        }
+        snapshot = default;
+        return false;
+    }
+
+    public bool TryGetLastOptionTickPrice(
+        string contractId,
+        out OptionTickerPriceSnapshot snapshot)
+    {
+        if (TryGetLastTickPrice(contractId, out var price)
+            && price.AssetTypeId == AssetTypeId.FuturesOption)
+        {
+            snapshot = new OptionTickerPriceSnapshot(ToTickerPrice(price), null);
+            return true;
+        }
+        snapshot = default;
+        return false;
+    }
+
+    public bool IsTickDataStreamActive(string contractId)
+    {
+        lock (FuturesRouteSync)
+            return ActiveStreamOwners.Any(registration =>
+                StringComparer.Ordinal.Equals(registration.ContractId, contractId));
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -108,6 +144,7 @@ internal sealed class FakeMarketDataEpoch :
         lock (FuturesRouteSync)
         {
             ActiveFuturesRoutes.Clear();
+            ActiveStreamOwners.Clear();
         }
         OptionRoutes.Clear();
     }
@@ -134,21 +171,48 @@ internal sealed class FakeMarketDataEpoch :
         0,
         0);
 
-    public bool StartFuturesRoute(string futuresContractId)
+    public bool StartFuturesRoute(TickerStreamOwner owner, string futuresContractId)
     {
-        lock (FuturesRouteSync) return ActiveFuturesRoutes.Add(futuresContractId);
+        lock (FuturesRouteSync)
+        {
+            var added = ActiveStreamOwners.Add((futuresContractId, owner));
+            ActiveFuturesRoutes.Add(futuresContractId);
+            return added;
+        }
     }
 
-    public bool StopFuturesRoute(string futuresContractId)
+    public bool StopFuturesRoute(TickerStreamOwner owner, string futuresContractId)
     {
-        lock (FuturesRouteSync) return ActiveFuturesRoutes.Remove(futuresContractId);
+        lock (FuturesRouteSync)
+        {
+            var removed = ActiveStreamOwners.Remove((futuresContractId, owner));
+            if (!ActiveStreamOwners.Any(item => item.ContractId == futuresContractId))
+                ActiveFuturesRoutes.Remove(futuresContractId);
+            return removed;
+        }
     }
 
-    public bool StartIndividualOptionRoute(string futuresOptionContractId) =>
-        OptionRoutes.StartIndividual(futuresOptionContractId);
+    public bool StartIndividualOptionRoute(TickerStreamOwner owner, string futuresOptionContractId)
+    {
+        lock (FuturesRouteSync)
+        {
+            if (!ActiveStreamOwners.Add((futuresOptionContractId, owner))) return false;
+            if (ActiveStreamOwners.Count(item => item.ContractId == futuresOptionContractId) == 1)
+                OptionRoutes.StartIndividual(futuresOptionContractId);
+            return true;
+        }
+    }
 
-    public bool StopIndividualOptionRoute(string futuresOptionContractId) =>
-        OptionRoutes.StopIndividual(futuresOptionContractId);
+    public bool StopIndividualOptionRoute(TickerStreamOwner owner, string futuresOptionContractId)
+    {
+        lock (FuturesRouteSync)
+        {
+            if (!ActiveStreamOwners.Remove((futuresOptionContractId, owner))) return false;
+            if (!ActiveStreamOwners.Any(item => item.ContractId == futuresOptionContractId))
+                OptionRoutes.StopIndividual(futuresOptionContractId);
+            return true;
+        }
+    }
 
     public async Task<bool> StartOptionChainAsync(
         string futuresContractId,
@@ -213,15 +277,24 @@ internal sealed class FakeMarketDataEpoch :
         lifecycleLog.Add($"Dispose:{ValueDate:yyyy-MM-dd}");
         return ValueTask.CompletedTask;
     }
-}
 
-internal sealed class UnsupportedTickerReaderFactory : ITickerDataReaderFactory
-{
-    public ValueTask<ITickerDataReader> CreateAsync(
-        TickerReaderOwner owner,
-        string contractId,
-        CancellationToken cancellationToken = default) =>
-        ValueTask.FromException<ITickerDataReader>(new NotSupportedException());
+    private static TickerPriceSnapshot ToTickerPrice(FuturesMarketPriceSnapshot price) => new(
+        price.ContractId,
+        price.InstrumentId,
+        price.PublisherId,
+        price.AssetTypeId,
+        price.ValueDate,
+        price.Quote is { } quote
+            ? new TickerQuoteSnapshot(
+                quote.BidPrice, quote.BidSize, quote.AskPrice, quote.AskSize,
+                quote.BidCount, quote.AskCount, quote.SourceSequence,
+                quote.EventTimestamp, quote.ReceiveTimestamp)
+            : null,
+        price.Trade is { } trade
+            ? new TickerTradeSnapshot(
+                trade.LastPrice, trade.LastSize, trade.SourceSequence,
+                trade.EventTimestamp, trade.ReceiveTimestamp)
+            : null);
 }
 
 internal sealed class FakeLifecycleStage(

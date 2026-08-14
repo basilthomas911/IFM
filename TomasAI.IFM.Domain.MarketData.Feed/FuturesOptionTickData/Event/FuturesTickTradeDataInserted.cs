@@ -12,7 +12,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
 
 /// <summary>
-/// Handles durable TickAggregation trade insertions for actively leased futures options.
+/// Handles durable TickAggregation trade insertions for active futures-option streams.
 /// </summary>
 public static class FuturesTickTradeDataInserted
 {
@@ -22,7 +22,7 @@ public static class FuturesTickTradeDataInserted
     static string ServiceId { get; }
 
     /// <summary>
-    /// Combines the exact durable trade with the latest leased option quote and optional Greeks,
+    /// Combines the exact durable trade with the latest hot-cache option quote and optional Greeks,
     /// then publishes the existing option-trade domain update.
     /// </summary>
     public static async ValueTask<bool> ExecuteAsync(
@@ -39,25 +39,22 @@ public static class FuturesTickTradeDataInserted
         ArgumentNullException.ThrowIfNull(logger);
 
         if (e.AssetTypeId != AssetTypeId.FuturesOption
-            || !p.Readers.TryGetReader(e.EntityId.ContractId, out var reader))
+            || !p.Streams.TryGetContract(e.EntityId.ContractId, out var contract)
+            || !StringComparer.Ordinal.Equals(contract.ContractId, e.EntityId.ContractId)
+            || !p.MarketDataApi.IsTickDataStreamActive(e.EntityId.ContractId))
             return true;
 
         try
         {
-            var details = reader.GetContractDetails();
-            if (details.AssetTypeId != AssetTypeId.FuturesOption
-                || !reader.TryGetOptionPrice(out var optionPrice))
+            if (!p.MarketDataApi.TryGetLastOptionTickPrice(
+                    e.EntityId.ContractId,
+                    out var optionPrice))
                 return true;
 
             var tickData = ToLegacyTickData(e, optionPrice);
             await eventApi.SendOptionTradeTickPriceDataUpdatedEventAsync(
                 e,
                 tickData).ConfigureAwait(false);
-            return true;
-        }
-        catch (TickerLeaseNotActiveException)
-        {
-            // A durable event can arrive after its transient workflow has stopped.
             return true;
         }
         catch (Exception exception)
@@ -77,7 +74,7 @@ public static class FuturesTickTradeDataInserted
     }
 
     /// <summary>
-    /// Combines the durable trade payload with the leased quote and optional Greeks in the established option tick model.
+    /// Combines the durable trade payload with the hot-cache quote and optional Greeks in the established option tick model.
     /// </summary>
     private static FuturesOptionTickDataV2ReadModel ToLegacyTickData(
         FuturesTickTradeDataInsertedEvent e,

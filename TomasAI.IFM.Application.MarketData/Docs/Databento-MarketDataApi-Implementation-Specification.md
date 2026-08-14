@@ -44,6 +44,7 @@ is migrated to the application `IMarketDataApi`.
 ## 2. Authoritative interface
 
 ```csharp
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
@@ -51,10 +52,15 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 
 public interface IMarketDataApi
 {
-    ValueTask<ITickerDataReader> CreateTickerDataReaderAsync(
-        TickerReaderOwner owner,
+    bool TryGetLastTickPrice(
         string contractId,
-        CancellationToken cancellationToken = default);
+        out FuturesMarketPriceSnapshot snapshot);
+
+    bool TryGetLastOptionTickPrice(
+        string contractId,
+        out OptionTickerPriceSnapshot snapshot);
+
+    bool IsTickDataStreamActive(string contractId);
 
     Task StartAsync(
         DateOnly valueDate,
@@ -92,16 +98,20 @@ public interface IMarketDataApi
         string futuresOptionContractId);
 
     Task<bool> StartStreamingFuturesTickDataAsync(
-        string futuresContractId);
+        string futuresContractId,
+        TickerStreamOwner? owner = null);
 
     Task<bool> StopStreamingFuturesTickDataAsync(
-        string futuresContractId);
+        string futuresContractId,
+        TickerStreamOwner? owner = null);
 
     Task<bool> StartStreamingFuturesOptionTickDataAsync(
-        string futuresOptionContractId);
+        string futuresOptionContractId,
+        TickerStreamOwner? owner = null);
 
     Task<bool> StopStreamingFuturesOptionTickDataAsync(
-        string futuresOptionContractId);
+        string futuresOptionContractId,
+        TickerStreamOwner? owner = null);
 
     Task<bool> StartStreamingFuturesOptionChainDataAsync(
         string futuresContractId,
@@ -795,6 +805,26 @@ There is no provider query, replay, actor, or storage fallback. If the option is
 not present in a running individual-option or option-chain route, its reader
 has no current quote and the method returns `null`.
 
+### 9.9a Hot-cache snapshots and stream activity
+
+```csharp
+bool TryGetLastTickPrice(
+    string contractId,
+    out FuturesMarketPriceSnapshot snapshot);
+
+bool TryGetLastOptionTickPrice(
+    string contractId,
+    out OptionTickerPriceSnapshot snapshot);
+
+bool IsTickDataStreamActive(string contractId);
+```
+
+These are provider-neutral, stream-independent hot-cache reads for timer-derived and other sampling consumers. They delegate through the active epoch to TickAggregation and never register an owner, activate a transient route, or extend stream lifetime. The option operation returns the same normalized trade/quote view plus optional Greeks only when the enrichment sequence aligns with the selected observation.
+
+TickAggregation stores the same normalized combined snapshot used by `FuturesMarketPriceUpdatedRealtimeEvent`. Quote observations refresh the cached quote side; accepted trade observations refresh the trade side and publish the Core NATS realtime event containing that exact snapshot. Duplicate or older observations do not replace the cached side. A price method returns `false` for an unknown contract or before the first observation. It performs no provider query, database access, or replay.
+
+`IsTickDataStreamActive` checks the owner-keyed runtime registration pool. A client requiring live data checks it before using a cached snapshot, but this is not enforced by either price method. Therefore an inactive stream can still expose its last observation, while an active stream can temporarily have no snapshot before its first tick arrives.
+
 ### 9.10 `GetFuturesLastPriceReader`
 
 ```csharp
@@ -837,33 +867,18 @@ a later value date. Unknown IDs,
 wrong-kind IDs, stopped APIs, and reader-capacity exhaustion throw typed
 exceptions from the `Get` method, not from a subsequent hot read.
 
-### 9.11a `CreateTickerDataReaderAsync`
+### 9.11a Workflow-owned stream registration
 
-```csharp
-ValueTask<ITickerDataReader> CreateTickerDataReaderAsync(
-    TickerReaderOwner owner,
-    string contractId,
-    CancellationToken cancellationToken = default);
-```
+The asset-specific start and stop methods accept an optional `TickerStreamOwner`. The stable tuple `(contract ID, workflow type, workflow ID, leg ID)` is the idempotency key. TickAggregation stores owners in a set: the first owner activates transient routing, overlapping owners share it, and the final owner removal deactivates it. Calls that omit an owner use the application compatibility owner and retain the existing idempotent single-caller behavior.
 
-This method creates the domain-actor reader used by workflow-owned tick consumers. Unlike the stable raw last-price readers above, this reader is also a transient lease over live routing:
-
-1. require a running epoch and a configured futures or futures-option contract;
-2. use `(contract ID, workflow type, workflow ID, leg ID)` as the idempotent owner key;
-3. activate transient routing only for the first lease on the contract;
-4. return distinct readers for distinct owners while all readers share the TickAggregation-owned contract state;
-5. validate the lease ID, owner, contract, service state, and stream generation on every contract or price read;
-6. deactivate transient routing only when the final owner releases its reader; and
-7. assign a new lease ID and later stream generation when ownership is reacquired after final release.
-
-`TickerPriceSnapshot` combines the independently advancing latest quote and trade using decimal actor-domain prices. `OptionTickerPriceSnapshot` adds optional Greeks only when the available enriched observation aligns with the selected quote or trade sequence. Raw DataBento fixed-point values do not cross this boundary.
-
-Released, stopped, missing, mismatched, or stale leases throw `TickerLeaseNotActiveException` with a typed `TickerLeaseFailureReason`. Epoch shutdown invalidates all outstanding readers and releases all lease-owned routes.
+Stream registration and hot-cache access are independent. Actor handlers save the contract supplied by their streaming-started event and remove it on the corresponding stopped event. No disposable ticker reader, lease ID, or stream generation crosses the application boundary.
 
 ### 9.12 `StartStreamingFuturesTickDataAsync`
 
 ```csharp
-Task<bool> StartStreamingFuturesTickDataAsync(string futuresContractId);
+Task<bool> StartStreamingFuturesTickDataAsync(
+    string futuresContractId,
+    TickerStreamOwner? owner = null);
 ```
 
 The futures provider universe and aggregation service are already running for
@@ -874,7 +889,7 @@ the epoch. This method controls application activation:
 3. Atomically add the contract to the active futures set.
 4. Register the contract with the downstream live-delivery router.
 5. Return `true` when inactive became active.
-6. Return `false` when it was already active.
+6. Return `true` when the supplied owner is added or `false` when that owner was already registered.
 
 The existing `ITickAggregationService` continues system-wide ingestion and
 persistence for every configured futures contract. Activation controls live
@@ -886,7 +901,9 @@ does not report success before the router is ready.
 ### 9.13 `StopStreamingFuturesTickDataAsync`
 
 ```csharp
-Task<bool> StopStreamingFuturesTickDataAsync(string futuresContractId);
+Task<bool> StopStreamingFuturesTickDataAsync(
+    string futuresContractId,
+    TickerStreamOwner? owner = null);
 ```
 
 This removes the contract from the active futures set and awaits downstream
@@ -904,7 +921,8 @@ router deactivation.
 
 ```csharp
 Task<bool> StartStreamingFuturesOptionTickDataAsync(
-    string futuresOptionContractId);
+    string futuresOptionContractId,
+    TickerStreamOwner? owner = null);
 ```
 
 The option feed is preconfigured and running, while option publication is
@@ -915,7 +933,7 @@ activation-gated per contract:
 3. Atomically add the instrument to the option service's active immutable
    snapshot.
 4. Await publisher/router acknowledgement that activation is visible.
-5. Return `true` when inactive became active or `false` when already active.
+5. Return `true` when the supplied owner is added or `false` when that owner was already registered.
 
 Once active, every accepted quote record for that instrument is converted to a
 contract/value-date-keyed option bid/ask event and sent through a bounded,
@@ -928,7 +946,8 @@ does not persist ticks; all durable tick persistence is explicitly owned by
 
 ```csharp
 Task<bool> StopStreamingFuturesOptionTickDataAsync(
-    string futuresOptionContractId);
+    string futuresOptionContractId,
+    TickerStreamOwner? owner = null);
 ```
 
 This removes the option instrument from the active snapshot and awaits the

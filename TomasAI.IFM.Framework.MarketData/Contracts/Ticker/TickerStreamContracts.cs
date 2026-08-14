@@ -4,15 +4,15 @@ using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 namespace TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 /// <summary>
-/// Identifies the workflow-owned use of one transient ticker reader.
+/// Identifies one workflow-owned registration for a transient ticker-data stream.
 /// </summary>
-public readonly record struct TickerReaderOwner(
+public readonly record struct TickerStreamOwner(
     string WorkflowType,
     string WorkflowId,
     string LegId)
 {
     /// <summary>
-    /// Validates that every component required for deterministic lease ownership is present.
+    /// Validates that every component required for deterministic stream ownership is present.
     /// </summary>
     public void Validate()
     {
@@ -21,15 +21,6 @@ public readonly record struct TickerReaderOwner(
         ArgumentException.ThrowIfNullOrWhiteSpace(LegId);
     }
 }
-
-/// <summary>
-/// Identifies one active lease over a TickAggregation-owned contract stream.
-/// </summary>
-public readonly record struct TickerStreamLease(
-    Guid LeaseId,
-    string ContractId,
-    TickerReaderOwner Owner,
-    long StreamGeneration);
 
 /// <summary>
 /// Describes the provider-neutral contract identity cached for an active aggregation epoch.
@@ -100,57 +91,3 @@ public readonly record struct OptionTickerPriceSnapshot(
     OptionGreeksSnapshot? Greeks);
 
 /// <summary>
-/// Describes why a ticker lease can no longer authorize an aggregation read.
-/// </summary>
-public enum TickerLeaseFailureReason
-{
-    Unknown = 0,
-    ServiceNotRunning = 1,
-    ContractNotConfigured = 2,
-    LeaseNotFound = 3,
-    LeaseReleased = 4,
-    ContractMismatch = 5,
-    StaleGeneration = 6
-}
-
-/// <summary>
-/// Raised when TickAggregation cannot confirm that a reader lease is currently active.
-/// </summary>
-public sealed class TickerLeaseNotActiveException : InvalidOperationException
-{
-    public TickerLeaseNotActiveException(
-        TickerStreamLease lease,
-        TickerLeaseFailureReason reason)
-        : base($"Ticker lease '{lease.LeaseId}' for contract '{lease.ContractId}' is not active ({reason}).")
-    {
-        Lease = lease;
-        Reason = reason;
-    }
-
-    public TickerStreamLease Lease { get; }
-    public TickerLeaseFailureReason Reason { get; }
-}
-
-/// <summary>
-/// A transient workflow-owned capability for reading TickAggregation state.
-/// </summary>
-public interface ITickerDataReader : IAsyncDisposable
-{
-    string ContractId { get; }
-    TickerReaderOwner Owner { get; }
-    TickerStreamLease Lease { get; }
-    TickerContractDetails GetContractDetails();
-    bool TryGetPrice(out TickerPriceSnapshot snapshot);
-    bool TryGetOptionPrice(out OptionTickerPriceSnapshot snapshot);
-}
-
-/// <summary>
-/// Creates idempotent owner-scoped ticker readers and maintains their shared contract leases.
-/// </summary>
-public interface ITickerDataReaderFactory
-{
-    ValueTask<ITickerDataReader> CreateAsync(
-        TickerReaderOwner owner,
-        string contractId,
-        CancellationToken cancellationToken = default);
-}

@@ -36,10 +36,11 @@ public static async ValueTask<bool> ExecuteAsync(
                 e.Contract.ContractId)
                 ?? throw new InvalidOperationException(
                     $"Futures option contract '{e.Contract.ContractId}' is not configured in the active market-data epoch.");
-            _ = await p.Readers.AcquireAsync(
-                p.MarketDataApi,
-                CreateOwner(e.EntityId, e.Contract.ContractId),
-                e.Contract.ContractId);
+            var owner = CreateOwner(e.EntityId, e.Contract.ContractId);
+            _ = await p.MarketDataApi.StartStreamingFuturesOptionTickDataAsync(
+                e.Contract.ContractId,
+                owner).ConfigureAwait(false);
+            p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
             await eventApi.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e);
 
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"futures option {e.Contract.ContractId} streaming started");
@@ -55,7 +56,7 @@ public static async ValueTask<bool> ExecuteAsync(
         return false;
     }
 
-    internal static TickerReaderOwner CreateOwner(
+    internal static TickerStreamOwner CreateOwner(
         FuturesOptionTickEntityId entityId,
         string contractId) => new(
         nameof(FuturesOptionTickDataEventActor),

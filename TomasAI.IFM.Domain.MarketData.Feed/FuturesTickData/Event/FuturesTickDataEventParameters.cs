@@ -12,7 +12,7 @@ public record FuturesTickDataEventParameters
     public IBlackboardService BlackboardService { get; init; }
     public IStatusConsoleWriter StatusConsoleWriter { get; init; }
     public ILogger Logger { get; init; }
-    internal ActiveTickerReaderRegistry Readers { get; } = new();
+    internal ActiveTickerStreamRegistry<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV2ReadModel> Streams { get; } = new();
 
     public FuturesTickDataEventParameters(
         ApplicationMarketDataApi marketDataApi,

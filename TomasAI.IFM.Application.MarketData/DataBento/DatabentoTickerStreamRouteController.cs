@@ -5,11 +5,11 @@ using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
 /// <summary>
-/// Applies TickAggregation lease transitions to the DataBento transient route registries.
+/// Applies TickAggregation stream-owner transitions to the DataBento transient route registries.
 /// </summary>
-internal sealed class DatabentoTickerLeaseRouteController(
+internal sealed class DatabentoTickerStreamRouteController(
     ITickLiveRouter liveRouter,
-    DatabentoOptionRouteRegistry optionRoutes) : ITickerLeaseRouteController
+    DatabentoOptionRouteRegistry optionRoutes) : ITickerStreamRouteController
 {
     public void Activate(TickContractMapping mapping)
     {

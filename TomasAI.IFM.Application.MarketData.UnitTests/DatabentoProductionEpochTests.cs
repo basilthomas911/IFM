@@ -1,6 +1,7 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -220,6 +221,8 @@ public sealed class DatabentoProductionEpochTests
             return ValueTask.CompletedTask;
         }
         public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event) =>
+            ValueTask.CompletedTask;
+        public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event) =>
             ValueTask.CompletedTask;
         public ValueTask PublishAsync(
             FuturesTickQuoteDataChangedEvent @event,

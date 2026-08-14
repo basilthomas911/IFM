@@ -36,10 +36,11 @@ public static async ValueTask<bool> ExecuteAsync(
                 e.ValueDate,
                 (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
                     LogSourceType.FuturesTickDataEvent, errorCode, errorMsg));
-            _ = await p.Readers.AcquireAsync(
-                p.MarketDataApi,
-                CreateOwner(e.EntityId, e.Contract.ContractId),
-                e.Contract.ContractId);
+            var owner = CreateOwner(e.EntityId, e.Contract.ContractId);
+            _ = await p.MarketDataApi.StartStreamingFuturesTickDataAsync(
+                e.Contract.ContractId,
+                owner).ConfigureAwait(false);
+            p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
             await eventApi.FuturesTickDataStreamingStartedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started");
             p.Logger.LogInformationEvent(ServiceId, "{Source}: futures {e.Contract.ContractId} streaming started", source, e.Contract.ContractId);
@@ -54,7 +55,7 @@ public static async ValueTask<bool> ExecuteAsync(
         return false;
     }
 
-    internal static TickerReaderOwner CreateOwner(
+    internal static TickerStreamOwner CreateOwner(
         FuturesTickDataStreamingId entityId,
         string contractId) => new(
         nameof(FuturesTickDataEventActor),

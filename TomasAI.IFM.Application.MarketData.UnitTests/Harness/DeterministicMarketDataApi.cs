@@ -1,5 +1,6 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
@@ -14,11 +15,34 @@ internal sealed class DeterministicMarketDataApi(
     FakeMarketDataEpochFactory epochFactory,
     TimeSpan maximumLastPriceAge) : IMarketDataApi
 {
-    public ValueTask<ITickerDataReader> CreateTickerDataReaderAsync(
-        TickerReaderOwner owner,
+    public bool TryGetLastTickPrice(
         string contractId,
-        CancellationToken cancellationToken = default) =>
-        GetRunningEpoch().TickerReaders.CreateAsync(owner, contractId, cancellationToken);
+        out FuturesMarketPriceSnapshot snapshot)
+    {
+        var active = Volatile.Read(ref epoch);
+        if (active is null)
+        {
+            snapshot = default;
+            return false;
+        }
+        return active.TryGetLastTickPrice(contractId, out snapshot);
+    }
+
+    public bool TryGetLastOptionTickPrice(
+        string contractId,
+        out OptionTickerPriceSnapshot snapshot)
+    {
+        var active = Volatile.Read(ref epoch);
+        if (active is null)
+        {
+            snapshot = default;
+            return false;
+        }
+        return active.TryGetLastOptionTickPrice(contractId, out snapshot);
+    }
+
+    public bool IsTickDataStreamActive(string contractId) =>
+        Volatile.Read(ref epoch)?.IsTickDataStreamActive(contractId) == true;
 
     private readonly SemaphoreSlim lifecycle = new(1, 1);
     private FakeMarketDataEpoch? epoch;
@@ -253,28 +277,31 @@ internal sealed class DeterministicMarketDataApi(
         return active.GetOptionReader(futuresOptionContractId);
     }
 
-    public Task<bool> StartStreamingFuturesTickDataAsync(string futuresContractId)
+    public Task<bool> StartStreamingFuturesTickDataAsync(
+        string futuresContractId,
+        TickerStreamOwner? owner = null)
     {
         var active = GetRunningEpoch();
         RequireFuture(active, futuresContractId);
-        lock (active.FuturesRouteSync)
-        {
-            return Task.FromResult(active.ActiveFuturesRoutes.Add(futuresContractId));
-        }
+        return Task.FromResult(active.StartFuturesRoute(
+            owner ?? CreateDefaultOwner(active, "futures"),
+            futuresContractId));
     }
 
-    public Task<bool> StopStreamingFuturesTickDataAsync(string futuresContractId)
+    public Task<bool> StopStreamingFuturesTickDataAsync(
+        string futuresContractId,
+        TickerStreamOwner? owner = null)
     {
         var active = GetRunningEpoch();
         RequireFuture(active, futuresContractId);
-        lock (active.FuturesRouteSync)
-        {
-            return Task.FromResult(active.ActiveFuturesRoutes.Remove(futuresContractId));
-        }
+        return Task.FromResult(active.StopFuturesRoute(
+            owner ?? CreateDefaultOwner(active, "futures"),
+            futuresContractId));
     }
 
     public Task<bool> StartStreamingFuturesOptionTickDataAsync(
-        string futuresOptionContractId)
+        string futuresOptionContractId,
+        TickerStreamOwner? owner = null)
     {
         var active = GetRunningEpoch();
         RequireOption(active, futuresOptionContractId);
@@ -292,15 +319,20 @@ internal sealed class DeterministicMarketDataApi(
             throw new TickAggregationNotRunningException(futuresContractId);
         if (!status.TickerConfigured || !status.TickerRunning)
             throw new UnderlyingTickerNotRunningException(futuresContractId);
-        return Task.FromResult(active.OptionRoutes.StartIndividual(futuresOptionContractId));
+        return Task.FromResult(active.StartIndividualOptionRoute(
+            owner ?? CreateDefaultOwner(active, "option"),
+            futuresOptionContractId));
     }
 
     public Task<bool> StopStreamingFuturesOptionTickDataAsync(
-        string futuresOptionContractId)
+        string futuresOptionContractId,
+        TickerStreamOwner? owner = null)
     {
         var active = GetRunningEpoch();
         RequireOption(active, futuresOptionContractId);
-        return Task.FromResult(active.OptionRoutes.StopIndividual(futuresOptionContractId));
+        return Task.FromResult(active.StopIndividualOptionRoute(
+            owner ?? CreateDefaultOwner(active, "option"),
+            futuresOptionContractId));
     }
 
     public async Task<bool> StartStreamingFuturesOptionChainDataAsync(
@@ -360,6 +392,13 @@ internal sealed class DeterministicMarketDataApi(
 
     private FakeMarketDataEpoch GetRunningEpoch() =>
         Volatile.Read(ref epoch) ?? throw new MarketDataApiNotRunningException();
+
+    private static TickerStreamOwner CreateDefaultOwner(
+        FakeMarketDataEpoch active,
+        string legId) => new(
+        nameof(DeterministicMarketDataApi),
+        $"compatibility:{active.ValueDate:yyyy-MM-dd}",
+        legId);
 
     private static FuturesContractV2ReadModel RequireFuture(
         FakeMarketDataEpoch active,

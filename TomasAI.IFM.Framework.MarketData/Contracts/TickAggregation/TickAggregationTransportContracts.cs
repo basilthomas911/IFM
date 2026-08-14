@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 
 namespace TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 
@@ -19,6 +20,9 @@ public interface ITickAggregationEventPublisher : IAsyncDisposable
 {
     bool IsRunning { get; }
     ValueTask StartAsync();
+
+    /// <summary>Publishes a non-durable normalized market-price update through Core NATS.</summary>
+    ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event);
     ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event);
     ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent @event, ITickQuoteBufferLease lease);
     ValueTask StopAsync();

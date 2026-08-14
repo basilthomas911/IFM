@@ -64,7 +64,12 @@ public class FuturesOptionTickDataEventActor(
                 FuturesTickTradeDataInsertedEvent.Actor,
                 FuturesTickTradeDataInsertedEvent.Verb),
             Id);
-        await _eventParameters.Readers.DisposeAsync().ConfigureAwait(false);
+        foreach (var registration in _eventParameters.Streams.Drain())
+        {
+            await _eventParameters.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(
+                registration.Key.ContractId,
+                registration.Key.Owner).ConfigureAwait(false);
+        }
     }
 
     IActorMarketDataFeedEventApi GetEventApi(IEventActorContext context)

@@ -129,37 +129,35 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
     }
 
     [Fact]
-    public async Task StreamingStart_ValidatesOptionAndAcquiresDeterministicLease()
+    public async Task StreamingStart_ValidatesOptionAndRegistersDeterministicOwner()
     {
         var option = SampleData.FuturesOptionContracts[0];
         var api = Substitute.For<ApplicationMarketDataApi>();
         api.GetFuturesOptionContractAsync(option.ContractId).Returns(option);
-        var reader = CreateReader(option.ContractId, CreateOptionPrice(option.ContractId));
-        api.CreateTickerDataReaderAsync(
-                Arg.Any<TickerReaderOwner>(),
+        api.StartStreamingFuturesOptionTickDataAsync(
                 option.ContractId,
-                Arg.Any<CancellationToken>())
-            .Returns(reader);
+                Arg.Any<TickerStreamOwner?>())
+            .Returns(true);
         var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateStreamingStartedEvent(option);
 
         await actor.Receive(context, @event);
 
-        await api.Received(1).CreateTickerDataReaderAsync(
-            Arg.Is<TickerReaderOwner>(owner =>
-                owner.WorkflowType == nameof(FuturesOptionTickDataEventActor)
-                && owner.WorkflowId == @event.EntityId.Format()
-                && owner.LegId == option.ContractId),
+        await api.Received(1).StartStreamingFuturesOptionTickDataAsync(
             option.ContractId,
-            Arg.Any<CancellationToken>());
+            Arg.Is<TickerStreamOwner?>(owner =>
+                owner.HasValue
+                && owner.Value.WorkflowType == nameof(FuturesOptionTickDataEventActor)
+                && owner.Value.WorkflowId == @event.EntityId.Format()
+                && owner.Value.LegId == option.ContractId));
         await context.Received(1).SendAsync<
             FuturesOptionTickDataStreamingStartedCompleteEvent,
             FuturesOptionTickEntityId>(Arg.Any<FuturesOptionTickDataStreamingStartedCompleteEvent>());
     }
 
     [Fact]
-    public async Task StreamingStart_UnknownOptionPublishesFailureWithoutLease()
+    public async Task StreamingStart_UnknownOptionPublishesFailureWithoutRegistration()
     {
         var option = SampleData.FuturesOptionContracts[0];
         var api = Substitute.For<ApplicationMarketDataApi>();
@@ -173,34 +171,37 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
             CreateStreamingStartedEvent(option)).AsTask();
 
         await action.Should().NotThrowAsync();
-        await api.DidNotReceive().CreateTickerDataReaderAsync(
-            Arg.Any<TickerReaderOwner>(),
+        await api.DidNotReceive().StartStreamingFuturesOptionTickDataAsync(
             Arg.Any<string>(),
-            Arg.Any<CancellationToken>());
+            Arg.Any<TickerStreamOwner?>());
         await context.Received(1).SendAsync<
             FuturesOptionTickDataStreamingStartedFailEvent,
             FuturesOptionTickEntityId>(Arg.Any<FuturesOptionTickDataStreamingStartedFailEvent>());
     }
 
     [Fact]
-    public async Task StreamingStop_DisposesOwnedReaderAndPublishesCompletion()
+    public async Task StreamingStop_ReleasesOwnedRegistrationAndPublishesCompletion()
     {
         var option = SampleData.FuturesOptionContracts[0];
         var api = Substitute.For<ApplicationMarketDataApi>();
         api.GetFuturesOptionContractAsync(option.ContractId).Returns(option);
-        var reader = CreateReader(option.ContractId, CreateOptionPrice(option.ContractId));
-        api.CreateTickerDataReaderAsync(
-                Arg.Any<TickerReaderOwner>(),
+        api.StartStreamingFuturesOptionTickDataAsync(
                 option.ContractId,
-                Arg.Any<CancellationToken>())
-            .Returns(reader);
+                Arg.Any<TickerStreamOwner?>())
+            .Returns(true);
+        api.StopStreamingFuturesOptionTickDataAsync(
+                option.ContractId,
+                Arg.Any<TickerStreamOwner?>())
+            .Returns(true);
         var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
         await actor.Receive(context, CreateStreamingStartedEvent(option));
 
         await actor.Receive(context, CreateStreamingStoppedEvent(option.ContractId));
 
-        await reader.Received(1).DisposeAsync();
+        await api.Received(1).StopStreamingFuturesOptionTickDataAsync(
+            option.ContractId,
+            Arg.Any<TickerStreamOwner?>());
         await context.Received(1).SendAsync<
             FuturesOptionTickDataStreamingStoppedCompleteEvent,
             FuturesOptionTickEntityId>(Arg.Any<FuturesOptionTickDataStreamingStoppedCompleteEvent>());
@@ -213,12 +214,7 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
         var api = Substitute.For<ApplicationMarketDataApi>();
         api.GetFuturesOptionContractAsync(option.ContractId).Returns(option);
         var price = CreateOptionPrice(option.ContractId);
-        var reader = CreateReader(option.ContractId, price);
-        api.CreateTickerDataReaderAsync(
-                Arg.Any<TickerReaderOwner>(),
-                option.ContractId,
-                Arg.Any<CancellationToken>())
-            .Returns(reader);
+        ConfigureActiveOption(api, option.ContractId, price);
         var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
         await actor.Receive(context, CreateStreamingStartedEvent(option));
@@ -240,7 +236,7 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
     }
 
     [Fact]
-    public async Task DurableTradeWithoutActiveLease_IsAcknowledgedWithoutUpdate()
+    public async Task DurableTradeWithoutActiveStream_IsAcknowledgedWithoutUpdate()
     {
         var actor = CreateActor();
         var context = Substitute.For<IEventActorContext>();
@@ -253,20 +249,16 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
     }
 
     [Fact]
-    public async Task DurableTradeAfterLeaseRelease_IsAcknowledgedWithoutUpdate()
+    public async Task DurableTradeAfterStreamStops_IsAcknowledgedWithoutUpdate()
     {
         var option = SampleData.FuturesOptionContracts[0];
         var api = Substitute.For<ApplicationMarketDataApi>();
         api.GetFuturesOptionContractAsync(option.ContractId).Returns(option);
-        var reader = CreateReader(option.ContractId, CreateOptionPrice(option.ContractId));
-        reader.GetContractDetails().Returns(_ => throw new TickerLeaseNotActiveException(
-            reader.Lease,
-            TickerLeaseFailureReason.LeaseReleased));
-        api.CreateTickerDataReaderAsync(
-                Arg.Any<TickerReaderOwner>(),
+        api.StartStreamingFuturesOptionTickDataAsync(
                 option.ContractId,
-                Arg.Any<CancellationToken>())
-            .Returns(reader);
+                Arg.Any<TickerStreamOwner?>())
+            .Returns(true);
+        api.IsTickDataStreamActive(option.ContractId).Returns(false);
         var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
         await actor.Receive(context, CreateStreamingStartedEvent(option));
@@ -296,11 +288,7 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
         var option = SampleData.FuturesOptionContracts[0];
         var api = Substitute.For<ApplicationMarketDataApi>();
         api.GetFuturesOptionContractAsync(option.ContractId).Returns(option);
-        api.CreateTickerDataReaderAsync(
-                Arg.Any<TickerReaderOwner>(),
-                option.ContractId,
-                Arg.Any<CancellationToken>())
-            .Returns(_ => CreateReader(option.ContractId, CreateOptionPrice(option.ContractId)));
+        ConfigureActiveOption(api, option.ContractId, CreateOptionPrice(option.ContractId));
         var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
         context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(
@@ -360,47 +348,23 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger<FuturesOptionTickDataEventActor>>());
 
-    private static ITickerDataReader CreateReader(
+    private static void ConfigureActiveOption(
+        ApplicationMarketDataApi api,
         string contractId,
         OptionTickerPriceSnapshot optionPrice)
     {
-        var owner = new TickerReaderOwner("test", "workflow", contractId);
-        var reader = Substitute.For<ITickerDataReader>();
-        reader.ContractId.Returns(contractId);
-        reader.Owner.Returns(owner);
-        reader.Lease.Returns(new TickerStreamLease(Guid.NewGuid(), contractId, owner, 1));
-        reader.GetContractDetails().Returns(CreateDetails(contractId));
-        reader.TryGetOptionPrice(out Arg.Any<OptionTickerPriceSnapshot>())
+        api.StartStreamingFuturesOptionTickDataAsync(
+                contractId,
+                Arg.Any<TickerStreamOwner?>())
+            .Returns(true);
+        api.IsTickDataStreamActive(contractId).Returns(true);
+        api.TryGetLastOptionTickPrice(contractId, out Arg.Any<OptionTickerPriceSnapshot>())
             .Returns(call =>
             {
-                call[0] = optionPrice;
+                call[1] = optionPrice;
                 return true;
             });
-        reader.DisposeAsync().Returns(ValueTask.CompletedTask);
-        return reader;
     }
-
-    private static TickerContractDetails CreateDetails(string contractId) => new()
-    {
-        ContractId = contractId,
-        InstrumentId = 99,
-        PublisherId = 7,
-        AssetTypeId = AssetTypeId.FuturesOption,
-        Dataset = "GLBX.MDP3",
-        DefinitionDate = SampleData.ValueDate,
-        ProviderContractId = contractId,
-        Ticker = "ES",
-        LocalSymbol = contractId,
-        SecurityType = "FOP",
-        Currency = "USD",
-        Exchange = "CME",
-        ContractMultiplier = 50m,
-        MaturityDate = SampleData.FuturesOptionContracts[0].ContractMonth,
-        StrikePrice = 5500m,
-        OptionType = "Call",
-        UnderlyingContractId = SampleData.EsContract.ContractId,
-        IsCurrentlyTraded = true
-    };
 
     private static OptionTickerPriceSnapshot CreateOptionPrice(string contractId) => new(
         new TickerPriceSnapshot(

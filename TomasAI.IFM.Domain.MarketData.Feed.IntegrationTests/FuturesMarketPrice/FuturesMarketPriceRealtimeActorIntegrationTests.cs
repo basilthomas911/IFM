@@ -34,10 +34,9 @@ public sealed class FuturesMarketPriceRealtimeActorIntegrationTests
         var supervisor = Substitute.For<IActorSupervisor>();
         supervisor.CreateMailbox(Arg.Any<ActorMailboxId>()).Returns(mailbox);
         supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(producer);
-        var actor = new ObservedFuturesMarketPriceRealtimeActor(
+        var actor = new FuturesMarketPriceRealtimeActor(
             supervisor,
-            Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>(),
-            received);
+            Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>());
         supervisor.ActorExists(actor.Id).Returns(true);
         supervisor.GetRealtimeRoutes(Arg.Any<ActorTypeId>())
             .Returns(System.Collections.Immutable.ImmutableHashSet<ActorMailboxId>.Empty);
@@ -47,7 +46,7 @@ public sealed class FuturesMarketPriceRealtimeActorIntegrationTests
                 Arg.Any<IActorMessage>(),
                 Arg.Any<ActorSubject>(),
                 Arg.Any<CancellationToken>())
-            .Returns(callInfo => AdmitAsync(actor, callInfo));
+            .Returns(callInfo => AdmitAsync(actor, received, callInfo));
         var consumer = new NatsActorConsumer(
             new NatsConsumerOptions
             {
@@ -95,12 +94,14 @@ public sealed class FuturesMarketPriceRealtimeActorIntegrationTests
     }
 
     static async ValueTask<ActorAdmissionResult> AdmitAsync(
-        ObservedFuturesMarketPriceRealtimeActor actor,
+        FuturesMarketPriceRealtimeActor actor,
+        TaskCompletionSource<FuturesMarketPriceUpdatedRealtimeEvent> received,
         NSubstitute.Core.CallInfo callInfo)
     {
         var message = callInfo.Arg<IActorMessage>();
         var subject = callInfo.Arg<ActorSubject>();
         await actor.HandleMessageAsync(message, subject.ThreadId).ConfigureAwait(false);
+        received.TrySetResult(message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!);
         return ActorAdmissionResult.AcceptedResult;
     }
 
@@ -135,18 +136,4 @@ public sealed class FuturesMarketPriceRealtimeActorIntegrationTests
         };
     }
 
-    sealed class ObservedFuturesMarketPriceRealtimeActor(
-        IActorSupervisor supervisor,
-        ILogger<FuturesMarketPriceRealtimeActor> logger,
-        TaskCompletionSource<FuturesMarketPriceUpdatedRealtimeEvent> received)
-        : FuturesMarketPriceRealtimeActor(supervisor, logger)
-    {
-        protected override async ValueTask ReceiveAsync(
-            IEventActorContext context,
-            IEvent @event)
-        {
-            await base.ReceiveAsync(context, @event).ConfigureAwait(false);
-            received.TrySetResult((FuturesMarketPriceUpdatedRealtimeEvent)@event);
-        }
-    }
 }

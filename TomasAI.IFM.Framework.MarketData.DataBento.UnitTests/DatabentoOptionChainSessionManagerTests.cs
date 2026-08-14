@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
@@ -166,13 +167,25 @@ public sealed class DatabentoOptionChainSessionManagerTests
             new(contractId, AssetTypeId.Futures, ServiceRunning, true, ServiceRunning);
         public TickAggregationTickerStatus GetTickerStatus(string futuresContractId) =>
             new(futuresContractId, ServiceRunning, true, ServiceRunning);
+        public bool TryGetLastTickPrice(
+            string contractId,
+            out FuturesMarketPriceSnapshot snapshot)
+        {
+            snapshot = default;
+            return false;
+        }
+        public bool TryGetLastOptionTickPrice(
+            string contractId,
+            out OptionTickerPriceSnapshot snapshot)
+        {
+            snapshot = default;
+            return false;
+        }
+        public bool IsTickDataStreamActive(string contractId) => false;
+        public bool StartTickDataStream(TickerStreamOwner owner, string contractId) => true;
+        public bool StopTickDataStream(TickerStreamOwner owner, string contractId) => true;
         public ValueTask StartAsync() => ValueTask.CompletedTask;
         public ValueTask StopAsync() => ValueTask.CompletedTask;
-        public ValueTask<ITickerDataReader> CreateAsync(
-            TickerReaderOwner owner,
-            string contractId,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromException<ITickerDataReader>(new NotSupportedException());
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 

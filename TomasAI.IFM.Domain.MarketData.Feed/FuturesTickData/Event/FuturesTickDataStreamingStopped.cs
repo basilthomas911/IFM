@@ -25,9 +25,11 @@ public static async ValueTask<bool> ExecuteAsync(
         var source = $"FuturesTickDataStreamingStoppedEvent for EntityId: {e.EntityId}";
         try
         {
-            _ = await p.Readers.ReleaseAsync(
+            var owner = FuturesTickDataStreamingStarted.CreateOwner(e.EntityId, e.ContractId);
+            _ = await p.MarketDataApi.StopStreamingFuturesTickDataAsync(
                 e.ContractId,
-                FuturesTickDataStreamingStarted.CreateOwner(e.EntityId, e.ContractId));
+                owner).ConfigureAwait(false);
+            p.Streams.Untrack(e.ContractId, owner);
             await eventApi.FuturesTickDataStreamingStoppedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"futures tick data {e.ContractId} streaming stopped");
             p.Logger.LogInformationEvent(ServiceId, "{Source}: futures tick data {e.ContractId} streaming stopped", source, e.ContractId);

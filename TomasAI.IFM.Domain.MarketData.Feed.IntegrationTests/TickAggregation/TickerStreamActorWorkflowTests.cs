@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
@@ -30,14 +31,14 @@ using FuturesTradeHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.E
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 
 /// <summary>
-/// Exercises the real TickAggregation price/lease implementation together with the downstream domain handlers.
+/// Exercises real TickAggregation stream ownership and hot-cache prices with downstream domain handlers.
 /// </summary>
-public sealed class TickerReaderActorWorkflowTests
+public sealed class TickerStreamActorWorkflowTests
 {
     private static readonly DateOnly ValueDate = new(2026, 8, 14);
 
     [Fact]
-    public async Task Persisted_futures_trade_uses_active_lease_and_exact_decimal_trade()
+    public async Task Persisted_futures_trade_uses_active_stream_and_exact_decimal_trade()
     {
         const string contractId = "VX";
         var instrument = new InstrumentKey(7, 42);
@@ -55,6 +56,14 @@ public sealed class TickerReaderActorWorkflowTests
             CreateDetails(contractId, instrument, AssetTypeId.Futures));
         await aggregation.StartAsync();
 
+        var marketPriceEvent = await publisher.MarketPrice.Task.WaitAsync(
+            TimeSpan.FromSeconds(2));
+        aggregation.TryGetLastTickPrice(contractId, out var marketPrice)
+            .Should().BeTrue();
+        marketPrice.Should().Be(marketPriceEvent.Price);
+        marketPrice.Trade!.Value.LastPrice.Should().Be(20.15m);
+        marketPrice.Quote!.Value.BidPrice.Should().Be(20.10m);
+
         var marketDataApi = CreateMarketDataApi(aggregation);
         var logger = Substitute.For<ILogger<global::TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.FuturesTickDataEventActor>>();
         var parameters = new FuturesTickDataEventParameters(
@@ -64,10 +73,14 @@ public sealed class TickerReaderActorWorkflowTests
                 new SystemTextJsonSerializer()),
             Substitute.For<IStatusConsoleWriter>(),
             logger);
-        await parameters.Readers.AcquireAsync(
-            marketDataApi,
-            new TickerReaderOwner("IntegrationWorkflow", "futures", "underlying"),
-            contractId);
+        var owner = new TickerStreamOwner("IntegrationWorkflow", "futures", "underlying");
+        aggregation.StartTickDataStream(owner, contractId).Should().BeTrue();
+        parameters.Streams.Track(
+            owner,
+            contractId,
+            new FuturesContractV2ReadModel(
+                contractId, contractId, "VX", contractId, "FUT", "USD", "CME", "50",
+                new DateOnly(2026, 9, 18), true));
         var changed = await publisher.Trade.Task.WaitAsync(TimeSpan.FromSeconds(2));
         var inserted = ToInserted(changed);
         var commandApi = Substitute.For<IActorMarketDataFeedCommandApi>();
@@ -89,7 +102,7 @@ public sealed class TickerReaderActorWorkflowTests
         emitted.Size.Should().Be(17);
         emitted.TickId.Should().Be(2);
 
-        await parameters.Readers.DisposeAsync();
+        aggregation.StopTickDataStream(owner, contractId).Should().BeTrue();
         await aggregation.StopAsync();
     }
 
@@ -118,10 +131,14 @@ public sealed class TickerReaderActorWorkflowTests
             marketDataApi,
             Substitute.For<IStatusConsoleWriter>(),
             logger);
-        await parameters.Readers.AcquireAsync(
-            marketDataApi,
-            new TickerReaderOwner("IntegrationWorkflow", "option", "long-call"),
-            contractId);
+        var owner = new TickerStreamOwner("IntegrationWorkflow", "option", "long-call");
+        aggregation.StartTickDataStream(owner, contractId).Should().BeTrue();
+        parameters.Streams.Track(
+            owner,
+            contractId,
+            new FuturesOptionContractReadModel(
+                contractId, contractId, "ES", contractId, "FOP", "USD", "CME", "50",
+                new DateOnly(2026, 9, 18), 6500d, "Call"));
         var changed = await publisher.Trade.Task.WaitAsync(TimeSpan.FromSeconds(2));
         var inserted = ToInserted(changed);
         var eventApi = Substitute.For<IActorMarketDataFeedEventApi>();
@@ -146,7 +163,7 @@ public sealed class TickerReaderActorWorkflowTests
         emitted.BidSize.Should().Be(10);
         emitted.AskSize.Should().Be(11);
 
-        await parameters.Readers.DisposeAsync();
+        aggregation.StopTickDataStream(owner, contractId).Should().BeTrue();
         await aggregation.StopAsync();
     }
 
@@ -163,19 +180,31 @@ public sealed class TickerReaderActorWorkflowTests
         new FixedValueDateProvider(ValueDate),
         new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = ValueDate },
         lastPrices: lastPrices,
-        leaseRoutes: new NoOpLeaseRoutes());
+        streamRoutes: new NoOpStreamRoutes());
 
-    private static IMarketDataApi CreateMarketDataApi(ITickerDataReaderFactory readers)
+    private static IMarketDataApi CreateMarketDataApi(TickAggregationService aggregation)
     {
         var api = Substitute.For<IMarketDataApi>();
-        api.CreateTickerDataReaderAsync(
-                Arg.Any<TickerReaderOwner>(),
-                Arg.Any<string>(),
-                Arg.Any<CancellationToken>())
-            .Returns(call => readers.CreateAsync(
-                call.ArgAt<TickerReaderOwner>(0),
-                call.ArgAt<string>(1),
-                call.ArgAt<CancellationToken>(2)));
+        api.IsTickDataStreamActive(Arg.Any<string>())
+            .Returns(call => aggregation.IsTickDataStreamActive(call.ArgAt<string>(0)));
+        api.TryGetLastTickPrice(Arg.Any<string>(), out Arg.Any<FuturesMarketPriceSnapshot>())
+            .Returns(call =>
+            {
+                var found = aggregation.TryGetLastTickPrice(
+                    call.ArgAt<string>(0),
+                    out var snapshot);
+                call[1] = snapshot;
+                return found;
+            });
+        api.TryGetLastOptionTickPrice(Arg.Any<string>(), out Arg.Any<OptionTickerPriceSnapshot>())
+            .Returns(call =>
+            {
+                var found = aggregation.TryGetLastOptionTickPrice(
+                    call.ArgAt<string>(0),
+                    out var snapshot);
+                call[1] = snapshot;
+                return found;
+            });
         return api;
     }
 
@@ -300,7 +329,7 @@ public sealed class TickerReaderActorWorkflowTests
         public DateOnly GetValueDate(DateTime timestampUtc) => valueDate;
     }
 
-    private sealed class NoOpLeaseRoutes : ITickerLeaseRouteController
+    private sealed class NoOpStreamRoutes : ITickerStreamRouteController
     {
         public void Activate(TickContractMapping mapping) { }
         public void Deactivate(TickContractMapping mapping) { }
@@ -310,11 +339,19 @@ public sealed class TickerReaderActorWorkflowTests
     {
         public TaskCompletionSource<FuturesTickTradeDataChangedEvent> Trade { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrice { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public bool IsRunning { get; private set; }
         public ValueTask StartAsync()
         {
             IsRunning = true;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event)
+        {
+            MarketPrice.TrySetResult(@event);
             return ValueTask.CompletedTask;
         }
 

@@ -408,7 +408,7 @@ The existing EOD pattern is to be aligned with this convention:
 
 The specialized VIX complete behavior remains part of `VixFuturesEodDataInserted`. When this family is migrated, every overload will receive the actor logger and follow the same exception-only default logging convention unless its existing domain behavior explicitly requires informational output.
 
-### 9.3 Durable tick consumers and transient ticker readers
+### 9.3 Durable tick consumers and stream ownership
 
 `TickAggregationEventActor` is the sole persistence boundary for raw futures and futures-option feed ticks. Downstream domain actors do not create `InsertFuturesTickData` or `InsertFuturesOptionTickData` commands from feed events. They consume the durable `FuturesTickTradeDataInsertedEvent` emitted only after TickAggregation persistence succeeds.
 
@@ -416,15 +416,15 @@ The downstream routing convention is:
 
 | Source event | FuturesTickDataEventActor | FuturesOptionTickDataEventActor |
 | --- | --- | --- |
-| `FuturesTickTradeDataInsertedEvent` with `AssetTypeId.Futures` | Process only when the contract has an active actor-owned ticker reader. | Ignore. |
-| `FuturesTickTradeDataInsertedEvent` with `AssetTypeId.FuturesOption` | Ignore. | Process only when the contract has an active actor-owned ticker reader. |
+| `FuturesTickTradeDataInsertedEvent` with `AssetTypeId.Futures` | Process only when the actor has recorded the contract as started and `IsTickDataStreamActive` confirms runtime activity. | Ignore. |
+| `FuturesTickTradeDataInsertedEvent` with `AssetTypeId.FuturesOption` | Ignore. | Process only when the actor has recorded the contract as started and `IsTickDataStreamActive` confirms runtime activity. |
 | `FuturesTickQuoteDataInsertedEvent` | Do not consume downstream. | Do not consume downstream. |
 
 Quote insertion events contain a pooled buffer and remain inside the persistence lifecycle. A later UI notification contract must copy only the explicitly approved fields; it must not expose the pooled quote buffer. Real-time UI and limit-order-book contracts remain a separate future design.
 
-The downstream event actors register an explicit actor-supervisor route for the TickAggregation trade-inserted verb during startup and remove it during shutdown. The supervisor may therefore deliver one durable TickAggregation event to each interested actor mailbox without republishing or dual-writing that event. Each actor still filters by `AssetTypeId`, contract ID, and its active lease before executing domain behavior.
+The downstream event actors register an explicit actor-supervisor route for the TickAggregation trade-inserted verb during startup and remove it during shutdown. The supervisor may therefore deliver one durable TickAggregation event to each interested actor mailbox without republishing or dual-writing that event. Each actor still filters by `AssetTypeId`, contract ID, actor-owned started/stopped state, and current runtime stream activity before executing domain behavior.
 
-Streaming start handlers acquire an `ITickerDataReader` through `IMarketDataApi.CreateTickerDataReaderAsync`. Streaming stop handlers dispose the matching reader. A reader is a transient, workflow-owned capability described by `TickerReaderOwner` and `TickerStreamLease`; it is not shared mutable workflow state.
+Streaming start handlers register a stable `TickerStreamOwner` through the asset-specific `IMarketDataApi.StartStreaming...` method and store the contract carried by the started event in actor-local state. Streaming stop handlers call the matching stop method and remove that state. `ITickerDataReader`, reader leases, lease IDs, and stream generations are not part of the application contract.
 
 TickAggregation owns the canonical per-contract state:
 
@@ -432,15 +432,12 @@ TickAggregation owns the canonical per-contract state:
 - latest decimal trade snapshot;
 - latest decimal quote snapshot;
 - optional option Greeks aligned with the available price observation;
-- stream generation;
-- active owners and leases; and
-- first-lease/last-release route activation.
+- active workflow owners; and
+- first-owner/final-owner route activation.
 
-Every reader operation that obtains contract or price data revalidates the lease ID, owner, contract ID, service state, and stream generation. A released, stopped, missing, mismatched, or stale lease throws `TickerLeaseNotActiveException` with a typed `TickerLeaseFailureReason`. A durable event that was already in flight when its transient workflow stopped is acknowledged as an intentional no-op after this exception; unrelated handler failures continue through normal durable error handling.
+Registration is idempotent for the tuple `(contract ID, workflow type, workflow ID, leg ID)`. Distinct owners may overlap on the same contract. The first owner activates transient routing once, intermediate owner removals leave it active, and the final owner removal deactivates it. The owner set, rather than a raw counter, prevents duplicate event delivery from inflating ownership.
 
-Lease acquisition is idempotent for the tuple `(contract ID, workflow type, workflow ID, leg ID)`. Distinct owners may hold overlapping leases for the same contract. The first owner activates transient routing once, intermediate releases leave the route active, and the final release deactivates it. Reacquisition after the last release receives a new lease ID and a later stream generation, preventing a disposed reader from reading state belonging to a newer stream lifetime.
-
-The futures handler derives the existing EOD workflow input from the exact durable trade payload and obtains contract details through its validated reader. The futures-option handler combines that exact durable trade with the latest leased quote and optional Greeks, then publishes the established option trade-price update. Raw DataBento integer-scaled values remain limited to ingestion and persistence; actor-domain ticker snapshots use decimal prices.
+The futures handler derives the existing EOD workflow input from the exact durable trade payload and uses the contract saved from its streaming-started event. The futures-option handler combines that exact durable trade with the latest lease-independent option hot-cache quote and optional Greeks, then publishes the established option trade-price update. Raw DataBento integer-scaled values remain limited to ingestion and persistence; actor-domain ticker snapshots use decimal prices.
 
 ### 9.4 Futures market-price realtime actor
 
@@ -457,6 +454,22 @@ The contract carries a provider-neutral, decimal-based `FuturesMarketPriceSnapsh
 The primary actor has exactly one parse-map entry and one receive-map entry, both for `FuturesMarketPriceUpdatedRealtimeEvent`. Its `FuturesMarketPriceUpdated` extension handler receives `IEventActorContext` and `ILogger<FuturesMarketPriceRealtimeActor>`. The initial handler intentionally performs no downstream behavior and returns success after validating its inputs. No complete or fail contracts or handlers exist for this realtime family because Core NATS has no durable lifecycle, acknowledgement, or replay.
 
 The primary actor does not register a route to itself. Later signal realtime actors register and remove their own routes for `(Realtime, FuturesMarketPrice, Updated)` during their lifecycle. Core fan-out includes the registered primary exactly once and gives every routed realtime actor an independent mailbox branch. `Notify`, durable `Event`, `Command`, and `Query` actors cannot register as realtime route destinations.
+
+#### 9.4.1 Normalized last-price cache
+
+`TickAggregationService` deliberately separates runtime stream ownership from hot-cache access. The application-level APIs are:
+
+- `IsTickDataStreamActive(contractId)` checks whether the running aggregation service has at least one registered workflow owner.
+- `TryGetLastTickPrice(contractId, out FuturesMarketPriceSnapshot)` reads the normalized futures/underlying hot cache.
+- `TryGetLastOptionTickPrice(contractId, out OptionTickerPriceSnapshot)` reads the normalized option hot cache and sequence-aligned optional Greeks.
+
+Neither price method checks stream ownership, activates a route, extends stream lifetime, queries a provider, or accesses durable storage. Clients that require live data check stream activity first; this is client policy and is not enforced by the cache.
+
+Every accepted quote atomically replaces the quote portion of the contract's cached `FuturesMarketPriceSnapshot` while retaining a same-value-date trade. Every accepted trade atomically replaces the trade portion while retaining a same-value-date quote. The per-contract cache uses a single-writer versioned snapshot cell: updates allocate no cache wrapper, and readers retry if they overlap a write rather than taking the stream-owner lock. Duplicate and older quote or trade observations do not supersede the normalized snapshot. The accepted trade update then publishes `FuturesMarketPriceUpdatedRealtimeEvent` with that exact combined snapshot. Quotes do not publish this realtime event; quote-oriented UI notification contracts remain a separate future design.
+
+The hot-cache read returns `false` when the contract is unknown or no quote or trade has yet been observed. Per-contract stream stop does not erase the cache, so an inactive contract can still return its last observation; clients requiring live data must first check `IsTickDataStreamActive` and should also inspect the snapshot timestamps. Stream activity becoming true does not imply that the first price has arrived. A value-date transition discards the previous combined snapshot before accepting data for the new date. Core publication failure increments TickAggregation publication-failure metrics but does not stop ingestion or invalidate the newer cached value; loss and recovery remain consistent with the explicitly non-durable realtime contract.
+
+Realtime ITI processing consumes the snapshot carried by `FuturesMarketPriceUpdatedRealtimeEvent`. Timer-derived RSI, ATR, ADX, and MACD processing checks stream activity and samples `TryGetLastTickPrice` only when its time event fires, then sends a durable generation command. TDI and trade-signal workflows consume their upstream durable signal events rather than reading the raw feed or subscribing directly to market-price updates.
 
 ## 10. EventActor testing convention
 
@@ -569,5 +582,6 @@ Reserved. Once the EventActor, CommandActor, and QueryActor sections are mature,
 | 2026-08-14 | Created the initial system-wide event actor implementation convention. Recorded derived-actor parse/receive maps, event-family extension naming, main/complete/fail co-location, default lifecycle logging, responsibility boundaries, and initial Tick Aggregation and Futures EOD application. |
 | 2026-08-14 | Promoted the document to the system-wide Actor Implementation Conventions guide. Retained EventActor as the only currently defined convention and reserved CommandActor, QueryActor, and cross-actor sections for later implementation review. |
 | 2026-08-14 | Required every EventActor handler to receive the typed actor logger, added a main-event `LogSourceType` and shared family `ServiceId` convention, and limited default logging to caught exceptions and fail lifecycle events. |
-| 2026-08-14 | Added the TickAggregation-to-domain actor convention: durable trade-only downstream routing, actor-owned transient ticker-reader leases, reference-counted overlapping ownership, typed stale-lease behavior, decimal domain snapshots, and the prohibition on forwarding pooled quote buffers. |
+| 2026-08-14 | Added the TickAggregation-to-domain actor convention: durable trade-only downstream routing, actor-owned reference-counted stream registrations, decimal domain snapshots, and the prohibition on forwarding pooled quote buffers. |
 | 2026-08-14 | Added the first RealtimeActor convention using `FuturesMarketPriceRealtimeActor`: required primary Core NATS destination, realtime-only route fan-out, provider-neutral decimal snapshot contract, one main handler with no complete/fail lifecycle, and actor-type-correct runtime metrics. |
+| 2026-08-14 | Defined the TickAggregation normalized last-price cache: stream-independent tick/option snapshot reads, explicit stream-activity checks, allocation-free versioned snapshot reads, quote-side cache refresh, trade-triggered Core realtime publication, stale-update rejection, and timer-derived signal sampling. |

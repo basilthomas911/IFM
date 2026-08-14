@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Extensions;
@@ -7,7 +6,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
@@ -15,7 +13,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
 
 /// <summary>
-/// Handles durable TickAggregation trade insertions for actively leased futures contracts.
+/// Handles durable TickAggregation trade insertions for active futures streams.
 /// </summary>
 public static class FuturesTickTradeDataInserted
 {
@@ -26,7 +24,7 @@ public static class FuturesTickTradeDataInserted
 
     /// <summary>
     /// Converts the persisted aggregation trade into the legacy futures EOD workflow input.
-    /// Contracts that are not futures or are not actively leased by this actor are ignored.
+    /// Contracts that are not futures or are not active for this actor are ignored.
     /// </summary>
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesTickTradeDataInsertedEvent e,
@@ -42,17 +40,15 @@ public static class FuturesTickTradeDataInserted
         ArgumentNullException.ThrowIfNull(logger);
 
         if (e.AssetTypeId != AssetTypeId.Futures
-            || !p.Readers.TryGetReader(e.EntityId.ContractId, out var reader))
+            || !p.Streams.TryGetContract(e.EntityId.ContractId, out var contract)
+            || !p.MarketDataApi.IsTickDataStreamActive(e.EntityId.ContractId))
             return true;
 
         try
         {
-            var details = reader.GetContractDetails();
-            if (details.AssetTypeId != AssetTypeId.Futures
-                || !StringComparer.Ordinal.Equals(details.ContractId, e.EntityId.ContractId))
+            if (!StringComparer.Ordinal.Equals(contract.ContractId, e.EntityId.ContractId))
                 return true;
 
-            var contract = ToFuturesContract(details);
             var tickData = ToFuturesTickData(e);
             await ExecuteEodWorkflowAsync(
                 context,
@@ -60,11 +56,6 @@ public static class FuturesTickTradeDataInserted
                 p,
                 contract,
                 tickData).ConfigureAwait(false);
-            return true;
-        }
-        catch (TickerLeaseNotActiveException)
-        {
-            // A durable event can arrive after its transient workflow has stopped.
             return true;
         }
         catch (Exception exception)
@@ -150,22 +141,6 @@ public static class FuturesTickTradeDataInserted
             valueDate,
             tickData.ContractId);
     }
-
-    /// <summary>
-    /// Translates provider-neutral cached contract details into the established futures contract read model.
-    /// </summary>
-    private static FuturesContractV2ReadModel ToFuturesContract(
-        TickerContractDetails details) => new(
-        details.ContractId,
-        details.ProviderContractId,
-        details.Ticker,
-        details.LocalSymbol,
-        string.IsNullOrWhiteSpace(details.SecurityType) ? "FUT" : details.SecurityType,
-        details.Currency,
-        details.Exchange,
-        details.ContractMultiplier.ToString(CultureInfo.InvariantCulture),
-        details.MaturityDate,
-        details.IsCurrentlyTraded);
 
     /// <summary>
     /// Translates the durable TickAggregation trade into the established futures tick read model.

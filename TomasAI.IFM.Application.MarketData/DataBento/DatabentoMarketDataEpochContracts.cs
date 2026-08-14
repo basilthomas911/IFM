@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
@@ -19,16 +20,22 @@ public interface IDatabentoMarketDataEpoch : IAsyncDisposable
     DateOnly ValueDate { get; }
     IDatabentoMarketDataCatalog Catalog { get; }
     IDatabentoLastPriceReaderProvider LastPrices { get; }
-    ITickerDataReaderFactory TickerReaders { get; }
+    bool TryGetLastTickPrice(
+        string contractId,
+        out FuturesMarketPriceSnapshot snapshot);
+    bool TryGetLastOptionTickPrice(
+        string contractId,
+        out OptionTickerPriceSnapshot snapshot);
+    bool IsTickDataStreamActive(string contractId);
 
     Task StartAsync(CancellationToken cancellationToken);
     Task StopAsync();
     DatabentoMarketDataEpochHealth GetHealth();
     TickAggregationContractStatus GetAggregationStatus(string contractId);
-    bool StartFuturesRoute(string futuresContractId);
-    bool StopFuturesRoute(string futuresContractId);
-    bool StartIndividualOptionRoute(string futuresOptionContractId);
-    bool StopIndividualOptionRoute(string futuresOptionContractId);
+    bool StartFuturesRoute(TickerStreamOwner owner, string futuresContractId);
+    bool StopFuturesRoute(TickerStreamOwner owner, string futuresContractId);
+    bool StartIndividualOptionRoute(TickerStreamOwner owner, string futuresOptionContractId);
+    bool StopIndividualOptionRoute(TickerStreamOwner owner, string futuresOptionContractId);
     Task<bool> StartOptionChainAsync(
         string futuresContractId,
         DateOnly maturityDate,

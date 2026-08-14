@@ -1,24 +1,26 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.UnitTests;
 
 public sealed class TickAggregationServiceTests
 {
     [Fact]
-    public async Task Reader_leases_are_idempotent_per_owner_and_reference_count_routes()
+    public async Task Stream_owners_are_idempotent_and_reference_count_routes()
     {
         var valueDate = new DateOnly(2026, 8, 10);
         var instrument = new InstrumentKey(7, 42);
         using var feed = new RunningFeed(instrument);
         using var lastPrices = new DatabentoLastPriceStore(valueDate, 1);
-        var routes = new CapturingLeaseRoutes();
+        var routes = new CapturingStreamRoutes();
         await using var service = new TickAggregationService(
             feed,
             new MappingProvider(instrument, CreateDetails(valueDate, instrument)),
@@ -27,32 +29,29 @@ public sealed class TickAggregationServiceTests
             new FixedValueDateProvider(valueDate),
             new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = valueDate },
             lastPrices: lastPrices,
-            leaseRoutes: routes);
+            streamRoutes: routes);
 
         await service.StartAsync();
-        var spreadA = new TickerReaderOwner("Spread", "A", "long");
-        var spreadB = new TickerReaderOwner("Spread", "B", "short");
-        var first = await service.CreateAsync(spreadA, "ESU6");
-        var retry = await service.CreateAsync(spreadA, "ESU6");
-        var overlapping = await service.CreateAsync(spreadB, "ESU6");
-
-        Assert.Same(first, retry);
-        Assert.NotSame(first, overlapping);
-        Assert.Equal(first.Lease.LeaseId, retry.Lease.LeaseId);
-        Assert.Equal(first.Lease.StreamGeneration, overlapping.Lease.StreamGeneration);
+        var spreadA = new TickerStreamOwner("Spread", "A", "long");
+        var spreadB = new TickerStreamOwner("Spread", "B", "short");
+        Assert.True(service.StartTickDataStream(spreadA, "ESU6"));
+        Assert.False(service.StartTickDataStream(spreadA, "ESU6"));
+        Assert.True(service.StartTickDataStream(spreadB, "ESU6"));
         Assert.Equal(1, routes.Activations);
+        Assert.True(service.IsTickDataStreamActive("ESU6"));
 
-        await first.DisposeAsync();
+        Assert.True(service.StopTickDataStream(spreadA, "ESU6"));
         Assert.Equal(0, routes.Deactivations);
-        Assert.Equal("ESU6", overlapping.GetContractDetails().ContractId);
+        Assert.True(service.IsTickDataStreamActive("ESU6"));
 
-        await overlapping.DisposeAsync();
+        Assert.True(service.StopTickDataStream(spreadB, "ESU6"));
         Assert.Equal(1, routes.Deactivations);
+        Assert.False(service.IsTickDataStreamActive("ESU6"));
         await service.StopAsync();
     }
 
     [Fact]
-    public async Task Reader_combines_decimal_trade_and_quote_with_provider_and_domain_identity()
+    public async Task Hot_cache_combines_decimal_trade_and_quote_with_provider_and_domain_identity()
     {
         var valueDate = new DateOnly(2026, 8, 10);
         var instrument = new InstrumentKey(7, 42);
@@ -69,15 +68,12 @@ public sealed class TickAggregationServiceTests
             new FixedValueDateProvider(valueDate),
             new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = valueDate },
             lastPrices: lastPrices,
-            leaseRoutes: new CapturingLeaseRoutes());
+            streamRoutes: new CapturingStreamRoutes());
 
         await service.StartAsync();
-        var reader = await service.CreateAsync(
-            new TickerReaderOwner("Strategy", "S1", "underlying"),
-            "ESU6");
-        TickerPriceSnapshot snapshot = default;
+        FuturesMarketPriceSnapshot snapshot = default;
         Assert.True(SpinWait.SpinUntil(
-            () => reader.TryGetPrice(out snapshot)
+            () => service.TryGetLastTickPrice("ESU6", out snapshot)
                 && snapshot.Trade is not null
                 && snapshot.Quote is not null,
             TimeSpan.FromSeconds(2)));
@@ -91,14 +87,133 @@ public sealed class TickAggregationServiceTests
         Assert.Equal(5.1m, snapshot.Quote.Value.AskPrice);
         Assert.Equal(10u, snapshot.Quote.Value.BidSize);
         Assert.Equal(11u, snapshot.Quote.Value.AskSize);
-        Assert.Equal("ES", reader.GetContractDetails().Ticker);
-
-        await reader.DisposeAsync();
         await service.StopAsync();
     }
 
     [Fact]
-    public async Task Released_reader_throws_typed_exception_and_reacquisition_uses_new_generation()
+    public async Task Last_price_cache_returns_the_realtime_snapshot_without_a_reader_lease()
+    {
+        var valueDate = new DateOnly(2026, 8, 10);
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FakeFeed(
+            instrument,
+            Quote(instrument, 1, 5_000_000_000, 5_100_000_000),
+            Trade(instrument, 2, 5_050_000_000));
+        var publisher = new CapturingPublisher();
+        var routes = new CapturingStreamRoutes();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = valueDate
+            },
+            streamRoutes: routes);
+
+        Assert.False(service.TryGetLastTickPrice("ESU6", out _));
+        await service.StartAsync();
+
+        var realtimeEvent = await publisher.MarketPrice.Task.WaitAsync(
+            TimeSpan.FromSeconds(2));
+        Assert.True(service.TryGetLastTickPrice("ESU6", out var snapshot));
+
+        Assert.Equal(realtimeEvent.Price, snapshot);
+        Assert.Equal(ActorType.Realtime, realtimeEvent.Subject.ActorType);
+        Assert.Equal(FuturesMarketPriceUpdatedRealtimeEvent.Actor, realtimeEvent.Subject.Name);
+        Assert.Equal(FuturesMarketPriceUpdatedRealtimeEvent.Verb, realtimeEvent.Subject.Verb);
+        Assert.Equal("ESU6", snapshot.ContractId);
+        Assert.Equal(42u, snapshot.InstrumentId);
+        Assert.Equal((ushort)7, snapshot.PublisherId);
+        Assert.Equal(5.05m, snapshot.Trade!.Value.LastPrice);
+        Assert.Equal(5m, snapshot.Quote!.Value.BidPrice);
+        Assert.Equal(5.1m, snapshot.Quote.Value.AskPrice);
+        Assert.Equal(0, routes.Activations);
+        Assert.Equal(0, routes.Deactivations);
+        Assert.False(service.TryGetLastTickPrice("NQU6", out _));
+
+        await service.StopAsync();
+        Assert.True(service.TryGetLastTickPrice("ESU6", out _));
+    }
+
+    [Fact]
+    public async Task Last_price_cache_and_realtime_event_reject_older_trade_and_quote_updates()
+    {
+        var valueDate = new DateOnly(2026, 8, 10);
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FakeFeed(
+            instrument,
+            Quote(instrument, 3, 5_000_000_000, 5_100_000_000),
+            Quote(instrument, 2, 4_000_000_000, 4_100_000_000),
+            Trade(instrument, 5, 5_050_000_000),
+            Trade(instrument, 4, 4_050_000_000));
+        var publisher = new CapturingPublisher();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = valueDate
+            });
+
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().EmittedTradeEvents == 2,
+            TimeSpan.FromSeconds(2)));
+        Assert.True(service.TryGetLastTickPrice("ESU6", out var snapshot));
+
+        Assert.Equal(5.05m, snapshot.Trade!.Value.LastPrice);
+        Assert.Equal(5m, snapshot.Quote!.Value.BidPrice);
+        Assert.Single(publisher.MarketPrices);
+        Assert.Equal(snapshot, publisher.MarketPrices[0].Price);
+
+        await service.StopAsync();
+    }
+
+    [Fact]
+    public async Task Realtime_publication_failure_does_not_stop_cache_or_durable_ingestion()
+    {
+        var valueDate = new DateOnly(2026, 8, 10);
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FakeFeed(
+            instrument,
+            Trade(instrument, 1, 5_000_000_000),
+            Trade(instrument, 2, 5_100_000_000));
+        var publisher = new RejectRealtimePublisher();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = valueDate
+            });
+
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().EmittedTradeEvents == 2,
+            TimeSpan.FromSeconds(2)));
+
+        Assert.True(service.TryGetLastTickPrice("ESU6", out var snapshot));
+        Assert.Equal(5.1m, snapshot.Trade!.Value.LastPrice);
+        Assert.Equal(2, publisher.DurableTradeCount);
+        Assert.Equal(2, service.GetMetrics().PublicationFailures);
+
+        await service.StopAsync();
+    }
+
+    [Fact]
+    public async Task Released_stream_owner_can_reacquire_after_final_deactivation()
     {
         var valueDate = new DateOnly(2026, 8, 10);
         var instrument = new InstrumentKey(7, 42);
@@ -112,33 +227,27 @@ public sealed class TickAggregationServiceTests
             new FixedValueDateProvider(valueDate),
             new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = valueDate },
             lastPrices: lastPrices,
-            leaseRoutes: new CapturingLeaseRoutes());
+            streamRoutes: new CapturingStreamRoutes());
 
         await service.StartAsync();
-        var owner = new TickerReaderOwner("Spread", "A", "underlying");
-        var released = await service.CreateAsync(owner, "ESU6");
-        var oldGeneration = released.Lease.StreamGeneration;
-        await released.DisposeAsync();
-
-        var exception = Assert.Throws<TickerLeaseNotActiveException>(
-            () => released.GetContractDetails());
-        Assert.Equal(TickerLeaseFailureReason.LeaseReleased, exception.Reason);
-
-        var replacement = await service.CreateAsync(owner, "ESU6");
-        Assert.NotEqual(released.Lease.LeaseId, replacement.Lease.LeaseId);
-        Assert.True(replacement.Lease.StreamGeneration > oldGeneration);
-        await replacement.DisposeAsync();
+        var owner = new TickerStreamOwner("Spread", "A", "underlying");
+        Assert.True(service.StartTickDataStream(owner, "ESU6"));
+        Assert.True(service.StopTickDataStream(owner, "ESU6"));
+        Assert.False(service.IsTickDataStreamActive("ESU6"));
+        Assert.True(service.StartTickDataStream(owner, "ESU6"));
+        Assert.True(service.IsTickDataStreamActive("ESU6"));
+        Assert.True(service.StopTickDataStream(owner, "ESU6"));
         await service.StopAsync();
     }
 
     [Fact]
-    public async Task Concurrent_duplicate_acquisition_returns_one_lease_and_one_route_activation()
+    public async Task Concurrent_duplicate_start_registers_one_owner_and_one_route_activation()
     {
         var valueDate = new DateOnly(2026, 8, 10);
         var instrument = new InstrumentKey(7, 42);
         using var feed = new RunningFeed(instrument);
         using var lastPrices = new DatabentoLastPriceStore(valueDate, 1);
-        var routes = new CapturingLeaseRoutes();
+        var routes = new CapturingStreamRoutes();
         await using var service = new TickAggregationService(
             feed,
             new MappingProvider(instrument),
@@ -147,28 +256,28 @@ public sealed class TickAggregationServiceTests
             new FixedValueDateProvider(valueDate),
             new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = valueDate },
             lastPrices: lastPrices,
-            leaseRoutes: routes);
+            streamRoutes: routes);
 
         await service.StartAsync();
-        var owner = new TickerReaderOwner("Spread", "A", "underlying");
-        var acquisitions = await Task.WhenAll(Enumerable.Range(0, 32).Select(
-            _ => service.CreateAsync(owner, "ESU6").AsTask()));
+        var owner = new TickerStreamOwner("Spread", "A", "underlying");
+        var starts = await Task.WhenAll(Enumerable.Range(0, 32).Select(
+            _ => Task.Run(() => service.StartTickDataStream(owner, "ESU6"))));
 
-        Assert.All(acquisitions, reader => Assert.Same(acquisitions[0], reader));
+        Assert.Single(starts, started => started);
         Assert.Equal(1, routes.Activations);
-        await acquisitions[0].DisposeAsync();
+        Assert.True(service.StopTickDataStream(owner, "ESU6"));
         Assert.Equal(1, routes.Deactivations);
         await service.StopAsync();
     }
 
     [Fact]
-    public async Task Service_stop_invalidates_every_outstanding_reader()
+    public async Task Service_stop_clears_every_outstanding_stream_owner()
     {
         var valueDate = new DateOnly(2026, 8, 10);
         var instrument = new InstrumentKey(7, 42);
         using var feed = new RunningFeed(instrument);
         using var lastPrices = new DatabentoLastPriceStore(valueDate, 1);
-        var routes = new CapturingLeaseRoutes();
+        var routes = new CapturingStreamRoutes();
         await using var service = new TickAggregationService(
             feed,
             new MappingProvider(instrument),
@@ -177,17 +286,14 @@ public sealed class TickAggregationServiceTests
             new FixedValueDateProvider(valueDate),
             new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = valueDate },
             lastPrices: lastPrices,
-            leaseRoutes: routes);
+            streamRoutes: routes);
 
         await service.StartAsync();
-        var reader = await service.CreateAsync(
-            new TickerReaderOwner("Spread", "A", "underlying"),
-            "ESU6");
+        var owner = new TickerStreamOwner("Spread", "A", "underlying");
+        Assert.True(service.StartTickDataStream(owner, "ESU6"));
         await service.StopAsync();
 
-        var exception = Assert.Throws<TickerLeaseNotActiveException>(
-            () => reader.TryGetPrice(out _));
-        Assert.Equal(TickerLeaseFailureReason.LeaseReleased, exception.Reason);
+        Assert.False(service.IsTickDataStreamActive("ESU6"));
         Assert.Equal(1, routes.Deactivations);
     }
 
@@ -223,6 +329,11 @@ public sealed class TickAggregationServiceTests
         var status = service.GetContractStatus("ESU6 C6500");
         Assert.Equal(AssetTypeId.FuturesOption, status.AssetTypeId);
         Assert.True(status.ContractConfigured);
+        Assert.False(service.IsTickDataStreamActive("ESU6 C6500"));
+        Assert.True(service.TryGetLastOptionTickPrice("ESU6 C6500", out var optionPrice));
+        Assert.Equal(11m, optionPrice.Price.Trade!.Value.LastPrice);
+        Assert.Equal(10m, optionPrice.Price.Quote!.Value.BidPrice);
+        Assert.Equal(12m, optionPrice.Price.Quote.Value.AskPrice);
         var reader = lastPrices.GetFuturesOptionReader("ESU6 C6500", valueDate);
         Assert.True(reader.TryGetLastQuote(out var quote));
         Assert.True(quote.TryGetMidpoint(out var midpoint));
@@ -412,7 +523,7 @@ public sealed class TickAggregationServiceTests
         IsCurrentlyTraded = true
     };
 
-    private sealed class CapturingLeaseRoutes : ITickerLeaseRouteController
+    private sealed class CapturingStreamRoutes : ITickerStreamRouteController
     {
         public int Activations { get; private set; }
         public int Deactivations { get; private set; }
@@ -447,10 +558,19 @@ public sealed class TickAggregationServiceTests
     {
         public List<string> Order { get; } = [];
         public List<long> Sequences { get; } = [];
+        public List<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrices { get; } = [];
+        public TaskCompletionSource<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrice { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ushort QuoteCount { get; private set; }
         public decimal? SecondBid { get; private set; }
         public bool IsRunning { get; private set; }
         public ValueTask StartAsync() { IsRunning = true; return ValueTask.CompletedTask; }
+        public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent e)
+        {
+            MarketPrices.Add(e);
+            MarketPrice.TrySetResult(e);
+            return ValueTask.CompletedTask;
+        }
         public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e)
         {
             Order.Add("trade"); Sequences.Add(e.TickDataId.SequenceId); return ValueTask.CompletedTask;
@@ -488,6 +608,8 @@ public sealed class TickAggregationServiceTests
         public List<QuoteEmissionReason> Reasons { get; } = [];
         public bool IsRunning { get; private set; }
         public ValueTask StartAsync() { IsRunning = true; return ValueTask.CompletedTask; }
+        public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent e) =>
+            ValueTask.CompletedTask;
         public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e) => ValueTask.CompletedTask;
         public ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent e, ITickQuoteBufferLease lease)
         {
@@ -499,6 +621,37 @@ public sealed class TickAggregationServiceTests
             return ValueTask.CompletedTask;
         }
         public ValueTask StopAsync() { IsRunning = false; return ValueTask.CompletedTask; }
+        public ValueTask DisposeAsync() => StopAsync();
+    }
+
+    private sealed class RejectRealtimePublisher : ITickAggregationEventPublisher
+    {
+        public int DurableTradeCount { get; private set; }
+        public bool IsRunning { get; private set; }
+        public ValueTask StartAsync()
+        {
+            IsRunning = true;
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent e) =>
+            ValueTask.FromException(new IOException("Synthetic Core NATS failure."));
+        public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e)
+        {
+            DurableTradeCount++;
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask PublishAsync(
+            FuturesTickQuoteDataChangedEvent e,
+            ITickQuoteBufferLease lease)
+        {
+            lease.Dispose();
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask StopAsync()
+        {
+            IsRunning = false;
+            return ValueTask.CompletedTask;
+        }
         public ValueTask DisposeAsync() => StopAsync();
     }
 

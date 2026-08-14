@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -10,8 +11,10 @@ namespace TomasAI.IFM.Framework.MarketData.TickAggregation;
 public sealed class TickAggregationEventPublisher : ITickAggregationEventPublisher
 {
     public const string SyntheticProducerName = "TickAggregationSourceEventActor";
-    private readonly IJSActorProducer _producer;
+    private readonly IActorSupervisor _supervisor;
+    private readonly IJSActorProducer _durableProducer;
     private readonly int _capacity;
+    private IActorProducer? _realtimeProducer;
     private Channel<Publication>? _channel;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private Task? _worker;
@@ -21,7 +24,9 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     {
         ArgumentNullException.ThrowIfNull(supervisor);
         if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
-        _producer = supervisor.GetJSEventProducer(new ActorMailboxId(ActorType.Event, SyntheticProducerName));
+        _supervisor = supervisor;
+        _durableProducer = supervisor.GetJSEventProducer(
+            new ActorMailboxId(ActorType.Event, SyntheticProducerName));
         _capacity = capacity;
     }
 
@@ -33,7 +38,8 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         try
         {
             if (IsRunning) return;
-            await _producer.StartAsync(new ActorMailboxId(ActorType.Event, SyntheticProducerName)).ConfigureAwait(false);
+            await _durableProducer.StartAsync(
+                new ActorMailboxId(ActorType.Event, SyntheticProducerName)).ConfigureAwait(false);
             _channel = CreateChannel();
             Volatile.Write(ref _running, 1);
             _worker = Task.Run(ProcessAsync);
@@ -45,6 +51,17 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     {
         EnsureRunning();
         return _channel!.Writer.WriteAsync(new Publication(@event, null));
+    }
+
+    public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event)
+    {
+        EnsureRunning();
+        ArgumentNullException.ThrowIfNull(@event);
+        var producer = _realtimeProducer ??=
+            _supervisor.GetProducer(@event.Subject.ActorId);
+        return producer.SendAsync<
+            FuturesMarketPriceUpdatedRealtimeEvent,
+            TickDataEntityId>(@event.Subject, @event);
     }
 
     public async ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent @event, ITickQuoteBufferLease lease)
@@ -78,6 +95,16 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             _worker = null;
             _channel = null;
             Volatile.Write(ref _running, 0);
+            try
+            {
+                await _durableProducer.StopAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                failure = failure is null
+                    ? exception
+                    : new AggregateException(failure, exception);
+            }
             if (failure is not null) throw failure;
         }
         finally { _lifecycle.Release(); }
@@ -95,10 +122,10 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
                     switch (publication.Event)
                     {
                         case FuturesTickTradeDataChangedEvent trade:
-                            await _producer.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(trade.Subject, trade).ConfigureAwait(false);
+                            await _durableProducer.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(trade.Subject, trade).ConfigureAwait(false);
                             break;
                         case FuturesTickQuoteDataChangedEvent quote:
-                            await _producer.SendAsync<FuturesTickQuoteDataChangedEvent, TickDataEntityId>(quote.Subject, quote).ConfigureAwait(false);
+                            await _durableProducer.SendAsync<FuturesTickQuoteDataChangedEvent, TickDataEntityId>(quote.Subject, quote).ConfigureAwait(false);
                             break;
                     }
                 }

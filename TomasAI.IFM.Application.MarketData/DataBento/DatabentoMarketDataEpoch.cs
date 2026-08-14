@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
@@ -46,10 +47,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly DatabentoOptionRouteRegistry _optionRoutes;
     private readonly ITickLiveRouter _liveRouter;
-    private readonly ITickerLeaseRouteController _leaseRoutes;
-    private readonly Dictionary<string, ITickerDataReader> _compatibilityReaders =
-        new(StringComparer.Ordinal);
-    private readonly object _compatibilityReaderSync = new();
+    private readonly ITickerStreamRouteController _streamRoutes;
     private DatabentoOperationRunner? _operations;
     private DatabentoMarketDataCatalog? _catalog;
     private DatabentoLastPriceStore? _lastPrices;
@@ -73,7 +71,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         _timeProvider = timeProvider;
         _optionRoutes = new DatabentoOptionRouteRegistry(options.MaximumConcurrentOptionChains);
         _liveRouter = new TickLiveRouter(livePublisher);
-        _leaseRoutes = new DatabentoTickerLeaseRouteController(_liveRouter, _optionRoutes);
+        _streamRoutes = new DatabentoTickerStreamRouteController(_liveRouter, _optionRoutes);
     }
 
     public DateOnly ValueDate { get; }
@@ -81,8 +79,39 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         _catalog ?? throw new InvalidOperationException("The epoch catalog is not ready.");
     public IDatabentoLastPriceReaderProvider LastPrices =>
         _lastPrices ?? throw new InvalidOperationException("The epoch last-price store is not ready.");
-    public ITickerDataReaderFactory TickerReaders =>
-        _aggregation ?? throw new InvalidOperationException("Tick aggregation is not ready.");
+    /// <summary>
+    /// Reads the latest normalized TickAggregation hot-cache snapshot without checking stream ownership.
+    /// </summary>
+    public bool TryGetLastTickPrice(
+        string contractId,
+        out FuturesMarketPriceSnapshot snapshot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        var aggregation = Volatile.Read(ref _aggregation);
+        if (aggregation is null)
+        {
+            snapshot = default;
+            return false;
+        }
+        return aggregation.TryGetLastTickPrice(contractId, out snapshot);
+    }
+
+    public bool TryGetLastOptionTickPrice(
+        string contractId,
+        out OptionTickerPriceSnapshot snapshot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        var aggregation = Volatile.Read(ref _aggregation);
+        if (aggregation is null)
+        {
+            snapshot = default;
+            return false;
+        }
+        return aggregation.TryGetLastOptionTickPrice(contractId, out snapshot);
+    }
+
+    public bool IsTickDataStreamActive(string contractId) =>
+        _aggregation?.IsTickDataStreamActive(contractId) == true;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -145,7 +174,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                     _timeProvider,
                     _lastPrices,
                     _liveRouter,
-                    _leaseRoutes);
+                    _streamRoutes);
                 await _aggregation.StartAsync().ConfigureAwait(false);
             }
             catch
@@ -166,8 +195,6 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         {
             _optionRoutes.Clear();
             _liveRouter.Clear();
-            lock (_compatibilityReaderSync)
-                _compatibilityReaders.Clear();
             List<Exception>? failures = null;
             if (_aggregation is not null)
             {
@@ -202,28 +229,36 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             metrics.PublicationFailures);
     }
 
-    public bool StartFuturesRoute(string futuresContractId)
+    public bool StartFuturesRoute(
+        TickerStreamOwner owner,
+        string futuresContractId)
     {
         EnsureRunning();
-        return StartCompatibilityReader(futuresContractId, "futures");
+        return _aggregation!.StartTickDataStream(owner, futuresContractId);
     }
 
-    public bool StopFuturesRoute(string futuresContractId)
+    public bool StopFuturesRoute(
+        TickerStreamOwner owner,
+        string futuresContractId)
     {
         EnsureRunning();
-        return StopCompatibilityReader(futuresContractId);
+        return _aggregation!.StopTickDataStream(owner, futuresContractId);
     }
 
-    public bool StartIndividualOptionRoute(string futuresOptionContractId)
+    public bool StartIndividualOptionRoute(
+        TickerStreamOwner owner,
+        string futuresOptionContractId)
     {
         EnsureRunning();
-        return StartCompatibilityReader(futuresOptionContractId, "option");
+        return _aggregation!.StartTickDataStream(owner, futuresOptionContractId);
     }
 
-    public bool StopIndividualOptionRoute(string futuresOptionContractId)
+    public bool StopIndividualOptionRoute(
+        TickerStreamOwner owner,
+        string futuresOptionContractId)
     {
         EnsureRunning();
-        return StopCompatibilityReader(futuresOptionContractId);
+        return _aggregation!.StopTickDataStream(owner, futuresOptionContractId);
     }
 
     public Task<bool> StartOptionChainAsync(
@@ -262,33 +297,6 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     {
         if (Volatile.Read(ref _started) == 0)
             throw new MarketDataApiNotRunningException();
-    }
-
-    private bool StartCompatibilityReader(string contractId, string legId)
-    {
-        lock (_compatibilityReaderSync)
-        {
-            if (_compatibilityReaders.ContainsKey(contractId)) return false;
-            var owner = new TickerReaderOwner(
-                nameof(DatabentoMarketDataApi),
-                $"compatibility:{ValueDate:yyyy-MM-dd}",
-                legId);
-            var reader = TickerReaders.CreateAsync(owner, contractId)
-                .AsTask().GetAwaiter().GetResult();
-            _compatibilityReaders.Add(contractId, reader);
-            return true;
-        }
-    }
-
-    private bool StopCompatibilityReader(string contractId)
-    {
-        ITickerDataReader? reader;
-        lock (_compatibilityReaderSync)
-        {
-            if (!_compatibilityReaders.Remove(contractId, out reader)) return false;
-        }
-        reader.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        return true;
     }
 
     private TickerContractDetails CreateContractDetails(
