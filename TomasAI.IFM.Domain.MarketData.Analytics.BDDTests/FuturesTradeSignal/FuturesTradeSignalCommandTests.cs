@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.State;
@@ -39,8 +40,9 @@ public class FuturesTradeSignalCommandTests
 
     sealed class TestableFuturesTradeSignalCommandActor(
         IEventSourceActorDbContext eventDb,
+        IEventProjector<FuturesTradeSignalCommandActor> eventProjector,
         ILogger<FuturesTradeSignalCommandActor> logger)
-        : FuturesTradeSignalCommandActor(eventDb, logger)
+        : FuturesTradeSignalCommandActor(eventDb, eventProjector, logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
@@ -95,7 +97,8 @@ public class FuturesTradeSignalCommandTests
         eventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
-        var actor = new TestableFuturesTradeSignalCommandActor(eventDb, logger);
+        var eventProjector = Substitute.For<IEventProjector<FuturesTradeSignalCommandActor>>();
+        var actor = new TestableFuturesTradeSignalCommandActor(eventDb, eventProjector, logger);
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>();
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>()

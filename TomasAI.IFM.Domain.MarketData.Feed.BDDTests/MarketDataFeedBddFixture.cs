@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
@@ -42,9 +43,11 @@ public sealed class MarketDataFeedBddFixture
 
     public TestableFuturesBarDataCommandActor CreateCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,
-        ILogger<FuturesBarDataCommandActor>? logger = null)
+        ILogger<FuturesBarDataCommandActor>? logger = null,
+        IEventProjector<FuturesBarDataCommandActor>? eventProjector = null)
         => new(
             dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
+            eventProjector ?? Substitute.For<IEventProjector<FuturesBarDataCommandActor>>(),
             logger ?? Substitute.For<ILogger<FuturesBarDataCommandActor>>());
 
     public TestableFuturesBarDataQueryActor CreateQueryActor(
@@ -56,16 +59,20 @@ public sealed class MarketDataFeedBddFixture
 
     public TestableFuturesClosingPriceCommandActor CreateClosingPriceCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,
-        ILogger<FuturesClosingPriceCommandActor>? logger = null)
+        ILogger<FuturesClosingPriceCommandActor>? logger = null,
+        IEventProjector<FuturesClosingPriceCommandActor>? eventProjector = null)
         => new(
             dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
+            eventProjector ?? Substitute.For<IEventProjector<FuturesClosingPriceCommandActor>>(),
             logger ?? Substitute.For<ILogger<FuturesClosingPriceCommandActor>>());
 
     public TestableFuturesEodDataCommandActor CreateEodCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,
-        ILogger<FuturesEodDataCommandActor>? logger = null)
+        ILogger<FuturesEodDataCommandActor>? logger = null,
+        IEventProjector<FuturesEodDataCommandActor>? eventProjector = null)
         => new(
             dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
+            eventProjector ?? Substitute.For<IEventProjector<FuturesEodDataCommandActor>>(),
             logger ?? Substitute.For<ILogger<FuturesEodDataCommandActor>>());
 
     public TestableFuturesEodDataQueryActor CreateEodQueryActor(
@@ -77,9 +84,11 @@ public sealed class MarketDataFeedBddFixture
 
     public TestableFuturesOptionTickDataCommandActor CreateOptionTickCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,
-        ILogger<FuturesOptionTickDataCommandActor>? logger = null)
+        ILogger<FuturesOptionTickDataCommandActor>? logger = null,
+        IEventProjector<FuturesOptionTickDataCommandActor>? eventProjector = null)
         => new(
             dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
+            eventProjector ?? Substitute.For<IEventProjector<FuturesOptionTickDataCommandActor>>(),
             logger ?? Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>());
 
     public TestableFuturesOptionTickDataQueryActor CreateOptionTickQueryActor(
@@ -91,9 +100,11 @@ public sealed class MarketDataFeedBddFixture
 
     public TestableFuturesTickDataCommandActor CreateTickCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,
-        ILogger<FuturesTickDataCommandActor>? logger = null)
+        ILogger<FuturesTickDataCommandActor>? logger = null,
+        IEventProjector<FuturesTickDataCommandActor>? eventProjector = null)
         => new(
             dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
+            eventProjector ?? Substitute.For<IEventProjector<FuturesTickDataCommandActor>>(),
             logger ?? Substitute.For<ILogger<FuturesTickDataCommandActor>>());
 
     public TestableFuturesTickDataQueryActor CreateTickQueryActor(
@@ -105,9 +116,11 @@ public sealed class MarketDataFeedBddFixture
 
     public TestableMarketDataFeedCommandActor CreateMarketDataFeedCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,
-        ILogger<MarketDataFeedCommandActor>? logger = null)
+        ILogger<MarketDataFeedCommandActor>? logger = null,
+        IEventProjector<MarketDataFeedCommandActor>? eventProjector = null)
         => new(
             dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
+            eventProjector ?? Substitute.For<IEventProjector<MarketDataFeedCommandActor>>(),
             logger ?? Substitute.For<ILogger<MarketDataFeedCommandActor>>());
 
     public TestableMarketDataFeedQueryActor CreateMarketDataFeedQueryActor(
@@ -124,8 +137,9 @@ public sealed class MarketDataFeedBddFixture
 
 public sealed class TestableMarketDataFeedCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IEventProjector<MarketDataFeedCommandActor> eventProjector,
     ILogger<MarketDataFeedCommandActor> logger)
-    : MarketDataFeedCommandActor(dbEventSource, logger)
+    : MarketDataFeedCommandActor(dbEventSource, eventProjector, logger)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
     public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message) => ParseMessage(context, message);
@@ -158,8 +172,9 @@ public sealed class TestableMarketDataFeedQueryActor(
 
 public sealed class TestableFuturesBarDataCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IEventProjector<FuturesBarDataCommandActor> eventProjector,
     ILogger<FuturesBarDataCommandActor> logger)
-    : FuturesBarDataCommandActor(dbEventSource, logger)
+    : FuturesBarDataCommandActor(dbEventSource, eventProjector, logger)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
 
@@ -205,8 +220,9 @@ public sealed class TestableFuturesBarDataQueryActor(
 
 public sealed class TestableFuturesClosingPriceCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IEventProjector<FuturesClosingPriceCommandActor> eventProjector,
     ILogger<FuturesClosingPriceCommandActor> logger)
-    : FuturesClosingPriceCommandActor(dbEventSource, logger)
+    : FuturesClosingPriceCommandActor(dbEventSource, eventProjector, logger)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
 
@@ -236,8 +252,9 @@ public sealed class TestableFuturesClosingPriceCommandActor(
 
 public sealed class TestableFuturesEodDataCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IEventProjector<FuturesEodDataCommandActor> eventProjector,
     ILogger<FuturesEodDataCommandActor> logger)
-    : FuturesEodDataCommandActor(dbEventSource, logger)
+    : FuturesEodDataCommandActor(dbEventSource, eventProjector, logger)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
 
@@ -283,8 +300,9 @@ public sealed class TestableFuturesEodDataQueryActor(
 
 public sealed class TestableFuturesOptionTickDataCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IEventProjector<FuturesOptionTickDataCommandActor> eventProjector,
     ILogger<FuturesOptionTickDataCommandActor> logger)
-    : FuturesOptionTickDataCommandActor(dbEventSource, logger)
+    : FuturesOptionTickDataCommandActor(dbEventSource, eventProjector, logger)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
 
@@ -330,8 +348,9 @@ public sealed class TestableFuturesOptionTickDataQueryActor(
 
 public sealed class TestableFuturesTickDataCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IEventProjector<FuturesTickDataCommandActor> eventProjector,
     ILogger<FuturesTickDataCommandActor> logger)
-    : FuturesTickDataCommandActor(dbEventSource, logger)
+    : FuturesTickDataCommandActor(dbEventSource, eventProjector, logger)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
 
