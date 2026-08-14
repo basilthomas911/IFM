@@ -205,29 +205,22 @@ public class MarketDataFeedTestFixture : IDisposable
     public TestableFuturesOptionTickDataEventActor CreateFuturesOptionTickDataEventActor(
         IActorSupervisor? supervisor = null,
         ApplicationMarketDataApi marketDataApi = null,
-        IBlackboardService blackboardService = null,
-        IOptionTradeLiveFeedMap optionTradeLiveFeedMap = null,
         IStatusConsoleWriter statusConsoleWriter = null,
         ILogger<FuturesOptionTickDataEventActor>? logger = null)
     {
         var su = supervisor ?? Substitute.For<IActorSupervisor>();
         var mda = marketDataApi ?? Substitute.For<ApplicationMarketDataApi>();
-        var bb = blackboardService ?? Substitute.For<IBlackboardService>();
-        var fa = optionTradeLiveFeedMap ?? Substitute.For<IOptionTradeLiveFeedMap>();
         var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
         var lg = logger ?? Substitute.For<ILogger<FuturesOptionTickDataEventActor>>();
-        return new TestableFuturesOptionTickDataEventActor(su, mda, bb, fa, scw, lg);
+        return new TestableFuturesOptionTickDataEventActor(su, mda, scw, lg);
     }
 
     public TestableFuturesOptionTickDataEventActor CreateActor(
         IActorSupervisor supervisor,
         ApplicationMarketDataApi marketDataApi,
-        IBlackboardService blackboardService,
-        IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesOptionTickDataEventActor> logger)
-        => new(supervisor, marketDataApi, blackboardService,
-            optionTradeLiveFeedMap, statusConsoleWriter, logger);
+        => new(supervisor, marketDataApi, statusConsoleWriter, logger);
 
     public TestableFuturesTickDataCommandActor CreateFuturesTickDataCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,

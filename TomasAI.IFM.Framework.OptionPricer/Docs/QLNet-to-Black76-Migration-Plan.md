@@ -56,17 +56,16 @@ This has both correctness and operational costs. The model is not the selected f
 
 ## Production call paths at implementation
 
-The repository contained three direct `OptionCalculator` consumers when the migration was implemented:
+The repository contained three direct `OptionCalculator` consumers when the migration was implemented. The legacy streaming bid/ask consumer has since been removed with the per-tick Blackboard caches:
 
 | Consumer | Use |
 | --- | --- |
-| `TomasAI.IFM.Domain.MarketData.Feed/FuturesOptionTickData/Event/FuturesOptionTickBidAsk.cs` | Calculates implied volatility and Greeks from streaming futures-option bid/ask data. |
 | `TomasAI.IFM.Domain.OptionPricer/SpreadDistribution/Job/Services/IronCondorSpreadDistributionJobService.cs` | Calculates per-leg implied volatility and Delta before Black76 spread calculations. |
 | `TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs` | Recalculates displayed trade-leg Greeks. |
 
 `GetFuturesOptionSpreadData` consumes the snapshot API results indirectly. All these flows must use the same framework API and conventions after migration.
 
-All three consumers now resolve `OptionCalculator` from `TomasAI.IFM.Framework.OptionPricer.Black76`; the spread-distribution job therefore uses Black-76 for both leg Greeks and spread valuation.
+The remaining consumers resolve `OptionCalculator` from `TomasAI.IFM.Framework.OptionPricer.Black76`; the spread-distribution job therefore uses Black-76 for both leg Greeks and spread valuation.
 
 ## Target architecture
 

@@ -2,14 +2,12 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Framework.Serialization;
@@ -34,30 +32,15 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
         public TestableFuturesOptionTickDataEventActor(
             IActorSupervisor supervisor,
             ApplicationMarketDataApi marketDataApi,
-            IBlackboardService blackboardService,
-            IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
             IStatusConsoleWriter statusConsoleWriter,
             ILogger<FuturesOptionTickDataEventActor> logger)
             : base(
                 supervisor,
-                new global::TomasAI.IFM.Domain.MarketData.Feed.Command.Api.ActorMarketDataFeedCommandApiFactory(),
-                CreateTradeCommandApiFactory(),
                 new global::TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory(),
                 marketDataApi,
-                blackboardService,
-                optionTradeLiveFeedMap,
                 statusConsoleWriter,
                 logger)
         {
-        }
-
-        private static global::TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IActorTradeCommandApiFactory
-            CreateTradeCommandApiFactory()
-        {
-            var api = Substitute.For<global::TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IActorTradeCommandApi>();
-            var factory = Substitute.For<global::TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IActorTradeCommandApiFactory>();
-            factory.Create(Arg.Any<IEventActorContext>()).Returns(api);
-            return factory;
         }
 
         public IEvent Parse(IEventActorContext context, NatsMsg<byte[]> message) =>
@@ -374,8 +357,6 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
         _fixture.CreateActor(
             Substitute.For<IActorSupervisor>(),
             marketDataApi ?? Substitute.For<ApplicationMarketDataApi>(),
-            Substitute.For<IBlackboardService>(),
-            Substitute.For<IOptionTradeLiveFeedMap>(),
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger<FuturesOptionTickDataEventActor>>());
 

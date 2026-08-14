@@ -10,7 +10,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
@@ -117,8 +116,6 @@ public sealed class TickerReaderActorWorkflowTests
         var logger = Substitute.For<ILogger<global::TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor.FuturesOptionTickDataEventActor>>();
         var parameters = new FuturesOptionTickDataEventParameters(
             marketDataApi,
-            Substitute.For<IBlackboardService>(),
-            Substitute.For<IOptionTradeLiveFeedMap>(),
             Substitute.For<IStatusConsoleWriter>(),
             logger);
         await parameters.Readers.AcquireAsync(

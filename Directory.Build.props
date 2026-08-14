@@ -3,6 +3,8 @@
    <!-- Integration hosts use shared process-wide infrastructure and must not run
         multiple test collections concurrently. -->
    <IFMSerialIntegrationTests>true</IFMSerialIntegrationTests>
+   <TestTfmsInParallel>false</TestTfmsInParallel>
+   <RunSettingsFilePath>$(MSBuildThisFileDirectory)integration.runsettings</RunSettingsFilePath>
  </PropertyGroup>
 
  <PropertyGroup>
@@ -10,6 +12,8 @@
  </PropertyGroup>
 
  <ItemGroup Condition="'$(IFMSerialIntegrationTests)' == 'true'">
+   <Compile Include="$(MSBuildThisFileDirectory)IntegrationTests.AssemblyInfo.cs"
+            Link="IntegrationTests.AssemblyInfo.cs" />
    <None Include="$(MSBuildThisFileDirectory)xunit.integration.runner.json"
          Link="xunit.runner.json"
          TargetPath="xunit.runner.json"

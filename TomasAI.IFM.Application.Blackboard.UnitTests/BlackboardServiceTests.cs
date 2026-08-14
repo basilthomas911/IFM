@@ -63,11 +63,6 @@ public class BlackboardServiceTests
         sut.MarketDataAnalytics.FuturesRsiSignal.Should().NotBeNull();
         sut.MarketDataAnalytics.FuturesRsiDailySignal.Should().NotBeNull();
 
-        sut.MarketDataFeed.FuturesTickData.Should().NotBeNull();
-        sut.MarketDataFeed.FuturesOptionTickData.Should().NotBeNull();
-        sut.MarketDataFeed.FuturesOptionTickPriceData.Should().NotBeNull();
-        sut.MarketDataFeed.FuturesOptionTickPriceData.Should().BeSameAs(
-            sut.MarketDataFeed.FuturesOptionTickData);
         sut.MarketDataFeed.FuturesTickDataStreamingParameter.Should().NotBeNull();
         sut.MarketDataFeed.FuturesOptionTickDataStreamingParameter.Should().NotBeNull();
         sut.MarketDataFeed.FuturesEodData.Should().NotBeNull();

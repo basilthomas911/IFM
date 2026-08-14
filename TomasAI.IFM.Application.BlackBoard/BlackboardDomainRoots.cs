@@ -34,9 +34,6 @@ public interface IMarketDataAnalyticsBlackboard
 
 public interface IMarketDataFeedBlackboard
 {
-    FuturesTickDataCacheModel FuturesTickData { get; }
-    FuturesOptionTickDataCacheModel FuturesOptionTickData { get; }
-    FuturesOptionTickDataCacheModel FuturesOptionTickPriceData { get; }
     FuturesTickDataStreamingParameterCacheModel FuturesTickDataStreamingParameter { get; }
     FuturesOptionTickDataStreamingParameterCacheModel
         FuturesOptionTickDataStreamingParameter { get; }
@@ -128,9 +125,6 @@ internal sealed class MarketDataFeedBlackboard : IMarketDataFeedBlackboard
         IRedisCache redisCache,
         IJsonSerializer jsonSerializer)
     {
-        FuturesTickData = new(redisCache, jsonSerializer);
-        FuturesOptionTickData = new(redisCache, jsonSerializer);
-        FuturesOptionTickPriceData = FuturesOptionTickData;
         FuturesTickDataStreamingParameter = new(redisCache);
         FuturesOptionTickDataStreamingParameter = new(redisCache, jsonSerializer);
         FuturesEodData = new(redisCache, jsonSerializer);
@@ -143,9 +137,6 @@ internal sealed class MarketDataFeedBlackboard : IMarketDataFeedBlackboard
         StreamingRequestId = new(redisCache, jsonSerializer);
     }
 
-    public FuturesTickDataCacheModel FuturesTickData { get; }
-    public FuturesOptionTickDataCacheModel FuturesOptionTickData { get; }
-    public FuturesOptionTickDataCacheModel FuturesOptionTickPriceData { get; }
     public FuturesTickDataStreamingParameterCacheModel FuturesTickDataStreamingParameter { get; }
     public FuturesOptionTickDataStreamingParameterCacheModel
         FuturesOptionTickDataStreamingParameter { get; }

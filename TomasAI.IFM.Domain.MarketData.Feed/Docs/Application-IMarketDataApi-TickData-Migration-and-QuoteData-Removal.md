@@ -423,6 +423,11 @@ trade events. Remove:
 - streaming-request Blackboard state;
 - legacy tick-cache writes used only by market-data lookup.
 
+The legacy `FuturesOptionTickBidAsk` handler and the futures/futures-option
+per-tick Blackboard cache models have now been removed. The shared event
+contract remains temporarily for wire compatibility but is not registered by
+the futures-option event actor.
+
 Live strategy and UI consumers use transient option events. Consumers that
 require a durable transaction boundary listen to aggregation inserted-complete
 events filtered to `AssetTypeId.FuturesOption`.

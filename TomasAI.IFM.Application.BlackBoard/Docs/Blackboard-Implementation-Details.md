@@ -99,7 +99,7 @@ public interface IBlackboardService
 }
 ```
 
-There are 40 exposed model properties backed by 39 distinct instances. `MarketDataFeed.FuturesOptionTickData` and `MarketDataFeed.FuturesOptionTickPriceData` deliberately return the same `FuturesOptionTickDataCacheModel` instance and use the same Redis namespace.
+There are 37 exposed model properties backed by 37 distinct instances. Per-tick futures and futures-option price state is deliberately excluded: an active market-data provider owns its latest snapshots and exposes them through transient ticker readers.
 
 The old flat model properties no longer exist. Callers must enter through a domain root:
 
@@ -151,8 +151,6 @@ The dot followed by a literal space in two analytics key formats is intentional 
 
 | Property/model | Operations and miss behavior | Redis identity/invalidation |
 | --- | --- | --- |
-| `FuturesTickData` / [`FuturesTickDataCacheModel`](../FuturesTickDataCacheModel.cs) | Direct `Get`/`Set`; miss returns the domain `Default` tick model. | `FuturesTickData:<contract-id>,<yyyyMMdd>` |
-| `FuturesOptionTickData` and `FuturesOptionTickPriceData` / [`FuturesOptionTickDataCacheModel`](../FuturesOptionTickDataCacheModel.cs) | Exact same model instance; direct `Get`/`Set`; miss returns the domain `Default`. | `FuturesOptionTickData:<contract-id>.<yyyyMMdd>` |
 | `FuturesTickDataStreamingParameter` / [`FuturesTickDataStreamingParameterCacheModel`](../FuturesTickDataStreamingParameterCacheModel.cs) | Direct `Get`/`Set`; miss returns a new invalid/default parameter instance. Uses `JsonConvert` directly. | `FuturesTickDataStreamingParameter:<request-id>` |
 | `FuturesOptionTickDataStreamingParameter` / [`FuturesOptionTickDataStreamingParameterCacheModel`](../FuturesOptionTickDataStreamingParameterCacheModel.cs) | Nullable `Get` and `Set`. | `FuturesOptionTickDataStreamingParameter:<request-id>` |
 | `FuturesEodData` / [`FuturesEodDataCacheModel`](../FuturesEodDataCacheModel.cs) | Nullable `Get` and `Set`. | `FuturesEodData:<contract-id>. <yyyyMMdd>` |

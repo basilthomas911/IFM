@@ -20,8 +20,8 @@ compatibility window. They return the same instances owned by the domain roots a
 do not introduce different Redis keys or cached values. New code must use the
 domain-root API.
 
-`MarketDataFeed.FuturesOptionTickData` and
-`MarketDataFeed.FuturesOptionTickPriceData` intentionally reference the same cache
-model because both names address the same Redis namespace. The streaming-parameter
-property uses `FuturesOptionTickDataStreamingParameterCacheModel`; it is distinct from
+Per-tick futures and futures-option prices are not stored in the Blackboard. Live
+snapshots are owned by the active market-data provider and accessed through its
+transient ticker readers. The streaming-parameter property uses
+`FuturesOptionTickDataStreamingParameterCacheModel`; it is distinct from
 `StreamingRequestIdCacheModel`.
