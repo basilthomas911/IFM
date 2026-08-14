@@ -7,6 +7,7 @@
 | Future system under test | Migrated WPF executable rooted at `TomasAI.IFM.UI` |
 | Automation stack | xUnit, FlaUI 5.0.0, UI Automation 3 (UIA3) |
 | First mandatory gate | G0 — complete startup and shutdown audit |
+| WinForms restoration gate | G0 through G4 plus operator acceptance |
 | Runtime evidence | `TomasAI.IFM.UI.Net.SystemTests/TestResults/Runs/<run-id>/` |
 | Accepted summaries | `TomasAI.IFM.UI.Net/Docs/TestResults/` |
 
@@ -19,6 +20,8 @@ This specification defines the legacy WinForms system-test harness and the UI jo
 These are process-level UI system tests, not substitutes for Model, ViewModel, actor, or service unit and integration tests. They launch the real desktop executable, observe it through Windows UI Automation, and exercise the same NATS command, query, and event paths used by an operator.
 
 The first implementation work package is G0. The remaining catalog is documented now so its data, diagnostic, and automation requirements are visible before implementation.
+
+G0 through G4 validate Milestone A, the legacy operational restoration defined in [`IFM Operational Restoration and Trading Capability Roadmap`](../../Documents/system/IFM-Operational-Restoration-and-Trading-Capability-Roadmap.md). They restore and prove the previously existing system behavior; they do not constitute paper-trading readiness. Complete paper trading is a later system capability program requiring Milestones B through F.
 
 ## Supported topology
 
@@ -47,7 +50,7 @@ The first implementation work package is G0. The remaining catalog is documented
 | G2 | Reversible commands and maintenance workflows | G1 passes and isolated seed data exists | Create/change/remove and import workflows pass with cleanup |
 | G3 | Live NATS events and streaming UI behavior | G2 passes and deterministic publishers/feeds exist | Ordering, coalescing, responsiveness, and teardown pass |
 | G4 | Failure, reconnect, and lifecycle resilience | G3 passes | Supported recovery paths and repeated lifecycle tests pass |
-| G5 | Controlled paper-trading journeys and soak | G4 passes and paper environment is approved | Operator journeys and soak criteria are approved separately |
+| G5 | Reserved for future complete paper-trading qualification | System roadmap Milestones B through E pass and the paper environment is approved | Milestone F scenarios, reconciliation, risk, soak, and operator approval pass |
 
 Later-gate tests may be developed independently, but a release cannot claim a later gate while an earlier required gate is red.
 
@@ -202,7 +205,7 @@ The following workflows are understood well enough to specify, but they require 
 - Run supported EOD actions only against an isolated deterministic dataset.
 - Run database backup only against an approved non-production test database and verify completion without changing the default operator environment.
 
-Iron Condor order placement, broker interaction, and paper-trade execution remain G5. They are not general CRUD smoke tests.
+Existing Iron Condor screens, plans, positions, calculations, and stored order information are tested for restored behavior in G1 through G4. New broker-integrated order placement, broker interaction, simulated fills, automated execution, and paper-trade qualification remain G5 and depend on system roadmap Milestones B through E. They are not general CRUD smoke tests and are not required to accept Milestone A.
 
 Command tests record the command name, correlation ID, terminal command response/event, visible UI state change, and cleanup result. Clicking a button without observing the command outcome is insufficient.
 
@@ -231,16 +234,16 @@ Burst scenarios measure dispatcher responsiveness, bounded grids/history, event 
 - Unexpected modal dialog: capture text, screenshot, and automation tree before deterministic dismissal.
 - Process/network cleanup: no orphan desktop process and no desktop HTTP transport regression.
 
-## G5 — controlled paper-trading catalog
+## G5 — future complete paper-trading qualification
 
-G5 will cover complete operator-driven strategy monitoring and paper-trade journeys only after G0–G4 pass, required reference/market data exists, and the paper environment is explicitly approved. Exact scenarios, risk limits, expected simulated fills, soak duration, and stop conditions need a separate acceptance specification.
+G5 is a reserved future gate for Milestone F. It will cover complete manual and automated strategy, account, broker execution, reconciliation, monitoring, exit, and paper-trade journeys only after G0 through G4 and system roadmap Milestones B through E pass, required reference/market data exists, and the paper environment is explicitly approved. Exact scenarios, risk limits, expected simulated fills, soak duration, and stop conditions require a separate acceptance specification.
 
 ## Explicitly deferred or not yet testable
 
 - Pixel-perfect WPF/QTS visual conformance and discretionary WinForms visual changes.
 - Production orders or production broker connectivity.
 - Correctness of live FMP results before the integration, credentials, mappings, and deterministic test fixture exist.
-- Long-duration paper-trading soak and production-readiness gates.
+- Long-duration paper-trading soak, Milestone F qualification, and live-trading readiness gates.
 - Coordinate/image-based visual regression unless a later visual specification explicitly requires it.
 
 ## Automation identity policy
@@ -294,4 +297,4 @@ Once G0 tests are implemented, execute them in an unlocked interactive Windows s
 
 ## Acceptance
 
-G0 is the first release gate. It passes only when every required G0 step is `Passed`, cleanup succeeds, and no step is `Failed`, `BlockedDependency`, or `NotRun`. FMP integration and deterministic current futures data therefore have to be supplied before startup can be declared successful, even though existing NATS transport verification is already positive.
+G0 is the first restoration gate. It passes only when every required G0 step is `Passed`, cleanup succeeds, and no step is `Failed`, `BlockedDependency`, or `NotRun`. FMP integration and deterministic current futures data therefore have to be supplied before startup can be declared successful, even though existing NATS transport verification is already positive. Milestone A acceptance requires G0 through G4 and operator confirmation; G5 is outside the restoration milestone.

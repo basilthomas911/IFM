@@ -3,7 +3,7 @@
 **Document type:** Living optimization specification and execution plan  
 **Status:** Active; execution may be paused for specialized optimization work  
 **Created:** 2026-08-07  
-**Last updated:** 2026-08-10
+**Last updated:** 2026-08-13
 **Owner:** IFM engineering  
 
 ## 1. Purpose
@@ -11,6 +11,8 @@
 This document is the persistent system-wide optimization plan for IFM. It is not a fixed-time project plan or a promise to implement every item in its current order. It records the best-known optimization priorities, their design constraints, evidence requirements, implementation status, and decisions so work can pause for specialized investigations and later resume without losing context.
 
 The plan must be updated whenever measurements, architecture changes, paper-trading results, or completed work change the priority or scope of an item. Historical decisions should remain visible in the revision and decision logs.
+
+System capability sequencing is defined separately in [`IFM Operational Restoration and Trading Capability Roadmap`](IFM-Operational-Restoration-and-Trading-Capability-Roadmap.md). In that roadmap, optimized WinForms legacy operational restoration is Milestone A. It proves the updated existing system but is not paper-trading readiness. Broker/account foundations, manual broker execution, automated strategy/risk/execution, automated monitoring/exit, and complete qualification are Milestones B through F. References in this optimization plan to future paper-trading evidence mean Milestone F or its explicitly approved precursor measurements; they must not be interpreted as part of WinForms restoration alone.
 
 ## 2. Current position
 

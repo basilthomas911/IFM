@@ -21,6 +21,8 @@ This document defines the future system-wide contracts for:
 
 This is a design document only. It records contracts and constraints so they can be implemented consistently during later messaging, query, and UI refactoring. It does not change the existing listeners, query APIs, WinForms UI, or Docker services.
 
+Implementation is deferred until Milestone A, legacy operational restoration, is accepted under the [`IFM Operational Restoration and Trading Capability Roadmap`](IFM-Operational-Restoration-and-Trading-Capability-Roadmap.md). The existing callback listener contracts remain active during restoration. This design must not be introduced merely to complete the current WinForms readiness gates.
+
 This document must be read with [Actor Message Types and Delivery Conventions](Actor-Message-Types-and-Delivery-Conventions.md). That document remains authoritative for message meaning and transport selection. In particular:
 
 > Message semantics select the `ActorType`, and the `ActorType` selects exactly one transport.

@@ -8,14 +8,16 @@
 | Current WinForms application | `TomasAI.IFM.UI.Net` |
 | Current WinForms views | `TomasAI.IFM.UI.Net.Views` |
 | Shared candidates | `TomasAI.IFM.UI.Net.ViewModels`, `TomasAI.IFM.UI.Net.Models`, `TomasAI.IFM.UI.EventConsumer` |
-| Immediate delivery target | Stage 1: optimized WinForms application suitable for paper trading |
-| Production delivery target | Stage 2: WPF application with functional and operational parity |
+| Immediate delivery target | Stage 1: optimized WinForms legacy operational restoration |
+| Later presentation target | Stage 2: WPF application with functional and operational parity |
 | Scope of this document | Stage 1 implementation specification and Stage 2 architectural pathway |
 | Stage 1 progress | S1.0 through S1.5 implemented; S1.6 transport/lifecycle implementation is complete and user-driven WinForms/backend validation is pending |
 
 This document is the controlling migration plan for the IFM desktop client. The existing [`UI.Net implementation details`](../../TomasAI.IFM.UI.Net/Docs/UI-Implementation-Details.md) remain the description of the current WinForms implementation. This document describes the target state and the controlled path from that implementation to WPF.
 
 The future system-wide contracts for callback and `IAsyncEnumerable` NATS event consumption, realtime-grid snapshot reconciliation, and paged projection queries are defined in [`Actor Event Streaming and Paged Query Contracts`](../../Documents/system/Actor-Event-Streaming-and-Paged-Query-Contracts.md). Those contracts are design-only until a separate implementation plan is approved. WinForms and WPF event-streaming changes must reference that system document rather than defining a UI-specific transport or acknowledgement model.
+
+The system capability milestones from WinForms restoration through broker/account foundations, manual execution, automated strategy and monitoring, and paper-trading qualification are defined in [`IFM Operational Restoration and Trading Capability Roadmap`](../../Documents/system/IFM-Operational-Restoration-and-Trading-Capability-Roadmap.md). This UI plan controls presentation modernization only and must not be treated as the complete paper-trading roadmap.
 
 ## Executive decision
 
@@ -24,7 +26,7 @@ The migration is divided into two independently valuable stages:
 1. **Stage 1 — fully asynchronous, UI-framework-neutral presentation logic.** Correct the current WinForms application's asynchronous execution, cancellation, event processing, UI dispatch, state notification, error handling, startup, and shutdown. Keep WinForms operational while making Models and ViewModels safe to host from either WinForms or WPF.
 2. **Stage 2 — WPF presentation migration.** Build the WPF shell and replace WinForms views incrementally after the shared presentation contracts have stabilized. Reuse the optimized Models, ViewModels, event consumers, backend API clients, and lifecycle services from Stage 1.
 
-Stage 1 is the paper-trading target. Completing Stage 1 does not authorize production trading: Stage 2, operational parity, soak testing, and the production gates in this document remain prerequisites for production use.
+Stage 1 restores the system to its last-known operational WinForms baseline with current improvements. It is Milestone A in the system roadmap and is not paper-trading readiness. Paper trading additionally requires the broker/account, manual execution, automated strategy, monitoring/exit, and qualification capabilities in Milestones B through F. WPF is a later presentation target and is neither a substitute for those capabilities nor necessarily a prerequisite for beginning their implementation after Stage 1 is accepted.
 
 The new [`TomasAI.IFM.UI`](../TomasAI.IFM.UI.csproj) project is the root of the WPF application. Until Stage 2 begins, its executable window is only a compileable migration shell. `TomasAI.IFM.UI.Net` remains the active WinForms executable and will eventually be designated legacy.
 
@@ -137,7 +139,7 @@ Every Stage 1 implementation must obey these invariants:
 
 ## Shared presentation contracts
 
-The contracts should initially live in the existing framework-neutral ViewModels assembly to avoid a disruptive project split during paper-trading preparation. A later rename to `TomasAI.IFM.UI.ViewModels` or extraction to `TomasAI.IFM.UI.Presentation` is optional and must not be coupled to functional migration.
+The contracts should initially live in the existing framework-neutral ViewModels assembly to avoid a disruptive project split during legacy operational restoration. A later rename to `TomasAI.IFM.UI.ViewModels` or extraction to `TomasAI.IFM.UI.Presentation` is optional and must not be coupled to functional migration.
 
 ### UI dispatcher
 
@@ -411,7 +413,7 @@ recorded debt without requiring a flag-day rewrite.
 - Add architecture tests that reject blocking waits in UI projects.
 - Add searches/analyzers for async lambdas passed to `Action`, unowned `Task.Run`, empty catches, and UI-framework references in shared projects.
 - Add fake dispatcher, fake time provider, and deterministic event-source test utilities.
-- Add ViewModel tests around the highest-risk paper-trading workflows before modifying them.
+- Add ViewModel tests around the highest-risk restored trading workflows before modifying them.
 
 Implemented artifacts:
 
@@ -426,7 +428,7 @@ Implemented artifacts:
   without WinForms, WPF, wall-clock delays, or NATS.
 - Baseline behavior tests preserve Model service-error propagation and cover
   the market-data-feed start and futures-option tick-listener boundaries used
-  by paper-trading workflows.
+  by the restored trading workflows.
 - The initial S1.0 suite contains 23 passing tests. The existing Application
   API integration baseline remains 212 passing tests.
 
@@ -872,7 +874,7 @@ consumer boundary.
 - Architecture tests enforce awaitable option-tick and spread-bar consumer
   contracts and reject regression to the detached Iron Condor registrations.
 
-S1.5 is complete. The S1.6 transport and lifecycle implementation described below is also complete; operational approval remains pending the user-driven WinForms/backend validation and soak gates.
+S1.5 is complete. The S1.6 transport and lifecycle implementation described below is also complete; Milestone A approval remains pending user-driven WinForms/backend validation and restoration gates.
 
 Exit: burst tests show bounded memory, correct ordering for lossless events, and responsive visual updates under expected peak rates.
 
@@ -881,7 +883,7 @@ Exit: burst tests show bounded memory, correct ordering for lossless events, and
 - Move initialization behind an awaitable application coordinator.
 - Replace the fixed delay with readiness logic.
 - Implement graceful stop and disposal.
-- Execute functional, concurrency, soak, and paper-trading tests.
+- Execute functional, concurrency, lifecycle, burst, and restoration tests.
 - Update the current implementation document to describe the completed architecture.
 
 Implementation status on 2026-08-11:
@@ -891,8 +893,8 @@ Implementation status on 2026-08-11:
 - `NatsReadyApplicationContext` preserves the STA WinForms message loop while asynchronously connecting the shared NATS producer. The main form is shown only after connection readiness succeeds, replacing the fixed ten-second delay.
 - Form closure initiates an awaited stop of the status-console producer and shared actor producer, followed by shared NATS connection-manager and container disposal. Normal shutdown no longer forcibly terminates the process.
 - The presentation architecture suite rejects restoration of the HTTP client, REST messaging, fixed startup delay, or missing NATS start/stop lifecycle.
-- The UI project build and automated presentation tests are the implementation gate. Controlled user-driven startup, workflow, reconnect, shutdown, and paper-trading/soak validation against the running backend remain required for operational approval.
-- QTS implementation and discretionary WinForms view changes are explicitly deferred until the current WinForms application passes those runtime gates. Only a demonstrated compatibility defect should cause another legacy-view change.
+- The UI project build and automated presentation tests are the implementation gate. Controlled user-driven startup, existing workflow, reconnect, shutdown, and bounded runtime validation against the running backend remain required for Milestone A operational-restoration approval.
+- QTS implementation and discretionary WinForms view changes are explicitly deferred until the current WinForms application passes those restoration gates. Only a demonstrated compatibility defect should cause another legacy-view change.
 
 NATS transport verification on 2026-08-11:
 
@@ -904,7 +906,7 @@ NATS transport verification on 2026-08-11:
 - The startup audit currently has expected environment/data limitations: FMP is not yet integrated for yield curves or economic calendars, and no currently traded futures contract/deterministic market test data is configured. These are startup `BlockedDependency` results, not NATS transport defects. Yield-curve validation-rule resolution must be revalidated once a non-empty FMP curve is available rather than classified prematurely.
 - The startup-first FlaUI system-test plan, complete non-short-circuiting G0 register, evidence contract, and later WinForms UI test catalog are defined in [`TomasAI.IFM.UI.Net/Docs/UI-System-Test-Specification.md`](../../TomasAI.IFM.UI.Net/Docs/UI-System-Test-Specification.md). The WinForms harness and results are owned by `TomasAI.IFM.UI.Net.SystemTests`. `TomasAI.IFM.UI` remains the pure WPF executable and contains only WPF migration documentation as additional project folders.
 
-Exit: all Stage 1 acceptance criteria pass and the WinForms build is approved for controlled paper trading.
+Exit: all Stage 1 acceptance criteria pass and the operator approves the WinForms build as the restored last-known operational baseline. This completes Milestone A only.
 
 ## Stage 1 testing strategy
 
@@ -937,9 +939,9 @@ Exit: all Stage 1 acceptance criteria pass and the WinForms build is approved fo
 ### Performance and soak tests
 
 - Measure UI-dispatch latency, render cadence, process memory, GC pause/count, CPU, event lag, and channel coalescing/backpressure.
-- Run synthetic quote bursts above expected paper-trading rates while commands and queries remain active.
+- Run synthetic quote bursts above expected restored-system rates while commands and queries remain active.
 - Run extended start/stop and screen-open/close loops to detect retained subscriptions and Tasks.
-- Run a paper-trading soak covering market open, intraday operation, reset/reconnect, market close, and end-of-day workflows.
+- Run a bounded restoration soak covering startup, existing intraday displays/workflows, reset/reconnect, market close where supported, and end-of-day workflows. This validates restored behavior and is not the Milestone F paper-trading soak.
 
 Thresholds must be recorded from representative hardware before implementation sign-off. Averages alone are insufficient; capture p95/p99 latency, peak memory, and worst observed event lag.
 
@@ -959,22 +961,22 @@ Stage 1 is complete only when all of the following are true:
 - [ ] Trading and audit-relevant streams are lossless, ordered as required, and bounded with visible failure/backpressure.
 - [ ] Error codes, correlation identifiers, cancellation, and unexpected exceptions are observable.
 - [ ] Relevant unit, integration, UI smoke, burst, lifecycle, and soak tests pass.
-- [ ] Paper trading completes the agreed soak window without duplicate commands, stale-screen mutations, unbounded memory growth, or unrecovered consumer failure.
+- [ ] A restoration soak completes the agreed window without duplicate commands, stale-screen mutations, unbounded memory growth, or unrecovered consumer failure.
 - [ ] Architecture and operational documentation reflects the implemented behavior.
 
-## Stage 1 paper-trading gate
+## Stage 1 legacy operational-restoration gate
 
-Before paper trading:
+Before accepting Milestone A:
 
 1. Review all order-entry and order-cancellation paths for single-flight behavior.
 2. Confirm command IDs and trade-state events can be correlated end to end.
 3. Confirm lossless event paths never use drop-oldest/latest-value configuration.
 4. Exercise NATS/API disconnect and reconnect while screens are open.
 5. Exercise graceful shutdown with live feeds and orders/queries in flight.
-6. Capture a performance baseline and configure actionable warnings for event lag, UI-dispatch delay, memory growth, and consumer failure.
+6. Capture a restoration performance baseline and configure actionable warnings for event lag, UI-dispatch delay, memory growth, and consumer failure.
 7. Document rollback to the previous WinForms build.
 
-Stage 1 paper trading is specifically intended to validate the optimized shared presentation layer before WPF view work begins.
+Stage 1 validates the optimized shared presentation layer and existing end-to-end system behavior before new presentation-toolkit work or WPF view work begins. It does not validate broker-integrated paper orders, simulated fills, automated strategy decisions, portfolio-risk approval, or automated monitoring and exits.
 
 ---
 
@@ -984,7 +986,7 @@ Stage 1 paper trading is specifically intended to validate the optimized shared 
 
 Replace `TomasAI.IFM.UI.Net` and `TomasAI.IFM.UI.Net.Views` with the WPF application rooted at `TomasAI.IFM.UI`, while reusing the Stage 1 Models, ViewModels, event consumers, lifecycle coordination, concurrency policies, and backend clients.
 
-Stage 2 begins only after the Stage 1 contracts are stable and the WinForms application has passed its paper-trading gate. Findings from Stage 1 may refine view boundaries, screen order, chart selection, and performance thresholds.
+Stage 2 begins only after the Stage 1 contracts are stable and the WinForms application has passed its legacy operational-restoration gate. Findings from Stage 1 may refine view boundaries, screen order, chart selection, and performance thresholds. The owner may prioritize Milestones B through F before, during, or after WPF migration; presentation sequencing must not be confused with trading-capability readiness.
 
 ## Target WPF architecture
 
@@ -1110,13 +1112,13 @@ Only folders needed by implemented slices should be added; this tree defines own
 
 - Migrate trade creation, order confirmation/editing, trade blotters, and Iron Condor workflows last.
 - Validate all lossless event ordering, command correlation, duplicate prevention, risk display, and chart performance.
-- Run the WPF app in read-only/shadow mode before enabling paper-trading commands.
+- Run the WPF app in read-only/shadow mode before enabling any order-producing commands available at that point in the system roadmap.
 
 ### S2.5 — parity and retirement
 
 - Complete functional parity matrix and operational runbooks.
-- Execute WPF paper-trading, soak, failure-recovery, and performance gates.
-- Approve WPF for production only after the production gate below.
+- Execute WPF functional-parity, soak, failure-recovery, and performance gates.
+- Approve WPF as the supported desktop only after the replacement gate below.
 - Mark `TomasAI.IFM.UI.Net` and `.Views` legacy, then remove them in a separate change after the rollback window expires.
 
 ## WinForms/WPF coexistence rules
@@ -1127,7 +1129,7 @@ Only folders needed by implemented slices should be added; this tree defines own
 - Verify whether each event consumer is broadcast, queue-group, or durable before running both clients; accidental shared durable identities can split rather than duplicate delivery.
 - Keep command idempotency and correlation identical across clients.
 - Compare normalized ViewModel state and command intent, not pixel layout alone.
-- Maintain a known-good WinForms build and configuration throughout WPF paper trading and the production rollback window.
+- Maintain a known-good WinForms build and configuration throughout WPF validation and the replacement rollback window.
 
 ## Stage 2 testing and parity
 
@@ -1144,24 +1146,26 @@ Maintain a workflow parity matrix containing:
 
 Reuse Stage 1 ViewModel tests unchanged. Add WPF adapter tests and UI automation for critical operator journeys. Compare WinForms and WPF results against the same deterministic Model/event fixtures.
 
-## Stage 2 production gate
+## Stage 2 desktop replacement gate
 
-WPF may replace WinForms in production only when:
+WPF may replace WinForms as the supported desktop only when:
 
-- [ ] All production-required workflows have signed-off functional parity.
+- [ ] All desktop-replacement-required workflows have signed-off functional parity.
 - [ ] No WPF view bypasses the shared async lifecycle or dispatcher contracts.
-- [ ] Trading commands remain single-flight/idempotent and correlate with lossless responses.
+- [ ] Order-producing commands available at that roadmap milestone remain single-flight/idempotent and correlate with lossless responses.
 - [ ] Market-data bursts meet agreed UI latency, CPU, memory, and event-lag thresholds.
 - [ ] Reconnect and backend partial-failure tests pass.
-- [ ] Extended WPF paper-trading and soak windows pass without leaks or orphaned consumers.
+- [ ] Extended WPF parity and soak windows pass without leaks or orphaned consumers; if Milestone F is already available, applicable paper-trading journeys also pass.
 - [ ] Startup/shutdown and recovery runbooks are exercised.
-- [ ] Deployment, configuration, telemetry, and rollback are verified in the production-like environment.
-- [ ] Operators complete usability validation for trading and risk workflows.
+- [ ] Deployment, configuration, telemetry, and rollback are verified in the target environment.
+- [ ] Operators complete usability validation for every workflow included in the desktop replacement.
 - [ ] The WinForms rollback build remains available for the agreed stabilization period.
 
 ## Decisions intentionally deferred until Stage 2
 
 The outcome of Stage 1 should inform these decisions:
+
+CommunityToolkit.Mvvm, R3, and `IAsyncEnumerable` event-listener implementation are explicitly deferred until Milestone A is accepted. Their later evaluation requires a separate reviewed design/implementation plan and must preserve the accepted WinForms behavior.
 
 - WPF charting library and whether a temporary WinForms chart host is warranted.
 - Navigation style: multi-window, document tabs, or a region-based shell.
@@ -1182,7 +1186,7 @@ After Stage 2 and the rollback window:
 - `TomasAI.IFM.UI.Net` and `TomasAI.IFM.UI.Net.Views` are removed or archived as legacy.
 - All long-running work has explicit ownership, cancellation, completion, error handling, and telemetry.
 - Real-time visual data is bounded and responsive; trading/audit data remains lossless and ordered.
-- Production readiness is established by behavioral parity and operational evidence rather than framework migration alone.
+- Desktop replacement readiness is established by behavioral parity and operational evidence rather than framework migration alone. Paper- and live-trading readiness remain separate system-roadmap decisions.
 
 ## Change-control checklist
 

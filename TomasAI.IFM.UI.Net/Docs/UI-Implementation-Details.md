@@ -6,6 +6,8 @@ The UI.Net project family is the Windows Forms desktop client for the IFM applic
 
 The UI uses NATS for all backend communication. The proposed system-wide design for future callback and `IAsyncEnumerable` event listeners, realtime-grid synchronization, and paged projection queries is documented in [`Actor Event Streaming and Paged Query Contracts`](../../Documents/system/Actor-Event-Streaming-and-Paged-Query-Contracts.md). That document is not yet an implementation description; this document continues to describe the active WinForms behavior.
 
+The WinForms application's current acceptance target is Milestone A, legacy operational restoration, as defined in [`IFM Operational Restoration and Trading Capability Roadmap`](../../Documents/system/IFM-Operational-Restoration-and-Trading-Capability-Roadmap.md). Broker emulation, broker-account actors/storage, new manual broker execution, automated strategy/risk/execution, automated monitoring/exit, and complete paper-trading qualification are later milestones and are not claims of this implementation document.
+
 Current communication behavior:
 
 - commands are sent through the domain command APIs in `TomasAI.IFM.Application.Api.Nats.Client`;
@@ -356,7 +358,7 @@ When a singleton form is reopened, its load method must fully reset any state th
 - `IFMAppViewModel` contains operational assumptions specific to the current deployment, including ES selection, a daily 14-period RSI service, and a 900-second live-feed inactivity threshold.
 - `IControlExtension.Draw` uses `user32.dll` and is Windows-only, which is consistent with the project target.
 - `TomasAI.IFM.UI.Net.Presentation.UnitTests` enforces the NATS-only composition and readiness lifecycle. Form-specific behavior still requires targeted WinForms or manual end-to-end verification.
-- QTS view implementation and further WinForms view changes are deferred until the existing application passes user-driven backend integration and paper-trading verification.
+- QTS view implementation, CommunityToolkit.Mvvm, R3, `IAsyncEnumerable` listener implementation, and discretionary WinForms view changes are deferred until the existing application passes user-driven backend integration and Milestone A legacy operational-restoration acceptance.
 
 ## Build verification
 
