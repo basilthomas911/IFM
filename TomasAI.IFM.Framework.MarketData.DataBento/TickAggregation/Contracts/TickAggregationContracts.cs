@@ -1,8 +1,9 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 
-public interface ITickAggregationService : IAsyncDisposable
+public interface ITickAggregationService : ITickerDataReaderFactory, IAsyncDisposable
 {
     bool IsRunning { get; }
     TickAggregationContractStatus GetContractStatus(string contractId);
@@ -50,7 +51,18 @@ public readonly record struct TickContractMapping(
     ushort PublisherId,
     uint InstrumentId,
     string ContractId,
-    AssetTypeId AssetTypeId);
+    AssetTypeId AssetTypeId,
+    TickerContractDetails? ContractDetails = null);
+
+/// <summary>
+/// Controls transient delivery when a contract obtains its first lease or
+/// releases its final lease.
+/// </summary>
+public interface ITickerLeaseRouteController
+{
+    void Activate(TickContractMapping mapping);
+    void Deactivate(TickContractMapping mapping);
+}
 
 public interface ITickContractMappingProvider
 {
@@ -69,7 +81,8 @@ public interface ITickContractMappingStore : ITickContractMappingProvider
         ushort publisherId,
         uint instrumentId,
         string contractId,
-        AssetTypeId assetTypeId);
+        AssetTypeId assetTypeId,
+        TickerContractDetails? contractDetails = null);
 }
 
 public interface ITickValueDateProvider

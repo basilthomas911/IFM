@@ -1,40 +1,35 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Shared.Domain;
-using TomasAI.IFM.Framework.Caching;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Contracts;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Framework.Serialization;
-using global::TomasAI.IFM.Shared.EventModelActor;
-using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared.Contracts;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesOptionTickData;
 
-public class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeedTestFixture>
+public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeedTestFixture>
 {
-    readonly MarketDataFeedTestFixture _fixture;
+    private readonly MarketDataFeedTestFixture _fixture;
 
-    public FuturesOptionTickDataEventActorTests(MarketDataFeedTestFixture fixture)
-    {
+    public FuturesOptionTickDataEventActorTests(MarketDataFeedTestFixture fixture) =>
         _fixture = fixture;
-    }
 
-    public class TestableFuturesOptionTickDataEventActor : FuturesOptionTickDataEventActor
+    public sealed class TestableFuturesOptionTickDataEventActor : FuturesOptionTickDataEventActor
     {
         public TestableFuturesOptionTickDataEventActor(
             IActorSupervisor supervisor,
@@ -56,444 +51,518 @@ public class FuturesOptionTickDataEventActorTests : IClassFixture<MarketDataFeed
         {
         }
 
-        static Domain.Trade.Shared.ServiceApi.IActorTradeCommandApiFactory CreateTradeCommandApiFactory()
+        private static global::TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IActorTradeCommandApiFactory
+            CreateTradeCommandApiFactory()
         {
-            var api = Substitute.For<Domain.Trade.Shared.ServiceApi.IActorTradeCommandApi>();
-            var factory = Substitute.For<Domain.Trade.Shared.ServiceApi.IActorTradeCommandApiFactory>();
+            var api = Substitute.For<global::TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IActorTradeCommandApi>();
+            var factory = Substitute.For<global::TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IActorTradeCommandApiFactory>();
             factory.Create(Arg.Any<IEventActorContext>()).Returns(api);
             return factory;
         }
 
-        public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
-
-        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
-            => await ReceiveAsync(context, @event);
-
-
-        public async ValueTask InvokeOnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
-            => await OnExceptionAsync(context, threadId, @event, ex);
+        public IEvent Parse(IEventActorContext context, NatsMsg<byte[]> message) =>
+            ParseMessage(context, message);
+        public ValueTask Receive(IEventActorContext context, IEvent @event) =>
+            ReceiveAsync(context, @event);
+        public ValueTask Startup(IEventActorContext context) => OnStartup(context);
+        public ValueTask Shutdown(IEventActorContext context) => OnShutdown(context);
+        public ValueTask Exception(
+            IEventActorContext context,
+            ActorThreadId threadId,
+            IEvent @event,
+            Exception exception) =>
+            OnExceptionAsync(context, threadId, @event, exception);
     }
 
     [Theory]
     [MemberData(nameof(SupportedEvents))]
-    public void ParseMessage_SupportedEvent_ReturnsConcreteEventWithIdentity(IEvent @event)
+    public void ParseMessage_SupportedEvent_ReturnsConcreteEvent(IEvent @event)
     {
-        var actor = CreateActor();
+        var parsed = CreateActor().Parse(
+            Substitute.For<IEventActorContext>(),
+            CreateRoutedMessage(@event));
 
-        var parsed = actor.InvokeParseMessage(
-            Substitute.For<IEventActorContext>(), CreateMessage(@event));
-
-        parsed.GetType().Should().Be(@event.GetType());
+        parsed.Should().BeOfType(@event.GetType());
         parsed.CommandId.Should().Be(@event.CommandId);
-        parsed.Subject.Should().Be(@event.Subject);
     }
 
     [Fact]
-    public void ParseMessage_InsertedEvent_PreservesSampleData()
+    public void ParseMessage_TradeEventPreservesDurableIdentityAndDecimalPrice()
     {
-        var actor = CreateActor();
-        var @event = CreateInsertedEvent();
+        var @event = CreateTradeEvent();
+        var parsed = CreateActor().Parse(
+            Substitute.For<IEventActorContext>(),
+            CreateRoutedMessage(@event));
 
-        var parsed = actor.InvokeParseMessage(
-            Substitute.For<IEventActorContext>(), CreateMessage(@event));
-
-        var inserted = parsed.Should().BeOfType<FuturesOptionTickDataInsertedEvent>().Which;
-        inserted.Contract.Should().BeEquivalentTo(SampleData.EsContract);
-        inserted.TickData.Should().BeEquivalentTo(SampleData.EsOptionTickData);
-    }
-
-    [Theory]
-    [InlineData(ActorType.Command, FuturesOptionTickDataEventActor.Actor, FuturesOptionTickDataInsertedEvent.Verb)]
-    [InlineData(ActorType.Event, "WrongActor", FuturesOptionTickDataInsertedEvent.Verb)]
-    [InlineData(ActorType.Event, FuturesOptionTickDataEventActor.Actor, "UnknownVerb")]
-    public void ParseMessage_InvalidSubject_ReturnsNull(
-        ActorType actorType, string actorName, string verb)
-    {
-        var actor = CreateActor();
-        var @event = CreateInsertedEvent();
-        var message = new NatsMsg<byte[]>
-        {
-            Subject = new ActorSubject(actorType, actorName, verb, @event.EntityId.Format()).ToString(),
-            Data = Serialize(@event)
-        };
-
-        var parsed = actor.InvokeParseMessage(Substitute.For<IEventActorContext>(), message);
-
-        parsed.Should().BeNull();
-    }
-
-    [Fact]
-    public void ParseMessage_NullContext_ThrowsArgumentNullException()
-    {
-        var actor = CreateActor();
-
-        Action act = () => actor.InvokeParseMessage(null!, CreateMessage(CreateInsertedEvent()));
-
-        act.Should().Throw<ArgumentNullException>();
+        var trade = parsed.Should().BeOfType<FuturesTickTradeDataInsertedEvent>().Which;
+        trade.AssetTypeId.Should().Be(AssetTypeId.FuturesOption);
+        trade.InstrumentId.Should().Be(99);
+        trade.TradeData.Price.Should().Be(12.5m);
     }
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void ParseMessage_InvalidPayload_Throws(bool empty)
+    public void ParseMessage_InvalidTradePayloadThrows(bool empty)
     {
-        var actor = CreateActor();
-        var @event = CreateInsertedEvent();
-        var message = new NatsMsg<byte[]>
+        var @event = CreateTradeEvent();
+        var message = CreateRoutedMessage(@event) with
         {
-            Subject = @event.Subject.ToString(),
             Data = empty ? [] : [0x00, 0x01, 0xFF]
         };
+        var action = () => CreateActor().Parse(
+            Substitute.For<IEventActorContext>(),
+            message);
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IEventActorContext>(), message);
-
-        act.Should().Throw<Exception>();
+        action.Should().Throw<Exception>();
     }
 
     [Fact]
-    public void ParseMessage_EmptyCommandId_Throws()
+    public void ParseMessage_EmptyCommandIdThrows()
+    {
+        var @event = CreateTradeEvent() with { CommandId = Guid.Empty };
+        var action = () => CreateActor().Parse(
+            Substitute.For<IEventActorContext>(),
+            CreateRoutedMessage(@event));
+
+        action.Should().Throw<Exception>();
+    }
+
+    [Fact]
+    public async Task StartupAndShutdown_RegisterAndRemoveOnlyDurableTradeRoute()
     {
         var actor = CreateActor();
+        var context = Substitute.For<IEventActorContext>();
+        var route = new ActorTypeId(
+            ActorType.Event,
+            FuturesTickTradeDataInsertedEvent.Actor,
+            FuturesTickTradeDataInsertedEvent.Verb);
 
-        Action act = () => actor.InvokeParseMessage(
-            Substitute.For<IEventActorContext>(), CreateMessage(CreateInsertedEvent(Guid.Empty)));
+        await actor.Startup(context);
+        await actor.Shutdown(context);
 
-        act.Should().Throw<Exception>();
+        context.Received(1).AddEventRouter(route, actor.Id);
+        context.Received(1).RemoveEventRouter(route, actor.Id);
     }
 
     [Fact]
-    public async Task ReceiveAsync_InsertedEvent_PublishesOptionTradeTickUpdate()
+    public async Task StreamingStart_ValidatesOptionAndAcquiresDeterministicLease()
     {
-        var actor = CreateActor();
+        var option = SampleData.FuturesOptionContracts[0];
+        var api = Substitute.For<ApplicationMarketDataApi>();
+        api.GetFuturesOptionContractAsync(option.ContractId).Returns(option);
+        var reader = CreateReader(option.ContractId, CreateOptionPrice(option.ContractId));
+        api.CreateTickerDataReaderAsync(
+                Arg.Any<TickerReaderOwner>(),
+                option.ContractId,
+                Arg.Any<CancellationToken>())
+            .Returns(reader);
+        var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
-        var @event = CreateInsertedEvent();
-        context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(
-                Arg.Any<OptionTradeTickPriceDataUpdatedEvent>())
-            .Returns(ValueTask.CompletedTask);
+        var @event = CreateStreamingStartedEvent(option);
 
-        await actor.InvokeReceiveAsync(context, @event);
+        await actor.Receive(context, @event);
 
-        await context.Received(1)
-            .SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(
-                Arg.Is<OptionTradeTickPriceDataUpdatedEvent>(value =>
-                    value.CommandId == @event.CommandId && value.OptionTickData.ContractId == SampleData.EsOptionTickData.ContractId));
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_InsertedEventPublishFails_HandlesFailureWithoutLeakingIt()
-    {
-        var status = Substitute.For<IStatusConsoleWriter>();
-        var actor = CreateActor(statusConsoleWriter: status);
-        var context = Substitute.For<IEventActorContext>();
-        context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(
-                Arg.Any<OptionTradeTickPriceDataUpdatedEvent>())
-            .Returns<ValueTask>(_ => throw new InvalidOperationException("publish failed"));
-
-        Func<Task> act = () => actor.InvokeReceiveAsync(context, CreateInsertedEvent()).AsTask();
-
-        await act.Should().NotThrowAsync();
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_StreamingStartFails_SendsFailureEvent()
-    {
-        var marketDataApi = Substitute.For<ApplicationMarketDataApi>();
-        marketDataApi.GetFuturesOptionContractAsync(Arg.Any<string>())
-            .Returns(_ => Task.FromException<FuturesOptionContractReadModel?>(
-                new InvalidOperationException("provider failed to start")));
-        var actor = CreateActor(marketDataApi: marketDataApi);
-        var context = Substitute.For<IEventActorContext>();
-        var @event = CreateStreamingStartedEvent();
-
-        await actor.InvokeReceiveAsync(context, @event);
-
-        await marketDataApi.Received(1).StartAsync(
-            @event.ValueDate,
-            Arg.Any<Func<Guid, int, string, Task>>(),
+        await api.Received(1).CreateTickerDataReaderAsync(
+            Arg.Is<TickerReaderOwner>(owner =>
+                owner.WorkflowType == nameof(FuturesOptionTickDataEventActor)
+                && owner.WorkflowId == @event.EntityId.Format()
+                && owner.LegId == option.ContractId),
+            option.ContractId,
             Arg.Any<CancellationToken>());
-        await context.Received(1)
-            .SendAsync<FuturesOptionTickDataStreamingStartedFailEvent, FuturesOptionTickEntityId>(
-                Arg.Is<FuturesOptionTickDataStreamingStartedFailEvent>(value =>
-                    value.CommandId == @event.CommandId && value.ErrorMessage.Contains("failed to start")));
+        await context.Received(1).SendAsync<
+            FuturesOptionTickDataStreamingStartedCompleteEvent,
+            FuturesOptionTickEntityId>(Arg.Any<FuturesOptionTickDataStreamingStartedCompleteEvent>());
     }
 
     [Fact]
-    public async Task ReceiveAsync_StreamingStopWithoutRequest_SendsFailureEvent()
+    public async Task StreamingStart_UnknownOptionPublishesFailureWithoutLease()
     {
-        var marketDataApi = Substitute.For<ApplicationMarketDataApi>();
-        marketDataApi.StopStreamingFuturesOptionTickDataAsync(Arg.Any<string>())
-            .Returns(_ => Task.FromException<bool>(
-                new InvalidOperationException("route not found")));
-        var actor = CreateActor(marketDataApi: marketDataApi);
+        var option = SampleData.FuturesOptionContracts[0];
+        var api = Substitute.For<ApplicationMarketDataApi>();
+        api.GetFuturesOptionContractAsync(option.ContractId)
+            .Returns((FuturesOptionContractReadModel?)null);
+        var actor = CreateActor(marketDataApi: api);
         var context = Substitute.For<IEventActorContext>();
-        var @event = CreateStreamingStoppedEvent();
 
-        await actor.InvokeReceiveAsync(context, @event);
+        var action = () => actor.Receive(
+            context,
+            CreateStreamingStartedEvent(option)).AsTask();
 
-        await marketDataApi.Received(1)
-            .StopStreamingFuturesOptionTickDataAsync(@event.ContractId);
-        await context.Received(1)
-            .SendAsync<FuturesOptionTickDataStreamingStoppedFailEvent, FuturesOptionTickEntityId>(
-                Arg.Is<FuturesOptionTickDataStreamingStoppedFailEvent>(value =>
-                    value.CommandId == @event.CommandId && value.ErrorMessage.Contains("not found")));
+        await action.Should().NotThrowAsync();
+        await api.DidNotReceive().CreateTickerDataReaderAsync(
+            Arg.Any<TickerReaderOwner>(),
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
+        await context.Received(1).SendAsync<
+            FuturesOptionTickDataStreamingStartedFailEvent,
+            FuturesOptionTickEntityId>(Arg.Any<FuturesOptionTickDataStreamingStartedFailEvent>());
     }
 
     [Fact]
-    public async Task ReceiveAsync_BidAskWithoutStreamingRequest_CompletesWithoutOutgoingCommands()
+    public async Task StreamingStop_DisposesOwnedReaderAndPublishesCompletion()
+    {
+        var option = SampleData.FuturesOptionContracts[0];
+        var api = Substitute.For<ApplicationMarketDataApi>();
+        api.GetFuturesOptionContractAsync(option.ContractId).Returns(option);
+        var reader = CreateReader(option.ContractId, CreateOptionPrice(option.ContractId));
+        api.CreateTickerDataReaderAsync(
+                Arg.Any<TickerReaderOwner>(),
+                option.ContractId,
+                Arg.Any<CancellationToken>())
+            .Returns(reader);
+        var actor = CreateActor(marketDataApi: api);
+        var context = Substitute.For<IEventActorContext>();
+        await actor.Receive(context, CreateStreamingStartedEvent(option));
+
+        await actor.Receive(context, CreateStreamingStoppedEvent(option.ContractId));
+
+        await reader.Received(1).DisposeAsync();
+        await context.Received(1).SendAsync<
+            FuturesOptionTickDataStreamingStoppedCompleteEvent,
+            FuturesOptionTickEntityId>(Arg.Any<FuturesOptionTickDataStreamingStoppedCompleteEvent>());
+    }
+
+    [Fact]
+    public async Task DurableOptionTrade_CombinesExactTradeWithLatestQuoteAndPublishesDomainUpdate()
+    {
+        var option = SampleData.FuturesOptionContracts[0];
+        var api = Substitute.For<ApplicationMarketDataApi>();
+        api.GetFuturesOptionContractAsync(option.ContractId).Returns(option);
+        var price = CreateOptionPrice(option.ContractId);
+        var reader = CreateReader(option.ContractId, price);
+        api.CreateTickerDataReaderAsync(
+                Arg.Any<TickerReaderOwner>(),
+                option.ContractId,
+                Arg.Any<CancellationToken>())
+            .Returns(reader);
+        var actor = CreateActor(marketDataApi: api);
+        var context = Substitute.For<IEventActorContext>();
+        await actor.Receive(context, CreateStreamingStartedEvent(option));
+        var trade = CreateTradeEvent(option.ContractId, 13.125m, 25);
+
+        await actor.Receive(context, trade);
+
+        await context.Received(1).SendAsync<
+            OptionTradeTickPriceDataUpdatedEvent,
+            FuturesOptionTickEntityId>(Arg.Is<OptionTradeTickPriceDataUpdatedEvent>(updated =>
+                updated.CommandId == trade.CommandId
+                && updated.OptionTickData.ContractId == option.ContractId
+                && updated.OptionTickData.OptionPrice == 13.125d
+                && updated.OptionTickData.BidPrice == 12.25d
+                && updated.OptionTickData.AskPrice == 12.75d
+                && updated.OptionTickData.BidSize == 100
+                && updated.OptionTickData.AskSize == 150
+                && updated.OptionTickData.ImpliedVolatility == 0d));
+    }
+
+    [Fact]
+    public async Task DurableTradeWithoutActiveLease_IsAcknowledgedWithoutUpdate()
     {
         var actor = CreateActor();
         var context = Substitute.For<IEventActorContext>();
 
-        Func<Task> act = () => actor.InvokeReceiveAsync(context, CreateTickPriceDataEvent()).AsTask();
+        await actor.Receive(context, CreateTradeEvent());
 
-        await act.Should().NotThrowAsync();
-        await context.DidNotReceiveWithAnyArgs()
-            .RequestAsync<TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands.InsertFuturesOptionTickDataCommand, FuturesOptionTickEntityId>(default!);
+        await context.DidNotReceive().SendAsync<
+            OptionTradeTickPriceDataUpdatedEvent,
+            FuturesOptionTickEntityId>(Arg.Any<OptionTradeTickPriceDataUpdatedEvent>());
     }
 
     [Fact]
-    public async Task ReceiveAsync_NullInputs_ThrowArgumentNullException()
+    public async Task DurableTradeAfterLeaseRelease_IsAcknowledgedWithoutUpdate()
+    {
+        var option = SampleData.FuturesOptionContracts[0];
+        var api = Substitute.For<ApplicationMarketDataApi>();
+        api.GetFuturesOptionContractAsync(option.ContractId).Returns(option);
+        var reader = CreateReader(option.ContractId, CreateOptionPrice(option.ContractId));
+        reader.GetContractDetails().Returns(_ => throw new TickerLeaseNotActiveException(
+            reader.Lease,
+            TickerLeaseFailureReason.LeaseReleased));
+        api.CreateTickerDataReaderAsync(
+                Arg.Any<TickerReaderOwner>(),
+                option.ContractId,
+                Arg.Any<CancellationToken>())
+            .Returns(reader);
+        var actor = CreateActor(marketDataApi: api);
+        var context = Substitute.For<IEventActorContext>();
+        await actor.Receive(context, CreateStreamingStartedEvent(option));
+
+        var action = () => actor.Receive(context, CreateTradeEvent(option.ContractId)).AsTask();
+
+        await action.Should().NotThrowAsync();
+        await context.DidNotReceive().SendAsync<
+            OptionTradeTickPriceDataUpdatedEvent,
+            FuturesOptionTickEntityId>(Arg.Any<OptionTradeTickPriceDataUpdatedEvent>());
+    }
+
+    [Fact]
+    public async Task FuturesTrade_IsIgnoredByOptionActor()
     {
         var actor = CreateActor();
         var context = Substitute.For<IEventActorContext>();
-        var @event = CreateInsertedEvent();
 
-        await ((Func<Task>)(() => actor.InvokeReceiveAsync(null!, @event).AsTask()))
+        await actor.Receive(context, CreateTradeEvent(assetType: AssetTypeId.Futures));
+
+        context.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task DomainUpdatePublishFailure_PropagatesForDurableErrorHandling()
+    {
+        var option = SampleData.FuturesOptionContracts[0];
+        var api = Substitute.For<ApplicationMarketDataApi>();
+        api.GetFuturesOptionContractAsync(option.ContractId).Returns(option);
+        api.CreateTickerDataReaderAsync(
+                Arg.Any<TickerReaderOwner>(),
+                option.ContractId,
+                Arg.Any<CancellationToken>())
+            .Returns(_ => CreateReader(option.ContractId, CreateOptionPrice(option.ContractId)));
+        var actor = CreateActor(marketDataApi: api);
+        var context = Substitute.For<IEventActorContext>();
+        context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(
+                Arg.Any<OptionTradeTickPriceDataUpdatedEvent>())
+            .Returns(_ => ValueTask.FromException(new InvalidOperationException("publish failed")));
+        await actor.Receive(context, CreateStreamingStartedEvent(option));
+
+        var action = () => actor.Receive(context, CreateTradeEvent(option.ContractId)).AsTask();
+
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("publish failed");
+    }
+
+    [Fact]
+    public async Task Receive_NullAndUnsupportedEventsThrow()
+    {
+        var actor = CreateActor();
+        var context = Substitute.For<IEventActorContext>();
+        await ((Func<Task>)(() => actor.Receive(null!, CreateTradeEvent()).AsTask()))
             .Should().ThrowAsync<ArgumentNullException>();
-        await ((Func<Task>)(() => actor.InvokeReceiveAsync(context, null!).AsTask()))
+        await ((Func<Task>)(() => actor.Receive(context, null!).AsTask()))
             .Should().ThrowAsync<ArgumentNullException>();
+
+        var unsupported = Substitute.For<IEvent>();
+        unsupported.Subject.Returns(new ActorSubject(
+            ActorType.Event,
+            FuturesOptionTickDataEventActor.Actor,
+            "Unknown",
+            "entity"));
+        await ((Func<Task>)(() => actor.Receive(context, unsupported).AsTask()))
+            .Should().ThrowAsync<InvalidOperationException>();
     }
 
     [Fact]
-    public async Task ReceiveAsync_ParsedPriceDataEvent_IsRejectedBecauseNoReceiveHandlerExists()
-    {
-        var actor = CreateActor();
-        var @event = CreatePriceInsertedEvent();
-        actor.InvokeParseMessage(Substitute.For<IEventActorContext>(), CreateMessage(@event))
-            .Should().BeOfType<FuturesOptionTickPriceDataInsertedEvent>();
-
-        Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<IEventActorContext>(), @event).AsTask();
-
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesOptionTickDataEventActor.Actor} event from message: *");
-    }
-
-    [Fact]
-    public async Task ReceiveAsync_UnknownEvent_ThrowsInvalidOperationException()
-    {
-        var actor = CreateActor();
-        var @event = Substitute.For<IEvent>();
-        @event.Subject.Returns(new ActorSubject(
-            ActorType.Event, FuturesOptionTickDataEventActor.Actor, "Unknown", "entity"));
-
-        Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<IEventActorContext>(), @event).AsTask();
-
-        await act.Should().ThrowAsync<InvalidOperationException>();
-    }
-
-    [Fact]
-    public async Task OnExceptionAsync_ValidInputs_SendsEventExceptionEvent()
+    public async Task OnException_PublishesFrameworkErrorEvent()
     {
         var actor = CreateActor();
         var context = Substitute.For<IEventActorContext>();
-        var @event = CreateInsertedEvent();
-        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
-            .Returns(ValueTask.CompletedTask);
+        var @event = CreateTradeEvent();
 
-        await actor.InvokeOnExceptionAsync(
-            context, @event.Subject.ThreadId, @event, new InvalidOperationException("event failed"));
+        await actor.Exception(
+            context,
+            @event.Subject.ThreadId,
+            @event,
+            new InvalidOperationException("event failed"));
 
-        await context.Received(1)
-            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(value =>
-                    value.ErrorMessage == "event failed"));
+        await context.Received(1).SendAsync<
+            global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+            ActorEntityId>(Arg.Is<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>(
+                failed => failed.ErrorMessage == "event failed"));
     }
 
-    [Fact]
-    public async Task OnExceptionAsync_FirstPublishFails_RetriesWithPublishingException()
-    {
-        var actor = CreateActor();
-        var context = Substitute.For<IEventActorContext>();
-        var @event = CreateInsertedEvent();
-        var count = 0;
-        context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
-            .Returns(_ =>
-            {
-                count++;
-                if (count == 1)
-                    throw new InvalidOperationException("first publish failed");
-                return ValueTask.CompletedTask;
-            });
-
-        await actor.InvokeOnExceptionAsync(
-            context, @event.Subject.ThreadId, @event, new Exception("original failure"));
-
-        await context.Received(2)
-            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>());
-    }
-
-    [Fact]
-    public async Task OnExceptionAsync_DefaultThreadOrNullEvent_AreConvertedToErrorEvents()
-    {
-        var actor = CreateActor();
-        var context = Substitute.For<IEventActorContext>();
-        var @event = CreateInsertedEvent();
-
-        await actor.InvokeOnExceptionAsync(context, default, @event, new Exception("failure"));
-        await actor.InvokeOnExceptionAsync(context, @event.Subject.ThreadId, null!, new Exception("failure"));
-
-        await context.Received(2)
-            .SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
-                Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>());
-    }
-
-    TestableFuturesOptionTickDataEventActor CreateActor(
-        IActorSupervisor? supervisor = null,
-        ApplicationMarketDataApi? marketDataApi = null,
-        IBlackboardService? blackboardService = null,
-        IOptionTradeLiveFeedMap? optionTradeLiveFeedMap = null,
-        IStatusConsoleWriter? statusConsoleWriter = null,
-        ILogger<FuturesOptionTickDataEventActor>? logger = null)
-        => _fixture.CreateActor(
-            supervisor ?? Substitute.For<IActorSupervisor>(),
+    private TestableFuturesOptionTickDataEventActor CreateActor(ApplicationMarketDataApi? marketDataApi = null) =>
+        _fixture.CreateActor(
+            Substitute.For<IActorSupervisor>(),
             marketDataApi ?? Substitute.For<ApplicationMarketDataApi>(),
-            blackboardService ?? CreateBlackboard(),
-            optionTradeLiveFeedMap ?? Substitute.For<IOptionTradeLiveFeedMap>(),
-            statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>(),
-            logger ?? Substitute.For<ILogger<FuturesOptionTickDataEventActor>>());
+            Substitute.For<IBlackboardService>(),
+            Substitute.For<IOptionTradeLiveFeedMap>(),
+            Substitute.For<IStatusConsoleWriter>(),
+            Substitute.For<ILogger<FuturesOptionTickDataEventActor>>());
 
-    static IBlackboardService CreateBlackboard()
+    private static ITickerDataReader CreateReader(
+        string contractId,
+        OptionTickerPriceSnapshot optionPrice)
     {
-        var blackboard = Substitute.For<IBlackboardService>();
-        blackboard.MarketDataFeed.StreamingRequestId.Returns(new StreamingRequestIdCacheModel(
-            Substitute.For<IRedisCache>(), Substitute.For<IJsonSerializer>()));
-        return blackboard;
+        var owner = new TickerReaderOwner("test", "workflow", contractId);
+        var reader = Substitute.For<ITickerDataReader>();
+        reader.ContractId.Returns(contractId);
+        reader.Owner.Returns(owner);
+        reader.Lease.Returns(new TickerStreamLease(Guid.NewGuid(), contractId, owner, 1));
+        reader.GetContractDetails().Returns(CreateDetails(contractId));
+        reader.TryGetOptionPrice(out Arg.Any<OptionTickerPriceSnapshot>())
+            .Returns(call =>
+            {
+                call[0] = optionPrice;
+                return true;
+            });
+        reader.DisposeAsync().Returns(ValueTask.CompletedTask);
+        return reader;
     }
+
+    private static TickerContractDetails CreateDetails(string contractId) => new()
+    {
+        ContractId = contractId,
+        InstrumentId = 99,
+        PublisherId = 7,
+        AssetTypeId = AssetTypeId.FuturesOption,
+        Dataset = "GLBX.MDP3",
+        DefinitionDate = SampleData.ValueDate,
+        ProviderContractId = contractId,
+        Ticker = "ES",
+        LocalSymbol = contractId,
+        SecurityType = "FOP",
+        Currency = "USD",
+        Exchange = "CME",
+        ContractMultiplier = 50m,
+        MaturityDate = SampleData.FuturesOptionContracts[0].ContractMonth,
+        StrikePrice = 5500m,
+        OptionType = "Call",
+        UnderlyingContractId = SampleData.EsContract.ContractId,
+        IsCurrentlyTraded = true
+    };
+
+    private static OptionTickerPriceSnapshot CreateOptionPrice(string contractId) => new(
+        new TickerPriceSnapshot(
+            contractId,
+            99,
+            7,
+            AssetTypeId.FuturesOption,
+            SampleData.ValueDate,
+            new TickerQuoteSnapshot(
+                12.25m,
+                100,
+                12.75m,
+                150,
+                1,
+                1,
+                100,
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow),
+            new TickerTradeSnapshot(
+                12.5m,
+                25,
+                101,
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow)),
+        null);
 
     public static IEnumerable<object[]> SupportedEvents()
     {
-        yield return [CreateInsertedEvent()];
-        yield return [CreatePriceInsertedEvent()];
-        yield return [CreateStreamingStartedEvent()];
-        yield return [CreateStreamingStoppedEvent()];
-        yield return [CreateTickPriceDataEvent()];
+        yield return [CreateTradeEvent()];
+        yield return [CreateStreamingStartedEvent(SampleData.FuturesOptionContracts[0])];
+        yield return [CreateStreamingStoppedEvent(SampleData.FuturesOptionContracts[0].ContractId)];
     }
 
-    static NatsMsg<byte[]> CreateMessage(IEvent @event)
-        => new() { Subject = @event.Subject.ToString(), Data = Serialize(@event) };
-
-    static byte[] Serialize(IEvent @event) => @event switch
+    private static NatsMsg<byte[]> CreateRoutedMessage(IEvent @event) => new()
     {
-        FuturesOptionTickDataInsertedEvent value => ActorExtensions.DataSerializer!.Serialize(value),
-        FuturesOptionTickPriceDataInsertedEvent value => ActorExtensions.DataSerializer!.Serialize(value),
-        FuturesOptionTickDataStreamingStartedEvent value => ActorExtensions.DataSerializer!.Serialize(value),
-        FuturesOptionTickDataStreamingStoppedEvent value => ActorExtensions.DataSerializer!.Serialize(value),
-        FuturesOptionTickBidAskEvent value => ActorExtensions.DataSerializer!.Serialize(value),
-        _ => throw new ArgumentOutOfRangeException(nameof(@event))
+        Subject = new ActorSubject(
+            ActorType.Event,
+            FuturesOptionTickDataEventActor.Actor,
+            @event.Subject.Verb,
+            @event.Subject.EntityId).ToString(),
+        Data = @event switch
+        {
+            FuturesTickTradeDataInsertedEvent value =>
+                ActorExtensions.DataSerializer!.Serialize(value),
+            FuturesOptionTickDataStreamingStartedEvent value =>
+                ActorExtensions.DataSerializer!.Serialize(value),
+            FuturesOptionTickDataStreamingStoppedEvent value =>
+                ActorExtensions.DataSerializer!.Serialize(value),
+            _ => throw new ArgumentOutOfRangeException(nameof(@event))
+        }
     };
 
-    static FuturesOptionTickDataInsertedEvent CreateInsertedEvent(Guid? commandId = null)
+    private static FuturesTickTradeDataInsertedEvent CreateTradeEvent(
+        string? contractId = null,
+        decimal price = 12.5m,
+        uint size = 25,
+        AssetTypeId assetType = AssetTypeId.FuturesOption)
     {
-        var entityId = new FuturesOptionTickEntityId(SampleData.EsOptionTickData.ContractId, SampleData.ValueDate);
-        return new FuturesOptionTickDataInsertedEvent
+        contractId ??= SampleData.FuturesOptionContracts[0].ContractId;
+        var entityId = new TickDataEntityId(contractId, SampleData.ValueDate, assetType);
+        return new FuturesTickTradeDataInsertedEvent
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesOptionTickDataEventActor.Actor, FuturesOptionTickDataInsertedEvent.Verb, entityId.Format()),
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesTickTradeDataInsertedEvent.Actor,
+                FuturesTickTradeDataInsertedEvent.Verb,
+                entityId.Format()),
             Id = Guid.NewGuid(),
-            CommandId = commandId ?? Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
             EntityId = entityId,
             EventId = 1,
-            ReceivedOn = DateTime.UtcNow,
+            AggregateId = entityId.Format(),
             EventSource = "test",
-            Contract = SampleData.EsContract,
-            TickData = SampleData.EsOptionTickData,
-            CreatedOn = DateTime.UtcNow,
-            CreatedBy = "UnitTest"
+            ReceivedOn = DateTime.UtcNow,
+            TickDataId = new TickDataId(contractId, SampleData.ValueDate, 11, DateTime.UtcNow),
+            AssetTypeId = assetType,
+            Dataset = "GLBX.MDP3",
+            DefinitionDate = SampleData.ValueDate,
+            PublisherId = 7,
+            InstrumentId = 99,
+            TradeData = new FuturesTickTradeData(
+                100,
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1_000_000,
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1_000_000,
+                0,
+                decimal.ToInt64(price * 1_000_000_000m),
+                price,
+                size,
+                1,
+                2,
+                0)
         };
     }
 
-    static FuturesOptionTickDataStreamingStartedEvent CreateStreamingStartedEvent(Guid? commandId = null)
+    private static FuturesOptionTickDataStreamingStartedEvent CreateStreamingStartedEvent(
+        FuturesOptionContractReadModel option)
     {
-        var entityId = SampleData.OptionTickStreamingFeedId;
+        var entityId = new FuturesOptionTickEntityId(option.ContractId, SampleData.ValueDate);
         return new FuturesOptionTickDataStreamingStartedEvent
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesOptionTickDataEventActor.Actor, FuturesOptionTickDataStreamingStartedEvent.Verb, entityId.Format()),
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesOptionTickDataEventActor.Actor,
+                FuturesOptionTickDataStreamingStartedEvent.Verb,
+                entityId.Format()),
             Id = Guid.NewGuid(),
-            CommandId = commandId ?? Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
             EntityId = entityId,
             EventId = 2,
-            ReceivedOn = DateTime.UtcNow,
+            AggregateId = entityId.Format(),
             EventSource = "test",
-            Contract = SampleData.FuturesOptionContracts[0],
+            ReceivedOn = DateTime.UtcNow,
+            Contract = option,
             BaseContract = SampleData.EsContract,
             ValueDate = SampleData.ValueDate,
-            MaturityDate = SampleData.OptionMaturityDate,
-            RiskFreeRate = SampleData.RiskFreeRate,
+            MaturityDate = option.ContractMonth,
+            RiskFreeRate = 0.04,
             StartedOn = DateTime.UtcNow,
             StartedBy = "UnitTest"
         };
     }
 
-    static FuturesOptionTickPriceDataInsertedEvent CreatePriceInsertedEvent(Guid? commandId = null)
+    private static FuturesOptionTickDataStreamingStoppedEvent CreateStreamingStoppedEvent(
+        string contractId)
     {
-        var entityId = SampleData.EsOptionTickData.EntityId;
-        return new FuturesOptionTickPriceDataInsertedEvent
-        {
-            Subject = new ActorSubject(
-                ActorType.Event, FuturesOptionTickDataEventActor.Actor,
-                FuturesOptionTickPriceDataInsertedEvent.Verb, entityId.Format()),
-            Id = Guid.NewGuid(),
-            CommandId = commandId ?? Guid.NewGuid(),
-            EntityId = entityId,
-            EventId = 5,
-            AggregateId = entityId.Format(),
-            ReceivedOn = DateTime.UtcNow,
-            EventSource = "UnitTest",
-            Contract = SampleData.EsContract,
-            TickData = SampleData.EsOptionTickData,
-            CreatedOn = DateTime.UtcNow,
-            CreatedBy = "UnitTest"
-        };
-    }
-
-    static FuturesOptionTickDataStreamingStoppedEvent CreateStreamingStoppedEvent(Guid? commandId = null)
-    {
-        var entityId = SampleData.OptionTickStreamingFeedId;
+        var entityId = new FuturesOptionTickEntityId(contractId, SampleData.ValueDate);
         return new FuturesOptionTickDataStreamingStoppedEvent
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesOptionTickDataEventActor.Actor, FuturesOptionTickDataStreamingStoppedEvent.Verb, entityId.Format()),
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesOptionTickDataEventActor.Actor,
+                FuturesOptionTickDataStreamingStoppedEvent.Verb,
+                entityId.Format()),
             Id = Guid.NewGuid(),
-            CommandId = commandId ?? Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
             EntityId = entityId,
             EventId = 3,
-            ReceivedOn = DateTime.UtcNow,
+            AggregateId = entityId.Format(),
             EventSource = "test",
-            ContractId = SampleData.FuturesOptionContracts[0].ContractId,
+            ReceivedOn = DateTime.UtcNow,
+            ContractId = contractId,
             StoppedOn = DateTime.UtcNow,
             StoppedBy = "UnitTest"
         };
     }
-
-    static FuturesOptionTickBidAskEvent CreateTickPriceDataEvent(Guid? commandId = null)
-    {
-        var entityId = SampleData.OptionTickStreamingFeedId;
-        var tickPriceData = new FuturesOptionTickBidAskReadModel(
-            DateTime.UtcNow, DateTime.UtcNow.Ticks, 12.25, 12.75, 100, 150);
-        return new FuturesOptionTickBidAskEvent(1001, tickPriceData)
-        {
-            Subject = new ActorSubject(ActorType.Event, FuturesOptionTickDataEventActor.Actor, FuturesOptionTickBidAskEvent.Verb, entityId.Format()),
-            Id = Guid.NewGuid(),
-            CommandId = commandId ?? Guid.NewGuid(),
-            EntityId = entityId,
-            EventId = 4,
-            ReceivedOn = DateTime.UtcNow,
-            EventSource = "test"
-        };
-    }
-
 }

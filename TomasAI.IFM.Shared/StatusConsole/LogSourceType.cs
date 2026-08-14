@@ -60,7 +60,11 @@ public enum LogSourceType
     FuturesTradeSignalEvent,
     SpreadDistributionJobEvent,
     OptionTradeEvent,
-    FuturesOptionPositionMonitorEvent
+    FuturesOptionPositionMonitorEvent,
+    FuturesTickTradeDataChanged,
+    FuturesTickQuoteDataChanged,
+    FuturesTickTradeDataInserted,
+    FuturesTickQuoteDataInserted
 }
 
 public static class LogSourceTypeExtensions
@@ -103,6 +107,10 @@ public static class LogSourceTypeExtensions
         LogSourceType.FuturesAtrSignalEvent => nameof(LogSourceType.FuturesAtrSignalEvent),
         LogSourceType.FuturesAdxSignalEvent => nameof(LogSourceType.FuturesAdxSignalEvent),
         LogSourceType.FuturesTradeSignalEvent => nameof(LogSourceType.FuturesTradeSignalEvent),
+        LogSourceType.FuturesTickTradeDataChanged => nameof(LogSourceType.FuturesTickTradeDataChanged),
+        LogSourceType.FuturesTickQuoteDataChanged => nameof(LogSourceType.FuturesTickQuoteDataChanged),
+        LogSourceType.FuturesTickTradeDataInserted => nameof(LogSourceType.FuturesTickTradeDataInserted),
+        LogSourceType.FuturesTickQuoteDataInserted => nameof(LogSourceType.FuturesTickQuoteDataInserted),
         _ => value.ToString()
     };
 }

@@ -9,6 +9,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Extensions;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
 
@@ -34,7 +36,9 @@ public static async ValueTask<bool> ExecuteAsync(
                 e.ValueDate,
                 (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
                     LogSourceType.FuturesTickDataEvent, errorCode, errorMsg));
-            _ = await p.MarketDataApi.StartStreamingFuturesTickDataAsync(
+            _ = await p.Readers.AcquireAsync(
+                p.MarketDataApi,
+                CreateOwner(e.EntityId, e.Contract.ContractId),
                 e.Contract.ContractId);
             await eventApi.FuturesTickDataStreamingStartedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started");
@@ -49,4 +53,11 @@ public static async ValueTask<bool> ExecuteAsync(
         }
         return false;
     }
+
+    internal static TickerReaderOwner CreateOwner(
+        FuturesTickDataStreamingId entityId,
+        string contractId) => new(
+        nameof(FuturesTickDataEventActor),
+        entityId.Format(),
+        contractId);
 }

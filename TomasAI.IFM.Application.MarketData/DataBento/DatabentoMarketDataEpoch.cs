@@ -6,6 +6,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
@@ -45,6 +46,10 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly DatabentoOptionRouteRegistry _optionRoutes;
     private readonly ITickLiveRouter _liveRouter;
+    private readonly ITickerLeaseRouteController _leaseRoutes;
+    private readonly Dictionary<string, ITickerDataReader> _compatibilityReaders =
+        new(StringComparer.Ordinal);
+    private readonly object _compatibilityReaderSync = new();
     private DatabentoOperationRunner? _operations;
     private DatabentoMarketDataCatalog? _catalog;
     private DatabentoLastPriceStore? _lastPrices;
@@ -68,6 +73,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         _timeProvider = timeProvider;
         _optionRoutes = new DatabentoOptionRouteRegistry(options.MaximumConcurrentOptionChains);
         _liveRouter = new TickLiveRouter(livePublisher);
+        _leaseRoutes = new DatabentoTickerLeaseRouteController(_liveRouter, _optionRoutes);
     }
 
     public DateOnly ValueDate { get; }
@@ -75,6 +81,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         _catalog ?? throw new InvalidOperationException("The epoch catalog is not ready.");
     public IDatabentoLastPriceReaderProvider LastPrices =>
         _lastPrices ?? throw new InvalidOperationException("The epoch last-price store is not ready.");
+    public ITickerDataReaderFactory TickerReaders =>
+        _aggregation ?? throw new InvalidOperationException("Tick aggregation is not ready.");
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -103,7 +111,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                     resolved.Detail.Instrument.PublisherId,
                     resolved.Detail.Instrument.InstrumentId,
                     resolved.Registration.DomainContractId,
-                    resolved.Registration.AssetTypeId);
+                    resolved.Registration.AssetTypeId,
+                    CreateContractDetails(resolved));
                 _lastPrices.RegisterContract(
                     resolved.Registration.DomainContractId,
                     resolved.Registration.AssetTypeId);
@@ -135,7 +144,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                     },
                     _timeProvider,
                     _lastPrices,
-                    _liveRouter);
+                    _liveRouter,
+                    _leaseRoutes);
                 await _aggregation.StartAsync().ConfigureAwait(false);
             }
             catch
@@ -156,6 +166,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         {
             _optionRoutes.Clear();
             _liveRouter.Clear();
+            lock (_compatibilityReaderSync)
+                _compatibilityReaders.Clear();
             List<Exception>? failures = null;
             if (_aggregation is not null)
             {
@@ -193,29 +205,25 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     public bool StartFuturesRoute(string futuresContractId)
     {
         EnsureRunning();
-        return _liveRouter.Activate(futuresContractId);
+        return StartCompatibilityReader(futuresContractId, "futures");
     }
 
     public bool StopFuturesRoute(string futuresContractId)
     {
         EnsureRunning();
-        return _liveRouter.Deactivate(futuresContractId);
+        return StopCompatibilityReader(futuresContractId);
     }
 
     public bool StartIndividualOptionRoute(string futuresOptionContractId)
     {
         EnsureRunning();
-        var changed = _optionRoutes.StartIndividual(futuresOptionContractId);
-        if (changed) _liveRouter.Activate(futuresOptionContractId);
-        return changed;
+        return StartCompatibilityReader(futuresOptionContractId, "option");
     }
 
     public bool StopIndividualOptionRoute(string futuresOptionContractId)
     {
         EnsureRunning();
-        var changed = _optionRoutes.StopIndividual(futuresOptionContractId);
-        if (changed) _liveRouter.Deactivate(futuresOptionContractId);
-        return changed;
+        return StopCompatibilityReader(futuresOptionContractId);
     }
 
     public Task<bool> StartOptionChainAsync(
@@ -254,6 +262,69 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     {
         if (Volatile.Read(ref _started) == 0)
             throw new MarketDataApiNotRunningException();
+    }
+
+    private bool StartCompatibilityReader(string contractId, string legId)
+    {
+        lock (_compatibilityReaderSync)
+        {
+            if (_compatibilityReaders.ContainsKey(contractId)) return false;
+            var owner = new TickerReaderOwner(
+                nameof(DatabentoMarketDataApi),
+                $"compatibility:{ValueDate:yyyy-MM-dd}",
+                legId);
+            var reader = TickerReaders.CreateAsync(owner, contractId)
+                .AsTask().GetAwaiter().GetResult();
+            _compatibilityReaders.Add(contractId, reader);
+            return true;
+        }
+    }
+
+    private bool StopCompatibilityReader(string contractId)
+    {
+        ITickerDataReader? reader;
+        lock (_compatibilityReaderSync)
+        {
+            if (!_compatibilityReaders.Remove(contractId, out reader)) return false;
+        }
+        reader.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        return true;
+    }
+
+    private TickerContractDetails CreateContractDetails(
+        DatabentoMarketDataCatalog.ResolvedContract resolved)
+    {
+        var detail = resolved.Detail;
+        return new TickerContractDetails
+        {
+            ContractId = resolved.Registration.DomainContractId,
+            InstrumentId = detail.Instrument.InstrumentId,
+            PublisherId = detail.Instrument.PublisherId,
+            AssetTypeId = resolved.Registration.AssetTypeId,
+            Dataset = detail.Dataset,
+            DefinitionDate = ValueDate,
+            ProviderContractId = detail.RawSymbol,
+            Ticker = detail.Ticker,
+            LocalSymbol = detail.RawSymbol,
+            SecurityType = detail.SecurityType,
+            Currency = detail.Currency,
+            Exchange = detail.Exchange,
+            ContractMultiplier = detail.ContractMultiplier ?? 1,
+            MaturityDate = detail.MaturityDate ?? ValueDate,
+            IsCurrentlyTraded = resolved.Futures?.CurrentlyTraded ?? true,
+            StrikePrice = detail.StrikePrice is { } strike
+                ? strike / 1_000_000_000m
+                : null,
+            OptionType = detail.ContractKind switch
+            {
+                ContractKind.CallOption => "Call",
+                ContractKind.PutOption => "Put",
+                _ => null
+            },
+            UnderlyingContractId = resolved.Registration.AssetTypeId == AssetTypeId.FuturesOption
+                ? _catalog!.FindOptionUnderlying(resolved.Registration.DomainContractId)
+                : null
+        };
     }
 
     private static void ValidateRuntimeOptions(DatabentoMarketDataRuntimeOptions options)

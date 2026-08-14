@@ -2,11 +2,36 @@ using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.UnitTests.Harness;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class MarketDataApiQueryAndPriceContractTests
 {
+    [Fact]
+    public async Task Ticker_reader_creation_validates_contract_and_delegates_owner_unchanged()
+    {
+        var context = new MarketDataApiTestContext();
+        await context.StartAsync();
+        var expected = new CapturingTickerReader();
+        var factory = new CapturingTickerReaderFactory(expected);
+        context.Epoch.TickerReaders = factory;
+        var owner = new TickerReaderOwner("Spread", "S1", "long");
+
+        var reader = await context.Api.CreateTickerDataReaderAsync(
+            owner,
+            MarketDataApiTestContext.FutureId);
+
+        reader.Should().BeSameAs(expected);
+        factory.Owner.Should().Be(owner);
+        factory.ContractId.Should().Be(MarketDataApiTestContext.FutureId);
+
+        var missing = async () => await context.Api.CreateTickerDataReaderAsync(
+            owner,
+            "MISSING");
+        await missing.Should().ThrowAsync<MarketDataContractNotFoundException>();
+    }
+
     [Fact]
     public async Task OperationsRequireRunningEpoch()
     {
@@ -322,4 +347,35 @@ public sealed class MarketDataApiQueryAndPriceContractTests
 
         Volatile.Read(ref mismatch).Should().Be(0);
     }
+}
+
+internal sealed class CapturingTickerReaderFactory(ITickerDataReader reader)
+    : ITickerDataReaderFactory
+{
+    internal TickerReaderOwner Owner { get; private set; }
+    internal string ContractId { get; private set; } = string.Empty;
+
+    public ValueTask<ITickerDataReader> CreateAsync(
+        TickerReaderOwner owner,
+        string contractId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Owner = owner;
+        ContractId = contractId;
+        return ValueTask.FromResult(reader);
+    }
+}
+
+internal sealed class CapturingTickerReader : ITickerDataReader
+{
+    public string ContractId => MarketDataApiTestContext.FutureId;
+    public TickerReaderOwner Owner => default;
+    public TickerStreamLease Lease => default;
+    public TickerContractDetails GetContractDetails() => throw new NotSupportedException();
+    public bool TryGetPrice(out TickerPriceSnapshot snapshot) =>
+        throw new NotSupportedException();
+    public bool TryGetOptionPrice(out OptionTickerPriceSnapshot snapshot) =>
+        throw new NotSupportedException();
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

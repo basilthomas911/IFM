@@ -4,6 +4,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.UnitTests;
 
@@ -167,6 +168,11 @@ public sealed class DatabentoOptionChainSessionManagerTests
             new(futuresContractId, ServiceRunning, true, ServiceRunning);
         public ValueTask StartAsync() => ValueTask.CompletedTask;
         public ValueTask StopAsync() => ValueTask.CompletedTask;
+        public ValueTask<ITickerDataReader> CreateAsync(
+            TickerReaderOwner owner,
+            string contractId,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<ITickerDataReader>(new NotSupportedException());
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 

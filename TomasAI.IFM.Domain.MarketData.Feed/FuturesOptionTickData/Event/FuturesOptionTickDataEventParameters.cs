@@ -3,6 +3,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
+using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
 
@@ -14,6 +15,7 @@ public record FuturesOptionTickDataEventParameters
     public IOptionTradeLiveFeedMap OptionTradeLiveFeedMap { get; init; }
     public IStatusConsoleWriter StatusConsoleWriter {  get; init; }
     public ILogger Logger { get; init; }
+    internal ActiveTickerReaderRegistry Readers { get; } = new();
 
     public FuturesOptionTickDataEventParameters(
         ApplicationMarketDataApi marketDataApi,

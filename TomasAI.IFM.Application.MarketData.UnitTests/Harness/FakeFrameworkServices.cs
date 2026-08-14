@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
@@ -78,6 +79,8 @@ internal sealed class FakeMarketDataEpoch :
     internal FakeMarketDataCatalog Catalog { get; }
     IDatabentoMarketDataCatalog IDatabentoMarketDataEpoch.Catalog => Catalog;
     public IDatabentoLastPriceReaderProvider LastPrices => this;
+    public ITickerDataReaderFactory TickerReaders { get; internal set; } =
+        new UnsupportedTickerReaderFactory();
     internal FakeTickAggregationStatus TickAggregation { get; } = new();
     internal FakeTreasuryCurve TreasuryCurve { get; } = new();
     internal FakeOptionRouteRegistry OptionRoutes { get; } = new();
@@ -210,6 +213,15 @@ internal sealed class FakeMarketDataEpoch :
         lifecycleLog.Add($"Dispose:{ValueDate:yyyy-MM-dd}");
         return ValueTask.CompletedTask;
     }
+}
+
+internal sealed class UnsupportedTickerReaderFactory : ITickerDataReaderFactory
+{
+    public ValueTask<ITickerDataReader> CreateAsync(
+        TickerReaderOwner owner,
+        string contractId,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromException<ITickerDataReader>(new NotSupportedException());
 }
 
 internal sealed class FakeLifecycleStage(

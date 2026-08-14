@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
@@ -18,6 +19,7 @@ public interface IDatabentoMarketDataEpoch : IAsyncDisposable
     DateOnly ValueDate { get; }
     IDatabentoMarketDataCatalog Catalog { get; }
     IDatabentoLastPriceReaderProvider LastPrices { get; }
+    ITickerDataReaderFactory TickerReaders { get; }
 
     Task StartAsync(CancellationToken cancellationToken);
     Task StopAsync();

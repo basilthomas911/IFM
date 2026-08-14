@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 internal static class ApplicationPriceBenchmark
 {
@@ -89,6 +90,7 @@ internal static class ApplicationPriceBenchmark
         public DateOnly ValueDate { get; }
         public IDatabentoMarketDataCatalog Catalog => _catalog;
         public IDatabentoLastPriceReaderProvider LastPrices => _store;
+        public ITickerDataReaderFactory TickerReaders { get; } = new UnsupportedTickerReaders();
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task StopAsync()
         {
@@ -115,6 +117,16 @@ internal static class ApplicationPriceBenchmark
             _store.Dispose();
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class UnsupportedTickerReaders : ITickerDataReaderFactory
+    {
+        public ValueTask<ITickerDataReader> CreateAsync(
+            TickerReaderOwner owner,
+            string contractId,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<ITickerDataReader>(
+                new NotSupportedException("Ticker-reader creation is outside this price benchmark."));
     }
 
     private sealed class BenchmarkCatalog : IDatabentoMarketDataCatalog

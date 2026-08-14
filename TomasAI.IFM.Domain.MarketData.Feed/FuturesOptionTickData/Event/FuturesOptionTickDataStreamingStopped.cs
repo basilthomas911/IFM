@@ -25,8 +25,11 @@ public static async ValueTask<bool> ExecuteAsync(
         var source = $"FuturesOptionTickDataStreamingStoppedEvent for EntityId: {e.EntityId}";
         try
         {
-            _ = await p.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(
-                e.ContractId);
+            _ = await p.Readers.ReleaseAsync(
+                e.ContractId,
+                FuturesOptionTickDataStreamingStarted.CreateOwner(
+                    e.EntityId,
+                    e.ContractId));
             await eventApi.SendFuturesOptionTickDataStreamingStoppedCompleteAsync(e);
 
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"{e.ContractId} Streaming Stopped");

@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Application.MarketData.Contracts;
 
@@ -16,6 +17,15 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 /// </remarks>
 public interface IMarketDataApi
 {
+    /// <summary>
+    /// Creates an idempotent, workflow-owned reader whose lease is validated by
+    /// TickAggregation on every contract or price read.
+    /// </summary>
+    ValueTask<ITickerDataReader> CreateTickerDataReaderAsync(
+        TickerReaderOwner owner,
+        string contractId,
+        CancellationToken cancellationToken = default);
+
     Task StartAsync(
         DateOnly valueDate,
         Func<Guid, int, string, Task>? errorMessageHandler = null,

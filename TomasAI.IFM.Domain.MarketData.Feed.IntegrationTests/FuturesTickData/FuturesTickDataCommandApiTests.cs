@@ -26,7 +26,7 @@ public class FuturesTickDataCommandApiTests(WebApplicationFactory<Program> facto
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
     readonly WebApplicationFactory<Program> _factory = factory;
 
-    [Fact]
+    [Fact(Skip = "Legacy direct tick insertion is retired; TickAggregation is the sole feed-tick persistence boundary.")]
     public async Task InsertFuturesTickData_Ok()
     {
         // arrange...

@@ -1,6 +1,7 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests.Harness;
 
@@ -13,6 +14,12 @@ internal sealed class DeterministicMarketDataApi(
     FakeMarketDataEpochFactory epochFactory,
     TimeSpan maximumLastPriceAge) : IMarketDataApi
 {
+    public ValueTask<ITickerDataReader> CreateTickerDataReaderAsync(
+        TickerReaderOwner owner,
+        string contractId,
+        CancellationToken cancellationToken = default) =>
+        GetRunningEpoch().TickerReaders.CreateAsync(owner, contractId, cancellationToken);
+
     private readonly SemaphoreSlim lifecycle = new(1, 1);
     private FakeMarketDataEpoch? epoch;
 

@@ -1,6 +1,7 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
@@ -10,6 +11,19 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 /// </summary>
 public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 {
+    /// <summary>
+    /// Creates a transient TickAggregation reader for one workflow owner and contract.
+    /// </summary>
+    public ValueTask<ITickerDataReader> CreateTickerDataReaderAsync(
+        TickerReaderOwner owner,
+        string contractId,
+        CancellationToken cancellationToken = default)
+    {
+        var active = GetRunningEpoch();
+        RequireConfigured(active, contractId);
+        return active.TickerReaders.CreateAsync(owner, contractId, cancellationToken);
+    }
+
     private readonly IDatabentoMarketDataEpochFactory _epochFactory;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _maximumLastPriceAge;
@@ -532,6 +546,17 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         if (epoch.Catalog.FindFutures(contractId) is { } contract) return contract;
         if (epoch.Catalog.FindFuturesOption(contractId) is not null)
             throw KindMismatch(contractId, "futures", "futures option");
+        throw new MarketDataContractNotFoundException(contractId);
+    }
+
+    private static void RequireConfigured(
+        IDatabentoMarketDataEpoch epoch,
+        string contractId)
+    {
+        ValidateContractId(contractId, nameof(contractId));
+        if (epoch.Catalog.FindFutures(contractId) is not null
+            || epoch.Catalog.FindFuturesOption(contractId) is not null)
+            return;
         throw new MarketDataContractNotFoundException(contractId);
     }
 

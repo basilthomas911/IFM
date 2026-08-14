@@ -45,11 +45,17 @@ is migrated to the application `IMarketDataApi`.
 
 ```csharp
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Application.MarketData.Contracts;
 
 public interface IMarketDataApi
 {
+    ValueTask<ITickerDataReader> CreateTickerDataReaderAsync(
+        TickerReaderOwner owner,
+        string contractId,
+        CancellationToken cancellationToken = default);
+
     Task StartAsync(
         DateOnly valueDate,
         Func<Guid, int, string, Task>? errorMessageHandler = null,
@@ -830,6 +836,29 @@ operation on existing handles returns `false`; they never attach themselves to
 a later value date. Unknown IDs,
 wrong-kind IDs, stopped APIs, and reader-capacity exhaustion throw typed
 exceptions from the `Get` method, not from a subsequent hot read.
+
+### 9.11a `CreateTickerDataReaderAsync`
+
+```csharp
+ValueTask<ITickerDataReader> CreateTickerDataReaderAsync(
+    TickerReaderOwner owner,
+    string contractId,
+    CancellationToken cancellationToken = default);
+```
+
+This method creates the domain-actor reader used by workflow-owned tick consumers. Unlike the stable raw last-price readers above, this reader is also a transient lease over live routing:
+
+1. require a running epoch and a configured futures or futures-option contract;
+2. use `(contract ID, workflow type, workflow ID, leg ID)` as the idempotent owner key;
+3. activate transient routing only for the first lease on the contract;
+4. return distinct readers for distinct owners while all readers share the TickAggregation-owned contract state;
+5. validate the lease ID, owner, contract, service state, and stream generation on every contract or price read;
+6. deactivate transient routing only when the final owner releases its reader; and
+7. assign a new lease ID and later stream generation when ownership is reacquired after final release.
+
+`TickerPriceSnapshot` combines the independently advancing latest quote and trade using decimal actor-domain prices. `OptionTickerPriceSnapshot` adds optional Greeks only when the available enriched observation aligns with the selected quote or trade sequence. Raw DataBento fixed-point values do not cross this boundary.
+
+Released, stopped, missing, mismatched, or stale leases throw `TickerLeaseNotActiveException` with a typed `TickerLeaseFailureReason`. Epoch shutdown invalidates all outstanding readers and releases all lease-owned routes.
 
 ### 9.12 `StartStreamingFuturesTickDataAsync`
 

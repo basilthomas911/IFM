@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <Folder Include="Docs\" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>

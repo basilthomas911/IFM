@@ -4,6 +4,9 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Extensions;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
 
@@ -33,7 +36,9 @@ public static async ValueTask<bool> ExecuteAsync(
                 e.Contract.ContractId)
                 ?? throw new InvalidOperationException(
                     $"Futures option contract '{e.Contract.ContractId}' is not configured in the active market-data epoch.");
-            _ = await p.MarketDataApi.StartStreamingFuturesOptionTickDataAsync(
+            _ = await p.Readers.AcquireAsync(
+                p.MarketDataApi,
+                CreateOwner(e.EntityId, e.Contract.ContractId),
                 e.Contract.ContractId);
             await eventApi.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e);
 
@@ -49,4 +54,11 @@ public static async ValueTask<bool> ExecuteAsync(
         }
         return false;
     }
+
+    internal static TickerReaderOwner CreateOwner(
+        FuturesOptionTickEntityId entityId,
+        string contractId) => new(
+        nameof(FuturesOptionTickDataEventActor),
+        entityId.Format(),
+        contractId);
 }

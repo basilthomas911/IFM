@@ -1,7 +1,9 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -114,6 +116,36 @@ public sealed class ActorMarketDataFeedEventApi(IEventActorContext context)
             ReceivedOn = DateTime.UtcNow
         };
         await _context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(updatedEvent);
+    }
+
+    /// <summary>
+    /// Publishes the option-domain price update translated from a durable TickAggregation trade event.
+    /// </summary>
+    public async ValueTask SendOptionTradeTickPriceDataUpdatedEventAsync(
+        FuturesTickTradeDataInsertedEvent e,
+        FuturesOptionTickDataV2ReadModel tickData)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(tickData);
+        var entityId = new FuturesOptionTickEntityId(
+            tickData.ContractId,
+            tickData.ValueDate);
+        OptionTradeTickPriceDataUpdatedEvent updatedEvent = new(tickData)
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                OptionTradeTickPriceDataUpdatedEvent.Actor,
+                OptionTradeTickPriceDataUpdatedEvent.Verb,
+                entityId.Format()),
+            EntityId = entityId,
+            Id = Guid.NewGuid(),
+            CommandId = e.CommandId,
+            AggregateId = e.AggregateId,
+            EventSource = nameof(FuturesTickTradeDataInsertedEvent),
+            ReceivedOn = DateTime.UtcNow
+        };
+        await _context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(
+            updatedEvent).ConfigureAwait(false);
     }
 
     /// <summary>

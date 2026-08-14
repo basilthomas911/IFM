@@ -120,10 +120,11 @@ until the implementation and its required live tests pass.
 | 15 | `StopStreamingFuturesOptionTickDataAsync` | Validated | None | Provider feed supports bounded stop/drain | Per-option deactivation barrier without stopping unrelated options | Phase A runtime gate passed |
 | 16 | `StartStreamingFuturesOptionChainDataAsync` | Validated structurally | **Required** | Chain definitions, resolved chain subscription, one shared reader, underlying ticker status exist | Session manager, chain tick service, transient publishers/state, Black-76 adapter, underlying hot price, application-supplied FMP Treasury rate | **DEFERRED-FMP** |
 | 17 | `StopStreamingFuturesOptionChainDataAsync` | Validated | None to stop | Option-chain feed supports stop and disposal | Session lookup, drain, transient-state removal, dependency lease release | Phase A manager/stop gate passed; end-to-end deferred with #16 |
+| 18 | `CreateTickerDataReaderAsync` | Validated | None for raw trade/quote; existing pricing context for optional Greeks | Multi-asset TickAggregation state and epoch hot readers | Owner-idempotent leases, first/last route transitions, generation validation, decimal combined snapshots, shutdown invalidation | Unit and cross-component integration gates passed |
 
 ### Feasibility conclusion
 
-- All 17 method signatures are implementable with the accepted architecture.
+- All 18 method signatures are implementable with the accepted architecture.
 - Methods 1–15 and 17 require no FMP access and may form the Phase A work.
 - Method 16 must not be implemented with a placeholder rate. It remains
   deferred until FMP is available.

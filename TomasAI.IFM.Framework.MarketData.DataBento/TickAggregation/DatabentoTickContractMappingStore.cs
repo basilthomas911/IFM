@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
@@ -17,7 +18,8 @@ public sealed class DatabentoTickContractMappingStore : ITickContractMappingStor
         ushort publisherId,
         uint instrumentId,
         string contractId,
-        AssetTypeId assetTypeId)
+        AssetTypeId assetTypeId,
+        TickerContractDetails? contractDetails = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataset);
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
@@ -35,7 +37,8 @@ public sealed class DatabentoTickContractMappingStore : ITickContractMappingStor
             publisherId,
             instrumentId,
             contractId,
-            assetTypeId);
+            assetTypeId,
+            contractDetails);
         if (!_mappings.TryAdd(key, mapping)
             && _mappings[key] != mapping)
         {

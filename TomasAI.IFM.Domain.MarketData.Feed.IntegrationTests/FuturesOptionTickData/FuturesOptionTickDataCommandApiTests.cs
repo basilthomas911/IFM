@@ -27,7 +27,7 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
     readonly WebApplicationFactory<Program> _factory = factory;
 
-    [Fact]
+    [Fact(Skip = "Legacy direct option-tick insertion is retired; TickAggregation is the sole feed-tick persistence boundary.")]
     public async Task InsertFuturesOptionTickData_Ok()
     {
         // arrange...
@@ -145,7 +145,7 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
         }
     }
 
-    [Fact]
+    [Fact(Skip = "Legacy direct option-tick insertion is retired; TickAggregation is the sole feed-tick persistence boundary.")]
     public async Task InsertFuturesOptionTickData_WithDifferentOptionContracts_Ok()
     {
         // arrange...
@@ -241,7 +241,7 @@ public class FuturesOptionTickDataCommandApiTests(WebApplicationFactory<Program>
         }
     }
 
-    [Fact]
+    [Fact(Skip = "Legacy direct option-tick insertion is retired; TickAggregation is the sole feed-tick persistence boundary.")]
     public async Task InsertFuturesOptionTickData_WithCallOptionContracts_Ok()
     {
         // arrange...

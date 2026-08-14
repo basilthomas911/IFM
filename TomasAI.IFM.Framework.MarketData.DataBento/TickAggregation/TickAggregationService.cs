@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -21,7 +22,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private readonly TimeProvider _timeProvider;
     private readonly TickAggregationOptions _options;
     private readonly IDatabentoLastPriceWriter? _lastPrices;
+    private readonly IDatabentoLastPriceReaderProvider? _lastPriceReaders;
     private readonly ITickLiveRouter? _liveRouter;
+    private readonly ITickerLeaseRouteController? _leaseRoutes;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly Dictionary<InstrumentKey, TickerState> _states = [];
     private FrozenDictionary<string, TickerState> _statesByContractId =
@@ -53,7 +56,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         TickAggregationOptions options,
         TimeProvider? timeProvider = null,
         IDatabentoLastPriceWriter? lastPrices = null,
-        ITickLiveRouter? liveRouter = null)
+        ITickLiveRouter? liveRouter = null,
+        ITickerLeaseRouteController? leaseRoutes = null)
     {
         _feed = feed ?? throw new ArgumentNullException(nameof(feed));
         _mappings = mappings ?? throw new ArgumentNullException(nameof(mappings));
@@ -64,7 +68,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         ValidateOptions(options);
         _timeProvider = timeProvider ?? TimeProvider.System;
         _lastPrices = lastPrices;
+        _lastPriceReaders = lastPrices as IDatabentoLastPriceReaderProvider;
         _liveRouter = liveRouter;
+        _leaseRoutes = leaseRoutes;
     }
 
     public bool IsRunning => Volatile.Read(ref _running) != 0;
@@ -105,6 +111,295 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             configured,
             serviceRunning && configured);
     }
+
+    /// <summary>
+    /// Creates or returns the idempotent transient reader owned by one workflow leg.
+    /// The first lease activates transient delivery for the contract.
+    /// </summary>
+    public ValueTask<ITickerDataReader> CreateAsync(
+        TickerReaderOwner owner,
+        string contractId,
+        CancellationToken cancellationToken = default)
+    {
+        owner.Validate();
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var states = Volatile.Read(ref _statesByContractId);
+        if (!states.TryGetValue(contractId, out var state))
+            throw CreateInactiveException(
+                default,
+                contractId,
+                owner,
+                TickerLeaseFailureReason.ContractNotConfigured);
+        if (!IsRunning || Volatile.Read(ref _stopping) != 0)
+            throw CreateInactiveException(
+                default,
+                contractId,
+                owner,
+                TickerLeaseFailureReason.ServiceNotRunning);
+        if (_lastPriceReaders is null)
+            throw new InvalidOperationException(
+                "TickAggregation requires a readable last-price store to create ticker readers.");
+
+        lock (state.LeaseSync)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsRunning || Volatile.Read(ref _stopping) != 0)
+                throw CreateInactiveException(
+                    default,
+                    contractId,
+                    owner,
+                    TickerLeaseFailureReason.ServiceNotRunning);
+            if (state.ReadersByOwner.TryGetValue(owner, out var existing))
+                return ValueTask.FromResult<ITickerDataReader>(existing);
+
+            var firstLease = state.ReadersByLease.Count == 0;
+            if (firstLease)
+            {
+                _leaseRoutes?.Activate(state.Mapping);
+                state.StreamGeneration = checked(state.StreamGeneration + 1);
+            }
+
+            var lease = new TickerStreamLease(
+                Guid.NewGuid(),
+                contractId,
+                owner,
+                state.StreamGeneration);
+            var reader = new TickerDataReader(this, lease);
+            state.ReadersByOwner.Add(owner, reader);
+            state.ReadersByLease.Add(lease.LeaseId, reader);
+            return ValueTask.FromResult<ITickerDataReader>(reader);
+        }
+    }
+
+    private TickerContractDetails GetContractDetails(TickerDataReader reader)
+    {
+        var state = ValidateLease(reader);
+        lock (state.LeaseSync)
+        {
+            ValidateLeaseLocked(state, reader);
+            return state.Mapping.ContractDetails ?? CreateMinimalDetails(state.Mapping);
+        }
+    }
+
+    private bool TryGetPrice(
+        TickerDataReader reader,
+        out TickerPriceSnapshot snapshot)
+    {
+        var state = ValidateLease(reader);
+        lock (state.LeaseSync)
+        {
+            ValidateLeaseLocked(state, reader);
+            return TryReadPrice(state.Mapping, out snapshot);
+        }
+    }
+
+    private bool TryGetOptionPrice(
+        TickerDataReader reader,
+        out OptionTickerPriceSnapshot snapshot)
+    {
+        var state = ValidateLease(reader);
+        lock (state.LeaseSync)
+        {
+            ValidateLeaseLocked(state, reader);
+            if (state.Mapping.AssetTypeId != AssetTypeId.FuturesOption)
+                throw new InvalidOperationException(
+                    $"Contract '{state.Mapping.ContractId}' is not a futures-option contract.");
+
+            if (!TryReadPrice(state.Mapping, out var price))
+            {
+                snapshot = default;
+                return false;
+            }
+
+            var provider = _lastPriceReaders!;
+            var optionReader = provider.GetFuturesOptionReader(
+                state.Mapping.ContractId,
+                price.ValueDate);
+            OptionGreeksSnapshot? greeks = null;
+            if (optionReader.TryGetLastQuoteWithGreeks(out var quoteWithGreeks)
+                && price.Quote is { } quote
+                && quote.SourceSequence == quoteWithGreeks.Tick.SourceSequence)
+            {
+                greeks = quoteWithGreeks.Greeks;
+            }
+            else if (optionReader.TryGetLastTradeWithGreeks(out var tradeWithGreeks)
+                && price.Trade is { } trade
+                && trade.SourceSequence == tradeWithGreeks.Tick.SourceSequence)
+            {
+                greeks = tradeWithGreeks.Greeks;
+            }
+
+            snapshot = new OptionTickerPriceSnapshot(price, greeks);
+            return true;
+        }
+    }
+
+    private bool TryReadPrice(
+        TickContractMapping mapping,
+        out TickerPriceSnapshot snapshot)
+    {
+        var provider = _lastPriceReaders!;
+        LastTradeTickSnapshot trade = default;
+        LastQuoteTickSnapshot quote = default;
+        bool hasTrade;
+        bool hasQuote;
+        DateOnly valueDate;
+
+        if (mapping.AssetTypeId == AssetTypeId.FuturesOption)
+        {
+            var reader = provider.GetFuturesOptionReader(
+                mapping.ContractId,
+                _options.DefinitionDate);
+            valueDate = reader.ValueDate;
+            hasTrade = reader.TryGetLastTrade(out trade);
+            hasQuote = reader.TryGetLastQuote(out quote);
+        }
+        else
+        {
+            var reader = provider.GetFuturesReader(
+                mapping.ContractId,
+                _options.DefinitionDate);
+            valueDate = reader.ValueDate;
+            hasTrade = reader.TryGetLastTrade(out trade);
+            hasQuote = reader.TryGetLastQuote(out quote);
+        }
+
+        if (!hasTrade && !hasQuote)
+        {
+            snapshot = default;
+            return false;
+        }
+
+        snapshot = new TickerPriceSnapshot(
+            mapping.ContractId,
+            mapping.InstrumentId,
+            mapping.PublisherId,
+            mapping.AssetTypeId,
+            valueDate,
+            hasQuote
+                ? new TickerQuoteSnapshot(
+                    quote.BidPrice,
+                    quote.BidSize,
+                    quote.AskPrice,
+                    quote.AskSize,
+                    quote.BidCount,
+                    quote.AskCount,
+                    quote.SourceSequence,
+                    quote.EventTimestamp,
+                    quote.ReceiveTimestamp)
+                : null,
+            hasTrade
+                ? new TickerTradeSnapshot(
+                    trade.Price,
+                    trade.Size,
+                    trade.SourceSequence,
+                    trade.EventTimestamp,
+                    trade.ReceiveTimestamp)
+                : null);
+        return true;
+    }
+
+    private TickerState ValidateLease(TickerDataReader reader)
+    {
+        var lease = reader.Lease;
+        if (reader.IsReleased)
+            throw new TickerLeaseNotActiveException(
+                lease,
+                TickerLeaseFailureReason.LeaseReleased);
+        if (!IsRunning || Volatile.Read(ref _stopping) != 0)
+            throw new TickerLeaseNotActiveException(
+                lease,
+                TickerLeaseFailureReason.ServiceNotRunning);
+        var states = Volatile.Read(ref _statesByContractId);
+        if (!states.TryGetValue(lease.ContractId, out var state))
+            throw new TickerLeaseNotActiveException(
+                lease,
+                TickerLeaseFailureReason.ContractNotConfigured);
+        return state;
+    }
+
+    private static void ValidateLeaseLocked(
+        TickerState state,
+        TickerDataReader reader)
+    {
+        var lease = reader.Lease;
+        if (lease.ContractId != state.Mapping.ContractId)
+            throw new TickerLeaseNotActiveException(
+                lease,
+                TickerLeaseFailureReason.ContractMismatch);
+        if (lease.StreamGeneration != state.StreamGeneration)
+            throw new TickerLeaseNotActiveException(
+                lease,
+                TickerLeaseFailureReason.StaleGeneration);
+        if (!state.ReadersByLease.TryGetValue(lease.LeaseId, out var active)
+            || !ReferenceEquals(active, reader))
+        {
+            throw new TickerLeaseNotActiveException(
+                lease,
+                TickerLeaseFailureReason.LeaseNotFound);
+        }
+    }
+
+    private ValueTask ReleaseAsync(TickerDataReader reader)
+    {
+        var lease = reader.Lease;
+        var states = Volatile.Read(ref _statesByContractId);
+        if (!states.TryGetValue(lease.ContractId, out var state))
+            return ValueTask.CompletedTask;
+
+        lock (state.LeaseSync)
+        {
+            if (!state.ReadersByLease.TryGetValue(lease.LeaseId, out var active)
+                || !ReferenceEquals(active, reader))
+                return ValueTask.CompletedTask;
+
+            state.ReadersByLease.Remove(lease.LeaseId);
+            state.ReadersByOwner.Remove(lease.Owner);
+            if (state.ReadersByLease.Count == 0)
+                _leaseRoutes?.Deactivate(state.Mapping);
+        }
+        return ValueTask.CompletedTask;
+    }
+
+    private void InvalidateAllReaders()
+    {
+        List<Exception>? failures = null;
+        foreach (var state in _states.Values)
+        {
+            lock (state.LeaseSync)
+            {
+                if (state.ReadersByLease.Count == 0) continue;
+                foreach (var reader in state.ReadersByLease.Values)
+                    reader.Invalidate();
+                state.ReadersByLease.Clear();
+                state.ReadersByOwner.Clear();
+                try { _leaseRoutes?.Deactivate(state.Mapping); }
+                catch (Exception exception) { (failures ??= []).Add(exception); }
+            }
+        }
+        if (failures is not null)
+            throw new AggregateException("One or more ticker reader routes could not be released.", failures);
+    }
+
+    private static TickerLeaseNotActiveException CreateInactiveException(
+        Guid leaseId,
+        string contractId,
+        TickerReaderOwner owner,
+        TickerLeaseFailureReason reason) =>
+        new(new TickerStreamLease(leaseId, contractId, owner, 0), reason);
+
+    private static TickerContractDetails CreateMinimalDetails(
+        TickContractMapping mapping) => new()
+    {
+        ContractId = mapping.ContractId,
+        InstrumentId = mapping.InstrumentId,
+        PublisherId = mapping.PublisherId,
+        AssetTypeId = mapping.AssetTypeId,
+        Dataset = mapping.Dataset,
+        DefinitionDate = mapping.DefinitionDate
+    };
 
     public async ValueTask StartAsync()
     {
@@ -175,6 +470,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             if (!IsRunning) return;
             Volatile.Write(ref _stopping, 1);
             List<Exception>? failures = null;
+            try { InvalidateAllReaders(); }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
             try { _feed.Stop(_options.FeedStopTimeout); }
             catch (Exception exception) { (failures ??= []).Add(exception); }
             try { if (_worker is not null) await _worker.ConfigureAwait(false); }
@@ -556,6 +853,10 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private sealed class TickerState(TickContractMapping mapping)
     {
         public TickContractMapping Mapping { get; } = mapping;
+        public object LeaseSync { get; } = new();
+        public Dictionary<TickerReaderOwner, TickerDataReader> ReadersByOwner { get; } = [];
+        public Dictionary<Guid, TickerDataReader> ReadersByLease { get; } = [];
+        public long StreamGeneration;
         public DateOnly ValueDate;
         public long Sequence;
         public ITickQuoteBufferLease? QuoteLease;
@@ -574,4 +875,34 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         QuoteEmissionReason Reason);
 
     private sealed record PendingTradePublication(FuturesTickTradeDataChangedEvent Event);
+
+    private sealed class TickerDataReader(
+        TickAggregationService owner,
+        TickerStreamLease lease) : ITickerDataReader
+    {
+        private int _released;
+
+        public string ContractId => lease.ContractId;
+        public TickerReaderOwner Owner => lease.Owner;
+        public TickerStreamLease Lease => lease;
+        internal bool IsReleased => Volatile.Read(ref _released) != 0;
+
+        public TickerContractDetails GetContractDetails() =>
+            owner.GetContractDetails(this);
+
+        public bool TryGetPrice(out TickerPriceSnapshot snapshot) =>
+            owner.TryGetPrice(this, out snapshot);
+
+        public bool TryGetOptionPrice(out OptionTickerPriceSnapshot snapshot) =>
+            owner.TryGetOptionPrice(this, out snapshot);
+
+        public ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _released, 1) != 0)
+                return ValueTask.CompletedTask;
+            return owner.ReleaseAsync(this);
+        }
+
+        internal void Invalidate() => Volatile.Write(ref _released, 1);
+    }
 }
