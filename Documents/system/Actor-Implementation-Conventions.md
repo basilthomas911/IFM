@@ -1,7 +1,7 @@
 # Actor Implementation Conventions
 
 **Document type:** System-wide implementation guide for all actor types  
-**Status:** Evolving design convention; EventActor conventions documented, CommandActor and QueryActor conventions reserved for later review  
+**Status:** Evolving design convention; durable and realtime EventActor conventions documented, CommandActor and QueryActor conventions reserved for later review
 **Created:** 2026-08-14  
 **Last updated:** 2026-08-14  
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
@@ -19,6 +19,7 @@ Across all actor types, this document will be expanded as decisions are made abo
 | Actor type | Documentation status | Notes |
 | --- | --- | --- |
 | EventActor | Initial convention documented | Parse mapping, receive mapping, event-family extensions, and lifecycle handlers are defined below. |
+| RealtimeActor | Initial convention documented | Uses the EventActor mapping/handler structure with `ActorType.Realtime`, Core NATS delivery, a required primary actor, and optional realtime routes. |
 | CommandActor | Reserved for later review | Command parsing, validation, state loading/saving, event production, projectors, and handler organization are not yet standardized by this document. |
 | QueryActor | Reserved for later review | Query parsing, read-model access, response behavior, paging, and handler organization are not yet standardized by this document. |
 | Additional actor roles | Not yet defined | Add only after the role and its implementation convention are explicitly approved. |
@@ -441,6 +442,22 @@ Lease acquisition is idempotent for the tuple `(contract ID, workflow type, work
 
 The futures handler derives the existing EOD workflow input from the exact durable trade payload and obtains contract details through its validated reader. The futures-option handler combines that exact durable trade with the latest leased quote and optional Greeks, then publishes the established option trade-price update. Raw DataBento integer-scaled values remain limited to ingestion and persistence; actor-domain ticker snapshots use decimal prices.
 
+### 9.4 Futures market-price realtime actor
+
+`FuturesMarketPriceRealtimeActor` is the first realtime application of the EventActor structural convention. It derives from `BaseEventActor<TActor>` but owns the mailbox `Realtime.FuturesMarketPrice`, so startup selects the Core NATS producer and the Core consumer delivers its non-durable messages. `BaseEventActor<TActor>` records validation, execution, and failure metrics using the derived mailbox actor type; realtime work must not be reported as durable `Event` work.
+
+`FuturesMarketPriceUpdatedRealtimeEvent` has the subject convention:
+
+```text
+Realtime.FuturesMarketPrice.Updated.{tickDataEntityId}
+```
+
+The contract carries a provider-neutral, decimal-based `FuturesMarketPriceSnapshot` containing contract and instrument identity plus optional latest quote and trade snapshots. Raw provider prices and pooled quote buffers are not part of this realtime actor contract.
+
+The primary actor has exactly one parse-map entry and one receive-map entry, both for `FuturesMarketPriceUpdatedRealtimeEvent`. Its `FuturesMarketPriceUpdated` extension handler receives `IEventActorContext` and `ILogger<FuturesMarketPriceRealtimeActor>`. The initial handler intentionally performs no downstream behavior and returns success after validating its inputs. No complete or fail contracts or handlers exist for this realtime family because Core NATS has no durable lifecycle, acknowledgement, or replay.
+
+The primary actor does not register a route to itself. Later signal realtime actors register and remove their own routes for `(Realtime, FuturesMarketPrice, Updated)` during their lifecycle. Core fan-out includes the registered primary exactly once and gives every routed realtime actor an independent mailbox branch. `Notify`, durable `Event`, `Command`, and `Query` actors cannot register as realtime route destinations.
+
 ## 10. EventActor testing convention
 
 Each migrated event actor should have tests covering the common actor core and the domain handlers.
@@ -553,3 +570,4 @@ Reserved. Once the EventActor, CommandActor, and QueryActor sections are mature,
 | 2026-08-14 | Promoted the document to the system-wide Actor Implementation Conventions guide. Retained EventActor as the only currently defined convention and reserved CommandActor, QueryActor, and cross-actor sections for later implementation review. |
 | 2026-08-14 | Required every EventActor handler to receive the typed actor logger, added a main-event `LogSourceType` and shared family `ServiceId` convention, and limited default logging to caught exceptions and fail lifecycle events. |
 | 2026-08-14 | Added the TickAggregation-to-domain actor convention: durable trade-only downstream routing, actor-owned transient ticker-reader leases, reference-counted overlapping ownership, typed stale-lease behavior, decimal domain snapshots, and the prohibition on forwarding pooled quote buffers. |
+| 2026-08-14 | Added the first RealtimeActor convention using `FuturesMarketPriceRealtimeActor`: required primary Core NATS destination, realtime-only route fan-out, provider-neutral decimal snapshot contract, one main handler with no complete/fail lifecycle, and actor-type-correct runtime metrics. |

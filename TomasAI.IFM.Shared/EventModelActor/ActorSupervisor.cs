@@ -26,6 +26,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     readonly ConcurrentDictionary<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>> _threadStateByMailbox;
     readonly ConcurrentDictionary<ActorMailboxId, IActor> _children;
     readonly EventRouteRegistry _eventRouters;
+    readonly EventRouteRegistry _realtimeRouters;
     readonly ILogger<ActorSupervisor> _logger;
     readonly IContainerInstance _container;
     readonly ActorAdmissionOptions _admissionOptions;
@@ -76,6 +77,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         _threadStateByMailbox = new ConcurrentDictionary<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>>();
         _children = new ConcurrentDictionary<ActorMailboxId, IActor>();
         _eventRouters = new EventRouteRegistry();
+        _realtimeRouters = new EventRouteRegistry();
 
         // Initialize thread pool with one thread per logical processor.
         //var pool = new ActorThreadPool(this, _logger);
@@ -545,6 +547,53 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// </summary>
     public ImmutableHashSet<ActorMailboxId> GetEventRoutes(ActorTypeId fromActorTypeId)
         => _eventRouters.GetSnapshot(fromActorTypeId);
+
+    /// <summary>
+    /// Registers an additional realtime actor mailbox for one realtime source event.
+    /// The source event must still identify an existing primary actor when delivered.
+    /// </summary>
+    public void AddRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+    {
+        EnsureRealtimeRoute(fromActorTypeId, toMailboxId);
+        _realtimeRouters.Add(fromActorTypeId, toMailboxId);
+    }
+
+    /// <summary>
+    /// Removes an additional realtime actor mailbox from one realtime source event.
+    /// </summary>
+    public void RemoveRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+    {
+        EnsureRealtimeRoute(fromActorTypeId, toMailboxId);
+        _realtimeRouters.Remove(fromActorTypeId, toMailboxId);
+    }
+
+    /// <summary>
+    /// Returns a stable, deduplicated route snapshot for one realtime source event.
+    /// </summary>
+    public ImmutableHashSet<ActorMailboxId> GetRealtimeRoutes(ActorTypeId fromActorTypeId)
+    {
+        if (fromActorTypeId.ActorType != ActorType.Realtime)
+        {
+            throw new InvalidOperationException(
+                $"Realtime routes require a {ActorType.Realtime} source; received '{fromActorTypeId}'.");
+        }
+
+        return _realtimeRouters.GetSnapshot(fromActorTypeId);
+    }
+
+    static void EnsureRealtimeRoute(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+    {
+        if (fromActorTypeId.ActorType != ActorType.Realtime)
+        {
+            throw new InvalidOperationException(
+                $"Realtime routes require a {ActorType.Realtime} source; received '{fromActorTypeId}'.");
+        }
+        if (toMailboxId.ActorType != ActorType.Realtime)
+        {
+            throw new InvalidOperationException(
+                $"Realtime routes require a {ActorType.Realtime} destination; received '{toMailboxId}'.");
+        }
+    }
 
     
     public async ValueTask RouteEventToAsync(NatsMsg<byte[]> routedFromMsg)

@@ -155,4 +155,21 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// <param name="toMailboxId">The identifier of the destination mailbox to which events are being routed.</param>
     public void RemoveEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId) 
         => _supervisor.RemoveEventRouter(fromActorTypeId, toMailboxId);
+
+    /// <summary>
+    /// Registers this or another realtime mailbox to receive a realtime event in
+    /// addition to its required primary destination.
+    /// </summary>
+    /// <param name="fromActorTypeId">The realtime source actor name and verb.</param>
+    /// <param name="toMailboxId">The realtime actor mailbox that receives the routed branch.</param>
+    public void AddRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+        => _supervisor.AddRealtimeRouter(fromActorTypeId, toMailboxId);
+
+    /// <summary>
+    /// Removes a realtime mailbox route previously registered for the source event.
+    /// </summary>
+    /// <param name="fromActorTypeId">The realtime source actor name and verb.</param>
+    /// <param name="toMailboxId">The realtime actor mailbox to remove.</param>
+    public void RemoveRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+        => _supervisor.RemoveRealtimeRouter(fromActorTypeId, toMailboxId);
 }

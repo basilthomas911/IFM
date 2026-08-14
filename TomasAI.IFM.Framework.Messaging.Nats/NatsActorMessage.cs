@@ -22,6 +22,12 @@ public sealed class NatsActorMessage(NatsMsg<byte[]> natsMessage)
 
     public NatsMsg<byte[]> NatsMessage { get; } = natsMessage;
 
+    readonly ActorSubject? _subject;
+
+    internal NatsActorMessage(NatsMsg<byte[]> natsMessage, ActorSubject subject)
+        : this(natsMessage)
+        => _subject = subject;
+
     public int AdmissionSizeBytes => NatsMessage.Data?.Length ?? 0;
 
     public bool CanReply => !string.IsNullOrEmpty(NatsMessage.ReplyTo);
@@ -47,7 +53,7 @@ public sealed class NatsActorMessage(NatsMsg<byte[]> natsMessage)
     }
 
     public ActorSubject Subject
-        => ToSubject(NatsMessage.Subject);
+        => _subject ?? ToSubject(NatsMessage.Subject);
 
     public ActorSubject ReplySubject { get; set; } = default!;
 

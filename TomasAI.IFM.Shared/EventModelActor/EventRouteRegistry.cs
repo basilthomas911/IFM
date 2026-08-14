@@ -4,8 +4,9 @@ using System.Collections.Immutable;
 namespace TomasAI.IFM.Shared.EventModelActor;
 
 /// <summary>
-/// Maintains copy-on-write event route sets so each event observes one stable,
-/// deduplicated destination snapshot while routes are added or removed.
+/// Maintains copy-on-write actor route sets so each message observes one stable,
+/// deduplicated destination snapshot while routes are added or removed. Separate
+/// instances isolate durable event routes from non-durable realtime routes.
 /// </summary>
 internal sealed class EventRouteRegistry
 {

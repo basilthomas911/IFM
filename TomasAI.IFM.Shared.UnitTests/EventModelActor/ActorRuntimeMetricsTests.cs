@@ -2,8 +2,11 @@ using System;
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -127,9 +130,102 @@ public sealed class ActorRuntimeMetricsTests
         measurements.Should().Contain("ifm.actor.mailbox.queue_wait.duration");
     }
 
+    [Fact]
+    public async Task BaseEventActor_RecordsRealtimeMailboxTypeForProcessingStages()
+    {
+        var actorTypes = new ConcurrentBag<string>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == ActorRuntimeMetrics.MeterName
+                && instrument.Name == "ifm.actor.stage.duration")
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<double>((_, _, tags, _) =>
+        {
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "actor.type" && tag.Value is string actorType)
+                    actorTypes.Add(actorType);
+            }
+        });
+        listener.Start();
+
+        var mailbox = new Mock<IActorMailbox>();
+        var producer = new Mock<IActorProducer>();
+        producer.Setup(value => value.StartAsync(
+                It.IsAny<ActorMailboxId>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+        producer.Setup(value => value.StopAsync()).Returns(ValueTask.CompletedTask);
+        var supervisor = new Mock<IActorSupervisor>();
+        supervisor.Setup(value => value.CreateMailbox(It.IsAny<ActorMailboxId>()))
+            .Returns(mailbox.Object);
+        supervisor.Setup(value => value.GetProducer(It.IsAny<ActorMailboxId>()))
+            .Returns(producer.Object);
+        var actor = new MetricsRealtimeActor(supervisor.Object);
+
+        await actor.StartAsync(supervisor.Object);
+        await actor.HandleMessageAsync(new MetricsEventMessage());
+        await actor.StopAsync();
+
+        actorTypes.Should().NotBeEmpty();
+        actorTypes.Should().OnlyContain(actorType => actorType == nameof(ActorType.Realtime));
+    }
+
     sealed class TestActorMessage : IActorMessage
     {
         public ActorSubject Subject { get; } = new(ActorType.Command, "MetricsTest", "Run", "1");
+        public ActorSubject ReplySubject { get; set; }
+        public TCommand? AsCommand<TCommand>() where TCommand : class, ICommand => default;
+        public TEvent? AsEvent<TEvent>() where TEvent : class, IEvent => default;
+        public TQuery? AsQuery<TQuery, TResult>() where TQuery : class, IQuery<TResult> where TResult : class => default;
+        public ValueTask ReplyAsync<TResult>(TResult result) where TResult : class => ValueTask.CompletedTask;
+        public void ReleasePayload() { }
+        public NatsMsg<byte[]> GetMessage() => default;
+        public void Dispose() { }
+    }
+
+    sealed class MetricsRealtimeActor(IActorSupervisor supervisor)
+        : BaseEventActor<MetricsRealtimeActor>(
+            supervisor,
+            NullLogger<MetricsRealtimeActor>.Instance,
+            new ActorMailboxId(ActorType.Realtime, "MetricsRealtime"))
+    {
+        protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message) =>
+            new MetricsEvent();
+
+        protected override ValueTask ReceiveAsync(IEventActorContext context, IEvent @event) =>
+            ValueTask.CompletedTask;
+
+        protected override ValueTask OnExceptionAsync(
+            IEventActorContext context,
+            ActorThreadId threadId,
+            IEvent @event,
+            Exception ex) => ValueTask.CompletedTask;
+    }
+
+    sealed record MetricsEvent : IEvent
+    {
+        public ActorSubject Subject { get; init; } =
+            new(ActorType.Realtime, "MetricsRealtime", "Updated", "1");
+        public Guid Id { get; init; } = Guid.NewGuid();
+        public long EventId { get; init; }
+        public Guid CommandId { get; init; } = Guid.NewGuid();
+        public string AggregateId { get; init; } = "1";
+        public string EventSource { get; init; } = "unit-test";
+        public DateTime ReceivedOn { get; init; } = DateTime.UtcNow;
+        public string UserName => string.Empty;
+        public string EventName => nameof(MetricsEvent);
+        public EventType EventType => EventType.DomainEvent;
+    }
+
+    sealed class MetricsEventMessage : IActorMessage
+    {
+        public ActorSubject Subject { get; } =
+            new(ActorType.Realtime, "MetricsRealtime", "Updated", "1");
         public ActorSubject ReplySubject { get; set; }
         public TCommand? AsCommand<TCommand>() where TCommand : class, ICommand => default;
         public TEvent? AsEvent<TEvent>() where TEvent : class, IEvent => default;

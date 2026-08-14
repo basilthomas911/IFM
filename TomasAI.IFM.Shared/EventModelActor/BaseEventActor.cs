@@ -184,7 +184,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
             }
             finally
             {
-                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Event);
+                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, _actorId.ActorType);
             }
 
             // Process message
@@ -197,7 +197,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
             }
             finally
             {
-                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Event);
+                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, _actorId.ActorType);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -206,7 +206,7 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
         }
         catch (Exception ex)
         {
-            ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Event);
+            ActorRuntimeMetrics.RecordStageFailure(activeStage, _actorId.ActorType);
             await OnExceptionAsync(_context!, threadId, @event, ex);
         }
     }

@@ -355,8 +355,24 @@ public class NatsActorConsumer(
                     // parse subject and route to a dispatch stripe by entity hash.
                     // Same entity always maps to the same stripe, preserving per-entity FIFO ordering.
                     var msgSubject = msg.Subject.ToSubject();
-                    var stripe = (msgSubject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
-                    await stripes[stripe].Writer.WriteAsync((new NatsActorMessage(msg), msgSubject), ctsRequestToken);
+                    var destinations = BuildPubSubDestinations(_supervisor, _actorType, msgSubject);
+                    if (destinations.Count == 0)
+                    {
+                        NatsMessagingMetrics.DispatchFailures.Add(1);
+                        _logger.LogErrorEvent(
+                            _serviceId,
+                            "NATS realtime message rejected because its primary actor {ActorId} is not registered.",
+                            msgSubject.ActorId);
+                        continue;
+                    }
+
+                    foreach (var destination in destinations)
+                    {
+                        var stripe = (destination.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
+                        await stripes[stripe].Writer.WriteAsync(
+                            (new NatsActorMessage(msg, destination), destination),
+                            ctsRequestToken).ConfigureAwait(false);
+                    }
                 }
                 catch (OperationCanceledException ex)
                 {
@@ -370,6 +386,27 @@ public class NatsActorConsumer(
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug("NATS {ActorType} consumer read {MessagesRead} messages.", _actorType, messagesRead);
         }
+    }
+
+    /// <summary>
+    /// Resolves Core publish-subscribe destinations. Realtime events include their
+    /// required primary actor and all registered realtime routes; notifications
+    /// retain their single explicitly addressed destination.
+    /// </summary>
+    internal static IReadOnlyList<ActorSubject> BuildPubSubDestinations(
+        IActorSupervisor supervisor,
+        ActorType actorType,
+        ActorSubject source)
+    {
+        if (actorType != ActorType.Realtime)
+            return [source];
+        if (!supervisor.ActorExists(source.ActorId))
+            return [];
+
+        return EventFanoutRoutes.Build(
+            source,
+            supervisor.GetRealtimeRoutes(source.ActorTypeId),
+            includePrimary: true);
     }
 
     async ValueTask CommandMessageLoopAsync(CancellationToken cancellationToken)

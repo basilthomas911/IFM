@@ -62,6 +62,10 @@ public interface IActorSupervisor
     ImmutableHashSet<ActorMailboxId> GetEventRoutes(ActorTypeId fromActorTypeId);
     ValueTask RouteEventToAsync(NatsMsg<byte[]> routedFromMsg);
 
+    void AddRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
+    void RemoveRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
+    ImmutableHashSet<ActorMailboxId> GetRealtimeRoutes(ActorTypeId fromActorTypeId);
+
     ValueTask StartConsumersAsync();
     ValueTask StartConsumersAsync(CancellationToken cancellationToken);
     ValueTask StopConsumersAsync();

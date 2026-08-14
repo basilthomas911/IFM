@@ -203,6 +203,29 @@ Conventions:
 
 A normal command or event actor must not consume a realtime message directly. The explicit command handoff prevents high-rate ephemeral traffic from silently becoming actor workflow state.
 
+#### Realtime primary destination and routing
+
+Every realtime publication must address one registered primary realtime actor, including publications originating from a market-data provider or another non-actor component. The subject actor name is therefore the primary actor mailbox name rather than a virtual topic name. For example, a futures market-price publication uses a primary `FuturesMarketPriceRealtimeActor` mailbox named `FuturesMarketPrice`:
+
+```text
+Realtime.FuturesMarketPrice.Updated.{contractId}
+```
+
+Additional realtime actors may register routes for the complete source identity (`ActorType`, actor name, and verb). The Core NATS consumer receives the publication once and creates independent in-process mailbox branches for the primary actor and every deduplicated registered route. Each routed branch preserves the source verb, entity ID, and serialized payload while replacing the mailbox destination.
+
+Realtime routing follows these rules:
+
+- the source and every routed destination must use `ActorType.Realtime`;
+- the primary actor must be registered when the message arrives, otherwise actor delivery is rejected;
+- the primary actor is included exactly once even if it was also registered as a route;
+- primary and routed mailbox handoffs are independent and may execute concurrently;
+- routing does not wait for primary actor processing to finish and does not imply primary-handler success;
+- Core NATS provides no acknowledgement, redelivery, or replay for a rejected route branch;
+- `Notify`, `Command`, and `Query` messages never participate in realtime routing; and
+- external Core NATS subscribers remain observers and do not become actor routes.
+
+If downstream delivery must depend on successful primary processing or requires a transformed contract, the primary actor emits a distinct message after processing instead of relying on realtime fan-out ordering.
+
 ## 7. Actor and non-actor interaction matrix
 
 | Sender | Receiver | Intent | Message type | Transport | Receiver participation |
