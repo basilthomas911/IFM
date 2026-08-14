@@ -2,7 +2,7 @@
 
 ## Document status
 
-- Status: Implementation specification; the Black76-only direction is approved and implementation has not started.
+- Status: QLNet removal and the compatibility `OptionCalculator` migration were implemented on 2026-08-13. The stronger typed failure contract, exercise-style reference data, safeguarded hybrid solver, expanded numerical matrix, and paper-trading validation remain follow-on work.
 - Scope owner: `TomasAI.IFM.Framework.OptionPricer`.
 - Trading scope: futures and futures options only.
 - Pricing model: Black76 only.
@@ -38,7 +38,7 @@ This preserves the one-model decision without presenting a Black76 approximation
 
 ## Current implementation and reason for replacement
 
-`TomasAI.IFM.Domain.OptionPricer.Shared/OptionCalculator.cs` currently:
+Before the 2026-08-13 migration, `TomasAI.IFM.Domain.OptionPricer.Shared/OptionCalculator.cs`:
 
 - constructs a QLNet Black-Scholes-Merton process;
 - supplies the futures price as the process underlying;
@@ -52,23 +52,21 @@ This preserves the one-model decision without presenting a Black76 approximation
 
 This has both correctness and operational costs. The model is not the selected futures-option model, global settings prevent safe parallel execution, the allocation graph creates garbage-collection pressure, and a zero-filled failure can be confused with a valid zero Greek.
 
-`TomasAI.IFM.Framework.OptionPricer/Black76/OptionModel.cs` already provides managed scalar and batch pricing, Greeks, and Newton-based implied-volatility inversion. It is static and has no mutable global state. The migration will harden and extend this implementation rather than introduce another pricing library.
+`TomasAI.IFM.Framework.OptionPricer/Black76/OptionModel.cs` provides managed scalar and batch pricing, Greeks, and Newton-based implied-volatility inversion. It is static and has no mutable global state. `Black76/OptionCalculator.cs` now supplies the compatibility API used by the existing workflows, validates inputs and Black-76 price bounds, solves implied volatility once, and calculates Greeks once. The remaining hardening described below extends this implementation rather than introducing another pricing library.
 
-## Existing production call paths
+## Production call paths at implementation
 
-The QLNet-backed `OptionCalculator` currently has five direct production consumers:
+The repository contained three direct `OptionCalculator` consumers when the migration was implemented:
 
 | Consumer | Use |
 | --- | --- |
 | `TomasAI.IFM.Domain.MarketData.Feed/FuturesOptionTickData/Event/FuturesOptionTickBidAsk.cs` | Calculates implied volatility and Greeks from streaming futures-option bid/ask data. |
-| `TomasAI.IFM.Framework.MarketData.InteractiveBrokers/IBMarketDataApi.cs` | Supplies snapshot futures-option Greeks. |
-| `TomasAI.IFM.Service.MarketDataFeed.InteractiveBrokers/IBMarketDataApi.cs` | Legacy/service snapshot implementation. |
 | `TomasAI.IFM.Domain.OptionPricer/SpreadDistribution/Job/Services/IronCondorSpreadDistributionJobService.cs` | Calculates per-leg implied volatility and Delta before Black76 spread calculations. |
 | `TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs` | Recalculates displayed trade-leg Greeks. |
 
 `GetFuturesOptionSpreadData` consumes the snapshot API results indirectly. All these flows must use the same framework API and conventions after migration.
 
-The spread-distribution job currently mixes QLNet per-leg calculations with Black76 spread valuation. The migration removes that model inconsistency.
+All three consumers now resolve `OptionCalculator` from `TomasAI.IFM.Framework.OptionPricer.Black76`; the spread-distribution job therefore uses Black-76 for both leg Greeks and spread valuation.
 
 ## Target architecture
 

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
-using QLNet;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;

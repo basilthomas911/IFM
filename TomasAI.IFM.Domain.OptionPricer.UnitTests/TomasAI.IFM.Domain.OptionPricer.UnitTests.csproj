@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer\TomasAI.IFM.Domain.OptionPricer.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.OptionPricer\TomasAI.IFM.Framework.OptionPricer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

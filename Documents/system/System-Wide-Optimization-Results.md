@@ -770,6 +770,32 @@ implementation gate, not the operational activation gate. Observe-only OTLP and 
 first; fenced execution plus bounded recovery should then be canaried before the publication outbox is enabled. The
 full procedure and Grafana contract are in the projector implementation document.
 
+### 7.21 SWO-08 OptionPricer Black-76 migration
+
+The QLNet-backed `OptionCalculator` and result class were removed from Domain OptionPricer Shared. Their replacement
+is an immutable value-type compatibility API in Framework OptionPricer that uses the existing managed Black-76 implied-
+volatility and Greeks implementation. All current production consumers now reference the framework implementation.
+The QLNet package references were removed from Domain OptionPricer Shared and Shared, and unused QLNet imports were
+removed solution-wide. A restored solution asset scan found zero QLNet package entries and zero product dependency-
+manifest entries.
+
+BenchmarkDotNet ShortRun results on .NET 10.0.10 with Concurrent Workstation GC were:
+
+| Case | Mean per option | Managed allocation | Completed work items | Lock contention |
+| --- | ---: | ---: | ---: | ---: |
+| Implied volatility plus Greeks, one call | 375.7 ns | 0 B | 0 | 0 |
+| Implied volatility plus Greeks, four legs | 406.4 ns | 0 B | 0 | 0 |
+
+Verification passed 16/16 Domain OptionPricer unit tests, 8/8 Domain OptionPricer integration tests, 479/479
+MarketData Feed unit tests, and 126/126 UI presentation unit tests. Direct Release builds of Framework OptionPricer, Domain OptionPricer, MarketData Feed, UI
+ViewModels, UI Views, and the benchmark project passed with zero warnings and zero errors. The full solution build
+continued to fail on eight pre-existing BDD fixture constructor mismatches for newly required actor logger parameters;
+none are in the option-pricing migration or its dependency paths.
+
+These results prove removal of the former in-process allocation/locking mechanism, but are not an end-to-end option-
+feed capacity claim. Independent numerical reference matrices, solver-edge coverage, exercise-style enforcement, and
+paper-trading verification remain open under the dedicated migration specification.
+
 ## 8. References
 
 - [OpenTelemetry .NET metrics documentation](https://opentelemetry.io/docs/languages/dotnet/metrics/)
@@ -802,3 +828,4 @@ full procedure and Grafana contract are in the projector implementation document
 | 1.6 | 2026-08-10 | Recorded SWO-06 Tranche C immutable descriptors, unified fenced execution, claim release, all-eight Fund repeat-apply proof, fail-closed unknown handling, cleanup, and complete regression gate. |
 | 1.7 | 2026-08-10 | Recorded SWO-06 Tranche D atomic publication outbox, leased bounded dispatch, deterministic consumer IDs, typed terminal failure, operator controls, fault injection, and complete domain regression gate. |
 | 1.8 | 2026-08-10 | Recorded SWO-06 Tranche E durable same-stream ordering, OTLP metrics and operational sampling, benchmark evidence and limitations, staged rollout, and the 196-test domain regression gate. |
+| 1.9 | 2026-08-13 | Recorded SWO-08 QLNet removal, framework Black-76 compatibility migration, zero-allocation/zero-contention benchmarks, focused regression gates, and remaining numerical and paper-trading validation. |

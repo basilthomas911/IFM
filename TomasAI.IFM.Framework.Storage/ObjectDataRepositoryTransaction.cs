@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Data.Common;
 using System.Text;
 using Microsoft.Data.SqlClient;
-using QLNet;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Framework.Storage.SqlServer;
 

@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Globalization;
-using QLNet;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;

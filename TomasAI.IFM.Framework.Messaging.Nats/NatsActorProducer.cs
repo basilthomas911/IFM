@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Net;
-using QLNet;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.Models\TomasAI.IFM.UI.Net.Models.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.OptionPricer\TomasAI.IFM.Framework.OptionPricer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

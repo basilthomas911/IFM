@@ -1,4 +1,3 @@
-using QLNet;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

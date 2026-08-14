@@ -2,9 +2,9 @@
 
 ## Purpose
 
-`TomasAI.IFM.Framework.OptionPricer` provides the in-process quantitative implementation used by the Option Pricer domain. Its current implementation is a managed Black-76 model for European options on futures, batch pricing and Greeks, implied-volatility inversion, credit-spread assembly, and a MAD-based iron-condor loss-risk estimate.
+`TomasAI.IFM.Framework.OptionPricer` provides the in-process quantitative implementation used by the Option Pricer domain. Its current implementation is a managed Black-76 model for European options on futures, a compatibility option-Greeks calculator, batch pricing and Greeks, implied-volatility inversion, credit-spread assembly, and a MAD-based iron-condor loss-risk estimate.
 
-The approved plan to make Black76 the sole IFM option model and remove QLNet is documented in [QLNet to Black76 Migration and Implementation Plan](QLNet-to-Black76-Migration-Plan.md). That document is the implementation specification; this document continues to describe the code that exists today until the migration is completed.
+The approved plan to make Black76 the sole IFM option model and remove QLNet is documented in [QLNet to Black76 Migration and Implementation Plan](QLNet-to-Black76-Migration-Plan.md). QLNet source imports and package references have been removed. Strong exercise-style enforcement, a typed failure contract, solver hardening, expanded numerical verification, and paper-trading validation remain tracked in that specification.
 
 The project targets .NET 10, enables nullable reference types, implicit usings, and unsafe blocks, and references Shared, Domain OptionPricer Shared, and Domain Trade Shared.
 
@@ -23,7 +23,7 @@ obj/Release/net10.0/ref/
 obj/Release/net10.0/refint/
 ```
 
-- `Black76/` contains every source implementation: `OptionModel.cs`, `OptionSpreadPricer.cs`, and `LossProbability.cs`.
+- `Black76/` contains every source implementation: `OptionCalculator.cs`, `OptionModel.cs`, `OptionSpreadPricer.cs`, and `LossProbability.cs`.
 - `Docs/` contains this implementation record.
 - `bin/Debug/net10.0/` and `bin/Release/net10.0/` contain generated assemblies and dependency outputs.
 - `obj/Debug/net10.0/` and `obj/Release/net10.0/` contain generated build state; `ref/` and `refint/` contain reference and intermediate reference assemblies.
@@ -41,6 +41,20 @@ obj/Release/net10.0/refint/
 The public pricing methods currently accept primitive values and spans directly; the parameter record structs are passive carriers and are not overload arguments in this project.
 
 Option type uses an integer convention throughout: values greater than zero are calls; zero or negative values are puts.
+
+## Option calculator compatibility API
+
+`OptionCalculator` and `OptionGreeks` now live in `TomasAI.IFM.Framework.OptionPricer.Black76`. Both are immutable value types. The calculator stores only the Actual/365 Fixed time to expiry and has no lock, mutable static state, QLNet settings, or per-calculation object graph.
+
+`GetOptionGreeks` preserves the established consumer signature while applying the framework conventions:
+
+1. Map only the explicit `CALL` and `PUT` option-right strings.
+2. Reject non-finite or non-positive futures, strike, and market prices, invalid rates, and non-positive expiry.
+3. Enforce the discounted Black-76 lower and upper market-price bounds.
+4. Solve implied volatility once with `OptionModel.ImpliedVolatility` and reject non-finite, non-positive, or above-400-percent results.
+5. Calculate price and Greeks once with `OptionModel.PriceWithGreeks` and publish only a fully finite successful result.
+
+Expected bad inputs return `OptionGreeks.Failed`, preserving compatibility with callers that already inspect `Success`. A richer typed failure reason remains planned.
 
 ## Scalar price calculation
 
@@ -129,7 +143,9 @@ The framework project itself has no dependency injection registration or mutable
 
 ## Testing status
 
-There is no dedicated `TomasAI.IFM.Framework.OptionPricer.*Tests` project. The test application provides manual/example verification, and domain tests may cover portions indirectly. Numerical regression tests should be added for known Black-76 values, put-call parity, finite-difference Greeks, implied-volatility round trips, span-length validation, expiry/zero-volatility behavior, and loss-probability edge cases.
+Automated compatibility coverage is hosted in `TomasAI.IFM.Domain.OptionPricer.UnitTests/Optimization/OptionCalculatorTests.cs`. It verifies call and put implied-volatility/Greek recovery, rejected invalid and unsolvable inputs, and deterministic concurrent use across 4,096 calculations. The migration gate also passed all eight Domain OptionPricer integration tests. The test application continues to provide manual/example coverage. The broader numerical, finite-difference, solver-edge, benchmark, and paper-trading matrices remain required by the migration plan.
+
+The 2026-08-13 BenchmarkDotNet ShortRun on .NET 10.0.10 measured 375.7 ns per single implied-volatility-plus-Greeks calculation and 406.4 ns per option in the four-leg benchmark. Both reported zero managed allocation, zero completed ThreadPool work items, and zero lock contention. These are CPU-only workstation measurements; market-data transport, lookup, persistence, and UI costs are excluded.
 
 ## Safe extension points
 

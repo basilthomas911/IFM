@@ -107,7 +107,7 @@ Databento is the primary market-data implementation. A future Interactive Broker
 | 5 | ScyllaDB analytics query projections | P1 | Complete | Removed the remaining active `ALLOW FILTERING` signal reads. |
 | 6 | Event-projector recovery and idempotency | P1 | Tranches A-E complete; activation off | Reduce duplicate side effects and make replay backlog predictable. |
 | 7 | Fund compact snapshots | P1 | Proposed | Keep immutable history while bounding Fund reconstruction cost. |
-| 8 | OptionPricer QLNet allocation isolation | P1 | Proposed | Reduce the measured large allocation graph and global lock pressure. |
+| 8 | OptionPricer Black-76 migration | P1 | Implementation complete; measurement pending | Remove the QLNet allocation graph and process-wide pricing lock. |
 | 9 | Event-context cancellation completion | P2 | Proposed | Gracefully stop cancellable event-initiated work without violating commit boundaries. |
 | 10 | Production performance and reliability gates | P0 | In progress | Turn benchmarks, integration tests, and soaks into repeatable release evidence. |
 
@@ -358,29 +358,30 @@ Preserve unbounded Fund and FundTransaction history while bounding reconstructio
 - State reconstructed before and after snapshotting is behaviorally identical.
 - Benchmarks cover at least 32, 256, 2,048, and production-representative tail sizes.
 
-### SWO-08: OptionPricer QLNet allocation isolation
+### SWO-08: OptionPricer Black-76 migration
 
 **Priority:** P1  
-**Status:** Proposed  
+**Status:** Implementation complete; expanded numerical, benchmark, and paper-trading validation pending
 
 #### Objective
 
-Reduce the approximately 102 MB measured allocation for a four-leg QLNet pricing workflow and reduce the effect of QLNet global-settings serialization.
+Use the managed Black-76 implementation for every current futures-option calculation and remove the QLNet allocation graph, global settings, and process-wide pricing lock.
 
 #### Design requirements
 
-1. Profile the retained and transient QLNet graph by type and allocation source.
-2. Benchmark reuse of immutable curves, calendars, handles, engines, and instrument templates independently.
-3. Do not share mutable pricing objects across concurrent calculations unless QLNet thread safety is proven.
-4. Evaluate isolated pricing-worker or process partitioning if the global `Settings` object prevents safe in-process concurrency.
-5. Compare every optimization against the existing numerical outputs across representative expiries, strikes, volatility regimes, and option structures.
+1. Keep pricing state-free, deterministic, lock-free, and allocation-free in steady-state scalar calculations.
+2. Use the futures price as the Black-76 forward and Actual/365 Fixed time to expiry consistently.
+3. Validate market inputs and no-arbitrage price bounds before implied-volatility inversion.
+4. Compare prices and Greeks against independent Black-76 numerical references across representative expiries, strikes, rates, volatility regimes, and option structures.
+5. Measure scalar, four-leg, concurrent, and end-to-end market-data throughput before paper-trading acceptance.
 
 #### Acceptance criteria
 
+- QLNet source imports, package references, restored assets, and published product binaries are absent.
 - Allocation and GC improvements are material and repeatable.
 - Pricing results remain within an explicitly approved numerical tolerance.
-- Concurrent calculations cannot contaminate evaluation dates, curves, or global settings.
-- Additional caching has a bounded lifetime and clear invalidation ownership.
+- Concurrent calculations are deterministic and have no shared mutable pricing state.
+- The end-to-end option market-data workflow has measured throughput headroom for paper trading.
 
 ### SWO-09: Event-context cancellation completion
 

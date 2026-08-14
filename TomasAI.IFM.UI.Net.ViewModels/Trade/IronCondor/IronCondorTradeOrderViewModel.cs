@@ -1,4 +1,4 @@
-using QLNet;
+using TomasAI.IFM.Framework.OptionPricer.Black76;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;

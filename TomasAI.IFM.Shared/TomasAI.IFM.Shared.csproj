@@ -39,7 +39,6 @@
     <PackageReference Include="NATS.Net" Version="2.6.11" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.3" />
-    <PackageReference Include="QLNet" Version="1.13.1" />
     <PackageReference Include="System.Runtime.Caching" Version="10.0.10" />
   </ItemGroup>
 
