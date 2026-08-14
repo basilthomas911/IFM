@@ -11,21 +11,33 @@ internal static class MarketDataDbCql
     WHERE countryCode = :countryCode AND monthBucket = :monthBucket
     AND eventDate = :eventDate AND eventName = :eventName;
     """;
+    public const string DeleteEconomicCalendarByMonthV1 = """
+    DELETE FROM economic_calendar_by_month_v1
+    WHERE monthBucket = :monthBucket AND eventDate = :eventDate
+    AND countryCode = :countryCode AND eventName = :eventName;
+    """;
     public const string GetEconomicCalendarById = """
     SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
     FROM economic_calendar WHERE eventDate = :eventDate AND countryCode = :countryCode AND eventName = :eventName;
     """;
     public const string GetEconomicCalendarCountryCodes = """
-    SELECT countryCode AS "CountryCode" FROM economic_calendar;
+    SELECT countryCode AS "CountryCode" FROM economic_calendar_country_code_v1
+    WHERE lookupId = :lookupId LIMIT 512;
     """;
     public const string GetEconomicCalendars = """
     SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
     FROM economic_calendar_by_country_month_v2
-    WHERE countryCode = :countryCode AND monthBucket = :monthBucket AND eventDate >= :startDate AND eventDate <= :endDate;
+    WHERE countryCode = :countryCode AND monthBucket = :monthBucket AND eventDate >= :startDate AND eventDate <= :endDate
+    LIMIT 2500;
     """;
-    public const string GetEconomicCalendarsAll = """
+    public const string GetEconomicCalendarsByMonth = """
     SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
-    FROM economic_calendar;
+    FROM economic_calendar_by_month_v1
+    WHERE monthBucket = :monthBucket LIMIT 2500;
+    """;
+    public const string GetEconomicCalendarMonths = """
+    SELECT monthBucket AS "MonthBucket" FROM economic_calendar_month_v1
+    WHERE lookupId = :lookupId LIMIT 120;
     """;
     public const string InsertEconomicCalendar = """
     INSERT INTO economic_calendar (eventDate, countryCode, eventName, actual, forecast, prior, createdOn, createdBy)
@@ -35,6 +47,38 @@ internal static class MarketDataDbCql
     INSERT INTO economic_calendar_by_country_month_v2 (countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, createdOn, createdBy)
     VALUES (:countryCode, :monthBucket, :eventDate, :eventName, :actual, :forecast, :prior, :createdOn, :createdBy);
     """;
+    public const string InsertEconomicCalendarByMonthV1 = """
+    INSERT INTO economic_calendar_by_month_v1 (monthBucket, eventDate, countryCode, eventName, actual, forecast, prior, createdOn, createdBy)
+    VALUES (:monthBucket, :eventDate, :countryCode, :eventName, :actual, :forecast, :prior, :createdOn, :createdBy);
+    """;
+    public const string InsertEconomicCalendarCountryCodeV1 = """
+    INSERT INTO economic_calendar_country_code_v1 (lookupId, countryCode)
+    VALUES (:lookupId, :countryCode);
+    """;
+    public const string InsertEconomicCalendarMonthV1 = """
+    INSERT INTO economic_calendar_month_v1 (lookupId, monthBucket)
+    VALUES (:lookupId, :monthBucket);
+    """;
+    public const string GetEconomicCalendarProjectionSource = """
+    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
+    FROM economic_calendar;
+    """;
+    public const string GetEconomicCalendarByMonthV1All = """
+    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
+    FROM economic_calendar_by_month_v1;
+    """;
+    public const string GetEconomicCalendarCountryCodeV1All = """
+    SELECT countryCode AS "CountryCode" FROM economic_calendar_country_code_v1;
+    """;
+    public const string GetEconomicCalendarMonthV1All = """
+    SELECT monthBucket AS "MonthBucket" FROM economic_calendar_month_v1;
+    """;
+    public const string TruncateEconomicCalendarByMonthV1 =
+        "TRUNCATE economic_calendar_by_month_v1;";
+    public const string TruncateEconomicCalendarCountryCodeV1 =
+        "TRUNCATE economic_calendar_country_code_v1;";
+    public const string TruncateEconomicCalendarMonthV1 =
+        "TRUNCATE economic_calendar_month_v1;";
 
     public const string InsertTickTradeData = """
         INSERT INTO tick_trade_data (
@@ -2467,10 +2511,27 @@ internal static class MarketDataDbCql
         );
     """;
 
+    public const string InsertYieldCurveRateByDateV1 = """
+        INSERT INTO yield_curve_rate_by_date_v1 (
+            lookupId, valueDate, oneMonth, twoMonth, threeMonth, sixMonth,
+            oneYear, twoYear, threeYear, fiveYear, sevenYear, tenYear,
+            twentyYear, thirtyYear
+        ) VALUES (
+            :id, :valueDate, :oneMonth, :twoMonth, :threeMonth, :sixMonth,
+            :oneYear, :twoYear, :threeYear, :fiveYear, :sevenYear, :tenYear,
+            :twentyYear, :thirtyYear
+        );
+    """;
+
     public const string DeleteYieldCurveRate = """
         DELETE FROM yield_curve_rates
         WHERE id = 1
         AND valueDate = :valueDate;
+    """;
+
+    public const string DeleteYieldCurveRateByDateV1 = """
+        DELETE FROM yield_curve_rate_by_date_v1
+        WHERE lookupId = 1 AND valueDate = :valueDate;
     """;
 
     public const string GetYieldCurveRate = """
@@ -2488,11 +2549,11 @@ internal static class MarketDataDbCql
             tenYear AS "TenYear",
             twentyYear AS "TwentyYear",
             thirtyYear AS "ThirtyYear"
-        FROM yield_curve_rates 
-        WHERE id = 1 AND valueDate = :valueDate;
+        FROM yield_curve_rate_by_date_v1
+        WHERE lookupId = 1 AND valueDate = :valueDate;
     """;
 
-    public const string GetAllYieldCurveRates = """
+    public const string GetLastYieldCurveRate = """
         SELECT 
             valueDate AS "ValueDate",
             oneMonth AS "OneMonth",
@@ -2507,7 +2568,7 @@ internal static class MarketDataDbCql
             tenYear AS "TenYear",
             twentyYear AS "TwentyYear",
             thirtyYear AS "ThirtyYear"
-        FROM yield_curve_rates WHERE id = 1;
+        FROM yield_curve_rate_by_date_v1 WHERE lookupId = 1 LIMIT 1;
     """;
 
     public const string GetYieldCurveRates = """
@@ -2525,10 +2586,67 @@ internal static class MarketDataDbCql
             tenYear AS "TenYear",
             twentyYear AS "TwentyYear",
             thirtyYear AS "ThirtyYear"
-        FROM yield_curve_rates
-        WHERE id = 1 AND valueDate >= :startDate
-        AND valueDate <= :endDate;
+        FROM yield_curve_rate_by_date_v1
+        WHERE lookupId = 1 AND valueDate >= :startDate
+        AND valueDate <= :endDate LIMIT 5000;
     """;
+
+    public const string GetYieldCurveRateYears = """
+        SELECT rateYear AS "RateYear"
+        FROM yield_curve_rate_year_v1
+        WHERE lookupId = :lookupId LIMIT 200;
+    """;
+
+    public const string InsertYieldCurveRateYearV1 = """
+        INSERT INTO yield_curve_rate_year_v1 (lookupId, rateYear)
+        VALUES (:lookupId, :rateYear);
+    """;
+
+    public const string GetYieldCurveRateProjectionSource = """
+        SELECT
+            valueDate AS "ValueDate",
+            oneMonth AS "OneMonth",
+            twoMonth AS "TwoMonth",
+            threeMonth AS "ThreeMonth",
+            sixMonth AS "SixMonth",
+            oneYear AS "OneYear",
+            twoYear AS "TwoYear",
+            threeYear AS "ThreeYear",
+            fiveYear AS "FiveYear",
+            sevenYear AS "SevenYear",
+            tenYear AS "TenYear",
+            twentyYear AS "TwentyYear",
+            thirtyYear AS "ThirtyYear"
+        FROM yield_curve_rates WHERE id = 1;
+    """;
+
+    public const string GetYieldCurveRateYearV1All = """
+        SELECT rateYear AS "RateYear" FROM yield_curve_rate_year_v1;
+    """;
+
+    public const string GetYieldCurveRateByDateV1All = """
+        SELECT
+            valueDate AS "ValueDate",
+            oneMonth AS "OneMonth",
+            twoMonth AS "TwoMonth",
+            threeMonth AS "ThreeMonth",
+            sixMonth AS "SixMonth",
+            oneYear AS "OneYear",
+            twoYear AS "TwoYear",
+            threeYear AS "ThreeYear",
+            fiveYear AS "FiveYear",
+            sevenYear AS "SevenYear",
+            tenYear AS "TenYear",
+            twentyYear AS "TwentyYear",
+            thirtyYear AS "ThirtyYear"
+        FROM yield_curve_rate_by_date_v1;
+    """;
+
+    public const string TruncateYieldCurveRateByDateV1 =
+        "TRUNCATE yield_curve_rate_by_date_v1;";
+
+    public const string TruncateYieldCurveRateYearV1 =
+        "TRUNCATE yield_curve_rate_year_v1;";
 
     public const string GetMarketHolidays = """
         SELECT 

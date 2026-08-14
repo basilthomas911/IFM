@@ -51,6 +51,10 @@ public partial class MarketDataDbContext(
     const string ProjectionGuardScopePrefix = "$guard:";
     const int ProjectionReadConcurrency = 8;
     const int ProjectionScopeStateReadBatchSize = 32;
+    internal const int YieldCurveMaximumRangeDays = 3_660;
+    internal const int YieldCurveMaximumRows = 5_000;
+    internal const int YieldCurveMaximumYears = 200;
+    const int YieldCurveLookupId = 1;
     readonly static Dictionary<TradingDaysKey, int> _tradingDaysMap = [];
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
@@ -1639,10 +1643,17 @@ public partial class MarketDataDbContext(
     /// <param name="valueDate">The value date to delete.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task DeleteYieldCurveRateAsync(DateOnly valueDate)
-        => await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.DeleteYieldCurveRate)
-            .SetParameters(new DeleteYieldCurveRate(valueDate))
-            .ExecuteCommandAsync();
+    {
+        var db = _dbFactory.MarketDataDb;
+        await db.ExecuteQueuedCommandsAsync([
+            db.Use(MarketDataDbCql.DeleteYieldCurveRate)
+                .SetParameters(new DeleteYieldCurveRate(valueDate))
+                .QueueCommand(),
+            db.Use(MarketDataDbCql.DeleteYieldCurveRateByDateV1)
+                .SetParameters(new DeleteYieldCurveRate(valueDate))
+                .QueueCommand()
+        ]);
+    }
 
     /// <summary>
     /// Deletes futures ITI signal data for a given contract ID and value date.
@@ -2289,26 +2300,8 @@ public partial class MarketDataDbContext(
     /// </summary>
     /// <param name="e">The YieldCurveRateReadModel containing the data to insert.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InsertYieldCurveRateAsync(YieldCurveRateReadModel e)
-        => await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.InsertYieldCurveRate)
-            .SetParameters(new InsertYieldCurveRate(
-                id: 1,
-                valueDate: e.ValueDate,
-                oneMonth: e.OneMonth,
-                twoMonth: e.TwoMonth,
-                threeMonth: e.ThreeMonth,
-                sixMonth: e.SixMonth,
-                oneYear: e.OneYear,
-                twoYear: e.TwoYear,
-                threeYear: e.ThreeYear,
-                fiveYear: e.FiveYear,
-                sevenYear: e.SevenYear,
-                tenYear: e.TenYear,
-                twentyYear: e.TwentyYear,
-                thirtyYear: e.ThirtyYear
-            ))
-            .ExecuteCommandAsync();
+    public Task InsertYieldCurveRateAsync(YieldCurveRateReadModel e)
+        => InsertYieldCurveRatesAsync([e]);
 
     /// <summary>
     /// Inserts a collection of yield curve rate records into the database.
@@ -2316,25 +2309,44 @@ public partial class MarketDataDbContext(
     /// <param name="e">The collection of YieldCurveRateReadModel containing the data to insert.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InsertYieldCurveRatesAsync(ICollection<YieldCurveRateReadModel> e)
-        => await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.InsertYieldCurveRate)
-            .SetParameters(e.Select(x => new InsertYieldCurveRate(
-                id: 1,
-                valueDate: x.ValueDate,
-                oneMonth: x.OneMonth,
-                twoMonth: x.TwoMonth,
-                threeMonth: x.ThreeMonth,
-                sixMonth: x.SixMonth,
-                oneYear: x.OneYear,
-                twoYear: x.TwoYear,
-                threeYear: x.ThreeYear,
-                fiveYear: x.FiveYear,
-                sevenYear: x.SevenYear,
-                tenYear: x.TenYear,
-                twentyYear: x.TwentyYear,
-                thirtyYear: x.ThirtyYear
-            )))
-            .ExecuteCommandAsync();
+    {
+        if (e.Count == 0)
+            return;
+
+        var db = _dbFactory.MarketDataDb;
+        var commands = new List<object>(e.Count * 2 + e.Count);
+        var years = new HashSet<int>();
+        foreach (var row in e)
+        {
+            var parameters = new InsertYieldCurveRate(
+                id: YieldCurveLookupId,
+                valueDate: row.ValueDate,
+                oneMonth: row.OneMonth,
+                twoMonth: row.TwoMonth,
+                threeMonth: row.ThreeMonth,
+                sixMonth: row.SixMonth,
+                oneYear: row.OneYear,
+                twoYear: row.TwoYear,
+                threeYear: row.ThreeYear,
+                fiveYear: row.FiveYear,
+                sevenYear: row.SevenYear,
+                tenYear: row.TenYear,
+                twentyYear: row.TwentyYear,
+                thirtyYear: row.ThirtyYear);
+            commands.Add(db.Use(MarketDataDbCql.InsertYieldCurveRate)
+                .SetParameters(parameters)
+                .QueueCommand());
+            commands.Add(db.Use(MarketDataDbCql.InsertYieldCurveRateByDateV1)
+                .SetParameters(parameters)
+                .QueueCommand());
+            years.Add(row.ValueDate.Year);
+        }
+        commands.AddRange(years.Select(rateYear => db
+            .Use(MarketDataDbCql.InsertYieldCurveRateYearV1)
+            .SetParameters(new InsertYieldCurveRateYearV1(YieldCurveLookupId, rateYear))
+            .QueueCommand()));
+        await db.ExecuteQueuedCommandsAsync(commands);
+    }
 
     /// <summary>
     /// Gets the last FuturesOptionTickDataId for a given contractId and valueDate.
@@ -4151,18 +4163,16 @@ public partial class MarketDataDbContext(
 	/// </summary>
 	/// <returns>A task representing the asynchronous operation, containing the <see cref="YieldCurveRateReadModel"/>.</returns>
 	public async Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync()
-        => (await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.GetAllYieldCurveRates)
-            .ExecuteQueryAsync(MapToYieldCurveRate))
-            ?.OrderByDescending(e => e.ValueDate)?.FirstOrDefault();    
+        => await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetLastYieldCurveRate)
+            .ExecuteSingleAsync(MapToYieldCurveRate!);
 
     public async Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync(
         CancellationToken cancellationToken)
-        => (await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.GetAllYieldCurveRates)
-            .ExecuteQueryAsync(MapToYieldCurveRate, cancellationToken)
-            .ConfigureAwait(false))
-            ?.OrderByDescending(e => e.ValueDate)?.FirstOrDefault();
+        => await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetLastYieldCurveRate)
+            .ExecuteSingleAsync(MapToYieldCurveRate!, cancellationToken)
+            .ConfigureAwait(false);
 
     /// <summary>
     /// Gets the yield curve rate for a given value date.
@@ -4182,19 +4192,13 @@ public partial class MarketDataDbContext(
     /// <param name="endDate">The end value date.</param>
     /// <returns>A task representing the asynchronous operation, containing the collection of YieldCurveRateReadModel.</returns>
     public async Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesAsync(DateOnly startDate, DateOnly endDate)
-        => await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.GetYieldCurveRates)
-            .SetParameters(new GetYieldCurveRates(startDate, endDate))
-            .ExecuteQueryAsync(MapToYieldCurveRate);
+        => await GetYieldCurveRatesCoreAsync(startDate, endDate, CancellationToken.None);
 
     public async Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesAsync(
         DateOnly startDate,
         DateOnly endDate,
         CancellationToken cancellationToken)
-        => await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.GetYieldCurveRates)
-            .SetParameters(new GetYieldCurveRates(startDate, endDate))
-            .ExecuteQueryAsync(MapToYieldCurveRate, cancellationToken)
+        => await GetYieldCurveRatesCoreAsync(startDate, endDate, cancellationToken)
             .ConfigureAwait(false);
 
     /// <summary>
@@ -4202,16 +4206,36 @@ public partial class MarketDataDbContext(
     /// </summary>
     /// <returns>A task representing the asynchronous operation, containing the collection of integer years.</returns>
     public async Task<ICollection<int>> GetYieldCurveRateYearsAsync()
-        => [.. (await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.GetAllYieldCurveRates)
-            .ExecuteQueryAsync(MapToYieldCurveRate)).Select(e => e.ValueDate.Year)];
+        => await GetYieldCurveRateYearsAsync(CancellationToken.None);
 
     public async Task<ICollection<int>> GetYieldCurveRateYearsAsync(
         CancellationToken cancellationToken)
-        => [.. (await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.GetAllYieldCurveRates)
+        => await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetYieldCurveRateYears)
+            .SetParameters(new GetYieldCurveRateYears(YieldCurveLookupId))
+            .ExecuteQueryAsync(MapToYearMonth, cancellationToken)
+            .ConfigureAwait(false);
+
+    async Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesCoreAsync(
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken cancellationToken)
+    {
+        if (endDate < startDate)
+            return [];
+        if (endDate.DayNumber - startDate.DayNumber + 1 > YieldCurveMaximumRangeDays)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(endDate),
+                $"Yield-curve ranges may span at most {YieldCurveMaximumRangeDays} days.");
+        }
+
+        return await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetYieldCurveRates)
+            .SetParameters(new GetYieldCurveRates(startDate, endDate))
             .ExecuteQueryAsync(MapToYieldCurveRate, cancellationToken)
-            .ConfigureAwait(false)).Select(e => e.ValueDate.Year)];
+            .ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Retrieves market holidays for a given currency type.

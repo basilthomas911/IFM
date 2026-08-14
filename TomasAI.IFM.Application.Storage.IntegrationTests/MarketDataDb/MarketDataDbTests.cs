@@ -2487,7 +2487,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     {
         // Arrange
         var expectedRate = SampleData.YieldCurveRate;
-        await TestFixture.DevDatabase.Use($"DELETE FROM yield_curve_rates WHERE id = 1 and valueDate = '{expectedRate.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.DeleteYieldCurveRateAsync(expectedRate.ValueDate);
         await TestFixture.DevDatabase.InsertYieldCurveRateAsync(expectedRate);
 
         // Act
@@ -2518,14 +2518,14 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     {
         // Arrange
         var valueDate = SampleData.YieldCurveRate.ValueDate;
-        await TestFixture.DevDatabase.Use($"DELETE FROM yield_curve_rates WHERE id = 1").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.DeleteYieldCurveRateAsync(valueDate);
         await TestFixture.DevDatabase.InsertYieldCurveRateAsync(SampleData.YieldCurveRate);
 
         // Act
         await TestFixture.DevDatabase.DeleteYieldCurveRateAsync(valueDate);
 
         // Assert
-        var result = await TestFixture.DevDatabase.GetLastYieldCurveRateAsync();
+        var result = await TestFixture.DevDatabase.GetYieldCurveRateAsync(valueDate);
         result.Should().BeNull();
     }
 
@@ -2537,7 +2537,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     {
         // Arrange
         var valueDate = SampleData.YieldCurveRate.ValueDate;
-        await TestFixture.DevDatabase.Use($"DELETE FROM yield_curve_rates WHERE id = 1 and valueDate = '{SampleData.YieldCurveRate.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.DeleteYieldCurveRateAsync(valueDate);
 
         // Act and Assert for non-existing record
         bool result = await TestFixture.DevDatabase.GetYieldCurveRateExistsAsync(valueDate);
@@ -2560,8 +2560,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         // Arrange
         var expectedYear = SampleData.YieldCurveRate.ValueDate.Year; // Example year from SampleData.YieldCurveRateReadModel or any other known year data point
         await TestFixture.DevDatabase.Use($"DELETE FROM market_holiday WHERE currencyType = '{CurrencyType.USD}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"DELETE FROM yield_curve_rates WHERE id = 1 and valueDate = '{SampleData.YieldCurveRate.ValueDate}'")
-             .ExecuteCommandAsync();
+        await TestFixture.DevDatabase.DeleteYieldCurveRateAsync(SampleData.YieldCurveRate.ValueDate);
 
         // Insert sample data for the expected year
         var yieldCurveRate = SampleData.YieldCurveRate;
@@ -2586,8 +2585,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var endDate = new DateOnly(SampleData.YieldCurveRate.ValueDate.Year, 12, 31);
 
         // Clear any existing data for the date range
-        await TestFixture.DevDatabase.Use($"DELETE FROM yield_curve_rates WHERE id = 1 and valueDate = '{SampleData.YieldCurveRate.ValueDate}'")
-             .ExecuteCommandAsync();
+        await TestFixture.DevDatabase.DeleteYieldCurveRateAsync(SampleData.YieldCurveRate.ValueDate);
 
         // Insert sample data for the specified date range
         var yieldCurveRate = SampleData.YieldCurveRate;

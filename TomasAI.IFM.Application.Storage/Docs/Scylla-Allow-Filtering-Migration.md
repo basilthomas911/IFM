@@ -179,8 +179,9 @@ If `ASPNETCORE_ENVIRONMENT` is also set in the operator shell, it must select th
 `DOTNET_ENVIRONMENT`; Framework.Storage rejects conflicting environment selectors.
 
 Run the commands from the repository root. `--apply-schema` creates only this migration's additive projection,
-state, ownership, and operation-journal objects, including the three ITI projection tables; it does not alter or
-truncate canonical ITI/RSI tables. It is safe to repeat because each selected definition uses
+state, ownership, and operation-journal objects, including the three ITI projection tables, the bounded economic
+calendar projections/catalogs, and the yield-curve ordered-date/year projections; it does not alter or truncate
+canonical tables. It is safe to repeat because each selected definition uses
 `CREATE ... IF NOT EXISTS`.
 
 ~~~powershell
@@ -189,6 +190,13 @@ dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- secu
 dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- fund --apply-schema --fund-id <fund-id> --start-date <yyyy-MM-dd> --end-date <yyyy-MM-dd> --batch-size 500
 dotnet run --project TomasAI.IFM.Application.Storage.ProjectionMigration -- market --apply-schema --batch-size 256
 ~~~
+
+Before running the `market` command, pause both economic-calendar and yield-curve import writers. The command truncates
+only their derived query projections, streams the canonical `economic_calendar` and `yield_curve_rates` sources in
+bounded batches, rebuilds the projections, and compares source/target row counts and order-independent fingerprints.
+Do not resume either importer unless the FMP query reconciliation reports success. Runtime application reads contain
+no canonical full-scan fallback, so deploying the new reader before this successful schema/backfill step would expose
+incomplete lookup results for pre-existing data.
 
 The Fund command rebuilds and verifies the global order-ID lookup before rebuilding the selected fund's complete
 transaction months. It also reserves and verifies one immutable transaction identity for every canonical logical key;

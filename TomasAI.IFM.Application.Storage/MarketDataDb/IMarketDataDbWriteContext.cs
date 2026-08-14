@@ -26,6 +26,10 @@ public interface IMarketDataDbWriteContext
     Task<MarketDataProjectionReadiness> GetQueryProjectionReadinessAsync(
         CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
+    Task<FmpQueryProjectionBackfillResult> BackfillFmpQueryProjectionsAsync(
+        int batchSize = 256,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 
     Task DeleteFuturesBarDataAsync(FuturesBarDataId e);
     Task DeleteFuturesEodDataAsync(string contractId, DateOnly valueDate);

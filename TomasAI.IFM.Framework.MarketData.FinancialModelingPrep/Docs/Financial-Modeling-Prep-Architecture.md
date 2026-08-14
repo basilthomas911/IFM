@@ -72,9 +72,13 @@ The durable records are currently written as follows:
 
 | Dataset | Current storage context | Current table or projection | Target |
 | --- | --- | --- | --- |
-| US Treasury curve | `MarketDataDbContext` | `yield_curve_rates` | Remains in MarketData |
-| Economic calendar canonical row | `ReferenceDbContext` | `economic_calendar` | Migrates to one redesigned `MarketDataDbContext.economic_calendar` table |
-| Economic calendar country/month query projection | `ReferenceDbContext` | `economic_calendar_by_country_month_v2` | Removed after migration |
+| US Treasury curve canonical row | `MarketDataDbContext` | `yield_curve_rates` | Remains in MarketData |
+| US Treasury ordered-date query projection | `MarketDataDbContext` | `yield_curve_rate_by_date_v1` | Supports exact, bounded-range, and server-ordered latest reads |
+| US Treasury year lookup | `MarketDataDbContext` | `yield_curve_rate_year_v1` | Returns distinct bounded years without reading rate rows |
+| Economic calendar canonical row | `MarketDataDbContext` | `economic_calendar` | Remains the current migration/backfill source |
+| Economic calendar country/month query projection | `MarketDataDbContext` | `economic_calendar_by_country_month_v2` | Supports bounded country/date ranges |
+| Economic calendar bounded-all projection | `MarketDataDbContext` | `economic_calendar_by_month_v1` | Supports bounded recent-month reads across countries |
+| Economic calendar lookup projections | `MarketDataDbContext` | `economic_calendar_country_code_v1`, `economic_calendar_month_v1` | Avoid event-table scans and supply known partitions |
 
 `YieldCurveRateStateRepository` denormalizes `YieldCurveRatesImportedEvent` directly through
 `InsertYieldCurveRatesAsync`. The current Reference-domain `EconomicCalendarStateRepository` denormalizes
@@ -90,11 +94,14 @@ yield-curve import state does not apply the same rejection rule.
 The implementation must remove this inconsistency by applying one explicit effective policy at command decision,
 event, and storage-write boundaries.
 
-### 3.4 Yield-curve schema mismatch
+### 3.4 Yield-curve schema and deployed-table ordering
 
-The current schema declares `yield_curve_rates.valueDate` as the primary key, while some runtime CQL still inserts and
-queries a constant `id` column. This mismatch must be resolved before FMP import is enabled. The proposed canonical
-logical and physical key is `valueDate` only unless a separately approved partitioning migration changes it.
+The canonical schema now declares `PRIMARY KEY ((id), valueDate)` with descending `valueDate` clustering, matching its
+runtime CQL. Existing databases may still have the older ascending or incompatible definition because
+`CREATE TABLE IF NOT EXISTS` cannot change a table's primary-key or clustering layout. Runtime reads therefore use the
+additive `yield_curve_rate_by_date_v1` projection. It has a constant `lookupId` partition and descending `valueDate`, so
+latest is a server-side `LIMIT 1` read and ranges remain clustering-key reads. The offline market projection migration
+rebuilds and fingerprints this projection from `yield_curve_rates` before cutover.
 
 ### 3.5 Credential exposure
 
@@ -102,14 +109,17 @@ Third-party API keys currently appear in checked-in test configuration/source. T
 exposed, rotated, removed from Git-tracked content, and replaced with environment, user-secret, or host secret-provider
 configuration before live FMP integration tests or runtime registration are enabled.
 
-### 3.6 Current economic-calendar query problem
+### 3.6 Economic-calendar query bounds
 
 The current CQL does not contain a literal `ALLOW FILTERING` clause, but several paths execute an unbounded
 `SELECT ... FROM economic_calendar` and filter or de-duplicate rows in application memory. Those full scans include the
 fallback range path, the no-argument all-calendars query, country-code discovery, and projection reconciliation.
 
-The target removes these runtime scans together with the second table. Every supported runtime query must specify the
-complete partition key or fan out across a bounded, explicitly known set of partition keys.
+Runtime scans have now been removed. Country codes and known month partitions come from small lookup projections;
+all-calendar reads fan out only over the latest 120 known UTC months, and country/range reads reject ranges over 120
+UTC months. At most four month partitions are queried concurrently. Each month read is limited to 2,500 rows and the
+merged response is limited to 10,000 rows. Full scans remain only in the explicit offline projection migration, where
+import writers are paused and source/target counts plus fingerprints are reconciled.
 
 ## 4. Goals and non-goals
 
@@ -473,6 +483,19 @@ query returns that bounded actor read model; it does not discover countries thro
 An administrative offline export or repair tool may token-scan the table under explicit resource controls. That is not
 a runtime query API and does not justify `ALLOW FILTERING`.
 
+#### 9.4.1 Implemented bounded compatibility phase
+
+Until the public actor/API contract carries an explicit continuation token, the no-argument compatibility query reads
+the latest 120 entries in `economic_calendar_month_v1`, queries `economic_calendar_by_month_v1` in groups of four, and
+stops at 10,000 merged rows. This is intentionally a bounded recent-data view even though the legacy method retains
+`All` in its name. Country/range queries have the same global result cap and reject more than 120 intersecting months.
+The future paged contract replaces this compatibility method; it does not relax these storage bounds.
+
+The country, calendar-month, and yield-curve-year catalogs are monotonic observed-value indexes. Deleting the last row
+for a catalog value does not remove its entry; a later bounded read may therefore visit an empty partition or offer a
+year with no remaining rows. This trades a harmless empty lookup for race-free imports and avoids distributed
+reference counting. The offline rebuild removes stale catalog entries when an exact catalog refresh is required.
+
 ### 9.5 Storage migration and cutover
 
 Migration is a controlled operation:
@@ -548,9 +571,10 @@ bounded range command only after its state, serialization, replay, and partial-f
 
 The import event is denormalized as a batch:
 
-- yield curves call one bounded `InsertYieldCurveRatesAsync` operation against `yield_curve_rates`; and
-- economic calendars call one bounded `MarketDataDbContext.InsertEconomicCalendarsAsync` operation against the single
-  `economic_calendar` table, grouping writes by country/month partition.
+- yield curves call one bounded `InsertYieldCurveRatesAsync` operation that maintains `yield_curve_rates`,
+  `yield_curve_rate_by_date_v1`, and the de-duplicated year lookup; and
+- economic calendars call one bounded `MarketDataDbContext.InsertEconomicCalendarsAsync` operation that maintains the
+  canonical row, country/month and month query projections, and country/month lookup catalogs.
 
 The importer does not emit one `Add` or `Change` command per row. Native storage batching may be used only within the
 driver's safe size and partition constraints.

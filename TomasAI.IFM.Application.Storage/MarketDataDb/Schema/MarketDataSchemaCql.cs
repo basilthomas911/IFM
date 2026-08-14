@@ -33,6 +33,40 @@ internal static class MarketDataSchemaCql
     WITH CLUSTERING ORDER BY (eventDate DESC, eventName ASC);
     """;
 
+    public const string CreateEconomicCalendarByMonthV1Table = """
+    CREATE TABLE IF NOT EXISTS economic_calendar_by_month_v1 (
+    monthBucket int,
+    eventDate timestamp,
+    countryCode text,
+    eventName text,
+    actual text,
+    forecast text,
+    prior text,
+    createdOn timestamp,
+    createdBy text,
+    PRIMARY KEY ((monthBucket), eventDate, countryCode, eventName)
+    )
+    WITH CLUSTERING ORDER BY (eventDate DESC, countryCode ASC, eventName ASC);
+    """;
+
+    public const string CreateEconomicCalendarCountryCodeV1Table = """
+    CREATE TABLE IF NOT EXISTS economic_calendar_country_code_v1 (
+    lookupId int,
+    countryCode text,
+    PRIMARY KEY ((lookupId), countryCode)
+    )
+    WITH CLUSTERING ORDER BY (countryCode ASC);
+    """;
+
+    public const string CreateEconomicCalendarMonthV1Table = """
+    CREATE TABLE IF NOT EXISTS economic_calendar_month_v1 (
+    lookupId int,
+    monthBucket int,
+    PRIMARY KEY ((lookupId), monthBucket)
+    )
+    WITH CLUSTERING ORDER BY (monthBucket DESC);
+    """;
+
     public const string CreateTickQuoteItemType = """
         CREATE TYPE IF NOT EXISTS tick_quote_item (
             source_sequence bigint,
@@ -714,7 +748,8 @@ internal static class MarketDataSchemaCql
 
     public const string CreateYieldCurveRateTable = """
     CREATE TABLE IF NOT EXISTS yield_curve_rates (
-    valueDate date PRIMARY KEY,
+    id int,
+    valueDate date,
     oneMonth double,
     twoMonth double,
     threeMonth double,
@@ -726,7 +761,36 @@ internal static class MarketDataSchemaCql
     sevenYear double,
     tenYear double,
     twentyYear double,
-    thirtyYear double
-    );
+    thirtyYear double,
+    PRIMARY KEY ((id), valueDate)
+    ) WITH CLUSTERING ORDER BY (valueDate DESC);
+    """;
+
+    public const string CreateYieldCurveRateYearV1Table = """
+    CREATE TABLE IF NOT EXISTS yield_curve_rate_year_v1 (
+    lookupId int,
+    rateYear int,
+    PRIMARY KEY ((lookupId), rateYear)
+    ) WITH CLUSTERING ORDER BY (rateYear DESC);
+    """;
+
+    public const string CreateYieldCurveRateByDateV1Table = """
+    CREATE TABLE IF NOT EXISTS yield_curve_rate_by_date_v1 (
+    lookupId int,
+    valueDate date,
+    oneMonth double,
+    twoMonth double,
+    threeMonth double,
+    sixMonth double,
+    oneYear double,
+    twoYear double,
+    threeYear double,
+    fiveYear double,
+    sevenYear double,
+    tenYear double,
+    twentyYear double,
+    thirtyYear double,
+    PRIMARY KEY ((lookupId), valueDate)
+    ) WITH CLUSTERING ORDER BY (valueDate DESC);
     """;
 }

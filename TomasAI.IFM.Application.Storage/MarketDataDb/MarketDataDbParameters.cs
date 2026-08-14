@@ -10,13 +10,29 @@ internal readonly record struct DeleteEconomicCalendarByCountryMonthV2(string co
 {
     public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName };
 }
+internal readonly record struct DeleteEconomicCalendarByMonthV1(int monthBucket, DateTime eventDate, string countryCode, string eventName) : IBindValue
+{
+    public object Bind() => new object?[] { monthBucket, eventDate, countryCode, eventName };
+}
 internal readonly record struct GetEconomicCalendarById(DateTime eventDate, string countryCode, string eventName) : IBindValue
 {
     public object Bind() => new object?[] { eventDate, countryCode, eventName };
 }
+internal readonly record struct GetEconomicCalendarCountryCodes(int lookupId) : IBindValue
+{
+    public object Bind() => new object?[] { lookupId };
+}
+internal readonly record struct GetEconomicCalendarMonths(int lookupId) : IBindValue
+{
+    public object Bind() => new object?[] { lookupId };
+}
 internal readonly record struct GetEconomicCalendars(string countryCode, int monthBucket, DateTime startDate, DateTime endDate) : IBindValue
 {
     public object Bind() => new object?[] { countryCode, monthBucket, startDate, endDate };
+}
+internal readonly record struct GetEconomicCalendarsByMonth(int monthBucket) : IBindValue
+{
+    public object Bind() => new object?[] { monthBucket };
 }
 internal readonly record struct InsertEconomicCalendar(DateTime eventDate, string countryCode, string eventName, string actual, string forecast, string prior, DateTime createdOn, string createdBy) : IBindValue
 {
@@ -25,6 +41,18 @@ internal readonly record struct InsertEconomicCalendar(DateTime eventDate, strin
 internal readonly record struct InsertEconomicCalendarByCountryMonthV2(string countryCode, int monthBucket, DateTime eventDate, string eventName, string actual, string forecast, string prior, DateTime createdOn, string createdBy) : IBindValue
 {
     public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, createdOn, createdBy };
+}
+internal readonly record struct InsertEconomicCalendarByMonthV1(int monthBucket, DateTime eventDate, string countryCode, string eventName, string actual, string forecast, string prior, DateTime createdOn, string createdBy) : IBindValue
+{
+    public object Bind() => new object?[] { monthBucket, eventDate, countryCode, eventName, actual, forecast, prior, createdOn, createdBy };
+}
+internal readonly record struct InsertEconomicCalendarCountryCodeV1(int lookupId, string countryCode) : IBindValue
+{
+    public object Bind() => new object?[] { lookupId, countryCode };
+}
+internal readonly record struct InsertEconomicCalendarMonthV1(int lookupId, int monthBucket) : IBindValue
+{
+    public object Bind() => new object?[] { lookupId, monthBucket };
 }
 
 internal readonly record struct DeleteFuturesAdxSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue
@@ -409,6 +437,10 @@ internal readonly record struct GetYieldCurveRates(DateOnly startDate, DateOnly 
 {
     public object Bind() => new object?[] { startDate, endDate };
 }
+internal readonly record struct GetYieldCurveRateYears(int lookupId) : IBindValue
+{
+    public object Bind() => new object?[] { lookupId };
+}
 internal readonly record struct InsertFuturesAdxSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double plusDI, double minusDI, double adxValue, string adx, string adxStrength) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, plusDI, minusDI, adxValue, adx, adxStrength };
@@ -724,6 +756,10 @@ internal readonly record struct InsertVixFuturesContractIndex(int bucket, string
 internal readonly record struct InsertYieldCurveRate(int id, DateOnly valueDate, double oneMonth, double twoMonth, double threeMonth, double sixMonth, double oneYear, double twoYear, double threeYear, double fiveYear, double sevenYear, double tenYear, double twentyYear, double thirtyYear) : IBindValue
 {
     public object Bind() => new object?[] { id, valueDate, oneMonth, twoMonth, threeMonth, sixMonth, oneYear, twoYear, threeYear, fiveYear, sevenYear, tenYear, twentyYear, thirtyYear };
+}
+internal readonly record struct InsertYieldCurveRateYearV1(int lookupId, int rateYear) : IBindValue
+{
+    public object Bind() => new object?[] { lookupId, rateYear };
 }
 internal readonly record struct UpdateFuturesEodData(string contractId, DateOnly valueDate, string symbol, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, int volume, double dailyPercentChange, double dailyStdDev, double dailyStdDevAmount, double upperBand, double mean, double lowerBand, string marketDirection, string marketVolatility, string priceDirection, string priceVolatility, double marketDirectionIndicator, int windowSize) : IBindValue
 {

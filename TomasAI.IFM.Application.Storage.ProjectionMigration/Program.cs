@@ -62,6 +62,11 @@ internal static class Program
 
     static readonly string[] MarketProjectionObjects =
     [
+        "economic_calendar_by_month_v1",
+        "economic_calendar_country_code_v1",
+        "economic_calendar_month_v1",
+        "yield_curve_rate_by_date_v1",
+        "yield_curve_rate_year_v1",
         "futures_tick_data_by_time",
         "futures_eod_data_by_month",
         "vix_futures_contract_index",
@@ -304,6 +309,9 @@ internal static class Program
                 cancellationToken).ConfigureAwait(false);
         }
 
+        var fmpBackfill = await context.BackfillFmpQueryProjectionsAsync(
+            options.BatchSize,
+            cancellationToken).ConfigureAwait(false);
         var backfill = await context.BackfillQueryProjectionsV2Async(
             options.BatchSize,
             cancellationToken,
@@ -311,6 +319,18 @@ internal static class Program
         var readiness = await context.GetQueryProjectionReadinessAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        Console.WriteLine(
+            $"Market FMP query reconciliation: calendar source/projected={fmpBackfill.EconomicCalendarRowsSource}/{fmpBackfill.EconomicCalendarRowsProjected}, " +
+            $"countries={fmpBackfill.EconomicCalendarCountryCodesSource}/{fmpBackfill.EconomicCalendarCountryCodesProjected}, " +
+            $"months={fmpBackfill.EconomicCalendarMonthsSource}/{fmpBackfill.EconomicCalendarMonthsProjected}, " +
+            $"yield rows={fmpBackfill.YieldCurveRowsSource}/{fmpBackfill.YieldCurveRowsProjected}, " +
+            $"years={fmpBackfill.YieldCurveYearsSource}/{fmpBackfill.YieldCurveYearsProjected}.");
+        Console.WriteLine(
+            $"Market FMP query fingerprints: calendar={fmpBackfill.EconomicCalendarSourceFingerprint}/{fmpBackfill.EconomicCalendarProjectedFingerprint}, " +
+            $"countries={fmpBackfill.EconomicCalendarCountryCodesSourceFingerprint}/{fmpBackfill.EconomicCalendarCountryCodesProjectedFingerprint}, " +
+            $"months={fmpBackfill.EconomicCalendarMonthsSourceFingerprint}/{fmpBackfill.EconomicCalendarMonthsProjectedFingerprint}, " +
+            $"yieldRows={fmpBackfill.YieldCurveSourceFingerprint}/{fmpBackfill.YieldCurveProjectedFingerprint}, " +
+            $"yieldYears={fmpBackfill.YieldCurveYearsSourceFingerprint}/{fmpBackfill.YieldCurveYearsProjectedFingerprint}.");
         Console.WriteLine(
             $"Market tick reconciliation: source/projected={backfill.FuturesTicksSource}/{backfill.FuturesTicksProjected}, " +
             $"fingerprints={backfill.FuturesTicksSourceFingerprint}/{backfill.FuturesTicksProjectedFingerprint}.");
@@ -328,7 +348,8 @@ internal static class Program
             $"vix={readiness.VixFuturesContractIndex}, iti={readiness.FuturesItiSignalQueries}, " +
             $"cutoverCompleted={backfill.CutoverCompleted}.");
 
-        return Complete(backfill.IsReconciled && backfill.CutoverCompleted && readiness.IsReady);
+        return Complete(fmpBackfill.IsReconciled && backfill.IsReconciled &&
+            backfill.CutoverCompleted && readiness.IsReady);
     }
 
     static DbContextFactory CreateFactory(Dictionary<Type, object> repositories)
