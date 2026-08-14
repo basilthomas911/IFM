@@ -10,6 +10,7 @@ public static class EventSourceSchemaSql
         CREATE TABLE IF NOT EXISTS public.event_stream_id (
             EventStreamId integer DEFAULT nextval('public.entity_type_id_entitytypeid_seq'::regclass) NOT NULL,
             EventStream varchar(900) NOT NULL,
+            CurrentVersion bigint NOT NULL DEFAULT 0,
             CONSTRAINT entity_type_id_pkey PRIMARY KEY (EventStreamId),
             CONSTRAINT entity_type_id_entitytype_key UNIQUE (EventStream)
         );
@@ -30,6 +31,7 @@ public static class EventSourceSchemaSql
             EventStreamId bigint NOT NULL,
             EventNameId integer NOT NULL,
             EventVersion bigint DEFAULT nextval('public.event_log_eventversion_seq'::regclass) NOT NULL,
+            StreamVersion bigint NOT NULL,
             EventData text NOT NULL,
             CommandId uuid NOT NULL,
             EventTimestamp text NOT NULL,
@@ -152,6 +154,82 @@ public static class EventSourceSchemaSql
     CREATE INDEX IF NOT EXISTS ix_event_projector_outbox_dispatch_lease_v2
         ON event_projector_outbox (Status, DispatchLeaseExpiresAtUtc)
         WHERE Status = 'Publishing';
+    """;
+
+    public const string CreateEventStreamVersionAndProjectorCheckpointV3 = """
+    ALTER TABLE event_log
+        ADD COLUMN IF NOT EXISTS StreamVersion bigint;
+
+    WITH ranked AS (
+        SELECT EventVersion,
+               ROW_NUMBER() OVER (PARTITION BY EventStreamId ORDER BY EventVersion) AS CalculatedStreamVersion
+        FROM event_log
+        WHERE StreamVersion IS NULL
+    )
+    UPDATE event_log target
+    SET StreamVersion = ranked.CalculatedStreamVersion
+    FROM ranked
+    WHERE target.EventVersion = ranked.EventVersion;
+
+    ALTER TABLE event_log
+        ALTER COLUMN StreamVersion SET NOT NULL;
+
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_stream_version_v3
+        ON event_log (EventStreamId, StreamVersion);
+
+    ALTER TABLE event_stream_id
+        ADD COLUMN IF NOT EXISTS CurrentVersion bigint NOT NULL DEFAULT 0;
+
+    UPDATE event_stream_id stream
+    SET CurrentVersion = versions.MaxStreamVersion
+    FROM (
+        SELECT EventStreamId, COALESCE(MAX(StreamVersion), 0) AS MaxStreamVersion
+        FROM event_log
+        GROUP BY EventStreamId
+    ) versions
+    WHERE stream.EventStreamId = versions.EventStreamId
+      AND stream.CurrentVersion < versions.MaxStreamVersion;
+
+    ALTER TABLE event_projector_state
+        ADD COLUMN IF NOT EXISTS StreamVersion bigint;
+
+    UPDATE event_projector_state eps
+    SET StreamVersion = el.StreamVersion
+    FROM event_log el
+    WHERE eps.EventId = el.EventVersion
+      AND eps.StreamVersion IS NULL;
+
+    ALTER TABLE event_projector_state
+        ALTER COLUMN StreamVersion SET NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS event_projector_stream_checkpoint (
+        ProjectorName varchar(255) NOT NULL,
+        EventStreamId bigint NOT NULL,
+        LastAppliedStreamVersion bigint NOT NULL,
+        LastAppliedEventId bigint NOT NULL,
+        Revision bigint NOT NULL DEFAULT 0,
+        UpdatedAtUtc timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT pk_event_projector_stream_checkpoint
+            PRIMARY KEY (ProjectorName, EventStreamId),
+        CONSTRAINT fk_event_projector_stream_checkpoint_stream
+            FOREIGN KEY (EventStreamId) REFERENCES event_stream_id(EventStreamId) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS ix_event_projector_checkpoint_event_v3
+        ON event_projector_stream_checkpoint (ProjectorName, LastAppliedEventId);
+
+    CREATE INDEX IF NOT EXISTS ix_event_projector_state_stream_version_v3
+        ON event_projector_state (ProjectorName, EventStreamId, StreamVersion);
+    """;
+
+    public const string DropEventStreamVersionAndProjectorCheckpointV3 = """
+    DROP INDEX IF EXISTS ix_event_projector_state_stream_version_v3;
+    DROP INDEX IF EXISTS ix_event_projector_checkpoint_event_v3;
+    DROP TABLE IF EXISTS event_projector_stream_checkpoint;
+    DROP INDEX IF EXISTS ux_event_log_stream_version_v3;
+    ALTER TABLE IF EXISTS event_projector_state DROP COLUMN IF EXISTS StreamVersion;
+    ALTER TABLE IF EXISTS event_log DROP COLUMN IF EXISTS StreamVersion;
+    ALTER TABLE IF EXISTS event_stream_id DROP COLUMN IF EXISTS CurrentVersion;
     """;
 
     public const string CreateCommandLog = """

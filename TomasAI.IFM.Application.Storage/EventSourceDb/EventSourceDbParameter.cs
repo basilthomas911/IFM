@@ -125,6 +125,10 @@ internal readonly record struct GetEventProjectorState(long eventId, string proj
 {
     public object Bind() => Values(Bigint(eventId), Text(projectorName));
 }
+internal readonly record struct GetEventProjectorStreamCheckpoint(string projectorName, long eventStreamId) : IBindValue
+{
+    public object Bind() => Values(Text(projectorName), Bigint(eventStreamId));
+}
 internal readonly record struct GetUncompletedEventProjectorEvents(string projectorName, string eventNames) : IBindValue
 {
     public object Bind() => Values(Text(projectorName), Text(eventNames));

@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Command.State;
@@ -20,20 +21,24 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Command.Actor;
 
 public sealed class TickAggregationCommandActor(
     IEventSourceActorDbContext eventSource,
+    IEventProjector<TickAggregationCommandActor> eventProjector,
     ILogger<TickAggregationCommandActor> logger)
     : BaseEventSourceCommandActor<TickAggregationCommandActor>(
         logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "TickAggregationCommand";
     private readonly TickAggregationCommandAuditTracker _audit = new(eventSource);
+    private readonly IEventProjector<TickAggregationCommandActor> _eventProjector = eventProjector;
     private readonly ConcurrentDictionary<Guid, byte> _completedRetries = [];
     private IEventSourceActorStateRepository<TickAggregationCommandState> _repository = default!;
 
-    protected override ValueTask OnStartup(ICommandActorContext context)
+    protected override async ValueTask OnStartup(ICommandActorContext context)
     {
         _repository = context.Container.Resolve<IEventSourceActorStateRepository<TickAggregationCommandState>>();
-        return ValueTask.CompletedTask;
+        await _eventProjector.StartAsync(context).ConfigureAwait(false);
     }
+    protected override async ValueTask OnShutdown(ICommandActorContext context)
+        => await _eventProjector.StopAsync().ConfigureAwait(false);
 
     protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
     {

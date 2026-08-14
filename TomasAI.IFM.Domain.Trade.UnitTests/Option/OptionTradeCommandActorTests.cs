@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Actor;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Option;
 
@@ -29,7 +30,7 @@ public class OptionTradeCommandActorTests : IClassFixture<TradeFixture>
         IEventSourceActorDbContext dbEventSource,
         IDbContextFactory dbFactory,
         ILogger<OptionTradeCommandActor> logger)
-        : OptionTradeCommandActor(dbEventSource, dbFactory, logger)
+        : OptionTradeCommandActor(dbEventSource, dbFactory, Substitute.For<IEventProjector<OptionTradeCommandActor>>(), logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

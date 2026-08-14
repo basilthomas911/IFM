@@ -17,6 +17,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesClosingPrice;
 
@@ -30,7 +31,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
     }
 
     public class TestableFuturesClosingPriceCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesClosingPriceCommandActor> logger)
-        : FuturesClosingPriceCommandActor(dbEventSource, logger)
+        : FuturesClosingPriceCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesClosingPriceCommandActor>>(), logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

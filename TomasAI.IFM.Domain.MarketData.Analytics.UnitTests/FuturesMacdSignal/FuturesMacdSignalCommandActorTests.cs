@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Actor;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesMacdSignal;
 
@@ -28,12 +29,12 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
     public class TestableFuturesMacdSignalCommandActor : FuturesMacdSignalCommandActor
     {
         public TestableFuturesMacdSignalCommandActor(IEventSourceActorDbContext dbEventSource, IDbContextFactory dbFactory, ILogger<FuturesMacdSignalCommandActor> logger)
-            : base(dbEventSource, dbFactory, logger)
+            : base(dbEventSource, dbFactory, Substitute.For<IEventProjector<FuturesMacdSignalCommandActor>>(), logger)
         {
         }
 
         public TestableFuturesMacdSignalCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesMacdSignalCommandActor> logger)
-            : base(dbEventSource, null, logger)
+            : base(dbEventSource, null, Substitute.For<IEventProjector<FuturesMacdSignalCommandActor>>(), logger)
         {
         }
 

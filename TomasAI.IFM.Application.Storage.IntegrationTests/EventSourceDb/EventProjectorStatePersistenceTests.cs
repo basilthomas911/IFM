@@ -75,6 +75,8 @@ public sealed class EventProjectorStatePersistenceTests
         reader.GetString(18).Returns("waiting");
         reader.GetEnum<EventProjectorStageType>(19).Returns(EventProjectorStageType.PublishProcessingEvent);
         reader.GetDateTime(20).Returns(created.AddMinutes(1));
+        reader.GetEnum<EventProjectorStageType>(21).Returns(EventProjectorStageType.None);
+        reader.GetLong(22).Returns(9L);
 
         var state = EventSourceActorDbContext.MapToEventProjectorExecutionState(reader);
 
@@ -89,6 +91,7 @@ public sealed class EventProjectorStatePersistenceTests
         state.LastErrorAtUtc.Should().BeNull();
         state.BlockedReason.Should().Be("waiting");
         state.LastCompletedStage.Should().Be(EventProjectorStageType.PublishProcessingEvent);
+        state.StreamVersion.Should().Be(9L);
     }
 
     [Fact]
@@ -122,13 +125,25 @@ public sealed class EventProjectorStatePersistenceTests
             .And.Contain("ix_event_projector_outbox_pending")
             .And.Contain("DispatchLeaseExpiresAtUtc")
             .And.Contain("ix_event_projector_outbox_dispatch_lease_v2");
+        EventSourceSchemaSql.CreateEventStreamVersionAndProjectorCheckpointV3.Should()
+            .Contain("ROW_NUMBER() OVER (PARTITION BY EventStreamId ORDER BY EventVersion)")
+            .And.Contain("ux_event_log_stream_version_v3")
+            .And.Contain("PRIMARY KEY (ProjectorName, EventStreamId)")
+            .And.Contain("LastAppliedStreamVersion")
+            .And.Contain("StreamVersion bigint");
+        EventSourceDbSql.InsertEventLog.Should()
+            .Contain("SET CurrentVersion = CurrentVersion + 1")
+            .And.Contain("RETURNING CurrentVersion AS StreamVersion")
+            .And.Contain("next_stream_version.StreamVersion");
         EventSourceDbSql.TryClaimEventProjectorExecution.Should()
             .Contain("Revision = Revision + 1")
             .And.Contain("LeaseExpiresAtUtc <= $5");
         EventSourceDbSql.TryTransitionEventProjectorExecution.Should()
             .Contain("ExecutionToken = $3")
             .And.Contain("Revision = $4")
-            .And.Contain("Stage = $5");
+            .And.Contain("Stage = $5")
+            .And.Contain("event_projector_stream_checkpoint")
+            .And.Contain("LastAppliedStreamVersion < EXCLUDED.LastAppliedStreamVersion");
         EventSourceDbSql.TryReleaseEventProjectorExecution.Should()
             .Contain("ExecutionToken = NULL")
             .And.Contain("LeaseExpiresAtUtc = NULL")

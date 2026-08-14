@@ -396,6 +396,94 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
     }
 
     [Fact]
+    public async Task Applied_checkpoint_does_not_skip_pending_terminal_publication_or_release_stream_order()
+    {
+        var stream = NewStream();
+        var saved = (await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent(), RangeEvent()])))
+            .OrderBy(item => item.EventId)
+            .ToArray();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"PostApplyOrderingProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+        foreach (var sourceEvent in saved)
+        {
+            (await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+                NewExecutionState(sourceEvent.EventId, streamId, projectorName, nowUtc))).Should().NotBeNull();
+        }
+
+        var firstToken = Guid.NewGuid();
+        var first = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            saved[0].EventId, projectorName, firstToken, nowUtc, TimeSpan.FromMinutes(2));
+        first = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                first!.EventId,
+                projectorName,
+                firstToken,
+                first.Revision,
+                EventProjectorStageType.ValidateSourceEvent,
+                EventProjectorStageType.ApplyProjection,
+                EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.ValidateSourceEvent),
+            nowUtc.AddSeconds(1));
+        first = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                first!.EventId,
+                projectorName,
+                firstToken,
+                first.Revision,
+                EventProjectorStageType.ApplyProjection,
+                EventProjectorStageType.PublishCompletedEvent,
+                EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.ApplyProjection),
+            nowUtc.AddSeconds(2));
+        first.Should().NotBeNull();
+        (await fixture.ActorEventDb.GetEventProjectorStreamCheckpointAsync(projectorName, streamId))!
+            .LastAppliedStreamVersion.Should().Be(1);
+
+        (await fixture.ActorEventDb.HasEarlierUnresolvedEventProjectorExecutionAsync(
+            saved[1].EventId, projectorName)).Should().BeTrue();
+        (await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            saved[1].EventId,
+            projectorName,
+            Guid.NewGuid(),
+            nowUtc.AddSeconds(3),
+            TimeSpan.FromMinutes(2))).Should().BeNull();
+
+        var resumedToken = Guid.NewGuid();
+        first = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            saved[0].EventId,
+            projectorName,
+            resumedToken,
+            nowUtc.AddMinutes(3),
+            TimeSpan.FromMinutes(2));
+        first.Should().NotBeNull();
+        first!.Stage.Should().Be(EventProjectorStageType.PublishCompletedEvent);
+        first.Outcome.Should().Be(EventProjectorOutcomeType.Processing);
+
+        first = await fixture.ActorEventDb.TryTerminalizeEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                first!.EventId,
+                projectorName,
+                resumedToken,
+                first.Revision,
+                EventProjectorStageType.PublishCompletedEvent,
+                EventProjectorStageType.Completed,
+                EventProjectorOutcomeType.Completed,
+                EventProjectorStageType.PublishCompletedEvent),
+            nowUtc.AddMinutes(3).AddSeconds(1));
+        first.Should().NotBeNull();
+        (await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            saved[1].EventId,
+            projectorName,
+            Guid.NewGuid(),
+            nowUtc.AddMinutes(3).AddSeconds(2),
+            TimeSpan.FromMinutes(2))).Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task Projector_release_makes_a_failed_stage_immediately_claimable_by_a_new_owner()
     {
         var stream = NewStream();
@@ -521,6 +609,68 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             nowUtc.AddSeconds(5),
             TimeSpan.FromMinutes(1),
             8)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Publish_after_apply_transition_advances_checkpoint_with_the_atomic_outbox_write()
+    {
+        var stream = NewStream();
+        var persisted = (await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent()]))).Single();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"AfterApplyProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+        var state = await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+            NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc));
+        var token = Guid.NewGuid();
+        state = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            persisted.EventId, projectorName, token, nowUtc, TimeSpan.FromMinutes(2));
+        state = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                persisted.EventId,
+                projectorName,
+                token,
+                state!.Revision,
+                EventProjectorStageType.ValidateSourceEvent,
+                EventProjectorStageType.ApplyProjection,
+                EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.ValidateSourceEvent),
+            nowUtc.AddSeconds(1));
+        var identity = new EventProjectorEffectIdentity(
+            projectorName,
+            persisted.EventId,
+            EventProjectorEffectKind.ProcessingPublication);
+
+        var afterApply = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionWithOutboxAsync(
+            new EventProjectorStateTransition(
+                persisted.EventId,
+                projectorName,
+                token,
+                state!.Revision,
+                EventProjectorStageType.ApplyProjection,
+                EventProjectorStageType.PublishCompletedEvent,
+                EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.PublishProcessingEvent),
+            new EventProjectorOutboxMessage(
+                identity,
+                typeof(FuturesRsiSignalGeneratedEvent).AssemblyQualifiedName!,
+                [4, 5, 6]),
+            nowUtc.AddSeconds(2));
+
+        afterApply.Should().NotBeNull();
+        var checkpoint = await fixture.ActorEventDb.GetEventProjectorStreamCheckpointAsync(
+            projectorName, streamId);
+        checkpoint.Should().NotBeNull();
+        checkpoint!.LastAppliedStreamVersion.Should().Be(1);
+        checkpoint.LastAppliedEventId.Should().Be(persisted.EventId);
+        (await fixture.ActorEventDb.ClaimEventProjectorOutboxAsync(
+            projectorName,
+            Guid.NewGuid(),
+            nowUtc.AddSeconds(3),
+            TimeSpan.FromMinutes(1),
+            1)).Should().ContainSingle(message => message.MessageId == identity.MessageId);
     }
 
     [Fact]
@@ -652,6 +802,202 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         firstPage.Concat(secondPage).Should().OnlyContain(item =>
             item.EventLog.EventStreamId == item.State.EventStreamId
             && item.EventLog.EventName == item.State.SourceEventName);
+    }
+
+    [Fact]
+    public async Task Concurrent_appends_assign_unique_contiguous_versions_within_each_stream()
+    {
+        var stream = NewStream();
+        const int appendCount = 16;
+
+        await Task.WhenAll(Enumerable.Range(0, appendCount).Select(_ =>
+            fixture.ActorEventDb.SaveEventsAsync(
+                stream,
+                Guid.NewGuid(),
+                new DomainEventCollection([RangeEvent()]))));
+
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var persisted = await fixture.ActorEventDb.LoadActorEventStreamAsync<TestActorState>(streamId);
+
+        persisted.Should().HaveCount(appendCount);
+        persisted.Select(item => item.StreamVersion)
+            .Should().BeEquivalentTo(Enumerable.Range(1, appendCount).Select(value => (long)value));
+        persisted.Select(item => item.StreamVersion).Should().OnlyHaveUniqueItems();
+        persisted.OrderBy(item => item.EventVersion).Select(item => item.StreamVersion)
+            .Should().BeInAscendingOrder();
+    }
+
+    [Fact]
+    public async Task Stream_versions_are_independent_while_global_event_ids_remain_unique()
+    {
+        var firstStream = NewStream();
+        var secondStream = NewStream();
+        await SaveAsync(firstStream, RangeEvent(), RangeEvent());
+        await SaveAsync(secondStream, RangeEvent(), RangeEvent());
+
+        var first = await fixture.ActorEventDb.LoadActorEventStreamAsync<TestActorState>(
+            await fixture.ActorEventDb.GetEventStreamIdAsync(firstStream));
+        var second = await fixture.ActorEventDb.LoadActorEventStreamAsync<TestActorState>(
+            await fixture.ActorEventDb.GetEventStreamIdAsync(secondStream));
+
+        first.Select(item => item.StreamVersion).Should().Equal(1L, 2L);
+        second.Select(item => item.StreamVersion).Should().Equal(1L, 2L);
+        first.Concat(second).Select(item => item.EventVersion).Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public async Task Applied_checkpoint_suppresses_an_older_projection_state_created_afterward()
+    {
+        var stream = NewStream();
+        var saved = (await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent(), RangeEvent()])))
+            .OrderBy(item => item.EventId)
+            .ToArray();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"CheckpointProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+
+        var newer = await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+            NewExecutionState(saved[1].EventId, streamId, projectorName, nowUtc));
+        newer.Should().NotBeNull();
+        newer!.StreamVersion.Should().Be(2);
+        (await fixture.ActorEventDb.GetEventProjectorStreamCheckpointAsync(projectorName, streamId))
+            .Should().BeNull();
+
+        var token = Guid.NewGuid();
+        newer = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            newer.EventId, projectorName, token, nowUtc, TimeSpan.FromMinutes(2));
+        newer = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                newer!.EventId, projectorName, token, newer.Revision, newer.Stage,
+                EventProjectorStageType.ApplyProjection, EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.ValidateSourceEvent),
+            nowUtc.AddSeconds(1));
+        newer = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                newer!.EventId, projectorName, token, newer.Revision, newer.Stage,
+                EventProjectorStageType.PublishCompletedEvent, EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.ApplyProjection),
+            nowUtc.AddSeconds(2));
+
+        var checkpoint = await fixture.ActorEventDb.GetEventProjectorStreamCheckpointAsync(
+            projectorName, streamId);
+        checkpoint.Should().NotBeNull();
+        checkpoint!.LastAppliedStreamVersion.Should().Be(2);
+        checkpoint.LastAppliedEventId.Should().Be(saved[1].EventId);
+
+        var stale = await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+            NewExecutionState(saved[0].EventId, streamId, projectorName, nowUtc.AddSeconds(3)));
+        stale.Should().NotBeNull();
+        stale!.StreamVersion.Should().Be(1);
+        stale.Stage.Should().Be(EventProjectorStageType.Completed);
+        stale.Outcome.Should().Be(EventProjectorOutcomeType.Superseded);
+        stale.ExecutionToken.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Source_only_projection_terminalization_advances_the_stream_checkpoint_atomically()
+    {
+        var stream = NewStream();
+        var persisted = (await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent()]))).Single();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"SourceOnlyProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+        var state = await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+            NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc));
+        var token = Guid.NewGuid();
+        state = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            persisted.EventId, projectorName, token, nowUtc, TimeSpan.FromMinutes(2));
+        state = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                persisted.EventId,
+                projectorName,
+                token,
+                state!.Revision,
+                EventProjectorStageType.ValidateSourceEvent,
+                EventProjectorStageType.ApplyProjection,
+                EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.ValidateSourceEvent),
+            nowUtc.AddSeconds(1));
+
+        var completed = await fixture.ActorEventDb.TryTerminalizeEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                persisted.EventId,
+                projectorName,
+                token,
+                state!.Revision,
+                EventProjectorStageType.ApplyProjection,
+                EventProjectorStageType.Completed,
+                EventProjectorOutcomeType.Completed,
+                EventProjectorStageType.ApplyProjection),
+            nowUtc.AddSeconds(2));
+
+        completed.Should().NotBeNull();
+        completed!.Outcome.Should().Be(EventProjectorOutcomeType.Completed);
+        var checkpoint = await fixture.ActorEventDb.GetEventProjectorStreamCheckpointAsync(
+            projectorName, streamId);
+        checkpoint.Should().NotBeNull();
+        checkpoint!.LastAppliedStreamVersion.Should().Be(1);
+        checkpoint.LastAppliedEventId.Should().Be(persisted.EventId);
+    }
+
+    [Fact]
+    public async Task Claim_reconciles_a_preexisting_retried_state_when_a_newer_stream_version_is_checkpointed()
+    {
+        var stream = NewStream();
+        var saved = (await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent(), RangeEvent()])))
+            .OrderBy(item => item.EventId)
+            .ToArray();
+        var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
+        var projectorName = $"CheckpointRetryProjector.{Guid.NewGuid():N}";
+        var nowUtc = DateTime.UtcNow;
+
+        var older = await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+            NewExecutionState(saved[0].EventId, streamId, projectorName, nowUtc));
+        older.Should().NotBeNull();
+        (await fixture.ActorEventDb.TrySkipEventProjectorExecutionAsync(
+            older!.EventId, projectorName, "operator deferred older projection", nowUtc.AddSeconds(1)))
+            .Should().NotBeNull();
+
+        var newer = await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
+            NewExecutionState(saved[1].EventId, streamId, projectorName, nowUtc.AddSeconds(2)));
+        var token = Guid.NewGuid();
+        newer = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            newer!.EventId, projectorName, token, nowUtc.AddSeconds(2), TimeSpan.FromMinutes(2));
+        newer = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                newer!.EventId, projectorName, token, newer.Revision, newer.Stage,
+                EventProjectorStageType.ApplyProjection, EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.ValidateSourceEvent),
+            nowUtc.AddSeconds(3));
+        newer = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
+            new EventProjectorStateTransition(
+                newer!.EventId, projectorName, token, newer.Revision, newer.Stage,
+                EventProjectorStageType.PublishCompletedEvent, EventProjectorOutcomeType.Processing,
+                EventProjectorStageType.ApplyProjection),
+            nowUtc.AddSeconds(4));
+        newer.Should().NotBeNull();
+
+        var retriedOlder = await fixture.ActorEventDb.TryRetryEventProjectorExecutionAsync(
+            older.EventId, projectorName, nowUtc.AddSeconds(5));
+        retriedOlder.Should().NotBeNull();
+        retriedOlder!.Outcome.Should().Be(EventProjectorOutcomeType.Retrying);
+
+        var reconciled = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
+            older.EventId, projectorName, Guid.NewGuid(), nowUtc.AddSeconds(6), TimeSpan.FromMinutes(2));
+        reconciled.Should().NotBeNull();
+        reconciled!.Stage.Should().Be(EventProjectorStageType.Completed);
+        reconciled.Outcome.Should().Be(EventProjectorOutcomeType.Superseded);
+        reconciled.BlockedReason.Should().Be("stream-checkpoint-covered");
+        reconciled.ExecutionToken.Should().BeNull();
     }
 
     async Task<List<EventStreamReadModel>> LoadAsync(string stream, int lastNRange)

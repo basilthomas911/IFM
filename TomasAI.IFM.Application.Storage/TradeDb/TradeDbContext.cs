@@ -2026,7 +2026,9 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task InsertOptionTradeSpreadDataAsync(OptionTradeSpreadsDataModel e)
     { 
-        var sequenceId =await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId);
+        var sequenceId = e.SequenceId > 0
+            ? e.SequenceId
+            : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId);
         await _dbFactory.TradeDb
                 .Use(TradeDbCql.InsertOptionTradeSpreadData)
                 .SetParameters(new InsertOptionTradeSpreadData(

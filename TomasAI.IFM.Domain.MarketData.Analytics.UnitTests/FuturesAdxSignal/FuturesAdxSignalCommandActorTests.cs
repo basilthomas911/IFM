@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesAdxSignal;
 
@@ -25,7 +26,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
 
     public class TestableFuturesAdxSignalCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesAdxSignalCommandActor> logger)
-        : FuturesAdxSignalCommandActor(dbEventSource, logger)
+        : FuturesAdxSignalCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesAdxSignalCommandActor>>(), logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

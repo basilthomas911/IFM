@@ -9,6 +9,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
 
@@ -30,6 +32,7 @@ public class FuturesClosingPriceStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
     IDbContextFactory dbFactory,
+    IEventProjector<FuturesClosingPriceCommandActor> eventProjector,
     ILogger<FuturesClosingPriceStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesClosingPriceCommandState>
 {
@@ -64,24 +67,5 @@ public class FuturesClosingPriceStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.MarketDataDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                FuturesClosingPriceInsertedEvent e => await UpdateReadModelAsync<FuturesClosingPriceInsertedEvent, FuturesClosingPriceInsertedCompleteEvent, FuturesClosingPriceInsertedFailEvent, FuturesDataId>(
-                    context, e, async () => await InsertFuturesClosingPriceAsync(db, e)),
-                _ => false
-            };
-        }
-
-        static async ValueTask InsertFuturesClosingPriceAsync(IMarketDataDbContext db, FuturesClosingPriceInsertedEvent e)
-            => await db.InsertFuturesClosingPriceAsync(new FuturesClosingPriceReadModel(
-                        contractId: e.FuturesClosingPriceId.ContractId,
-                        valueDate: e.FuturesClosingPriceId.ValueDate,
-                        closingPrice: e.ClosingPrice,
-                        createdOn: e.CreatedOn,
-                        createdBy: e.CreatedBy));
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

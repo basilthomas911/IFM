@@ -25,4 +25,5 @@ public sealed record EventProjectorExecutionStateReadModel(
     string BlockedReason,
     EventProjectorStageType LastCompletedStage,
     DateTime UpdatedAtUtc,
-    EventProjectorStageType BlockedStage = EventProjectorStageType.None);
+    EventProjectorStageType BlockedStage = EventProjectorStageType.None,
+    long StreamVersion = 0);

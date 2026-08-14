@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using ActorCommandExceptionEvent = TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent;
 
@@ -36,7 +37,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public sealed class TestableFuturesTdiSignalCommandActor(
         IEventSourceActorDbContext dbEventSource,
         ILogger<FuturesTdiSignalCommandActor> logger)
-        : FuturesTdiSignalCommandActor(dbEventSource, logger)
+        : FuturesTdiSignalCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesTdiSignalCommandActor>>(), logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

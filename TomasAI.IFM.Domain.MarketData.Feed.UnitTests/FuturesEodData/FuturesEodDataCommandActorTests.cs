@@ -16,6 +16,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Actor;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesEodData;
 
@@ -29,7 +30,7 @@ public class FuturesEodDataCommandActorTests : IClassFixture<MarketDataFeedTestF
     }
 
     public class TestableFuturesEodDataCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesEodDataCommandActor> logger)
-        : FuturesEodDataCommandActor(dbEventSource, logger)
+        : FuturesEodDataCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesEodDataCommandActor>>(), logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

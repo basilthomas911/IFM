@@ -251,8 +251,12 @@ public class OptionPricerDbContext(
     /// <returns></returns>
     public async Task InsertSpreadDistributionsAsync(SpreadDistributionReadModel ePut, SpreadDistributionReadModel eCall)
     {
-        var putId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
-        var callId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
+        var putId = ePut.Id != 0
+            ? ePut.Id
+            : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
+        var callId = eCall.Id != 0
+            ? eCall.Id
+            : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
         var queuedCommands = new List<object>();
         var db = _dbFactory.OptionPricerDb;
             queuedCommands.Add(db.Use(OptionPricerDbCql.InsertSpreadDistribution)

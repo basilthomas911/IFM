@@ -9,6 +9,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
@@ -31,6 +33,7 @@ public class FuturesEodDataStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
     IDbContextFactory dbFactory,
+    IEventProjector<FuturesEodDataCommandActor> eventProjector,
     ILogger<FuturesEodDataStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesEodDataCommandState>
 {
@@ -62,24 +65,5 @@ public class FuturesEodDataStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.MarketDataDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                FuturesEodDataInsertedEvent e => await UpdateReadModelAsync<FuturesEodDataInsertedEvent, FuturesEodDataInsertedCompleteEvent, FuturesEodDataInsertedFailEvent, FuturesEodDataId>(
-                    context, e, async () => await InsertFuturesEodDataAsync(db, e.FuturesEodData)),
-                VixFuturesEodDataInsertedEvent e => await UpdateReadModelAsync<VixFuturesEodDataInsertedEvent, VixFuturesEodDataInsertedCompleteEvent, VixFuturesEodDataInsertedFailEvent, FuturesEodDataId>(
-                    context, e, async () => await InsertVixFuturesEodDataAsync(db, e.VixFuturesTickData)),
-                _ => false
-            };
-        }
-
-        static async ValueTask InsertFuturesEodDataAsync(IMarketDataDbContext db, FuturesEodDataV2ReadModel futuresEodData)
-            => await db.InsertFuturesEodDataAsync(futuresEodData);
-
-        static async ValueTask InsertVixFuturesEodDataAsync(IMarketDataDbContext db, FuturesTickDataV2ReadModel futuresTickData)
-            => await db.InsertVixFuturesEodDataAsync(futuresTickData);
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

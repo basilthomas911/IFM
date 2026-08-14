@@ -61,6 +61,10 @@ internal static class NatsMessagingMetrics
         "ifm.nats.messages.redelivered",
         description: "JetStream deliveries whose server delivery count is greater than one.");
 
+    public static readonly Counter<long> MalformedJetStreamSubjectsTerminated = Meter.CreateCounter<long>(
+        "ifm.nats.messages.malformed_subject_terminated",
+        description: "JetStream messages terminally acknowledged because their actor subject contract is malformed.");
+
     public static readonly UpDownCounter<long> JetStreamListenerPending = Meter.CreateUpDownCounter<long>(
         "ifm.nats.listener.pending",
         description: "JetStream event-listener deliveries admitted to bounded dispatch and awaiting settlement.");

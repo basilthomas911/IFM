@@ -7,6 +7,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 
@@ -27,6 +29,7 @@ public class MarketDataFeedStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IMarketDataDbContext db,
     IActorService actorService,
+    IEventProjector<MarketDataFeedCommandActor> eventProjector,
     ILogger<MarketDataFeedStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<MarketDataFeedCommandState>
 {
@@ -67,24 +70,5 @@ public class MarketDataFeedStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                MarketDataFeedStartedEvent e => await PostEventAsync<MarketDataFeedStartedEvent, MarketDataFeedId>(context, e),
-                MarketDataFeedStoppedEvent e => await PostEventAsync<MarketDataFeedStoppedEvent, MarketDataFeedId>(context, e),
-                MarketDataFeedResetEvent e => await PostEventAsync<MarketDataFeedResetEvent, MarketDataFeedId>(context, e),
-                TradeLiveFeedAddedEvent e => await PostEventAsync<TradeLiveFeedAddedEvent, TradeLiveFeedId>(context, e),
-                TradeLiveFeedRemovedEvent e => await PostEventAsync<TradeLiveFeedRemovedEvent, TradeLiveFeedId>(context, e),
-                TradeLiveFeedHaltedEvent e => await PostEventAsync<TradeLiveFeedHaltedEvent, MarketDataFeedId>(context, e),
-                TradeLiveFeedTurnedOnEvent e => await UpdateReadModelAsync<TradeLiveFeedTurnedOnEvent, TradeLiveFeedTurnedOnCompleteEvent, TradeLiveFeedAddedFailEvent, TradeLiveFeedId>(
-                    context, e, async () => await db.InsertTradeLiveFeedAsync(new (e.OrderId, e.TradeId, TradeLiveFeedStateType.On))),
-                TradeLiveFeedTurnedOffEvent e => await UpdateReadModelAsync<TradeLiveFeedTurnedOffEvent, TradeLiveFeedTurnedOffCompleteEvent, TradeLiveFeedTurnedOffFailEvent, TradeLiveFeedId>(
-                    context, e, async () => await db.DeleteTradeLiveFeedAsync(e.OrderId, e.TradeId)),
-                StreamingRequestIdDeletedEvent e => await PostEventAsync<StreamingRequestIdDeletedEvent, FeedId>(context, e),
-                _ => false
-            };
-        }
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

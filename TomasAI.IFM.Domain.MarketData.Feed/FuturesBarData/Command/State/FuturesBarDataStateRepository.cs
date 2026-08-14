@@ -7,6 +7,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
 
@@ -15,6 +17,7 @@ public class FuturesBarDataStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
     IDbContextFactory dbFactory,
+    IEventProjector<FuturesBarDataCommandActor> eventProjector,
     ILogger<FuturesBarDataStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesBarDataCommandState>
 {
@@ -50,34 +53,5 @@ public class FuturesBarDataStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.MarketDataDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                FuturesBarDataStreamingStartedEvent e => await UpdateReadModelAsync<
-                    FuturesBarDataStreamingStartedEvent,
-                    FuturesBarDataStreamingStartedCompleteEvent,
-                    FuturesBarDataStreamingStartedFailEvent,
-                    FuturesBarDataStreamingId>(context, e, static () => ValueTask.CompletedTask),
-                FuturesBarDataStreamingStoppedEvent e => await UpdateReadModelAsync<
-                    FuturesBarDataStreamingStoppedEvent,
-                    FuturesBarDataStreamingStoppedCompleteEvent,
-                    FuturesBarDataStreamingStoppedFailEvent,
-                    FuturesBarDataStreamingId>(context, e, static () => ValueTask.CompletedTask),
-                FuturesBarDataInsertedEvent e => await UpdateReadModelAsync<FuturesBarDataInsertedEvent, FuturesBarDataInsertedCompleteEvent, FuturesBarDataInsertedFailEvent, FuturesBarDataId>(
-                    context, e, async () => await InsertFuturesBarDataAsync(db, e.FuturesBarData)),
-                FuturesBarDataDeletedEvent e => await UpdateReadModelAsync<FuturesBarDataDeletedEvent, FuturesBarDataDeletedCompleteEvent, FuturesBarDataDeletedFailEvent, FuturesBarDataId>(
-                    context, e, async () => await DeleteFuturesBarDataAsync(db, e.BarDataId)),
-                _ => false
-            };
-        }
-
-        static async ValueTask InsertFuturesBarDataAsync(IMarketDataDbContext db, FuturesBarDataReadModel futuresBarData)
-            => await db.InsertFuturesBarDataAsync(futuresBarData);
-
-        static async ValueTask DeleteFuturesBarDataAsync(IMarketDataDbContext db, FuturesBarDataId futuresBarDataId)
-            => await db.DeleteFuturesBarDataAsync(futuresBarDataId);
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

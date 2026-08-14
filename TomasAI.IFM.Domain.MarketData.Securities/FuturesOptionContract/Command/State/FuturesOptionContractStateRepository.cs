@@ -8,6 +8,8 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.State;
 
@@ -27,6 +29,7 @@ public class FuturesOptionContractStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IDbContextFactory dbFactory,
     IActorService actorService,
+    IEventProjector<FuturesOptionContractCommandActor> eventProjector,
     ILogger<FuturesOptionContractStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesOptionContractCommandState>
 {
@@ -67,23 +70,6 @@ public class FuturesOptionContractStateRepository(
     /// <param name="context">The command actor context that provides access to the actor's container and state required for denormalization.</param>
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
-    protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var actorService = IsArgumentNull.Set(context.Container.Resolve<IActorService>());
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                FuturesOptionContractAddedEvent e => await UpdateReadModelAsync<FuturesOptionContractAddedEvent, FuturesOptionContractAddedCompleteEvent, FuturesOptionContractAddedFailEvent, FuturesOptionContractEntityId>(
-                    context, e, () => dbFactory.InsertFuturesOptionContractAsync(e.Contract, actorService)),
-                FuturesOptionContractsAddedEvent e => await UpdateReadModelAsync<FuturesOptionContractsAddedEvent, FuturesOptionContractsAddedCompleteEvent, FuturesOptionContractsAddedFailEvent, FuturesOptionContractsEntityId>(
-                    context, e, () => dbFactory.InsertFuturesOptionContractsAsync(e.Contracts, actorService)),
-                FuturesOptionContractChangedEvent e => await UpdateReadModelAsync<FuturesOptionContractChangedEvent, FuturesOptionContractChangedCompleteEvent, FuturesOptionContractChangedFailEvent, FuturesOptionContractEntityId>(
-                    context, e, () => dbFactory.UpdateFuturesOptionContractAsync(e.OriginalContractId, e.Contract, actorService)),
-                FuturesOptionContractRemovedEvent e => await UpdateReadModelAsync<FuturesOptionContractRemovedEvent, FuturesOptionContractRemovedCompleteEvent, FuturesOptionContractRemovedFailEvent, FuturesOptionContractEntityId>(
-                    context, e, () => dbFactory.DeleteFuturesOptionContractAsync(e.ContractId)),
-                _ => false
-            };
-        }
-    }
+    protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
+        => eventProjector.DomainEventsProjectionAsync(domainEvents);
 }

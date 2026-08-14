@@ -94,6 +94,8 @@ using TomasAI.IFM.Domain.MarketData.Feed;
 using TomasAI.IFM.Domain.MarketData.Securities;
 using TomasAI.IFM.Domain.MarketData.Analytics;
 using TomasAI.IFM.Domain.OptionPricer;
+using TomasAI.IFM.Domain.SystemAdmin;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
 using TomasAI.IFM.Domain.Trade;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
@@ -110,9 +112,6 @@ public static class TestFactory
 
 public static class Startup
 {
-    static SimpleInjector.Container _siContainer = default!;
-
-
     /// <summary>
     /// Configures the specified <see cref="WebApplicationBuilder"/> with essential services, logging, and application
     /// settings.
@@ -183,6 +182,8 @@ public static class Startup
     /// <returns>The updated <see cref="IServiceCollection"/> with the registered services.</returns>
     public static IServiceCollection RegisterServices(this IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger)
     {
+        var siContainer = new SimpleInjector.Container();
+        siContainer.Options.DefaultScopedLifestyle = new AsyncScopedLifestyle();
         logger.LogInformationEvent("ApiServer", "add web app services...");
         RegisterBaseServices();
         RegisterCommandApiServices();
@@ -191,14 +192,25 @@ public static class Startup
         RegisterStorageServices();
         RegisterEventProducers();
         RegisterHostedServices();
+        RegisterGenericTypes(siContainer, config, logger);
         return services;
+
+        object? GetContainerInstance(Type serviceType)
+        {
+            try
+            {
+                return siContainer.GetInstance(serviceType);
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         void RegisterBaseServices()
         {
             // add web app services...
             logger.LogInformationEvent("ApiServer", "register base services...");
-            _siContainer = new();
-            _siContainer.Options.DefaultScopedLifestyle = new AsyncScopedLifestyle();
             // add web app services...
             logger.LogInformationEvent("ApiServer", "register base services...");
 
@@ -217,7 +229,8 @@ public static class Startup
             };
             services.AddSingleton<IDistributedCache>(new HazelcastCache(hazelcastOptions, cacheOptions));
 
-            services.AddSimpleInjector(_siContainer);
+            services.AddSingleton(siContainer);
+            services.AddSimpleInjector(siContainer);
             services.AddHttpClient();
             services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             var redisUri = config.GetValue<string>("AppSettings:RedisUri")!;
@@ -242,7 +255,7 @@ public static class Startup
             services.AddSingleton<IActorRegistry>(_ =>
             {
                 var actorTypes = (
-                    from reg in _siContainer.GetCurrentRegistrations()
+                    from reg in siContainer.GetCurrentRegistrations()
                     where reg.ServiceType.IsClosedTypeOf(typeof(IActor<>))
                     select reg.ServiceType)
                     .Distinct()
@@ -439,18 +452,69 @@ public static class Startup
     }
 
     /// <summary>
-    /// Configures the HTTP request pipeline for the specified <see cref="WebApplication"/> instance.
+    /// Registers Simple Injector components before the service provider can start hosted services.
     /// </summary>
-    /// <remarks>This method sets up middleware and services for the application, including Swagger for
-    /// development environments, HTTPS redirection for non-development environments, and authorization middleware. It
-    /// also registers open generic types and integrates Simple Injector for dependency injection.</remarks>
-    /// <param name="app">The <see cref="WebApplication"/> instance to configure.</param>
+    /// <remarks>Completing these registrations before the host is built prevents background actor/projector services
+    /// from locking the container while registrations are still being added.</remarks>
+    /// <param name="config">Application configuration containing projector reliability settings.</param>
     /// <param name="logger">The <see cref="Microsoft.Extensions.Logging.ILogger"/> used to log configuration events.</param>
-    /// <returns>The configured <see cref="WebApplication"/> instance.</returns>
+    static void RegisterGenericTypes(
+        SimpleInjector.Container siContainer,
+        ConfigurationManager config,
+        Microsoft.Extensions.Logging.ILogger logger)
+    {
+        logger.LogInformationEvent("ApiServer", "register open generic handlers...");
+        siContainer.RegisterSingleton<IDatabaseBackupExecutionOutbox, DatabaseBackupExecutionOutbox>();
+        var projectorReliabilityOptions = config
+            .GetSection(EventProjectorReliabilityOptions.SectionName)
+            .Get<EventProjectorReliabilityOptions>() ?? new EventProjectorReliabilityOptions();
+        siContainer.RegisterInstance(projectorReliabilityOptions.Validate());
+
+        var domainAssemblies = new List<Assembly>
+        {
+            ApplicationActorAssembly.Current,
+            FundActorAssembly.Current,
+            FundActorSharedAssembly.Current,
+            MarketDataActorAssembly.Current,
+            MarketDataAnalyticsActorAssembly.Current,
+            MarketDataFeedActorAssembly.Current,
+            OptionPricerActorAssembly.Current,
+            ReferenceActorAssembly.Current,
+            SecuritiesActorAssembly.Current,
+            SystemAdminActorAssembly.Current,
+            TradeActorAssembly.Current
+        };
+        var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies());
+        assemblies.AddRange(domainAssemblies);
+        var repositoryTypes = assemblies
+            .Distinct()
+            .SelectMany(static assembly => assembly.GetTypes())
+            .Where(static type => type is { IsClass: true, IsAbstract: false }
+                && type != typeof(SystemAdminDbContext)
+                && type.GetInterfaces().Any(static contract => contract.IsGenericType
+                    && contract.GetGenericTypeDefinition() == typeof(IObjectRepository<>)))
+            .Distinct()
+            .ToArray();
+        siContainer.Register(typeof(IObjectRepository<>), repositoryTypes, Lifestyle.Transient);
+        var systemAdminRegistration = Lifestyle.Singleton.CreateRegistration<SystemAdminDbContext>(siContainer);
+        siContainer.AddRegistration<ISystemAdminDbContext>(systemAdminRegistration);
+        siContainer.AddRegistration<IObjectRepository<SystemAdminDbContext>>(systemAdminRegistration);
+        siContainer.Register(typeof(IValidationRules<>), assemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IActor<>), assemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IEventSourceActorState<>), assemblies, Lifestyle.Transient);
+        logger.LogInformationEvent("ApiServer", "open generic handlers registered");
+    }
+
+    /// <summary>Configures middleware and verifies the completed dependency-injection container.</summary>
     public static WebApplication ConfigureRequestPipeline(this WebApplication app, Microsoft.Extensions.Logging.ILogger logger)
     {
+        var siContainer = app.Services.GetRequiredService<SimpleInjector.Container>();
         // configure the HTTP request pipeline...
-        RegisterGenericTypes();
+        app.Services.UseSimpleInjector(siContainer);
+        siContainer.Verify();
         logger.LogInformationEvent("ApiServer", "configure HTTP request pipeline...");
         if (app.Environment.IsDevelopment())
         {
@@ -470,86 +534,19 @@ public static class Startup
         TestFactory.ServiceProvider = app.Services;
         logger.LogInformationEvent("ApiServer", "web app configuration completed");
         return app;
-
-        void RegisterGenericTypes()
-        {
-            // register open generic handlers...
-            logger.LogInformationEvent("ApiServer", "register open generic handlers...");
-            var projectorReliabilityOptions = app.Configuration
-                .GetSection(EventProjectorReliabilityOptions.SectionName)
-                .Get<EventProjectorReliabilityOptions>() ?? new EventProjectorReliabilityOptions();
-            _siContainer.RegisterInstance(projectorReliabilityOptions.Validate());
-
-            // register all open generics...
-            var domainAssemblies = new List<Assembly>();
-            domainAssemblies.AddRange([
-                ApplicationActorAssembly.Current,
-                FundActorAssembly.Current,
-                FundActorSharedAssembly.Current,
-                MarketDataActorAssembly.Current,
-                MarketDataAnalyticsActorAssembly.Current,
-                MarketDataFeedActorAssembly.Current,
-                OptionPricerActorAssembly.Current,
-                ReferenceActorAssembly.Current,
-                SecuritiesActorAssembly.Current,
-                TradeActorAssembly.Current
-            ]);
-            var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies());
-            assemblies.AddRange(domainAssemblies);
-            _siContainer.Register(typeof(IObjectRepository<>), assemblies, Lifestyle.Transient);
-            _siContainer.Register(typeof(IValidationRules<>), assemblies, Lifestyle.Singleton);
-            _siContainer.Register(typeof(IActor<>), assemblies, Lifestyle.Singleton);
-            _siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
-            _siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
-            // Event projectors are application components. Restrict discovery to the
-            // explicitly listed domain assemblies so test-only projector subclasses in
-            // the hosting test AppDomain aren't registered for the same closed service.
-            _siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);
-            _siContainer.Register(typeof(IEventSourceActorState<>), assemblies, Lifestyle.Transient);
-
-            //_siContainer.RegisterDecorator(typeof(ICommandContext<>), typeof(ValidationCommandDecorator<>), Lifestyle.Singleton);
-            //_siContainer.RegisterDecorator(typeof(ICommandContext<>), typeof(CommandLoggerDecorator<>), Lifestyle.Singleton);
-            //_siContainer.RegisterDecorator(typeof(ICommandContext<>), typeof(ExceptionCommandDecorator<>), Lifestyle.Singleton);
-
-            // allow Simple Injector to resolve services from ASP.NET Core...
-            app.Services.UseSimpleInjector(_siContainer);
-            _siContainer.Verify();
-            logger.LogInformationEvent("ApiServer", "open generic handlers registered");
-            return;
-        }
     }
 
-    public static bool VerifContainer()
+    public static bool VerifContainer(IServiceProvider services)
     {
         try
         {
-            _siContainer.Verify();
+            services.GetRequiredService<SimpleInjector.Container>().Verify();
             return true;
         }
         catch
         {
             return false;
         }
-    }
-    /// <summary>
-    /// Retrieves an instance of the specified type from the service container.
-    /// </summary>
-    /// <remarks>If the container does not contain an instance of the specified type, or if an error occurs
-    /// during retrieval,  the method returns <see langword="null"/> instead of throwing an exception.</remarks>
-    /// <param name="commandType">The <see cref="Type"/> of the object to retrieve from the container.</param>
-    /// <returns>An instance of the specified type if it exists in the container; otherwise, <see langword="null"/>.</returns>
-    static object? GetContainerInstance(Type commandType)
-    {
-        object? commandInstance;
-        try
-        {
-            commandInstance = _siContainer.GetInstance(commandType);
-        }
-        catch
-        {
-            commandInstance = null;
-        }
-        return commandInstance;
     }
 }
 

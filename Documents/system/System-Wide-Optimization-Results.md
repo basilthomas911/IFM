@@ -3,9 +3,14 @@
 **Document type:** Living implementation and measurement record
 **Status:** Active
 **Created:** 2026-08-09
-**Last updated:** 2026-08-10
+**Last updated:** 2026-08-13
 **Baseline commit:** `32d025c8`
-**Current work package:** SWO-06 Tranches A-E implemented; production-like activation evidence pending
+**Current work package:** SWO-06 activated with stream checkpoints; current split-brain implementation defects closed
+
+> Current-state note: this is a chronological results log. Earlier tranche sections correctly record that reliability
+> switches were disabled at that point in the rollout, but they no longer describe checked-in configuration. The four
+> reliability switches are now enabled. The authoritative current controls, findings, unresolved risks, and release
+> gates are in `Documents/system/Event-Sourcing-Projection-Split-Brain-Controls.md`.
 
 ## 1. Executive result
 

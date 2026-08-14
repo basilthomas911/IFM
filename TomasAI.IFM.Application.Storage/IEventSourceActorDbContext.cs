@@ -51,6 +51,10 @@ public interface IEventSourceActorDbContext
         long eventId,
         string projectorName,
         CancellationToken cancellationToken = default);
+    Task<EventProjectorStreamCheckpointReadModel?> GetEventProjectorStreamCheckpointAsync(
+        string projectorName,
+        long eventStreamId,
+        CancellationToken cancellationToken = default);
     Task<EventProjectorExecutionStateReadModel?> TryClaimEventProjectorExecutionAsync(
         long eventId,
         string projectorName,

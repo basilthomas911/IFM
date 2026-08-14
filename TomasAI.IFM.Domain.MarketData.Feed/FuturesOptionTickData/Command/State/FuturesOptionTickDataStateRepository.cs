@@ -12,6 +12,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
@@ -33,6 +35,7 @@ public class FuturesOptionTickDataStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IDbContextFactory dbFactory,
     ISequenceIdGenerator sequenceIdGenerator,
+    IEventProjector<FuturesOptionTickDataCommandActor> eventProjector,
     IActorService actorService,
     ILogger<FuturesOptionTickDataStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesOptionTickDataCommandState>
@@ -69,21 +72,5 @@ public class FuturesOptionTickDataStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.MarketDataDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                FuturesOptionTickDataStreamingStartedEvent e => await PostEventAsync<FuturesOptionTickDataStreamingStartedEvent, FuturesOptionTickEntityId>(context, e),
-                FuturesOptionTickDataStreamingStoppedEvent e => await PostEventAsync<FuturesOptionTickDataStreamingStoppedEvent, FuturesOptionTickEntityId>(context, e),
-                FuturesOptionTickDataInsertedEvent e => await UpdateReadModelAsync<FuturesOptionTickDataInsertedEvent, FuturesOptionTickDataInsertedCompleteEvent, FuturesOptionTickDataInsertedFailEvent, FuturesOptionTickEntityId>(
-                    context, e, async () => await InsertFuturesOptionTickDataAsync(db, e.TickData)),
-                _ => false
-            };
-        }
-
-        static async ValueTask InsertFuturesOptionTickDataAsync(IMarketDataDbContext db, FuturesOptionTickDataV2ReadModel optionTickData)
-            => await db.InsertFuturesOptionTickDataAsync(optionTickData);
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.EventProjector\TomasAI.IFM.Application.EventProjector.csproj" />
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.BDDTests" />
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.UnitTests" />
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.Benchmarks" />

@@ -16,6 +16,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Validation;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
@@ -31,11 +32,13 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class FuturesClosingPriceCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IEventProjector<FuturesClosingPriceCommandActor> eventProjector,
     ILogger<FuturesClosingPriceCommandActor> logger)
     : BaseEventSourceCommandActor<FuturesClosingPriceCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "FuturesClosingPriceCommand";
     readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
+    readonly IEventProjector<FuturesClosingPriceCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FuturesClosingPriceCommandState> _repo = default!;
 
     /// <summary>
@@ -43,12 +46,14 @@ public class FuturesClosingPriceCommandActor(
     /// </summary>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override ValueTask OnStartup(ICommandActorContext context)
+    protected override async ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>());
-        return ValueTask.CompletedTask;
+        await _eventProjector.StartAsync(context).ConfigureAwait(false);
     }
+    protected override async ValueTask OnShutdown(ICommandActorContext context)
+        => await _eventProjector.StopAsync().ConfigureAwait(false);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.

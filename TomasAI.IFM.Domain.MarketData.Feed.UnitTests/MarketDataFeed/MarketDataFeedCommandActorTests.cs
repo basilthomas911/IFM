@@ -15,6 +15,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed;
 
@@ -28,7 +29,7 @@ public class MarketDataFeedCommandActorTests : IClassFixture<MarketDataFeedTestF
     }
 
     public class TestableMarketDataFeedCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<MarketDataFeedCommandActor> logger)
-        : MarketDataFeedCommandActor(dbEventSource, logger)
+        : MarketDataFeedCommandActor(dbEventSource, Substitute.For<IEventProjector<MarketDataFeedCommandActor>>(), logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

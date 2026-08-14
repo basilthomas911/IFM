@@ -8,6 +8,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.State;
 
@@ -29,6 +31,7 @@ public class FuturesItiSignalStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
     IDbContextFactory dbFactory,
+    IEventProjector<FuturesItiSignalCommandActor> eventProjector,
     ILogger<FuturesItiSignalStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesItiSignalCommandState>
 {
@@ -70,36 +73,6 @@ public class FuturesItiSignalStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        foreach (var domainEvent in domainEvents)
-        {
-            var updated = domainEvent switch
-            {
-                FuturesItiSignalGeneratedEvent e => await UpdateReadModelAsync<FuturesItiSignalGeneratedEvent, FuturesItiSignalGeneratedCompleteEvent, FuturesItiSignalGeneratedFailEvent, FuturesItiSignalEntityId>(
-                    context, e, async () => await UpdateFuturesItiSignalAsync(e)),
-                _ => false
-            };
-            if (!updated)
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Updates the futures ITI signal read model by inserting the signal into the database and
-    /// preserving the hold-trade state on trend direction changes.
-    /// </summary>
-    /// <param name="e">The generated event containing the futures ITI signal to persist.</param>
-    /// <returns>A task that represents the asynchronous update operation.</returns>
-    async ValueTask UpdateFuturesItiSignalAsync(FuturesItiSignalGeneratedEvent e)
-    {
-        var db = dbFactory.MarketDataDb;
-        await db.InsertFuturesItiSignalAsync(e.FuturesItiSignal);
-        if (e.FuturesItiSignal?.IntrinsicTimeMode == IntrinsicTimeModeType.TrendDirectionChanged)
-        {
-            var futuresItiSignal = await db.GetLastFuturesItiSignalAsync(e.FuturesItiSignal.ContractId, e.FuturesItiSignal.ValueDate);
-            if (futuresItiSignal is not null && futuresItiSignal.TradeState == IntrinsicTimeTradeState.Hold)
-                EventInitHelper.SetProperty(e, nameof(FuturesItiSignalGeneratedEvent.FuturesItiSignal), e.FuturesItiSignal with { TradeState = IntrinsicTimeTradeState.Hold });
-        }
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }
 

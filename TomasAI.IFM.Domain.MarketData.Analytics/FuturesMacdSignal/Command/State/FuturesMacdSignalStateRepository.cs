@@ -8,6 +8,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.State;
 
@@ -25,6 +27,7 @@ public class FuturesMacdSignalStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
     IDbContextFactory dbFactory,
+    IEventProjector<FuturesMacdSignalCommandActor> eventProjector,
     ILogger<FuturesMacdSignalStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesMacdSignalCommandState>
 {
@@ -73,24 +76,5 @@ public class FuturesMacdSignalStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.MarketDataDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                FuturesMacdSignalGeneratedEvent e => await UpdateReadModelAsync<FuturesMacdSignalGeneratedEvent, FuturesMacdSignalGeneratedCompleteEvent, FuturesMacdSignalGeneratedFailEvent, FuturesMacdSignalEntityId>(
-                    context, e, () => InsertFuturesMacdSignalAsync(db, e.FuturesMacdSignal)),
-                FuturesMacdDailySignalGeneratedEvent e => await UpdateReadModelAsync<FuturesMacdDailySignalGeneratedEvent, FuturesMacdDailySignalGeneratedCompleteEvent, FuturesMacdDailySignalGeneratedFailEvent, FuturesMacdDailySignalEntityId>(
-                    context, e, () => InsertFuturesMacdSignalAsync(db, e.FuturesMacdSignal)),
-                FuturesMacdSignalStartedEvent e => await PostEventAsync<FuturesMacdSignalStartedEvent, FuturesMacdSignalEntityId>(context, e),
-                FuturesMacdSignalStoppedEvent e => await PostEventAsync<FuturesMacdSignalStoppedEvent, FuturesMacdSignalEntityId>(context, e),
-                _ => false
-            };
-        }
-
-        static async ValueTask InsertFuturesMacdSignalAsync(IMarketDataDbContext db, FuturesMacdSignalReadModel futuresMacdSignal)
-            => await db.InsertFuturesMacdSignalAsync(futuresMacdSignal);
-        
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

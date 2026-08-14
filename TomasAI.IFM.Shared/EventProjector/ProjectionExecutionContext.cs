@@ -12,7 +12,8 @@ public sealed record ProjectionExecutionContext
         EventProjectorEffectIdentity effectIdentity,
         Guid executionToken,
         EventProjectionIdempotencyStrategy idempotencyStrategy,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long streamVersion = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
         if (eventId <= 0)
@@ -34,6 +35,7 @@ public sealed record ProjectionExecutionContext
         ExecutionToken = executionToken;
         IdempotencyStrategy = idempotencyStrategy;
         CancellationToken = cancellationToken;
+        StreamVersion = streamVersion;
     }
 
     public string ProjectorName { get; }
@@ -43,4 +45,6 @@ public sealed record ProjectionExecutionContext
     public Guid ExecutionToken { get; }
     public EventProjectionIdempotencyStrategy IdempotencyStrategy { get; }
     public CancellationToken CancellationToken { get; }
+    /// <summary>Gets the monotonic version of the source event within its event stream.</summary>
+    public long StreamVersion { get; }
 }

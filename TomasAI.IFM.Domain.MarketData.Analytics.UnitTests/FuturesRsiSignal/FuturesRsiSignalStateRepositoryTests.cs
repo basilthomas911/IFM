@@ -6,6 +6,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
@@ -63,6 +65,7 @@ public class FuturesRsiSignalStateRepositoryTests
             eventDb,
             Substitute.For<IActorService>(),
             Substitute.For<IDbContextFactory>(),
+            Substitute.For<IEventProjector<FuturesRsiSignalCommandActor>>(),
             Substitute.For<ILogger<FuturesRsiSignalStateRepository>>());
 
         var loadedState = await repository.LoadStateAsync(command);
@@ -107,6 +110,7 @@ public class FuturesRsiSignalStateRepositoryTests
             eventDb,
             Substitute.For<IActorService>(),
             Substitute.For<IDbContextFactory>(),
+            Substitute.For<IEventProjector<FuturesRsiSignalCommandActor>>(),
             Substitute.For<ILogger<FuturesRsiSignalStateRepository>>());
 
         var loadedState = await repository.LoadStateAsync(command);

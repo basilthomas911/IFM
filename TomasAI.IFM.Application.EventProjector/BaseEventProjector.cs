@@ -451,7 +451,7 @@ public abstract class BaseEventProjector<TActor> (
         EventProjectorMetrics.WorkerBusy(ProjectorName);
         try
         {
-            if (descriptor.PublishProcessingEvent)
+            if (descriptor.PublishProcessingEvent && !descriptor.PublishProcessingAfterApply)
             {
                 try
                 {
@@ -507,11 +507,14 @@ public abstract class BaseEventProjector<TActor> (
             catch (Exception ex)
             {
                 EventProjectorMetrics.RecordEvent(ProjectorName, "apply-failed", "transient");
-                await PublishTransientFailureAsync(
-                    domainEvent,
-                    descriptor,
-                    ex,
-                    cancellationToken).ConfigureAwait(false);
+                if (descriptor.PublishTerminalEvent)
+                {
+                    await PublishTransientFailureAsync(
+                        domainEvent,
+                        descriptor,
+                        ex,
+                        cancellationToken).ConfigureAwait(false);
+                }
                 return;
             }
 
@@ -519,10 +522,17 @@ public abstract class BaseEventProjector<TActor> (
             {
                 case EventProjectionApplyOutcome.Applied:
                 case EventProjectionApplyOutcome.AlreadyApplied:
-                    await PublishTransientCompletionAsync(
-                        domainEvent,
-                        descriptor,
-                        cancellationToken).ConfigureAwait(false);
+                    if (descriptor.PublishProcessingEvent && descriptor.PublishProcessingAfterApply)
+                    {
+                        await PublishProjectionEventAsync(domainEvent, cancellationToken).ConfigureAwait(false);
+                    }
+                    if (descriptor.PublishTerminalEvent)
+                    {
+                        await PublishTransientCompletionAsync(
+                            domainEvent,
+                            descriptor,
+                            cancellationToken).ConfigureAwait(false);
+                    }
                     EventProjectorMetrics.RecordEvent(ProjectorName, "completed", "transient");
                     break;
 
@@ -532,21 +542,27 @@ public abstract class BaseEventProjector<TActor> (
 
                 case EventProjectionApplyOutcome.Failed:
                     EventProjectorMetrics.RecordEvent(ProjectorName, "apply-failed", "transient");
-                    await PublishTransientFailureAsync(
-                        domainEvent,
-                        descriptor,
-                        new InvalidOperationException(result.ErrorMessage),
-                        cancellationToken).ConfigureAwait(false);
+                    if (descriptor.PublishTerminalEvent)
+                    {
+                        await PublishTransientFailureAsync(
+                            domainEvent,
+                            descriptor,
+                            new InvalidOperationException(result.ErrorMessage),
+                            cancellationToken).ConfigureAwait(false);
+                    }
                     break;
 
                 default:
                     EventProjectorMetrics.RecordEvent(ProjectorName, "apply-failed", "transient");
-                    await PublishTransientFailureAsync(
-                        domainEvent,
-                        descriptor,
-                        new InvalidOperationException(
-                            $"Unsupported projection outcome '{result.Outcome}'."),
-                        cancellationToken).ConfigureAwait(false);
+                    if (descriptor.PublishTerminalEvent)
+                    {
+                        await PublishTransientFailureAsync(
+                            domainEvent,
+                            descriptor,
+                            new InvalidOperationException(
+                                $"Unsupported projection outcome '{result.Outcome}'."),
+                            cancellationToken).ConfigureAwait(false);
+                    }
                     break;
             }
         }
@@ -658,14 +674,17 @@ public abstract class BaseEventProjector<TActor> (
                 switch (currentState.Stage)
                 {
                     case EventProjectorStageType.PublishProcessingEvent:
-                        if (descriptor.PublishProcessingEvent)
+                        if (descriptor.PublishProcessingEvent && !descriptor.PublishProcessingAfterApply)
                             await PublishProjectionEventAsync(domainEvent, CancellationToken.None).ConfigureAwait(false);
                         currentState = currentState with
                         {
                             Stage = EventProjectorStageType.ApplyProjection,
+                            Outcome = EventProjectorOutcomeType.Processing,
                             UpdatedTimestamp = DateTime.UtcNow
                         };
-                        await PersistLegacyStateAsync(currentState).ConfigureAwait(false);
+                        await PersistLegacyStateAsync(
+                            currentState,
+                            clearCache: IsTerminal(currentState)).ConfigureAwait(false);
                         break;
 
                     case EventProjectorStageType.ApplyProjection:
@@ -691,18 +710,29 @@ public abstract class BaseEventProjector<TActor> (
                                 Guid.NewGuid(),
                                 descriptor.IdempotencyStrategy,
                                 CancellationToken.None)).ConfigureAwait(false);
+                        if (applyResult.Success && descriptor.PublishProcessingEvent &&
+                            descriptor.PublishProcessingAfterApply)
+                        {
+                            await PublishProjectionEventAsync(domainEvent, CancellationToken.None).ConfigureAwait(false);
+                        }
                         currentState = currentState with
                         {
                             Stage = applyResult.Success
-                                ? EventProjectorStageType.PublishCompletedEvent
+                                ? descriptor.PublishTerminalEvent
+                                    ? EventProjectorStageType.PublishCompletedEvent
+                                    : EventProjectorStageType.Completed
                                 : EventProjectorStageType.PublishFailedEvent,
                             Outcome = applyResult.Success
-                                ? EventProjectorOutcomeType.Processing
+                                ? descriptor.PublishTerminalEvent
+                                    ? EventProjectorOutcomeType.Processing
+                                    : EventProjectorOutcomeType.Completed
                                 : EventProjectorOutcomeType.Retrying,
                             ErrorMessage = applyResult.ErrorMessage,
                             UpdatedTimestamp = DateTime.UtcNow
                         };
-                        await PersistLegacyStateAsync(currentState).ConfigureAwait(false);
+                        await PersistLegacyStateAsync(
+                            currentState,
+                            clearCache: IsTerminal(currentState)).ConfigureAwait(false);
                         break;
 
                     case EventProjectorStageType.PublishCompletedEvent:
@@ -720,6 +750,17 @@ public abstract class BaseEventProjector<TActor> (
                         break;
 
                     case EventProjectorStageType.PublishFailedEvent:
+                        if (!descriptor.PublishTerminalEvent)
+                        {
+                            currentState = currentState with
+                            {
+                                Stage = EventProjectorStageType.Completed,
+                                Outcome = EventProjectorOutcomeType.Failed,
+                                UpdatedTimestamp = DateTime.UtcNow
+                            };
+                            await PersistLegacyStateAsync(currentState, clearCache: true).ConfigureAwait(false);
+                            break;
+                        }
                         var failedEvent = descriptor.FailedEventFactory(
                             domainEvent,
                             new InvalidOperationException(currentState.ErrorMessage));

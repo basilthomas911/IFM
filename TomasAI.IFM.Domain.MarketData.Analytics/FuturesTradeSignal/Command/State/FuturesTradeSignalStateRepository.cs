@@ -7,6 +7,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.State;
 
@@ -16,6 +18,7 @@ public class FuturesTradeSignalStateRepository(
     IActorService actorService,
     IDbContextFactory dbFactory,
     ISequenceIdGenerator sequenceIdGenerator,
+    IEventProjector<FuturesTradeSignalCommandActor> eventProjector,
     ILogger<FuturesTradeSignalStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesTradeSignalCommandState>
 {
@@ -52,39 +55,5 @@ public class FuturesTradeSignalStateRepository(
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.MarketDataDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                FuturesTradeSignalUpdatedEvent e => await UpdateReadModelAsync<
-                    FuturesTradeSignalUpdatedEvent,
-                    FuturesTradeSignalUpdatedCompleteEvent,
-                    FuturesTradeSignalUpdatedFailEvent,
-                    FuturesTradeSignalEntityId>(
-                        context,
-                        e,
-                        () => UpdateFuturesTradeSignalAsync(db, sequenceIdGenerator, e)),
-                FuturesItiSignalHoldTradeChangedEvent e => await PostEventAsync<
-                    FuturesItiSignalHoldTradeChangedEvent,
-                    FuturesItiSignalEntityId>(context, e),
-                _ => false
-            };
-        }
-
-        ///
-        static async ValueTask UpdateFuturesTradeSignalAsync(
-            IMarketDataDbContext db,
-            ISequenceIdGenerator sequenceIdGenerator,
-            FuturesTradeSignalUpdatedEvent e)
-        {
-            var tradeSignal = e.FuturesTradeSignal ?? throw new InvalidOperationException("FuturesTradeSignal payload is required.");
-            var sequenceId = await sequenceIdGenerator
-                .GetSequenceIdAsync(SequenceName.FuturesTradeSignal_SequenceId)
-                .ConfigureAwait(false);
-            tradeSignal = tradeSignal with { SequenceId = sequenceId };
-            await db.InsertFuturesTradeSignalAsync(tradeSignal);
-        }
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

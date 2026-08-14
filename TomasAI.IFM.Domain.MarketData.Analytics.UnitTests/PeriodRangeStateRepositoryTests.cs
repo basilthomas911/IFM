@@ -5,6 +5,10 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.State;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -31,12 +35,15 @@ public class PeriodRangeStateRepositoryTests
         var dbFactory = Substitute.For<IDbContextFactory>();
         var macdRepository = new FuturesMacdSignalStateRepository(
             stateFactory, eventDb, actorService, dbFactory,
+            Substitute.For<IEventProjector<FuturesMacdSignalCommandActor>>(),
             Substitute.For<ILogger<FuturesMacdSignalStateRepository>>());
         var adxRepository = new FuturesAdxSignalStateRepository(
             stateFactory, eventDb, actorService, dbFactory,
+            Substitute.For<IEventProjector<FuturesAdxSignalCommandActor>>(),
             Substitute.For<ILogger<FuturesAdxSignalStateRepository>>());
         var atrRepository = new FuturesAtrSignalStateRepository(
             stateFactory, eventDb, actorService, dbFactory,
+            Substitute.For<IEventProjector<FuturesAtrSignalCommandActor>>(),
             Substitute.For<ILogger<FuturesAtrSignalStateRepository>>());
 
         var macd = WithSubject(SampleData.MacdGenerateCommand, SampleData.MacdEntityId.Format());

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
 using TomasAI.IFM.Shared.Domain;
@@ -26,7 +27,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
     public class TestableFuturesBarDataCommandActor(
         IEventSourceActorDbContext dbEventSource,
         ILogger<FuturesBarDataCommandActor> logger)
-        : FuturesBarDataCommandActor(dbEventSource, logger)
+        : FuturesBarDataCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesBarDataCommandActor>>(), logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

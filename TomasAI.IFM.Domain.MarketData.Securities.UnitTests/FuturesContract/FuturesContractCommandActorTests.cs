@@ -17,6 +17,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Actor;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.UnitTests.FuturesContract;
 
@@ -31,7 +32,7 @@ public class FuturesContractCommandActorTests : IClassFixture<SecuritiesFixture>
 
     // Test helper to expose protected ParseMessage and ReceiveAsync for unit testing.
     public class TestableFuturesContractCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesContractCommandActor> logger)
-        : FuturesContractCommandActor(dbEventSource, logger)
+        : FuturesContractCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesContractCommandActor>>(), logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

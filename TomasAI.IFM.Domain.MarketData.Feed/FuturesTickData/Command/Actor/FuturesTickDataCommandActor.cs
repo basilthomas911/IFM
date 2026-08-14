@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Validation;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
@@ -26,11 +27,13 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class FuturesTickDataCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IEventProjector<FuturesTickDataCommandActor> eventProjector,
     ILogger<FuturesTickDataCommandActor> logger)
     : BaseEventSourceCommandActor<FuturesTickDataCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "FuturesTickDataCommand";
     readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
+    readonly IEventProjector<FuturesTickDataCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FuturesTickDataCommandState> _repo = default!;
 
     /// <summary>
@@ -38,12 +41,14 @@ public class FuturesTickDataCommandActor(
     /// </summary>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override ValueTask OnStartup(ICommandActorContext context)
+    protected override async ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FuturesTickDataCommandState>>());
-        return ValueTask.CompletedTask;
+        await _eventProjector.StartAsync(context).ConfigureAwait(false);
     }
+    protected override async ValueTask OnShutdown(ICommandActorContext context)
+        => await _eventProjector.StopAsync().ConfigureAwait(false);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.

@@ -15,7 +15,9 @@ public sealed record EventProjectionDescriptor
         Func<IEvent, ICompleteEvent?> completedEventFactory,
         Func<IEvent, Exception, IErrorEvent?> failedEventFactory,
         bool publishProcessingEvent = true,
-        bool useDurableReplay = true)
+        bool useDurableReplay = true,
+        bool publishProcessingAfterApply = false,
+        bool publishTerminalEvent = true)
     {
         ArgumentNullException.ThrowIfNull(sourceEventType);
         if (!typeof(IEvent).IsAssignableFrom(sourceEventType))
@@ -30,6 +32,8 @@ public sealed record EventProjectionDescriptor
         FailedEventFactory = failedEventFactory ?? throw new ArgumentNullException(nameof(failedEventFactory));
         PublishProcessingEvent = publishProcessingEvent;
         UseDurableReplay = useDurableReplay;
+        PublishProcessingAfterApply = publishProcessingAfterApply;
+        PublishTerminalEvent = publishTerminalEvent;
     }
 
     public Type SourceEventType { get; }
@@ -43,4 +47,11 @@ public sealed record EventProjectionDescriptor
     /// executed once through the projector's non-durable in-memory queue.
     /// </summary>
     public bool UseDurableReplay { get; init; }
+    /// <summary>Gets whether the source event is published only after its target mutation succeeds.</summary>
+    public bool PublishProcessingAfterApply { get; init; }
+    /// <summary>
+    /// Gets whether a corresponding complete or failed event is published. Source-only notifications become
+    /// terminal immediately after their action completes.
+    /// </summary>
+    public bool PublishTerminalEvent { get; init; }
 }

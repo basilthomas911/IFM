@@ -9,7 +9,8 @@ public record EventLogReadModel(
     long EventVersion,
     string EventData,
     Guid CommandId,
-    string EventTimestamp)
+    string EventTimestamp,
+    long StreamVersion = 0)
 {
     /// <summary>
     /// deserialize event data from event type
@@ -57,6 +58,7 @@ public record EventLogReadModel(
 public class EventStreamReadModel
 {
     public long EventVersion { get; set; }
+    public long StreamVersion { get; set; }
     public string EventTypeName { get; set; }
     public string EventData { get; set; }
 

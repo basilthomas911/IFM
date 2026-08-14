@@ -2,6 +2,8 @@ using FluentAssertions;
 using NSubstitute;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Actor;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Model;
@@ -143,6 +145,7 @@ public class SecuritiesOptimizationTests
             eventSource,
             Substitute.For<IDbContextFactory>(),
             Substitute.For<IActorService>(),
+            Substitute.For<IEventProjector<FuturesOptionContractCommandActor>>(),
             Substitute.For<ILogger<FuturesOptionContractStateRepository>>());
         var command = new AddFuturesOptionContractsCommand(
             [SampleData.FuturesOptionContract1, SampleData.FuturesOptionContract2])

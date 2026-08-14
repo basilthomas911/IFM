@@ -5,6 +5,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Command.State;
 
@@ -12,6 +14,7 @@ public sealed class TickAggregationStateRepository(
     IEventSourceActorStateFactory aggregateFactory,
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
+    IEventProjector<TickAggregationCommandActor> eventProjector,
     ILogger<TickAggregationStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger),
       IEventSourceActorStateRepository<TickAggregationCommandState>
@@ -34,18 +37,5 @@ public sealed class TickAggregationStateRepository(
     protected override async ValueTask DenormalizeEventsAsync(
         ICommandActorContext context,
         DomainEventCollection domainEvents)
-    {
-        foreach (var domainEvent in domainEvents)
-        {
-            switch (domainEvent)
-            {
-                case FuturesTickTradeDataInsertedEvent trade:
-                    await PostEventAsync<FuturesTickTradeDataInsertedEvent, TickDataEntityId>(context, trade).ConfigureAwait(false);
-                    break;
-                case FuturesTickQuoteDataInsertedEvent quote:
-                    await PostEventAsync<FuturesTickQuoteDataInsertedEvent, TickDataEntityId>(context, quote).ConfigureAwait(false);
-                    break;
-            }
-        }
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

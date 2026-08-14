@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests.LookupType;
 
@@ -33,7 +34,7 @@ public class LookupTypeCommandActorTests : IClassFixture<ReferenceTestFixture>
 
     // Test helper to expose protected ParseMessage and ReceiveAsync for unit testing.
     public class TestableLookupTypeCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<LookupTypeCommandActor> logger) 
-        : LookupTypeCommandActor(dbEventSource, logger)
+        : LookupTypeCommandActor(dbEventSource, Substitute.For<IEventProjector<LookupTypeCommandActor>>(), logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

@@ -450,7 +450,11 @@ public class NatsJetStreamActorConsumer(
 
                     // parse subject and route to a dispatch stripe by entity hash.
                     // Same entity always maps to the same stripe, preserving per-entity FIFO ordering.
-                    var msgSubject = msg.Subject.ToSubject();
+                    if (!TryParseActorSubject(msg.Subject, out var msgSubject))
+                    {
+                        await TerminateMalformedSubjectAsync(msg, msg.Subject).ConfigureAwait(false);
+                        continue;
+                    }
                     var primaryExists = _supervisor.ActorExists(msgSubject.ActorId);
                     var routes = _supervisor.GetEventRoutes(msgSubject.ActorTypeId);
                     if (!primaryExists && routes.IsEmpty)
@@ -530,7 +534,11 @@ public class NatsJetStreamActorConsumer(
                     if (msg.Metadata?.NumDelivered > 1)
                         NatsMessagingMetrics.RecordJetStreamRedelivery(_actorType);
 
-                    var sourceSubject = msg.Subject.ToSubject();
+                    if (!TryParseActorSubject(msg.Subject, out var sourceSubject))
+                    {
+                        await TerminateMalformedSubjectAsync(msg, msg.Subject).ConfigureAwait(false);
+                        continue;
+                    }
                     var routes = _supervisor.GetEventRoutes(sourceSubject.ActorTypeId);
                     var destinations = EventFanoutRoutes.Build(
                         sourceSubject,
@@ -633,6 +641,35 @@ public class NatsJetStreamActorConsumer(
                     destination.ActorId);
             }
         }
+    }
+
+    internal static bool TryParseActorSubject(string subject, out ActorSubject actorSubject)
+    {
+        try
+        {
+            actorSubject = subject.ToSubject();
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            actorSubject = default;
+            return false;
+        }
+    }
+
+    internal async ValueTask TerminateMalformedSubjectAsync<T>(INatsJSMsg<T> message, string subject)
+    {
+        NatsMessagingMetrics.MalformedJetStreamSubjectsTerminated.Add(
+            1,
+            new KeyValuePair<string, object?>("actor.type", _actorType.ToStringFast()));
+        _logger.LogWarning(
+            "NATS JetStream {ActorType} permanently terminated malformed actor subject {Subject}; " +
+            "expected ActorType.Name.Verb.EntityId.",
+            _actorType,
+            subject);
+        await message.AckTerminateAsync(
+            new AckOpts { TerminateReason = "invalid-actor-subject" },
+            CancellationToken.None).ConfigureAwait(false);
     }
 
     async Task OwnedDispatchLoopAsync(

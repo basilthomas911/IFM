@@ -146,4 +146,21 @@ public sealed class EventProjectorReliabilityContractTests
 
         create.Should().Throw<ArgumentException>();
     }
+
+    [Fact]
+    public void Execution_context_carries_the_persisted_stream_version_to_the_projection_action()
+    {
+        var effect = new EventProjectorEffectIdentity(
+            "FundEventProjector", 42, EventProjectorEffectKind.TargetProjection);
+
+        var context = new ProjectionExecutionContext(
+            "FundEventProjector", 42, 7, effect, Guid.NewGuid(),
+            EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            CancellationToken.None,
+            streamVersion: 9);
+
+        context.EventId.Should().Be(42);
+        context.EventStreamId.Should().Be(7);
+        context.StreamVersion.Should().Be(9);
+    }
 }

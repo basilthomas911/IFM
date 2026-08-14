@@ -7,6 +7,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State;
 
@@ -24,6 +26,7 @@ public class FuturesAtrSignalStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
     IDbContextFactory dbFactory,
+    IEventProjector<FuturesAtrSignalCommandActor> eventProjector,
     ILogger<FuturesAtrSignalStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesAtrSignalCommandState>
 {
@@ -72,24 +75,6 @@ public class FuturesAtrSignalStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.MarketDataDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                FuturesAtrSignalGeneratedEvent e => await UpdateReadModelAsync<FuturesAtrSignalGeneratedEvent, FuturesAtrSignalGeneratedCompleteEvent, FuturesAtrSignalGeneratedFailEvent, FuturesAtrSignalEntityId>(
-                    context, e, () => InsertFuturesAtrSignalAsync(db, e.FuturesAtrSignal)),
-                FuturesAtrDailySignalGeneratedEvent e => await UpdateReadModelAsync<FuturesAtrDailySignalGeneratedEvent, FuturesAtrDailySignalGeneratedCompleteEvent, FuturesAtrDailySignalGeneratedFailEvent, FuturesAtrDailySignalEntityId>(
-                    context, e, () => InsertFuturesAtrSignalAsync(db, e.FuturesAtrSignal)),
-                FuturesAtrSignalStartedEvent e => await PostEventAsync<FuturesAtrSignalStartedEvent, FuturesAtrSignalEntityId>(context, e),
-                FuturesAtrSignalStoppedEvent e => await PostEventAsync<FuturesAtrSignalStoppedEvent, FuturesAtrSignalEntityId>(context, e),
-                _ => false
-            };
-        }
-
-        async ValueTask InsertFuturesAtrSignalAsync(IMarketDataDbContext db, FuturesAtrSignalReadModel futuresAtrSignal)
-            => await db.InsertFuturesAtrSignalAsync(futuresAtrSignal);
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }
 

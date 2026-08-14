@@ -8,6 +8,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.State;
 
@@ -25,6 +27,7 @@ public class FuturesTdiSignalStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
     IDbContextFactory dbFactory,
+    IEventProjector<FuturesTdiSignalCommandActor> eventProjector,
     ILogger<FuturesTdiSignalStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesTdiSignalCommandState>
 {
@@ -61,19 +64,5 @@ public class FuturesTdiSignalStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.MarketDataDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                FuturesTdiSignalGeneratedEvent e => await UpdateReadModelAsync<FuturesTdiSignalGeneratedEvent, FuturesTdiSignalGeneratedCompleteEvent, FuturesTdiSignalGeneratedFailEvent, FuturesTdiSignalEntityId>(
-                    context, e, () => InsertFuturesTdiSignalAsync(db, e.FuturesTdiSignal)),
-                _ => false
-            };
-        }
-
-        static async ValueTask InsertFuturesTdiSignalAsync(IMarketDataDbContext db, FuturesTdiSignalReadModel futuresTdiSignal)
-            => await db.InsertFuturesTdiSignalAsync(futuresTdiSignal);
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

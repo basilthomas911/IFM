@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Trade.Option.Command.Validation;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Command.Actor;
 
@@ -28,11 +29,13 @@ namespace TomasAI.IFM.Domain.Trade.Option.Command.Actor;
 public class OptionTradeCommandActor(
     IEventSourceActorDbContext dbEventSource,
     IDbContextFactory dbFactory,
+    IEventProjector<OptionTradeCommandActor> eventProjector,
     ILogger<OptionTradeCommandActor> logger)
     : BaseEventSourceCommandActor<OptionTradeCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "OptionTradeCommand";
     readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
+    readonly IEventProjector<OptionTradeCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<OptionTradeCommandState> _repo = default!;
 
     /// <summary>
@@ -43,12 +46,14 @@ public class OptionTradeCommandActor(
     /// to the actor.</remarks>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override ValueTask OnStartup(ICommandActorContext context)
+    protected override async ValueTask OnStartup(ICommandActorContext context)
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<OptionTradeCommandState>>());
-        return ValueTask.CompletedTask;
+        await _eventProjector.StartAsync(context).ConfigureAwait(false);
     }
+    protected override async ValueTask OnShutdown(ICommandActorContext context)
+        => await _eventProjector.StopAsync().ConfigureAwait(false);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.

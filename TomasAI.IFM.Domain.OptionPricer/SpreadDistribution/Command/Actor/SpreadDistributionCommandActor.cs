@@ -10,6 +10,7 @@ using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.State;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Validation;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.Actor;
 
@@ -24,11 +25,13 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class SpreadDistributionCommandActor(
     IEventSourceActorDbContext dbEventSource,
+    IEventProjector<SpreadDistributionCommandActor> eventProjector,
     ILogger<SpreadDistributionCommandActor> logger)
     : BaseEventSourceCommandActor<SpreadDistributionCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "SpreadDistributionCommand";
     readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
+    readonly IEventProjector<SpreadDistributionCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<SpreadDistributionCommandState> _repo = default!;
 
     /// <summary>
@@ -43,7 +46,11 @@ public class SpreadDistributionCommandActor(
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<SpreadDistributionCommandState>>());
+        await _eventProjector.StartAsync(context).ConfigureAwait(false);
     }
+
+    protected override async ValueTask OnShutdown(ICommandActorContext context)
+        => await _eventProjector.StopAsync().ConfigureAwait(false);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.

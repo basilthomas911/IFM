@@ -19,7 +19,10 @@ process-local non-durable queue. SWO-06 Tranches A-E are implemented:
 - low-cardinality OpenTelemetry instruments plus an optional PostgreSQL operational snapshot sampler.
 
 `BoundedRecoveryEnabled`, `FencedExecutionEnabled`, `TransactionalOutboxEnabled`, and
-`BacklogMetricsPollingEnabled` remain `false` in production configuration until the rollout gate is approved.
+`BacklogMetricsPollingEnabled` are enabled in API Server and actor integration configuration. The current projector
+set has passed the cross-store idempotency and persistent-infrastructure test-isolation gates. Production rollout and
+all future target-operation additions remain subject to the operational and extension gates in
+`Documents/system/Event-Sourcing-Projection-Split-Brain-Controls.md`.
 
 ## Source map
 
@@ -78,9 +81,17 @@ durable JetStream process/replay remains the default, while explicitly best-effo
 `Describe` parameter to `useDurableReplay: false`. A command actor with mixed projection requirements may own both
 descriptor modes in the same EventProjector.
 
-`ProjectionExecutionContext` carries the durable projector name, event ID, event-stream ID, execution token,
+`ProjectionExecutionContext` carries the durable projector name, event ID, event-stream ID, stream version, execution token,
 deterministic target-effect identity, strategy, and cancellation token. The effect identity is stable across retries;
 the execution token is deliberately unique to one claim.
+
+Projector target operations must never allocate a fresh row identity during replay. Current append-style projections
+preserve a positive identity already carried by the event payload, with the persisted `EventId` used as the stable
+fallback for legacy zero-valued futures tick, futures option tick, futures ITI signal, futures trade signal, and
+option-trade spread payloads. Spread distribution events historically contain two zero IDs, so that projector derives
+two stable negative IDs from the event ID; the positive sequence range remains reserved for ordinary non-projector
+inserts. Projectors must also treat the committed event object as immutable. Any derived business state belongs in the
+command workflow before event persistence, not in a post-write projector callback.
 
 ## Fund projector contract
 
@@ -188,10 +199,10 @@ terminalize after another owner changes the token or revision.
 ## Same-stream execution ordering
 
 The fenced claim is the authoritative ordering boundary. Its PostgreSQL predicate rejects an event while an earlier
-`EventId` for the same `(ProjectorName, EventStreamId)` remains unresolved. Completed, already-completed, and explicitly
+`StreamVersion` for the same `(ProjectorName, EventStreamId)` remains unresolved. Completed, already-completed, and explicitly
 superseded predecessors do not block; failed, cancelled, blocked, retrying, leased, or otherwise nonterminal
-predecessors do. This applies identically to process and replay workers and uses the projector/stream/event partial
-index rather than a process-local lock.
+predecessors do. This applies identically to process and replay workers and uses the
+`(ProjectorName, EventStreamId, StreamVersion)` index rather than a process-local lock.
 
 On a rejected claim, the engine reloads durable state. An unresolved predecessor throws
 `EventProjectorStreamOrderDeferredException`; another valid owner for the same event records a claim conflict and lets
@@ -204,6 +215,11 @@ The initialization contract remains important: supported live events persist the
 queue publication, and bounded recovery enumerates persisted state joined to its event. A missing earlier state is not
 interpreted as a successful projection. Fund keeps `NeverSupersede`; an unresolved predecessor therefore blocks later
 Fund events until retry succeeds or an operator deliberately skips it with a recorded reason.
+
+The per-projector/per-stream checkpoint records target application, not terminal message publication. It suppresses
+only missing or pre-apply work already covered by the same/newer target version. A state in `PublishCompletedEvent`,
+`PublishFailedEvent`, or `PersistCompletion` is never reconciled away by its checkpoint: it resumes after lease
+takeover and continues blocking later versions until its terminal workflow is durably staged.
 
 ## Transactional publication outbox
 
@@ -248,10 +264,10 @@ Current application settings:
 ```json
 {
   "EventProjectorReliability": {
-    "BoundedRecoveryEnabled": false,
-    "FencedExecutionEnabled": false,
-    "TransactionalOutboxEnabled": false,
-    "BacklogMetricsPollingEnabled": false,
+    "BoundedRecoveryEnabled": true,
+    "FencedExecutionEnabled": true,
+    "TransactionalOutboxEnabled": true,
+    "BacklogMetricsPollingEnabled": true,
     "MetricsPollingInterval": "00:00:05",
     "NonDurableQueueCapacity": 8192
   }

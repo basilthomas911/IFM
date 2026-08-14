@@ -129,7 +129,8 @@ SELECT
         el.eventVersion as "EventVersion",
         el.eventData as "EventData",
         el.commandId as "CommandId",
-        el.eventTimestamp as "EventTimeStamp"
+        el.eventTimestamp as "EventTimeStamp",
+        el.StreamVersion as "StreamVersion"
     FROM
         event_log el JOIN event_name_id en ON el.eventNameId = en.eventNameId
     WHERE
@@ -149,7 +150,8 @@ SELECT
       el.eventVersion as "EventVersion",
       el.eventData as "EventData",
       el.commandId as "CommandId",
-      el.eventTimestamp as "EventTimeStamp"
+      el.eventTimestamp as "EventTimeStamp",
+      el.StreamVersion as "StreamVersion"
     FROM
       event_log el JOIN event_name_id en ON el.eventNameId = en.eventNameId
     WHERE
@@ -166,7 +168,8 @@ public const string GetEventLogByEventVersion = """
       el.eventVersion as "EventVersion",
       el.eventData as "EventData",
       el.commandId as "CommandId",
-      el.eventTimestamp as "EventTimeStamp"
+      el.eventTimestamp as "EventTimeStamp",
+      el.StreamVersion as "StreamVersion"
     FROM
       event_log el JOIN event_name_id en ON el.eventNameId = en.eventNameId
     WHERE
@@ -186,7 +189,8 @@ SELECT
         el.eventVersion as "EventVersion",
         el.eventData as "EventData",
         el.commandId as "CommandId",
-        el.eventTimestamp as "EventTimeStamp"
+        el.eventTimestamp as "EventTimeStamp",
+        el.StreamVersion as "StreamVersion"
     FROM
         event_log el JOIN event_name_id en ON el.eventNameId = en.eventNameId
     WHERE
@@ -204,6 +208,7 @@ WITH last_event_range AS (
         el.eventStreamId,
         el.eventNameId,
         el.eventVersion,
+        el.StreamVersion,
         el.eventData,
         el.commandId,
         el.eventTimestamp
@@ -220,7 +225,8 @@ SELECT
     el.eventVersion AS "EventVersion",
     el.eventData AS "EventData",
     el.commandId AS "CommandId",
-    el.eventTimestamp AS "EventTimeStamp"
+    el.eventTimestamp AS "EventTimeStamp",
+    el.StreamVersion AS "StreamVersion"
 FROM last_event_range el
 JOIN event_name_id en ON el.eventNameId = en.eventNameId
 ORDER BY el.eventVersion ASC;
@@ -243,6 +249,7 @@ last_event_range AS (
         el.eventStreamId,
         el.eventNameId,
         el.eventVersion,
+        el.StreamVersion,
         el.eventData,
         el.commandId,
         el.eventTimestamp
@@ -260,6 +267,7 @@ replay_range AS (
         el.eventStreamId,
         el.eventNameId,
         el.eventVersion,
+        el.StreamVersion,
         el.eventData,
         el.commandId,
         el.eventTimestamp
@@ -275,6 +283,7 @@ replay_range AS (
         eventStreamId,
         eventNameId,
         eventVersion,
+        StreamVersion,
         eventData,
         commandId,
         eventTimestamp
@@ -287,7 +296,8 @@ SELECT
     el.eventVersion AS "EventVersion",
     el.eventData AS "EventData",
     el.commandId AS "CommandId",
-    el.eventTimestamp AS "EventTimeStamp"
+    el.eventTimestamp AS "EventTimeStamp",
+    el.StreamVersion AS "StreamVersion"
 FROM replay_range el
 JOIN event_name_id en ON el.eventNameId = en.eventNameId
 ORDER BY el.eventVersion ASC;
@@ -334,21 +344,37 @@ ORDER BY el.eventVersion ASC;
             BlockedReason as "BlockedReason",
             LastCompletedStage as "LastCompletedStage",
             UpdatedAtUtc as "UpdatedAtUtc",
-            BlockedStage as "BlockedStage"
+            BlockedStage as "BlockedStage",
+            StreamVersion as "StreamVersion"
         """;
 
     public const string TryCreateEventProjectorExecutionState = """
         INSERT INTO event_projector_state (
             EventId, ActorName, ProjectorName, IsReplay, AttemptNumber,
             Outcome, Stage, ErrorMessage, CreatedTimestamp, UpdatedTimestamp,
-            EventStreamId, SourceEventName, UpdatedAtUtc
+            EventStreamId, SourceEventName, UpdatedAtUtc, StreamVersion
         )
         SELECT
             $1, $2, $3, $4, $5,
-            $6, $7, $8, $9, $10,
-            el.EventStreamId, en.EventName, $11
+            CASE
+                WHEN checkpoint.LastAppliedStreamVersion IS NULL
+                  OR checkpoint.LastAppliedStreamVersion < el.StreamVersion THEN $6
+                WHEN checkpoint.LastAppliedStreamVersion = el.StreamVersion THEN 'AlreadyCompleted'
+                ELSE 'Superseded'
+            END,
+            CASE WHEN checkpoint.LastAppliedStreamVersion >= el.StreamVersion THEN 'Completed' ELSE $7 END,
+            CASE
+                WHEN checkpoint.LastAppliedStreamVersion >= el.StreamVersion
+                    THEN 'stream-checkpoint-covered'
+                ELSE $8
+            END,
+            $9, $10,
+            el.EventStreamId, en.EventName, $11, el.StreamVersion
         FROM event_log el
         JOIN event_name_id en ON en.EventNameId = el.EventNameId
+        LEFT JOIN event_projector_stream_checkpoint checkpoint
+          ON checkpoint.ProjectorName = $3
+         AND checkpoint.EventStreamId = el.EventStreamId
         WHERE el.EventVersion = $1
         ON CONFLICT (EventId, ProjectorName) DO NOTHING
         RETURNING
@@ -362,26 +388,61 @@ ORDER BY el.eventVersion ASC;
         """;
 
     public const string TryClaimEventProjectorExecution = """
-        UPDATE event_projector_state current_state
-        SET ExecutionToken = $3,
-            LeaseExpiresAtUtc = $4,
-            Revision = Revision + 1,
-            UpdatedAtUtc = $5,
-            UpdatedTimestamp = $6
-        WHERE current_state.EventId = $1
-          AND current_state.ProjectorName = $2
-          AND current_state.Outcome IN ('Processing', 'Retrying')
-          AND (current_state.ExecutionToken IS NULL OR current_state.LeaseExpiresAtUtc IS NULL OR current_state.LeaseExpiresAtUtc <= $5)
-          AND NOT EXISTS (
-              SELECT 1
-              FROM event_projector_state earlier
-              WHERE earlier.ProjectorName = current_state.ProjectorName
-                AND earlier.EventStreamId = current_state.EventStreamId
-                AND earlier.EventId < current_state.EventId
-                AND earlier.Outcome NOT IN ('Completed', 'AlreadyCompleted', 'Superseded')
-          )
-        RETURNING
-        """ + EventProjectorExecutionStateColumns + ";";
+        WITH reconciled AS (
+            UPDATE event_projector_state current_state
+            SET Stage = 'Completed',
+                Outcome = CASE
+                    WHEN checkpoint.LastAppliedStreamVersion = current_state.StreamVersion
+                        THEN 'AlreadyCompleted'
+                    ELSE 'Superseded'
+                END,
+                ErrorMessage = 'stream-checkpoint-covered',
+                BlockedReason = 'stream-checkpoint-covered',
+                ExecutionToken = NULL,
+                LeaseExpiresAtUtc = NULL,
+                Revision = current_state.Revision + 1 /* Revision = Revision + 1 */,
+                UpdatedAtUtc = $5,
+                UpdatedTimestamp = $6
+            FROM event_projector_stream_checkpoint checkpoint
+            WHERE current_state.EventId = $1
+              AND current_state.ProjectorName = $2
+              AND checkpoint.ProjectorName = current_state.ProjectorName
+              AND checkpoint.EventStreamId = current_state.EventStreamId
+              AND checkpoint.LastAppliedStreamVersion >= current_state.StreamVersion
+              AND current_state.Outcome IN ('Processing', 'Retrying')
+              AND current_state.Stage IN ('ValidateSourceEvent', 'PublishProcessingEvent', 'ApplyProjection')
+            RETURNING current_state.*
+        ), claimed AS (
+            UPDATE event_projector_state current_state
+            SET ExecutionToken = $3,
+                LeaseExpiresAtUtc = $4,
+                Revision = current_state.Revision + 1 /* Revision = Revision + 1 */,
+                UpdatedAtUtc = $5,
+                UpdatedTimestamp = $6
+            WHERE current_state.EventId = $1
+              AND current_state.ProjectorName = $2
+              AND current_state.Outcome IN ('Processing', 'Retrying')
+              AND NOT EXISTS (SELECT 1 FROM reconciled)
+              AND (current_state.ExecutionToken IS NULL OR current_state.LeaseExpiresAtUtc IS NULL OR current_state.LeaseExpiresAtUtc <= $5)
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM event_projector_state earlier
+                  WHERE earlier.ProjectorName = current_state.ProjectorName
+                    AND earlier.EventStreamId = current_state.EventStreamId
+                    AND earlier.StreamVersion < current_state.StreamVersion
+                    AND earlier.Outcome NOT IN ('Completed', 'AlreadyCompleted', 'Superseded')
+              )
+            RETURNING current_state.*
+        )
+        SELECT
+        """ + EventProjectorExecutionStateColumns + """
+        FROM reconciled
+        UNION ALL
+        SELECT
+        """ + EventProjectorExecutionStateColumns + """
+        FROM claimed
+        LIMIT 1;
+        """;
 
     public const string HasEarlierUnresolvedEventProjectorExecution = """
         SELECT EXISTS (
@@ -390,7 +451,7 @@ ORDER BY el.eventVersion ASC;
             JOIN event_projector_state earlier
               ON earlier.ProjectorName = current_state.ProjectorName
              AND earlier.EventStreamId = current_state.EventStreamId
-             AND earlier.EventId < current_state.EventId
+             AND earlier.StreamVersion < current_state.StreamVersion
             WHERE current_state.EventId = $1
               AND current_state.ProjectorName = $2
               AND earlier.Outcome NOT IN ('Completed', 'AlreadyCompleted', 'Superseded')
@@ -435,6 +496,7 @@ ORDER BY el.eventVersion ASC;
         """ + EventProjectorExecutionStateColumns + ";";
 
     public const string TryTransitionEventProjectorExecution = """
+        WITH transitioned AS (
         UPDATE event_projector_state
         SET Stage = $7,
             Outcome = $8,
@@ -454,34 +516,69 @@ ORDER BY el.eventVersion ASC;
           AND Stage = $5
           AND LeaseExpiresAtUtc > $6
           AND Outcome IN ('Processing', 'Retrying')
-        RETURNING
-        """ + EventProjectorExecutionStateColumns + ";";
+        RETURNING *
+        ), checkpointed AS (
+            INSERT INTO event_projector_stream_checkpoint (
+                ProjectorName, EventStreamId, LastAppliedStreamVersion,
+                LastAppliedEventId, Revision, UpdatedAtUtc)
+            SELECT ProjectorName, EventStreamId, StreamVersion, EventId, 0, $15
+            FROM transitioned
+            WHERE $5 = 'ApplyProjection' AND $7 <> 'PublishFailedEvent'
+            ON CONFLICT (ProjectorName, EventStreamId) DO UPDATE SET
+                LastAppliedStreamVersion = EXCLUDED.LastAppliedStreamVersion,
+                LastAppliedEventId = EXCLUDED.LastAppliedEventId,
+                Revision = event_projector_stream_checkpoint.Revision + 1,
+                UpdatedAtUtc = EXCLUDED.UpdatedAtUtc
+            WHERE event_projector_stream_checkpoint.LastAppliedStreamVersion < EXCLUDED.LastAppliedStreamVersion
+        )
+        SELECT
+        """ + EventProjectorExecutionStateColumns + """
+        FROM transitioned;
+        """;
 
     public const string TryTerminalizeEventProjectorExecution = """
-        UPDATE event_projector_state
-        SET Stage = 'Completed',
-            BlockedStage = CASE WHEN $7 = 'Failed' THEN Stage ELSE 'None' END,
-            Outcome = $7,
-            LastCompletedStage = $8,
-            RetryCount = $9,
-            NextAttemptAtUtc = NULL,
-            LastErrorAtUtc = $10,
-            ErrorMessage = $11,
-            BlockedReason = $12,
-            ExecutionToken = NULL,
-            LeaseExpiresAtUtc = NULL,
-            Revision = Revision + 1,
-            UpdatedAtUtc = $13,
-            UpdatedTimestamp = $14
-        WHERE EventId = $1
-          AND ProjectorName = $2
-          AND ExecutionToken = $3
-          AND Revision = $4
-          AND Stage = $5
-          AND LeaseExpiresAtUtc > $6
-          AND Outcome IN ('Processing', 'Retrying')
-        RETURNING
-        """ + EventProjectorExecutionStateColumns + ";";
+        WITH transitioned AS (
+            UPDATE event_projector_state
+            SET Stage = 'Completed',
+                BlockedStage = CASE WHEN $7 = 'Failed' THEN Stage ELSE 'None' END,
+                Outcome = $7,
+                LastCompletedStage = $8,
+                RetryCount = $9,
+                NextAttemptAtUtc = NULL,
+                LastErrorAtUtc = $10,
+                ErrorMessage = $11,
+                BlockedReason = $12,
+                ExecutionToken = NULL,
+                LeaseExpiresAtUtc = NULL,
+                Revision = Revision + 1,
+                UpdatedAtUtc = $13,
+                UpdatedTimestamp = $14
+            WHERE EventId = $1
+              AND ProjectorName = $2
+              AND ExecutionToken = $3
+              AND Revision = $4
+              AND Stage = $5
+              AND LeaseExpiresAtUtc > $6
+              AND Outcome IN ('Processing', 'Retrying')
+            RETURNING *
+        ), checkpointed AS (
+            INSERT INTO event_projector_stream_checkpoint (
+                ProjectorName, EventStreamId, LastAppliedStreamVersion,
+                LastAppliedEventId, Revision, UpdatedAtUtc)
+            SELECT ProjectorName, EventStreamId, StreamVersion, EventId, 0, $13
+            FROM transitioned
+            WHERE $5 = 'ApplyProjection' AND $7 = 'Completed'
+            ON CONFLICT (ProjectorName, EventStreamId) DO UPDATE SET
+                LastAppliedStreamVersion = EXCLUDED.LastAppliedStreamVersion,
+                LastAppliedEventId = EXCLUDED.LastAppliedEventId,
+                Revision = event_projector_stream_checkpoint.Revision + 1,
+                UpdatedAtUtc = EXCLUDED.UpdatedAtUtc
+            WHERE event_projector_stream_checkpoint.LastAppliedStreamVersion < EXCLUDED.LastAppliedStreamVersion
+        )
+        SELECT
+        """ + EventProjectorExecutionStateColumns + """
+        FROM transitioned;
+        """;
 
     public const string TryTransitionEventProjectorExecutionWithOutbox = """
         WITH transitioned AS (
@@ -505,6 +602,19 @@ ORDER BY el.eventVersion ASC;
               AND LeaseExpiresAtUtc > $6
               AND Outcome IN ('Processing', 'Retrying')
             RETURNING *
+        ), checkpointed AS (
+            INSERT INTO event_projector_stream_checkpoint (
+                ProjectorName, EventStreamId, LastAppliedStreamVersion,
+                LastAppliedEventId, Revision, UpdatedAtUtc)
+            SELECT ProjectorName, EventStreamId, StreamVersion, EventId, 0, $15
+            FROM transitioned
+            WHERE $5 = 'ApplyProjection' AND $7 <> 'PublishFailedEvent'
+            ON CONFLICT (ProjectorName, EventStreamId) DO UPDATE SET
+                LastAppliedStreamVersion = EXCLUDED.LastAppliedStreamVersion,
+                LastAppliedEventId = EXCLUDED.LastAppliedEventId,
+                Revision = event_projector_stream_checkpoint.Revision + 1,
+                UpdatedAtUtc = EXCLUDED.UpdatedAtUtc
+            WHERE event_projector_stream_checkpoint.LastAppliedStreamVersion < EXCLUDED.LastAppliedStreamVersion
         ), staged AS (
             INSERT INTO event_projector_outbox (
                 ProjectorName, EventId, EffectKind, MessageId, EventTypeName,
@@ -544,6 +654,19 @@ ORDER BY el.eventVersion ASC;
               AND LeaseExpiresAtUtc > $6
               AND Outcome IN ('Processing', 'Retrying')
             RETURNING *
+        ), checkpointed AS (
+            INSERT INTO event_projector_stream_checkpoint (
+                ProjectorName, EventStreamId, LastAppliedStreamVersion,
+                LastAppliedEventId, Revision, UpdatedAtUtc)
+            SELECT ProjectorName, EventStreamId, StreamVersion, EventId, 0, $13
+            FROM transitioned
+            WHERE $5 = 'ApplyProjection' AND $7 = 'Completed'
+            ON CONFLICT (ProjectorName, EventStreamId) DO UPDATE SET
+                LastAppliedStreamVersion = EXCLUDED.LastAppliedStreamVersion,
+                LastAppliedEventId = EXCLUDED.LastAppliedEventId,
+                Revision = event_projector_stream_checkpoint.Revision + 1,
+                UpdatedAtUtc = EXCLUDED.UpdatedAtUtc
+            WHERE event_projector_stream_checkpoint.LastAppliedStreamVersion < EXCLUDED.LastAppliedStreamVersion
         ), staged AS (
             INSERT INTO event_projector_outbox (
                 ProjectorName, EventId, EffectKind, MessageId, EventTypeName,
@@ -723,6 +846,7 @@ ORDER BY el.eventVersion ASC;
             el.EventData as "EventData",
             el.CommandId as "CommandId",
             el.EventTimestamp as "EventTimestamp",
+            el.StreamVersion as "StreamVersion",
             eps.EventId as "EventId",
             eps.ActorName as "ActorName",
             eps.ProjectorName as "ProjectorName",
@@ -743,7 +867,9 @@ ORDER BY el.eventVersion ASC;
             eps.LastErrorAtUtc as "LastErrorAtUtc",
             eps.BlockedReason as "BlockedReason",
             eps.LastCompletedStage as "LastCompletedStage",
-            eps.UpdatedAtUtc as "UpdatedAtUtc"
+            eps.UpdatedAtUtc as "UpdatedAtUtc",
+            eps.BlockedStage as "BlockedStage",
+            eps.StreamVersion as "StateStreamVersion"
         FROM event_projector_state eps
         JOIN event_log el ON el.EventVersion = eps.EventId
         JOIN event_name_id en ON en.EventNameId = el.EventNameId
@@ -786,7 +912,8 @@ ORDER BY el.eventVersion ASC;
             el.eventVersion as "EventVersion",
             el.eventData as "EventData",
             el.commandId as "CommandId",
-            el.eventTimestamp as "EventTimestamp"
+            el.eventTimestamp as "EventTimestamp",
+            el.StreamVersion as "StreamVersion"
         FROM event_log el
         JOIN event_name_id en ON el.eventNameId = en.eventNameId
         JOIN event_projector_state eps
@@ -794,7 +921,7 @@ ORDER BY el.eventVersion ASC;
          AND eps.ProjectorName = $1
         WHERE en.eventName = ANY(string_to_array($2, ','))
           AND eps.Outcome IN ('Processing', 'Retrying')
-        ORDER BY el.eventVersion;
+        ORDER BY el.EventStreamId, el.StreamVersion;
     """;
 
     /// <summary>
@@ -841,20 +968,41 @@ and el.eventNameId = $2
 /// SQL to insert an event log
 /// </summary>
 public const string InsertEventLog = """
+    WITH next_stream_version AS (
+        UPDATE event_stream_id
+        SET CurrentVersion = CurrentVersion + 1
+        WHERE EventStreamId = $1
+        RETURNING CurrentVersion AS StreamVersion
+    )
     INSERT INTO event_log (
             EventStreamId,
             EventNameId,
+            StreamVersion,
             EventData,
             CommandId,
             EventTimestamp
-        ) VALUES (
+        )
+        SELECT
             $1,
             $2,
+            next_stream_version.StreamVersion,
             $3,
             $4,
             $5
-        ) RETURNING eventVersion;
+        FROM next_stream_version
+        RETURNING EventVersion;
     """;
+
+    public const string GetEventProjectorStreamCheckpoint = """
+        SELECT ProjectorName as "ProjectorName",
+               EventStreamId as "EventStreamId",
+               LastAppliedStreamVersion as "LastAppliedStreamVersion",
+               LastAppliedEventId as "LastAppliedEventId",
+               Revision as "Revision",
+               UpdatedAtUtc as "UpdatedAtUtc"
+        FROM event_projector_stream_checkpoint
+        WHERE ProjectorName = $1 AND EventStreamId = $2;
+        """;
 
 public const string UpdateEventLog = """
     UPDATE event_log SET
@@ -885,7 +1033,8 @@ public const string UpdateEventLog = """
             UpdatedTimestamp,
             EventStreamId,
             SourceEventName,
-            UpdatedAtUtc
+            UpdatedAtUtc,
+            StreamVersion
         )
         SELECT
             $1,
@@ -900,7 +1049,8 @@ public const string UpdateEventLog = """
             $10,
             el.EventStreamId,
             en.EventName,
-            CURRENT_TIMESTAMP
+            CURRENT_TIMESTAMP,
+            el.StreamVersion
         FROM event_log el
         JOIN event_name_id en ON en.EventNameId = el.EventNameId
         WHERE el.EventVersion = $1
@@ -917,6 +1067,7 @@ public const string UpdateEventLog = """
                 WHEN event_projector_state.SourceEventName = '' THEN EXCLUDED.SourceEventName
                 ELSE event_projector_state.SourceEventName
             END,
+            StreamVersion = COALESCE(event_projector_state.StreamVersion, EXCLUDED.StreamVersion),
             UpdatedAtUtc = CURRENT_TIMESTAMP;
     """;
 
@@ -930,7 +1081,10 @@ INSERT INTO event_name_id (
 ) VALUES (
   $1,
   $2
-) RETURNING eventNameId;
+)
+ON CONFLICT (EventName, EventTypeName) DO UPDATE
+SET EventName = EXCLUDED.EventName
+RETURNING eventNameId;
 """;
 
     /// <summary>
@@ -941,6 +1095,9 @@ INSERT INTO event_stream_id (
     EventStream
 ) VALUES (
     $1
-) returning eventStreamId;
+)
+ON CONFLICT (EventStream) DO UPDATE
+SET EventStream = EXCLUDED.EventStream
+RETURNING eventStreamId;
 """;
 }

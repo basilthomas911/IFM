@@ -46,7 +46,7 @@ internal sealed class EventProjectorExecutionEngine(
             return existing;
 
         var nowUtc = DateTime.UtcNow;
-        var initialStage = descriptor.PublishProcessingEvent
+        var initialStage = descriptor.PublishProcessingEvent && !descriptor.PublishProcessingAfterApply
             ? EventProjectorStageType.PublishProcessingEvent
             : EventProjectorStageType.ApplyProjection;
         var initial = new EventProjectorExecutionStateReadModel(
@@ -122,7 +122,7 @@ internal sealed class EventProjectorExecutionEngine(
                         EventProjectorStageType.ValidateSourceEvent => await TransitionAsync(
                             state,
                             executionToken,
-                            descriptor.PublishProcessingEvent
+                            descriptor.PublishProcessingEvent && !descriptor.PublishProcessingAfterApply
                                 ? EventProjectorStageType.PublishProcessingEvent
                                 : EventProjectorStageType.ApplyProjection,
                             EventProjectorStageType.ValidateSourceEvent,
@@ -235,7 +235,7 @@ internal sealed class EventProjectorExecutionEngine(
         }
 
         var errorMessage = $"Maximum {_options.MaximumReplayAttempts} attempts reached for event {domainEvent.EventId} of type {domainEvent.GetType().Name}.";
-        if (!_options.TransactionalOutboxEnabled)
+        if (!_options.TransactionalOutboxEnabled || !descriptor.PublishTerminalEvent)
         {
             _ = await TerminalizeAsync(
                 state,
@@ -290,7 +290,11 @@ internal sealed class EventProjectorExecutionEngine(
             return await TransitionWithOutboxAsync(
                 state,
                 executionToken,
-                EventProjectorStageType.ApplyProjection,
+                descriptor.PublishProcessingAfterApply
+                    ? descriptor.PublishTerminalEvent
+                        ? EventProjectorStageType.PublishCompletedEvent
+                        : EventProjectorStageType.PersistCompletion
+                    : EventProjectorStageType.ApplyProjection,
                 EventProjectorStageType.PublishProcessingEvent,
                 domainEvent,
                 EventProjectorEffectKind.ProcessingPublication,
@@ -301,7 +305,11 @@ internal sealed class EventProjectorExecutionEngine(
         return await TransitionAsync(
             state,
             executionToken,
-            EventProjectorStageType.ApplyProjection,
+            descriptor.PublishProcessingAfterApply
+                ? descriptor.PublishTerminalEvent
+                    ? EventProjectorStageType.PublishCompletedEvent
+                    : EventProjectorStageType.PersistCompletion
+                : EventProjectorStageType.ApplyProjection,
             EventProjectorStageType.PublishProcessingEvent,
             cancellationToken: cancellationToken).ConfigureAwait(false);
     }
@@ -323,7 +331,8 @@ internal sealed class EventProjectorExecutionEngine(
                 EventProjectorEffectKind.TargetProjection),
             executionToken,
             descriptor.IdempotencyStrategy,
-            cancellationToken);
+            cancellationToken,
+            state.StreamVersion);
         var result = await descriptor.ApplyAsync(domainEvent, context).ConfigureAwait(false);
         ArgumentNullException.ThrowIfNull(result);
         EventProjectorMetrics.RecordEvent(_projectorName, result.Outcome switch
@@ -345,11 +354,26 @@ internal sealed class EventProjectorExecutionEngine(
                 cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
+        if (result.Success && !descriptor.PublishTerminalEvent &&
+            !(descriptor.PublishProcessingEvent && descriptor.PublishProcessingAfterApply))
+        {
+            return await TerminalizeAsync(
+                state,
+                executionToken,
+                EventProjectorOutcomeType.Completed,
+                EventProjectorStageType.ApplyProjection,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+
         return await TransitionAsync(
             state,
             executionToken,
             result.Success
-                ? EventProjectorStageType.PublishCompletedEvent
+                ? descriptor.PublishProcessingEvent && descriptor.PublishProcessingAfterApply
+                    ? EventProjectorStageType.PublishProcessingEvent
+                    : descriptor.PublishTerminalEvent
+                        ? EventProjectorStageType.PublishCompletedEvent
+                        : EventProjectorStageType.PersistCompletion
                 : EventProjectorStageType.PublishFailedEvent,
             EventProjectorStageType.ApplyProjection,
             result.ErrorMessage,

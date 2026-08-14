@@ -2137,7 +2137,9 @@ public partial class MarketDataDbContext(
     /// <returns></returns>
     public async Task InsertFuturesTickDataAsync(FuturesTickDataV2ReadModel e)
     {
-        var tickId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTickData_TickId);
+        var tickId = e.TickId > 0
+            ? e.TickId
+            : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTickData_TickId);
         await ExecuteAtomicTickWriteAsync(
             GetFuturesTickScopeKey(e.ContractId, e.ValueDate),
             new[]
@@ -2220,8 +2222,9 @@ public partial class MarketDataDbContext(
             GetFuturesItiProjectionScopeKeys(e.ContractId, e.ValueDate, trend, mode),
             async () =>
             {
-                var sequenceId = await _sequenceIdGenerator
-                    .GetSequenceIdAsync(SequenceName.FuturesItiSignal_SequenceId);
+                var sequenceId = e.SequenceId > 0
+                    ? e.SequenceId
+                    : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesItiSignal_SequenceId);
                 var db = _dbFactory.MarketDataDb;
                 var canonicalParameters = CreateFuturesItiSignalParameters(e, sequenceId);
                 var monthParameters = CreateFuturesItiSignalMonthParameters(e, sequenceId);
@@ -2378,7 +2381,9 @@ public partial class MarketDataDbContext(
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InsertFuturesOptionTickDataAsync(FuturesOptionTickDataV2ReadModel e)
     {
-        var tickId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesOptionTickData_TickId);
+        var tickId = e.TickId > 0
+            ? e.TickId
+            : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesOptionTickData_TickId);
         await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.InsertFuturesOptionTickData)
             .SetParameters(new InsertFuturesOptionTickData(
@@ -2975,7 +2980,9 @@ public partial class MarketDataDbContext(
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InsertFuturesTradeSignalAsync(FuturesTradeSignalV2ReadModel FuturesTradeSignalV2ReadModel)
     {
-        var sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTradeSignal_SequenceId);
+        var sequenceId = FuturesTradeSignalV2ReadModel.SequenceId > 0
+            ? FuturesTradeSignalV2ReadModel.SequenceId
+            : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTradeSignal_SequenceId);
         var timePeriod = FuturesTradeSignalV2ReadModel.TimePeriod.ToStringFast();
         var db = _dbFactory.MarketDataDb;
         var insertSignal = db

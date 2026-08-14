@@ -16,6 +16,11 @@ using TomasAI.IFM.Framework.OptionPricer.Black76;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Actor;
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.EventProjector;
+using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Shared.EventProjector;
 
 namespace TomasAI.IFM.Domain.OptionPricer.UnitTests.Optimization;
 
@@ -98,12 +103,12 @@ public class OptionPricerOptimizationTests
                 return ValueTask.CompletedTask;
             });
 
-        var repository = new TestJobRepository(
-            Substitute.For<IEventSourceActorStateFactory>(),
-            Substitute.For<IEventSourceActorDbContext>(),
-            Substitute.For<IActorService>(),
+        var projector = new SpreadDistributionJobEventProjector(
             dbFactory,
-            Substitute.For<ILogger<SpreadDistributionJobStateRepository>>());
+            Substitute.For<IDurableReplayQueue>(),
+            Substitute.For<IEventSourceActorDbContext>(),
+            Substitute.For<IBlackboardService>(),
+            Substitute.For<ILogger<SpreadDistributionJobEventProjector>>());
         var job = new SpreadDistributionJobReadModel
         {
             OrderId = 10,
@@ -115,11 +120,30 @@ public class OptionPricerOptimizationTests
             Subject = new ActorSubject(ActorType.Event, SpreadDistributionJobSubmittedEvent.Actor, SpreadDistributionJobSubmittedEvent.Verb, job.EntityId.Format()),
             Id = Guid.NewGuid(),
             CommandId = Guid.NewGuid(),
+            EventId = 1_001,
             EntityId = job.EntityId,
             SpreadDistributionJob = job
         };
 
-        await repository.DenormalizeAsync(context, new DomainEventCollection([submitted]));
+        var descriptor = projector.ProjectionDescriptors.Single(item =>
+            item.SourceEventType == typeof(SpreadDistributionJobSubmittedEvent));
+        descriptor.PublishProcessingAfterApply.Should().BeTrue();
+        await descriptor.ApplyAsync(
+            submitted,
+            new ProjectionExecutionContext(
+                projector.ProjectorName,
+                submitted.EventId,
+                1,
+                new EventProjectorEffectIdentity(
+                    projector.ProjectorName,
+                    submitted.EventId,
+                    EventProjectorEffectKind.TargetProjection),
+                Guid.NewGuid(),
+                descriptor.IdempotencyStrategy,
+                CancellationToken.None));
+        await context.SendAsync<SpreadDistributionJobSubmittedEvent, SpreadDistributionJobEntityId>(submitted);
+        await context.SendAsync<SpreadDistributionJobSubmittedCompleteEvent, SpreadDistributionJobEntityId>(
+            (SpreadDistributionJobSubmittedCompleteEvent)descriptor.CompletedEventFactory(submitted)!);
 
         order.Should().Equal("insert", "submitted", "completed");
     }
@@ -132,15 +156,4 @@ public class OptionPricerOptimizationTests
         return result;
     }
 
-    sealed class TestJobRepository(
-        IEventSourceActorStateFactory stateFactory,
-        IEventSourceActorDbContext eventSource,
-        IActorService actorService,
-        IDbContextFactory dbFactory,
-        ILogger<SpreadDistributionJobStateRepository> logger)
-        : SpreadDistributionJobStateRepository(stateFactory, eventSource, actorService, dbFactory, logger)
-    {
-        public ValueTask DenormalizeAsync(ICommandActorContext context, DomainEventCollection events)
-            => DenormalizeEventsAsync(context, events);
-    }
 }

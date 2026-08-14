@@ -226,6 +226,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
 
         // Insert sample data
         await db.InsertOptionTradeSpreadDataAsync(SampleData.TradeSpreadData);
+        await db.InsertOptionTradeSpreadDataAsync(SampleData.TradeSpreadData);
 
         // Act
         var result = await db.GetOptionTradeSpreadDataAsync(orderId, tradeId, valueDate, tradeType);
@@ -236,6 +237,8 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         result.TradeId.Should().Be(SampleData.TradeSpreadData.TradeId);
         result.ValueDate.Should().Be(SampleData.TradeSpreadData.ValueDate);
         result.TradeType.Should().Be(SampleData.TradeSpreadData.TradeType);
+        result.SequenceId.Should().Be(SampleData.TradeSpreadData.SequenceId,
+            "a supplied projector identity must be preserved by the target store");
         result.LossLimit.Should().Be(SampleData.TradeSpreadData.LossLimit);
         result.WinLimit.Should().Be(SampleData.TradeSpreadData.WinLimit);
         result.ForwardSpread.Should().Be(SampleData.TradeSpreadData.ForwardSpread);

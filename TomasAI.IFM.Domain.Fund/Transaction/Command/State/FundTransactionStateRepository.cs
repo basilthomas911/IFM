@@ -8,6 +8,8 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Application.Storage.FundDb;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.Fund.Transaction.Command.Actor;
 
 namespace TomasAI.IFM.Domain.Fund.Transaction.Command.State;
 
@@ -27,6 +29,7 @@ public sealed class FundTransactionStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IDbContextFactory dbFactory,
     IActorService actorService,
+    IEventProjector<FundTransactionCommandActor> eventProjector,
     ILogger<FundTransactionStateRepository> logger) 
     : BaseEventSourceActorRepository(stateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FundTransactionCommandState>
 {
@@ -56,30 +59,8 @@ public sealed class FundTransactionStateRepository(
     /// <param name="context">The command actor context that provides access to the actor's container and state required for denormalization.</param>
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
-    protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.FundDb;
-        for (var index = 0; index < domainEvents.Count; index++)
-        {
-            _ = domainEvents[index] switch
-            {
-                FundTransactionEvent e => await UpdateReadModelAsync<FundTransactionEvent, FundTransactionCreatedCompleteEvent, FundTransactionCreatedFailEvent, FundTransactionEntityId>(
-                    context, e, () => InsertFundTransactionAsync(e.FundTransaction)),
-                FundTransactionsEvent e => await UpdateReadModelAsync<FundTransactionsEvent, FundTransactionsCompleteEvent, FundTransactionsFailEvent, FundTransactionEntityId>(
-                    context, e, () => InsertFundTransactionsAsync(e.FundTransactions)),
-                EndOfDayFundTransactionProcessedEvent e => await UpdateReadModelAsync<EndOfDayFundTransactionProcessedEvent, EndOfDayFundTransactionProcessedCompleteEvent, EndOfDayFundTransactionProcessedFailEvent, FundTransactionEntityId>(
-                    context, e, () => InsertFundTransactionAsync(e.FundTransaction)),
-                _ => false
-            };
-        }
-
-        async ValueTask InsertFundTransactionsAsync(ICollection<FundTransactionReadModel> fundTransactions)
-            => await db.InsertFundTransactionsAsync(fundTransactions);
-
-        async ValueTask InsertFundTransactionAsync(FundTransactionReadModel fundTransaction)
-            => await db.InsertFundTransactionAsync(fundTransaction);
-
-    }
+    protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
+        => eventProjector.DomainEventsProjectionAsync(domainEvents);
 
 }
 

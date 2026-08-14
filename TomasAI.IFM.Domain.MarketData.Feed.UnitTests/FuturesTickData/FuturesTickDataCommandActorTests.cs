@@ -15,6 +15,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesTickData;
 
@@ -28,7 +29,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
     }
 
     public class TestableFuturesTickDataCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesTickDataCommandActor> logger)
-        : FuturesTickDataCommandActor(dbEventSource, logger)
+        : FuturesTickDataCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesTickDataCommandActor>>(), logger)
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

@@ -112,7 +112,8 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 EventVersion: o.GetLong(3),
                 EventData: o.GetString(4),
                 CommandId: o.GetGuid(5),
-                EventTimestamp: o.GetString(6)
+                EventTimestamp: o.GetString(6),
+                StreamVersion: o.GetLong(7)
             );
 
     /// <summary>
@@ -161,7 +162,8 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             BlockedReason: o.GetString(offset + 18),
             LastCompletedStage: o.GetEnum<EventProjectorStageType>(offset + 19),
             UpdatedAtUtc: o.GetDateTime(offset + 20),
-            BlockedStage: o.GetEnum<EventProjectorStageType>(offset + 21));
+            BlockedStage: o.GetEnum<EventProjectorStageType>(offset + 21),
+            StreamVersion: o.GetLong(offset + 22));
 
     internal static EventProjectorRecoveryItemReadModel MapToEventProjectorRecoveryItem(
         IObjectDataRecord o)
@@ -173,8 +175,19 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 EventVersion: o.GetLong(3),
                 EventData: o.GetString(4),
                 CommandId: o.GetGuid(5),
-                EventTimestamp: o.GetString(6)),
-            State: MapToEventProjectorExecutionState(o, 7));
+                EventTimestamp: o.GetString(6),
+                StreamVersion: o.GetLong(7)),
+            State: MapToEventProjectorExecutionState(o, 8));
+
+    internal static EventProjectorStreamCheckpointReadModel MapToEventProjectorStreamCheckpoint(
+        IObjectDataRecord o)
+        => new(
+            ProjectorName: o.GetString(0),
+            EventStreamId: o.GetLong(1),
+            LastAppliedStreamVersion: o.GetLong(2),
+            LastAppliedEventId: o.GetLong(3),
+            Revision: o.GetLong(4),
+            UpdatedAtUtc: o.GetDateTime(5));
 
     internal static EventProjectorOutboxReadModel MapToEventProjectorOutbox(IObjectDataRecord o)
         => new(
@@ -215,7 +228,8 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         {
             EventTypeName = o.GetString(2),
             EventVersion = o.GetLong(3),
-            EventData = o.GetString(4)
+            EventData = o.GetString(4),
+            StreamVersion = o.GetLong(7)
         };
 
     static long MapToLong<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -477,6 +491,23 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             .SetParameters(new GetEventProjectorState(eventId, projectorName))
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(
                 MapToEventProjectorExecutionState,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<EventProjectorStreamCheckpointReadModel?> GetEventProjectorStreamCheckpointAsync(
+        string projectorName,
+        long eventStreamId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
+        if (eventStreamId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(eventStreamId));
+        return await _dbFactory.ActorEventSourceDb
+            .Use(EventSourceDbSql.GetEventProjectorStreamCheckpoint)
+            .SetParameters(new GetEventProjectorStreamCheckpoint(projectorName, eventStreamId))
+            .ExecuteSingleAsync<EventProjectorStreamCheckpointReadModel>(
+                MapToEventProjectorStreamCheckpoint,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -1065,9 +1096,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <summary>
     /// Inserts an event stream into the database if it does not already exist.
     /// </summary>
-    /// <remarks>If the specified event stream already exists in the database, the method retrieves its
-    /// identifier and returns it. Otherwise, the method deletes any existing references to the event stream and inserts
-    /// a new record, returning the newly generated identifier.</remarks>
+    /// <remarks>The atomic database upsert makes concurrent first use of the same stream safe.</remarks>
     /// <param name="eventStream">The name of the event stream to insert. This value cannot be null or empty.</param>
     /// <returns>The unique identifier of the event stream. If the event stream already exists, its existing identifier is
     /// returned; otherwise, the identifier of the newly inserted event stream is returned.</returns>
@@ -1083,11 +1112,6 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             .ConfigureAwait(false);
         if (eventStreamIdModel is not null)
             return eventStreamIdModel.EventStreamId;
-
-        await _dbFactory.ActorEventSourceDb
-            .Use(EventSourceDbSql.DeleteEventStreamId)
-            .SetParameters(new DeleteEventStreamId(eventStream))
-            .ExecuteCommandAsync(cancellationToken);
 
         return await _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.InsertEventStreamId)
@@ -1153,10 +1177,6 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             var eventNameIdModel = await GetEventNameIdFromDbAsync(eventName, eventTypeName, cancellationToken).ConfigureAwait(false);
             if (eventNameIdModel.IsValid)
                 return eventNameIdModel;
-            await _dbFactory.ActorEventSourceDb
-                  .Use(EventSourceDbSql.DeleteEventNameId)
-                  .SetParameters(new DeleteEventNameId(eventName, eventTypeName))
-                  .ExecuteCommandAsync(cancellationToken);
             var eventNameId = await _dbFactory.ActorEventSourceDb
                   .Use(EventSourceDbSql.InsertEventNameId)
                   .SetParameters(new InsertEventNameId(eventName, eventTypeName))

@@ -1,5 +1,7 @@
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.Reference.Services;
 using TomasAI.IFM.Domain.Reference.Shared;
@@ -19,6 +21,7 @@ public class LookupTypeStateRepository(
     IDbContextFactory dbFactory,
     IBlackboardService blackboardService,
     IActorService actorService,
+    IEventProjector<LookupTypeCommandActor> eventProjector,
     ILogger<LookupTypeStateRepository> logger)
     : BaseEventSourceActorRepository(stateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<LookupTypeCommandState>
 {
@@ -58,35 +61,6 @@ public class LookupTypeStateRepository(
     /// <param name="context">The command actor context that provides access to the actor's container and state required for denormalization.</param>
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
-    protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.ReferenceDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            var updated = domainEvent switch
-            {
-                LookupTypeAddedEvent e => await UpdateReadModelAsync<LookupTypeAddedEvent, LookupTypeAddedCompleteEvent, LookupTypeAddedFailEvent, LookupTypeId>(
-                    context, e, () => InsertLookupTypeAsync(db, e.LookupType)),
-                LookupTypeChangedEvent e => await UpdateReadModelAsync<LookupTypeChangedEvent, LookupTypeChangedCompleteEvent, LookupTypeChangedFailEvent, LookupTypeId>(
-                    context, e, () => UpdateLookupTypeAsync(db, e.EntityId, e.LookupType)),
-                LookupTypeRemovedEvent e => await UpdateReadModelAsync<LookupTypeRemovedEvent, LookupTypeRemovedCompleteEvent, LookupTypeRemovedFailEvent, LookupTypeId>(
-                    context, e, () => DeleteLookupTypeAsync(db, e.EntityId)),
-                _ => false
-            };
-            if (updated)
-            {
-                blackboardService.Reference.ReferenceLookup.Remove();
-                ReferenceLookupCacheGeneration.Invalidate();
-            }
-        }
-
-        static ValueTask InsertLookupTypeAsync(IReferenceDbContext db, LookupTypeReadModel e)
-            => new(db.InsertLookupTypeAsync(e));
-
-        static ValueTask UpdateLookupTypeAsync(IReferenceDbContext db, LookupTypeId id, LookupTypeReadModel e)
-            => new(db.UpdateLookupTypeAsync(id, e));
-
-        static ValueTask DeleteLookupTypeAsync(IReferenceDbContext db, LookupTypeId lookupTypeId)
-            => new(db.DeleteLookupTypeAsync(lookupTypeId));
-    }
+    protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
+        => eventProjector.DomainEventsProjectionAsync(domainEvents);
 }

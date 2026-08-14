@@ -7,6 +7,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.Actor;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.State;
 
@@ -28,6 +30,7 @@ public class SpreadDistributionStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IDbContextFactory dbFactory,
     IActorService actorService,
+    IEventProjector<SpreadDistributionCommandActor> eventProjector,
     ILogger<SpreadDistributionStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<SpreadDistributionCommandState>
 {
@@ -65,25 +68,6 @@ public class SpreadDistributionStateRepository(
     /// <param name="context">The command actor context that provides access to the actor's container and state required for denormalization.</param>
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
-    protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.OptionPricerDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                SpreadDistributionInsertedEvent e => await UpdateReadModelAsync<SpreadDistributionInsertedEvent, SpreadDistributionInsertedCompleteEvent, SpreadDistributionInsertedFailEvent, SpreadDistributionEntityId>(
-                    context, e, async () => await InsertSpreadDistributionsAsync(db, e.PutSpreadDistribution, e.CallSpreadDistribution)),
-                SpreadDistributionDeletedEvent e => await UpdateReadModelAsync<SpreadDistributionDeletedEvent, SpreadDistributionDeletedCompleteEvent, SpreadDistributionDeletedFailEvent, SpreadDistributionEntityId>(
-                    context, e, async () => await DeleteSpreadDistributionAsync(db, e.EntityId.TradeId, e.EntityId.ValueDate)),
-                _ => false
-            };
-        }
-
-        static async ValueTask InsertSpreadDistributionsAsync(IOptionPricerDbContext db, SpreadDistributionReadModel putSpreadDistribution, SpreadDistributionReadModel callSpreadDistribution)
-            =>   await db.InsertSpreadDistributionsAsync( putSpreadDistribution, callSpreadDistribution);
-        
-        static async ValueTask DeleteSpreadDistributionAsync( IOptionPricerDbContext db, int tradeId, DateOnly valueDate)
-            => await db.DeleteSpreadDistributionAsync(tradeId, valueDate);
-    }
+    protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
+        => eventProjector.DomainEventsProjectionAsync(domainEvents);
 }

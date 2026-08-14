@@ -8,6 +8,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.Trade.Option.Command.Actor;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Command.State;
 
@@ -29,6 +31,7 @@ public class OptionTradeStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
     IDbContextFactory dbFactory,
+    IEventProjector<OptionTradeCommandActor> eventProjector,
     ILogger<OptionTradeStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<OptionTradeCommandState>
 {
@@ -107,32 +110,7 @@ public class OptionTradeStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-    {
-        var db = dbFactory.TradeDb;
-        foreach (var domainEvent in domainEvents)
-        {
-            _ = domainEvent switch
-            {
-                OptionTradeOrderPlacedEvent e => await PostEventAndInsertOptionTradeAsync(db, context, e),
-                OptionTradeToOpenEvent e => await PostEventAndReplaceOptionTradeAsync(db, context, e),
-                OptionTradeToCloseEvent e => await PostEventAndReplaceOptionTradeAsync(db, context, e),
-                OptionTradeSnapshotEvent e => await PostEventOnlyAsync(context, e),
-                OptionTradePositionOpenedEvent e => await PostEventOnlyAsync(context, e),
-                OptionTradePositionClosedEvent e => await PostEventOnlyAsync(context, e),
-                OptionTradeEndOfDayProcessedEvent e => await PostEventOnlyAsync(context, e),
-                OptionTradeSpreadDistributionStatisticsUpdatedEvent e => await PostEventOnlyAsync(context, e),
-                OptionTradeSpreadDataInsertedEvent e => await PostEventAndRunAsync(context, e, () => InsertOptionTradeSpreadDataAsync(db, e)),
-                OptionTradeSpreadBarDataInsertedEvent e => await PostEventAndRunAsync(context, e, () => InsertOptionTradeSpreadBarDataAsync(db, e)),
-                OptionTradeSpreadBarDataDeletedEvent e => await PostEventAndRunAsync(context, e, () => DeleteOptionTradeSpreadBarDataAsync(db, e)),
-                TradePositionAddedEvent e => await InsertTradePositionAsync(db, e),
-                TradePositionUpdatedEvent e => await UpdateTradePositionAsync(db, e),
-                TradePositionStatusUpdatedEvent e => await UpdateTradePositionStatusAsync(db, e),
-                OptionTradeDeletedEvent e => await PostEventAndRunAsync(context, e, () => DeleteOptionTradeAsync(db, e)),
-                OptionTradeDailyProfitTargetUpdatedEvent e => await PostEventAndRunAsync(context, e, () => UpdateTradeLimitDailyProfitTargetAsync(db, e)),
-                _ => false
-            };
-        }
-    }
+        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 
     async ValueTask<bool> PostEventAndReplaceOptionTradeAsync(
         ITradeDbContext db,

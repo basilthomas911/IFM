@@ -2099,7 +2099,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.Should().NotBeNull();
         result.ContractId.Should().Be(expectedSignal.ContractId);
         result.ValueDate.Should().Be(expectedSignal.ValueDate);
-        result.SequenceId.Should().BeGreaterThan(0);
+        result.SequenceId.Should().Be(expectedSignal.SequenceId);
         result.IntrinsicTime.ToLocalTime().Should().BeCloseTo(expectedSignal.IntrinsicTime, 10.Seconds());
         result.IntrinsicTimeGroupId.Should().Be(expectedSignal.IntrinsicTimeGroupId);
         result.IntrinsicTimeLength.Should().Be(expectedSignal.IntrinsicTimeLength);
@@ -2141,7 +2141,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.Should().NotBeNull();
         result.ContractId.Should().Be(expectedSignal.ContractId);
         result.ValueDate.Should().Be(expectedSignal.ValueDate);
-        result.SequenceId.Should().BeGreaterThan(0);
+        result.SequenceId.Should().Be(expectedSignal.SequenceId);
         result.IntrinsicTime.ToLocalTime().Should().BeCloseTo(expectedSignal.IntrinsicTime, 10.Seconds());
         result.IntrinsicTimeGroupId.Should().Be(expectedSignal.IntrinsicTimeGroupId);
         result.IntrinsicTimeLength.Should().Be(expectedSignal.IntrinsicTimeLength);
@@ -2255,6 +2255,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
 
         await TestFixture.DevDatabase.Use($"delete from futures_option_tick_data where contractId = '{expectedData.ContractId}' ").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesOptionTickDataAsync(expectedData);
+        await TestFixture.DevDatabase.InsertFuturesOptionTickDataAsync(expectedData);
 
         // Act
         var result = await TestFixture.DevDatabase.GetLastFuturesOptionTickDataAsync(entityId.ContractId, entityId.ValueDate);
@@ -2263,7 +2264,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.Should().NotBeNull();
         result.ContractId.Should().Be(expectedData.ContractId);
         result.ValueDate.Should().Be(expectedData.ValueDate);
-        result.TickId.Should().BeGreaterThan(0);
+        result.TickId.Should().Be(expectedData.TickId,
+            "a supplied projector identity must be preserved by the target store");
         result.TickTime.Should().Be(expectedData.TickTime);
         result.OptionPrice.Should().Be(expectedData.OptionPrice);
         result.BidPrice.Should().Be(expectedData.BidPrice);
@@ -2357,6 +2359,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
 
         await TestFixture.DevDatabase.Use($"delete from futures_trade_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesTradeSignalAsync(expectedSignal);
+        await TestFixture.DevDatabase.InsertFuturesTradeSignalAsync(expectedSignal);
 
         // Act
         var result = await TestFixture.DevDatabase.GetLastFuturesTradeSignalAsync(entityId.ContractId, entityId.ValueDate);
@@ -2365,7 +2368,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.Should().NotBeNull();
         result.ContractId.Should().Be(expectedSignal.ContractId);
         result.ValueDate.Should().Be(expectedSignal.ValueDate);
-        result.SequenceId.Should().BeGreaterThan(0);
+        result.SequenceId.Should().Be(expectedSignal.SequenceId,
+            "a fail-stop replay must address the same logical target row");
         result.Timestamp.Hour.Should().Be(expectedSignal.Timestamp.Hour);
         result.Timestamp.Minute.Should().Be(expectedSignal.Timestamp.Minute);
         result.Mean.Should().Be(expectedSignal.Mean);

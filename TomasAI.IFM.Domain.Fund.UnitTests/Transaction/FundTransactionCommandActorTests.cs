@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.Fund.Transaction.Command.Exceptions;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.State;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.Actor;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 
 namespace TomasAI.IFM.Domain.Fund.UnitTests.Transaction;
 
@@ -34,7 +35,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
     public class TestableFundTransactionCommandActor : FundTransactionCommandActor
     {
         public TestableFundTransactionCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FundTransactionCommandActor> logger)
-            : base(dbEventSource, logger)
+            : base(dbEventSource, Substitute.For<IEventProjector<FundTransactionCommandActor>>(), logger)
         {
         }
 
