@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 
 namespace TomasAI.IFM.Application.Api.Server;
@@ -10,9 +11,12 @@ namespace TomasAI.IFM.Application.Api.Server;
 internal sealed class FuturesContractRolloverStartupService(
     SecuritiesSchemaDb schema,
     FuturesContractRolloverStartupCheck check,
+    IMarketDataApi marketDataApi,
     TimeProvider timeProvider,
     ILogger<FuturesContractRolloverStartupService> logger) : IHostedService
 {
+    private DateOnly? _activeValueDate;
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await schema.CreateAsync(["futures_contract_rollover"], cancellationToken)
@@ -20,11 +24,20 @@ internal sealed class FuturesContractRolloverStartupService(
         var valueDate = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
         var rows = await check.ExecuteAsync(valueDate, cancellationToken)
             .ConfigureAwait(false);
+        await marketDataApi.StartAsync(valueDate, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        _activeValueDate = valueDate;
         logger.LogInformation(
             "Validated {RolloverCount} futures rollover rows for value date {ValueDate}.",
             rows.Count,
             valueDate);
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        if (_activeValueDate is not { } valueDate)
+            return;
+        await marketDataApi.StopAsync(valueDate).ConfigureAwait(false);
+        _activeValueDate = null;
+    }
 }

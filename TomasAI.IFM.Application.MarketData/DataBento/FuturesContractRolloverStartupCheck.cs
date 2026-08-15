@@ -11,7 +11,8 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 public sealed class FuturesContractRolloverStartupCheck(
     IMarketDataApi marketDataApi,
     IFuturesContractRolloverStore store,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IDatabentoContractRegistrationRegistry? registry = null)
 {
     public static readonly string[] RequiredSymbols = ["ES", "VX"];
 
@@ -44,6 +45,7 @@ public sealed class FuturesContractRolloverStartupCheck(
 
         var validated = await store.GetFuturesContractRolloversAsync(cancellationToken)
             .ConfigureAwait(false);
+        List<FuturesContractV2ReadModel> currentContracts = [];
         foreach (var requiredSymbol in RequiredSymbols)
         {
             var row = validated.SingleOrDefault(candidate =>
@@ -63,7 +65,9 @@ public sealed class FuturesContractRolloverStartupCheck(
                 throw new FuturesContractRolloverConfigurationException(
                     $"The rollover row for '{requiredSymbol}' does not identify a persisted currently traded contract.");
             }
+            currentContracts.Add(contract);
         }
+        registry?.ReplaceCurrentFuturesContracts(currentContracts);
         return validated;
     }
 }

@@ -57,14 +57,7 @@ public sealed class DatabentoCurrentFuturesContractResolver(
     }
 
     private string ResolveDataset(string symbol)
-    {
-        if (options.FuturesContractDatasets.TryGetValue(symbol, out var configured)
-            && !string.IsNullOrWhiteSpace(configured))
-            return configured;
-        return string.Equals(symbol, "VX", StringComparison.Ordinal)
-            ? "XCBF.PITCH"
-            : options.FeedOptions.Dataset;
-    }
+        => DatabentoDatasetSelection.Resolve(options, symbol);
 
     private static DateOnly? GetMaturity(ContractDetail detail)
     {

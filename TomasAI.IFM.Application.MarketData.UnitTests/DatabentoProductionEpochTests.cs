@@ -3,6 +3,7 @@ using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
@@ -83,6 +84,57 @@ public sealed class DatabentoProductionEpochTests
         Assert.True(provider.Feed.Disposed);
     }
 
+    [Fact]
+    public async Task One_logical_epoch_partitions_contracts_across_provider_datasets()
+    {
+        var valueDate = new DateOnly(2026, 8, 10);
+        var es = Detail(
+            "ESU6", "ES", new InstrumentKey(7, 42), ContractKind.Future,
+            new DateOnly(2026, 9, 18), null, "ESU6");
+        var vx = Detail(
+            "VXU6", "VX", new InstrumentKey(8, 84), ContractKind.Future,
+            new DateOnly(2026, 9, 16), null, "VXU6",
+            "XCBF.PITCH", "CFE");
+        var provider = new FakeFeedFactory([es, vx]);
+        var configuredOptions = new DatabentoMarketDataRuntimeOptions
+        {
+            FeedOptions = DatabentoFeedOptions.ForProfile(
+                FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
+            Contracts = [],
+            QueryConcurrency = 1,
+            QueryQueueCapacity = 4,
+            LastPriceCapacity = 2
+        };
+        var registry = new DatabentoContractRegistrationRegistry([], configuredOptions);
+        registry.ReplaceCurrentFuturesContracts([
+            new FuturesContractV2ReadModel(
+                "ES20260918", "ES future", "ES", "ESU6", "FUT", "USD",
+                "CME", "50", new DateOnly(2026, 9, 18), true),
+            new FuturesContractV2ReadModel(
+                "VX20260916", "VX future", "VX", "VXU6", "FUT", "USD",
+                "CFE", "1000", new DateOnly(2026, 9, 16), true)]);
+        var runtimeOptions = configuredOptions with { Contracts = registry };
+        var epochFactory = new DatabentoMarketDataEpochFactory(
+            provider, new NoOpPublisher(), runtimeOptions);
+        await using var api = new DatabentoMarketDataApi(
+            epochFactory, new DatabentoMarketDataApiOptions());
+
+        await api.StartAsync(valueDate);
+
+        Assert.NotNull(await api.GetFuturesContractAsync("ES20260918"));
+        Assert.NotNull(await api.GetFuturesContractAsync("VX20260916"));
+        Assert.Equal(["GLBX.MDP3", "XCBF.PITCH"],
+            provider.Feeds.Keys.Order(StringComparer.Ordinal).ToArray());
+        Assert.True(await api.StartStreamingFuturesTickDataAsync("ES20260918"));
+        Assert.True(await api.StartStreamingFuturesTickDataAsync("VX20260916"));
+
+        await api.StopAsync(valueDate);
+
+        Assert.All(provider.Feeds.Values, feed => Assert.Equal(1, feed.StartCount));
+        Assert.All(provider.Feeds.Values, feed => Assert.Equal(1, feed.StopCount));
+        Assert.All(provider.Feeds.Values, feed => Assert.True(feed.Disposed));
+    }
+
     private static ContractDetail Detail(
         string rawSymbol,
         string ticker,
@@ -90,9 +142,11 @@ public sealed class DatabentoProductionEpochTests
         ContractKind kind,
         DateOnly maturity,
         long? strike,
-        string underlying) => new()
+        string underlying,
+        string dataset = "GLBX.MDP3",
+        string exchange = "CME") => new()
     {
-        Dataset = "GLBX.MDP3",
+        Dataset = dataset,
         RawSymbol = rawSymbol,
         Ticker = ticker,
         Underlying = underlying,
@@ -103,7 +157,7 @@ public sealed class DatabentoProductionEpochTests
         ContractMultiplier = 50,
         Currency = "USD",
         SettlementCurrency = "USD",
-        Exchange = "CME",
+        Exchange = exchange,
         SecurityType = kind == ContractKind.Future ? "FUT" : "FOP",
         Cfi = string.Empty,
         UnitOfMeasure = "USD"
@@ -112,13 +166,20 @@ public sealed class DatabentoProductionEpochTests
     private sealed class FakeFeedFactory(IReadOnlyList<ContractDetail> details)
         : IDatabentoFeedFactory
     {
-        private readonly Dictionary<string, ContractDetail> _details =
-            details.ToDictionary(item => item.RawSymbol, StringComparer.Ordinal);
-
-        internal FakeTickerFeed Feed { get; } = new(details);
-        public IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options) => Feed;
+        internal Dictionary<string, FakeTickerFeed> Feeds { get; } =
+            new(StringComparer.Ordinal);
+        internal FakeTickerFeed Feed => Feeds.Values.Single();
+        public IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options)
+        {
+            var feed = new FakeTickerFeed(
+                details.Where(detail => detail.Dataset == options.Dataset).ToArray());
+            Feeds.Add(options.Dataset, feed);
+            return feed;
+        }
         public IDatabentoMarketDataQueries CreateMarketDataQueries(
-            DatabentoFeedOptions options) => new FakeQueries(_details);
+            DatabentoFeedOptions options) => new FakeQueries(details
+                .Where(detail => detail.Dataset == options.Dataset)
+                .ToDictionary(item => item.RawSymbol, StringComparer.Ordinal));
         public IDatabentoOptionChainFeed CreateOptionChainFeed(
             DatabentoFeedOptions options) => throw new NotSupportedException();
         public IDatabentoLatestPriceClient CreateLatestPriceClient(

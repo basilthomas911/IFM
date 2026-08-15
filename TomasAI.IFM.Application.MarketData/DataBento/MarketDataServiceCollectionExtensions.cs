@@ -15,7 +15,14 @@ public static class MarketDataServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(runtimeOptions);
 
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton(runtimeOptions);
+        var registry = new DatabentoContractRegistrationRegistry(
+            runtimeOptions.Contracts,
+            runtimeOptions);
+        var effectiveRuntimeOptions = runtimeOptions with { Contracts = registry };
+        services.TryAddSingleton(registry);
+        services.TryAddSingleton<IDatabentoContractRegistrationRegistry>(provider =>
+            provider.GetRequiredService<DatabentoContractRegistrationRegistry>());
+        services.TryAddSingleton(effectiveRuntimeOptions);
         services.TryAddSingleton(apiOptions ?? new DatabentoMarketDataApiOptions());
         services.TryAddSingleton<IDatabentoMarketDataEpochFactory,
             DatabentoMarketDataEpochFactory>();

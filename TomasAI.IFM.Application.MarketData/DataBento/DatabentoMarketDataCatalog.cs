@@ -11,13 +11,14 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
 {
     private const decimal PriceScale = 1_000_000_000m;
     private readonly FrozenDictionary<string, ResolvedContract> _resolved;
-    private readonly FrozenDictionary<string, string> _futureDomainIdByProviderIdentity;
-    private readonly IDatabentoOperationRunner _operations;
+    private readonly FrozenDictionary<(string Dataset, string ProviderIdentity), string>
+        _futureDomainIdByProviderIdentity;
+    private readonly FrozenDictionary<string, IDatabentoOperationRunner> _operationsByDataset;
     private readonly DatabentoMarketDataRuntimeOptions _options;
 
     private DatabentoMarketDataCatalog(
         IEnumerable<ResolvedContract> resolved,
-        IDatabentoOperationRunner operations,
+        IReadOnlyDictionary<string, IDatabentoOperationRunner> operationsByDataset,
         DatabentoMarketDataRuntimeOptions options)
     {
         _resolved = resolved.ToFrozenDictionary(
@@ -27,75 +28,87 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             .Where(item => item.Registration.AssetTypeId == AssetTypeId.Futures)
             .SelectMany(item => new[]
             {
-                new KeyValuePair<string, string>(
-                    item.Registration.ProviderContractName,
+                new KeyValuePair<(string, string), string>(
+                    (item.Dataset, item.Registration.ProviderContractName),
                     item.Registration.DomainContractId),
-                new KeyValuePair<string, string>(
-                    item.Detail.RawSymbol,
+                new KeyValuePair<(string, string), string>(
+                    (item.Dataset, item.Detail.RawSymbol),
                     item.Registration.DomainContractId)
             })
-            .GroupBy(item => item.Key, StringComparer.Ordinal)
+            .GroupBy(item => item.Key)
             .ToFrozenDictionary(
                 group => group.Key,
-                group => group.First().Value,
-                StringComparer.Ordinal);
-        _operations = operations;
+                group => group.First().Value);
+        _operationsByDataset = operationsByDataset.ToFrozenDictionary(StringComparer.Ordinal);
         _options = options;
     }
 
     internal IReadOnlyCollection<ResolvedContract> ResolvedContracts => _resolved.Values;
 
     internal static async Task<DatabentoMarketDataCatalog> CreateAsync(
-        IDatabentoOperationRunner operations,
+        IReadOnlyDictionary<string, IDatabentoOperationRunner> operationsByDataset,
         DatabentoMarketDataRuntimeOptions options,
         CancellationToken cancellationToken)
     {
         ValidateOptions(options);
         var registrations = options.Contracts.ToArray();
-        var names = registrations.Select(item => item.ProviderContractName).ToArray();
-        var details = await operations.RunAsync(
-            queries =>
-            {
-                var batch = queries.GetContractDetails(names, options.ProviderQueryTimeout);
-                for (var index = 0; index < batch.Count; index++)
-                {
-                    var detail = batch[index];
-                    if (detail is null) continue;
-                    var reverse = queries.InstrumentIdToContractId(
-                        detail.Instrument.InstrumentId, options.ProviderQueryTimeout);
-                    var forward = queries.ContractIdToInstrumentId(
-                        reverse, options.ProviderQueryTimeout);
-                    if (forward != detail.Instrument.InstrumentId)
-                        throw new MarketDataContractMappingException(
-                            registrations[index].DomainContractId,
-                            "the forward instrument mapping did not match contract metadata");
-                }
-                return batch;
-            },
-            cancellationToken).ConfigureAwait(false);
-        if (details.Count != registrations.Length)
-            throw new MarketDataContractMappingException(
-                "epoch", "the provider batch result count did not match the request");
-
         var resolved = new ResolvedContract[registrations.Length];
-        for (var index = 0; index < registrations.Length; index++)
+        var indexed = registrations.Select(static (registration, index) =>
+            (Registration: registration, Index: index));
+        foreach (var group in indexed.GroupBy(item =>
+            DatabentoDatasetSelection.Resolve(options, item.Registration),
+            StringComparer.Ordinal))
         {
-            var registration = registrations[index];
-            var detail = details[index] ?? throw new MarketDataContractNotFoundException(
-                registration.DomainContractId);
-            ValidateKind(registration, detail);
-            resolved[index] = new ResolvedContract(
-                registration,
-                detail,
-                registration.AssetTypeId == AssetTypeId.Futures
-                    ? MapFutures(registration.DomainContractId, detail)
-                    : null,
-                registration.AssetTypeId == AssetTypeId.FuturesOption
-                    ? MapOption(registration.DomainContractId, detail)
-                    : null);
+            if (!operationsByDataset.TryGetValue(group.Key, out var operations))
+                throw new InvalidOperationException(
+                    $"No DataBento operation runner is configured for dataset '{group.Key}'.");
+            var entries = group.ToArray();
+            var names = entries.Select(item => item.Registration.ProviderContractName).ToArray();
+            var details = await operations.RunAsync(
+                queries =>
+                {
+                    var batch = queries.GetContractDetails(names, options.ProviderQueryTimeout);
+                    for (var index = 0; index < batch.Count; index++)
+                    {
+                        var detail = batch[index];
+                        if (detail is null) continue;
+                        var reverse = queries.InstrumentIdToContractId(
+                            detail.Instrument.InstrumentId, options.ProviderQueryTimeout);
+                        var forward = queries.ContractIdToInstrumentId(
+                            reverse, options.ProviderQueryTimeout);
+                        if (forward != detail.Instrument.InstrumentId)
+                            throw new MarketDataContractMappingException(
+                                entries[index].Registration.DomainContractId,
+                                "the forward instrument mapping did not match contract metadata");
+                    }
+                    return batch;
+                },
+                cancellationToken).ConfigureAwait(false);
+            if (details.Count != entries.Length)
+                throw new MarketDataContractMappingException(
+                    "epoch", $"the provider batch result count did not match the request for dataset '{group.Key}'");
+
+            for (var index = 0; index < entries.Length; index++)
+            {
+                var entry = entries[index];
+                var registration = entry.Registration;
+                var detail = details[index] ?? throw new MarketDataContractNotFoundException(
+                    registration.DomainContractId);
+                ValidateKind(registration, detail);
+                resolved[entry.Index] = new ResolvedContract(
+                    registration,
+                    group.Key,
+                    detail,
+                    registration.AssetTypeId == AssetTypeId.Futures
+                        ? MapFutures(registration.DomainContractId, detail)
+                        : null,
+                    registration.AssetTypeId == AssetTypeId.FuturesOption
+                        ? MapOption(registration.DomainContractId, detail)
+                        : null);
+            }
         }
 
-        return new DatabentoMarketDataCatalog(resolved, operations, options);
+        return new DatabentoMarketDataCatalog(resolved, operationsByDataset, options);
     }
 
     public FuturesContractV2ReadModel? FindFutures(string contractId) =>
@@ -109,7 +122,7 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
         if (!_resolved.TryGetValue(futuresOptionContractId, out var option)
             || option.Option is null)
             return null;
-        return ResolveUnderlyingDomainId(option.Detail.Underlying);
+        return ResolveUnderlyingDomainId(option.Dataset, option.Detail.Underlying);
     }
 
     public async Task<FuturesOptionContractReadModel[]> GetOptionChainAsync(
@@ -120,12 +133,13 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             || underlying.Futures is null)
             throw new MarketDataContractNotFoundException(futuresContractId);
 
-        var result = await _operations.RunAsync(queries =>
+        var operations = _operationsByDataset[underlying.Dataset];
+        var result = await operations.RunAsync(queries =>
         {
             var definitions = queries.GetChainDefinitions(
                 new OptionChainDefinitionRequest
                 {
-                    Dataset = _options.FeedOptions.Dataset,
+                    Dataset = underlying.Dataset,
                     Underlying = underlying.Detail.RawSymbol,
                     MaturityDate = maturityDate,
                     UniversePolicy = OptionUniversePolicy.UnderlyingFuture,
@@ -154,8 +168,8 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             .ToArray();
     }
 
-    private string? ResolveUnderlyingDomainId(string providerIdentity) =>
-        _futureDomainIdByProviderIdentity.GetValueOrDefault(providerIdentity);
+    private string? ResolveUnderlyingDomainId(string dataset, string providerIdentity) =>
+        _futureDomainIdByProviderIdentity.GetValueOrDefault((dataset, providerIdentity));
 
     private static FuturesContractV2ReadModel MapFutures(
         string domainContractId,
@@ -265,6 +279,7 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
 
     internal sealed record ResolvedContract(
         DatabentoContractRegistration Registration,
+        string Dataset,
         ContractDetail Detail,
         FuturesContractV2ReadModel? Futures,
         FuturesOptionContractReadModel? Option);

@@ -7,6 +7,8 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.Storage;
 using Xunit;
 
@@ -31,7 +33,15 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             clock,
             resolver,
             fixture.Db);
-        var check = new FuturesContractRolloverStartupCheck(api, fixture.Db, clock);
+        var runtimeOptions = new DatabentoMarketDataRuntimeOptions
+        {
+            FeedOptions = DatabentoFeedOptions.ForProfile(
+                FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
+            Contracts = []
+        };
+        var registry = new DatabentoContractRegistrationRegistry([], runtimeOptions);
+        var check = new FuturesContractRolloverStartupCheck(
+            api, fixture.Db, clock, registry);
 
         var first = await check.ExecuteAsync(ValueDate);
         var second = await check.ExecuteAsync(ValueDate);
@@ -51,6 +61,16 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         es!.CurrentlyTraded.Should().BeTrue();
         vx.Should().NotBeNull();
         vx!.CurrentlyTraded.Should().BeTrue();
+        registry.Should().Contain(registration =>
+            registration.DomainContractId == "ES20260918"
+            && registration.ProviderContractName == "ESU6"
+            && registration.Dataset == "GLBX.MDP3"
+            && registration.AssetTypeId == AssetTypeId.Futures);
+        registry.Should().Contain(registration =>
+            registration.DomainContractId == "VX20260916"
+            && registration.ProviderContractName == "VXU6"
+            && registration.Dataset == "XCBF.PITCH"
+            && registration.AssetTypeId == AssetTypeId.Futures);
     }
 
     [Fact]

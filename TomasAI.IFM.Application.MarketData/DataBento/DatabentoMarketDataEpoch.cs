@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -33,9 +34,16 @@ public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochF
         _livePublisher = livePublisher ?? new NullTickLiveEventPublisher();
     }
 
-    public IDatabentoMarketDataEpoch Create(DateOnly valueDate) =>
+    public IDatabentoMarketDataEpoch Create(DateOnly valueDate)
+    {
+        var contracts = _options.Contracts is IDatabentoContractRegistrationRegistry registry
+            ? registry.Snapshot()
+            : _options.Contracts.ToArray();
+        var snapshot = _options with { Contracts = contracts };
+        return
         new DatabentoMarketDataEpoch(
-            valueDate, _feeds, _publisher, _options, _timeProvider, _livePublisher);
+            valueDate, _feeds, _publisher, snapshot, _timeProvider, _livePublisher);
+    }
 }
 
 internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
@@ -48,10 +56,13 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     private readonly DatabentoOptionRouteRegistry _optionRoutes;
     private readonly ITickLiveRouter _liveRouter;
     private readonly ITickerStreamRouteController _streamRoutes;
-    private DatabentoOperationRunner? _operations;
+    private readonly List<DatabentoOperationRunner> _operations = [];
     private DatabentoMarketDataCatalog? _catalog;
     private DatabentoLastPriceStore? _lastPrices;
-    private TickAggregationService? _aggregation;
+    private FrozenDictionary<string, TickAggregationService> _aggregationsByDataset =
+        FrozenDictionary<string, TickAggregationService>.Empty;
+    private FrozenDictionary<string, TickAggregationService> _aggregationByContractId =
+        FrozenDictionary<string, TickAggregationService>.Empty;
     private int _started;
     private int _disposed;
 
@@ -87,8 +98,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         out FuturesMarketPriceSnapshot snapshot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
-        var aggregation = Volatile.Read(ref _aggregation);
-        if (aggregation is null)
+        if (!Volatile.Read(ref _aggregationByContractId)
+            .TryGetValue(contractId, out var aggregation))
         {
             snapshot = default;
             return false;
@@ -101,8 +112,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         out OptionTickerPriceSnapshot snapshot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
-        var aggregation = Volatile.Read(ref _aggregation);
-        if (aggregation is null)
+        if (!Volatile.Read(ref _aggregationByContractId)
+            .TryGetValue(contractId, out var aggregation))
         {
             snapshot = default;
             return false;
@@ -111,7 +122,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     }
 
     public bool IsTickDataStreamActive(string contractId) =>
-        _aggregation?.IsTickDataStreamActive(contractId) == true;
+        Volatile.Read(ref _aggregationByContractId)
+            .GetValueOrDefault(contractId)?.IsTickDataStreamActive(contractId) == true;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -121,13 +133,25 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         {
             if (Volatile.Read(ref _started) != 0) return;
             ValidateRuntimeOptions(_options);
-            var queryClients = Enumerable.Range(0, _options.QueryConcurrency)
-                .Select(_ => _feeds.CreateMarketDataQueries(_options.FeedOptions))
+            var datasets = _options.Contracts
+                .Select(registration => DatabentoDatasetSelection.Resolve(_options, registration))
+                .Distinct(StringComparer.Ordinal)
                 .ToArray();
-            _operations = new DatabentoOperationRunner(
-                queryClients, _options.QueryQueueCapacity);
+            var operationsByDataset = new Dictionary<string, IDatabentoOperationRunner>(
+                StringComparer.Ordinal);
+            foreach (var dataset in datasets)
+            {
+                var feedOptions = _options.FeedOptions with { Dataset = dataset };
+                var queryClients = Enumerable.Range(0, _options.QueryConcurrency)
+                    .Select(_ => _feeds.CreateMarketDataQueries(feedOptions))
+                    .ToArray();
+                var runner = new DatabentoOperationRunner(
+                    queryClients, _options.QueryQueueCapacity);
+                _operations.Add(runner);
+                operationsByDataset.Add(dataset, runner);
+            }
             _catalog = await DatabentoMarketDataCatalog.CreateAsync(
-                _operations, _options, cancellationToken).ConfigureAwait(false);
+                operationsByDataset, _options, cancellationToken).ConfigureAwait(false);
 
             _lastPrices = new DatabentoLastPriceStore(
                 ValueDate, _options.LastPriceCapacity);
@@ -135,7 +159,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             foreach (var resolved in _catalog.ResolvedContracts)
             {
                 mappings.SetTickMapping(
-                    _options.FeedOptions.Dataset,
+                    resolved.Dataset,
                     ValueDate,
                     resolved.Detail.Instrument.PublisherId,
                     resolved.Detail.Instrument.InstrumentId,
@@ -147,41 +171,71 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                     resolved.Registration.AssetTypeId);
             }
 
-            var feed = _feeds.CreateTickerFeed(_options.FeedOptions);
+            var aggregationsByDataset = new Dictionary<string, TickAggregationService>(
+                StringComparer.Ordinal);
+            var aggregationByContractId = new Dictionary<string, TickAggregationService>(
+                StringComparer.Ordinal);
             try
             {
-                var subscriptions = _catalog.ResolvedContracts
-                    .Select(resolved => new TickerSubscription(
-                        resolved.Detail.RawSymbol,
-                        DatabentoInputSymbology.RawSymbol,
-                        MarketDataKinds.Quote | MarketDataKinds.Trade))
-                    .ToArray();
-                feed.Subscribe(subscriptions, _options.ProviderQueryTimeout);
-                _aggregation = new TickAggregationService(
-                    feed,
-                    mappings,
-                    _publisher,
-                    new TickQuoteBufferPool(),
-                    new EpochValueDateProvider(ValueDate),
-                    new TickAggregationOptions
+                foreach (var group in _catalog.ResolvedContracts.GroupBy(
+                    static resolved => resolved.Dataset,
+                    StringComparer.Ordinal))
+                {
+                    var dataset = group.Key;
+                    var contracts = group.ToArray();
+                    var feed = _feeds.CreateTickerFeed(
+                        _options.FeedOptions with { Dataset = dataset });
+                    TickAggregationService? aggregation = null;
+                    try
                     {
-                        Dataset = _options.FeedOptions.Dataset,
-                        DefinitionDate = ValueDate,
-                        FeedStartTimeout = _options.FeedStartTimeout,
-                        FeedStopTimeout = _options.FeedStopTimeout,
-                        ReaderPollTimeout = _options.ReaderPollTimeout
-                    },
-                    _timeProvider,
-                    _lastPrices,
-                    _liveRouter,
-                    _streamRoutes);
-                await _aggregation.StartAsync().ConfigureAwait(false);
+                        var subscriptions = contracts.Select(resolved => new TickerSubscription(
+                            resolved.Detail.RawSymbol,
+                            DatabentoInputSymbology.RawSymbol,
+                            MarketDataKinds.Quote | MarketDataKinds.Trade))
+                            .ToArray();
+                        feed.Subscribe(subscriptions, _options.ProviderQueryTimeout);
+                        aggregation = new TickAggregationService(
+                            feed,
+                            mappings,
+                            _publisher,
+                            new TickQuoteBufferPool(),
+                            new EpochValueDateProvider(ValueDate),
+                            new TickAggregationOptions
+                            {
+                                Dataset = dataset,
+                                DefinitionDate = ValueDate,
+                                FeedStartTimeout = _options.FeedStartTimeout,
+                                FeedStopTimeout = _options.FeedStopTimeout,
+                                ReaderPollTimeout = _options.ReaderPollTimeout
+                            },
+                            _timeProvider,
+                            _lastPrices,
+                            _liveRouter,
+                            _streamRoutes);
+                        await aggregation.StartAsync().ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        if (aggregation is null) feed.Dispose();
+                        else await aggregation.DisposeAsync().ConfigureAwait(false);
+                        throw;
+                    }
+                    aggregationsByDataset.Add(dataset, aggregation);
+                    foreach (var contract in contracts)
+                        aggregationByContractId.Add(
+                            contract.Registration.DomainContractId, aggregation);
+                }
             }
             catch
             {
-                if (_aggregation is null) feed.Dispose();
+                foreach (var aggregation in aggregationsByDataset.Values)
+                    await aggregation.DisposeAsync().ConfigureAwait(false);
                 throw;
             }
+            Volatile.Write(ref _aggregationsByDataset,
+                aggregationsByDataset.ToFrozenDictionary(StringComparer.Ordinal));
+            Volatile.Write(ref _aggregationByContractId,
+                aggregationByContractId.ToFrozenDictionary(StringComparer.Ordinal));
 
             Volatile.Write(ref _started, 1);
         }
@@ -196,9 +250,9 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             _optionRoutes.Clear();
             _liveRouter.Clear();
             List<Exception>? failures = null;
-            if (_aggregation is not null)
+            foreach (var aggregation in Volatile.Read(ref _aggregationsByDataset).Values)
             {
-                try { await _aggregation.StopAsync().ConfigureAwait(false); }
+                try { await aggregation.StopAsync().ConfigureAwait(false); }
                 catch (Exception exception) { (failures ??= []).Add(exception); }
             }
             _lastPrices?.Invalidate();
@@ -210,23 +264,25 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     }
 
     public TickAggregationContractStatus GetAggregationStatus(string contractId) =>
-        _aggregation?.GetContractStatus(contractId)
+        Volatile.Read(ref _aggregationByContractId).GetValueOrDefault(contractId)
+            ?.GetContractStatus(contractId)
         ?? new TickAggregationContractStatus(
             contractId, AssetTypeId.Unknown, false, false, false);
 
     public DatabentoMarketDataEpochHealth GetHealth()
     {
-        var metrics = _aggregation?.GetMetrics() ?? default;
+        var aggregations = Volatile.Read(ref _aggregationsByDataset).Values;
+        var metrics = aggregations.Select(static aggregation => aggregation.GetMetrics()).ToArray();
         return new DatabentoMarketDataEpochHealth(
             ValueDate,
             Volatile.Read(ref _started) != 0,
-            _aggregation?.IsRunning == true,
+            aggregations.Any() && aggregations.All(static aggregation => aggregation.IsRunning),
             _catalog?.ResolvedContracts.Count ?? 0,
             _lastPrices?.Count ?? 0,
             _lastPrices?.IsActive == true,
-            metrics.SourceQuoteRecords,
-            metrics.SourceTradeRecords,
-            metrics.PublicationFailures);
+            metrics.Sum(static metric => metric.SourceQuoteRecords),
+            metrics.Sum(static metric => metric.SourceTradeRecords),
+            metrics.Sum(static metric => metric.PublicationFailures));
     }
 
     public bool StartFuturesRoute(
@@ -234,7 +290,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         string futuresContractId)
     {
         EnsureRunning();
-        return _aggregation!.StartTickDataStream(owner, futuresContractId);
+        return GetAggregation(futuresContractId).StartTickDataStream(owner, futuresContractId);
     }
 
     public bool StopFuturesRoute(
@@ -242,7 +298,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         string futuresContractId)
     {
         EnsureRunning();
-        return _aggregation!.StopTickDataStream(owner, futuresContractId);
+        return GetAggregation(futuresContractId).StopTickDataStream(owner, futuresContractId);
     }
 
     public bool StartIndividualOptionRoute(
@@ -250,7 +306,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         string futuresOptionContractId)
     {
         EnsureRunning();
-        return _aggregation!.StartTickDataStream(owner, futuresOptionContractId);
+        return GetAggregation(futuresOptionContractId)
+            .StartTickDataStream(owner, futuresOptionContractId);
     }
 
     public bool StopIndividualOptionRoute(
@@ -258,7 +315,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         string futuresOptionContractId)
     {
         EnsureRunning();
-        return _aggregation!.StopTickDataStream(owner, futuresOptionContractId);
+        return GetAggregation(futuresOptionContractId)
+            .StopTickDataStream(owner, futuresOptionContractId);
     }
 
     public Task<bool> StartOptionChainAsync(
@@ -285,10 +343,10 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         try { await StopAsync().ConfigureAwait(false); }
         catch { /* Disposal continues so native and managed resources are released. */ }
-        if (_aggregation is not null)
-            await _aggregation.DisposeAsync().ConfigureAwait(false);
-        if (_operations is not null)
-            await _operations.DisposeAsync().ConfigureAwait(false);
+        foreach (var aggregation in Volatile.Read(ref _aggregationsByDataset).Values)
+            await aggregation.DisposeAsync().ConfigureAwait(false);
+        foreach (var operations in _operations)
+            await operations.DisposeAsync().ConfigureAwait(false);
         _lastPrices?.Dispose();
         _lifecycle.Dispose();
     }
@@ -298,6 +356,10 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         if (Volatile.Read(ref _started) == 0)
             throw new MarketDataApiNotRunningException();
     }
+
+    private TickAggregationService GetAggregation(string contractId) =>
+        Volatile.Read(ref _aggregationByContractId).GetValueOrDefault(contractId)
+        ?? throw new MarketDataContractNotFoundException(contractId);
 
     private TickerContractDetails CreateContractDetails(
         DatabentoMarketDataCatalog.ResolvedContract resolved)

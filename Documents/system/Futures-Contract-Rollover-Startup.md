@@ -57,12 +57,37 @@ services. It:
 3. reconciles both rows through `IMarketDataApi`;
 4. verifies every required row has a contract ID and rollover date; and
 5. verifies each ID resolves to a persisted, matching, currently traded
-   `futures_contract` row.
+   `futures_contract` row;
+6. atomically replaces the ES/VX entries in the runtime DataBento contract
+   registry; and
+7. starts the value-date market-data epoch from that registry snapshot.
 
 Any failure propagates from `StartAsync` and prevents application startup. An
 empty table, unresolved DataBento symbol, missing provider configuration, or a
 rollover/contract mismatch is therefore a startup error rather than a degraded
 trading state.
+
+## Runtime contract registry and datasets
+
+`DatabentoContractRegistrationRegistry` is the runtime source of truth for new
+market-data epochs. Rollover reconciliation replaces registrations by futures
+root symbol, which removes a stale ES or VX assignment while preserving
+explicit registrations for unrelated roots and options. Each epoch snapshots
+the registry when it is created, so an in-flight epoch cannot observe a partial
+rollover mutation.
+
+A registration carries its DataBento dataset. One logical `IMarketDataApi`
+epoch partitions provider queries, ticker feeds, and tick aggregation by
+dataset, while sharing the domain contract catalog, hot-price store, live
+router, and public API. This is required because ES normally uses `GLBX.MDP3`
+and VX uses `XCBF.PITCH`. Contract stream ownership and hot-price access remain
+keyed by the domain contract ID and are routed to the correct dataset partition
+internally.
+
+`AppSettings:Databento:Contracts` remains an explicit bootstrap/override input
+for unrelated contracts. Validated rollover assignments replace any configured
+ES/VX futures entries before the epoch starts; therefore appsettings is no
+longer authoritative for those current contracts.
 
 ## Test coverage
 

@@ -8,6 +8,8 @@ public sealed record DatabentoContractRegistration
     public required string DomainContractId { get; init; }
     public required string ProviderContractName { get; init; }
     public required AssetTypeId AssetTypeId { get; init; }
+    public string? RootSymbol { get; init; }
+    public string? Dataset { get; init; }
 }
 public sealed record DatabentoMarketDataRuntimeOptions
 {
