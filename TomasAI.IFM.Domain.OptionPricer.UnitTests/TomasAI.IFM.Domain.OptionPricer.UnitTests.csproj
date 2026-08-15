@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <OptionPricerRustRoot>$(MSBuildThisFileDirectory)..\native.rust\OptionPricer.Rust</OptionPricerRustRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,5 +31,12 @@
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+
+  <Target Name="BuildAndCopyRustOptionPricer" BeforeTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(OptionPricerRustRoot)\build-native.ps1&quot; -Configuration $(Configuration)" />
+    <MakeDir Directories="$(OutDir)runtimes\win-x64\native" />
+    <Copy SourceFiles="$(OptionPricerRustRoot)\out\build\$(Configuration)\ifm_option_pricer_native.dll"
+          DestinationFolder="$(OutDir)runtimes\win-x64\native" />
+  </Target>
 
 </Project>

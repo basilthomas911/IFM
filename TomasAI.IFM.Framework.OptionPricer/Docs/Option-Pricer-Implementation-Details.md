@@ -2,14 +2,18 @@
 
 ## Purpose
 
-`TomasAI.IFM.Framework.OptionPricer` provides the in-process quantitative implementation used by the Option Pricer domain. Its current implementation is a managed Black-76 model for European options on futures, a compatibility option-Greeks calculator, batch pricing and Greeks, implied-volatility inversion, credit-spread assembly, and a MAD-based iron-condor loss-risk estimate.
+`TomasAI.IFM.Framework.OptionPricer` provides the in-process quantitative implementation used by the Option Pricer
+domain. It contains the default managed Black-76 model and a selectable Windows x64 Rust implementation for European
+options on futures, a compatibility option-Greeks calculator, batch pricing and Greeks, implied-volatility inversion,
+credit-spread assembly, and a MAD-based iron-condor loss-risk estimate.
 
 The approved plan to make Black76 the sole IFM option model and remove QLNet is documented in [QLNet to Black76 Migration and Implementation Plan](QLNet-to-Black76-Migration-Plan.md). QLNet source imports and package references have been removed. Strong exercise-style enforcement, a typed failure contract, solver hardening, expanded numerical verification, and paper-trading validation remain tracked in that specification.
 
-The frozen managed behavior and version-1 native contract for the planned Rust implementation are documented in
+The frozen managed behavior and version-1 native contract for the Rust implementation are documented in
 [Rust Black-76 Native ABI Version 1](Rust-Black76-Native-ABI-v1.md). The managed implementation remains the only runtime
-implementation until the subsequent Rust implementation stages are completed and explicitly selected. The Windows x64
-Rust crate now contains its build scaffold and scalar price/Greeks exports, but no managed application path loads it yet.
+default. The Windows x64 Rust crate and managed interop implement scalar price/Greeks, implied volatility, a fused
+calculator operation, and zero-copy span batches. Rust must be selected before first use as documented in the ABI
+specification; there is no automatic fallback.
 
 The project targets .NET 10, enables nullable reference types, implicit usings, and unsafe blocks, and references Shared, Domain OptionPricer Shared, and Domain Trade Shared.
 
@@ -20,6 +24,7 @@ Paths are relative to `TomasAI.IFM.Framework.OptionPricer/`. Each leaf path incl
 ```text
 Black76/
 Docs/
+Interop/
 bin/Debug/net10.0/
 bin/Release/net10.0/
 obj/Debug/net10.0/ref/
@@ -28,8 +33,10 @@ obj/Release/net10.0/ref/
 obj/Release/net10.0/refint/
 ```
 
-- `Black76/` contains every source implementation: `OptionCalculator.cs`, `OptionModel.cs`, `OptionSpreadPricer.cs`, and `LossProbability.cs`.
+- `Black76/` contains the managed model/facade: `OptionCalculator.cs`, `OptionModel.cs`, `OptionSpreadPricer.cs`, and `LossProbability.cs`.
 - `Docs/` contains this implementation record.
+- `Interop/` contains native layouts, source-generated imports, RID loading, implementation selection, status mapping,
+  fused calculator handling, and zero-copy batch wrappers.
 - `bin/Debug/net10.0/` and `bin/Release/net10.0/` contain generated assemblies and dependency outputs.
 - `obj/Debug/net10.0/` and `obj/Release/net10.0/` contain generated build state; `ref/` and `refint/` contain reference and intermediate reference assemblies.
 - The project root contains `TomasAI.IFM.Framework.OptionPricer.csproj`.
@@ -146,11 +153,65 @@ The result is called a probability but is not clamped to `[0, 1]`. Empty collect
 
 The framework project itself has no dependency injection registration or mutable service state. `OptionModel` is static, while the other two classes are instantiated or invoked directly by the domain layer.
 
+The implementation selector reads AppContext or environment configuration once per process. It stores only the selected
+enum and performs no per-call configuration lookup. Rust selection validates Windows x64 support, the expected RID DLL
+location, and ABI version 1 before calculation. `OptionCalculator` uses the fused native implied-volatility/Greeks call
+to avoid two P/Invoke transitions. Batch calls pin the existing spans only for the duration of the call and allocate no
+packing arrays.
+
 ## Testing status
 
-Automated compatibility coverage is hosted in `TomasAI.IFM.Domain.OptionPricer.UnitTests/Optimization/OptionCalculatorTests.cs`. It verifies call and put implied-volatility/Greek recovery, rejected invalid and unsolvable inputs, and deterministic concurrent use across 4,096 calculations. The migration gate also passed all eight Domain OptionPricer integration tests. The test application continues to provide manual/example coverage. The broader numerical, finite-difference, solver-edge, benchmark, and paper-trading matrices remain required by the migration plan.
+Automated compatibility coverage is hosted in the Domain OptionPricer unit-test optimization folder. It verifies call
+and put implied-volatility/Greek recovery, rejected invalid and unsolvable inputs, deterministic concurrent use across
+4,096 calculations, managed/Rust scalar parity across the representative grid and 100,000 deterministic randomized
+contracts, 5,000 randomized implied-volatility cases, 4,096 randomized batch contracts, independent finite-difference
+Greek checks, batch partial-write behavior, ABI layouts, configuration parsing, RID resolution, and zero steady-state
+managed allocation in native scalar/batch wrappers. The complete 59-test project passes in separate Managed and Rust
+process configurations. The Rust-specific managed suite has 21 passing tests and the native crate has 18 passing
+kernel/layout/FFI tests. Paper-trading validation remains a later operational gate.
 
 The 2026-08-13 BenchmarkDotNet ShortRun on .NET 10.0.10 measured 375.7 ns per single implied-volatility-plus-Greeks calculation and 406.4 ns per option in the four-leg benchmark. Both reported zero managed allocation, zero completed ThreadPool work items, and zero lock contention. These are CPU-only workstation measurements; market-data transport, lookup, persistence, and UI costs are excluded.
+
+The 2026-08-15 direct Managed/Rust BenchmarkDotNet gate on .NET 10.0.10 found:
+
+| Operation | Managed | Rust | Rust / Managed |
+|---|---:|---:|---:|
+| Scalar price | 39.02 ns | 85.73 ns | 2.20 |
+| Scalar price and Greeks | 50.48 ns | 105.03 ns | 2.08 |
+| Scalar implied volatility | 293.18 ns | 338.21 ns | 1.15 |
+| Fused implied volatility and Greeks | 342.46 ns | 439.30 ns | 1.28 |
+| 256-contract price batch | 14.98 us | 16.25 us | 1.08 |
+| 256-contract Greeks batch | 20.22 us | 20.06 us | 0.99 |
+| 16,384-contract price batch | 0.923 ms | 1.009 ms | 1.09 |
+| 16,384-contract Greeks batch | 1.286 ms | 1.271 ms | 0.99 |
+
+Both implementations allocate zero managed memory in the measured kernels. The Rust polynomial was optimized to use
+portable multiply/add arithmetic rather than portable `f64::mul_add` libcalls; all numerical gates continued to pass.
+Managed remains the recommended default because scalar calls dominate current usage and .NET avoids the P/Invoke
+transition. Rust is a validated selectable alternative and reaches parity for large Greeks batches, but the evidence
+does not justify an automatic crossover or per-call backend switching.
+
+## Rust build and deployment
+
+Build and verify the Windows x64 native artifact before publishing an application that selects Rust:
+
+```powershell
+.\native.rust\OptionPricer.Rust\build-native.ps1 -Configuration Release -RunTests
+dotnet publish <application-project> -c Release
+```
+
+The native DLL must be present at
+`runtimes/win-x64/native/ifm_option_pricer_native.dll` relative to the application base directory. The framework project
+copies an existing Release or Debug native build into this RID layout. CI/release automation therefore must run the
+native build before the managed publish. A Rust deployment should be smoke-tested with
+`IFM_OPTION_PRICER_IMPLEMENTATION=Rust`; absence, wrong architecture, or ABI mismatch fails at first backend use.
+
+Run the dedicated comparison suite with:
+
+```powershell
+dotnet run -c Release --project .\TomasAI.IFM.Domain.OptionPricer.Benchmarks -- `
+  --filter "*RustOptionPricer*" --join
+```
 
 ## Safe extension points
 

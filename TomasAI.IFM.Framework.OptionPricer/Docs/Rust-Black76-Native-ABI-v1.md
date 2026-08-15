@@ -6,10 +6,11 @@ This document freezes Stage 1 of the Rust Black-76 implementation. It defines th
 the native ABI implemented under `native.rust/OptionPricer.Rust` beginning in Stage 2. Stage 1 itself introduced no
 Rust crate or native implementation.
 
-Implementation status as of 2026-08-15: Stages 2 and 3 provide the Windows x64 `cdylib` scaffold, public C header,
-scalar price kernel, scalar price-and-Greeks kernel, and their panic-safe version-1 exports. Implied volatility, fused
-calculator processing, batches, managed P/Invoke integration, differential testing, and benchmarking remain later
-stages. The managed implementation therefore remains the only application runtime path.
+Implementation status as of 2026-08-15: Stages 2 through 9 provide the Windows x64 `cdylib`, public C header, scalar
+price and Greeks, implied-volatility inversion, the fused calculator operation, structure-of-arrays batches, and the
+managed source-generated P/Invoke boundary. Deterministic randomized differential, finite-difference, edge, partial
+write, allocation, and BenchmarkDotNet gates are complete. Managed remains the default; `Rust` must be selected
+explicitly using the documented process configuration.
 
 ABI version 1 covers the numerical kernel used by `OptionModel` and `OptionCalculator`:
 
@@ -109,7 +110,9 @@ substituting another Black-76 or normal-distribution package.
 - Volatility is an annualized decimal.
 - Time to expiry is expressed in Actual/365 Fixed years by `OptionCalculator`.
 - The normal CDF uses the existing Abramowitz-Stegun complementary-error-function approximation and coefficients.
-- Fused multiply-add sites and evaluation order are part of the parity target.
+- Evaluation order and numerical results within the stated differential tolerances are part of the parity target.
+  The managed kernel may use hardware fused multiply-add while the portable Rust kernel may use ordinary multiply/add;
+  exact bitwise equivalence is not required.
 - Small platform math differences are compared with explicit absolute/relative tolerances, not bitwise equality.
 
 ### `Price`
@@ -333,9 +336,25 @@ failures, and therefore are not hidden as `OptionGreeks.Failed`.
 7. Do not enable internal Rust parallelism; application-level callers retain concurrency ownership.
 8. Benchmark `SuppressGCTransition` separately. It is not permitted for iterative or unbounded batch calls without
    evidence that GC latency remains safe.
-9. Benchmark managed and Rust implementations at batch sizes 1, 2, 4, 8, 16, 32, 64, 256, 1,024, and 16,384 before
-   selecting a crossover threshold.
+9. Benchmark managed and Rust implementations across scalar and representative batch sizes before changing the default
+   or introducing a crossover threshold.
 10. Resolve the selected implementation once. Do not read configuration or branch on strings in the hot path.
+
+## Managed implementation selection
+
+The managed facade reads configuration once, before its first pricing operation:
+
+1. AppContext property `TomasAI.IFM.OptionPricer.Implementation` when present; otherwise
+2. environment variable `IFM_OPTION_PRICER_IMPLEMENTATION`; otherwise
+3. `Managed` by default.
+
+The accepted values are `Managed` and `Rust`, compared without case sensitivity. AppContext takes precedence over the
+environment. Invalid values throw `InvalidOperationException`. Selecting Rust immediately loads the RID-specific DLL
+and verifies ABI version 1. Load, platform, and ABI failures are explicit and never cause a silent managed fallback.
+
+The selected enum is stored once; pricing calls do not reread configuration or compare strings. `OptionCalculator`
+uses the fused native export, while the two existing span APIs pin their caller-owned buffers for one native call.
+No buffer remains pinned or retained after the call.
 
 ## Stage 1 verification gates
 
@@ -349,3 +368,20 @@ Stage 1 is complete when:
 
 Any change to this contract before production use updates the version-1 draft. After an ABI version ships, incompatible
 changes require new versioned export names and a new ABI version.
+
+## Stage 7-9 verification decision
+
+The release gate completed on 2026-08-15:
+
+- 100,000 randomized scalar contracts matched Managed price and Greeks within `5e-12` scaled tolerance;
+- 5,000 randomized solver cases matched Managed behavior and converged solutions repriced the market input;
+- 4,096 randomized batch contracts matched Managed;
+- independent central finite differences validated native Delta, Gamma, Vega, Theta, and Rho;
+- all 21 Rust interop tests and all 18 Rust kernel/layout/FFI tests passed;
+- scalar and batch wrappers reported zero managed allocations after warmup; and
+- BenchmarkDotNet found scalar Rust calls 1.15-2.20 times slower, price batches about 1.08-1.09 times slower, and large
+  Greeks batches at parity with Managed on the measured .NET 10 workstation.
+
+Consequently, version 1 keeps Managed as the default, exposes Rust only through explicit process-wide selection, and
+does not add an automatic batch crossover. Backend choice remains fixed for process lifetime so a single workflow does
+not mix numerical implementations or pay dynamic-selection overhead.

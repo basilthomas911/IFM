@@ -3,3 +3,7 @@ EXPORTS
     ifm_option_pricer_get_abi_version
     ifm_black76_price_v1
     ifm_black76_price_with_greeks_v1
+    ifm_black76_implied_volatility_v1
+    ifm_black76_implied_volatility_with_greeks_v1
+    ifm_black76_price_batch_v1
+    ifm_black76_price_with_greeks_batch_v1

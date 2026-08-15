@@ -1,5 +1,7 @@
 namespace TomasAI.IFM.Framework.OptionPricer.Black76;
 
+using TomasAI.IFM.Framework.OptionPricer.Interop;
+
 /// <summary>
 /// Calculates implied volatility and Greeks for European options on futures using Black-76.
 /// </summary>
@@ -63,15 +65,41 @@ public readonly struct OptionCalculator
         if (optionValue < lowerBound - boundTolerance || optionValue >= upperBound - boundTolerance)
             return OptionGreeks.Failed;
 
-        var impliedVolatility = OptionModel.ImpliedVolatility(
-            assetPrice,
-            strikePrice,
-            riskFreeRate,
-            optionValue,
-            _timeToExpiry,
-            optionType,
-            PriceTolerance,
-            MaximumIterations);
+        var useRust = OptionPricerBackend.UseRust;
+        double impliedVolatility;
+        Black76Result result;
+        if (useRust)
+        {
+            if (!RustOptionModel.TryImpliedVolatilityWithGreeks(
+                    assetPrice,
+                    strikePrice,
+                    riskFreeRate,
+                    optionValue,
+                    _timeToExpiry,
+                    optionType,
+                    PriceTolerance,
+                    MaximumIterations,
+                    initialGuess: null,
+                    out impliedVolatility,
+                    out result))
+            {
+                return OptionGreeks.Failed;
+            }
+        }
+        else
+        {
+            impliedVolatility = OptionModel.ImpliedVolatility(
+                assetPrice,
+                strikePrice,
+                riskFreeRate,
+                optionValue,
+                _timeToExpiry,
+                optionType,
+                PriceTolerance,
+                MaximumIterations);
+            result = default;
+        }
+
         if (!double.IsFinite(impliedVolatility)
             || impliedVolatility <= 0.0
             || impliedVolatility > MaximumVolatility)
@@ -79,13 +107,16 @@ public readonly struct OptionCalculator
             return OptionGreeks.Failed;
         }
 
-        var result = OptionModel.PriceWithGreeks(
-            assetPrice,
-            strikePrice,
-            riskFreeRate,
-            impliedVolatility,
-            _timeToExpiry,
-            optionType);
+        if (!useRust)
+        {
+            result = OptionModel.PriceWithGreeks(
+                assetPrice,
+                strikePrice,
+                riskFreeRate,
+                impliedVolatility,
+                _timeToExpiry,
+                optionType);
+        }
         if (!IsFinite(result))
             return OptionGreeks.Failed;
 

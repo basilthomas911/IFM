@@ -8,9 +8,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.UnitTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.Benchmarks" />
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj" />
       <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\native.rust\OptionPricer.Rust\out\build\$(Configuration)\ifm_option_pricer_native.dll')">
+    <None Include="..\native.rust\OptionPricer.Rust\out\build\$(Configuration)\ifm_option_pricer_native.dll"
+          Link="runtimes\win-x64\native\ifm_option_pricer_native.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

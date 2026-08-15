@@ -65,6 +65,54 @@ IFM_OPTION_PRICER_API ifm_option_pricer_status_v1 ifm_black76_price_with_greeks_
     int32_t option_type,
     ifm_black76_result_v1* result);
 
+IFM_OPTION_PRICER_API ifm_option_pricer_status_v1 ifm_black76_implied_volatility_v1(
+    double forward_price,
+    double strike_price,
+    double risk_free_rate,
+    double market_price,
+    double time_to_expiry,
+    int32_t option_type,
+    double tolerance,
+    int32_t max_iterations,
+    int32_t has_initial_guess,
+    double initial_guess,
+    double* result);
+
+IFM_OPTION_PRICER_API ifm_option_pricer_status_v1 ifm_black76_implied_volatility_with_greeks_v1(
+    double forward_price,
+    double strike_price,
+    double risk_free_rate,
+    double market_price,
+    double time_to_expiry,
+    int32_t option_type,
+    double tolerance,
+    int32_t max_iterations,
+    int32_t has_initial_guess,
+    double initial_guess,
+    ifm_black76_implied_greeks_result_v1* result);
+
+IFM_OPTION_PRICER_API ifm_option_pricer_status_v1 ifm_black76_price_batch_v1(
+    const double* forward_prices,
+    const double* strike_prices,
+    const double* risk_free_rates,
+    const double* volatilities,
+    const double* times_to_expiry,
+    const int32_t* option_types,
+    uint32_t count,
+    double* results,
+    uint32_t* error_index);
+
+IFM_OPTION_PRICER_API ifm_option_pricer_status_v1 ifm_black76_price_with_greeks_batch_v1(
+    const double* forward_prices,
+    const double* strike_prices,
+    const double* risk_free_rates,
+    const double* volatilities,
+    const double* times_to_expiry,
+    const int32_t* option_types,
+    uint32_t count,
+    ifm_black76_result_v1* results,
+    uint32_t* error_index);
+
 #ifdef __cplusplus
 }
 #endif

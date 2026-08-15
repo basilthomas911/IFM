@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using TomasAI.IFM.Framework.OptionPricer.Interop;
 
 [module: SkipLocalsInit]
 
@@ -178,6 +179,22 @@ public static class OptionModel
         double timeToExpiry,
         int optionType)
     {
+        return OptionPricerBackend.UseRust
+            ? RustOptionModel.Price(
+                forwardPrice, strikePrice, riskFreeRate, volatility, timeToExpiry, optionType)
+            : PriceManaged(
+                forwardPrice, strikePrice, riskFreeRate, volatility, timeToExpiry, optionType);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    internal static double PriceManaged(
+        double forwardPrice,
+        double strikePrice,
+        double riskFreeRate,
+        double volatility,
+        double timeToExpiry,
+        int optionType)
+    {
         if (timeToExpiry <= 0.0)
             return Intrinsic(forwardPrice, strikePrice, optionType);
 
@@ -231,6 +248,25 @@ public static class OptionModel
     /// </exception>
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static Black76Result PriceWithGreeks(
+        double forwardPrice,
+        double strikePrice,
+        double riskFreeRate,
+        double volatility,
+        double timeToExpiry,
+        int optionType)
+    {
+        if (forwardPrice <= 0.0 || strikePrice <= 0.0)
+            ThrowPositiveRequired();
+
+        return OptionPricerBackend.UseRust
+            ? RustOptionModel.PriceWithGreeks(
+                forwardPrice, strikePrice, riskFreeRate, volatility, timeToExpiry, optionType)
+            : PriceWithGreeksManaged(
+                forwardPrice, strikePrice, riskFreeRate, volatility, timeToExpiry, optionType);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    internal static Black76Result PriceWithGreeksManaged(
         double forwardPrice,
         double strikePrice,
         double riskFreeRate,
@@ -374,6 +410,41 @@ public static class OptionModel
         if (timeToExpiry <= 0.0)
             ThrowTimeToExpiryPositive();
 
+        return OptionPricerBackend.UseRust
+            ? RustOptionModel.ImpliedVolatility(
+                forwardPrice,
+                strikePrice,
+                riskFreeRate,
+                marketPrice,
+                timeToExpiry,
+                optionType,
+                tolerance,
+                maxIterations,
+                initialGuess)
+            : ImpliedVolatilityManaged(
+                forwardPrice,
+                strikePrice,
+                riskFreeRate,
+                marketPrice,
+                timeToExpiry,
+                optionType,
+                tolerance,
+                maxIterations,
+                initialGuess);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    internal static double ImpliedVolatilityManaged(
+        double forwardPrice,
+        double strikePrice,
+        double riskFreeRate,
+        double marketPrice,
+        double timeToExpiry,
+        int optionType,
+        double tolerance,
+        int maxIterations,
+        double? initialGuess)
+    {
         double sigma = initialGuess ?? 0.20;
         const double vegaFloor = 1e-12;
 
@@ -452,6 +523,19 @@ public static class OptionModel
             timesToExpiry.Length != n || optionTypes.Length != n)
             ThrowSpanLengthMismatch();
 
+        if (OptionPricerBackend.UseRust)
+        {
+            RustOptionModel.PriceBatch(
+                forwardPrices,
+                strikePrices,
+                riskFreeRates,
+                volatilities,
+                timesToExpiry,
+                optionTypes,
+                results);
+            return;
+        }
+
         ref double fRef = ref MemoryMarshal.GetReference(forwardPrices);
         ref double kRef = ref MemoryMarshal.GetReference(strikePrices);
         ref double rRef = ref MemoryMarshal.GetReference(riskFreeRates);
@@ -462,7 +546,7 @@ public static class OptionModel
 
         for (int i = 0; i < n; i++)
         {
-            Unsafe.Add(ref resRef, i) = Price(
+            Unsafe.Add(ref resRef, i) = PriceManaged(
                 Unsafe.Add(ref fRef, i), Unsafe.Add(ref kRef, i), Unsafe.Add(ref rRef, i),
                 Unsafe.Add(ref vRef, i), Unsafe.Add(ref tRef, i), Unsafe.Add(ref oRef, i));
         }
@@ -505,6 +589,19 @@ public static class OptionModel
             timesToExpiry.Length != n || optionTypes.Length != n)
             ThrowSpanLengthMismatch();
 
+        if (OptionPricerBackend.UseRust)
+        {
+            RustOptionModel.PriceWithGreeksBatch(
+                forwardPrices,
+                strikePrices,
+                riskFreeRates,
+                volatilities,
+                timesToExpiry,
+                optionTypes,
+                results);
+            return;
+        }
+
         ref double fRef = ref MemoryMarshal.GetReference(forwardPrices);
         ref double kRef = ref MemoryMarshal.GetReference(strikePrices);
         ref double rRef = ref MemoryMarshal.GetReference(riskFreeRates);
@@ -515,7 +612,7 @@ public static class OptionModel
 
         for (int i = 0; i < n; i++)
         {
-            Unsafe.Add(ref resRef, i) = PriceWithGreeks(
+            Unsafe.Add(ref resRef, i) = PriceWithGreeksManaged(
                 Unsafe.Add(ref fRef, i), Unsafe.Add(ref kRef, i), Unsafe.Add(ref rRef, i),
                 Unsafe.Add(ref vRef, i), Unsafe.Add(ref tRef, i), Unsafe.Add(ref oRef, i));
         }
