@@ -25,6 +25,7 @@ namespace TomasAI.IFM.Framework.OptionPricer.Black76;
 /// A positive value here indicates the option gains value as time passes (typical when discounting dominates).</param>
 /// <param name="Rho">The first derivative of the option price with respect to the risk-free interest rate.
 /// For Black-76, rho equals <c>-T * Price</c>, reflecting the discounting effect on present value.</param>
+[StructLayout(LayoutKind.Sequential)]
 public readonly record struct Black76Result(
     double Price,
     double Delta,
