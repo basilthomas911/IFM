@@ -28,6 +28,12 @@ public sealed class DatabentoContractRegistrationRegistryTests
             && item.Dataset == "GLBX.MDP3");
         registry.Should().Contain(item => item.DomainContractId == "VX20260916"
             && item.Dataset == "XCBF.PITCH");
+        registry.TryGetCurrentlyTradedFuturesContract("es", out var currentEs)
+            .Should().BeTrue();
+        currentEs.ContractId.Should().Be("ES20260918");
+        registry.TryGetCurrentlyTradedFuturesContract("VX", out var currentVx)
+            .Should().BeTrue();
+        currentVx.ContractId.Should().Be("VX20260916");
     }
 
     [Fact]
@@ -44,6 +50,9 @@ public sealed class DatabentoContractRegistrationRegistryTests
 
         epochSnapshot.Should().ContainSingle(item => item.DomainContractId == "ES20260918");
         registry.Should().ContainSingle(item => item.DomainContractId == "ES20261218");
+        registry.TryGetCurrentlyTradedFuturesContract("ES", out var current)
+            .Should().BeTrue();
+        current.ContractId.Should().Be("ES20261218");
     }
 
     private static DatabentoMarketDataRuntimeOptions Options(

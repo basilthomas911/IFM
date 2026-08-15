@@ -19,6 +19,17 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 public interface IMarketDataApi
 {
     /// <summary>
+    /// Reads the startup-validated currently traded futures contract for a root symbol
+    /// from the in-memory rollover registry.
+    /// </summary>
+    /// <param name="symbol">The futures root symbol, such as <c>ES</c> or <c>VX</c>.</param>
+    /// <param name="contract">The current contract when the symbol is registered.</param>
+    /// <returns><see langword="true"/> when a current contract is available.</returns>
+    bool TryGetCurrentlyTradedFuturesContract(
+        string symbol,
+        out FuturesContractV2ReadModel contract);
+
+    /// <summary>
     /// Resolves and persists the currently traded futures contract when the
     /// symbol's rollover configuration is incomplete or due.
     /// </summary>

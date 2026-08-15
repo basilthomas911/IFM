@@ -76,6 +76,13 @@ explicit registrations for unrelated roots and options. Each epoch snapshots
 the registry when it is created, so an in-flight epoch cannot observe a partial
 rollover mutation.
 
+The same atomic registry state retains the full startup-validated current
+futures contract for each reconciled root. Domain clients use
+`IMarketDataApi.TryGetCurrentlyTradedFuturesContract(symbol, out contract)` to
+read this state without querying Scylla or DataBento. Realtime signal handlers
+therefore resolve ES/VX identity from the rollover source of truth without
+placing storage work on the per-tick path.
+
 A registration carries its DataBento dataset. One logical `IMarketDataApi`
 epoch partitions provider queries, ticker feeds, and tick aggregation by
 dataset, while sharing the domain contract catalog, hot-price store, live

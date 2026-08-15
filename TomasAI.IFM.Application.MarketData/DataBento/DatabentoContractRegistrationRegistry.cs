@@ -10,6 +10,10 @@ public interface IDatabentoContractRegistrationRegistry :
 {
     IReadOnlyList<DatabentoContractRegistration> Snapshot();
 
+    bool TryGetCurrentlyTradedFuturesContract(
+        string symbol,
+        out FuturesContractV2ReadModel contract);
+
     void ReplaceCurrentFuturesContracts(
         IReadOnlyCollection<FuturesContractV2ReadModel> contracts);
 }
@@ -24,15 +28,27 @@ public sealed class DatabentoContractRegistrationRegistry(
     DatabentoMarketDataRuntimeOptions options)
     : IDatabentoContractRegistrationRegistry
 {
-    private DatabentoContractRegistration[] _registrations =
-        Validate(initialRegistrations).ToArray();
+    private RegistryState _state = new(
+        Validate(initialRegistrations).ToArray(),
+        new Dictionary<string, FuturesContractV2ReadModel>(
+            StringComparer.OrdinalIgnoreCase));
 
-    public int Count => Volatile.Read(ref _registrations).Length;
+    public int Count => Volatile.Read(ref _state).Registrations.Length;
     public DatabentoContractRegistration this[int index] =>
-        Volatile.Read(ref _registrations)[index];
+        Volatile.Read(ref _state).Registrations[index];
 
     public IReadOnlyList<DatabentoContractRegistration> Snapshot() =>
-        Volatile.Read(ref _registrations).ToArray();
+        Volatile.Read(ref _state).Registrations.ToArray();
+
+    public bool TryGetCurrentlyTradedFuturesContract(
+        string symbol,
+        out FuturesContractV2ReadModel contract)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        return Volatile.Read(ref _state).CurrentFuturesContracts.TryGetValue(
+            symbol.Trim(),
+            out contract!);
+    }
 
     public void ReplaceCurrentFuturesContracts(
         IReadOnlyCollection<FuturesContractV2ReadModel> contracts)
@@ -47,8 +63,8 @@ public sealed class DatabentoContractRegistrationRegistry(
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         while (true)
         {
-            var current = Volatile.Read(ref _registrations);
-            var retained = current.Where(registration =>
+            var current = Volatile.Read(ref _state);
+            var retained = current.Registrations.Where(registration =>
                 registration.AssetTypeId != AssetTypeId.Futures
                 || !symbols.Contains(GetRootSymbol(registration)))
                 .ToList();
@@ -63,8 +79,15 @@ public sealed class DatabentoContractRegistrationRegistry(
             var replacement = Validate(retained)
                 .OrderBy(static registration => registration.DomainContractId, StringComparer.Ordinal)
                 .ToArray();
+            var currentContracts = current.CurrentFuturesContracts.Values
+                .Where(contract => !symbols.Contains(contract.Symbol))
+                .Concat(contracts)
+                .ToDictionary(
+                    static contract => contract.Symbol,
+                    StringComparer.OrdinalIgnoreCase);
+            var replacementState = new RegistryState(replacement, currentContracts);
             if (ReferenceEquals(
-                Interlocked.CompareExchange(ref _registrations, replacement, current),
+                Interlocked.CompareExchange(ref _state, replacementState, current),
                 current))
                 return;
         }
@@ -73,6 +96,10 @@ public sealed class DatabentoContractRegistrationRegistry(
     public IEnumerator<DatabentoContractRegistration> GetEnumerator() =>
         ((IEnumerable<DatabentoContractRegistration>)Snapshot()).GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    private sealed record RegistryState(
+        DatabentoContractRegistration[] Registrations,
+        IReadOnlyDictionary<string, FuturesContractV2ReadModel> CurrentFuturesContracts);
 
     private static IEnumerable<DatabentoContractRegistration> Validate(
         IEnumerable<DatabentoContractRegistration> registrations)

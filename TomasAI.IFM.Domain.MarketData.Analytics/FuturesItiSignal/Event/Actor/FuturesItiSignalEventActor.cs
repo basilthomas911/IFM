@@ -5,7 +5,6 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 
@@ -30,11 +29,6 @@ public class FuturesItiSignalEventActor(
     IActorMarketDataAnalyticsCommandApi? _commandApi;
     readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataAnalyticsCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesEodDataInsertedCompleteEvent).Name] = async (evt, context, commandApi, statusConsoleWriter, logger) =>
-        {
-            var e = (evt as FuturesEodDataInsertedCompleteEvent)!;
-            return await e.ExecuteAsync(context, commandApi, statusConsoleWriter, logger);
-        },
         [typeof(FuturesItiSignalGeneratedCompleteEvent).Name] = async (evt, context, commandApi, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesItiSignalGeneratedCompleteEvent)!;
@@ -45,13 +39,12 @@ public class FuturesItiSignalEventActor(
     /// <summary>
     /// Initializes the actor's startup process and configures event routing for the specified context.
     /// </summary>
-    /// <remarks>This method sets up the event routing for the actor, specifically for receiving FuturesEodDataInsertedCompleteEvent.</remarks>
+    /// <remarks>The generated-event family is addressed directly to this actor.</remarks>
     /// <param name="context">The context in which the event actor operates. Used to add event routers for handling events.</param>
     /// <returns>A task that represents the asynchronous operation of the startup process.</returns>
     protected override async ValueTask OnStartup(IEventActorContext context)
     {
         _ = GetCommandApi(context);
-        context.AddEventRouter(new ActorTypeId(ActorType.Event, FuturesEodDataInsertedCompleteEvent.Actor, FuturesEodDataInsertedCompleteEvent.Verb), Id);
         await ValueTask.CompletedTask;
     }
 
@@ -67,7 +60,6 @@ public class FuturesItiSignalEventActor(
     /// <returns>A completed ValueTask that indicates the shutdown operation has been processed.</returns>
     protected override async ValueTask OnShutdown(IEventActorContext context)
     {
-        context.RemoveEventRouter(new ActorTypeId(ActorType.Event, FuturesEodDataInsertedCompleteEvent.Actor, FuturesEodDataInsertedCompleteEvent.Verb), Id);
         await ValueTask.CompletedTask;
     }
 
@@ -98,7 +90,6 @@ public class FuturesItiSignalEventActor(
     /// </summary>
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
-        [FuturesEodDataInsertedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesEodDataInsertedCompleteEvent>()!,
         [FuturesItiSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesItiSignalGeneratedCompleteEvent>()!
     };
 

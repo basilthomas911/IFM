@@ -11,8 +11,9 @@ public sealed class MarketDataApiContractApprovalTests
     {
         var methods = typeof(IMarketDataApi).GetMethods();
 
-        methods.Should().HaveCount(21);
+        methods.Should().HaveCount(22);
         methods.Select(method => method.Name).Should().BeEquivalentTo(
+            "TryGetCurrentlyTradedFuturesContract",
             "TryGetLastTickPrice",
             "TryGetLastOptionTickPrice",
             "IsTickDataStreamActive",

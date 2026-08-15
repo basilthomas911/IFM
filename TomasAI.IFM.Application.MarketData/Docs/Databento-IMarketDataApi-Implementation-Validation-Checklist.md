@@ -121,10 +121,11 @@ until the implementation and its required live tests pass.
 | 16 | `StartStreamingFuturesOptionChainDataAsync` | Validated structurally | **Required** | Chain definitions, resolved chain subscription, one shared reader, underlying ticker status exist | Session manager, chain tick service, transient publishers/state, Black-76 adapter, underlying hot price, application-supplied FMP Treasury rate | **DEFERRED-FMP** |
 | 17 | `StopStreamingFuturesOptionChainDataAsync` | Validated | None to stop | Option-chain feed supports stop and disposal | Session lookup, drain, transient-state removal, dependency lease release | Phase A manager/stop gate passed; end-to-end deferred with #16 |
 | 18 | `IsTickDataStreamActive`, `TryGetLastTickPrice`, `TryGetLastOptionTickPrice` | Validated | None for raw trade/quote; existing pricing context for optional Greeks | Multi-asset TickAggregation owner registry and hot cache | Owner-idempotent first/final route transitions, stream-independent decimal snapshots, sequence-aligned optional Greeks, shutdown route cleanup | Unit and cross-component integration gates passed |
+| 19 | `TryGetCurrentlyTradedFuturesContract`, `UpdateCurrentlyTradedFuturesContractAsync` | Validated | DataBento definitions only when a rollover row is incomplete or due | Startup rollover table, persisted futures contracts, atomic runtime registry | Case-insensitive allocation-free lookup, ES/VX registry replacement, due-date persistence, startup blocking validation | Unit, Scylla integration, and realtime ITI route gates passed |
 
 ### Feasibility conclusion
 
-- All 18 method signatures are implementable with the accepted architecture.
+- All 19 method groups are implementable with the accepted architecture.
 - Methods 1–15 and 17 require no FMP access and may form the Phase A work.
 - Method 16 must not be implemented with a placeholder rate. It remains
   deferred until FMP is available.

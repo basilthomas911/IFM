@@ -15,6 +15,17 @@ internal sealed class DeterministicMarketDataApi(
     FakeMarketDataEpochFactory epochFactory,
     TimeSpan maximumLastPriceAge) : IMarketDataApi
 {
+    public bool TryGetCurrentlyTradedFuturesContract(
+        string symbol,
+        out FuturesContractV2ReadModel contract)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        contract = Volatile.Read(ref epoch)?.Catalog.Futures.Values
+            .SingleOrDefault(candidate => candidate.CurrentlyTraded
+                && string.Equals(candidate.Symbol, symbol, StringComparison.OrdinalIgnoreCase))!;
+        return contract is not null;
+    }
+
     public Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
         string symbol,
         DateOnly valueDate,

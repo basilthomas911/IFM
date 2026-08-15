@@ -71,7 +71,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     #region ParseMessage Tests - Happy Paths
 
     [Fact]
-    public void ParseMessage_WithValidEodDataInsertedCompleteEvent_ShouldReturnEvent()
+    public void ParseMessage_LegacyEodDataInsertedCompleteEvent_ShouldReturnNull()
     {
         // Arrange
         var actor = _fixture.CreateActor();
@@ -89,12 +89,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         var result = actor.InvokeParseMessage(mockContext, message);
 
         // Assert
-        result.Should().NotBeNull();
-        result.Should().BeOfType<FuturesEodDataInsertedCompleteEvent>();
-        var parsedEvent = (FuturesEodDataInsertedCompleteEvent)result;
-        parsedEvent.CommandId.Should().Be(@event.CommandId);
-        parsedEvent.Id.Should().Be(@event.Id);
-        parsedEvent.FuturesEodData.ContractId.Should().Be(SampleData.ContractId);
+        result.Should().BeNull();
     }
 
     [Fact]
@@ -442,7 +437,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     #region ReceiveAsync Tests - Happy Paths
 
     [Fact]
-    public async Task ReceiveAsync_WithEodDataInsertedCompleteEvent_ShouldNotThrow()
+    public async Task ReceiveAsync_WithLegacyEodDataInsertedCompleteEvent_ShouldThrow()
     {
         // Arrange
         var actor = _fixture.CreateActor();
@@ -453,7 +448,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, @event);
 
         // Assert
-        await act.Should().NotThrowAsync();
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     [Fact]
@@ -494,8 +489,11 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var actor = _fixture.CreateActor();
         var mockContext = Substitute.For<IEventActorContext>();
-        var event1 = SampleData.CreateEodDataInsertedCompleteEvent();
-        var event2 = SampleData.CreateItiSignalGeneratedCompleteEvent();
+        var event1 = SampleData.CreateItiSignalGeneratedCompleteEvent();
+        var event2 = SampleData.CreateItiSignalGeneratedCompleteEvent() with
+        {
+            EntityId = SampleData.EntityIdFor(TimeFrameType.Monthly)
+        };
 
         // Act
         Func<Task> act = async () =>

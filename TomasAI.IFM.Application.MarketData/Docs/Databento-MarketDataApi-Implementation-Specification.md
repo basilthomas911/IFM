@@ -2,9 +2,9 @@
 
 **Status:** Phase A implemented and runtime-validated; FMP-dependent Phase B deferred
 
-**Version:** 1.6
+**Version:** 1.7
 
-**Date:** 2026-08-10
+**Date:** 2026-08-14
 
 **Contract:** `TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi`
 
@@ -52,6 +52,15 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 
 public interface IMarketDataApi
 {
+    bool TryGetCurrentlyTradedFuturesContract(
+        string symbol,
+        out FuturesContractV2ReadModel contract);
+
+    Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
+        string symbol,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default);
+
     bool TryGetLastTickPrice(
         string contractId,
         out FuturesMarketPriceSnapshot snapshot);
@@ -824,6 +833,21 @@ These are provider-neutral, stream-independent hot-cache reads for timer-derived
 TickAggregation stores the same normalized combined snapshot used by `FuturesMarketPriceUpdatedRealtimeEvent`. Quote observations refresh the cached quote side; accepted trade observations refresh the trade side and publish the Core NATS realtime event containing that exact snapshot. Duplicate or older observations do not replace the cached side. A price method returns `false` for an unknown contract or before the first observation. It performs no provider query, database access, or replay.
 
 `IsTickDataStreamActive` checks the owner-keyed runtime registration pool. A client requiring live data checks it before using a cached snapshot, but this is not enforced by either price method. Therefore an inactive stream can still expose its last observation, while an active stream can temporarily have no snapshot before its first tick arrives.
+
+### 9.9b Currently traded futures registry
+
+```csharp
+bool TryGetCurrentlyTradedFuturesContract(
+    string symbol,
+    out FuturesContractV2ReadModel contract);
+
+Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
+    string symbol,
+    DateOnly valueDate,
+    CancellationToken cancellationToken = default);
+```
+
+Startup reconciliation populates one atomic runtime state containing both DataBento registrations and the full persisted current-contract models. The synchronous `TryGet` operation is a case-insensitive in-memory symbol lookup with no provider or storage access; per-tick domain handlers use it to validate current ES/VX identity. The update operation consults DataBento and persists a replacement only when the master rollover row is incomplete or due. See `Documents/system/Futures-Contract-Rollover-Startup.md` for the startup admission and persistence rules.
 
 ### 9.10 `GetFuturesLastPriceReader`
 

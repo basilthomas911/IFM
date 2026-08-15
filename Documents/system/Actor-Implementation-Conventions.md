@@ -451,9 +451,21 @@ Realtime.FuturesMarketPrice.Updated.{tickDataEntityId}
 
 The contract carries a provider-neutral, decimal-based `FuturesMarketPriceSnapshot` containing contract and instrument identity plus optional latest quote and trade snapshots. Raw provider prices and pooled quote buffers are not part of this realtime actor contract.
 
-The primary actor has exactly one parse-map entry and one receive-map entry, both for `FuturesMarketPriceUpdatedRealtimeEvent`. Its `FuturesMarketPriceUpdated` extension handler receives `IEventActorContext` and `ILogger<FuturesMarketPriceRealtimeActor>`. The initial handler intentionally performs no downstream behavior and returns success after validating its inputs. No complete or fail contracts or handlers exist for this realtime family because Core NATS has no durable lifecycle, acknowledgement, or replay.
+The primary actor has exactly one parse-map entry and one receive-map entry, both for `FuturesMarketPriceUpdatedRealtimeEvent`. Its `FuturesMarketPriceUpdated` extension handler receives `IEventActorContext` and `ILogger<FuturesMarketPriceRealtimeActor>`. The primary handler intentionally performs no domain workflow; it establishes the required primary destination while routed actors own their domain response. No complete or fail contracts or handlers exist for this realtime family because Core NATS has no durable lifecycle, acknowledgement, or replay.
 
-The primary actor does not register a route to itself. Later signal realtime actors register and remove their own routes for `(Realtime, FuturesMarketPrice, Updated)` during their lifecycle. Core fan-out includes the registered primary exactly once and gives every routed realtime actor an independent mailbox branch. `Notify`, durable `Event`, `Command`, and `Query` actors cannot register as realtime route destinations.
+The primary actor does not register a route to itself. Signal realtime actors register and remove their own routes for `(Realtime, FuturesMarketPrice, Updated)` during their lifecycle. Core fan-out includes the registered primary exactly once and gives every routed realtime actor an independent mailbox branch. `Notify`, durable `Event`, `Command`, and `Query` actors cannot register as realtime route destinations.
+
+`FuturesItiSignalRealtimeActor` is the first routed signal actor. It owns `Realtime.FuturesItiSignal`, accepts only the routed `Updated` verb, and uses the same explicit parse-map and receive-map structure. Its handler:
+
+1. accepts only the startup-validated current ES contract;
+2. requires active ES and VX workflow streams;
+3. reads the current VX contract from the rollover registry;
+4. obtains a fresh VX price through the hot-cache-backed market-data API; and
+5. sends `GenerateFuturesItiSignalCommand`, crossing from non-durable Core NATS ingress into the durable command workflow.
+
+Expected timing gaps, including an inactive required stream or no fresh VX trade yet, suppress command creation without treating the realtime message as a durable failure. Contract-identity mismatches and missing startup rollover state remain errors. The legacy `FuturesEodDataInsertedCompleteEvent` trigger is no longer registered by `FuturesItiSignalEventActor`, preventing the same ITI generation workflow from being triggered by both EOD and realtime paths.
+
+The realtime bridge currently preserves the established weekly ITI command contract. Daily generation and durable daily-to-weekly/monthly derivation are a separate contract change because the current ITI compute model supports weekly and monthly periods only.
 
 #### 9.4.1 Normalized last-price cache
 
@@ -585,3 +597,4 @@ Reserved. Once the EventActor, CommandActor, and QueryActor sections are mature,
 | 2026-08-14 | Added the TickAggregation-to-domain actor convention: durable trade-only downstream routing, actor-owned reference-counted stream registrations, decimal domain snapshots, and the prohibition on forwarding pooled quote buffers. |
 | 2026-08-14 | Added the first RealtimeActor convention using `FuturesMarketPriceRealtimeActor`: required primary Core NATS destination, realtime-only route fan-out, provider-neutral decimal snapshot contract, one main handler with no complete/fail lifecycle, and actor-type-correct runtime metrics. |
 | 2026-08-14 | Defined the TickAggregation normalized last-price cache: stream-independent tick/option snapshot reads, explicit stream-activity checks, allocation-free versioned snapshot reads, quote-side cache refresh, trade-triggered Core realtime publication, stale-update rejection, and timer-derived signal sampling. |
+| 2026-08-14 | Added `FuturesItiSignalRealtimeActor` as the first routed signal actor, including ES/VX rollover identity checks, active-stream policy, fresh VX hot-price sampling, the realtime-to-durable command boundary, and retirement of the duplicate EOD ITI trigger. |

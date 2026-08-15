@@ -13,6 +13,18 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 /// </summary>
 public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 {
+    /// <inheritdoc />
+    public bool TryGetCurrentlyTradedFuturesContract(
+        string symbol,
+        out FuturesContractV2ReadModel contract)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        if (_contractRegistry is not null)
+            return _contractRegistry.TryGetCurrentlyTradedFuturesContract(symbol, out contract);
+        contract = default!;
+        return false;
+    }
+
     /// <summary>
     /// Reads the active epoch's normalized market-price hot-cache snapshot without checking stream ownership.
     /// </summary>
@@ -59,6 +71,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     private readonly TimeSpan _maximumLastPriceAge;
     private readonly IDatabentoCurrentFuturesContractResolver? _currentContractResolver;
     private readonly IFuturesContractRolloverStore? _rolloverStore;
+    private readonly IDatabentoContractRegistrationRegistry? _contractRegistry;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private IDatabentoMarketDataEpoch? _epoch;
     private Func<Guid, int, string, Task>? _errorMessageHandler;
@@ -106,7 +119,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         DatabentoMarketDataApiOptions options,
         TimeProvider? timeProvider = null,
         IDatabentoCurrentFuturesContractResolver? currentContractResolver = null,
-        IFuturesContractRolloverStore? rolloverStore = null)
+        IFuturesContractRolloverStore? rolloverStore = null,
+        IDatabentoContractRegistrationRegistry? contractRegistry = null)
     {
         _epochFactory = epochFactory ?? throw new ArgumentNullException(nameof(epochFactory));
         ArgumentNullException.ThrowIfNull(options);
@@ -116,6 +130,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         _timeProvider = timeProvider ?? TimeProvider.System;
         _currentContractResolver = currentContractResolver;
         _rolloverStore = rolloverStore;
+        _contractRegistry = contractRegistry;
     }
 
     /// <inheritdoc />
