@@ -366,6 +366,8 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<OptionPricerDbContext>() as IOptionPricerDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SecuritiesDbContext>() as ISecuritiesDbContext)!);
+            services.AddSingleton<IFuturesContractRolloverStore>(provider =>
+                provider.GetRequiredService<ISecuritiesDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<YieldCurveRatesDbContext>() as IYieldCurveRatesDbContext)!);
             services.AddSingleton<IEconomicCalendarsDbContext, EconomicCalendarsDbContext>();

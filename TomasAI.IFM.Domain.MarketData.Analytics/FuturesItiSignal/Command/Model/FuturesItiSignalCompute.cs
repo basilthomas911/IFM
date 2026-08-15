@@ -65,6 +65,7 @@ public class FuturesItiSignalCompute
     static int DefaultTradingDays(TimeFrameType timePeriod)
         => timePeriod switch
         {
+            TimeFrameType.Daily => 1,
             TimeFrameType.Weekly => 5,
             TimeFrameType.Monthly => 20,
             _ => throw new ArgumentOutOfRangeException(nameof(timePeriod), $"Unsupported time period: {timePeriod}")

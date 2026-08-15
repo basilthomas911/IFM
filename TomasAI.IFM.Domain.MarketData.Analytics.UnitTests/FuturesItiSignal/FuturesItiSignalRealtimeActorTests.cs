@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -91,13 +92,14 @@ public sealed class FuturesItiSignalRealtimeActorTests
             Substitute.For<IEventActorContext>(),
             commandApi,
             marketDataApi,
+            new FuturesItiSignalStreamOwnership(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
 
         handled.Should().BeTrue();
         await commandApi.Received(1).GenerateFuturesItiSignalAsync(
             EsContractId,
             ValueDate,
-            TimeFrameType.Weekly,
+            TimeFrameType.Daily,
             @event.Price.Trade!.Value.EventTimestamp.UtcDateTime,
             5450.25,
             22.75);
@@ -112,15 +114,116 @@ public sealed class FuturesItiSignalRealtimeActorTests
 
         await actor.Start(context);
         await actor.Receive(context, CreateEvent());
+        await actor.Stop(context);
 
         factory.Received(1).Create(context);
         await commandApi.Received(1).GenerateFuturesItiSignalAsync(
             EsContractId,
             ValueDate,
-            TimeFrameType.Weekly,
+            TimeFrameType.Daily,
             Arg.Any<DateTime>(),
             5450.25,
             22.75);
+        await marketDataApi.Received(1).StartStreamingFuturesTickDataAsync(
+            EsContractId,
+            new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "ES"));
+        await marketDataApi.Received(1).StartStreamingFuturesTickDataAsync(
+            VxContractId,
+            new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "VX"));
+        await marketDataApi.Received(1).StopStreamingFuturesTickDataAsync(
+            VxContractId,
+            new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "VX"));
+        await marketDataApi.Received(1).StopStreamingFuturesTickDataAsync(
+            EsContractId,
+            new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "ES"));
+    }
+
+    [Fact]
+    public async Task Receive_RepeatedEsUpdates_AcquiresEachStableStreamOwnerOnce()
+    {
+        var marketDataApi = CreateReadyMarketDataApi();
+        var actor = CreateActor(out _, out _, marketDataApi);
+        var context = Substitute.For<IEventActorContext>();
+
+        await actor.Start(context);
+        await actor.Receive(context, CreateEvent());
+        await actor.Receive(context, CreateEvent());
+
+        await marketDataApi.Received(1).StartStreamingFuturesTickDataAsync(
+            EsContractId,
+            new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "ES"));
+        await marketDataApi.Received(1).StartStreamingFuturesTickDataAsync(
+            VxContractId,
+            new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "VX"));
+    }
+
+    [Fact]
+    public async Task StreamOwnership_VxAcquisitionFailure_RollsBackEsRegistration()
+    {
+        var marketDataApi = CreateReadyMarketDataApi();
+        var esOwner = new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "ES");
+        var vxOwner = new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "VX");
+        marketDataApi.StartStreamingFuturesTickDataAsync(EsContractId, esOwner)
+            .Returns(Task.FromResult(true));
+        marketDataApi.StartStreamingFuturesTickDataAsync(VxContractId, vxOwner)
+            .Returns(Task.FromException<bool>(new InvalidOperationException("VX route failed")));
+        var ownership = new FuturesItiSignalStreamOwnership();
+
+        var action = () => ownership.EnsureAsync(marketDataApi).AsTask();
+
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("VX route failed");
+        await marketDataApi.Received(1).StopStreamingFuturesTickDataAsync(
+            EsContractId,
+            esOwner);
+    }
+
+    [Fact]
+    public async Task StreamOwnership_Rollover_AcquiresNewContractsAndReleasesOldContracts()
+    {
+        const string nextEsContractId = "ES20261218";
+        const string nextVxContractId = "VX20261021";
+        var rolled = false;
+        var marketDataApi = Substitute.For<IMarketDataApi>();
+        marketDataApi.TryGetCurrentlyTradedFuturesContract(
+                "ES",
+                out Arg.Any<FuturesContractV2ReadModel>()!)
+            .Returns(call =>
+            {
+                call[1] = rolled
+                    ? Contract("ES", nextEsContractId, "ESZ6", new DateOnly(2026, 12, 18))
+                    : Contract("ES", EsContractId, "ESU6", new DateOnly(2026, 9, 18));
+                return true;
+            });
+        marketDataApi.TryGetCurrentlyTradedFuturesContract(
+                "VX",
+                out Arg.Any<FuturesContractV2ReadModel>()!)
+            .Returns(call =>
+            {
+                call[1] = rolled
+                    ? Contract("VX", nextVxContractId, "VXV6", new DateOnly(2026, 10, 21))
+                    : Contract("VX", VxContractId, "VXU6", new DateOnly(2026, 9, 16));
+                return true;
+            });
+        marketDataApi.IsTickDataStreamActive(Arg.Any<string>()).Returns(true);
+        var ownership = new FuturesItiSignalStreamOwnership();
+
+        _ = await ownership.EnsureAsync(marketDataApi);
+        rolled = true;
+        _ = await ownership.EnsureAsync(marketDataApi);
+
+        await marketDataApi.Received(1).StartStreamingFuturesTickDataAsync(
+            nextEsContractId,
+            new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "ES"));
+        await marketDataApi.Received(1).StartStreamingFuturesTickDataAsync(
+            nextVxContractId,
+            new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "VX"));
+        await marketDataApi.Received(1).StopStreamingFuturesTickDataAsync(
+            EsContractId,
+            new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "ES"));
+        await marketDataApi.Received(1).StopStreamingFuturesTickDataAsync(
+            VxContractId,
+            new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "VX"));
     }
 
     [Fact]
@@ -134,6 +237,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
             Substitute.For<IEventActorContext>(),
             commandApi,
             marketDataApi,
+            new FuturesItiSignalStreamOwnership(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
 
         handled.Should().BeTrue();
@@ -155,6 +259,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
             Substitute.For<IEventActorContext>(),
             commandApi,
             marketDataApi,
+            new FuturesItiSignalStreamOwnership(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
 
         handled.Should().BeTrue();
@@ -176,6 +281,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
             Substitute.For<IEventActorContext>(),
             commandApi,
             marketDataApi,
+            new FuturesItiSignalStreamOwnership(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
 
         handled.Should().BeTrue();
@@ -193,6 +299,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
             Substitute.For<IEventActorContext>(),
             commandApi,
             marketDataApi,
+            new FuturesItiSignalStreamOwnership(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>()).AsTask();
 
         await action.Should().ThrowAsync<FuturesContractRolloverConfigurationException>()
@@ -215,6 +322,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
             Substitute.For<IEventActorContext>(),
             commandApi,
             marketDataApi,
+            new FuturesItiSignalStreamOwnership(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>()).AsTask();
 
         await action.Should().ThrowAsync<MarketDataContractMappingException>();

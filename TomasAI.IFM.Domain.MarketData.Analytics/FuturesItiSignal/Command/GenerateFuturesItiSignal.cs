@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -56,6 +57,8 @@ public static class GenerateFuturesItiSignal
             Subject = new ActorSubject(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor, FuturesItiSignalGeneratedEvent.Verb, e.EntityId.Format()),
             EntityId = e.EntityId,
             FuturesItiSignal = computed,
+            VixFuturesPrice = e.VixFuturesPrice,
+            DeriveLongerPeriods = e.TimePeriod == TimeFrameType.Daily,
             CreatedOn = e.OriginatedOn,
             CreatedBy = e.OriginatedBy
         };

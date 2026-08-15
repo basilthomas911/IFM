@@ -48,7 +48,7 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
         commandApi.GenerateFuturesItiSignalAsync(
                 EsContractId,
                 ValueDate,
-                TimeFrameType.Weekly,
+                TimeFrameType.Daily,
                 Arg.Any<DateTime>(),
                 5450.25,
                 22.75)
@@ -119,7 +119,7 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
             await commandApi.Received(1).GenerateFuturesItiSignalAsync(
                 EsContractId,
                 ValueDate,
-                TimeFrameType.Weekly,
+                TimeFrameType.Daily,
                 @event.Price.Trade!.Value.EventTimestamp.UtcDateTime,
                 5450.25,
                 22.75);

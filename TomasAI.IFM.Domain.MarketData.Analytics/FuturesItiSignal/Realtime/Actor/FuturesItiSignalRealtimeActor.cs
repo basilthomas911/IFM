@@ -43,20 +43,23 @@ public class FuturesItiSignalRealtimeActor(
     };
 
     IActorMarketDataAnalyticsCommandApi? _commandApi;
+    readonly FuturesItiSignalStreamOwnership _streamOwnership = new();
 
     /// <summary>Maps supported event types to their domain extension handlers.</summary>
     readonly Dictionary<string, Func<
         IEvent,
         IEventActorContext,
         IActorMarketDataAnalyticsCommandApi,
+        FuturesItiSignalStreamOwnership,
         ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesMarketPriceUpdatedRealtimeEvent).Name] =
-            (@event, context, commandApi) => ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
+            (@event, context, commandApi, streamOwnership) => ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
                 .ExecuteAsync(
                     context,
                     commandApi,
                     marketDataApi,
+                    streamOwnership,
                     logger)
     };
 
@@ -70,11 +73,11 @@ public class FuturesItiSignalRealtimeActor(
     }
 
     /// <summary>Removes the route from the primary market-price actor.</summary>
-    protected override ValueTask OnShutdown(IEventActorContext context)
+    protected override async ValueTask OnShutdown(IEventActorContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
-        return ValueTask.CompletedTask;
+        await _streamOwnership.ReleaseAsync(marketDataApi).ConfigureAwait(false);
     }
 
     IActorMarketDataAnalyticsCommandApi GetCommandApi(IEventActorContext context) =>
@@ -111,7 +114,8 @@ public class FuturesItiSignalRealtimeActor(
                 $"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");
         }
 
-        _ = await handler(@event, context, GetCommandApi(context)).ConfigureAwait(false);
+        _ = await handler(@event, context, GetCommandApi(context), _streamOwnership)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Publishes the standard actor event error when realtime handling fails.</summary>

@@ -458,14 +458,27 @@ The primary actor does not register a route to itself. Signal realtime actors re
 `FuturesItiSignalRealtimeActor` is the first routed signal actor. It owns `Realtime.FuturesItiSignal`, accepts only the routed `Updated` verb, and uses the same explicit parse-map and receive-map structure. Its handler:
 
 1. accepts only the startup-validated current ES contract;
-2. requires active ES and VX workflow streams;
-3. reads the current VX contract from the rollover registry;
+2. lazily acquires explicit ES and VX stream registrations owned by `FuturesItiSignal/CurrentContracts/ES` and `FuturesItiSignal/CurrentContracts/VX`;
+3. requires both owned workflow streams to be active;
 4. obtains a fresh VX price through the hot-cache-backed market-data API; and
-5. sends `GenerateFuturesItiSignalCommand`, crossing from non-durable Core NATS ingress into the durable command workflow.
+5. sends a Daily `GenerateFuturesItiSignalCommand`, crossing from non-durable Core NATS ingress into the durable command workflow.
 
 Expected timing gaps, including an inactive required stream or no fresh VX trade yet, suppress command creation without treating the realtime message as a durable failure. Contract-identity mismatches and missing startup rollover state remain errors. The legacy `FuturesEodDataInsertedCompleteEvent` trigger is no longer registered by `FuturesItiSignalEventActor`, preventing the same ITI generation workflow from being triggered by both EOD and realtime paths.
 
-The realtime bridge currently preserves the established weekly ITI command contract. Daily generation and durable daily-to-weekly/monthly derivation are a separate contract change because the current ITI compute model supports weekly and monthly periods only.
+Actor construction deliberately precedes hosted market-data startup, so stream acquisition cannot occur in `OnStartup`. The first eligible routed update after rollover and market-data initialization performs idempotent acquisition. Subsequent updates reuse the registrations without incrementing ownership. A rollover replacement acquires the new ES/VX contracts before releasing retired contracts. Actor shutdown removes the realtime route first and then releases both registrations; a stopped or replaced market-data epoch is already clean and is treated as successful release.
+
+The ITI period contract is:
+
+```text
+Core Realtime ES update
+  -> Generate Daily ITI command
+  -> durable Daily Generated event and projection
+  -> Daily GeneratedComplete handler
+       -> Generate Weekly ITI command
+       -> Generate Monthly ITI command
+```
+
+Daily, Weekly, and Monthly use default trading-day counts of 1, 5, and 20 respectively. `FuturesItiSignalGeneratedEvent` and its completed event carry the exact source VX futures price and an explicit derivation marker as additive MessagePack fields. The marker is set only by a Daily Generate command; hold-set and hold-clear mutations reuse the event family but must not derive periods. This makes durable period derivation deterministic and replay-safe without rereading a mutable hot cache or substituting an EOD VX observation. Derived command identifiers are stable hashes of the source completion identity and target period, so redelivery addresses the same command identity. Only a marked Daily completion may derive longer periods; Weekly and Monthly completions never generate ITI commands, preventing recursive fan-out. Existing downstream trade-signal completion behavior remains period-specific and unchanged.
 
 #### 9.4.1 Normalized last-price cache
 
@@ -598,3 +611,4 @@ Reserved. Once the EventActor, CommandActor, and QueryActor sections are mature,
 | 2026-08-14 | Added the first RealtimeActor convention using `FuturesMarketPriceRealtimeActor`: required primary Core NATS destination, realtime-only route fan-out, provider-neutral decimal snapshot contract, one main handler with no complete/fail lifecycle, and actor-type-correct runtime metrics. |
 | 2026-08-14 | Defined the TickAggregation normalized last-price cache: stream-independent tick/option snapshot reads, explicit stream-activity checks, allocation-free versioned snapshot reads, quote-side cache refresh, trade-triggered Core realtime publication, stale-update rejection, and timer-derived signal sampling. |
 | 2026-08-14 | Added `FuturesItiSignalRealtimeActor` as the first routed signal actor, including ES/VX rollover identity checks, active-stream policy, fresh VX hot-price sampling, the realtime-to-durable command boundary, and retirement of the duplicate EOD ITI trigger. |
+| 2026-08-14 | Completed the realtime ITI period and ownership contract: actor-owned lazy ES/VX registrations, Daily-only realtime entry, deterministic durable Daily-to-Weekly/Monthly derivation, recursion guards, stable derived command IDs, and source-VX preservation across generated/completed events. |

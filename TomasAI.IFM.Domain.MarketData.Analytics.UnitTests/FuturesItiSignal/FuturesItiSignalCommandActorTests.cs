@@ -54,11 +54,12 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     // Time periods supported end-to-end by the ITI compute model's default trading-day lookup.
     public static readonly TheoryData<TimeFrameType> SupportedTimePeriods = new()
     {
+        TimeFrameType.Daily,
         TimeFrameType.Weekly,
         TimeFrameType.Monthly
     };
 
-    // All three time periods requested for coverage; Daily is intentionally unsupported by the ITI compute model.
+    // All three periods participate in the realtime-to-durable ITI workflow.
     public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
         TimeFrameType.Daily,
@@ -364,12 +365,11 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public async Task ReceiveAsync_GenerateFuturesItiSignalCommand_ExecutesHandler_ReturnsGuid()
     {
         // Arrange
-        // Daily is unsupported by the ITI compute model's default trading-day lookup, so use Weekly here.
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesItiSignalCommandActor>>();
         var actor = _fixture.CreateCommandActor(dbEventSource, logger);
 
-        var cmd = CreateGenerateCommand(timePeriod: TimeFrameType.Weekly);
+        var cmd = CreateGenerateCommand(timePeriod: TimeFrameType.Daily);
         var state = new FuturesItiSignalCommandState { Id = cmd.Subject.ThreadId };
         var context = Substitute.For<ICommandActorContext>();
 
@@ -401,6 +401,13 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Assert
         result.Should().NotBeNull();
         result.Value.Guid.Should().Be(cmd.CommandId);
+        state.TradingDays.Should().Be(timePeriod switch
+        {
+            TimeFrameType.Daily => 1,
+            TimeFrameType.Weekly => 5,
+            TimeFrameType.Monthly => 20,
+            _ => throw new ArgumentOutOfRangeException(nameof(timePeriod))
+        });
     }
 
     [Fact]

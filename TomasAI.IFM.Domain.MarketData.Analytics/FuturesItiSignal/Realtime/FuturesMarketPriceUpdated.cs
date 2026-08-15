@@ -29,6 +29,7 @@ public static class FuturesMarketPriceUpdated
     /// <param name="context">The realtime actor context used for the durable handoff.</param>
     /// <param name="commandApi">The actor-bound durable analytics command API.</param>
     /// <param name="marketDataApi">The provider-neutral current-contract and hot-price API.</param>
+    /// <param name="streamOwnership">The actor-owned ES/VX stream lifecycle.</param>
     /// <param name="logger">The typed ITI realtime actor logger.</param>
     /// <returns>
     /// <see langword="true"/> when the event was handled or intentionally ignored;
@@ -39,12 +40,14 @@ public static class FuturesMarketPriceUpdated
         IEventActorContext context,
         IActorMarketDataAnalyticsCommandApi commandApi,
         IMarketDataApi marketDataApi,
+        FuturesItiSignalStreamOwnership streamOwnership,
         ILogger<FuturesItiSignalRealtimeActor> logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(commandApi);
         ArgumentNullException.ThrowIfNull(marketDataApi);
+        ArgumentNullException.ThrowIfNull(streamOwnership);
         ArgumentNullException.ThrowIfNull(logger);
 
         try
@@ -64,19 +67,12 @@ public static class FuturesMarketPriceUpdated
                     "the realtime event entity and price snapshot identities do not match");
             }
 
-            if (!marketDataApi.TryGetCurrentlyTradedFuturesContract("ES", out var esContract))
-            {
-                throw new FuturesContractRolloverConfigurationException(
-                    "The current ES futures contract is not available in the startup rollover registry.");
-            }
+            var contracts = await streamOwnership.EnsureAsync(marketDataApi).ConfigureAwait(false);
+            var esContract = contracts.Es;
             if (!StringComparer.Ordinal.Equals(esContract.ContractId, @event.Price.ContractId))
                 return true;
 
-            if (!marketDataApi.TryGetCurrentlyTradedFuturesContract("VX", out var vxContract))
-            {
-                throw new FuturesContractRolloverConfigurationException(
-                    "The current VX futures contract is not available in the startup rollover registry.");
-            }
+            var vxContract = contracts.Vx;
 
             if (!marketDataApi.IsTickDataStreamActive(esContract.ContractId)
                 || !marketDataApi.IsTickDataStreamActive(vxContract.ContractId))
@@ -96,7 +92,7 @@ public static class FuturesMarketPriceUpdated
             await commandApi.GenerateFuturesItiSignalAsync(
                 esContract.ContractId,
                 @event.Price.ValueDate,
-                TimeFrameType.Weekly,
+                TimeFrameType.Daily,
                 esTrade.EventTimestamp.UtcDateTime,
                 Convert.ToDouble(esTrade.LastPrice),
                 Convert.ToDouble(vxPrice)).ConfigureAwait(false);

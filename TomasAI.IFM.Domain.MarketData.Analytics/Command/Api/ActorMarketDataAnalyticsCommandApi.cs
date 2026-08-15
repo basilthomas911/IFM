@@ -153,6 +153,7 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
     /// <param name="futuresTdiSignal">The optional TDI signal input.</param>
     /// <param name="futuresItiSignalData">The optional ITI signal input.</param>
     /// <param name="vixFuturesPrice">The current VIX futures price.</param>
+    /// <param name="commandId">An optional stable command identifier used by deterministic durable derivation.</param>
     /// <param name="timePeriod">The signal time-frame type.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> UpdateFuturesTradeSignalAsync(
@@ -201,7 +202,8 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         TimeFrameType timePeriod,
         DateTime timestamp,
         double futuresPrice,
-        double vixFuturesPrice)
+        double vixFuturesPrice,
+        Guid? commandId = null)
     {
         var entityId = new FuturesItiSignalEntityId(contractId, valueDate, timePeriod);
         GenerateFuturesItiSignalCommand command = new(
@@ -212,6 +214,7 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
             futuresPrice,
             vixFuturesPrice)
         {
+            CommandId = commandId ?? Guid.NewGuid(),
             Subject = new ActorSubject(
                 ActorType.Command,
                 GenerateFuturesItiSignalCommand.Actor,

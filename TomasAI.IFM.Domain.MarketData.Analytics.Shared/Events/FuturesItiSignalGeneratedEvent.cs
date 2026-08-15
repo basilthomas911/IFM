@@ -33,6 +33,10 @@ public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
     [Key(9)] public DateTime CreatedOn { get; init; }
     /// <summary>The user who created the signal.</summary>
     [Key(10)] public string CreatedBy { get; init; }
+    /// <summary>The source VIX futures price used by deterministic period derivation.</summary>
+    [Key(11)] public double VixFuturesPrice { get; init; }
+    /// <summary>Whether this generated signal is the Daily root of period derivation.</summary>
+    [Key(12)] public bool DeriveLongerPeriods { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -58,7 +62,9 @@ public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
         DateTime receivedOn,
         FuturesItiSignalV2ReadModel? futuresItiSignal,
         DateTime createdOn,
-        string createdBy)
+        string createdBy,
+        double vixFuturesPrice,
+        bool deriveLongerPeriods)
     {
         Subject = subject;
         Id = id;
@@ -71,6 +77,8 @@ public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
         FuturesItiSignal = futuresItiSignal;
         CreatedOn = createdOn;
         CreatedBy = createdBy ?? string.Empty;
+        VixFuturesPrice = vixFuturesPrice;
+        DeriveLongerPeriods = deriveLongerPeriods;
     }
 
     /// <summary>
@@ -94,6 +102,8 @@ public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
             EventSource = this.EventSource,
             ReceivedOn = this.ReceivedOn,
             FuturesItiSignal = this.FuturesItiSignal,
+            VixFuturesPrice = this.VixFuturesPrice,
+            DeriveLongerPeriods = this.DeriveLongerPeriods,
             CreatedOn = this.CreatedOn,
             CreatedBy = this.CreatedBy
         };
@@ -154,6 +164,10 @@ public record FuturesItiSignalGeneratedCompleteEvent : ICompleteEvent<FuturesIti
     [Key(8)] public FuturesItiSignalV2ReadModel? FuturesItiSignal { get; init; }
     [Key(9)] public DateTime CreatedOn { get; init; }
     [Key(10)] public string CreatedBy { get; init; }
+    /// <summary>The source VIX futures price used to generate this signal.</summary>
+    [Key(11)] public double VixFuturesPrice { get; init; }
+    /// <summary>Whether this completion is the Daily root of period derivation.</summary>
+    [Key(12)] public bool DeriveLongerPeriods { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -179,7 +193,9 @@ public record FuturesItiSignalGeneratedCompleteEvent : ICompleteEvent<FuturesIti
         DateTime receivedOn,
         FuturesItiSignalV2ReadModel? futuresItiSignal,
         DateTime createdOn,
-        string createdBy)
+        string createdBy,
+        double vixFuturesPrice,
+        bool deriveLongerPeriods)
     {
         Subject = subject;
         EntityId = entityId;
@@ -192,6 +208,8 @@ public record FuturesItiSignalGeneratedCompleteEvent : ICompleteEvent<FuturesIti
         FuturesItiSignal = futuresItiSignal;
         CreatedOn = createdOn;
         CreatedBy = createdBy ?? string.Empty;
+        VixFuturesPrice = vixFuturesPrice;
+        DeriveLongerPeriods = deriveLongerPeriods;
     }
 }
 
