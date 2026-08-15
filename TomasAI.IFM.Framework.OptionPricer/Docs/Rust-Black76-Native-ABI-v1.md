@@ -3,8 +3,13 @@
 ## Status and scope
 
 This document freezes Stage 1 of the Rust Black-76 implementation. It defines the managed compatibility contract and
-the native ABI that will be implemented under `native.rust/OptionPricer.Rust` beginning in Stage 2. No Rust crate or
-native implementation is introduced by this stage.
+the native ABI implemented under `native.rust/OptionPricer.Rust` beginning in Stage 2. Stage 1 itself introduced no
+Rust crate or native implementation.
+
+Implementation status as of 2026-08-15: Stages 2 and 3 provide the Windows x64 `cdylib` scaffold, public C header,
+scalar price kernel, scalar price-and-Greeks kernel, and their panic-safe version-1 exports. Implied volatility, fused
+calculator processing, batches, managed P/Invoke integration, differential testing, and benchmarking remain later
+stages. The managed implementation therefore remains the only application runtime path.
 
 ABI version 1 covers the numerical kernel used by `OptionModel` and `OptionCalculator`:
 

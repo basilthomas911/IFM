@@ -1,0 +1,22 @@
+[package]
+name = "ifm-option-pricer-native"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+build = "build.rs"
+description = "Rust Black-76 numerical kernel for the IFM option pricer"
+license = "Proprietary"
+
+[lib]
+name = "ifm_option_pricer_native"
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
+panic = "unwind"
+strip = "symbols"
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"

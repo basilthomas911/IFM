@@ -8,7 +8,8 @@ The approved plan to make Black76 the sole IFM option model and remove QLNet is 
 
 The frozen managed behavior and version-1 native contract for the planned Rust implementation are documented in
 [Rust Black-76 Native ABI Version 1](Rust-Black76-Native-ABI-v1.md). The managed implementation remains the only runtime
-implementation until the subsequent Rust implementation stages are completed and explicitly selected.
+implementation until the subsequent Rust implementation stages are completed and explicitly selected. The Windows x64
+Rust crate now contains its build scaffold and scalar price/Greeks exports, but no managed application path loads it yet.
 
 The project targets .NET 10, enables nullable reference types, implicit usings, and unsafe blocks, and references Shared, Domain OptionPricer Shared, and Domain Trade Shared.
 
