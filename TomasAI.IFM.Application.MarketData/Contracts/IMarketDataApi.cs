@@ -19,6 +19,19 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 public interface IMarketDataApi
 {
     /// <summary>
+    /// Resolves and persists the currently traded futures contract when the
+    /// symbol's rollover configuration is incomplete or due.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when the stored next-rollover date was first set
+    /// or changed; otherwise <see langword="false"/>.
+    /// </returns>
+    Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
+        string symbol,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Reads the latest normalized market-price hot-cache snapshot without checking stream ownership.
     /// </summary>
     bool TryGetLastTickPrice(

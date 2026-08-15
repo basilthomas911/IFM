@@ -2,6 +2,18 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 
 internal static class SecuritiesSchemaCql
 {
+    public const string CreateFuturesContractRolloverTable = """
+    CREATE TABLE IF NOT EXISTS futures_contract_rollover (
+    symbol text PRIMARY KEY,
+    contractId text,
+    nextRolloverDate date,
+    updatedOn timestamp,
+    updatedBy text,
+    createdOn timestamp,
+    createdBy text
+    );
+    """;
+
     public const string CreateFuturesContractTable = """
     CREATE TABLE IF NOT EXISTS futures_contract (
     contractId text,

@@ -2,6 +2,35 @@ using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
+internal readonly record struct InsertFuturesContractRolloverIfMissing(
+    string symbol,
+    DateTime createdOn,
+    string createdBy) : IBindValue
+{
+    public object Bind() => new object?[] { symbol, createdOn, createdBy };
+}
+
+internal readonly record struct GetFuturesContractRollover(string symbol) : IBindValue
+{
+    public object Bind() => new object?[] { symbol };
+}
+
+internal readonly record struct DeleteFuturesContractRollover(string symbol) : IBindValue
+{
+    public object Bind() => new object?[] { symbol };
+}
+
+internal readonly record struct UpdateFuturesContractRollover(
+    string contractId,
+    DateOnly nextRolloverDate,
+    DateTime updatedOn,
+    string updatedBy,
+    string symbol) : IBindValue
+{
+    public object Bind() => new object?[]
+        { contractId, nextRolloverDate, updatedOn, updatedBy, symbol };
+}
+
 internal readonly record struct InsertFuturesContract(string contractId, string description, string symbol, string localSymbol, string securityType, string currency, string exchange, string multiplier, DateOnly lastTradeDate, bool currentlyTraded) : IBindValue
 {
     public object Bind() => new object?[] { contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, currentlyTraded };

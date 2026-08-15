@@ -19,6 +19,9 @@ public static class MarketDataServiceCollectionExtensions
         services.TryAddSingleton(apiOptions ?? new DatabentoMarketDataApiOptions());
         services.TryAddSingleton<IDatabentoMarketDataEpochFactory,
             DatabentoMarketDataEpochFactory>();
+        services.TryAddSingleton<IDatabentoCurrentFuturesContractResolver,
+            DatabentoCurrentFuturesContractResolver>();
+        services.TryAddSingleton<FuturesContractRolloverStartupCheck>();
         services.TryAddSingleton<DatabentoMarketDataApi>();
         services.TryAddSingleton<IMarketDataApi>(provider =>
             provider.GetRequiredService<DatabentoMarketDataApi>());

@@ -15,6 +15,12 @@ internal sealed class DeterministicMarketDataApi(
     FakeMarketDataEpochFactory epochFactory,
     TimeSpan maximumLastPriceAge) : IMarketDataApi
 {
+    public Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
+        string symbol,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("The deterministic live-price harness has no rollover store.");
+
     public bool TryGetLastTickPrice(
         string contractId,
         out FuturesMarketPriceSnapshot snapshot)

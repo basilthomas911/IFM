@@ -1,6 +1,7 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
@@ -56,6 +57,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     private readonly IDatabentoMarketDataEpochFactory _epochFactory;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _maximumLastPriceAge;
+    private readonly IDatabentoCurrentFuturesContractResolver? _currentContractResolver;
+    private readonly IFuturesContractRolloverStore? _rolloverStore;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private IDatabentoMarketDataEpoch? _epoch;
     private Func<Guid, int, string, Task>? _errorMessageHandler;
@@ -101,7 +104,9 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     public DatabentoMarketDataApi(
         IDatabentoMarketDataEpochFactory epochFactory,
         DatabentoMarketDataApiOptions options,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IDatabentoCurrentFuturesContractResolver? currentContractResolver = null,
+        IFuturesContractRolloverStore? rolloverStore = null)
     {
         _epochFactory = epochFactory ?? throw new ArgumentNullException(nameof(epochFactory));
         ArgumentNullException.ThrowIfNull(options);
@@ -109,6 +114,54 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             throw new ArgumentOutOfRangeException(nameof(options.MaximumLastPriceAge));
         _maximumLastPriceAge = options.MaximumLastPriceAge;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _currentContractResolver = currentContractResolver;
+        _rolloverStore = rolloverStore;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
+        string symbol,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        ValidateDate(valueDate, nameof(valueDate));
+        cancellationToken.ThrowIfCancellationRequested();
+        var normalizedSymbol = symbol.Trim().ToUpperInvariant();
+        var store = _rolloverStore ?? throw new FuturesContractRolloverConfigurationException(
+            "The futures-contract rollover store is not registered.");
+        var resolver = _currentContractResolver ?? throw new FuturesContractRolloverConfigurationException(
+            "The DataBento current-futures-contract resolver is not registered.");
+        var existing = await store.GetFuturesContractRolloverAsync(
+            normalizedSymbol, cancellationToken).ConfigureAwait(false)
+            ?? throw new FuturesContractRolloverConfigurationException(
+                $"The futures-contract rollover row for '{normalizedSymbol}' is missing.");
+
+        if (!string.IsNullOrWhiteSpace(existing.ContractId)
+            && existing.NextRolloverDate is { } currentRolloverDate
+            && valueDate < currentRolloverDate)
+            return false;
+
+        var resolved = await resolver.ResolveAsync(
+            normalizedSymbol, valueDate, cancellationToken).ConfigureAwait(false);
+        if (!string.Equals(resolved.Contract.Symbol, normalizedSymbol, StringComparison.Ordinal))
+        {
+            throw new MarketDataContractMappingException(
+                resolved.Contract.ContractId,
+                $"the resolved symbol '{resolved.Contract.Symbol}' does not match '{normalizedSymbol}'");
+        }
+
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        var replacement = existing with
+        {
+            ContractId = resolved.Contract.ContractId,
+            NextRolloverDate = resolved.NextRolloverDate,
+            UpdatedOn = now,
+            UpdatedBy = nameof(DatabentoMarketDataApi)
+        };
+        await store.ReplaceCurrentlyTradedFuturesContractAsync(
+            replacement, resolved.Contract, cancellationToken).ConfigureAwait(false);
+        return existing.NextRolloverDate != resolved.NextRolloverDate;
     }
 
     /// <summary>

@@ -380,6 +380,8 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<OptionPricerDbContext>() as IOptionPricerDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SecuritiesDbContext>() as ISecuritiesDbContext)!);
+            services.AddSingleton<IFuturesContractRolloverStore>(provider =>
+                provider.GetRequiredService<ISecuritiesDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
             services.AddSingleton<IYieldCurveRatesDbContext, YieldCurveRatesDbContext>();
             services.AddSingleton<IEconomicCalendarsDbContext, EconomicCalendarsDbContext>();
@@ -442,6 +444,7 @@ public static class Startup
             services.AddSingleton<ITickAggregationEventPublisher,
                 TickAggregationEventPublisher>();
             services.AddApplicationMarketDataApi(runtimeOptions);
+            services.AddHostedService<FuturesContractRolloverStartupService>();
 
             //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();
             services.AddSingleton<IFuturesBarDataTimer, FuturesBarDataTimer>();

@@ -10,6 +10,7 @@ public sealed class SecuritiesSchemaDb(IDbConnectionSettings connectionSettings,
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("futures_contract_rollover", SecuritiesSchemaCql.CreateFuturesContractRolloverTable, "DROP TABLE IF EXISTS futures_contract_rollover;"),
         new("futures_contract", SecuritiesSchemaCql.CreateFuturesContractTable, "DROP TABLE IF EXISTS futures_contract;"),
         new("futures_option_contract", SecuritiesSchemaCql.CreateFuturesOptionContractTable, "DROP TABLE IF EXISTS futures_option_contract;"),
         new("futures_contract_by_symbol_v2", SecuritiesSchemaCql.CreateFuturesContractBySymbolV2Table, "DROP TABLE IF EXISTS futures_contract_by_symbol_v2;"),

@@ -11,11 +11,12 @@ public sealed class MarketDataApiContractApprovalTests
     {
         var methods = typeof(IMarketDataApi).GetMethods();
 
-        methods.Should().HaveCount(20);
+        methods.Should().HaveCount(21);
         methods.Select(method => method.Name).Should().BeEquivalentTo(
             "TryGetLastTickPrice",
             "TryGetLastOptionTickPrice",
             "IsTickDataStreamActive",
+            "UpdateCurrentlyTradedFuturesContractAsync",
             "StartAsync",
             "StopAsync",
             "GetFuturesContractAsync",
@@ -64,6 +65,8 @@ public sealed class MarketDataApiContractApprovalTests
     [InlineData(typeof(OptionChainConflictException))]
     [InlineData(typeof(MarketDataCapacityExceededException))]
     [InlineData(typeof(MarketDataPricingInputUnavailableException))]
+    [InlineData(typeof(FuturesContractRolloverConfigurationException))]
+    [InlineData(typeof(CurrentlyTradedFuturesContractNotFoundException))]
     public void PublicFailuresUseTypedApplicationExceptions(Type exceptionType)
     {
         exceptionType.Should().BeDerivedFrom<MarketDataApiException>();

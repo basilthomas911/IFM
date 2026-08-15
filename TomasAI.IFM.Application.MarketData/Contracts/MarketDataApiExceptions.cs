@@ -24,6 +24,28 @@ public sealed class MarketDataApiNotRunningException : MarketDataApiException
     }
 }
 
+public sealed class FuturesContractRolloverConfigurationException : MarketDataApiException
+{
+    public FuturesContractRolloverConfigurationException(string message)
+        : base(message)
+    {
+    }
+}
+
+public sealed class CurrentlyTradedFuturesContractNotFoundException : MarketDataApiException
+{
+    public CurrentlyTradedFuturesContractNotFoundException(string symbol, DateOnly valueDate)
+        : base($"DataBento did not return an eligible currently traded futures contract for " +
+               $"'{symbol}' at {valueDate:yyyy-MM-dd}.")
+    {
+        Symbol = symbol;
+        ValueDate = valueDate;
+    }
+
+    public string Symbol { get; }
+    public DateOnly ValueDate { get; }
+}
+
 public sealed class MarketDataApiAlreadyRunningException : MarketDataApiException
 {
     public MarketDataApiAlreadyRunningException(

@@ -4,6 +4,40 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
 internal class SecuritiesDbCql
 {
+    public const string InsertFuturesContractRolloverIfMissing = """
+        INSERT INTO futures_contract_rollover (
+            symbol, createdOn, createdBy)
+        VALUES (:symbol, :createdOn, :createdBy)
+        IF NOT EXISTS;
+        """;
+
+    public const string GetFuturesContractRollover = """
+        SELECT symbol, contractId, nextRolloverDate,
+               updatedOn, updatedBy, createdOn, createdBy
+        FROM futures_contract_rollover
+        WHERE symbol = :symbol;
+        """;
+
+    public const string GetFuturesContractRollovers = """
+        SELECT symbol, contractId, nextRolloverDate,
+               updatedOn, updatedBy, createdOn, createdBy
+        FROM futures_contract_rollover;
+        """;
+
+    public const string UpdateFuturesContractRollover = """
+        UPDATE futures_contract_rollover
+        SET contractId = :contractId,
+            nextRolloverDate = :nextRolloverDate,
+            updatedOn = :updatedOn,
+            updatedBy = :updatedBy
+        WHERE symbol = :symbol;
+        """;
+
+    public const string DeleteFuturesContractRollover = """
+        DELETE FROM futures_contract_rollover
+        WHERE symbol = :symbol;
+        """;
+
     public const string DeleteFuturesContract = """
         DELETE FROM futures_contract
         WHERE contractId = :contractId;

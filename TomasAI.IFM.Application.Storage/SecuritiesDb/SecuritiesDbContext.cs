@@ -64,6 +64,19 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             optionType: e.GetString(10)
         );
 
+    static FuturesContractRolloverReadModel MapToFuturesContractRollover<TDataRecord>(TDataRecord e)
+        where TDataRecord : IObjectDataRecord
+        => new()
+        {
+            Symbol = e.GetString(0),
+            ContractId = e.IsNull(1) ? null : e.GetString(1),
+            NextRolloverDate = e.IsNull(2) ? null : e.GetDateOnly(2),
+            UpdatedOn = e.IsNull(3) ? null : e.GetDateTime(3),
+            UpdatedBy = e.IsNull(4) ? null : e.GetString(4),
+            CreatedOn = e.GetDateTime(5),
+            CreatedBy = e.GetString(6)
+        };
+
     readonly record struct FuturesContractProjectionKey(
         string Symbol,
         bool CurrentlyTraded,
@@ -1940,6 +1953,128 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             cancellationToken,
             token => LoadFuturesContractProjectionAsync(symbol, token),
             token => LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token));
+    }
+
+    public async Task EnsureFuturesContractRolloverRowsAsync(
+        IReadOnlyCollection<string> symbols,
+        DateTime createdOnUtc,
+        string createdBy,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(symbols);
+        ArgumentException.ThrowIfNullOrWhiteSpace(createdBy);
+
+        var normalized = symbols
+            .Select(static symbol => symbol?.Trim().ToUpperInvariant())
+            .Where(static symbol => !string.IsNullOrWhiteSpace(symbol))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (normalized.Length == 0)
+            throw new ArgumentException("At least one futures symbol is required.", nameof(symbols));
+
+        foreach (var symbol in normalized)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await _dbFactory.SecuritiesDb
+                .Use(SecuritiesDbCql.InsertFuturesContractRolloverIfMissing)
+                .SetParameters(new InsertFuturesContractRolloverIfMissing(
+                    symbol!, createdOnUtc, createdBy))
+                .ExecuteCommandAsync(cancellationToken);
+        }
+    }
+
+    public async Task<FuturesContractRolloverReadModel?> GetFuturesContractRolloverAsync(
+        string symbol,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        return await _dbFactory.SecuritiesDb
+            .Use(SecuritiesDbCql.GetFuturesContractRollover)
+            .SetParameters(new GetFuturesContractRollover(symbol.Trim().ToUpperInvariant()))
+            .ExecuteSingleAsync(MapToFuturesContractRollover!, cancellationToken);
+    }
+
+    public Task<FuturesContractV2ReadModel?> GetPersistedFuturesContractAsync(
+        string contractId,
+        CancellationToken cancellationToken = default)
+        => GetFuturesContractAsync(contractId, cancellationToken);
+
+    public async Task<IReadOnlyCollection<FuturesContractRolloverReadModel>> GetFuturesContractRolloversAsync(
+        CancellationToken cancellationToken = default)
+        => (await _dbFactory.SecuritiesDb
+            .Use(SecuritiesDbCql.GetFuturesContractRollovers)
+            .ExecuteQueryAsync(MapToFuturesContractRollover!, cancellationToken))
+            .ToArray();
+
+    public async Task ReplaceCurrentlyTradedFuturesContractAsync(
+        FuturesContractRolloverReadModel rollover,
+        FuturesContractV2ReadModel contract,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(rollover);
+        ArgumentNullException.ThrowIfNull(contract);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(rollover.ContractId)
+            || rollover.NextRolloverDate is null
+            || rollover.UpdatedOn is null
+            || string.IsNullOrWhiteSpace(rollover.UpdatedBy))
+        {
+            throw new ArgumentException("The replacement rollover row must be fully resolved.", nameof(rollover));
+        }
+        if (!string.Equals(rollover.Symbol, contract.Symbol, StringComparison.Ordinal)
+            || !string.Equals(rollover.ContractId, contract.ContractId, StringComparison.Ordinal)
+            || !contract.CurrentlyTraded)
+        {
+            throw new ArgumentException(
+                "The rollover row and currently traded contract must identify the same symbol and contract.",
+                nameof(contract));
+        }
+
+        var symbol = rollover.Symbol.Trim().ToUpperInvariant();
+        var existing = await GetCurrentlyTradedFuturesContractsAsync(symbol, cancellationToken);
+        var db = _dbFactory.SecuritiesDb;
+        List<object> queuedCommands = [];
+        foreach (var current in existing)
+        {
+            if (string.Equals(current.ContractId, contract.ContractId, StringComparison.Ordinal)
+                && current.LastTradeDate == contract.LastTradeDate)
+                continue;
+            queuedCommands.Add(db.Use(SecuritiesDbCql.DeleteFuturesContractById)
+                .SetParameters(new DeleteFuturesContractById(
+                    current.ContractId, current.Symbol, current.LastTradeDate))
+                .QueueCommand());
+            queuedCommands.Add(db.Use(SecuritiesDbCql.DeleteFuturesContractBySymbolV2)
+                .SetParameters(new DeleteFuturesContractBySymbolV2(
+                    current.Symbol, true, current.LastTradeDate, current.ContractId))
+                .QueueCommand());
+        }
+
+        var insert = ToInsertParameters(contract);
+        queuedCommands.Add(db.Use(SecuritiesDbCql.DeleteFuturesContractBySymbolV2)
+            .SetParameters(new DeleteFuturesContractBySymbolV2(
+                contract.Symbol, false, contract.LastTradeDate, contract.ContractId))
+            .QueueCommand());
+        queuedCommands.Add(db.Use(SecuritiesDbCql.InsertFuturesContract)
+            .SetParameters(insert)
+            .QueueCommand());
+        queuedCommands.Add(db.Use(SecuritiesDbCql.InsertFuturesContractBySymbolV2)
+            .SetParameters(insert)
+            .QueueCommand());
+        queuedCommands.Add(db.Use(SecuritiesDbCql.UpdateFuturesContractRollover)
+            .SetParameters(new UpdateFuturesContractRollover(
+                rollover.ContractId,
+                rollover.NextRolloverDate.Value,
+                rollover.UpdatedOn.Value,
+                rollover.UpdatedBy,
+                symbol))
+            .QueueCommand());
+
+        await ExecuteProjectionMutationAsync(
+            db,
+            FuturesContractSymbolProjection,
+            [symbol],
+            () => db.ExecuteQueuedCommandsAsync(queuedCommands, true));
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
 }
