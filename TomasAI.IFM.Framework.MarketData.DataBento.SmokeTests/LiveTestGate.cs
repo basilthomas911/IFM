@@ -28,6 +28,26 @@ internal static class LiveTestGate
         return TimeSpan.FromMinutes(minutes);
     }
 
+    internal static DateTimeOffset? GetSoakStart()
+    {
+        var value = Environment.GetEnvironmentVariable(
+            "IFM_DATABENTO_SOAK_START_LOCAL");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+        if (!DateTimeOffset.TryParse(
+                value,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.RoundtripKind,
+                out var start))
+        {
+            throw new InvalidOperationException(
+                "IFM_DATABENTO_SOAK_START_LOCAL must be an ISO-8601 date/time with offset.");
+        }
+        return start;
+    }
+
     internal static MarketDataKinds GetSoakDataKinds() =>
         MarketDataKinds.Quote
         | MarketDataKinds.Trade

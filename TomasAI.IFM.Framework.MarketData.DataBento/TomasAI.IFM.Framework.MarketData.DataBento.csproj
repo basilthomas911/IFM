@@ -6,6 +6,9 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <DatabentoNativeImplementation Condition="'$(DatabentoNativeImplementation)' == ''">Cpp</DatabentoNativeImplementation>
+    <DatabentoNativeBuildKind Condition="'$(DatabentoEnableLive)' == 'true'">live-build</DatabentoNativeBuildKind>
+    <DatabentoNativeBuildKind Condition="'$(DatabentoNativeBuildKind)' == ''">build</DatabentoNativeBuildKind>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,8 +25,15 @@
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="Exists('..\native\DatabentoFeed.Native\out\build\$(Configuration)\databento_feed_native.dll')">
-    <None Include="..\native\DatabentoFeed.Native\out\build\$(Configuration)\*.dll"
+  <ItemGroup Condition="'$(DatabentoNativeImplementation)' == 'Cpp' and Exists('..\native\DatabentoFeed.Native\out\$(DatabentoNativeBuildKind)\$(Configuration)\databento_feed_native.dll')">
+    <None Include="..\native\DatabentoFeed.Native\out\$(DatabentoNativeBuildKind)\$(Configuration)\*.dll"
+          Link="runtimes\win-x64\native\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(DatabentoNativeImplementation)' == 'Rust' and Exists('..\native.rust\DatabentoFeed.Rust\out\$(DatabentoNativeBuildKind)\$(Configuration)\databento_feed_native.dll')">
+    <None Include="..\native.rust\DatabentoFeed.Rust\out\$(DatabentoNativeBuildKind)\$(Configuration)\*.dll"
           Link="runtimes\win-x64\native\%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest"
           CopyToPublishDirectory="PreserveNewest" />

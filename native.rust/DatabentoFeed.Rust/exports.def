@@ -1,0 +1,24 @@
+LIBRARY databento_feed_native
+EXPORTS
+    dbf_get_abi_version
+    dbf_feed_create
+    dbf_feed_subscribe_tickers
+    dbf_feed_subscribe_option_chain
+    dbf_feed_allocate_read_buffer64
+    dbf_feed_start
+    dbf_feed_get_ticker_mapping_counts
+    dbf_feed_copy_ticker_mappings
+    dbf_feed_set_consumer_ready
+    dbf_feed_wait
+    dbf_feed_read_batch64
+    dbf_feed_stop
+    dbf_feed_free_read_buffer64
+    dbf_feed_get_stats
+    dbf_feed_get_last_error
+    dbf_feed_destroy
+    dbf_contract_details_query
+    dbf_contract_details_result_get_counts
+    dbf_contract_details_result_copy
+    dbf_contract_details_result_get_error
+    dbf_contract_details_result_destroy
+    dbf_get_latest_price

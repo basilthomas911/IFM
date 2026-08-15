@@ -93,6 +93,10 @@ Omit `IFM_DATABENTO_SOAK_MINUTES` for the default 60-minute duration. Quote and
 trade ticks are subscribed by default. Add `-e IFM_DATABENTO_INCLUDE_MBO=1` only
 when the Databento key is entitled to the MBO schema.
 
+For the controlled Monday C++ / Tuesday Rust 3:00-4:00 PM comparison, use the
+preflighted launchers and evidence procedure in
+[`../native.rust/DatabentoFeed.Rust/docs/market-close-live-comparison.md`](../../native.rust/DatabentoFeed.Rust/docs/market-close-live-comparison.md).
+
 Set `IFM_DATABENTO_TICK_CSV_DIRECTORY` to capture every consumed record in
 session order. Each soak test creates a distinct timestamped UTF-8 CSV file and
 reports its path, row count, and byte count in the final metrics. CSV capture is

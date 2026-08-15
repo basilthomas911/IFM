@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 using Xunit.Abstractions;
 
@@ -29,6 +30,7 @@ public sealed class DatabentoOneHourLiveSmokeTests
         }
         LiveTestGate.AssertCredential();
         var duration = LiveTestGate.GetSoakDuration();
+        var scheduledStart = LiveTestGate.GetSoakStart();
         var dataKinds = LiveTestGate.GetSoakDataKinds();
         var currentFuture = FindCurrentEsFuture(_fixture.Queries);
         var options = LiveTestGate.CreateLiveOptions();
@@ -52,6 +54,10 @@ public sealed class DatabentoOneHourLiveSmokeTests
         var counters = new DatabentoSoakCounters(
             [registration.Instrument],
             csvCapture);
+        if (scheduledStart is not null)
+        {
+            counters.PauseMeasurement();
+        }
         var consumer = counters.ConsumeAsync(feed.GetReader(registration.Instrument));
 
         _output.WriteLine(
@@ -61,10 +67,17 @@ public sealed class DatabentoOneHourLiveSmokeTests
             dataKinds,
             duration);
         WriteCsvCaptureStatus(counters);
-        await RunAndStopAsync(duration, feed.GetHealth, feed.Stop, consumer, counters);
+        var runtime = await RunAndStopAsync(
+            duration,
+            feed.GetHealth,
+            feed.Stop,
+            consumer,
+            counters,
+            scheduledStart);
 
         var health = feed.GetHealth();
-        WriteFinalSummary("ES future", duration, counters, health);
+        WriteFinalSummary("ES future", duration, counters, health, runtime);
+        WriteMachineReadableResult("es-future", duration, counters, health, runtime);
         AssertSuccessfulSoak(duration, counters, health);
     }
 
@@ -77,6 +90,7 @@ public sealed class DatabentoOneHourLiveSmokeTests
         }
         LiveTestGate.AssertCredential();
         var duration = LiveTestGate.GetSoakDuration();
+        var scheduledStart = LiveTestGate.GetSoakStart();
         var dataKinds = LiveTestGate.GetSoakDataKinds();
         var maturity = FindNearestEsOptionMaturity(_fixture.Queries);
         var definitions = _fixture.Queries.GetChainDefinitions(
@@ -123,6 +137,10 @@ public sealed class DatabentoOneHourLiveSmokeTests
                     group => group.Key,
                     group => group.First().RawSymbol));
         var counters = new DatabentoSoakCounters(expectedInstruments, csvCapture);
+        if (scheduledStart is not null)
+        {
+            counters.PauseMeasurement();
+        }
         var consumer = counters.ConsumeAsync(feed.Reader);
 
         _output.WriteLine(
@@ -134,21 +152,66 @@ public sealed class DatabentoOneHourLiveSmokeTests
             dataKinds,
             duration);
         WriteCsvCaptureStatus(counters);
-        await RunAndStopAsync(duration, feed.GetHealth, feed.Stop, consumer, counters);
+        var runtime = await RunAndStopAsync(
+            duration,
+            feed.GetHealth,
+            feed.Stop,
+            consumer,
+            counters,
+            scheduledStart);
 
         var health = feed.GetHealth();
-        WriteFinalSummary("ES futures options", duration, counters, health);
+        WriteFinalSummary("ES futures options", duration, counters, health, runtime);
+        WriteMachineReadableResult(
+            "es-futures-options",
+            duration,
+            counters,
+            health,
+            runtime);
         AssertSuccessfulSoak(duration, counters, health);
     }
 
-    private async Task RunAndStopAsync(
+    private async Task<SoakRuntimeMetrics> RunAndStopAsync(
         TimeSpan duration,
         Func<FeedHealthSnapshot> getHealth,
         Action<TimeSpan> stop,
         Task consumer,
-        DatabentoSoakCounters counters)
+        DatabentoSoakCounters counters,
+        DateTimeOffset? scheduledStart)
     {
+        if (scheduledStart is not null && scheduledStart > DateTimeOffset.Now)
+        {
+            _output.WriteLine(
+                "Feed warm-up active; measurement starts at {0:o}.",
+                scheduledStart);
+            while (DateTimeOffset.Now < scheduledStart)
+            {
+                var remaining = scheduledStart.Value - DateTimeOffset.Now;
+                await Task.Delay(remaining < TimeSpan.FromMinutes(1)
+                    ? remaining
+                    : TimeSpan.FromMinutes(1));
+                var health = getHealth();
+                if (consumer.IsCompleted
+                    || health.State != FeedState.Running
+                    || health.TerminalStatus != DatabentoFeedStatus.Ok)
+                {
+                    throw new DatabentoFeedException(
+                        health.TerminalStatus,
+                        $"The feed failed during warm-up with state {health.State}.");
+                }
+            }
+        }
+        var startingHealth = getHealth();
+        using var process = Process.GetCurrentProcess();
+        process.Refresh();
+        var startedOn = DateTimeOffset.UtcNow;
+        var startingCpu = process.TotalProcessorTime;
+        var startingAllocatedBytes = GC.GetTotalAllocatedBytes(false);
+        var startingGen0 = GC.CollectionCount(0);
+        var startingGen1 = GC.CollectionCount(1);
+        var startingGen2 = GC.CollectionCount(2);
         var started = Stopwatch.GetTimestamp();
+        counters.BeginMeasurement();
         try
         {
             while (Stopwatch.GetElapsedTime(started) < duration)
@@ -209,6 +272,23 @@ public sealed class DatabentoOneHourLiveSmokeTests
                 counters.RecordException("CSV flush", exception);
             }
         }
+
+        var actualElapsed = Stopwatch.GetElapsedTime(started);
+        process.Refresh();
+        return new SoakRuntimeMetrics(
+            startedOn,
+            DateTimeOffset.UtcNow,
+            actualElapsed,
+            process.TotalProcessorTime - startingCpu,
+            process.WorkingSet64,
+            process.PeakWorkingSet64,
+            process.PrivateMemorySize64,
+            GC.GetTotalMemory(false),
+            GC.GetTotalAllocatedBytes(false) - startingAllocatedBytes,
+            GC.CollectionCount(0) - startingGen0,
+            GC.CollectionCount(1) - startingGen1,
+            GC.CollectionCount(2) - startingGen2,
+            startingHealth);
     }
 
     private void WriteProgress(
@@ -243,14 +323,38 @@ public sealed class DatabentoOneHourLiveSmokeTests
         string testName,
         TimeSpan duration,
         DatabentoSoakCounters counters,
-        FeedHealthSnapshot health)
+        FeedHealthSnapshot health,
+        SoakRuntimeMetrics runtime)
     {
+        var ticksPerSecond = runtime.Elapsed.TotalSeconds <= 0
+            ? 0
+            : counters.Ticks / runtime.Elapsed.TotalSeconds;
+        var averageCpuCores = runtime.Elapsed.TotalSeconds <= 0
+            ? 0
+            : runtime.CpuTime.TotalSeconds / runtime.Elapsed.TotalSeconds;
+        var nativeBatches = Difference(
+            health.BatchesPublished,
+            runtime.StartingHealth.BatchesPublished);
+        var channelFull = Difference(
+            health.ChannelFullCount,
+            runtime.StartingHealth.ChannelFullCount);
+        var poolMiss = Difference(
+            health.PoolMissCount,
+            runtime.StartingHealth.PoolMissCount);
+        var drainAllocatedBytes = Difference(
+            health.DrainAllocatedBytes,
+            runtime.StartingHealth.DrainAllocatedBytes);
         _output.WriteLine(
             "FINAL {0}: duration={1}, ticks={2:N0}, batches={3:N0}, quote={4:N0}, "
             + "trade={5:N0}, mbo={6:N0}, instrumentsWithTicks={7:N0}/{8:N0}, "
             + "exceptions={9:N0}, produced={10:N0}, consumed={11:N0}, "
-            + "channelFull={12:N0}, poolMiss={13:N0}, warning={14}, "
-            + "csvRows={15:N0}, csvBytes={16:N0}, csvPath={17}.",
+            + "ringHighWater={12:N0}, nativeBatches={13:N0}, channelFull={14:N0}, "
+            + "poolMiss={15:N0}, drainAllocatedBytes={16:N0}, warning={17}, "
+            + "ticksPerSecond={18:N2}, cpuSeconds={19:N2}, averageCpuCores={20:N4}, "
+            + "workingSetBytes={21:N0}, peakWorkingSetBytes={22:N0}, "
+            + "privateBytes={23:N0}, managedHeapBytes={24:N0}, "
+            + "managedAllocatedBytes={25:N0}, gen0={26:N0}, gen1={27:N0}, gen2={28:N0}, "
+            + "csvRows={29:N0}, csvBytes={30:N0}, csvPath={31}.",
             testName,
             duration,
             counters.Ticks,
@@ -263,9 +367,23 @@ public sealed class DatabentoOneHourLiveSmokeTests
             counters.Exceptions,
             health.RecordsProduced,
             health.RecordsConsumed,
-            health.ChannelFullCount,
-            health.PoolMissCount,
+            health.RingHighWaterRecords,
+            nativeBatches,
+            channelFull,
+            poolMiss,
+            drainAllocatedBytes,
             health.Warning ?? "none",
+            ticksPerSecond,
+            runtime.CpuTime.TotalSeconds,
+            averageCpuCores,
+            runtime.WorkingSetBytes,
+            runtime.PeakWorkingSetBytes,
+            runtime.PrivateMemoryBytes,
+            runtime.ManagedHeapBytes,
+            runtime.ManagedAllocatedBytes,
+            runtime.Gen0Collections,
+            runtime.Gen1Collections,
+            runtime.Gen2Collections,
             counters.CapturedCsvRows,
             counters.CapturedCsvBytes,
             counters.CapturedCsvPath ?? "disabled");
@@ -281,6 +399,126 @@ public sealed class DatabentoOneHourLiveSmokeTests
                 pair.Key.InstrumentId,
                 pair.Value);
         }
+    }
+
+    private static void WriteMachineReadableResult(
+        string scenario,
+        TimeSpan configuredDuration,
+        DatabentoSoakCounters counters,
+        FeedHealthSnapshot health,
+        SoakRuntimeMetrics runtime)
+    {
+        var resultPath = Environment.GetEnvironmentVariable(
+            "IFM_DATABENTO_SOAK_RESULT_PATH");
+        if (string.IsNullOrWhiteSpace(resultPath))
+        {
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(resultPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        var result = new
+        {
+            schemaVersion = 1,
+            implementation = Environment.GetEnvironmentVariable(
+                "IFM_DATABENTO_NATIVE_IMPLEMENTATION") ?? "unspecified",
+            scenario,
+            configuredDurationSeconds = configuredDuration.TotalSeconds,
+            startedOnUtc = runtime.StartedOn,
+            completedOnUtc = runtime.CompletedOn,
+            elapsedSeconds = runtime.Elapsed.TotalSeconds,
+            ticks = counters.Ticks,
+            lifetimeTicks = counters.LifetimeTicks,
+            ticksPerSecond = runtime.Elapsed.TotalSeconds <= 0
+                ? 0
+                : counters.Ticks / runtime.Elapsed.TotalSeconds,
+            batches = counters.Batches,
+            lifetimeBatches = counters.LifetimeBatches,
+            quotes = counters.Quotes,
+            trades = counters.Trades,
+            mboUpdates = counters.MboUpdates,
+            expectedInstruments = counters.ExpectedInstrumentCount,
+            instrumentsWithTicks = counters.InstrumentsWithTicks,
+            unknownInstruments = counters.UnknownInstruments,
+            unexpectedRecordKinds = counters.UnexpectedRecordKinds,
+            exceptions = counters.Exceptions,
+            native = new
+            {
+                state = health.State.ToString(),
+                terminalStatus = health.TerminalStatus.ToString(),
+                health.RingCapacityRecords,
+                health.RingUsedRecords,
+                health.RingHighWaterRecords,
+                health.RecordsProduced,
+                health.RecordsConsumed,
+                measurementStartRecordsProduced =
+                    runtime.StartingHealth.RecordsProduced,
+                measurementStartRecordsConsumed =
+                    runtime.StartingHealth.RecordsConsumed,
+                recordsProducedDuringMeasurement = Difference(
+                    health.RecordsProduced,
+                    runtime.StartingHealth.RecordsProduced),
+                recordsConsumedDuringMeasurement = Difference(
+                    health.RecordsConsumed,
+                    runtime.StartingHealth.RecordsConsumed),
+                batchesPublishedDuringMeasurement = Difference(
+                    health.BatchesPublished,
+                    runtime.StartingHealth.BatchesPublished),
+                channelFullCount = Difference(
+                    health.ChannelFullCount,
+                    runtime.StartingHealth.ChannelFullCount),
+                poolMissCount = Difference(
+                    health.PoolMissCount,
+                    runtime.StartingHealth.PoolMissCount),
+                drainAllocatedBytes = Difference(
+                    health.DrainAllocatedBytes,
+                    runtime.StartingHealth.DrainAllocatedBytes),
+                health.ChannelBatchCapacity,
+                health.ChannelBatchCount,
+                health.PoolBatchCapacity,
+                health.PoolFreeBatchCount,
+                health.DrainPassLimitHitCount,
+                ringHighWaterPercent = health.RingCapacityRecords == 0
+                    ? 0
+                    : 100d * health.RingHighWaterRecords / health.RingCapacityRecords,
+                maximumChannelFullWaitMilliseconds =
+                    health.MaximumChannelFullWait.TotalMilliseconds,
+                health.Warning
+            },
+            process = new
+            {
+                cpuSeconds = runtime.CpuTime.TotalSeconds,
+                averageCpuCores = runtime.Elapsed.TotalSeconds <= 0
+                    ? 0
+                    : runtime.CpuTime.TotalSeconds / runtime.Elapsed.TotalSeconds,
+                cpuSecondsPerMillionTicks = counters.Ticks <= 0
+                    ? 0
+                    : runtime.CpuTime.TotalSeconds * 1_000_000d / counters.Ticks,
+                runtime.WorkingSetBytes,
+                runtime.PeakWorkingSetBytes,
+                runtime.PrivateMemoryBytes,
+                runtime.ManagedHeapBytes,
+                runtime.ManagedAllocatedBytes,
+                managedAllocatedBytesPerMillionTicks = counters.Ticks <= 0
+                    ? 0
+                    : runtime.ManagedAllocatedBytes * 1_000_000d / counters.Ticks,
+                runtime.Gen0Collections,
+                runtime.Gen1Collections,
+                runtime.Gen2Collections
+            },
+            csv = new
+            {
+                rows = counters.CapturedCsvRows,
+                bytes = counters.CapturedCsvBytes,
+                path = counters.CapturedCsvPath
+            },
+            exceptionMessages = counters.ExceptionMessages
+        };
+        File.WriteAllText(
+            fullPath,
+            JsonSerializer.Serialize(
+                result,
+                new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private static void AssertSuccessfulSoak(
@@ -329,14 +567,14 @@ public sealed class DatabentoOneHourLiveSmokeTests
         if (health.RecordsProduced != health.RecordsConsumed)
         {
             failures.Add(
-                $"Produced {health.RecordsProduced} records but the managed drain consumed "
-                + $"{health.RecordsConsumed}.");
+                $"Produced {health.RecordsProduced} lifetime records but the managed drain "
+                + $"consumed {health.RecordsConsumed}.");
         }
-        if (checked((ulong)counters.Ticks) != health.RecordsConsumed)
+        if (checked((ulong)counters.LifetimeTicks) != health.RecordsConsumed)
         {
             failures.Add(
-                $"The test consumed {counters.Ticks} ticks but feed health reports "
-                + $"{health.RecordsConsumed} consumed records.");
+                $"The test consumed {counters.LifetimeTicks} lifetime ticks but feed health "
+                + $"reports {health.RecordsConsumed} consumed records.");
         }
         if (counters.CapturedCsvPath is not null
             && counters.CapturedCsvRows != counters.Ticks)
@@ -367,6 +605,12 @@ public sealed class DatabentoOneHourLiveSmokeTests
             .First();
     }
 
+    private static ulong Difference(ulong finalValue, ulong startingValue) =>
+        finalValue >= startingValue ? finalValue - startingValue : 0;
+
+    private static long Difference(long finalValue, long startingValue) =>
+        finalValue >= startingValue ? finalValue - startingValue : 0;
+
     private static DateOnly FindNearestEsOptionMaturity(
         IDatabentoMarketDataQueries queries)
     {
@@ -379,4 +623,19 @@ public sealed class DatabentoOneHourLiveSmokeTests
             .Select(detail => detail.MaturityDate!.Value)
             .Min();
     }
+
+    private sealed record SoakRuntimeMetrics(
+        DateTimeOffset StartedOn,
+        DateTimeOffset CompletedOn,
+        TimeSpan Elapsed,
+        TimeSpan CpuTime,
+        long WorkingSetBytes,
+        long PeakWorkingSetBytes,
+        long PrivateMemoryBytes,
+        long ManagedHeapBytes,
+        long ManagedAllocatedBytes,
+        int Gen0Collections,
+        int Gen1Collections,
+        int Gen2Collections,
+        FeedHealthSnapshot StartingHealth);
 }

@@ -1,0 +1,31 @@
+[package]
+name = "databento-feed-native"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+build = "build.rs"
+description = "Rust implementation of the IFM Databento native market-data bridge"
+license = "Proprietary"
+
+[lib]
+name = "databento_feed_native"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+live = ["dep:databento", "dep:time", "dep:tokio"]
+
+[dependencies]
+databento = { version = "=0.58.0", optional = true }
+time = { version = "0.3", optional = true }
+tokio = { version = "1", features = ["rt", "time"], optional = true }
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
+panic = "unwind"
+strip = "symbols"
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"

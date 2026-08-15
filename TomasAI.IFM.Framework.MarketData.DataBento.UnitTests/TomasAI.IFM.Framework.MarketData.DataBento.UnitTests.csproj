@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DatabentoNativeImplementation Condition="'$(DatabentoNativeImplementation)' == ''">Cpp</DatabentoNativeImplementation>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,10 +29,14 @@
           Condition="'$(OS)' == 'Windows_NT' and '$(DesignTimeBuild)' != 'true'">
     <PropertyGroup>
       <DatabentoNativeLiveArgument Condition="'$(DatabentoEnableLive)' == 'true'">-EnableLive</DatabentoNativeLiveArgument>
+      <DatabentoNativeRoot Condition="'$(DatabentoNativeImplementation)' == 'Rust'">$(MSBuildThisFileDirectory)..\native.rust\DatabentoFeed.Rust</DatabentoNativeRoot>
+      <DatabentoNativeRoot Condition="'$(DatabentoNativeRoot)' == ''">$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native</DatabentoNativeRoot>
+      <DatabentoNativeBuildKind Condition="'$(DatabentoEnableLive)' == 'true'">live-build</DatabentoNativeBuildKind>
+      <DatabentoNativeBuildKind Condition="'$(DatabentoNativeBuildKind)' == ''">build</DatabentoNativeBuildKind>
     </PropertyGroup>
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\build-native.ps1&quot; -Configuration $(Configuration) $(DatabentoNativeLiveArgument)" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(DatabentoNativeRoot)\build-native.ps1&quot; -Configuration $(Configuration) $(DatabentoNativeLiveArgument)" />
     <ItemGroup>
-      <DatabentoNativeRuntimeDll Include="$(MSBuildThisFileDirectory)..\native\DatabentoFeed.Native\out\build\$(Configuration)\*.dll" />
+      <DatabentoNativeRuntimeDll Include="$(DatabentoNativeRoot)\out\$(DatabentoNativeBuildKind)\$(Configuration)\*.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(DatabentoNativeRuntimeDll)" DestinationFolder="$(OutDir)runtimes\win-x64\native" />
   </Target>

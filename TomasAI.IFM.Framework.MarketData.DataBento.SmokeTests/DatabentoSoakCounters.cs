@@ -10,12 +10,15 @@ internal sealed class DatabentoSoakCounters
     private readonly DatabentoTickCsvCapture? _csvCapture;
     private long _batches;
     private long _ticks;
+    private long _lifetimeBatches;
+    private long _lifetimeTicks;
     private long _quotes;
     private long _trades;
     private long _mboUpdates;
     private long _unknownInstruments;
     private long _unexpectedRecordKinds;
     private long _exceptions;
+    private int _measurementEnabled = 1;
 
     internal DatabentoSoakCounters(
         IEnumerable<InstrumentKey> expectedInstruments,
@@ -30,6 +33,8 @@ internal sealed class DatabentoSoakCounters
 
     internal long Batches => Interlocked.Read(ref _batches);
     internal long Ticks => Interlocked.Read(ref _ticks);
+    internal long LifetimeBatches => Interlocked.Read(ref _lifetimeBatches);
+    internal long LifetimeTicks => Interlocked.Read(ref _lifetimeTicks);
     internal long Quotes => Interlocked.Read(ref _quotes);
     internal long Trades => Interlocked.Read(ref _trades);
     internal long MboUpdates => Interlocked.Read(ref _mboUpdates);
@@ -50,6 +55,10 @@ internal sealed class DatabentoSoakCounters
             .ThenBy(pair => pair.Key.PublisherId)
             .ThenBy(pair => pair.Key.InstrumentId)
             .ToArray();
+
+    internal void PauseMeasurement() => Volatile.Write(ref _measurementEnabled, 0);
+
+    internal void BeginMeasurement() => Volatile.Write(ref _measurementEnabled, 1);
 
     internal Task ConsumeAsync(ISynchronousBatchReader<MarketDataBatch64> reader) =>
         Task.Run(() =>
@@ -73,6 +82,12 @@ internal sealed class DatabentoSoakCounters
 
                 using (batch)
                 {
+                    Interlocked.Increment(ref _lifetimeBatches);
+                    Interlocked.Add(ref _lifetimeTicks, batch.Records.Length);
+                    if (Volatile.Read(ref _measurementEnabled) == 0)
+                    {
+                        continue;
+                    }
                     Interlocked.Increment(ref _batches);
                     foreach (ref readonly var record in batch.Records)
                     {
