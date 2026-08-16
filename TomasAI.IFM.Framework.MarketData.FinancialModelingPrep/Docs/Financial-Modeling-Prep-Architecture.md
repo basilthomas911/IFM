@@ -1,7 +1,7 @@
 # IFM Financial Modeling Prep Market Data Architecture
 
 Status: Implemented
-Version: 0.11
+Version: 0.12
 Date: 2026-08-16
 Scope: Financial Modeling Prep US Treasury curve and economic-calendar acquisition and MarketData-domain import
 
@@ -807,8 +807,11 @@ endpoint access and contract drift without writing production tables.
    the system-wide UI terminal-operation convention.
 4. Use `YieldCurveRateEditorViewModel` as the reference implementation and apply the same correlation lifecycle to
    `EconomicCalendarEditorViewModel` imports.
-5. Run affected UI, client, domain, serialization, and storage integration suites.
-6. Keep legacy scheduled tasks outside this rollout until their task lifecycle, status persistence, retry, recovery, and
+5. Use the shared terminal-correlation primitive for the application shell's automatic startup imports. Start both
+   listeners first, attempt each import once, observe each exact command ID for up to 30 seconds, report only
+   failed/unobserved outcomes, perform no retry, and continue startup so a user can import later.
+6. Run affected UI, client, domain, serialization, and storage integration suites.
+7. Keep legacy scheduled tasks outside this rollout until their task lifecycle, status persistence, retry, recovery, and
    user-observation requirements have been reviewed and redesigned.
 
 ## 18. Acceptance criteria
@@ -854,7 +857,10 @@ The design is implemented only when:
 33. Yield-curve and economic-calendar maintenance imports use command IDs to observe terminal success/failure; a retry
     submits a new command.
 34. Request, complete, and fail schemas have serialization round-trip tests.
-35. Legacy scheduled tasks are not represented as terminal-tracking compliant or rollout-ready until their separate
+35. Automatic desktop startup attempts both imports once before the live-feed trading-hours gate, observes each
+    correlated terminal result for a bounded 30 seconds, reports failed/unobserved results without retry, cleans up its
+    startup-only listeners, and allows normal startup plus later manual import to continue.
+36. Legacy scheduled tasks are not represented as terminal-tracking compliant or rollout-ready until their separate
     review and redesign is complete.
 
 ## 19. Decisions requested during review
@@ -886,7 +892,7 @@ The design is implemented only when:
 | Credential gate | Rotate exposed keys and remove plaintext secrets before live use |
 | Framework contracts | Define provider-neutral `ITreasuryCurve` and `IEconomicCalendar` in `Framework.MarketData.Contracts` |
 | Provider ownership | Implement both contracts in Financial Modeling Prep; application orchestration consumes Treasury data and passes the selected rate to DataBento |
-| Terminal-operation rollout | Apply the system-wide correlated complete/fail pattern to UI first; defer all legacy scheduled-task claims until a separate scheduler review |
+| Terminal-operation rollout | Apply exact-ID terminal tracking to maintenance editors and one-attempt automatic desktop startup; use a 30-second startup observation bound, failure-only presentation, no retry, and degraded continuation; defer all legacy scheduled-task claims until a separate scheduler review |
 
 ## 20. References
 
@@ -901,6 +907,7 @@ The design is implemented only when:
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.12 | 2026-08-16 | Added the shared terminal-correlation primitive and migrated automatic desktop yield/calendar startup imports to listener-first exact-ID tracking, 30-second bounded observation, failure-only reporting, no retry, cleanup, and continued startup outside the live-feed trading-hours gate. |
 | 0.11 | 2026-08-16 | Implemented economic-calendar editor terminal tracking with exact command-ID complete/fail correlation, early-event buffering, durable projection refresh after complete, typed failure, independent listener lifecycle, and focused UI tests. |
 | 0.10 | 2026-08-16 | Scoped terminal-operation rollout to UI, named the yield-curve editor as the reference pattern and economic-calendar editor as the next migration, corrected import-handler storage ownership wording, and explicitly deferred legacy scheduled-task review. |
 | 0.9 | 2026-08-16 | Established the authoritative parameter-only actor import flow, event-handler acquisition through `IReferenceDataApi`, 0..N bulk storage calls, correlated terminal events, transactional non-replay semantics, and removal of both legacy external-query storage facades. |

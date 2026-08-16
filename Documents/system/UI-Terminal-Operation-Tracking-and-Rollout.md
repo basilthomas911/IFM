@@ -1,15 +1,16 @@
 # UI Terminal-Operation Tracking and Rollout
 
 Status: Approved UI reference pattern
-Version: 1.1
+Version: 1.2
 Date: 2026-08-16
-Scope: Interactive UI commands whose accepted work finishes asynchronously through correlated complete/fail events
+Scope: UI-originated commands whose accepted work finishes asynchronously through correlated complete/fail events
 
 ## 1. Purpose
 
 This document defines the system-wide UI pattern for tracking an asynchronous actor command from submission to its
 terminal result. The first reference implementation is
-`TomasAI.IFM.UI.Net.ViewModels/MarketData/YieldCurveRateEditorViewModel.cs`.
+`TomasAI.IFM.UI.Net.ViewModels/MarketData/YieldCurveRateEditorViewModel.cs`. The same pattern now also governs the
+desktop application's automatic startup reference-data imports.
 
 The current rollout scope is UI only. Legacy scheduled tasks have not been reviewed against this pattern and are not
 approved by this document. Their age, persistence model, retry behavior, and operational-status requirements require a
@@ -79,13 +80,15 @@ the empty array. The UI must not reinterpret zero imported rows as failure.
 
 ## 5. Reference implementation shape
 
-`YieldCurveRateEditorViewModel` is the initial reference because it combines the required pieces:
+`TerminalEventCorrelation` now provides the shared exact-ID, bounded early-event, asynchronous-continuation, timeout,
+and lifecycle cleanup primitive. `YieldCurveRateEditorViewModel` is the initial interactive reference because it
+combines that primitive with the required pieces:
 
 - `AsyncLifecycleCoordinator` starts and stops the event listener;
 - `AsyncOperation` supplies cancellation and single-flight command execution;
 - the typed command model returns the accepted command identifier;
-- complete and fail events are correlated under a lock;
-- a bounded early-terminal-event collection closes the fast-completion race;
+- complete and fail events are correlated through `TerminalEventCorrelation`;
+- its bounded early-terminal-event collection closes the fast-completion race;
 - `TaskCompletionSource<IEvent>` uses asynchronous continuations; and
 - successful completion refreshes the durable query snapshot before displaying success.
 
@@ -94,9 +97,22 @@ economic-calendar imports, refreshes the durable date/country projection only af
 and owns listener shutdown through its View and parent form. Its event-consumer registration is transient so the editor
 and always-on calendar dashboard have independent listener lifecycles.
 
-New UI implementations should reproduce these semantics. A shared generic coordinator may now be considered because
-two UI workflows demonstrate the same lifecycle and correlation requirements; extraction must preserve the bounded
-race handling, typed errors, cancellation semantics, and exact command matching.
+New UI implementations should compose the shared correlation primitive with operation-specific lifecycle, command,
+terminal-event, durable-refresh, and presentation behavior. They must preserve bounded race handling, typed errors,
+cancellation semantics, and exact command matching.
+
+### 5.1 Automatic startup specialization
+
+`IFMAppViewModel` attempts yield-curve and economic-calendar imports once during every desktop startup, independently
+of live-feed trading-hours availability. Both terminal listeners start before either command is submitted. The two
+commands use separate transient command Models and may run concurrently; each owns a distinct correlation attempt.
+
+Each terminal observation is bounded to 30 seconds. A complete event records an observable completed status and is
+otherwise silent. A typed fail event, command/listener failure, or unobserved timeout is written to the status console
+and surfaced through the shell's presentation error. Timeout means only that the UI did not observe the outcome; it
+does not manufacture a domain fail event. The shell aggregates independent failures, stops both startup-only listeners,
+performs no retry, and continues normal startup. The user may later start a new import with a new command identifier
+from the yield-curve or economic-calendar maintenance screen.
 
 ## 6. UI rollout process
 
@@ -140,12 +156,13 @@ proving that the REST- and NATS-backed clients reach the same actor contract and
 | Yield-curve editor | Reference implementation | Correlates complete/fail by command ID, handles an early event, and refreshes durable state after complete. |
 | Economic-calendar editor | Implemented | Correlates imported complete/fail by command ID, handles early and duplicate delivery, refreshes the durable date/country projection after complete, and owns awaited listener shutdown. |
 | Market economic-calendar view | Partial supporting behavior | Owns calendar listeners, refreshes on events, and exposes import failure, but it is not the submitting command's correlation owner. |
-| Application-startup automatic imports | Not migrated | `IFMAppViewModel` still submits yield-curve and economic-calendar imports without owning terminal correlation. This separate startup workflow requires an explicit timeout/degraded-startup decision before migration. |
+| Application-startup automatic imports | Implemented | Attempts both imports once before the live-feed trading-hours gate, observes exact-ID complete/fail events for up to 30 seconds, reports only failed/unobserved outcomes, performs no retry, and continues startup. |
 | Legacy scheduled tasks | Explicitly excluded | Unreviewed and not approved as terminal-operation tracking implementations. |
 
-The yield-curve and economic-calendar maintenance editors now establish the reusable pattern. The next UI design review
-is the application-startup automatic-import path; it must not be silently changed to block startup indefinitely while
-waiting for terminal events. The broader market-calendar view may continue to refresh observational state.
+The yield-curve and economic-calendar maintenance editors plus the application shell establish the reusable interactive
+and automatic-startup forms of the pattern. The broader market-calendar view may continue to refresh observational
+state. Any additional automatic workflow must make its timeout, failure-presentation, retry, and startup-continuation
+policy explicit rather than inheriting the startup specialization implicitly.
 
 ## 9. Deferred scheduled-task design
 
@@ -175,5 +192,6 @@ completed scheduled-task rollout.
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 1.2 | 2026-08-16 | Extracted shared terminal-event correlation and migrated automatic startup yield/calendar imports to independent listener-first, exact-ID, 30-second bounded observation with failure-only reporting, no retry, cleanup, and degraded startup continuation. |
 | 1.1 | 2026-08-16 | Migrated the economic-calendar editor to exact command-ID complete/fail correlation, durable refresh after complete, bounded early-event handling, typed failure, and awaited listener shutdown; recorded independent listener instances and identified automatic startup imports as a separate UI review. |
 | 1.0 | 2026-08-16 | Established the UI-only terminal-operation tracking and rollout convention, named the yield-curve editor as the reference implementation, identified the economic-calendar UI as the next migration, and explicitly deferred legacy scheduled-task review. |

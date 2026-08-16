@@ -665,6 +665,11 @@ Market Data workflow progress on 2026-08-11:
   status-console ViewModel. The former twelve startup callback parameters are
   removed. Live dashboard and trade-blotter calls remain behind the explicit
   `IIFMAppLiveViewAdapter` transitional boundary until their scheduled slices.
+- The shell's automatic yield-curve and economic-calendar imports now share the
+  editor correlation primitive. Startup activates both terminal listeners before
+  submission, attempts each command once, observes exact command IDs for a
+  deterministic 30-second bound, reports only failed or unobserved results, and
+  continues without retry so manual import remains available.
 - Status logging retains the newest 500 entries and publishes a newest-first
   immutable snapshot. Status-writer calls now return and retain their Tasks;
   the former async lambda converted through `Action` has been removed.
@@ -901,6 +906,9 @@ Implementation status on 2026-08-11:
 - `NatsReadyApplicationContext` preserves the STA WinForms message loop while asynchronously connecting the shared NATS producer. The main form is shown only after connection readiness succeeds, replacing the fixed ten-second delay.
 - Form closure initiates an awaited stop of the status-console producer and shared actor producer, followed by shared NATS connection-manager and container disposal. Normal shutdown no longer forcibly terminates the process.
 - The presentation architecture suite rejects restoration of the HTTP client, REST messaging, fixed startup delay, or missing NATS start/stop lifecycle.
+- Automatic reference-data imports run before the live-feed trading-hours gate. Their startup-only listeners are
+  always stopped; typed failure or an unobserved terminal timeout is degraded startup state rather than a reason to
+  retry or prevent the remaining shell initialization.
 - The UI project build and automated presentation tests are the implementation gate. Controlled user-driven startup, existing workflow, reconnect, shutdown, and bounded runtime validation against the running backend remain required for Milestone A operational-restoration approval.
 - QTS implementation and discretionary WinForms view changes are explicitly deferred until the current WinForms application passes those restoration gates. Only a demonstrated compatibility defect should cause another legacy-view change.
 

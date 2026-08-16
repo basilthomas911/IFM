@@ -126,9 +126,10 @@ Those callbacks use `Control.Post` or `ShowErrorMessage`, which dispatch work wi
 
 1. Query the currently traded futures contracts.
 2. Load the latest futures EOD data, trade signal, and bar data.
-3. Query the current value date.
-4. Import external yield-curve rates.
-5. Import external economic-calendar records.
+3. Start independent yield-curve and economic-calendar terminal listeners, submit both automatic import commands, and
+   observe each exact command ID for up to 30 seconds.
+4. Report only failed or unobserved automatic imports, perform no retry, stop the startup-only listeners, and continue.
+5. Query the current value date; lack of a live-feed value date does not prevent the preceding reference-data imports.
 6. Start EOD, bar-data, trade-signal, and trade-placement event consumers.
 7. Enable the market-data-feed reset listener.
 8. Start the live market-data feeds.
@@ -294,11 +295,11 @@ Latest-value delivery is appropriate for replaceable screen state such as quotes
 
 ### Terminal-operation tracking
 
-The authoritative cross-screen convention is [UI Terminal-Operation Tracking and Rollout](../../Documents/system/UI-Terminal-Operation-Tracking-and-Rollout.md). `YieldCurveRateEditorViewModel` and the economic-calendar import in `EconomicCalendarEditorViewModel` start their terminal listeners before command submission, retain the returned command ID, await the matching complete/fail event, buffer bounded early delivery, and refresh durable query state only after complete.
+The authoritative cross-screen convention is [UI Terminal-Operation Tracking and Rollout](../../Documents/system/UI-Terminal-Operation-Tracking-and-Rollout.md). `TerminalEventCorrelation` supplies shared exact-ID matching, bounded early delivery, asynchronous continuations, optional bounded observation, and lifecycle cleanup. `YieldCurveRateEditorViewModel` and the economic-calendar import in `EconomicCalendarEditorViewModel` start their terminal listeners before command submission, retain the returned command ID, await the matching complete/fail event, and refresh durable query state only after complete.
 
 `EconomicCalendarEditorView` surfaces terminal success or typed failure and implements `IAsyncFormControl`. `ReferenceForm` awaits that close lifecycle when changing editors or closing. The calendar event consumer uses a transient registration because the maintenance editor and the always-on market-calendar dashboard may be active concurrently and must not share listener state.
 
-The automatic yield-curve and calendar imports in `IFMAppViewModel` remain submission-only. They are a separate startup workflow and are not terminal-tracking compliant until startup timeout, degraded-mode, and failure-presentation behavior are explicitly designed.
+`IFMAppViewModel` uses the same correlation primitive for two independent automatic startup attempts. Both listeners are active before command submission. Complete is recorded silently in observable startup status; typed failure, listener/command failure, and a 30-second outcome-not-observed timeout are aggregated into the shell error and status console. The shell does not retry, always cleans up the startup-only listeners, and continues startup so the maintenance screens remain available for a later manual import.
 
 ## Feature map
 
@@ -363,7 +364,9 @@ When a singleton form is reopened, its load method must fully reset any state th
 - `CommandResponseUIEventConsumer.StartAsync` currently completes without creating a subscription. `EventModel.WaitingForCommandResponse` can therefore become true even though that consumer has not started listening.
 - Some event-consumer method parameters, such as selected `consumeEvents` collections or site identifiers, are not used by their current concrete implementations.
 - The economic-calendar dashboard and editor resolve independent transient event consumers so stopping one listener cannot stop the other.
-- `IFMAppViewModel` startup imports remain acceptance-only command submissions and do not yet observe correlated terminal outcomes.
+- `IFMAppViewModel` attempts both reference-data imports once before the live-feed value-date gate, observes correlated
+  complete/fail events for a bounded 30 seconds, reports only failed/unobserved outcomes, performs no retry, and
+  continues startup with manual maintenance imports available later.
 - `IAppRoot.Execute`, the `BaseModelExtension` helpers, status-console methods, control-posting helpers, and several shutdown paths suppress exceptions.
 - `IFMAppViewModel` contains operational assumptions specific to the current deployment, including ES selection, a daily 14-period RSI service, and a 900-second live-feed inactivity threshold.
 - `IControlExtension.Draw` uses `user32.dll` and is Windows-only, which is consistent with the project target.

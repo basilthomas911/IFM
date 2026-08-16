@@ -22,14 +22,11 @@ public sealed class EconomicCalendarEditorViewModel
     readonly MarketDataQueryModel _queryModel;
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly AsyncOperation _importOperation;
-    readonly object _correlationGate = new();
-    readonly Dictionary<Guid, IEvent> _earlyTerminalEvents = [];
+    readonly TerminalEventCorrelation _terminalCorrelation = new();
     List<EconomicCalendarCountryCodeReadModel> _countryCodes = [];
     List<EconomicCalendarReadModel> _economicCalendars = [];
     DateTime? _pendingImportDate;
     string? _pendingImportCountryCode;
-    TaskCompletionSource<IEvent>? _terminalCompletion;
-    Guid _commandId;
     string _lastStatusMessage = string.Empty;
 
     /// <summary>Creates the editor and resolves its application Models.</summary>
@@ -56,13 +53,7 @@ public sealed class EconomicCalendarEditorViewModel
 
     /// <summary>Gets the command identifier while an import awaits its terminal event.</summary>
     public Guid CommandId
-    {
-        get
-        {
-            lock (_correlationGate)
-                return _commandId;
-        }
-    }
+        => _terminalCorrelation.CommandId;
 
     /// <summary>Gets the latest successfully completed import status.</summary>
     public string LastStatusMessage
@@ -147,8 +138,6 @@ public sealed class EconomicCalendarEditorViewModel
 
         _pendingImportDate = importDate;
         _pendingImportCountryCode = countryCode.Trim();
-        lock (_correlationGate)
-            _earlyTerminalEvents.Clear();
         LastStatusMessage = string.Empty;
         _importOperation.NotifyCanExecuteChanged();
     }
@@ -174,7 +163,8 @@ public sealed class EconomicCalendarEditorViewModel
         _importOperation.Cancel();
         await AwaitImportStoppedAsync();
         await _lifecycle.StopAsync(cancellationToken);
-        ClearCorrelation();
+        _terminalCorrelation.EndAttempt();
+        OnPropertyChanged(nameof(CommandId));
         _importOperation.NotifyCanExecuteChanged();
     }
 
@@ -233,6 +223,7 @@ public sealed class EconomicCalendarEditorViewModel
         var countryCode = _pendingImportCountryCode
             ?? throw new InvalidOperationException("No economic-calendar country code is prepared.");
 
+        _terminalCorrelation.BeginAttempt();
         try
         {
             Guid commandId = Guid.Empty;
@@ -245,7 +236,9 @@ public sealed class EconomicCalendarEditorViewModel
                 throw new InvalidOperationException(
                     "The economic-calendar import command returned an empty correlation identifier.");
 
-            var terminalEvent = await AwaitTerminalEventAsync(commandId, cancellationToken);
+            var terminalTask = _terminalCorrelation.AwaitAsync(commandId, cancellationToken);
+            OnPropertyChanged(nameof(CommandId));
+            var terminalEvent = await terminalTask;
             if (terminalEvent is IErrorEvent error)
                 throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
 
@@ -259,58 +252,14 @@ public sealed class EconomicCalendarEditorViewModel
         }
         finally
         {
-            ClearCorrelation();
+            _terminalCorrelation.EndAttempt();
+            OnPropertyChanged(nameof(CommandId));
             _importOperation.NotifyCanExecuteChanged();
         }
     }
 
-    async Task<IEvent> AwaitTerminalEventAsync(Guid commandId, CancellationToken cancellationToken)
-    {
-        IEvent? earlyEvent;
-        TaskCompletionSource<IEvent> completion;
-        lock (_correlationGate)
-        {
-            _commandId = commandId;
-            completion = new TaskCompletionSource<IEvent>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-            _terminalCompletion = completion;
-            _earlyTerminalEvents.Remove(commandId, out earlyEvent);
-            _earlyTerminalEvents.Clear();
-        }
-        OnPropertyChanged(nameof(CommandId));
-        if (earlyEvent is not null)
-            completion.TrySetResult(earlyEvent);
-        return await completion.Task.WaitAsync(cancellationToken);
-    }
-
     void HandleTerminalEvent(IEvent @event)
-    {
-        TaskCompletionSource<IEvent>? completion;
-        lock (_correlationGate)
-        {
-            if (_commandId == Guid.Empty)
-            {
-                if (_importOperation.IsRunning && _earlyTerminalEvents.Count < 32)
-                    _earlyTerminalEvents[@event.CommandId] = @event;
-                return;
-            }
-            if (_commandId != @event.CommandId)
-                return;
-            completion = _terminalCompletion;
-        }
-        completion?.TrySetResult(@event);
-    }
-
-    void ClearCorrelation()
-    {
-        lock (_correlationGate)
-        {
-            _commandId = Guid.Empty;
-            _terminalCompletion = null;
-            _earlyTerminalEvents.Clear();
-        }
-        OnPropertyChanged(nameof(CommandId));
-    }
+        => _terminalCorrelation.TryPublish(@event);
 
     async Task AwaitImportStoppedAsync()
     {

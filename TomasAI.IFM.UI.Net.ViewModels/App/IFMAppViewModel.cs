@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -7,10 +8,12 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventChannel;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
@@ -50,6 +53,26 @@ public readonly record struct IFMAppUiDispatchMetricsSnapshot(
     TimeSpan LastRenderDuration,
     TimeSpan MaximumRenderDuration);
 
+/// <summary>
+/// Identifies the terminal state observed for one automatic startup reference-data import.
+/// </summary>
+public enum StartupReferenceDataImportOutcome
+{
+    Completed,
+    Failed,
+    NotObserved
+}
+
+/// <summary>
+/// Describes the accepted command and terminal result of one automatic startup reference-data import.
+/// </summary>
+public sealed record StartupReferenceDataImportStatus(
+    string Dataset,
+    StartupReferenceDataImportOutcome Outcome,
+    Guid CommandId,
+    int ErrorCode,
+    string Message);
+
 public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
     const int StatusLogCapacity = 500;
@@ -57,6 +80,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     const int OrderedEventChannelCapacity = 512;
     const int OrderedEventBatchSize = 32;
     const int FuturesBarChartCapacity = 2_048;
+    static readonly TimeSpan DefaultStartupReferenceDataImportTimeout = TimeSpan.FromSeconds(30);
     readonly object _statusLogGate = new();
     readonly object _marketDataStreamGate = new();
     readonly object _realtimeStreamGate = new();
@@ -64,6 +88,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     readonly IAppRoot _appRoot;
     readonly IIFMAppLiveViewAdapter _liveViewAdapter;
     readonly TimeProvider _timeProvider;
+    readonly TimeSpan _startupReferenceDataImportTimeout;
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly Guid _siteId;
     readonly Version _appVersion;
@@ -85,6 +110,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     bool _isMenuEnabled;
     bool _isCloseRequested;
     PresentationError? _lastError;
+    StartupReferenceDataImportStatus? _yieldCurveStartupImport;
+    StartupReferenceDataImportStatus? _economicCalendarStartupImport;
     StatusConsoleViewModel? _statusConsole;
     long _errorSequence;
     int _resetTicks;
@@ -109,12 +136,14 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// <param name="appEnvironment">Configured application environment.</param>
     /// <param name="liveViewAdapter">Transitional adapter for later live-dashboard and trading slices.</param>
     /// <param name="timeProvider">Optional time provider used by startup delays and the feed watchdog.</param>
+    /// <param name="startupReferenceDataImportTimeout">Bounded wait for each startup import terminal event.</param>
     public IFMAppViewModel(
         IAppRoot appRoot,
         Version appVersion,
         string appEnvironment,
         IIFMAppLiveViewAdapter liveViewAdapter,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        TimeSpan? startupReferenceDataImportTimeout = null)
     {
         _appRoot = appRoot ?? throw new ArgumentNullException(nameof(appRoot));
         _appVersion = appVersion ?? throw new ArgumentNullException(nameof(appVersion));
@@ -123,6 +152,14 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             : appEnvironment;
         _liveViewAdapter = liveViewAdapter ?? throw new ArgumentNullException(nameof(liveViewAdapter));
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _startupReferenceDataImportTimeout = startupReferenceDataImportTimeout
+            ?? DefaultStartupReferenceDataImportTimeout;
+        if (_startupReferenceDataImportTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(startupReferenceDataImportTimeout),
+                "The startup reference-data import timeout must be positive and bounded.");
+        }
         _siteId = Guid.NewGuid();
         _appRoot.GetModel<EventModel>().SetSiteId(_siteId);
         _lifecycle = new AsyncLifecycleCoordinator(InitializeCoreAsync, StopCoreAsync);
@@ -184,6 +221,20 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     {
         get => _lastError;
         private set => SetProperty(ref _lastError, value);
+    }
+
+    /// <summary>Gets the latest automatic startup yield-curve import result.</summary>
+    public StartupReferenceDataImportStatus? YieldCurveStartupImport
+    {
+        get => _yieldCurveStartupImport;
+        private set => SetProperty(ref _yieldCurveStartupImport, value);
+    }
+
+    /// <summary>Gets the latest automatic startup economic-calendar import result.</summary>
+    public StartupReferenceDataImportStatus? EconomicCalendarStartupImport
+    {
+        get => _economicCalendarStartupImport;
+        private set => SetProperty(ref _economicCalendarStartupImport, value);
     }
 
     /// <summary>Gets the configured status-console ViewModel after live startup succeeds.</summary>
@@ -355,6 +406,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await GetLastFuturesEodData();
             await GetLastFuturesTradeSignal();
             await GetLastFuturesBarData();
+            await ImportReferenceDataAtStartupAsync(cancellationToken);
 
             DateOnly? valueDate = null;
             await model.GetValueDateAsync(value => valueDate = value);
@@ -368,8 +420,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             }
 
             ValueDate = valueDate;
-            await ImportYieldCurveRates(() => { });
-            await ImportEconomicCalendars(() => { });
             await StartFuturesEodDataEventConsumer(cancellationToken);
             await StartFuturesBarDataEventConsumer(cancellationToken);
             await StartFuturesTradeSignalEventConsumer(cancellationToken);
@@ -832,34 +882,263 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     }
 
     /// <summary>
-    /// import yiele curve rates
+    /// Attempts each automatic reference-data import once and observes its correlated terminal event.
+    /// Failure is reported without retrying or preventing the remaining application startup flow.
     /// </summary>
-    Task ImportYieldCurveRates(Action onCompleted)
-        => _appRoot.GetModel<MarketDataCommandModel>()
-            .ExecuteAsync(async model => {
-                model.OnError((errorCode, errorMsg) =>
-                    PublishError(errorCode, errorMsg, "Import Yield Curve Rates Error"));
-                var importDate = DateTime.Now;
-                await model.ImportYieldCurveRatesAsync(importDate);
-                onCompleted?.Invoke();
-                await WriteStatusConsoleAsync(
-                    $"Yield Curve Rates import requested for: {importDate:yyyy-MM-dd}");
-            });
+    internal async Task ImportReferenceDataAtStartupAsync(CancellationToken cancellationToken)
+    {
+        const string yieldCurveDataset = "Yield Curve";
+        const string economicCalendarDataset = "Economic Calendar";
+        var importDate = _timeProvider.GetLocalNow().DateTime;
+        var yieldCurveCorrelation = new TerminalEventCorrelation();
+        var economicCalendarCorrelation = new TerminalEventCorrelation();
+        var cleanupFailures = new List<string>();
+        StartupReferenceDataImportStatus? yieldCurveStatus = null;
+        StartupReferenceDataImportStatus? economicCalendarStatus = null;
+        var yieldCurveListenerStarted = false;
+        var economicCalendarListenerStarted = false;
 
-    /// <summary>
-    /// import economic calendars
-    /// </summary>
-    Task ImportEconomicCalendars(Action onCompleted)
-        => _appRoot.GetModel<MarketDataCommandModel>()
-            .ExecuteAsync(async model => {
-                model.OnError((errorCode, errorMsg) =>
-                    PublishError(errorCode, errorMsg, "Import Economic Calendars Error"));
-                var importDate = DateTime.Now;
-                await model.ImportEconomicCalendarsAsync(importDate);
-                await WriteStatusConsoleAsync(
-                    $"Economic Calendars import requested for: {importDate:yyyy-MM-dd}");
-                onCompleted?.Invoke();
-            });
+        try
+        {
+            try
+            {
+                await StartYieldCurveStartupImportListenerAsync(
+                    yieldCurveCorrelation,
+                    cancellationToken);
+                yieldCurveListenerStarted = true;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                yieldCurveStatus = CreateStartupImportFailure(
+                    yieldCurveDataset,
+                    exception,
+                    "terminal-event listener could not start");
+            }
+
+            try
+            {
+                await StartEconomicCalendarStartupImportListenerAsync(
+                    economicCalendarCorrelation,
+                    cancellationToken);
+                economicCalendarListenerStarted = true;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                economicCalendarStatus = CreateStartupImportFailure(
+                    economicCalendarDataset,
+                    exception,
+                    "terminal-event listener could not start");
+            }
+
+            var yieldCurveTask = yieldCurveListenerStarted
+                ? ExecuteStartupImportAsync(
+                    yieldCurveDataset,
+                    importDate,
+                    yieldCurveCorrelation,
+                    model => model.ImportYieldCurveRatesAsync(importDate),
+                    cancellationToken)
+                : Task.FromResult(yieldCurveStatus!);
+            var economicCalendarTask = economicCalendarListenerStarted
+                ? ExecuteStartupImportAsync(
+                    economicCalendarDataset,
+                    importDate,
+                    economicCalendarCorrelation,
+                    model => model.ImportEconomicCalendarsAsync(importDate),
+                    cancellationToken)
+                : Task.FromResult(economicCalendarStatus!);
+
+            var statuses = await Task.WhenAll(yieldCurveTask, economicCalendarTask);
+            yieldCurveStatus = statuses[0];
+            economicCalendarStatus = statuses[1];
+        }
+        finally
+        {
+            if (yieldCurveListenerStarted)
+            {
+                try
+                {
+                    await StopYieldCurveStartupImportListenerAsync();
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add(
+                        $"{yieldCurveDataset} terminal-event listener could not stop: {exception.Message}");
+                }
+            }
+
+            if (economicCalendarListenerStarted)
+            {
+                try
+                {
+                    await StopEconomicCalendarStartupImportListenerAsync();
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add(
+                        $"{economicCalendarDataset} terminal-event listener could not stop: {exception.Message}");
+                }
+            }
+        }
+
+        YieldCurveStartupImport = yieldCurveStatus;
+        EconomicCalendarStartupImport = economicCalendarStatus;
+        await ReportStartupImportFailuresAsync(
+            [yieldCurveStatus!, economicCalendarStatus!],
+            cleanupFailures);
+    }
+
+    Task StartYieldCurveStartupImportListenerAsync(
+        TerminalEventCorrelation correlation,
+        CancellationToken cancellationToken)
+        => _appRoot.GetModel<MarketDataEventModel>().ExecuteObservableAsync(
+            model => model.StartMarketDataListenerAsync(
+            [
+                new YieldCurveRatesImportedCompleteEvent()
+                    .SetEventSource($"{EventTopic.MarketDataEvents}"),
+                new YieldCurveRatesImportedFailEvent()
+                    .SetEventSource($"{EventTopic.MarketDataEvents}")
+            ],
+            @event =>
+            {
+                correlation.TryPublish(@event);
+                return ValueTask.CompletedTask;
+            }).AsTask(),
+            cancellationToken);
+
+    Task StopYieldCurveStartupImportListenerAsync()
+        => _appRoot.GetModel<MarketDataEventModel>().ExecuteObservableAsync(
+            model => model.StopMarketDataListenerAsync().AsTask(),
+            CancellationToken.None);
+
+    Task StartEconomicCalendarStartupImportListenerAsync(
+        TerminalEventCorrelation correlation,
+        CancellationToken cancellationToken)
+        => _appRoot.GetModel<EconomicCalendarEventModel>().ExecuteObservableAsync(
+            model => model.StartEconomicCalendarEventListenersAsync(
+                _ => { },
+                _ => { },
+                _ => { },
+                @event => correlation.TryPublish(@event),
+                @event => correlation.TryPublish(@event)),
+            cancellationToken);
+
+    Task StopEconomicCalendarStartupImportListenerAsync()
+        => _appRoot.GetModel<EconomicCalendarEventModel>().ExecuteObservableAsync(
+            model => model.StopEconomicCalendarEventListenersAsync(),
+            CancellationToken.None);
+
+    async Task<StartupReferenceDataImportStatus> ExecuteStartupImportAsync(
+        string dataset,
+        DateTime importDate,
+        TerminalEventCorrelation correlation,
+        Func<MarketDataCommandModel, Task<Guid>> submitCommand,
+        CancellationToken cancellationToken)
+    {
+        var commandId = Guid.Empty;
+        correlation.BeginAttempt();
+        try
+        {
+            await _appRoot.GetModel<MarketDataCommandModel>().ExecuteObservableAsync(
+                async model => commandId = await submitCommand(model),
+                cancellationToken);
+            if (commandId == Guid.Empty)
+            {
+                throw new InvalidOperationException(
+                    $"The {dataset} startup import returned an empty correlation identifier.");
+            }
+
+            var terminalEvent = await correlation.AwaitAsync(
+                commandId,
+                _startupReferenceDataImportTimeout,
+                _timeProvider,
+                cancellationToken);
+            if (terminalEvent is IErrorEvent error)
+            {
+                return new StartupReferenceDataImportStatus(
+                    dataset,
+                    StartupReferenceDataImportOutcome.Failed,
+                    commandId,
+                    error.ErrorCode,
+                    $"{dataset} automatic import failed: {error.ErrorMessage}");
+            }
+
+            return new StartupReferenceDataImportStatus(
+                dataset,
+                StartupReferenceDataImportOutcome.Completed,
+                commandId,
+                0,
+                $"{dataset} automatic import completed for {importDate:yyyy-MM-dd}.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (TimeoutException)
+        {
+            return new StartupReferenceDataImportStatus(
+                dataset,
+                StartupReferenceDataImportOutcome.NotObserved,
+                commandId,
+                0,
+                $"{dataset} automatic import outcome was not observed within "
+                    + $"{_startupReferenceDataImportTimeout}.");
+        }
+        catch (Exception exception)
+        {
+            return CreateStartupImportFailure(dataset, exception, "automatic import failed", commandId);
+        }
+        finally
+        {
+            correlation.EndAttempt();
+        }
+    }
+
+    static StartupReferenceDataImportStatus CreateStartupImportFailure(
+        string dataset,
+        Exception exception,
+        string context,
+        Guid commandId = default)
+        => new(
+            dataset,
+            StartupReferenceDataImportOutcome.Failed,
+            commandId,
+            exception is ModelOperationException modelFailure ? modelFailure.ErrorCode : 0,
+            $"{dataset} {context}: {exception.Message}");
+
+    async Task ReportStartupImportFailuresAsync(
+        IReadOnlyCollection<StartupReferenceDataImportStatus> statuses,
+        IReadOnlyCollection<string> cleanupFailures)
+    {
+        var failures = statuses
+            .Where(status => status.Outcome != StartupReferenceDataImportOutcome.Completed)
+            .Select(status => status.Message)
+            .Concat(cleanupFailures)
+            .ToArray();
+        if (failures.Length == 0)
+            return;
+
+        foreach (var failure in failures)
+            await WriteStatusConsoleAsync(failure);
+
+        var errorCode = statuses
+            .Where(status => status.Outcome == StartupReferenceDataImportOutcome.Failed)
+            .Select(status => status.ErrorCode)
+            .FirstOrDefault(code => code != 0);
+        PublishError(
+            errorCode,
+            string.Join(Environment.NewLine, failures)
+                + Environment.NewLine
+                + "No automatic retry was attempted. The imports remain available from their maintenance screens.",
+            "Startup Reference Data Import");
+    }
 
     /// <summary>
     /// enable trade live feed

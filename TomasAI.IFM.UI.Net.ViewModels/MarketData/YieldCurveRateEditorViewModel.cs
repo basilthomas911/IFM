@@ -22,8 +22,7 @@ public sealed class YieldCurveRateEditorViewModel
     readonly MarketDataCommandModel _commandModel;
     readonly MarketDataQueryModel _queryModel;
     readonly ICollection<IEvent> _consumeEvents;
-    readonly object _correlationGate = new();
-    readonly Dictionary<Guid, IEvent> _earlyTerminalEvents = [];
+    readonly TerminalEventCorrelation _terminalCorrelation = new();
     readonly AsyncOperation _loadOperation;
     readonly AsyncOperation _loadRatesOperation;
     readonly AsyncOperation _addOperation;
@@ -36,8 +35,6 @@ public sealed class YieldCurveRateEditorViewModel
     YieldCurveRateReadModel? _pendingChange;
     YieldCurveRateReadModel? _pendingRemove;
     DateTime? _pendingImportDate;
-    TaskCompletionSource<IEvent>? _terminalCompletion;
-    Guid _commandId;
     string _selectedTimePeriod = string.Empty;
     string _lastStatusMessage = string.Empty;
     DateOnly _rangeStart;
@@ -127,13 +124,7 @@ public sealed class YieldCurveRateEditorViewModel
 
     /// <summary>Gets the correlated command identifier while a mutation awaits its terminal event.</summary>
     public Guid CommandId
-    {
-        get
-        {
-            lock (_correlationGate)
-                return _commandId;
-        }
-    }
+        => _terminalCorrelation.CommandId;
 
     /// <summary>Gets the latest successful mutation status.</summary>
     public string LastStatusMessage
@@ -342,6 +333,7 @@ public sealed class YieldCurveRateEditorViewModel
         Action clearPending,
         CancellationToken cancellationToken)
     {
+        _terminalCorrelation.BeginAttempt();
         try
         {
             Guid commandId = Guid.Empty;
@@ -351,7 +343,9 @@ public sealed class YieldCurveRateEditorViewModel
             if (commandId == Guid.Empty)
                 throw new InvalidOperationException("The market-data command returned an empty correlation identifier.");
 
-            var terminalEvent = await AwaitTerminalEventAsync(commandId, cancellationToken);
+            var terminalTask = _terminalCorrelation.AwaitAsync(commandId, cancellationToken);
+            OnPropertyChanged(nameof(CommandId));
+            var terminalEvent = await terminalTask;
             if (terminalEvent is IErrorEvent error)
                 throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
 
@@ -361,7 +355,8 @@ public sealed class YieldCurveRateEditorViewModel
         }
         finally
         {
-            ClearCorrelation();
+            _terminalCorrelation.EndAttempt();
+            OnPropertyChanged(nameof(CommandId));
         }
     }
 
@@ -383,40 +378,9 @@ public sealed class YieldCurveRateEditorViewModel
         _loadRatesOperation.NotifyCanExecuteChanged();
     }
 
-    async Task<IEvent> AwaitTerminalEventAsync(Guid commandId, CancellationToken cancellationToken)
-    {
-        IEvent? earlyEvent;
-        TaskCompletionSource<IEvent> completion;
-        lock (_correlationGate)
-        {
-            _commandId = commandId;
-            completion = new TaskCompletionSource<IEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _terminalCompletion = completion;
-            _earlyTerminalEvents.Remove(commandId, out earlyEvent);
-            _earlyTerminalEvents.Clear();
-        }
-        OnPropertyChanged(nameof(CommandId));
-        if (earlyEvent is not null)
-            completion.TrySetResult(earlyEvent);
-        return await completion.Task.WaitAsync(cancellationToken);
-    }
-
     ValueTask HandleEventAsync(IEvent @event)
     {
-        TaskCompletionSource<IEvent>? completion;
-        lock (_correlationGate)
-        {
-            if (_commandId == Guid.Empty)
-            {
-                if (IsMutationRunning && _earlyTerminalEvents.Count < 32)
-                    _earlyTerminalEvents[@event.CommandId] = @event;
-                return ValueTask.CompletedTask;
-            }
-            if (_commandId != @event.CommandId)
-                return ValueTask.CompletedTask;
-            completion = _terminalCompletion;
-        }
-        completion?.TrySetResult(@event);
+        _terminalCorrelation.TryPublish(@event);
         return ValueTask.CompletedTask;
     }
 
@@ -448,20 +412,7 @@ public sealed class YieldCurveRateEditorViewModel
 
     void PrepareMutation()
     {
-        lock (_correlationGate)
-            _earlyTerminalEvents.Clear();
         LastStatusMessage = string.Empty;
-    }
-
-    void ClearCorrelation()
-    {
-        lock (_correlationGate)
-        {
-            _commandId = Guid.Empty;
-            _terminalCompletion = null;
-            _earlyTerminalEvents.Clear();
-        }
-        OnPropertyChanged(nameof(CommandId));
     }
 
     void MutationOperationPropertyChanged(object? sender, PropertyChangedEventArgs args)
