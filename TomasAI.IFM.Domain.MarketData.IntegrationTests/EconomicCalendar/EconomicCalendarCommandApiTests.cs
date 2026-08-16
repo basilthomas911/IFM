@@ -222,9 +222,12 @@ public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> fact
         response.Value.Should().NotBe(Guid.Empty);
 
         await WaitUntilAsync(async () =>
-            (await dbFixture.MarketDataDb.GetEconomicCalendarAllAsync())
-                .Count(calendar => calendar.EventName.EndsWith(runId, StringComparison.Ordinal))
-            == economicCalendars.Length);
+        {
+            var importedRows = await Task.WhenAll(
+                economicCalendars.Select(calendar =>
+                    dbFixture.MarketDataDb.GetEconomicCalendarAsync(calendar.Id)));
+            return importedRows.All(static calendar => calendar is not null);
+        });
 
         // assert...
         // verify all 5 economic calendars were added to database

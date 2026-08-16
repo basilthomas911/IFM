@@ -54,6 +54,16 @@ public class SecuritiesDatabaseFixture : IDisposable
         DbFactory = dbFactory;
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), new SecuritiesDbContext(dbConn, DbFactory, logger));
         Db = DbFactory.SecuritiesDb as SecuritiesDbContext;
+        foreach (var table in new[]
+        {
+            "securities_projection_operation_scope_v3",
+            "securities_projection_operation_v3",
+            "securities_symbol_projection_state_v3",
+            "securities_projection_state_v3"
+        })
+        {
+            Db.Use($"TRUNCATE {table};").ExecuteCommandAsync().GetAwaiter().GetResult();
+        }
     }
 
     public SecuritiesDbContext Db { get; }
@@ -109,6 +119,39 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
         await db.Use(SecuritiesDbCql.DeleteSecuritiesProjectionStateV3)
             .SetParameters(new DeleteSecuritiesProjectionStateV3(projectionName))
             .ExecuteCommandAsync();
+    }
+
+    static async Task ResetProjectionOperationsAsync(IObjectRepository db, string projectionName)
+    {
+        var operationIds = await db.Use(SecuritiesDbCql.GetSecuritiesProjectionOperationsV3)
+            .SetParameters(new GetSecuritiesProjectionOperationsV3(projectionName))
+            .ExecuteQueryAsync(static row => row.GetGuid(0));
+        foreach (var operationId in operationIds)
+        {
+            var scopes = await db.Use(SecuritiesDbCql.GetSecuritiesProjectionOperationScopesV3)
+                .SetParameters(new GetSecuritiesProjectionOperationScopesV3(projectionName, operationId))
+                .ExecuteQueryAsync(static row => (Type: row.GetString(0), Key: row.GetString(1)));
+            await db.Use(SecuritiesDbCql.RemoveSecuritiesProjectionOperationV3)
+                .SetParameters(new RemoveSecuritiesProjectionOperationV3(operationId, projectionName))
+                .ExecuteCommandAsync();
+            foreach (var symbol in scopes
+                .Where(static scope => scope.Type == "symbol")
+                .Select(static scope => scope.Key))
+            {
+                await db.Use(SecuritiesDbCql.RemoveSecuritiesSymbolProjectionOperationV3)
+                    .SetParameters(new RemoveSecuritiesSymbolProjectionOperationV3(
+                        operationId,
+                        projectionName,
+                        symbol))
+                    .ExecuteCommandAsync();
+            }
+            await db.Use(SecuritiesDbCql.DeleteSecuritiesProjectionOperationScopesV3)
+                .SetParameters(new DeleteSecuritiesProjectionOperationScopesV3(projectionName, operationId))
+                .ExecuteCommandAsync();
+            await db.Use(SecuritiesDbCql.DeleteSecuritiesProjectionOperationV3)
+                .SetParameters(new DeleteSecuritiesProjectionOperationV3(projectionName, operationId))
+                .ExecuteCommandAsync();
+        }
     }
 
     static InsertFuturesContract ToInsertParameters(FuturesContractV2ReadModel contract)
@@ -1008,6 +1051,9 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
         var staleOption = optionContract with { Symbol = $"STALE_OPT_SYMBOL_{suffix}" };
         var db = _testFixture.Db;
 
+        await ResetProjectionOperationsAsync(db, SecuritiesDbContext.FuturesContractSymbolProjection);
+        await ResetProjectionOperationsAsync(db, SecuritiesDbContext.FuturesOptionContractSymbolProjection);
+
         try
         {
             await db.Use(SecuritiesDbCql.InsertFuturesContract)
@@ -1094,6 +1140,9 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
         var inertOperationId = Guid.NewGuid();
         var activeOperations = new HashSet<Guid> { operationId };
         var startedOn = DateTime.UtcNow.AddHours(-2);
+
+        await ResetProjectionOperationsAsync(db, SecuritiesDbContext.FuturesContractSymbolProjection);
+        await ResetProjectionOperationsAsync(db, SecuritiesDbContext.FuturesOptionContractSymbolProjection);
 
         try
         {

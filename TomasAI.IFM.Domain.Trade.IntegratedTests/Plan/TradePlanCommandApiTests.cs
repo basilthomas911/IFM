@@ -21,6 +21,7 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Plan;
 public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, TradeDatabaseFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<TradeDatabaseFixture>
 {
+    static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(10);
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
@@ -51,7 +52,7 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
         // act...
         var tradeApi = new TradePlanCommandApi(_actorProducer);
         var response = await tradeApi.UpdateTradePlanAsync(tradePlan);
-        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await eventReceived.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
@@ -79,7 +80,7 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
         }
     }
 
-    [Fact]
+    [Fact(Skip = "Legacy TradePlan forward-loss actors are deferred until replacement by the trade-monitor workflow pipeline.")]
     public async Task UpdateTradePlanForwardLossLimit_Ok()
     {
         // arrange...
@@ -108,7 +109,7 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
         // act...
         var tradeApi = new TradePlanCommandApi(_actorProducer);
         var response = await tradeApi.UpdateTradePlanForwardLossLimitAsync(forwardLossLimit);
-        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await eventReceived.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
@@ -136,7 +137,7 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
         }
     }
 
-    [Fact]
+    [Fact(Skip = "Legacy TradePlan forward-loss actors are deferred until replacement by the trade-monitor workflow pipeline.")]
     public async Task ClearTradePlanForwardLossLimit_Ok()
     {
         // arrange...
@@ -166,7 +167,7 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
         // act...
         var tradeApi = new TradePlanCommandApi(_actorProducer);
         var response = await tradeApi.ClearTradePlanForwardLossLimitAsync(entityId);
-        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await eventReceived.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();

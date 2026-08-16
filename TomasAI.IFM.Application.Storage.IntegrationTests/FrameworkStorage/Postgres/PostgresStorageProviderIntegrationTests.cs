@@ -26,8 +26,8 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
 
     const string InsertEventLog = """
         INSERT INTO event_log (
-            eventstreamid, eventnameid, eventversion, eventdata, commandid, eventtimestamp)
-        VALUES ($1, $2, $3, $4, $5, $6);
+            eventstreamid, eventnameid, eventversion, streamversion, eventdata, commandid, eventtimestamp)
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
         """;
 
     const string InsertCommandLog = """
@@ -39,8 +39,8 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
     const string InsertProjectorState = """
         INSERT INTO event_projector_state (
             eventid, actorname, projectorname, isreplay, attemptnumber, outcome, stage,
-            errormessage, createdtimestamp, updatedtimestamp)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+            errormessage, createdtimestamp, updatedtimestamp, eventstreamid, sourceeventname, streamversion)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
         """;
 
     const string SelectEventStream = """
@@ -330,20 +330,20 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         var scope = PostgresEventSourceTestData.Scope(9);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
-            const string preparedSql = "SELECT $1::integer /* framework_storage_explicit_prepare_probe */;";
-            var value = await repository.Use(preparedSql)
+            const string preparedSql = """
+                SELECT $1::integer,
+                       EXISTS (
+                           SELECT 1
+                           FROM pg_prepared_statements
+                           WHERE statement LIKE '%framework_storage_explicit_prepare_probe%')
+                /* framework_storage_explicit_prepare_probe */;
+                """;
+            var result = await repository.Use(preparedSql)
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
-                .ExecuteScalarAsync(static row => row.GetInt(0));
+                .ExecuteSingleAsync(static row => (Value: row.GetInt(0), IsPrepared: row.GetBool(1)));
 
-            var preparedCount = await repository.Use("""
-                    SELECT count(*)
-                    FROM pg_prepared_statements
-                    WHERE statement LIKE '%framework_storage_explicit_prepare_probe%';
-                    """)
-                .ExecuteScalarAsync(static row => row.GetLong(0));
-
-            Assert.Equal(scope.EventStreamId, value);
-            Assert.True(preparedCount > 0);
+            Assert.Equal(scope.EventStreamId, result.Value);
+            Assert.True(result.IsPrepared);
         });
     }
 
@@ -648,7 +648,10 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
                 "Projection",
                 string.Empty,
                 PostgresEventSourceTestData.Timestamp,
-                PostgresEventSourceTestData.UpdatedTimestamp))
+                PostgresEventSourceTestData.UpdatedTimestamp,
+                scope.EventStreamId,
+                scope.EventName,
+                1))
             .ExecuteCommandAsync();
     }
 
@@ -660,6 +663,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             scope.EventStreamId,
             scope.EventNameId,
             eventVersion,
+            eventVersion == scope.EventVersion ? 1 : 2,
             eventData,
             scope.CommandId,
             PostgresEventSourceTestData.Timestamp);
@@ -724,13 +728,14 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         int EventStreamId,
         int EventNameId,
         long EventVersion,
+        long StreamVersion,
         string EventData,
         Guid CommandId,
         string EventTimestamp) : IBindValue
     {
         public object Bind() => Values(
-            Integer(EventStreamId), Integer(EventNameId), Bigint(EventVersion), Text(EventData),
-            Uuid(CommandId), Text(EventTimestamp));
+            Integer(EventStreamId), Integer(EventNameId), Bigint(EventVersion), Bigint(StreamVersion),
+            Text(EventData), Uuid(CommandId), Text(EventTimestamp));
     }
 
     readonly record struct CommandParameters(
@@ -757,11 +762,15 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         string Stage,
         string ErrorMessage,
         string CreatedTimestamp,
-        string UpdatedTimestamp) : IBindValue
+        string UpdatedTimestamp,
+        long EventStreamId,
+        string SourceEventName,
+        long StreamVersion) : IBindValue
     {
         public object Bind() => Values(
             Bigint(EventId), Text(ActorName), Text(ProjectorName), Boolean(IsReplay), Integer(AttemptNumber),
-            Text(Outcome), Text(Stage), Text(ErrorMessage), Text(CreatedTimestamp), Text(UpdatedTimestamp));
+            Text(Outcome), Text(Stage), Text(ErrorMessage), Text(CreatedTimestamp), Text(UpdatedTimestamp),
+            Bigint(EventStreamId), Text(SourceEventName), Bigint(StreamVersion));
     }
 
     sealed record EventStreamRow(int EventStreamId, string EventStream);

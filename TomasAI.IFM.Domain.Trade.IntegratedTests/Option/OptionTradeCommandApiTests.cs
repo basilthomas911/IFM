@@ -29,6 +29,7 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         OptionTradeToOpenEvent optionTradeToOpenEvent = default!;
+        var eventReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -47,6 +48,7 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         // act...
         var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.OpenOptionTradeAsync(tradeOrder);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -72,7 +74,10 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is OptionTradeToOpenEvent e)
+                {
                     optionTradeToOpenEvent = e;
+                    eventReceived.TrySetResult(true);
+                }
                 return @event;
             }
         }
@@ -84,6 +89,7 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         OptionTradeToCloseEvent optionTradeToCloseEvent = default!;
+        var eventReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var tradeOrder = SampleData.CreateTradeOrder(orderId: 101, tradeId: 2, orderActionType: OrderActionType.Close);
         var optionTrade = SampleData.CreateOptionTrade(orderId: 101, tradeId: 2, tradeState: TradeState.TradeToClose);
@@ -105,6 +111,7 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         // act...
         var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.CloseOptionTradeAsync(tradeOrder);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -125,7 +132,10 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is OptionTradeToCloseEvent e)
+                {
                     optionTradeToCloseEvent = e;
+                    eventReceived.TrySetResult(true);
+                }
                 return @event;
             }
         }
@@ -137,6 +147,7 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         OptionTradeDeletedEvent optionTradeDeletedEvent = default!;
+        var eventReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var tradeOrder = SampleData.CreateTradeOrder(orderId: 102, tradeId: 3);
         var optionTrade = SampleData.CreateOptionTrade(orderId: 102, tradeId: 3);
@@ -160,6 +171,7 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         // act...
         var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.DeleteAsync(tradeOrder.OrderId, tradeOrder.TradeId);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -180,7 +192,10 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is OptionTradeDeletedEvent e)
+                {
                     optionTradeDeletedEvent = e;
+                    eventReceived.TrySetResult(true);
+                }
                 return @event;
             }
         }
@@ -192,6 +207,7 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         OptionTradeOrderPlacedEvent optionTradeOrderPlacedEvent = default!;
+        var eventReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var tradeOrder = SampleData.CreateTradeOrder(orderId: 103, tradeId: 4);
         var optionTrade = SampleData.CreateOptionTrade(orderId: 103, tradeId: 4);
@@ -212,6 +228,7 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         // act...
         var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.PlaceOrderAsync(tradeOrder, optionTrade);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -232,7 +249,10 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is OptionTradeOrderPlacedEvent e)
+                {
                     optionTradeOrderPlacedEvent = e;
+                    eventReceived.TrySetResult(true);
+                }
                 return @event;
             }
         }
@@ -244,6 +264,7 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         OptionTradeSnapshotEvent optionTradeSnapshotEvent = default!;
+        var eventReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var tradeOrder = SampleData.CreateTradeOrder(orderId: 104, tradeId: 5);
         var optionTrade = SampleData.CreateOptionTrade(orderId: 104, tradeId: 5);
@@ -267,6 +288,7 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
         // act...
         var tradeApi = new OptionTradeCommandApi(_actorProducer);
         var response = await tradeApi.SnapshotAsync(tradeOrder.OrderId, tradeOrder.TradeId);
+        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         response.Should().NotBeNull();
@@ -287,7 +309,10 @@ public class OptionTradeCommandApiTests(WebApplicationFactory<Program> factory, 
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is OptionTradeSnapshotEvent e)
+                {
                     optionTradeSnapshotEvent = e;
+                    eventReceived.TrySetResult(true);
+                }
                 return @event;
             }
         }

@@ -835,6 +835,9 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var startDate = new DateOnly(2025, 1, 1);
         var endDate = new DateOnly(2025, 1, 31);
 
+        await db.Use("DELETE FROM trade_plan_forward_loss_ratio where partitionId = 1")
+            .ExecuteCommandAsync();
+
         // Act
         var result = await db.GetTradePlanForwardLossRatiosAsync(startDate, endDate);
 

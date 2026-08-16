@@ -19,7 +19,9 @@ public sealed class PostgresPositionalParameterCatalogTests
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["InsertActorCommandLog"] = "InsertCommandLog",
-            ["GetTelemetryLogsByDateRange"] = "GetTelemtryLogsByDateRange"
+            ["GetTelemetryLogsByDateRange"] = "GetTelemtryLogsByDateRange",
+            ["RetryEventProjectorExecution"] = "TryRetryEventProjectorExecution",
+            ["SkipEventProjectorExecution"] = "TrySkipEventProjectorExecution"
         };
 
     [Theory]
@@ -61,29 +63,62 @@ public sealed class PostgresPositionalParameterCatalogTests
             .ToArray();
         var instance = Assert.IsAssignableFrom<IBindValue>(constructor.Invoke(arguments));
         var parameters = Assert.IsType<NpgsqlParameter[]>(instance.Bind());
+        var expectedParameters = constructorParameters
+            .SelectMany((parameter, index) => ExpandExpectedParameters(parameter.ParameterType, arguments[index]))
+            .ToArray();
 
         Assert.Equal(expectedCount, parameters.Length);
-        Assert.Equal(constructorParameters.Length, parameters.Length);
+        Assert.Equal(expectedParameters.Length, parameters.Length);
         for (var index = 0; index < parameters.Length; index++)
         {
             var parameter = parameters[index];
+            var expected = expectedParameters[index];
             Assert.Equal(string.Empty, parameter.ParameterName);
-            Assert.Equal(ExpectedDbType(constructorParameters[index].ParameterType), parameter.NpgsqlDbType);
-            Assert.Equal(arguments[index], parameter.Value);
+            if (expected.BoundType is { } boundType)
+                Assert.Equal(boundType, parameter.NpgsqlDbType);
+            else if (expected.ParameterType == typeof(DateTime))
+                Assert.Contains(parameter.NpgsqlDbType, new[] { NpgsqlDbType.Timestamp, NpgsqlDbType.TimestampTz });
+            else
+                Assert.Equal(ExpectedDbType(expected.ParameterType), parameter.NpgsqlDbType);
+            Assert.Equal(expected.Value, parameter.Value);
             Assert.True(parameter.GetType().IsGenericType,
                 $"{bindType.Name} parameter {index} is not strongly typed.");
         }
     }
 
+    static IEnumerable<ExpectedParameter> ExpandExpectedParameters(Type type, object value)
+    {
+        type = Nullable.GetUnderlyingType(type) ?? type;
+        if (!typeof(IBindValue).IsAssignableFrom(type))
+        {
+            yield return new ExpectedParameter(type, value, null);
+            yield break;
+        }
+
+        foreach (var parameter in Assert.IsType<NpgsqlParameter[]>(((IBindValue)value).Bind()))
+            yield return new ExpectedParameter(parameter.Value.GetType(), parameter.Value, parameter.NpgsqlDbType);
+    }
+
     static object CreateSentinel(Type type, int index)
     {
+        type = Nullable.GetUnderlyingType(type) ?? type;
+        if (typeof(IBindValue).IsAssignableFrom(type))
+        {
+            var constructor = Assert.Single(type.GetConstructors());
+            var arguments = constructor.GetParameters()
+                .Select((parameter, nestedIndex) => CreateSentinel(parameter.ParameterType, index + nestedIndex))
+                .ToArray();
+            return constructor.Invoke(arguments);
+        }
+
         var value = index + 1;
         if (type == typeof(string)) return $"value-{value}";
         if (type == typeof(int)) return value;
         if (type == typeof(long)) return (long)value;
         if (type == typeof(bool)) return index % 2 == 0;
         if (type == typeof(Guid)) return new Guid(value, 0, 0, new byte[8]);
-        if (type == typeof(DateTime)) return new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Unspecified).AddMinutes(index);
+        if (type == typeof(DateTime)) return new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(index);
+        if (type == typeof(byte[])) return new byte[] { (byte)value };
         throw new InvalidOperationException($"No PostgreSQL test sentinel exists for {type}.");
     }
 
@@ -95,6 +130,9 @@ public sealed class PostgresPositionalParameterCatalogTests
         if (type == typeof(bool)) return NpgsqlDbType.Boolean;
         if (type == typeof(Guid)) return NpgsqlDbType.Uuid;
         if (type == typeof(DateTime)) return NpgsqlDbType.Timestamp;
+        if (type == typeof(byte[])) return NpgsqlDbType.Bytea;
         throw new InvalidOperationException($"No PostgreSQL type expectation exists for {type}.");
     }
+
+    readonly record struct ExpectedParameter(Type ParameterType, object Value, NpgsqlDbType? BoundType);
 }

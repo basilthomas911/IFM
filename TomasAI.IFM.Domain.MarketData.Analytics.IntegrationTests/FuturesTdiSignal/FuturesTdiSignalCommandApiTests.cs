@@ -47,7 +47,11 @@ public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> fact
         var valueDate = new DateOnly(2099, 12, 31);
         var timestamp = new TimeOnly(10, 0, 0);
         var futuresTdiSignalId = new FuturesTdiSignalId(SampleData.ContractId, valueDate, timestamp);
-        var entityId = new FuturesTdiSignalEntityId(SampleData.ContractId, valueDate, TimeFrameType.Daily);
+        var entityId = new FuturesTdiSignalEntityId(
+            SampleData.ContractId,
+            valueDate,
+            TimeFrameType.OneMinute,
+            FuturesTdiConfiguration.StandardConfigurationId);
         var subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format());
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
@@ -67,7 +71,7 @@ public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> fact
         futuresTdiSignalGeneratedEvent.FuturesTdiSignal.Should().NotBeNull();
         futuresTdiSignalGeneratedEvent.FuturesTdiSignal.ContractId.Should().Be(SampleData.ContractId);
         futuresTdiSignalGeneratedEvent.FuturesTdiSignal.ValueDate.Should().Be(valueDate);
-        futuresTdiSignalGeneratedEvent.FuturesTdiSignal.TimePeriod.Should().Be(TimeFrameType.Daily);
+        futuresTdiSignalGeneratedEvent.FuturesTdiSignal.TimePeriod.Should().Be(TimeFrameType.OneMinute);
         futuresTdiSignalGeneratedEvent.FuturesTdiSignal.Timestamp.Should().Be(timestamp);
 
         var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesTdiSignalAsync(SampleData.ContractId, valueDate);
@@ -103,55 +107,24 @@ public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> fact
     }
 
     static FuturesRsiSignalReadModel[] CreateRsiSignals(DateOnly valueDate)
-        =>
-        [
-            new(
+        => Enumerable.Range(0, FuturesTdiConfiguration.Standard.RequiredRsiSamples)
+            .Select(index => new FuturesRsiSignalReadModel(
                 SampleData.ContractId,
                 valueDate,
-                SampleData.RSITimePeriod,
-                14,
-                new TimeOnly(9, 58, 0),
-                5500m,
+                TimeFrameType.OneMinute,
+                FuturesTdiConfiguration.Standard.RsiPeriod,
+                new TimeOnly(9, 27).AddMinutes(index),
+                5500m + index,
                 1m,
                 1m,
                 0m,
+                1m,
                 0.5m,
-                0.2m,
-                2.5,
-                56,
-                54,
-                0.2),
-            new(
-                SampleData.ContractId,
-                valueDate,
-                SampleData.RSITimePeriod,
-                14,
-                new TimeOnly(9, 59, 0),
-                5501m,
-                1m,
-                1m,
-                0m,
-                0.6m,
-                0.2m,
-                3.0,
-                58,
-                55,
-                0.3),
-            new(
-                SampleData.ContractId,
-                valueDate,
-                SampleData.RSITimePeriod,
-                14,
-                new TimeOnly(10, 0, 0),
-                5502m,
-                1m,
-                1m,
-                0m,
-                0.7m,
-                0.2m,
-                3.5,
-                60,
-                56,
-                0.4)
-        ];
+                2d,
+                40d + index,
+                0d,
+                1d,
+                index + 1,
+                valueDate.ToDateTime(new TimeOnly(9, 27)).AddMinutes(index)))
+            .ToArray();
 }

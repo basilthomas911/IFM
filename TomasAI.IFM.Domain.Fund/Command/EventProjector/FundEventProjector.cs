@@ -39,7 +39,7 @@ namespace TomasAI.IFM.Domain.Fund.Command.EventProjector;
 /// changes, order closure, and maximum-profit generation. Every current descriptor uses natural-key mutation and
 /// durable replay. Consequently, projection work survives process interruption and incomplete work is recovered from
 /// the event source when the projector starts. A descriptor can opt out in the future by passing
-/// <c>useDurableReplay: false</c> to <c>Describe</c>; such work still executes asynchronously through the bounded
+/// <c>useDurableReplay: false</c> to <c>ProjectionFor</c>; such work still executes asynchronously through the bounded
 /// process-local queue, but it is not recovered or replayed after process loss.
 /// </remarks>
 public class FundEventProjector(
@@ -72,20 +72,20 @@ public class FundEventProjector(
     /// </summary>
     readonly ImmutableArray<EventProjectionDescriptor> _projectionDescriptors =
     [
-        Describe<FundCreatedEvent, FundCreatedCompleteEvent, FundCreatedFailEvent>(
+        ProjectionFor<FundCreatedEvent, FundCreatedCompleteEvent, FundCreatedFailEvent>(
             e => dbFactory.FundDb.InsertFundAsync(e.NewFund)),
-        Describe<OrderAddedToFundEvent, OrderAddedToFundCompleteEvent, OrderAddedToFundFailEvent>(
+        ProjectionFor<OrderAddedToFundEvent, OrderAddedToFundCompleteEvent, OrderAddedToFundFailEvent>(
             e => dbFactory.FundDb.InsertFundOrderAsync(e.FundOrder)),
-        Describe<TradeAddedToFundOrderEvent, TradeAddedToFundOrderCompleteEvent, TradeAddedToFundOrderFailEvent>(
+        ProjectionFor<TradeAddedToFundOrderEvent, TradeAddedToFundOrderCompleteEvent, TradeAddedToFundOrderFailEvent>(
             e => dbFactory.FundDb.InsertFundOrderTradeAsync(e.FundOrderTrade)),
-        Describe<OrderRemovedFromFundEvent, OrderRemovedFromFundCompleteEvent, OrderRemovedFromFundFailEvent>(
+        ProjectionFor<OrderRemovedFromFundEvent, OrderRemovedFromFundCompleteEvent, OrderRemovedFromFundFailEvent>(
             e => dbFactory.FundDb.DeleteFundOrderAsync(e.FundOrderId.FundId, e.FundOrderId.OrderId)),
-        Describe<TradeRemovedFromFundOrderEvent, TradeRemovedFromFundOrderCompleteEvent, TradeRemovedFromFundOrderFailEvent>(
+        ProjectionFor<TradeRemovedFromFundOrderEvent, TradeRemovedFromFundOrderCompleteEvent, TradeRemovedFromFundOrderFailEvent>(
             e => dbFactory.FundDb.DeleteFundOrderTradeAsync(
                 e.FundOrderTradeId.FundId,
                 e.FundOrderTradeId.OrderId,
                 e.FundOrderTradeId.TradeId)),
-        Describe<FundOrderTradeStateChangedEvent, FundOrderTradeStateChangedCompleteEvent, FundOrderTradeStateChangedFailEvent>(
+        ProjectionFor<FundOrderTradeStateChangedEvent, FundOrderTradeStateChangedCompleteEvent, FundOrderTradeStateChangedFailEvent>(
             e => dbFactory.FundDb.UpdateFundOrderTradeStateAsync(
                 e.FundOrderTradeId.FundId,
                 e.FundOrderTradeId.OrderId,
@@ -93,12 +93,12 @@ public class FundEventProjector(
                 e.TradeState,
                 e.UpdatedOn,
                 e.UpdatedBy)),
-        Describe<FundOrderClosedEvent, FundOrderClosedCompleteEvent, FundOrderClosedFailEvent>(
+        ProjectionFor<FundOrderClosedEvent, FundOrderClosedCompleteEvent, FundOrderClosedFailEvent>(
             e => dbFactory.FundDb.UpdateFundOrderStatusAsync(
                 e.FundOrderId.FundId,
                 e.FundOrderId.OrderId,
                 OrderStatus.Closed)),
-        Describe<FundMaxProfitGeneratedEvent, FundMaxProfitGeneratedCompleteEvent, FundMaxProfitGeneratedFailEvent>(
+        ProjectionFor<FundMaxProfitGeneratedEvent, FundMaxProfitGeneratedCompleteEvent, FundMaxProfitGeneratedFailEvent>(
             static _ => Task.CompletedTask)
     ];
 
@@ -147,7 +147,7 @@ public class FundEventProjector(
     /// <returns>
     /// An immutable descriptor configured for natural-key mutation, including completion and failure event factories.
     /// </returns>
-    static EventProjectionDescriptor Describe<TEvent, TComplete, TFail>(
+    static EventProjectionDescriptor ProjectionFor<TEvent, TComplete, TFail>(
         Func<TEvent, Task> applyAsync,
         bool useDurableReplay = true)
         where TEvent : class, IEvent<FundId>

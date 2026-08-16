@@ -991,6 +991,7 @@ public class SecuritiesDbContext(IDbConnectionSettings connectionSettings, IDbCo
             {
                 throw new StorageException(
                     "SecuritiesDb V2 symbol-projection completion raced another write or repair. " +
+                    $"Completion results: futures={futuresCompleted}, options={futuresOptionsCompleted}. " +
                     "Completion remains disabled; replay the backfill after the competing operation finishes.");
             }
 

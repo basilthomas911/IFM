@@ -493,16 +493,26 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     public async Task UpsertVixFuturesEodDataAsync_ExistingValueDate()
     {
         // Arrange: Get a sample FuturesClosingPriceReadModel instance
-        var futuresEodData = SampleData.VixFuturesEodData;
-
-        var futuresTickData = SampleData.VixFuturesTickData;
+        var contractId = $"VX_UPSERT_{Guid.NewGuid():N}";
+        var futuresEodData = SampleData.VixFuturesEodData with { ContractId = contractId };
+        var futuresTickData = SampleData.VixFuturesTickData with { ContractId = contractId };
+        var lowTickData = SampleData.VixFuturesTickDataLowPrice with
+        {
+            ContractId = contractId,
+            TickId = futuresTickData.TickId + 1
+        };
+        var highTickData = SampleData.VixFuturesTickDataHighPrice with
+        {
+            ContractId = contractId,
+            TickId = futuresTickData.TickId + 2
+        };
         await TestFixture.DevDatabase.Use($"delete from vix_futures_eod_data where contractId = '{futuresEodData.ContractId}' ").ExecuteCommandAsync();
         await TestFixture.DevDatabase.Use($"delete from futures_tick_data where contractId = '{futuresTickData.ContractId}' and valueDate = '{futuresTickData.ValueDate}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.VixFuturesTickData);
-        await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.VixFuturesTickDataHighPrice);
-        await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.VixFuturesTickDataLowPrice);
+        await TestFixture.DevDatabase.InsertFuturesTickDataAsync(futuresTickData);
+        await TestFixture.DevDatabase.InsertFuturesTickDataAsync(highTickData);
+        await TestFixture.DevDatabase.InsertFuturesTickDataAsync(lowTickData);
         await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(futuresTickData);
-        var totalVolume = SampleData.VixFuturesTickData.Size + SampleData.VixFuturesTickDataHighPrice.Size + SampleData.VixFuturesTickDataLowPrice.Size + 341;
+        var totalVolume = futuresTickData.Size + highTickData.Size + lowTickData.Size + 341;
 
         // Act: Insert the FuturesClosingPriceReadModel into the database
         await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(futuresTickData with { Price = 77.50m, Size = 341 });
@@ -513,8 +523,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         retrievedData.ContractId.Should().Be(futuresTickData.ContractId);
         retrievedData.ValueDate.Should().Be(futuresTickData.ValueDate);
         retrievedData.OpenPrice.Should().Be(futuresTickData.Price);
-        retrievedData.HighPrice.Should().Be(SampleData.VixFuturesTickDataHighPrice.Price);
-        retrievedData.LowPrice.Should().Be(SampleData.VixFuturesTickDataLowPrice.Price);
+        retrievedData.HighPrice.Should().Be(highTickData.Price);
+        retrievedData.LowPrice.Should().Be(lowTickData.Price);
         retrievedData.ClosePrice.Should().Be(77.50m);
         retrievedData.Volume.Should().Be(totalVolume);
     }
@@ -2167,9 +2177,17 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     {
         // Arrange
         var entityId = SampleData.FuturesItiSignal1.EntityId;
-        var expectedSignal = SampleData.FuturesItiSignal1 with { IntrinsicTimeMode = IntrinsicTimeModeType.TrendExtremeChanged };
-        var trendingSignal = SampleData.FuturesItiSignal1 with { IntrinsicTimeMode = IntrinsicTimeModeType.Trending };
-        var trendDirectionChangedSignal = SampleData.FuturesItiSignal1;
+        var expectedSignal = SampleData.FuturesItiSignal1 with
+        {
+            SequenceId = 102,
+            IntrinsicTimeMode = IntrinsicTimeModeType.TrendExtremeChanged
+        };
+        var trendingSignal = SampleData.FuturesItiSignal1 with
+        {
+            SequenceId = 103,
+            IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+        };
+        var trendDirectionChangedSignal = SampleData.FuturesItiSignal1 with { SequenceId = 101 };
 
         await DeleteFuturesItiSignalsAsync(expectedSignal.ContractId, expectedSignal.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(trendDirectionChangedSignal);
@@ -2209,9 +2227,17 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     {
         // Arrange
         var entityId = SampleData.FuturesItiSignal1.EntityId;
-        var expectedSignal = SampleData.FuturesItiSignal1 with { IntrinsicTimeMode = IntrinsicTimeModeType.TrendReversalChanged };
-        var trendingSignal = SampleData.FuturesItiSignal1 with { IntrinsicTimeMode = IntrinsicTimeModeType.Trending };
-        var trendDirectionChangedSignal = SampleData.FuturesItiSignal1;
+        var expectedSignal = SampleData.FuturesItiSignal1 with
+        {
+            SequenceId = 202,
+            IntrinsicTimeMode = IntrinsicTimeModeType.TrendReversalChanged
+        };
+        var trendingSignal = SampleData.FuturesItiSignal1 with
+        {
+            SequenceId = 203,
+            IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+        };
+        var trendDirectionChangedSignal = SampleData.FuturesItiSignal1 with { SequenceId = 201 };
 
         await DeleteFuturesItiSignalsAsync(expectedSignal.ContractId, expectedSignal.ValueDate);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(trendDirectionChangedSignal);
