@@ -211,6 +211,7 @@ public static class Startup
                 options.MaximumRequestRangeDays = config.GetValue("AppSettings:Fmp:MaximumRequestRangeDays", 3_660);
                 options.MaximumConcurrentRequests = config.GetValue("AppSettings:Fmp:MaximumConcurrentRequests", 2);
             });
+            services.AddFinancialModelingPrepReferenceDataApi();
             services.AddFmpMarketDataImport(options =>
                 options.MaximumRangeDays = config.GetValue("AppSettings:Fmp:MaximumImportRangeDays", 366));
             services.AddSingleton(new ExternalMarketDataCompatibilityOptions
