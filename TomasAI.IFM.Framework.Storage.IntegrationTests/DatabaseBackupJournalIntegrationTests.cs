@@ -140,6 +140,48 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Initialize_creates_authoritative_journal_tables_and_all_are_queryable()
+    {
+        string[] expectedTables =
+        [
+            "journal_operation",
+            "journal_inbox",
+            "journal_checkpoint",
+            "journal_artifact_replica",
+            "journal_outbox",
+            "journal_run_stats",
+            "journal_reconciliation"
+        ];
+        string[] expectedIndexes =
+        [
+            "ix_journal_operation_recoverable",
+            "ix_journal_outbox_pending"
+        ];
+        var journal = CreateJournal();
+        await journal.InitializeAsync(CancellationToken.None);
+        var intent = Intent();
+        await journal.AdmitAsync(intent, CancellationToken.None);
+        await journal.MarkCoreAcknowledgedAsync(intent.OperationId, 1, CancellationToken.None);
+
+        await using var connection = new SqliteConnection($"Data Source={JournalPath};Pooling=False");
+        await connection.OpenAsync();
+        var actualTables = await SchemaObjectNamesAsync(connection, "table", "journal_%");
+        var actualIndexes = await SchemaObjectNamesAsync(connection, "index", "ix_journal_%");
+
+        actualTables.Should().BeEquivalentTo(expectedTables);
+        actualIndexes.Should().Contain(expectedIndexes);
+        actualTables.Should().OnlyContain(static name => !name.EndsWith("_v1", StringComparison.Ordinal));
+        actualIndexes.Should().OnlyContain(static name => !name.Contains("_v1_", StringComparison.Ordinal));
+
+        foreach (var table in expectedTables)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT COUNT(*) FROM {table};";
+            (await command.ExecuteScalarAsync()).Should().BeAssignableTo<long>();
+        }
+    }
+
+    [Fact]
     public void Registry_rejects_none_unknown_and_unregistered_sources()
     {
         var processor = new LocalWorkstationDatabaseRecoveryProcessor(
@@ -355,8 +397,23 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         await using var connection = new SqliteConnection($"Data Source={JournalPath};Pooling=False");
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM journal_run_stats_v1;";
+        command.CommandText = "SELECT COUNT(*) FROM journal_run_stats;";
         return (long)(await command.ExecuteScalarAsync() ?? 0L);
+    }
+
+    static async Task<List<string>> SchemaObjectNamesAsync(
+        SqliteConnection connection,
+        string objectType,
+        string namePattern)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT name FROM sqlite_master WHERE type=$type AND name LIKE $pattern ORDER BY name;";
+        command.Parameters.AddWithValue("$type", objectType);
+        command.Parameters.AddWithValue("$pattern", namePattern);
+        var result = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync()) result.Add(reader.GetString(0));
+        return result;
     }
 
     public Task InitializeAsync() => Task.CompletedTask;

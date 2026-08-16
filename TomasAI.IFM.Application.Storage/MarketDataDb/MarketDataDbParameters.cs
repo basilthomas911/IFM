@@ -2,12 +2,12 @@ using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
-internal readonly record struct ClaimMarketDataImportOwnershipV1(
+internal readonly record struct ClaimMarketDataImportOwnership(
     string dataset, string logicalKey, Guid commandId, bool mayWrite, DateTime createdOn) : IBindValue
 {
     public object Bind() => new object?[] { dataset, logicalKey, commandId, mayWrite, createdOn };
 }
-internal readonly record struct GetMarketDataImportOwnershipV1(string dataset, string logicalKey) : IBindValue
+internal readonly record struct GetMarketDataImportOwnership(string dataset, string logicalKey) : IBindValue
 {
     public object Bind() => new object?[] { dataset, logicalKey };
 }
@@ -37,7 +37,7 @@ internal readonly record struct GetEconomicCalendarV2CommandId(string countryCod
 {
     public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName };
 }
-internal readonly record struct InsertEconomicCalendarCountryCodeV1(int lookupId, string countryCode) : IBindValue
+internal readonly record struct InsertEconomicCalendarCountryCode(int lookupId, string countryCode) : IBindValue
 {
     public object Bind() => new object?[] { lookupId, countryCode };
 }
@@ -493,6 +493,14 @@ internal readonly record struct InsertFuturesItiSignalByContractMonthV2(int year
 {
     public object Bind() => new object?[] { contractId, yearMonth, valueDate, timePeriod, sequenceId, intrinsicTime, intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice, intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme, trendReversal, trendDelta, targetDelta, lambda, tradingDays, threshold, upTrendTrigger, downTrendTrigger, tradeState };
 }
+internal readonly record struct UpsertFuturesItiTimeFrameState(string contractId, string timePeriod, DateOnly calendarBucketStart, DateOnly timeFrameStartValueDate, DateOnly valueDate, long sequenceId, DateTime intrinsicTime, int intrinsicTimeGroupId, double intrinsicTimeLength, double intrinsicPrice, string intrinsicTimeTrend, string intrinsicTimeMode, double trendPrice, double trendExtreme, double trendReversal, double trendDelta, double targetDelta, double lambda, int tradingDays, double threshold, double upTrendTrigger, double downTrendTrigger, string tradeState, double bandAnchorPrice, double bandPercentage, double bandSize) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, timePeriod, calendarBucketStart, timeFrameStartValueDate, valueDate, sequenceId, intrinsicTime, intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice, intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme, trendReversal, trendDelta, targetDelta, lambda, tradingDays, threshold, upTrendTrigger, downTrendTrigger, tradeState, bandAnchorPrice, bandPercentage, bandSize };
+}
+internal readonly record struct GetFuturesItiTimeFrameState(string contractId, string timePeriod, DateOnly calendarBucketStart) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, timePeriod, calendarBucketStart };
+}
 internal readonly record struct InsertFuturesItiTrendClassData(string symbol, DateOnly valueDate, DateTime timestamp, long sequenceId, float trendClass, float trendDirection, float trendDirectionMode, float trendDelta, float futuresRSI) : IBindValue
 {
     public object Bind() => new object?[] { symbol, valueDate, timestamp, sequenceId, trendClass, trendDirection, trendDirectionMode, trendDelta, futuresRSI };
@@ -814,7 +822,7 @@ internal readonly record struct InsertYieldCurveRate(int id, DateOnly valueDate,
 {
     public object Bind() => new object?[] { id, valueDate, oneMonth, twoMonth, threeMonth, sixMonth, oneYear, twoYear, threeYear, fiveYear, sevenYear, tenYear, twentyYear, thirtyYear };
 }
-internal readonly record struct InsertYieldCurveRateYearV1(int lookupId, int rateYear) : IBindValue
+internal readonly record struct InsertYieldCurveRateYear(int lookupId, int rateYear) : IBindValue
 {
     public object Bind() => new object?[] { lookupId, rateYear };
 }

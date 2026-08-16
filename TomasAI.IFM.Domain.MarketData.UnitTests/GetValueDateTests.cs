@@ -1,5 +1,6 @@
 using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Query;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using Xunit;
 
 namespace TomasAI.IFM.Domain.MarketData.UnitTests;
@@ -31,4 +32,27 @@ public sealed class GetValueDateTests
         result.Should().NotBeNull();
         result!.Value.Should().Be(DateOnly.Parse(expectedDate));
     }
+
+    [Theory]
+    [InlineData("2026-03-09T21:59:59+00:00", "2026-03-09")]
+    [InlineData("2026-03-09T22:00:00+00:00", "2026-03-10")]
+    [InlineData("2026-11-02T22:59:59+00:00", "2026-11-02")]
+    [InlineData("2026-11-02T23:00:00+00:00", "2026-11-03")]
+    public void FuturesTradingValueDate_UsesEasternTimeAcrossDaylightSavingTime(
+        string instant,
+        string expected)
+    {
+        FuturesTradingValueDate.TryGet(DateTimeOffset.Parse(instant), out var valueDate)
+            .Should().BeTrue();
+        valueDate.Should().Be(DateOnly.Parse(expected));
+    }
+
+    [Theory]
+    [InlineData("2026-08-08T16:00:00-04:00", "2026-08-07")]
+    [InlineData("2026-08-09T17:59:59-04:00", "2026-08-07")]
+    public void OperationalValueDate_UsesMostRecentFridayWhileWeekendIsClosed(
+        string instant,
+        string expected)
+        => FuturesTradingValueDate.GetOperational(DateTimeOffset.Parse(instant))
+            .Should().Be(DateOnly.Parse(expected));
 }

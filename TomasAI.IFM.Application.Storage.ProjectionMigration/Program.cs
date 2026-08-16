@@ -63,10 +63,10 @@ internal static class Program
     static readonly string[] MarketProjectionObjects =
     [
         "economic_calendar_v2",
-        "economic_calendar_country_code_v1",
+        "economic_calendar_country_code",
         "economic_calendar_cutover_v2",
-        "yield_curve_rate_by_date_v1",
-        "yield_curve_rate_year_v1",
+        "yield_curve_rate_by_date",
+        "yield_curve_rate_year",
         "futures_tick_data_by_time",
         "futures_eod_data_by_month",
         "vix_futures_contract_index",

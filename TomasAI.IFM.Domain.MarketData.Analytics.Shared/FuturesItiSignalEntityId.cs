@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 /// <summary>
-/// Represents the identifier for a futures ITI signal, consisting of a contract identifier and a value date.
+/// Represents the identifier for one futures ITI timeframe stream.
 /// </summary>
 /// <remarks>This record is designed for use with MessagePack serialization. It provides a factory method for
 /// creating instances and a method to format the identifier into a stable string key. The ToString method returns a
@@ -14,8 +14,17 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 public record FuturesItiSignalEntityId : IActorEntityId
 {
     [Key(0)] public string ContractId { get; init; }
+    /// <summary>
+    /// First observed trading value date in this timeframe. For legacy payloads this
+    /// remains the original value date, which is also a valid one-day frame start.
+    /// </summary>
     [Key(1)] public DateOnly ValueDate { get; init; }
     [Key(2)] public TimeFrameType TimePeriod { get; init; }
+
+    /// <summary>Explicit semantic name for <see cref="ValueDate"/>.</summary>
+    [IgnoreMember]
+    [JsonIgnore]
+    public DateOnly TimeFrameStartValueDate => ValueDate;
 
     /// <summary>
     public FuturesItiSignalEntityId() { }

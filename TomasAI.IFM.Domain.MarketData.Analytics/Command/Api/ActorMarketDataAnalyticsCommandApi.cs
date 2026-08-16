@@ -223,16 +223,19 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         DateTime timestamp,
         double futuresPrice,
         double vixFuturesPrice,
-        Guid? commandId = null)
+        Guid? commandId = null,
+        DateOnly? timeFrameStartValueDate = null)
     {
-        var entityId = new FuturesItiSignalEntityId(contractId, valueDate, timePeriod);
+        var frameStart = timeFrameStartValueDate ?? valueDate;
+        var entityId = new FuturesItiSignalEntityId(contractId, frameStart, timePeriod);
         GenerateFuturesItiSignalCommand command = new(
             contractId,
             valueDate,
             timePeriod,
             timestamp,
             futuresPrice,
-            vixFuturesPrice)
+            vixFuturesPrice,
+            frameStart)
         {
             CommandId = commandId ?? Guid.NewGuid(),
             Subject = new ActorSubject(

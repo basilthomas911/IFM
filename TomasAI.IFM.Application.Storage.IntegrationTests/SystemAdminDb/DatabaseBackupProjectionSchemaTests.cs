@@ -1,5 +1,6 @@
 using FluentAssertions;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
@@ -19,6 +20,21 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SystemAdminDb;
 
 public sealed class DatabaseBackupProjectionSchemaTests
 {
+    static readonly string[] AuthoritativeTableNames =
+    [
+        "database_recovery_operation",
+        "database_recovery_phase",
+        "database_recovery_run_stats",
+        "database_restore_point",
+        "database_artifact_replica",
+        "database_recovery_error",
+        "database_backup_policy",
+        "database_backup_service_health",
+        "database_retention_state",
+        "database_backup_projection_checkpoint",
+        "database_backup_projection_receipt"
+    ];
+
     [Fact]
     public void Schema_contains_all_gate_four_projection_tables_and_revision_fences()
     {
@@ -41,6 +57,37 @@ public sealed class DatabaseBackupProjectionSchemaTests
         SystemAdminDbSql.UpsertOperation.Should().Contain("EXCLUDED.state_revision >");
         SystemAdminDbSql.UpsertRestorePoint.Should().Contain("EXCLUDED.source_revision >");
         SystemAdminDbSql.UpsertPolicy.Should().Contain("EXCLUDED.source_revision >");
+    }
+
+    [Fact]
+    public void Schema_and_queries_use_authoritative_unversioned_table_names()
+    {
+        string[] tableDefinitions =
+        [
+            SystemAdminSchemaSql.CreateRecoveryOperation,
+            SystemAdminSchemaSql.CreateRecoveryPhase,
+            SystemAdminSchemaSql.CreateRecoveryRunStats,
+            SystemAdminSchemaSql.CreateRestorePoint,
+            SystemAdminSchemaSql.CreateArtifactReplica,
+            SystemAdminSchemaSql.CreateRecoveryError,
+            SystemAdminSchemaSql.CreateBackupPolicy,
+            SystemAdminSchemaSql.CreateServiceHealth,
+            SystemAdminSchemaSql.CreateRetentionState,
+            SystemAdminSchemaSql.CreateProjectionCheckpoint,
+            SystemAdminSchemaSql.CreateProjectionReceipt
+        ];
+        var queryDefinitions = typeof(SystemAdminDbSql)
+            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Where(static field => field.FieldType == typeof(string))
+            .Select(static field => (string)field.GetValue(null)!)
+            .ToArray();
+
+        tableDefinitions.Should().HaveCount(AuthoritativeTableNames.Length);
+        tableDefinitions.Should().OnlyContain(static sql => !sql.Contains("_v1", StringComparison.Ordinal));
+        queryDefinitions.Should().NotBeEmpty()
+            .And.OnlyContain(static sql => !sql.Contains("_v1", StringComparison.Ordinal));
+        foreach (var tableName in AuthoritativeTableNames)
+            tableDefinitions.Should().Contain(sql => sql.Contains($"system_admin.{tableName}", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -128,6 +175,26 @@ public sealed class DatabaseBackupProjectionSchemaTests
         finally
         {
             await db.ClearDatabaseBackupProjectionsAsync("Gate4Integration");
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "PostgresIntegration")]
+    public async Task PostgreSql_authoritative_projection_tables_are_all_queryable()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("IFM_POSTGRES_TEST_CONNECTION")
+            ?? "Host=localhost;Port=5432;Database=event-source-test-db";
+        var settings = new DbConnectionSettings()
+            .Add(SystemAdminDbContext.SystemAdminDbConnection, connectionString, "System.Data.Postgres");
+        var logger = Substitute.For<ILogger<DbProvider>>();
+        await new SystemAdminSchemaDb(settings, logger).CreateAllAsync();
+        var db = new SystemAdminDbContext(settings, logger);
+
+        foreach (var tableName in AuthoritativeTableNames)
+        {
+            var count = await db.Use($"SELECT COUNT(*) FROM system_admin.{tableName};")
+                .ExecuteScalarAsync(static row => row.GetLong(0));
+            count.Should().BeGreaterThanOrEqualTo(0);
         }
     }
 

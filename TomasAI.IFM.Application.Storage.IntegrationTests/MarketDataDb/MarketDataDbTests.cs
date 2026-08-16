@@ -2127,6 +2127,48 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.TradeState.Should().Be(expectedSignal.TradeState);
     }
 
+    [Fact]
+    public async Task FuturesItiTimeFrameState_RoundTripsFrameAndBandFields()
+    {
+        var valueDate = new DateOnly(2026, 9, 10);
+        var calendarBucketStart = new DateOnly(2026, 9, 7);
+        var frameStart = new DateOnly(2026, 9, 8);
+        var signal = SampleData.FuturesItiSignal1 with
+        {
+            ContractId = $"ES-ITI-FRAME-{Guid.NewGuid():N}",
+            ValueDate = valueDate,
+            TimePeriod = TimeFrameType.Weekly,
+            TimeFrameStartValueDate = frameStart,
+            BandAnchorPrice = 5_432.25,
+            BandPercentage = 0.10,
+            BandSize = 2.75
+        };
+
+        try
+        {
+            await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(signal);
+
+            var result = await TestFixture.DevDatabase.GetFuturesItiTimeFrameStateAsync(
+                signal.ContractId,
+                signal.TimePeriod,
+                calendarBucketStart);
+
+            result.Should().NotBeNull();
+            result!.TimeFrameStartValueDate.Should().Be(frameStart);
+            result.ValueDate.Should().Be(valueDate);
+            result.BandAnchorPrice.Should().Be(5_432.25);
+            result.BandPercentage.Should().Be(0.10);
+            result.BandSize.Should().Be(2.75);
+        }
+        finally
+        {
+            await TestFixture.DevDatabase.DbWriter.DeleteFuturesItiSignalAsync(
+                signal.ContractId,
+                signal.ValueDate,
+                signal.TimePeriod);
+        }
+    }
+
     /// <summary>
     /// Unit test for GetLastFuturesItiSignalTrendDirectionChangeAsync method.
     /// </summary>

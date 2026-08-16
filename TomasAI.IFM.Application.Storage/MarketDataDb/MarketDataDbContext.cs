@@ -114,15 +114,15 @@ public partial class MarketDataDbContext(
         bool logicalRowAlreadyExists)
     {
         var db = _dbFactory.MarketDataDb;
-        var applied = await db.Use(MarketDataDbCql.ClaimMarketDataImportOwnershipV1)
-            .SetParameters(new ClaimMarketDataImportOwnershipV1(
+        var applied = await db.Use(MarketDataDbCql.ClaimMarketDataImportOwnership)
+            .SetParameters(new ClaimMarketDataImportOwnership(
                 dataset, logicalKey, commandId, !logicalRowAlreadyExists, DateTime.UtcNow))
             .ExecuteScalarAsync(MapToBoolean!);
         if (applied && !logicalRowAlreadyExists)
             return;
 
-        var owner = await db.Use(MarketDataDbCql.GetMarketDataImportOwnershipV1)
-            .SetParameters(new GetMarketDataImportOwnershipV1(dataset, logicalKey))
+        var owner = await db.Use(MarketDataDbCql.GetMarketDataImportOwnership)
+            .SetParameters(new GetMarketDataImportOwnership(dataset, logicalKey))
             .ExecuteSingleAsync(MapToMarketDataImportOwnership!);
         if (owner is { CommandId: var ownerCommandId, MayWrite: true }
             && ownerCommandId == commandId)
@@ -1106,6 +1106,34 @@ public partial class MarketDataDbContext(
             futuresRsi: e.GetFloat(8)
         );
 
+    static FuturesItiSignalV2ReadModel MapToFuturesItiTimeFrameState<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
+        => new(
+            contractId: e.GetString(0),
+            valueDate: e.GetDateOnly(1),
+            timePeriod: e.GetEnum<TimeFrameType>(2),
+            sequenceId: e.GetLong(3),
+            intrinsicTime: e.GetDateTime(4),
+            intrinsicTimeGroupId: e.GetInt(5),
+            intrinsicTimeLength: e.GetDouble(6),
+            intrinsicPrice: e.GetDouble(7),
+            intrinsicTimeTrend: e.GetEnum<IntrinsicTimeTrendType>(8),
+            intrinsicTimeMode: e.GetEnum<IntrinsicTimeModeType>(9),
+            trendPrice: e.GetDouble(10),
+            trendExtreme: e.GetDouble(11),
+            trendReversal: e.GetDouble(12),
+            trendDelta: e.GetDouble(13),
+            targetDelta: e.GetDouble(14),
+            lambda: e.GetDouble(15),
+            tradingDays: e.GetInt(16),
+            threshold: e.GetDouble(17),
+            upTrendTrigger: e.GetDouble(18),
+            downTrendTrigger: e.GetDouble(19),
+            tradeState: e.GetEnum<IntrinsicTimeTradeState>(20),
+            timeFrameStartValueDate: e.GetDateOnly(21),
+            bandAnchorPrice: e.GetDouble(22),
+            bandPercentage: e.GetDouble(23),
+            bandSize: e.GetDouble(24));
+
     static FuturesItiTrendDeltaModelReadModel MapToFuturesItiTrendDeltaModel<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
             symbol: e.GetString(0),
@@ -1711,7 +1739,7 @@ public partial class MarketDataDbContext(
             db.Use(MarketDataDbCql.DeleteYieldCurveRate)
                 .SetParameters(new DeleteYieldCurveRate(valueDate))
                 .QueueCommand(),
-            db.Use(MarketDataDbCql.DeleteYieldCurveRateByDateV1)
+            db.Use(MarketDataDbCql.DeleteYieldCurveRateByDate)
                 .SetParameters(new DeleteYieldCurveRate(valueDate))
                 .QueueCommand()
         ]);
@@ -1751,6 +1779,12 @@ public partial class MarketDataDbContext(
                     db.Use(MarketDataDbCql.DeleteFuturesItiSignal)
                         .SetParameters(new DeleteFuturesItiSignal(
                             contractId, valueDate, timePeriod.ToStringFast()))
+                        .QueueCommand(),
+                    db.Use(MarketDataDbCql.DeleteFuturesItiTimeFrameState)
+                        .SetParameters(new GetFuturesItiTimeFrameState(
+                            contractId,
+                            timePeriod.ToStringFast(),
+                            GetFuturesItiCalendarBucketStart(valueDate, timePeriod)))
                         .QueueCommand()
                 ];
                 foreach (var row in existing)
@@ -2059,6 +2093,16 @@ public partial class MarketDataDbContext(
     }
 
     /// <summary>
+    /// Gets futures ITI signals for one concrete futures contract and date range.
+    /// This avoids the securities-symbol lookup used by the cross-contract query.
+    /// </summary>
+    public Task<ICollection<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalsForContractAsync(
+        string contractId,
+        DateOnly startDate,
+        DateOnly endDate) =>
+        ReadFuturesItiSignalsByDateRangeAsync([contractId], startDate, endDate);
+
+    /// <summary>
     /// Gets a collection of futures ITI signals for a given symbol and date range.
     /// </summary>
     /// <param name="symbol"></param>
@@ -2318,6 +2362,9 @@ public partial class MarketDataDbContext(
                     db.Use(MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonthV2)
                         .SetParameters(monthParameters)
                         .QueueCommand(),
+                    db.Use(MarketDataDbCql.UpsertFuturesItiTimeFrameState)
+                        .SetParameters(CreateFuturesItiTimeFrameStateParameters(e, sequenceId))
+                        .QueueCommand(),
                     db.Use(MarketDataDbCql.InsertMarketDataProjectionMonth)
                         .SetParameters(new InsertMarketDataProjectionMonth(
                             FuturesItiSignalQueryProjection,
@@ -2327,6 +2374,20 @@ public partial class MarketDataDbContext(
                 await db.ExecuteQueuedCommandsAsync(commands);
             });
     }
+
+    public async Task<FuturesItiSignalV2ReadModel?> GetFuturesItiTimeFrameStateAsync(
+        string contractId,
+        TimeFrameType timePeriod,
+        DateOnly calendarBucketStart,
+        CancellationToken cancellationToken = default)
+        => await _dbFactory.MarketDataDb
+            .Use(MarketDataDbCql.GetFuturesItiTimeFrameState)
+            .SetParameters(new GetFuturesItiTimeFrameState(
+                contractId,
+                timePeriod.ToStringFast(),
+                calendarBucketStart))
+            .ExecuteSingleAsync(MapToFuturesItiTimeFrameState!, cancellationToken)
+            .ConfigureAwait(false);
 
     /// <summary>
     /// Inserts a Futures RSI Signal asynchronously into the database.
@@ -2416,14 +2477,14 @@ public partial class MarketDataDbContext(
             commands.Add(db.Use(MarketDataDbCql.InsertYieldCurveRate)
                 .SetParameters(parameters)
                 .QueueCommand());
-            commands.Add(db.Use(MarketDataDbCql.InsertYieldCurveRateByDateV1)
+            commands.Add(db.Use(MarketDataDbCql.InsertYieldCurveRateByDate)
                 .SetParameters(parameters)
                 .QueueCommand());
             years.Add(row.ValueDate.Year);
         }
         commands.AddRange(years.Select(rateYear => db
-            .Use(MarketDataDbCql.InsertYieldCurveRateYearV1)
-            .SetParameters(new InsertYieldCurveRateYearV1(YieldCurveLookupId, rateYear))
+            .Use(MarketDataDbCql.InsertYieldCurveRateYear)
+            .SetParameters(new InsertYieldCurveRateYear(YieldCurveLookupId, rateYear))
             .QueueCommand()));
         await db.ExecuteQueuedCommandsAsync(commands);
     }

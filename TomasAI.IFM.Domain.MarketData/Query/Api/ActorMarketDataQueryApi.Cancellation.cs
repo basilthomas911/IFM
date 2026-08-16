@@ -172,7 +172,9 @@ public sealed partial class ActorMarketDataQueryApi
             () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                return Task.FromResult(new ScalarReadModel<DateOnly>(CalculateValueDate(DateTime.Now)));
+                if (!FuturesTradingValueDate.TryGet(DateTime.Now, out var valueDate))
+                    throw new InvalidOperationException("The futures market weekend session is closed.");
+                return Task.FromResult(new ScalarReadModel<DateOnly>(valueDate));
             });
 
     public Task<ServiceResult<IronCondorMarketDataReadModel>> GetIronCondorMarketDataAsync(

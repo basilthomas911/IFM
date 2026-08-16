@@ -6,60 +6,276 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Model;
 
 /// <summary>
-/// Represents a computed model for evaluating ITI signal state transitions.
+/// Pure transition evaluator shared by the realtime pre-filter and durable ITI
+/// command actor. Direction changes remain trigger-driven; all other recurring
+/// publications require movement of ten percent of the calculated ITI threshold.
 /// </summary>
-/// <remarks>
-/// This compute model encapsulates the domain logic for determining which signal condition applies
-/// based on the incoming command and the current actor state, then provides the necessary data
-/// for event generation.
-/// </remarks>
-public class FuturesItiSignalCompute
+public sealed class FuturesItiSignalCompute
 {
-    readonly GenerateFuturesItiSignalCommand _command;
-    readonly FuturesItiSignalCommandState _state;
+    internal const double DefaultBandPercentage = 0.10;
+    const double FuturesPriceTick = 0.25;
 
-    /// <summary>
-    /// Calculates the lambda value based on the VIX futures price.
-    /// </summary>
-    /// <param name="vixFuturesPrice">The VIX futures price used to calculate the lambda value.</param>
-    /// <param name="baselineVix">The baseline VIX value for normalization. Default is 15.7.</param>
-    /// <param name="baseLambdaFactor">The base lambda factor. Default is 0.003.</param>
-    /// <returns>The calculated lambda value.</returns>
-    static double CalculateLambda(double vixFuturesPrice, double baselineVix = 15.7, double baseLambdaFactor = 0.003)
+    readonly GenerateFuturesItiSignalCommand _command;
+    readonly FuturesItiSignalV2ReadModel? _current;
+
+    FuturesItiSignalCompute(
+        GenerateFuturesItiSignalCommand command,
+        FuturesItiSignalV2ReadModel? current)
     {
-        var normalizedVol = vixFuturesPrice / baselineVix;
-        var volatilityFactor = normalizedVol > 1.0
-            ? Math.Sqrt(normalizedVol)
-            : normalizedVol;
-        var minLambda = (2.0 / Math.PI) * baseLambdaFactor;
-        return Math.Max(minLambda, baseLambdaFactor * volatilityFactor);
+        _command = command ?? throw new ArgumentNullException(nameof(command));
+        _current = current;
+    }
+
+    public static bool Create(
+        GenerateFuturesItiSignalCommand command,
+        FuturesItiSignalCommandState state,
+        out FuturesItiSignalCompute model)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        model = new FuturesItiSignalCompute(command, state.CurrentSignal);
+        return true;
     }
 
     /// <summary>
-    /// Calculates the minimum threshold value for a trading signal based on intrinsic price, trend conditions, and
-    /// trading parameters.
+    /// Evaluates a tick against an optional last durable signal. This overload is
+    /// used by the realtime actor so ticks inside the active band remain hot-only.
     /// </summary>
-    /// <remarks>If the intrinsic time trend is a downtrend, the method always returns the minimum target delta.
-    /// Otherwise, the threshold may be increased based on the relationship between the trend extreme, intrinsic price,
-    /// and calculated deltas.</remarks>
-    /// <param name="signal">A view model containing the intrinsic price, trend information, and related market data used in the threshold
-    /// calculation. Cannot be null.</param>
-    /// <param name="trendDelta">The current trend delta value, which may be used as the threshold if certain trend conditions are met.</param>
-    /// <param name="tradingDays">The number of trading days considered in the calculation, used to adjust the threshold for market volatility.
-    /// Must be non-negative.</param>
-    /// <param name="lambda">A scaling coefficient applied to the intrinsic price to determine the minimum target delta.</param>
-    /// <param name="futuresPriceTick">The price tick size for futures contracts. Defaults to 0.25 if not specified.</param>
-    /// <returns>The calculated threshold value, which is either the minimum target delta or the greater of the trend delta and
-    /// the minimum target delta, depending on the trend conditions.</returns>
-    static double CalculateThreshold(FuturesItiSignalV2ReadModel signal, double trendDelta, int tradingDays, double lambda, double futuresPriceTick = 0.25)
+    internal static bool TryCompute(
+        GenerateFuturesItiSignalCommand command,
+        FuturesItiSignalV2ReadModel? current,
+        out FuturesItiSignalV2ReadModel signal)
+        => new FuturesItiSignalCompute(command, current).TryCompute(out signal);
+
+    internal bool TryCompute(out FuturesItiSignalV2ReadModel signal)
     {
-        var minTargetDelta = (signal.IntrinsicPrice * lambda) + (Math.Sqrt(tradingDays) * (futuresPriceTick * tradingDays));
+        if (!IsCurrentFrame())
+        {
+            signal = Enrich(CreateStartOfTimeFrameSignal());
+            return true;
+        }
+
+        var current = _current!;
+        var price = _command.FuturesPrice;
+        var bandSize = CurrentBandSize(current);
+
+        if (current.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend)
+        {
+            if (price <= current.DownTrendTrigger)
+                signal = Enrich(CreateDirectionChangedSignal(IntrinsicTimeTrendType.DownTrend));
+            else if (price >= current.TrendExtreme + bandSize)
+                signal = Enrich(CreateExtremeChangedSignal());
+            else if (price <= current.TrendReversal - bandSize)
+                signal = Enrich(CreateReversalChangedSignal());
+            else if (HasMovedOneBand(current, price, bandSize))
+                signal = Enrich(CreateTrendingSignal());
+            else
+            {
+                signal = default!;
+                return false;
+            }
+        }
+        else
+        {
+            if (price >= current.UpTrendTrigger)
+                signal = Enrich(CreateDirectionChangedSignal(IntrinsicTimeTrendType.UpTrend));
+            else if (price <= current.TrendExtreme - bandSize)
+                signal = Enrich(CreateExtremeChangedSignal());
+            else if (price >= current.TrendReversal + bandSize)
+                signal = Enrich(CreateReversalChangedSignal());
+            else if (HasMovedOneBand(current, price, bandSize))
+                signal = Enrich(CreateTrendingSignal());
+            else
+            {
+                signal = default!;
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool IsCurrentFrame()
+        => _current is not null
+            && StringComparer.Ordinal.Equals(_current.ContractId, _command.ContractId)
+            && _current.TimePeriod == _command.TimePeriod
+            && EffectiveFrameStart(_current) == _command.TimeFrameStartValueDate;
+
+    static DateOnly EffectiveFrameStart(FuturesItiSignalV2ReadModel signal)
+        => signal.TimeFrameStartValueDate == default
+            ? signal.ValueDate
+            : signal.TimeFrameStartValueDate;
+
+    static double CurrentBandSize(FuturesItiSignalV2ReadModel signal)
+    {
+        if (signal.BandSize > 0)
+            return signal.BandSize;
+        if (signal.Threshold > 0)
+            return signal.Threshold * DefaultBandPercentage;
+        return FuturesPriceTick * DefaultBandPercentage;
+    }
+
+    static bool HasMovedOneBand(
+        FuturesItiSignalV2ReadModel current,
+        double price,
+        double bandSize)
+    {
+        var anchor = current.BandAnchorPrice == 0
+            ? current.IntrinsicPrice
+            : current.BandAnchorPrice;
+        return Math.Abs(price - anchor) >= bandSize;
+    }
+
+    FuturesItiSignalV2ReadModel CreateStartOfTimeFrameSignal()
+        => CreateBaseSignal(
+            groupId: 0,
+            trend: IntrinsicTimeTrendType.UpTrend,
+            mode: IntrinsicTimeModeType.TrendDirectionChanged,
+            trendPrice: _command.FuturesPrice,
+            trendExtreme: _command.FuturesPrice,
+            trendReversal: _command.FuturesPrice,
+            tradeState: IntrinsicTimeTradeState.Ready);
+
+    FuturesItiSignalV2ReadModel CreateDirectionChangedSignal(
+        IntrinsicTimeTrendType nextTrend)
+        => CreateBaseSignal(
+            groupId: _current!.IntrinsicTimeGroupId + 1,
+            trend: nextTrend,
+            mode: IntrinsicTimeModeType.TrendDirectionChanged,
+            trendPrice: _command.FuturesPrice,
+            trendExtreme: _command.FuturesPrice,
+            trendReversal: _command.FuturesPrice,
+            tradeState: _current.TradeState);
+
+    FuturesItiSignalV2ReadModel CreateExtremeChangedSignal()
+        => CreateBaseSignal(
+            groupId: _current!.IntrinsicTimeGroupId,
+            trend: _current.IntrinsicTimeTrend,
+            mode: IntrinsicTimeModeType.TrendExtremeChanged,
+            trendPrice: _current.TrendPrice,
+            trendExtreme: _command.FuturesPrice,
+            trendReversal: _command.FuturesPrice,
+            tradeState: _current.TradeState);
+
+    FuturesItiSignalV2ReadModel CreateReversalChangedSignal()
+        => CreateBaseSignal(
+            groupId: _current!.IntrinsicTimeGroupId,
+            trend: _current.IntrinsicTimeTrend,
+            mode: IntrinsicTimeModeType.TrendReversalChanged,
+            trendPrice: _current.TrendPrice,
+            trendExtreme: _current.TrendExtreme,
+            trendReversal: _command.FuturesPrice,
+            tradeState: _current.TradeState);
+
+    FuturesItiSignalV2ReadModel CreateTrendingSignal()
+        => CreateBaseSignal(
+            groupId: _current!.IntrinsicTimeGroupId,
+            trend: _current.IntrinsicTimeTrend,
+            mode: IntrinsicTimeModeType.Trending,
+            trendPrice: _current.TrendPrice,
+            trendExtreme: _current.TrendExtreme,
+            trendReversal: _current.TrendReversal,
+            tradeState: _current.TradeState == IntrinsicTimeTradeState.Closed
+                ? IntrinsicTimeTradeState.Ready
+                : _current.TradeState);
+
+    FuturesItiSignalV2ReadModel CreateBaseSignal(
+        int groupId,
+        IntrinsicTimeTrendType trend,
+        IntrinsicTimeModeType mode,
+        double trendPrice,
+        double trendExtreme,
+        double trendReversal,
+        IntrinsicTimeTradeState tradeState)
+        => new(
+            contractId: _command.ContractId,
+            valueDate: _command.ValueDate,
+            timePeriod: _command.TimePeriod,
+            sequenceId: 0,
+            intrinsicTime: _command.Timestamp,
+            intrinsicTimeGroupId: groupId,
+            intrinsicTimeLength: _current is null
+                ? 0
+                : Math.Max(0, (_command.Timestamp - _current.IntrinsicTime).TotalSeconds),
+            intrinsicPrice: _command.FuturesPrice,
+            intrinsicTimeTrend: trend,
+            intrinsicTimeMode: mode,
+            trendPrice: trendPrice,
+            trendExtreme: trendExtreme,
+            trendReversal: trendReversal,
+            trendDelta: trendExtreme - _command.FuturesPrice,
+            targetDelta: 0,
+            lambda: 0,
+            tradingDays: DefaultTradingDays(_command.TimePeriod),
+            threshold: 0,
+            upTrendTrigger: _current?.UpTrendTrigger ?? _command.FuturesPrice,
+            downTrendTrigger: _current?.DownTrendTrigger ?? _command.FuturesPrice,
+            tradeState: tradeState,
+            timeFrameStartValueDate: _command.TimeFrameStartValueDate,
+            bandAnchorPrice: _command.FuturesPrice,
+            bandPercentage: DefaultBandPercentage,
+            bandSize: 0);
+
+    FuturesItiSignalV2ReadModel Enrich(FuturesItiSignalV2ReadModel signal)
+    {
+        var lambda = CalculateLambda(_command.VixFuturesPrice);
+        var threshold = CalculateThreshold(signal, lambda);
+        var upTrendTrigger = signal.UpTrendTrigger;
+        var downTrendTrigger = signal.DownTrendTrigger;
+
+        if (signal.IntrinsicTimeMode is IntrinsicTimeModeType.TrendDirectionChanged
+            or IntrinsicTimeModeType.TrendExtremeChanged)
+        {
+            if (signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend)
+            {
+                upTrendTrigger = _command.FuturesPrice;
+                downTrendTrigger = _command.FuturesPrice - threshold;
+            }
+            else
+            {
+                upTrendTrigger = _command.FuturesPrice + threshold;
+                downTrendTrigger = _command.FuturesPrice;
+            }
+        }
+
+        return signal with
+        {
+            Lambda = lambda,
+            Threshold = threshold,
+            BandAnchorPrice = _command.FuturesPrice,
+            BandPercentage = DefaultBandPercentage,
+            BandSize = threshold * DefaultBandPercentage,
+            UpTrendTrigger = upTrendTrigger,
+            DownTrendTrigger = downTrendTrigger
+        };
+    }
+
+    static double CalculateLambda(
+        double vixFuturesPrice,
+        double baselineVix = 15.7,
+        double baseLambdaFactor = 0.003)
+    {
+        var normalizedVolatility = vixFuturesPrice / baselineVix;
+        var volatilityFactor = normalizedVolatility > 1
+            ? Math.Sqrt(normalizedVolatility)
+            : normalizedVolatility;
+        var minimumLambda = (2.0 / Math.PI) * baseLambdaFactor;
+        return Math.Max(minimumLambda, baseLambdaFactor * volatilityFactor);
+    }
+
+    static double CalculateThreshold(
+        FuturesItiSignalV2ReadModel signal,
+        double lambda)
+    {
+        var minimumTargetDelta = signal.IntrinsicPrice * lambda
+            + Math.Sqrt(signal.TradingDays) * (FuturesPriceTick * signal.TradingDays);
         if (signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend)
-            return minTargetDelta;
-        var minExtremeDelta = minTargetDelta * 1 / Math.PI;
-        return (signal.TrendExtreme - signal.IntrinsicPrice) > minExtremeDelta && signal.IntrinsicPrice > (signal.TrendPrice + minTargetDelta)
-            ? Math.Max(trendDelta, minTargetDelta)
-            : minTargetDelta;
+            return minimumTargetDelta;
+
+        var minimumExtremeDelta = minimumTargetDelta / Math.PI;
+        return signal.TrendExtreme - signal.IntrinsicPrice > minimumExtremeDelta
+            && signal.IntrinsicPrice > signal.TrendPrice + minimumTargetDelta
+                ? Math.Max(signal.TrendDelta, minimumTargetDelta)
+                : minimumTargetDelta;
     }
 
     static int DefaultTradingDays(TimeFrameType timePeriod)
@@ -68,307 +284,8 @@ public class FuturesItiSignalCompute
             TimeFrameType.Daily => 1,
             TimeFrameType.Weekly => 5,
             TimeFrameType.Monthly => 20,
-            _ => throw new ArgumentOutOfRangeException(nameof(timePeriod), $"Unsupported time period: {timePeriod}")
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(timePeriod),
+                $"Unsupported ITI time period: {timePeriod}")
         };
-
-    public static bool Create(GenerateFuturesItiSignalCommand command, FuturesItiSignalCommandState state, out FuturesItiSignalCompute model)
-    {
-        model = new(command, state);
-        return true;
-    }
-
-    FuturesItiSignalCompute(GenerateFuturesItiSignalCommand command, FuturesItiSignalCommandState state)
-    {
-        _command = command ?? throw new ArgumentNullException(nameof(command));
-        _state = state ?? throw new ArgumentNullException(nameof(state));
-    }
-
-    // ─── Signal condition checks ────────────────────────────────────────
-
-    internal bool IsStartOfDay
-        => !_state.Exists(_command.EntityId);
-
-    internal bool HasUpTrendDirectionChanged
-        => _state.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend
-            && _command.FuturesPrice < _state.DownTrendTrigger;
-
-    internal bool HasUpTrendExtremeChanged
-        => _state.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend
-            && _command.FuturesPrice > _state.TrendExtreme;
-
-    internal bool HasUpTrendReversalChanged
-        => _state.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend
-            && _command.FuturesPrice < _state.TrendReversal;
-
-    internal bool HasDownTrendDirectionChanged
-        => _state.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend
-            && _command.FuturesPrice > _state.UpTrendTrigger;
-
-    internal bool HasDownTrendExtremeChanged
-        => _state.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend
-            && _command.FuturesPrice < _state.TrendExtreme;
-
-    internal bool HasDownTrendReversalChanged
-        => _state.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend
-            && _command.FuturesPrice > _state.TrendReversal;
-
-    // ─── Signal computation methods ─────────────────────────────────────
-
-    internal FuturesItiSignalV2ReadModel ComputeStartOfDaySignal()
-    {
-        var signal = new FuturesItiSignalV2ReadModel(
-            contractId: _command.ContractId,
-            valueDate: _command.ValueDate,
-            timePeriod: _command.TimePeriod,
-            sequenceId: 0,
-            intrinsicTime: _command.Timestamp,
-            intrinsicTimeGroupId: 0,
-            intrinsicTimeLength: 0,
-            intrinsicPrice: _command.FuturesPrice,
-            intrinsicTimeTrend: IntrinsicTimeTrendType.UpTrend,
-            intrinsicTimeMode: IntrinsicTimeModeType.TrendDirectionChanged,
-            trendPrice: _command.FuturesPrice,
-            trendExtreme: _command.FuturesPrice,
-            trendReversal: _command.FuturesPrice,
-            trendDelta: 0,
-            targetDelta: 0,
-            lambda: 0,
-            tradingDays: 0,
-            threshold: 0,
-            upTrendTrigger: _command.FuturesPrice,
-            downTrendTrigger: 0,
-            tradeState: IntrinsicTimeTradeState.Ready);
-
-        return EnrichSignal(signal);
-    }
-
-    internal FuturesItiSignalV2ReadModel ComputeUpTrendDirectionChangedSignal()
-    {
-        var intrinsicTimeGroupId = _state.IntrinsicTimeGroupId + 1;
-        var signal = new FuturesItiSignalV2ReadModel(
-            contractId: _command.ContractId,
-            valueDate: _command.ValueDate,
-            timePeriod: _command.TimePeriod,
-            sequenceId: 0,
-            intrinsicTime: _command.Timestamp,
-            intrinsicTimeGroupId: intrinsicTimeGroupId,
-            intrinsicTimeLength: 0,
-            intrinsicPrice: _command.FuturesPrice,
-            intrinsicTimeTrend: IntrinsicTimeTrendType.DownTrend,
-            intrinsicTimeMode: IntrinsicTimeModeType.TrendDirectionChanged,
-            trendPrice: _command.FuturesPrice,
-            trendExtreme: _command.FuturesPrice,
-            trendReversal: _state.TrendReversal,
-            trendDelta: 0,
-            targetDelta: 0,
-            lambda: 0,
-            tradingDays: 0,
-            threshold: 0,
-            upTrendTrigger: _state.TrendExtreme,
-            downTrendTrigger: _command.FuturesPrice,
-            tradeState: _state.TradeState);
-
-        return EnrichSignal(signal);
-    }
-
-    internal FuturesItiSignalV2ReadModel ComputeUpTrendExtremeChangedSignal()
-    {
-        var signal = new FuturesItiSignalV2ReadModel(
-            contractId: _command.ContractId,
-            valueDate: _command.ValueDate,
-            timePeriod: _command.TimePeriod,
-            sequenceId: 0,
-            intrinsicTime: _command.Timestamp,
-            intrinsicTimeGroupId: _state.IntrinsicTimeGroupId,
-            intrinsicTimeLength: 0,
-            intrinsicPrice: _command.FuturesPrice,
-            intrinsicTimeTrend: IntrinsicTimeTrendType.UpTrend,
-            intrinsicTimeMode: IntrinsicTimeModeType.TrendExtremeChanged,
-            trendPrice: _state.TrendPrice,
-            trendExtreme: _command.FuturesPrice,
-            trendReversal: _command.FuturesPrice,
-            trendDelta: 0,
-            targetDelta: 0,
-            lambda: 0,
-            tradingDays: 0,
-            threshold: 0,
-            upTrendTrigger: _command.FuturesPrice,
-            downTrendTrigger: _state.DownTrendTrigger,
-            tradeState: _state.TradeState);
-
-        return EnrichSignal(signal);
-    }
-
-    internal FuturesItiSignalV2ReadModel ComputeUpTrendReversalChangedSignal()
-    {
-        var signal = new FuturesItiSignalV2ReadModel(
-            contractId: _command.ContractId,
-            valueDate: _command.ValueDate,
-            timePeriod: _command.TimePeriod,
-            sequenceId: 0,
-            intrinsicTime: _command.Timestamp,
-            intrinsicTimeGroupId: _state.IntrinsicTimeGroupId,
-            intrinsicTimeLength: 0,
-            intrinsicPrice: _command.FuturesPrice,
-            intrinsicTimeTrend: IntrinsicTimeTrendType.UpTrend,
-            intrinsicTimeMode: IntrinsicTimeModeType.TrendReversalChanged,
-            trendPrice: _state.TrendPrice,
-            trendExtreme: _state.TrendExtreme,
-            trendReversal: _command.FuturesPrice,
-            trendDelta: 0,
-            targetDelta: 0,
-            lambda: 0,
-            tradingDays: 0,
-            threshold: 0,
-            upTrendTrigger: _state.UpTrendTrigger,
-            downTrendTrigger: _state.DownTrendTrigger,
-            tradeState: _state.TradeState);
-
-        return EnrichSignal(signal);
-    }
-
-    internal FuturesItiSignalV2ReadModel ComputeDownTrendDirectionChangedSignal()
-    {
-        var intrinsicTimeGroupId = _state.IntrinsicTimeGroupId + 1;
-        var signal = new FuturesItiSignalV2ReadModel(
-            contractId: _command.ContractId,
-            valueDate: _command.ValueDate,
-            timePeriod: _command.TimePeriod,
-            sequenceId: 0,
-            intrinsicTime: _command.Timestamp,
-            intrinsicTimeGroupId: intrinsicTimeGroupId,
-            intrinsicTimeLength: 0,
-            intrinsicPrice: _command.FuturesPrice,
-            intrinsicTimeTrend: IntrinsicTimeTrendType.UpTrend,
-            intrinsicTimeMode: IntrinsicTimeModeType.TrendDirectionChanged,
-            trendPrice: _command.FuturesPrice,
-            trendExtreme: _command.FuturesPrice,
-            trendReversal: _state.TrendReversal,
-            trendDelta: 0,
-            targetDelta: 0,
-            lambda: 0,
-            tradingDays: 0,
-            threshold: 0,
-            upTrendTrigger: _command.FuturesPrice,
-            downTrendTrigger: _state.TrendExtreme,
-            tradeState: IntrinsicTimeTradeState.Ready);
-
-        return EnrichSignal(signal);
-    }
-
-    internal FuturesItiSignalV2ReadModel ComputeDownTrendExtremeChangedSignal()
-    {
-        var signal = new FuturesItiSignalV2ReadModel(
-            contractId: _command.ContractId,
-            valueDate: _command.ValueDate,
-            timePeriod: _command.TimePeriod,
-            sequenceId: 0,
-            intrinsicTime: _command.Timestamp,
-            intrinsicTimeGroupId: _state.IntrinsicTimeGroupId,
-            intrinsicTimeLength: 0,
-            intrinsicPrice: _command.FuturesPrice,
-            intrinsicTimeTrend: IntrinsicTimeTrendType.DownTrend,
-            intrinsicTimeMode: IntrinsicTimeModeType.TrendExtremeChanged,
-            trendPrice: _state.TrendPrice,
-            trendExtreme: _command.FuturesPrice,
-            trendReversal: _command.FuturesPrice,
-            trendDelta: 0,
-            targetDelta: 0,
-            lambda: 0,
-            tradingDays: 0,
-            threshold: 0,
-            upTrendTrigger: _state.UpTrendTrigger,
-            downTrendTrigger: _command.FuturesPrice,
-            tradeState: _state.TradeState);
-
-        return EnrichSignal(signal);
-    }
-
-    internal FuturesItiSignalV2ReadModel ComputeDownTrendReversalChangedSignal()
-    {
-        var signal = new FuturesItiSignalV2ReadModel(
-            contractId: _command.ContractId,
-            valueDate: _command.ValueDate,
-            timePeriod: _command.TimePeriod,
-            sequenceId: 0,
-            intrinsicTime: _command.Timestamp,
-            intrinsicTimeGroupId: _state.IntrinsicTimeGroupId,
-            intrinsicTimeLength: 0,
-            intrinsicPrice: _command.FuturesPrice,
-            intrinsicTimeTrend: IntrinsicTimeTrendType.DownTrend,
-            intrinsicTimeMode: IntrinsicTimeModeType.TrendReversalChanged,
-            trendPrice: _state.TrendPrice,
-            trendExtreme: _state.TrendExtreme,
-            trendReversal: _command.FuturesPrice,
-            trendDelta: 0,
-            targetDelta: 0,
-            lambda: 0,
-            tradingDays: 0,
-            threshold: 0,
-            upTrendTrigger: _state.UpTrendTrigger,
-            downTrendTrigger: _state.DownTrendTrigger,
-            tradeState: _state.TradeState);
-
-        return EnrichSignal(signal);
-    }
-
-    internal FuturesItiSignalV2ReadModel ComputeTrendingSignal()
-    {
-        var signal = new FuturesItiSignalV2ReadModel(
-            contractId: _command.ContractId,
-            valueDate: _command.ValueDate,
-            timePeriod: _command.TimePeriod,
-            sequenceId: 0,
-            intrinsicTime: _command.Timestamp,
-            intrinsicTimeGroupId: _state.IntrinsicTimeGroupId,
-            intrinsicTimeLength: 0,
-            intrinsicPrice: _command.FuturesPrice,
-            intrinsicTimeTrend: _state.IntrinsicTimeTrend,
-            intrinsicTimeMode: IntrinsicTimeModeType.Trending,
-            trendPrice: _command.FuturesPrice,
-            trendExtreme: _state.TrendExtreme,
-            trendReversal: _state.TrendReversal,
-            trendDelta: 0,
-            targetDelta: 0,
-            lambda: 0,
-            tradingDays: 0,
-            threshold: 0,
-            upTrendTrigger: _state.UpTrendTrigger,
-            downTrendTrigger: _state.DownTrendTrigger,
-            tradeState: _state.TradeState == IntrinsicTimeTradeState.Closed ? IntrinsicTimeTradeState.Ready : _state.TradeState);
-
-        return EnrichSignal(signal);
-    }
-
-    FuturesItiSignalV2ReadModel EnrichSignal(FuturesItiSignalV2ReadModel signal)
-    {
-        var trendDelta = _state.GetTrendDelta(signal);
-        var tradingDays = signal.TradingDays == 0
-            ? DefaultTradingDays(_command.TimePeriod)
-            : _state.TradingDays;
-        var lambda = CalculateLambda(_command.VixFuturesPrice);
-        var threshold = CalculateThreshold(signal, trendDelta, tradingDays, lambda);
-
-        var upTrendTrigger = signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend && signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged
-            ? _command.FuturesPrice
-            : signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend && signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged
-            ? _command.FuturesPrice + threshold
-            : signal.UpTrendTrigger;
-
-        var downTrendTrigger = signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend && signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged
-            ? _command.FuturesPrice - threshold
-            : signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend && signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged
-            ? _command.FuturesPrice
-            : signal.DownTrendTrigger;
-
-        return signal with
-        {
-            TrendDelta = trendDelta,
-            TradingDays = tradingDays,
-            Lambda = lambda,
-            Threshold = threshold,
-            UpTrendTrigger = upTrendTrigger,
-            DownTrendTrigger = downTrendTrigger
-        };
-    }
 }

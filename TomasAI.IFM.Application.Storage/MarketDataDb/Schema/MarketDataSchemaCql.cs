@@ -2,8 +2,8 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 
 internal static class MarketDataSchemaCql
 {
-    public const string CreateMarketDataImportOwnershipV1Table = """
-    CREATE TABLE IF NOT EXISTS market_data_import_ownership_v1 (
+    public const string CreateMarketDataImportOwnershipTable = """
+    CREATE TABLE IF NOT EXISTS market_data_import_ownership (
     dataset text,
     logicalKey text,
     commandId uuid,
@@ -34,8 +34,8 @@ internal static class MarketDataSchemaCql
     WITH CLUSTERING ORDER BY (eventDate DESC, eventName ASC);
     """;
 
-    public const string CreateEconomicCalendarCountryCodeV1Table = """
-    CREATE TABLE IF NOT EXISTS economic_calendar_country_code_v1 (
+    public const string CreateEconomicCalendarCountryCodeTable = """
+    CREATE TABLE IF NOT EXISTS economic_calendar_country_code (
     lookupId int,
     countryCode text,
     PRIMARY KEY ((lookupId), countryCode)
@@ -400,6 +400,38 @@ internal static class MarketDataSchemaCql
     PRIMARY KEY ((contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth), valueDate, sequenceId, timePeriod, intrinsicTimeGroupId)
     ) WITH CLUSTERING ORDER BY (valueDate DESC, sequenceId DESC, timePeriod ASC, intrinsicTimeGroupId ASC);
     """;
+
+    public const string CreateFuturesItiTimeFrameStateTable = """
+      CREATE TABLE IF NOT EXISTS futures_iti_timeframe_state (
+      contractId text,
+      timePeriod text,
+      calendarBucketStart date,
+      timeFrameStartValueDate date,
+      valueDate date,
+      sequenceId bigint,
+      intrinsicTime timestamp,
+      intrinsicTimeGroupId int,
+      intrinsicTimeLength double,
+      intrinsicPrice double,
+      intrinsicTimeTrend text,
+      intrinsicTimeMode text,
+      trendPrice double,
+      trendExtreme double,
+      trendReversal double,
+      trendDelta double,
+      targetDelta double,
+      lambda double,
+      tradingDays int,
+      threshold double,
+      upTrendTrigger double,
+      downTrendTrigger double,
+      tradeState text,
+      bandAnchorPrice double,
+      bandPercentage double,
+      bandSize double,
+      PRIMARY KEY ((contractId, timePeriod, calendarBucketStart))
+      );
+      """;
 
     public const string CreateFuturesTickDataTable = """
     CREATE TABLE IF NOT EXISTS futures_tick_data (
@@ -808,16 +840,16 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (valueDate DESC);
     """;
 
-    public const string CreateYieldCurveRateYearV1Table = """
-    CREATE TABLE IF NOT EXISTS yield_curve_rate_year_v1 (
+    public const string CreateYieldCurveRateYearTable = """
+    CREATE TABLE IF NOT EXISTS yield_curve_rate_year (
     lookupId int,
     rateYear int,
     PRIMARY KEY ((lookupId), rateYear)
     ) WITH CLUSTERING ORDER BY (rateYear DESC);
     """;
 
-    public const string CreateYieldCurveRateByDateV1Table = """
-    CREATE TABLE IF NOT EXISTS yield_curve_rate_by_date_v1 (
+    public const string CreateYieldCurveRateByDateTable = """
+    CREATE TABLE IF NOT EXISTS yield_curve_rate_by_date (
     lookupId int,
     valueDate date,
     oneMonth double,

@@ -126,6 +126,12 @@ The repository mapping is:
 
 Daily MACD is now accepted by its command parse/receive maps and replay state. Daily MACD, ADX, and ATR generated events are denormalized through their typed read-model paths, and all four daily completion variants are accepted by their same-domain event actors. The ATR and RSI daily completion handlers intentionally do no work after parsing.
 
+### Realtime ITI timeframe lifecycle
+
+The ITI realtime actor evaluates Daily, Weekly, and Monthly state independently for every accepted ES trade. Each in-memory stream is hydrated once from `futures_iti_timeframe_state`; canonical ITI history is a bounded compatibility fallback. A stream starts at group zero on the first actually observed trading value date in its day, ISO-week bucket, or calendar month. Its durable entity ID uses that timeframe-start value date while the signal retains the current observation value date.
+
+The shared compute model is used by both the realtime pre-filter and durable command actor. Direction trigger crossings are immediate. Trending, extreme, and reversal publications require movement of 10% of the calculated ITI threshold from the durable band anchor. Inside-band observations remain hot-only. The legacy Daily-completion fan-out has been removed; Daily, Weekly, and Monthly completions cannot create other ITI commands.
+
 ### Intraday start/stop lifecycle
 
 MACD, ADX, and ATR now implement the same event-driven lifecycle as RSI for intraday entity IDs only. Public HTTP and NATS command APIs publish typed Start/Stop commands; command actors persist Started/Stopped domain events; repositories publish those events to the same-domain event actor; and event actors register or remove the entity's recurring generation loop.

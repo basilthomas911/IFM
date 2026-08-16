@@ -1,6 +1,7 @@
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.Api.Server;
 
@@ -21,7 +22,7 @@ internal sealed class FuturesContractRolloverStartupService(
     {
         await schema.CreateAsync(["futures_contract_rollover"], cancellationToken)
             .ConfigureAwait(false);
-        var valueDate = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+        var valueDate = FuturesTradingValueDate.GetOperational(timeProvider.GetUtcNow());
         var rows = await check.ExecuteAsync(valueDate, cancellationToken)
             .ConfigureAwait(false);
         await marketDataApi.StartAsync(valueDate, cancellationToken: cancellationToken)

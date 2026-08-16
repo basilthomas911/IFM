@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS economic_calendar_v2 (
     PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)
 ) WITH CLUSTERING ORDER BY (eventDate DESC, eventName ASC);
 
-CREATE TABLE IF NOT EXISTS economic_calendar_country_code_v1 (
+CREATE TABLE IF NOT EXISTS economic_calendar_country_code (
     lookupId int,
     countryCode text,
     PRIMARY KEY ((lookupId), countryCode)
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS economic_calendar_cutover_v2 (
     updatedOn timestamp
 );
 
-CREATE TABLE IF NOT EXISTS market_data_import_ownership_v1 (
+CREATE TABLE IF NOT EXISTS market_data_import_ownership (
     dataset text,
     logicalKey text,
     commandId uuid,
@@ -75,7 +75,7 @@ The tool:
 
 1. reads only legacy `economic_calendar` as the source;
 2. normalizes timestamps to UTC and calculates `monthBucket`;
-3. upserts `economic_calendar_v2` in bounded batches;
+3. rebuilds `economic_calendar_v2` from the paused legacy source in bounded batches;
 4. rebuilds the observed-country catalog;
 5. compares source/target row counts and order-independent fingerprints; and
 6. writes the verdict to `economic_calendar_cutover_v2`.
@@ -115,6 +115,6 @@ DROP TABLE IF EXISTS economic_calendar_by_month_v1;
 DROP TABLE IF EXISTS economic_calendar_month_v1;
 ```
 
-Keep `economic_calendar_country_code_v1`, `economic_calendar_cutover_v2`, and
-`market_data_import_ownership_v1`. The deprecated all-calendar and external-calendar API contracts can be removed in
+Keep `economic_calendar_country_code`, `economic_calendar_cutover_v2`, and
+`market_data_import_ownership`. The deprecated all-calendar and external-calendar API contracts can be removed in
 the next breaking API release; they no longer perform external storage reads.

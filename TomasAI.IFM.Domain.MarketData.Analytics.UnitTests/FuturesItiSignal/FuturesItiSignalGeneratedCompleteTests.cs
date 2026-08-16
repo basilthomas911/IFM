@@ -15,46 +15,18 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesItiSignal;
 public sealed class FuturesItiSignalGeneratedCompleteTests
 {
     [Fact]
-    public async Task DailyCompletion_DerivesWeeklyAndMonthlyCommandsWithStableIds()
+    public async Task DailyCompletion_DoesNotDeriveLongerPeriodCommands()
     {
         var source = CreateCompletion(TimeFrameType.Daily);
         var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
-        commandApi.GenerateFuturesItiSignalAsync(
-                Arg.Any<string>(),
-                Arg.Any<DateOnly>(),
-                Arg.Any<TimeFrameType>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<double>(),
-                Arg.Any<double>(),
-                Arg.Any<Guid?>())
-            .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(
-                new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid()))));
-
         _ = await source.ExecuteAsync(
             Substitute.For<IEventActorContext>(),
             commandApi,
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger>());
 
-        await commandApi.Received(1).GenerateFuturesItiSignalAsync(
-            source.EntityId.ContractId,
-            source.EntityId.ValueDate,
-            TimeFrameType.Weekly,
-            source.FuturesItiSignal!.IntrinsicTime,
-            source.FuturesItiSignal.IntrinsicPrice,
-            source.VixFuturesPrice,
-            FuturesItiSignalGeneratedComplete.CreateDerivedCommandId(source, TimeFrameType.Weekly));
-        await commandApi.Received(1).GenerateFuturesItiSignalAsync(
-            source.EntityId.ContractId,
-            source.EntityId.ValueDate,
-            TimeFrameType.Monthly,
-            source.FuturesItiSignal.IntrinsicTime,
-            source.FuturesItiSignal.IntrinsicPrice,
-            source.VixFuturesPrice,
-            FuturesItiSignalGeneratedComplete.CreateDerivedCommandId(source, TimeFrameType.Monthly));
-
-        FuturesItiSignalGeneratedComplete.CreateDerivedCommandId(source, TimeFrameType.Weekly)
-            .Should().NotBe(FuturesItiSignalGeneratedComplete.CreateDerivedCommandId(source, TimeFrameType.Monthly));
+        await commandApi.DidNotReceiveWithAnyArgs().GenerateFuturesItiSignalAsync(
+            default!, default, default, default, default, default, default, default);
     }
 
     [Theory]

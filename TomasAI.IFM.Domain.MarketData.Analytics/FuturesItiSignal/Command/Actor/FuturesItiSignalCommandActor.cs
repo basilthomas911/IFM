@@ -149,6 +149,7 @@ public class FuturesItiSignalCommandActor(
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateContractId(e.ContractId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName)
+                .ValidateValueDate(e.TimeFrameStartValueDate, e.CommandName)
                 .ValidateTimePeriod(e.TimePeriod, e.CommandName)
                 .ValidateTimestamp(e.Timestamp, e.CommandName)
                 .ValidateFuturesPrice(e.FuturesPrice, e.CommandName)

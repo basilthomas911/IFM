@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : IClassFixture<MarketDataFixture>
 {
     [Fact]
-    public async Task Trade_and_bounded_quote_array_round_trip_through_v1_tables()
+    public async Task Trade_and_bounded_quote_array_round_trip_through_authoritative_tables()
     {
         var contractId = "ES-TEST-" + Guid.NewGuid().ToString("N");
         var valueDate = new DateOnly(2026, 8, 7);

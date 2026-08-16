@@ -62,6 +62,16 @@ public sealed class MarketDataProjectionPolicyTests
             .ShouldContain("PRIMARY KEY ((contractId, yearMonth), valueDate, sequenceId");
         GetSchemaCql("CreateFuturesItiSignalByTrendModeMonthV2Table")
             .ShouldContain("PRIMARY KEY ((contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth)");
+        GetSchemaCql("CreateFuturesItiTimeFrameStateTable")
+            .ShouldContain("PRIMARY KEY ((contractId, timePeriod, calendarBucketStart))");
+        GetSchemaCql("CreateFuturesItiTimeFrameStateTable")
+            .ShouldContain("timeFrameStartValueDate date");
+        GetSchemaCql("CreateFuturesItiTimeFrameStateTable")
+            .ShouldContain("bandPercentage double");
+        GetCql("UpsertFuturesItiTimeFrameState")
+            .ShouldContain(":timeFrameStartValueDate");
+        GetCql("GetFuturesItiTimeFrameState")
+            .ShouldContain("calendarBucketStart = :calendarBucketStart");
         GetCql("GetFuturesItiSignalsByContractMonthV2")
             .ShouldContain("contractId = :contractId AND yearMonth = :yearMonth");
         GetCql("GetLastFuturesItiSignalByTrendModeMonthV2")

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -21,6 +22,7 @@ public class FuturesItiSignalRealtimeActor(
     IActorSupervisor supervisor,
     IActorMarketDataAnalyticsCommandApiFactory commandApiFactory,
     IMarketDataApi marketDataApi,
+    IDbContextFactory dbFactory,
     ILogger<FuturesItiSignalRealtimeActor> logger)
     : BaseEventActor<FuturesItiSignalRealtimeActor>(
         supervisor,
@@ -44,6 +46,7 @@ public class FuturesItiSignalRealtimeActor(
 
     IActorMarketDataAnalyticsCommandApi? _commandApi;
     readonly FuturesItiSignalStreamOwnership _streamOwnership = new();
+    readonly FuturesItiSignalRealtimeState _realtimeState = new(dbFactory);
 
     /// <summary>Maps supported event types to their domain extension handlers.</summary>
     readonly Dictionary<string, Func<
@@ -51,15 +54,17 @@ public class FuturesItiSignalRealtimeActor(
         IEventActorContext,
         IActorMarketDataAnalyticsCommandApi,
         FuturesItiSignalStreamOwnership,
+        FuturesItiSignalRealtimeState,
         ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesMarketPriceUpdatedRealtimeEvent).Name] =
-            (@event, context, commandApi, streamOwnership) => ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
+            (@event, context, commandApi, streamOwnership, realtimeState) => ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
                 .ExecuteAsync(
                     context,
                     commandApi,
                     marketDataApi,
                     streamOwnership,
+                    realtimeState,
                     logger)
     };
 
@@ -114,7 +119,12 @@ public class FuturesItiSignalRealtimeActor(
                 $"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");
         }
 
-        _ = await handler(@event, context, GetCommandApi(context), _streamOwnership)
+        _ = await handler(
+                @event,
+                context,
+                GetCommandApi(context),
+                _streamOwnership,
+                _realtimeState)
             .ConfigureAwait(false);
     }
 

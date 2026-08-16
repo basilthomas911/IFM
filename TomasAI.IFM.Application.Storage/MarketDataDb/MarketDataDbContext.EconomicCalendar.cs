@@ -257,8 +257,8 @@ public partial class MarketDataDbContext
             countryCodes.Add(row.CountryCode);
         }
         commands.AddRange(countryCodes.Select(countryCode => db
-            .Use(MarketDataDbCql.InsertEconomicCalendarCountryCodeV1)
-            .SetParameters(new InsertEconomicCalendarCountryCodeV1(EconomicCalendarLookupId, countryCode))
+            .Use(MarketDataDbCql.InsertEconomicCalendarCountryCode)
+            .SetParameters(new InsertEconomicCalendarCountryCode(EconomicCalendarLookupId, countryCode))
             .QueueCommand()));
         if (commands.Count > 0) await db.ExecuteQueuedCommandsAsync(commands);
     }
@@ -274,7 +274,9 @@ public partial class MarketDataDbContext
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
         var db = _dbFactory.MarketDataDb;
-        await db.Use(MarketDataDbCql.TruncateEconomicCalendarCountryCodeV1)
+        await db.Use(MarketDataDbCql.TruncateEconomicCalendarV2)
+            .ExecuteCommandAsync(cancellationToken);
+        await db.Use(MarketDataDbCql.TruncateEconomicCalendarCountryCode)
             .ExecuteCommandAsync(cancellationToken);
         long sourceRows = 0;
         var sourceIdentity = new ProjectionIdentityBuilder();
@@ -296,9 +298,9 @@ public partial class MarketDataDbContext
         await FlushCalendarBatchAsync();
         if (countries.Count > 0)
         {
-            await db.Use(MarketDataDbCql.InsertEconomicCalendarCountryCodeV1)
+            await db.Use(MarketDataDbCql.InsertEconomicCalendarCountryCode)
                 .SetParameters(countries.Select(country =>
-                    new InsertEconomicCalendarCountryCodeV1(EconomicCalendarLookupId, country)))
+                    new InsertEconomicCalendarCountryCode(EconomicCalendarLookupId, country)))
                 .ExecuteCommandAsync(cancellationToken);
         }
         long targetRows = 0;
@@ -334,8 +336,8 @@ public partial class MarketDataDbContext
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
         var db = _dbFactory.MarketDataDb;
-        await db.Use(MarketDataDbCql.TruncateYieldCurveRateByDateV1).ExecuteCommandAsync(cancellationToken);
-        await db.Use(MarketDataDbCql.TruncateYieldCurveRateYearV1).ExecuteCommandAsync(cancellationToken);
+        await db.Use(MarketDataDbCql.TruncateYieldCurveRateByDate).ExecuteCommandAsync(cancellationToken);
+        await db.Use(MarketDataDbCql.TruncateYieldCurveRateYear).ExecuteCommandAsync(cancellationToken);
         long sourceRows = 0;
         var sourceIdentity = new ProjectionIdentityBuilder();
         var years = new HashSet<int>();
@@ -355,19 +357,19 @@ public partial class MarketDataDbContext
         await FlushYieldBatchAsync();
         if (years.Count > 0)
         {
-            await db.Use(MarketDataDbCql.InsertYieldCurveRateYearV1)
-                .SetParameters(years.Select(year => new InsertYieldCurveRateYearV1(YieldCurveLookupId, year)))
+            await db.Use(MarketDataDbCql.InsertYieldCurveRateYear)
+                .SetParameters(years.Select(year => new InsertYieldCurveRateYear(YieldCurveLookupId, year)))
                 .ExecuteCommandAsync(cancellationToken);
         }
         long targetRows = 0;
         var targetIdentity = new ProjectionIdentityBuilder();
-        await foreach (var row in db.Use(MarketDataDbCql.GetYieldCurveRateByDateV1All)
+        await foreach (var row in db.Use(MarketDataDbCql.GetYieldCurveRateByDateAll)
             .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
         {
             targetRows++;
             targetIdentity.Add(GetYieldCurveProjectionIdentity(row));
         }
-        var projectedYears = await db.Use(MarketDataDbCql.GetYieldCurveRateYearV1All)
+        var projectedYears = await db.Use(MarketDataDbCql.GetYieldCurveRateYearAll)
             .ExecuteQueryAsync(MapToYearMonth, cancellationToken);
         var source = sourceIdentity.Build();
         var target = targetIdentity.Build();
@@ -380,7 +382,7 @@ public partial class MarketDataDbContext
         async Task FlushYieldBatchAsync()
         {
             if (batch.Count == 0) return;
-            await db.Use(MarketDataDbCql.InsertYieldCurveRateByDateV1)
+            await db.Use(MarketDataDbCql.InsertYieldCurveRateByDate)
                 .SetParameters(batch).ExecuteCommandAsync(cancellationToken);
             batch.Clear();
         }

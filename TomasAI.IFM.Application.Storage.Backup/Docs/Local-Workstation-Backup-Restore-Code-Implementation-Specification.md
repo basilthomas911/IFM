@@ -637,22 +637,23 @@ The host must not reference this project for writes.
 
 | Table | Primary/unique identity | Purpose |
 | --- | --- | --- |
-| `database_recovery_operation_v1` | operation ID | current/history summary for all operation kinds |
-| `database_recovery_phase_v1` | operation ID + phase + attempt/revision | bounded phase transitions and outcome |
-| `database_recovery_run_stats_v1` | operation ID + phase + engine + logical replica + stats revision | durable structured measurements |
-| `database_restore_point_v1` | restore point ID + source | eligibility, dependency chain, verification/drill state |
-| `database_artifact_replica_v1` | artifact replica ID + source | logical replica lifecycle and safe destination reference |
-| `database_recovery_error_v1` | operation ID + stable error identity | bounded/coalesced structured errors |
-| `database_backup_policy_v1` | environment + policy ID | effective policy and enforcement state |
-| `database_backup_service_health_v1` | environment + source + host | readiness and reconciliation state |
-| `database_retention_state_v1` | retention plan/restore point identity | forecast, legal holds, proposed/executed plans |
-| `database_backup_projection_checkpoint_v1` | projector identity | last applied event/revision and recovery metadata |
+| `database_recovery_operation` | operation ID | current/history summary for all operation kinds |
+| `database_recovery_phase` | operation ID + phase + attempt/revision | bounded phase transitions and outcome |
+| `database_recovery_run_stats` | operation ID + phase + engine + logical replica + stats revision | durable structured measurements |
+| `database_restore_point` | restore point ID + source | eligibility, dependency chain, verification/drill state |
+| `database_artifact_replica` | artifact replica ID + source | logical replica lifecycle and safe destination reference |
+| `database_recovery_error` | operation ID + stable error identity | bounded/coalesced structured errors |
+| `database_backup_policy` | environment + policy ID | effective policy and enforcement state |
+| `database_backup_service_health` | environment + source + host | readiness and reconciliation state |
+| `database_retention_state` | retention plan/restore point identity | forecast, legal holds, proposed/executed plans |
+| `database_backup_projection_checkpoint` | projector identity | last applied event/revision and recovery metadata |
+| `database_backup_projection_receipt` | projector identity + event ID | exact event-application deduplication and conflict detection |
 
 Every mutable projection row stores the source domain-event revision and last event ID. Upserts accept a greater
 revision, treat the same event/revision as idempotent, and reject conflicting or regressing writes. Child tables have
 foreign keys or validated logical ownership where the current storage technology permits it.
 
-`database_recovery_run_stats_v1` stores nullable structured columns for timestamps, elapsed duration, source/stored/
+`database_recovery_run_stats` stores nullable structured columns for timestamps, elapsed duration, source/stored/
 transferred/restored bytes, artifact count, average and bounded peak throughput, compression ratio, retries, warnings,
 verification duration/result, achieved RPO/RTO, native boundary summary, host, tool revision, policy revision, and source
 event revision. An inapplicable measurement is null, not an invented zero.
@@ -782,13 +783,13 @@ Initial journal tables:
 
 | Table | Purpose |
 | --- | --- |
-| `journal_operation_v1` | admitted bounded intent, source, phase, lease/fence, resumability, terminal status |
-| `journal_inbox_v1` | source execution event ID and content hash for exact deduplication/conflict rejection |
-| `journal_checkpoint_v1` | native, staging, transfer, verification, cancellation, and cleanup checkpoints |
-| `journal_artifact_replica_v1` | private artifact/replica publication progress and immutable identities |
-| `journal_outbox_v1` | serialized service events, service sequence, publish state and retry metadata |
-| `journal_run_stats_v1` | bounded phase/final statistics awaiting or proving publication |
-| `journal_reconciliation_v1` | last Core acknowledgement and reconciliation state |
+| `journal_operation` | admitted bounded intent, source, phase, lease/fence, resumability, terminal status |
+| `journal_inbox` | source execution event ID and content hash for exact deduplication/conflict rejection |
+| `journal_checkpoint` | native, staging, transfer, verification, cancellation, and cleanup checkpoints |
+| `journal_artifact_replica` | private artifact/replica publication progress and immutable identities |
+| `journal_outbox` | serialized service events, service sequence, publish state and retry metadata |
+| `journal_run_stats` | bounded phase/final statistics awaiting or proving publication |
+| `journal_reconciliation` | last Core acknowledgement and reconciliation state |
 
 Admission is one SQLite transaction: insert inbox identity, validate the immutable operation/source definition, insert
 or match the operation, allocate service sequence if needed, and enqueue accepted/rejected service evidence. The

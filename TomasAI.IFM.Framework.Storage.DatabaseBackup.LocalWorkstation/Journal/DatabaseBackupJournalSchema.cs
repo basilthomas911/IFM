@@ -3,7 +3,7 @@ namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Journal;
 internal static class DatabaseBackupJournalSchema
 {
     public const string Sql = """
-CREATE TABLE IF NOT EXISTS journal_operation_v1 (
+CREATE TABLE IF NOT EXISTS journal_operation (
     operation_id TEXT PRIMARY KEY,
     source INTEGER NOT NULL,
     operation_kind INTEGER NOT NULL,
@@ -21,14 +21,14 @@ CREATE TABLE IF NOT EXISTS journal_operation_v1 (
     admitted_utc TEXT NOT NULL,
     updated_utc TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS journal_inbox_v1 (
+CREATE TABLE IF NOT EXISTS journal_inbox (
     event_id TEXT PRIMARY KEY,
     operation_id TEXT NOT NULL,
     content_hash TEXT NOT NULL,
     admitted_utc TEXT NOT NULL,
-    FOREIGN KEY (operation_id) REFERENCES journal_operation_v1(operation_id)
+    FOREIGN KEY (operation_id) REFERENCES journal_operation(operation_id)
 );
-CREATE TABLE IF NOT EXISTS journal_checkpoint_v1 (
+CREATE TABLE IF NOT EXISTS journal_checkpoint (
     operation_id TEXT NOT NULL,
     fencing_token INTEGER NOT NULL,
     phase INTEGER NOT NULL,
@@ -36,9 +36,9 @@ CREATE TABLE IF NOT EXISTS journal_checkpoint_v1 (
     safe_diagnostic_reference TEXT NOT NULL,
     observed_utc TEXT NOT NULL,
     PRIMARY KEY (operation_id, fencing_token, phase),
-    FOREIGN KEY (operation_id) REFERENCES journal_operation_v1(operation_id)
+    FOREIGN KEY (operation_id) REFERENCES journal_operation(operation_id)
 );
-CREATE TABLE IF NOT EXISTS journal_artifact_replica_v1 (
+CREATE TABLE IF NOT EXISTS journal_artifact_replica (
     operation_id TEXT NOT NULL,
     artifact_replica_id TEXT NOT NULL,
     state INTEGER NOT NULL,
@@ -46,9 +46,9 @@ CREATE TABLE IF NOT EXISTS journal_artifact_replica_v1 (
     fencing_token INTEGER NOT NULL,
     updated_utc TEXT NOT NULL,
     PRIMARY KEY (operation_id, artifact_replica_id),
-    FOREIGN KEY (operation_id) REFERENCES journal_operation_v1(operation_id)
+    FOREIGN KEY (operation_id) REFERENCES journal_operation(operation_id)
 );
-CREATE TABLE IF NOT EXISTS journal_outbox_v1 (
+CREATE TABLE IF NOT EXISTS journal_outbox (
     event_id TEXT PRIMARY KEY,
     operation_id TEXT NOT NULL,
     service_sequence INTEGER NOT NULL,
@@ -60,25 +60,25 @@ CREATE TABLE IF NOT EXISTS journal_outbox_v1 (
     created_utc TEXT NOT NULL,
     published_utc TEXT NULL,
     UNIQUE (operation_id, service_sequence),
-    FOREIGN KEY (operation_id) REFERENCES journal_operation_v1(operation_id)
+    FOREIGN KEY (operation_id) REFERENCES journal_operation(operation_id)
 );
-CREATE TABLE IF NOT EXISTS journal_run_stats_v1 (
+CREATE TABLE IF NOT EXISTS journal_run_stats (
     operation_id TEXT NOT NULL,
     statistics_revision INTEGER NOT NULL,
     statistics_json TEXT NOT NULL,
     published INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (operation_id, statistics_revision),
-    FOREIGN KEY (operation_id) REFERENCES journal_operation_v1(operation_id)
+    FOREIGN KEY (operation_id) REFERENCES journal_operation(operation_id)
 );
-CREATE TABLE IF NOT EXISTS journal_reconciliation_v1 (
+CREATE TABLE IF NOT EXISTS journal_reconciliation (
     operation_id TEXT PRIMARY KEY,
     core_domain_revision INTEGER NOT NULL,
     acknowledged_utc TEXT NOT NULL,
-    FOREIGN KEY (operation_id) REFERENCES journal_operation_v1(operation_id)
+    FOREIGN KEY (operation_id) REFERENCES journal_operation(operation_id)
 );
-CREATE INDEX IF NOT EXISTS ix_journal_operation_v1_recoverable
-    ON journal_operation_v1 (terminal, lease_expires_utc, admitted_utc);
-CREATE INDEX IF NOT EXISTS ix_journal_outbox_v1_pending
-    ON journal_outbox_v1 (published, operation_id, service_sequence);
+CREATE INDEX IF NOT EXISTS ix_journal_operation_recoverable
+    ON journal_operation (terminal, lease_expires_utc, admitted_utc);
+CREATE INDEX IF NOT EXISTS ix_journal_outbox_pending
+    ON journal_outbox (published, operation_id, service_sequence);
 """;
 }

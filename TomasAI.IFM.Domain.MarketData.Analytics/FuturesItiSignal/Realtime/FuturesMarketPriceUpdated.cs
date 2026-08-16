@@ -41,6 +41,7 @@ public static class FuturesMarketPriceUpdated
         IActorMarketDataAnalyticsCommandApi commandApi,
         IMarketDataApi marketDataApi,
         FuturesItiSignalStreamOwnership streamOwnership,
+        FuturesItiSignalRealtimeState realtimeState,
         ILogger<FuturesItiSignalRealtimeActor> logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
@@ -48,6 +49,7 @@ public static class FuturesMarketPriceUpdated
         ArgumentNullException.ThrowIfNull(commandApi);
         ArgumentNullException.ThrowIfNull(marketDataApi);
         ArgumentNullException.ThrowIfNull(streamOwnership);
+        ArgumentNullException.ThrowIfNull(realtimeState);
         ArgumentNullException.ThrowIfNull(logger);
 
         try
@@ -89,13 +91,31 @@ public static class FuturesMarketPriceUpdated
                 return true;
             }
 
-            await commandApi.GenerateFuturesItiSignalAsync(
+            var evaluations = await realtimeState.EvaluateAsync(
                 esContract.ContractId,
                 @event.Price.ValueDate,
-                TimeFrameType.Daily,
                 esTrade.EventTimestamp.UtcDateTime,
                 Convert.ToDouble(esTrade.LastPrice),
                 Convert.ToDouble(vxPrice)).ConfigureAwait(false);
+            foreach (var evaluation in evaluations)
+            {
+                var command = evaluation.Command;
+                var result = await commandApi.GenerateFuturesItiSignalAsync(
+                    command.ContractId,
+                    command.ValueDate,
+                    command.TimePeriod,
+                    command.Timestamp,
+                    command.FuturesPrice,
+                    command.VixFuturesPrice,
+                    timeFrameStartValueDate: command.TimeFrameStartValueDate)
+                    .ConfigureAwait(false);
+                if (!result.Success)
+                {
+                    throw new InvalidOperationException(
+                        result.ErrorMessage ?? "The durable ITI command failed.");
+                }
+                realtimeState.Confirm(evaluation);
+            }
             return true;
         }
         catch (Exception exception)

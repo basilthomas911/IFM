@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesItiSignal;
 
 public class FuturesItiSignalCommandTests
 {
-    // Trading-day lookup in the compute model only supports Weekly and Monthly; Daily is intentionally unsupported.
+    // Focus the multi-day transition examples on Weekly and Monthly scaling.
     public static readonly TheoryData<TimeFrameType> SupportedTimePeriods = new()
     {
         TimeFrameType.Weekly,
@@ -143,7 +143,7 @@ public class FuturesItiSignalCommandTests
         extremeCommand.Execute(state);
 
         var afterExtreme = LastSignal(state);
-        var reversalPrice = afterExtreme.TrendReversal - 1;
+        var reversalPrice = afterExtreme.TrendReversal - afterExtreme.BandSize - 0.01;
         reversalPrice.Should().BeGreaterThan(afterExtreme.DownTrendTrigger);
         var command = SampleData.GenerateCommandFor(timePeriod) with { FuturesPrice = reversalPrice };
 
@@ -159,19 +159,14 @@ public class FuturesItiSignalCommandTests
 
     [Theory]
     [MemberData(nameof(SupportedTimePeriods))]
-    public void GivenExistingUpTrendSignal_WhenPriceStaysWithinRange_ThenSignalIsTrending(
+    public void GivenExistingUpTrendSignal_WhenPriceStaysInsideBand_ThenNoDurableSignalIsApplied(
         TimeFrameType timePeriod)
     {
-        // Given: nudge the reversal level down slightly so a subsequent price between the reversal
-        // and the extreme lands inside the "no change" range, since the initial start-of-day signal
-        // has trend price, extreme, and reversal all equal (any other price would trip a transition).
+        // Given
         var state = GivenStartOfDayState(timePeriod);
         var startOfDay = LastSignal(state);
-        var reversalCommand = SampleData.GenerateCommandFor(timePeriod) with { FuturesPrice = startOfDay.TrendReversal - 1 };
-        reversalCommand.Execute(state);
-
-        var afterReversal = LastSignal(state);
-        var withinRangePrice = (afterReversal.TrendReversal + afterReversal.TrendExtreme) / 2;
+        var eventCount = state.Events.Count;
+        var withinRangePrice = startOfDay.BandAnchorPrice + startOfDay.BandSize / 2;
         var command = SampleData.GenerateCommandFor(timePeriod) with { FuturesPrice = withinRangePrice };
 
         // When
@@ -179,9 +174,8 @@ public class FuturesItiSignalCommandTests
 
         // Then
         result.Success.Should().BeTrue();
-        var signal = LastSignal(state);
-        signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.Trending);
-        signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
+        state.Events.Should().HaveCount(eventCount);
+        LastSignal(state).Should().BeSameAs(startOfDay);
     }
 
     // ───── GenerateFuturesItiSignalCommand — Down-trend transitions (Given / When / Then) ─────
@@ -251,7 +245,7 @@ public class FuturesItiSignalCommandTests
         extremeCommand.Execute(state);
 
         var afterExtreme = LastSignal(state);
-        var reversalPrice = afterExtreme.TrendReversal + 1;
+        var reversalPrice = afterExtreme.TrendReversal + afterExtreme.BandSize + 0.01;
         reversalPrice.Should().BeLessThan(afterExtreme.UpTrendTrigger);
         var command = SampleData.GenerateCommandFor(timePeriod) with { FuturesPrice = reversalPrice };
 

@@ -126,6 +126,49 @@ public partial class MarketDataDbContext
             e.DownTrendTrigger,
             e.TradeState.ToStringFast());
 
+    static UpsertFuturesItiTimeFrameState CreateFuturesItiTimeFrameStateParameters(
+        FuturesItiSignalV2ReadModel e,
+        long sequenceId)
+        => new(
+            e.ContractId,
+            e.TimePeriod.ToStringFast(),
+            GetFuturesItiCalendarBucketStart(e.ValueDate, e.TimePeriod),
+            e.TimeFrameStartValueDate == default ? e.ValueDate : e.TimeFrameStartValueDate,
+            e.ValueDate,
+            sequenceId,
+            e.IntrinsicTime,
+            e.IntrinsicTimeGroupId,
+            e.IntrinsicTimeLength,
+            e.IntrinsicPrice,
+            e.IntrinsicTimeTrend.ToStringFast(),
+            e.IntrinsicTimeMode.ToStringFast(),
+            e.TrendPrice,
+            e.TrendExtreme,
+            e.TrendReversal,
+            e.TrendDelta,
+            e.TargetDelta,
+            e.Lambda,
+            e.TradingDays,
+            e.Threshold,
+            e.UpTrendTrigger,
+            e.DownTrendTrigger,
+            e.TradeState.ToStringFast(),
+            e.BandAnchorPrice == 0 ? e.IntrinsicPrice : e.BandAnchorPrice,
+            e.BandPercentage == 0 ? 0.10 : e.BandPercentage,
+            e.BandSize == 0 ? e.Threshold * 0.10 : e.BandSize);
+
+    static DateOnly GetFuturesItiCalendarBucketStart(
+        DateOnly valueDate,
+        TimeFrameType period)
+        => period switch
+        {
+            TimeFrameType.Daily => valueDate,
+            TimeFrameType.Weekly => valueDate.AddDays(
+                -(((int)valueDate.DayOfWeek + 6) % 7)),
+            TimeFrameType.Monthly => new DateOnly(valueDate.Year, valueDate.Month, 1),
+            _ => valueDate
+        };
+
     async Task<ICollection<FuturesItiSignalV2ReadModel>> ReadCanonicalFuturesItiSignalsAsync(
         IReadOnlyCollection<string> contractIds,
         DateOnly startDate,

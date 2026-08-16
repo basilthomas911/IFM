@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -411,6 +412,12 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
 
     private sealed class EpochValueDateProvider(DateOnly valueDate) : ITickValueDateProvider
     {
-        public DateOnly GetValueDate(DateTime timestampUtc) => valueDate;
+        public DateOnly GetValueDate(DateTime timestampUtc)
+            => FuturesTradingValueDate.TryGet(
+                    new DateTimeOffset(
+                        DateTime.SpecifyKind(timestampUtc, DateTimeKind.Utc)),
+                    out var resolved)
+                ? resolved
+                : valueDate;
     }
 }

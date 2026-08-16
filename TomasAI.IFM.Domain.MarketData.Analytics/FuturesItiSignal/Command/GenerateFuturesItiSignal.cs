@@ -19,24 +19,11 @@ public static class GenerateFuturesItiSignal
     /// <returns>A <see cref="ServiceResult{GuidResult}"/> indicating whether the state was successfully updated.</returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesItiSignalCommand e, FuturesItiSignalCommandState state)
     {
-        var updated = e.Compute(state, out var model) switch
-        {
-            _ when model.IsStartOfDay
-                => state.Update(e.CreateFuturesItiSignalGeneratedEvent(model.ComputeStartOfDaySignal()), e),
-            _ when model.HasUpTrendDirectionChanged
-                => state.Update(e.CreateFuturesItiSignalGeneratedEvent(model.ComputeUpTrendDirectionChangedSignal()), e),
-            _ when model.HasUpTrendExtremeChanged
-                => state.Update(e.CreateFuturesItiSignalGeneratedEvent(model.ComputeUpTrendExtremeChangedSignal()), e),
-            _ when model.HasUpTrendReversalChanged
-                => state.Update(e.CreateFuturesItiSignalGeneratedEvent(model.ComputeUpTrendReversalChangedSignal()), e),
-            _ when model.HasDownTrendDirectionChanged
-                => state.Update(e.CreateFuturesItiSignalGeneratedEvent(model.ComputeDownTrendDirectionChangedSignal()), e),
-            _ when model.HasDownTrendExtremeChanged
-                => state.Update(e.CreateFuturesItiSignalGeneratedEvent(model.ComputeDownTrendExtremeChangedSignal()), e),
-            _ when model.HasDownTrendReversalChanged
-                => state.Update(e.CreateFuturesItiSignalGeneratedEvent(model.ComputeDownTrendReversalChangedSignal()), e),
-            _ => state.Update(e.CreateFuturesItiSignalGeneratedEvent(model.ComputeTrendingSignal()), e)
-        };
+        _ = e.Compute(state, out var model);
+        if (!model.TryCompute(out var computed))
+            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
+
+        var updated = state.Update(e.CreateFuturesItiSignalGeneratedEvent(computed), e);
         return updated
             ? new ServiceOk<GuidResult>(new GuidResult(e.CommandId))
             : e.UpdateFailed($"{e.CommandName}: unable to apply generated ITI signal event");
@@ -58,7 +45,7 @@ public static class GenerateFuturesItiSignal
             EntityId = e.EntityId,
             FuturesItiSignal = computed,
             VixFuturesPrice = e.VixFuturesPrice,
-            DeriveLongerPeriods = e.TimePeriod == TimeFrameType.Daily,
+            DeriveLongerPeriods = false,
             CreatedOn = e.OriginatedOn,
             CreatedBy = e.OriginatedBy
         };

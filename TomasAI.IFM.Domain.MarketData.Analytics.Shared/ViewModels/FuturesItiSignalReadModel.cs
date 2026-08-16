@@ -79,10 +79,25 @@ public record FuturesItiSignalV2ReadModel
     /// <summary>Current trade state (ready, hold, placed, opened, closed).</summary>
     [Key(20)] public IntrinsicTimeTradeState TradeState { get; init; }
 
+    /// <summary>First observed trading value date in this Daily, Weekly, or Monthly timeframe.</summary>
+    [Key(21)] public DateOnly TimeFrameStartValueDate { get; init; }
+
+    /// <summary>Price of the last durable signal from which the publication band is measured.</summary>
+    [Key(22)] public double BandAnchorPrice { get; init; }
+
+    /// <summary>Fraction of the calculated ITI threshold used as the publication band.</summary>
+    [Key(23)] public double BandPercentage { get; init; }
+
+    /// <summary>Absolute price movement required before another band-qualified signal is durable.</summary>
+    [Key(24)] public double BandSize { get; init; }
+
     /// <summary>Entity identifier (contract + value date). Not serialized.</summary>
     [JsonIgnore]
     [IgnoreMember]
-    public FuturesItiSignalEntityId EntityId => FuturesItiSignalEntityId.Create(ContractId ?? string.Empty, ValueDate, TimePeriod);
+    public FuturesItiSignalEntityId EntityId => FuturesItiSignalEntityId.Create(
+        ContractId ?? string.Empty,
+        TimeFrameStartValueDate == default ? ValueDate : TimeFrameStartValueDate,
+        TimePeriod);
 
     /// <summary>Full signal identifier including intrinsic time. Not serialized.</summary>
     [JsonIgnore]
@@ -116,7 +131,11 @@ public record FuturesItiSignalV2ReadModel
         double threshold,
         double upTrendTrigger,
         double downTrendTrigger,
-        IntrinsicTimeTradeState tradeState)
+        IntrinsicTimeTradeState tradeState,
+        DateOnly timeFrameStartValueDate = default,
+        double bandAnchorPrice = 0,
+        double bandPercentage = 0,
+        double bandSize = 0)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -139,6 +158,10 @@ public record FuturesItiSignalV2ReadModel
         UpTrendTrigger = upTrendTrigger;
         DownTrendTrigger = downTrendTrigger;
         TradeState = tradeState;
+        TimeFrameStartValueDate = timeFrameStartValueDate;
+        BandAnchorPrice = bandAnchorPrice;
+        BandPercentage = bandPercentage;
+        BandSize = bandSize;
     }
 
     /// <summary>
@@ -193,6 +216,11 @@ public class FuturesItiSignalV2ReadModelValidationRules : BaseValidationRules, I
             RuleFor(x => x.ValueDate)
                 .NotEmpty()
                 .WithMessage("FuturesItiSignalV2.ValueDate is required");
+
+            RuleFor(x => x.TimeFrameStartValueDate)
+                .Must((signal, frameStart) =>
+                    frameStart == default || frameStart <= signal.ValueDate)
+                .WithMessage("FuturesItiSignalV2.TimeFrameStartValueDate cannot be after ValueDate");
 
             // Enum validation
             RuleFor(x => x.TimePeriod)
@@ -263,6 +291,20 @@ public class FuturesItiSignalV2ReadModelValidationRules : BaseValidationRules, I
             RuleFor(x => x.DownTrendTrigger)
                 .Must(value => !double.IsNaN(value) && !double.IsInfinity(value))
                 .WithMessage("FuturesItiSignalV2.DownTrendTrigger is NaN or Infinity");
+
+            RuleFor(x => x.BandAnchorPrice)
+                .Must(value => !double.IsNaN(value) && !double.IsInfinity(value))
+                .WithMessage("FuturesItiSignalV2.BandAnchorPrice is NaN or Infinity");
+
+            RuleFor(x => x.BandPercentage)
+                .GreaterThanOrEqualTo(0)
+                .Must(value => !double.IsNaN(value) && !double.IsInfinity(value))
+                .WithMessage("FuturesItiSignalV2.BandPercentage must be a valid non-negative number");
+
+            RuleFor(x => x.BandSize)
+                .GreaterThanOrEqualTo(0)
+                .Must(value => !double.IsNaN(value) && !double.IsInfinity(value))
+                .WithMessage("FuturesItiSignalV2.BandSize must be a valid non-negative number");
 
             // Enum validations
             RuleFor(x => x.IntrinsicTimeTrend)

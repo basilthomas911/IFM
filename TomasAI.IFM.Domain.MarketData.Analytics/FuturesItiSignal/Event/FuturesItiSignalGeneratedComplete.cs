@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -40,11 +38,8 @@ public static class FuturesItiSignalGeneratedComplete
         var source = $"FuturesItiSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
-            if (e.EntityId.TimePeriod == TimeFrameType.Daily && e.DeriveLongerPeriods)
-                await e.GenerateLongerPeriodsAsync(commandApi).ConfigureAwait(false);
-
             var contractId = e.EntityId.ContractId;
-            var valueDate = e.EntityId.ValueDate;
+            var valueDate = e.FuturesItiSignal?.ValueDate ?? e.EntityId.ValueDate;
             var futuresEodDataTask = context.GetFuturesEodDataAsync(contractId, valueDate).AsTask();
             var futuresRsiSignalTask = context.GetFuturesRsiSignalAsync(contractId, valueDate, TimeFrameType.Daily, 14).AsTask();
             var futuresTdiSignalTask = context.GetFuturesTdiSignalAsync(
@@ -77,52 +72,4 @@ public static class FuturesItiSignalGeneratedComplete
         return false;
     }
 
-    /// <summary>
-    /// Derives the weekly and monthly durable commands exactly once from a daily
-    /// completion. Stable command identifiers make a redelivered completion
-    /// idempotent at the command boundary, while the period guard prevents
-    /// weekly or monthly completions from recursively creating more commands.
-    /// </summary>
-    static async ValueTask GenerateLongerPeriodsAsync(
-        this FuturesItiSignalGeneratedCompleteEvent e,
-        IActorMarketDataAnalyticsCommandApi commandApi)
-    {
-        var signal = e.FuturesItiSignal
-            ?? throw new InvalidOperationException(
-                "A daily ITI completion requires its generated signal payload.");
-        if (e.VixFuturesPrice <= 0)
-        {
-            throw new InvalidOperationException(
-                "A daily ITI completion requires the source VIX futures price.");
-        }
-
-        foreach (var period in new[] { TimeFrameType.Weekly, TimeFrameType.Monthly })
-        {
-            _ = await commandApi.GenerateFuturesItiSignalAsync(
-                e.EntityId.ContractId,
-                e.EntityId.ValueDate,
-                period,
-                signal.IntrinsicTime,
-                signal.IntrinsicPrice,
-                e.VixFuturesPrice,
-                CreateDerivedCommandId(e, period)).ConfigureAwait(false);
-        }
-    }
-
-    /// <summary>Creates a stable command identifier for one source completion and target period.</summary>
-    internal static Guid CreateDerivedCommandId(
-        FuturesItiSignalGeneratedCompleteEvent e,
-        TimeFrameType period)
-    {
-        Span<byte> input = stackalloc byte[20];
-        var sourceId = e.Id != Guid.Empty ? e.Id : e.CommandId;
-        if (sourceId == Guid.Empty)
-            throw new InvalidOperationException("The ITI completion requires a stable event or command identifier.");
-
-        sourceId.TryWriteBytes(input);
-        BinaryPrimitives.WriteInt32LittleEndian(input[16..], (int)period);
-        Span<byte> hash = stackalloc byte[32];
-        SHA256.HashData(input, hash);
-        return new Guid(hash[..16]);
-    }
 }

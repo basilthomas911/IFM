@@ -349,7 +349,9 @@ public sealed partial class ActorMarketDataQueryApi(IDbContextFactory dbFactory)
     {
         try
         {
-            var result = new ScalarReadModel<DateOnly>(CalculateValueDate(DateTime.Now));
+            if (!FuturesTradingValueDate.TryGet(DateTime.Now, out var valueDate))
+                throw new InvalidOperationException("The futures market weekend session is closed.");
+            var result = new ScalarReadModel<DateOnly>(valueDate);
             return Task.FromResult<ServiceResult<ScalarReadModel<DateOnly>>>(
                 new ServiceOk<ScalarReadModel<DateOnly>>(result));
         }
@@ -430,14 +432,4 @@ public sealed partial class ActorMarketDataQueryApi(IDbContextFactory dbFactory)
         }
     }
 
-    static DateOnly CalculateValueDate(DateTime today)
-    {
-        var valueDate = DateOnly.FromDateTime(today);
-        if (today.DayOfWeek == DayOfWeek.Sunday && today.TimeOfDay >= TimeSpan.FromHours(18))
-            return valueDate.AddDays(1);
-        if (today.DayOfWeek is >= DayOfWeek.Monday and <= DayOfWeek.Thursday
-            && today.TimeOfDay >= TimeSpan.FromHours(18))
-            return valueDate.AddDays(1);
-        return valueDate;
-    }
 }

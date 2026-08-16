@@ -56,6 +56,10 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
     [Key(11)]
     public double VixFuturesPrice { get; init; }
 
+    /// <summary>The first observed trading value date for the target timeframe.</summary>
+    [Key(12)]
+    public DateOnly TimeFrameStartValueDate { get; init; }
+
     /// <summary>Parameterless constructor for MessagePack deserialization.</summary>
     public GenerateFuturesItiSignalCommand() { }
 
@@ -68,7 +72,8 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
         TimeFrameType timePeriod,
         DateTime timestamp,
         double futuresPrice,
-        double vixFuturesPrice)
+        double vixFuturesPrice,
+        DateOnly timeFrameStartValueDate = default)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
@@ -76,8 +81,11 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
         Timestamp = timestamp;
         FuturesPrice = futuresPrice;
         VixFuturesPrice = vixFuturesPrice;
+        TimeFrameStartValueDate = timeFrameStartValueDate == default
+            ? valueDate
+            : timeFrameStartValueDate;
 
-        EntityId = new(ContractId, ValueDate, TimePeriod);
+        EntityId = new(ContractId, TimeFrameStartValueDate, TimePeriod);
         ErrorCode = 20011;
     }
 
@@ -95,7 +103,8 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
         TimeFrameType timePeriod,              // Key(8)
         DateTime timestamp,                          // Key(9)
         double futuresPrice,                         // Key(10)
-        double vixFuturesPrice                       // Key(11)
+        double vixFuturesPrice,                      // Key(11)
+        DateOnly timeFrameStartValueDate             // Key(12)
     )
     {
         CommandId = commandId;
@@ -111,5 +120,8 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
         Timestamp = timestamp;
         FuturesPrice = futuresPrice;
         VixFuturesPrice = vixFuturesPrice;
+        TimeFrameStartValueDate = timeFrameStartValueDate == default
+            ? valueDate
+            : timeFrameStartValueDate;
     }
 }

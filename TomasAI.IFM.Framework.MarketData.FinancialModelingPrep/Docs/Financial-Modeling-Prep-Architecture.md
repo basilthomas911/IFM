@@ -71,11 +71,11 @@ The durable records are currently written as follows:
 | Dataset | Current storage context | Current table or projection | Target |
 | --- | --- | --- | --- |
 | US Treasury curve canonical row | `MarketDataDbContext` | `yield_curve_rates` | Remains in MarketData |
-| US Treasury ordered-date query projection | `MarketDataDbContext` | `yield_curve_rate_by_date_v1` | Supports exact, bounded-range, and server-ordered latest reads |
-| US Treasury year lookup | `MarketDataDbContext` | `yield_curve_rate_year_v1` | Returns distinct bounded years without reading rate rows |
+| US Treasury ordered-date query projection | `MarketDataDbContext` | `yield_curve_rate_by_date` | Supports exact, bounded-range, and server-ordered latest reads |
+| US Treasury year lookup | `MarketDataDbContext` | `yield_curve_rate_year` | Returns distinct bounded years without reading rate rows |
 | Economic calendar legacy source | Offline migration only | `economic_calendar` | Preserved temporarily for rollback; never read at runtime |
 | Economic calendar canonical row | `MarketDataDbContext` | `economic_calendar_v2` | Sole runtime row table and bounded country/month query source |
-| Economic calendar country catalog | `MarketDataDbContext` | `economic_calendar_country_code_v1` | Bounded observed-country lookup; contains no event rows |
+| Economic calendar country catalog | `MarketDataDbContext` | `economic_calendar_country_code` | Bounded observed-country lookup; contains no event rows |
 
 `YieldCurveRateStateRepository` and `EconomicCalendarStateRepository` post their main imported events to the event
 workflow. Their event-family handlers acquire provider-neutral data and invoke
@@ -95,7 +95,7 @@ event, and storage-write boundaries.
 The canonical schema now declares `PRIMARY KEY ((id), valueDate)` with descending `valueDate` clustering, matching its
 runtime CQL. Existing databases may still have the older ascending or incompatible definition because
 `CREATE TABLE IF NOT EXISTS` cannot change a table's primary-key or clustering layout. Runtime reads therefore use the
-additive `yield_curve_rate_by_date_v1` projection. It has a constant `lookupId` partition and descending `valueDate`, so
+additive `yield_curve_rate_by_date` projection. It has a constant `lookupId` partition and descending `valueDate`, so
 latest is a server-side `LIMIT 1` read and ranges remain clustering-key reads. The offline market projection migration
 rebuilds and fingerprints this projection from `yield_curve_rates` before cutover.
 
@@ -489,10 +489,10 @@ yield-curve-year catalogs are monotonic observed-value indexes; they contain loo
 
 Migration is a controlled operation:
 
-1. pause calendar imports and create `economic_calendar_v2`, `economic_calendar_country_code_v1`, and
+1. pause calendar imports and create `economic_calendar_v2`, `economic_calendar_country_code`, and
    `economic_calendar_cutover_v2` without deploying the new runtime binary;
 2. run the Market projection migration tool, which reads only legacy `economic_calendar` as the source;
-3. normalize timestamps to UTC, calculate `monthBucket`, and write `economic_calendar_v2` in bounded batches;
+3. clear the offline target, normalize timestamps to UTC, calculate `monthBucket`, and rebuild `economic_calendar_v2` in bounded batches;
 4. compare source/target logical-key counts and deterministic row digests;
 5. rebuild and replay affected actor state using the MarketData type aliases;
 6. deploy the runtime binary, whose command/query actors and FMP imports use only `economic_calendar_v2`;
@@ -553,7 +553,7 @@ This approach gives every date its own correlation and retry boundary while keep
 The import event handler writes a batch:
 
 - yield curves call one bounded `InsertYieldCurveRatesAsync` operation that maintains `yield_curve_rates`,
-  `yield_curve_rate_by_date_v1`, and the de-duplicated year lookup; and
+  `yield_curve_rate_by_date`, and the de-duplicated year lookup; and
 - economic calendars call one bounded `MarketDataDbContext.InsertEconomicCalendarsAsync` operation that maintains the
   canonical country/month-partitioned rows and country lookup catalog.
 

@@ -2,12 +2,12 @@
 
 internal static class MarketDataDbCql
 {
-    public const string ClaimMarketDataImportOwnershipV1 = """
-    INSERT INTO market_data_import_ownership_v1 (dataset, logicalKey, commandId, mayWrite, createdOn)
+    public const string ClaimMarketDataImportOwnership = """
+    INSERT INTO market_data_import_ownership (dataset, logicalKey, commandId, mayWrite, createdOn)
     VALUES (:dataset, :logicalKey, :commandId, :mayWrite, :createdOn) IF NOT EXISTS;
     """;
-    public const string GetMarketDataImportOwnershipV1 = """
-    SELECT commandId AS "CommandId", mayWrite AS "MayWrite" FROM market_data_import_ownership_v1
+    public const string GetMarketDataImportOwnership = """
+    SELECT commandId AS "CommandId", mayWrite AS "MayWrite" FROM market_data_import_ownership
     WHERE dataset = :dataset AND logicalKey = :logicalKey;
     """;
 
@@ -22,7 +22,7 @@ internal static class MarketDataDbCql
     AND eventDate = :eventDate AND eventName = :eventName;
     """;
     public const string GetEconomicCalendarCountryCodes = """
-    SELECT countryCode AS "CountryCode" FROM economic_calendar_country_code_v1
+    SELECT countryCode AS "CountryCode" FROM economic_calendar_country_code
     WHERE lookupId = :lookupId LIMIT 512;
     """;
     public const string GetEconomicCalendars = """
@@ -45,8 +45,8 @@ internal static class MarketDataDbCql
     WHERE countryCode = :countryCode AND monthBucket = :monthBucket
     AND eventDate = :eventDate AND eventName = :eventName;
     """;
-    public const string InsertEconomicCalendarCountryCodeV1 = """
-    INSERT INTO economic_calendar_country_code_v1 (lookupId, countryCode)
+    public const string InsertEconomicCalendarCountryCode = """
+    INSERT INTO economic_calendar_country_code (lookupId, countryCode)
     VALUES (:lookupId, :countryCode);
     """;
     public const string UpsertEconomicCalendarCutoverV2 = """
@@ -61,11 +61,13 @@ internal static class MarketDataDbCql
     SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
     FROM economic_calendar_v2;
     """;
-    public const string GetEconomicCalendarCountryCodeV1All = """
-    SELECT countryCode AS "CountryCode" FROM economic_calendar_country_code_v1;
+    public const string GetEconomicCalendarCountryCodeAll = """
+    SELECT countryCode AS "CountryCode" FROM economic_calendar_country_code;
     """;
-    public const string TruncateEconomicCalendarCountryCodeV1 =
-        "TRUNCATE economic_calendar_country_code_v1;";
+    public const string TruncateEconomicCalendarV2 =
+        "TRUNCATE economic_calendar_v2;";
+    public const string TruncateEconomicCalendarCountryCode =
+        "TRUNCATE economic_calendar_country_code;";
 
     public const string InsertTickTradeData = """
         INSERT INTO tick_trade_data (
@@ -1582,6 +1584,59 @@ internal static class MarketDataDbCql
         );
     """;
 
+    public const string UpsertFuturesItiTimeFrameState = """
+        INSERT INTO futures_iti_timeframe_state (
+            contractId, timePeriod, calendarBucketStart,
+            timeFrameStartValueDate, valueDate, sequenceId, intrinsicTime,
+            intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice,
+            intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme,
+            trendReversal, trendDelta, targetDelta, lambda, tradingDays,
+            threshold, upTrendTrigger, downTrendTrigger, tradeState,
+            bandAnchorPrice, bandPercentage, bandSize
+        ) VALUES (
+            :contractId, :timePeriod, :calendarBucketStart,
+            :timeFrameStartValueDate, :valueDate, :sequenceId, :intrinsicTime,
+            :intrinsicTimeGroupId, :intrinsicTimeLength, :intrinsicPrice,
+            :intrinsicTimeTrend, :intrinsicTimeMode, :trendPrice, :trendExtreme,
+            :trendReversal, :trendDelta, :targetDelta, :lambda, :tradingDays,
+            :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState,
+            :bandAnchorPrice, :bandPercentage, :bandSize
+        );
+    """;
+
+    public const string GetFuturesItiTimeFrameState = """
+        SELECT
+            contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            timePeriod AS "TimePeriod",
+            sequenceId AS "SequenceId",
+            intrinsicTime AS "IntrinsicTime",
+            intrinsicTimeGroupId AS "IntrinsicTimeGroupId",
+            intrinsicTimeLength AS "IntrinsicTimeLength",
+            intrinsicPrice AS "IntrinsicPrice",
+            intrinsicTimeTrend AS "IntrinsicTimeTrend",
+            intrinsicTimeMode AS "IntrinsicTimeMode",
+            trendPrice AS "TrendPrice",
+            trendExtreme AS "TrendExtreme",
+            trendReversal AS "TrendReversal",
+            trendDelta AS "TrendDelta",
+            targetDelta AS "TargetDelta",
+            lambda AS "Lambda",
+            tradingDays AS "TradingDays",
+            threshold AS "Threshold",
+            upTrendTrigger AS "UpTrendTrigger",
+            downTrendTrigger AS "DownTrendTrigger",
+            tradeState AS "TradeState",
+            timeFrameStartValueDate AS "TimeFrameStartValueDate",
+            bandAnchorPrice AS "BandAnchorPrice",
+            bandPercentage AS "BandPercentage",
+            bandSize AS "BandSize"
+        FROM futures_iti_timeframe_state
+        WHERE contractId = :contractId
+        AND timePeriod = :timePeriod
+        AND calendarBucketStart = :calendarBucketStart;
+    """;
+
     public const string InsertFuturesItiSignalByContractDayV2 = """
         INSERT INTO futures_iti_signal_by_contract_day_v2 (
             contractId, valueDate, timePeriod, sequenceId, intrinsicTime,
@@ -2559,8 +2614,8 @@ internal static class MarketDataDbCql
         );
     """;
 
-    public const string InsertYieldCurveRateByDateV1 = """
-        INSERT INTO yield_curve_rate_by_date_v1 (
+    public const string InsertYieldCurveRateByDate = """
+        INSERT INTO yield_curve_rate_by_date (
             lookupId, valueDate, oneMonth, twoMonth, threeMonth, sixMonth,
             oneYear, twoYear, threeYear, fiveYear, sevenYear, tenYear,
             twentyYear, thirtyYear
@@ -2577,8 +2632,8 @@ internal static class MarketDataDbCql
         AND valueDate = :valueDate;
     """;
 
-    public const string DeleteYieldCurveRateByDateV1 = """
-        DELETE FROM yield_curve_rate_by_date_v1
+    public const string DeleteYieldCurveRateByDate = """
+        DELETE FROM yield_curve_rate_by_date
         WHERE lookupId = 1 AND valueDate = :valueDate;
     """;
 
@@ -2597,7 +2652,7 @@ internal static class MarketDataDbCql
             tenYear AS "TenYear",
             twentyYear AS "TwentyYear",
             thirtyYear AS "ThirtyYear"
-        FROM yield_curve_rate_by_date_v1
+        FROM yield_curve_rate_by_date
         WHERE lookupId = 1 AND valueDate = :valueDate;
     """;
 
@@ -2616,7 +2671,7 @@ internal static class MarketDataDbCql
             tenYear AS "TenYear",
             twentyYear AS "TwentyYear",
             thirtyYear AS "ThirtyYear"
-        FROM yield_curve_rate_by_date_v1 WHERE lookupId = 1 LIMIT 1;
+        FROM yield_curve_rate_by_date WHERE lookupId = 1 LIMIT 1;
     """;
 
     public const string GetYieldCurveRates = """
@@ -2634,19 +2689,19 @@ internal static class MarketDataDbCql
             tenYear AS "TenYear",
             twentyYear AS "TwentyYear",
             thirtyYear AS "ThirtyYear"
-        FROM yield_curve_rate_by_date_v1
+        FROM yield_curve_rate_by_date
         WHERE lookupId = 1 AND valueDate >= :startDate
         AND valueDate <= :endDate LIMIT 5000;
     """;
 
     public const string GetYieldCurveRateYears = """
         SELECT rateYear AS "RateYear"
-        FROM yield_curve_rate_year_v1
+        FROM yield_curve_rate_year
         WHERE lookupId = :lookupId LIMIT 200;
     """;
 
-    public const string InsertYieldCurveRateYearV1 = """
-        INSERT INTO yield_curve_rate_year_v1 (lookupId, rateYear)
+    public const string InsertYieldCurveRateYear = """
+        INSERT INTO yield_curve_rate_year (lookupId, rateYear)
         VALUES (:lookupId, :rateYear);
     """;
 
@@ -2668,11 +2723,11 @@ internal static class MarketDataDbCql
         FROM yield_curve_rates WHERE id = 1;
     """;
 
-    public const string GetYieldCurveRateYearV1All = """
-        SELECT rateYear AS "RateYear" FROM yield_curve_rate_year_v1;
+    public const string GetYieldCurveRateYearAll = """
+        SELECT rateYear AS "RateYear" FROM yield_curve_rate_year;
     """;
 
-    public const string GetYieldCurveRateByDateV1All = """
+    public const string GetYieldCurveRateByDateAll = """
         SELECT
             valueDate AS "ValueDate",
             oneMonth AS "OneMonth",
@@ -2687,14 +2742,14 @@ internal static class MarketDataDbCql
             tenYear AS "TenYear",
             twentyYear AS "TwentyYear",
             thirtyYear AS "ThirtyYear"
-        FROM yield_curve_rate_by_date_v1;
+        FROM yield_curve_rate_by_date;
     """;
 
-    public const string TruncateYieldCurveRateByDateV1 =
-        "TRUNCATE yield_curve_rate_by_date_v1;";
+    public const string TruncateYieldCurveRateByDate =
+        "TRUNCATE yield_curve_rate_by_date;";
 
-    public const string TruncateYieldCurveRateYearV1 =
-        "TRUNCATE yield_curve_rate_year_v1;";
+    public const string TruncateYieldCurveRateYear =
+        "TRUNCATE yield_curve_rate_year;";
 
     public const string GetMarketHolidays = """
         SELECT 
@@ -2782,6 +2837,13 @@ internal static class MarketDataDbCql
             sequenceId AS "SequenceId"
         FROM futures_trade_signal_lookup_by_scope
         WHERE scope = :scope;
+    """;
+
+    public const string DeleteFuturesItiTimeFrameState = """
+        DELETE FROM futures_iti_timeframe_state
+        WHERE contractId = :contractId
+        AND timePeriod = :timePeriod
+        AND calendarBucketStart = :calendarBucketStart;
     """;
 
     public const string DeleteFuturesItiSignalByContractDayV2 = """

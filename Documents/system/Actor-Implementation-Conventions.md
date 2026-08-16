@@ -484,7 +484,8 @@ The primary actor does not register a route to itself. Signal realtime actors re
 2. lazily acquires explicit ES and VX stream registrations owned by `FuturesItiSignal/CurrentContracts/ES` and `FuturesItiSignal/CurrentContracts/VX`;
 3. requires both owned workflow streams to be active;
 4. obtains a fresh VX price through the hot-cache-backed market-data API; and
-5. sends a Daily `GenerateFuturesItiSignalCommand`, crossing from non-durable Core NATS ingress into the durable command workflow.
+5. evaluates independent Daily, Weekly, and Monthly hot states; and
+6. sends a `GenerateFuturesItiSignalCommand` only for each timeframe that has a publishable transition, crossing from non-durable Core NATS ingress into the durable command workflow.
 
 Expected timing gaps, including an inactive required stream or no fresh VX trade yet, suppress command creation without treating the realtime message as a durable failure. Contract-identity mismatches and missing startup rollover state remain errors. The legacy `FuturesEodDataInsertedCompleteEvent` trigger is no longer registered by `FuturesItiSignalEventActor`, preventing the same ITI generation workflow from being triggered by both EOD and realtime paths.
 
@@ -494,14 +495,21 @@ The ITI period contract is:
 
 ```text
 Core Realtime ES update
-  -> Generate Daily ITI command
-  -> durable Daily Generated event and projection
-  -> Daily GeneratedComplete handler
-       -> Generate Weekly ITI command
-       -> Generate Monthly ITI command
+  -> evaluate Daily hot state
+  -> evaluate Weekly hot state
+  -> evaluate Monthly hot state
+  -> for each publishable transition only:
+       Generate timeframe ITI command
+       -> durable Generated event
+       -> canonical/query projections
+       -> versioned current-timeframe state projection
 ```
 
-Daily, Weekly, and Monthly use default trading-day counts of 1, 5, and 20 respectively. `FuturesItiSignalGeneratedEvent` and its completed event carry the exact source VX futures price and an explicit derivation marker as additive MessagePack fields. The marker is set only by a Daily Generate command; hold-set and hold-clear mutations reuse the event family but must not derive periods. This makes durable period derivation deterministic and replay-safe without rereading a mutable hot cache or substituting an EOD VX observation. Derived command identifiers are stable hashes of the source completion identity and target period, so redelivery addresses the same command identity. Only a marked Daily completion may derive longer periods; Weekly and Monthly completions never generate ITI commands, preventing recursive fan-out. Existing downstream trade-signal completion behavior remains period-specific and unchanged.
+Daily, Weekly, and Monthly use default trading-day counts of 1, 5, and 20 respectively. Each period owns its own actor entity identified by contract, period, and first observed trading value date in the timeframe. Daily resets on each new feed value date. Weekly and Monthly reset on the first observed value date in a new ISO-week bucket or calendar month, so a Monday holiday naturally makes Tuesday the weekly frame start. On restart, `futures_iti_timeframe_state` restores the persisted frame start and last durable signal; bounded legacy history is only a migration fallback.
+
+Direction changes remain immediate comparisons against `UpTrendTrigger` and `DownTrendTrigger`, and only direction changes increment `IntrinsicTimeGroupId`. Start-of-timeframe is group zero. Trending, extreme, and reversal changes become durable only after price moves at least 10% of the calculated ITI threshold from the applicable durable anchor. Ticks inside the band update actor-owned hot observation state but create no command, domain event, completion, or storage row.
+
+The generated and completed contracts retain the source VX price. Their existing `DeriveLongerPeriods` field remains at MessagePack key 12 for wire compatibility but is deprecated and always `false` for new Generate events. No generated-complete handler creates another ITI command. Existing downstream trade-signal completion behavior remains period-specific and unchanged.
 
 #### 9.4.1 Normalized last-price cache
 
@@ -637,3 +645,4 @@ Reserved. Once the EventActor, CommandActor, and QueryActor sections are mature,
 | 2026-08-14 | Defined the TickAggregation normalized last-price cache: stream-independent tick/option snapshot reads, explicit stream-activity checks, allocation-free versioned snapshot reads, quote-side cache refresh, trade-triggered Core realtime publication, stale-update rejection, and timer-derived signal sampling. |
 | 2026-08-14 | Added `FuturesItiSignalRealtimeActor` as the first routed signal actor, including ES/VX rollover identity checks, active-stream policy, fresh VX hot-price sampling, the realtime-to-durable command boundary, and retirement of the duplicate EOD ITI trigger. |
 | 2026-08-14 | Completed the realtime ITI period and ownership contract: actor-owned lazy ES/VX registrations, Daily-only realtime entry, deterministic durable Daily-to-Weekly/Monthly derivation, recursion guards, stable derived command IDs, and source-VX preservation across generated/completed events. |
+| 2026-08-16 | Replaced Daily completion fan-out with independent Daily/Weekly/Monthly realtime evaluators, 10%-of-ITI-threshold durable publication bands, timeframe-start entity identity, group-zero frame resets, holiday-safe first-observed weekly starts, and versioned restart state projection. The legacy derivation field remains wire-compatible but is no longer active. |

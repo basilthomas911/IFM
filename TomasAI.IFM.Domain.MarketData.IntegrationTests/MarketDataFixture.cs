@@ -66,9 +66,9 @@ public class MarketDataFixture : IDisposable
         logger.When(_ => { }).Do(_ => { });
         new MarketDataSchemaDb(dbConn, logger)
             .CreateAsync([
-                "market_data_import_ownership_v1",
+                "market_data_import_ownership",
                 "economic_calendar_v2",
-                "economic_calendar_country_code_v1",
+                "economic_calendar_country_code",
                 "economic_calendar_cutover_v2"
             ])
             .GetAwaiter().GetResult();

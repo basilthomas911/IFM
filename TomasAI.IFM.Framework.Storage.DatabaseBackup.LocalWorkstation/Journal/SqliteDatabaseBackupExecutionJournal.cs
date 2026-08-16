@@ -83,7 +83,7 @@ public sealed class SqliteDatabaseBackupExecutionJournal : IDatabaseBackupExecut
 
         var existingInboxHash = await ScalarStringAsync(
             connection, transaction,
-            "SELECT content_hash FROM journal_inbox_v1 WHERE event_id=$event_id;",
+            "SELECT content_hash FROM journal_inbox WHERE event_id=$event_id;",
             cancellationToken,
             ("$event_id", intent.ExecutionEvent.Id.ToString("D"))).ConfigureAwait(false);
         if (existingInboxHash is not null)
@@ -97,7 +97,7 @@ public sealed class SqliteDatabaseBackupExecutionJournal : IDatabaseBackupExecut
         var operationId = intent.OperationId.Value.ToString("D");
         var existingDefinitionHash = await ScalarStringAsync(
             connection, transaction,
-            "SELECT definition_hash FROM journal_operation_v1 WHERE operation_id=$operation_id;",
+            "SELECT definition_hash FROM journal_operation WHERE operation_id=$operation_id;",
             cancellationToken,
             ("$operation_id", operationId)).ConfigureAwait(false);
         if (existingDefinitionHash is not null && !StringComparer.Ordinal.Equals(existingDefinitionHash, definitionHash))
@@ -106,7 +106,7 @@ public sealed class SqliteDatabaseBackupExecutionJournal : IDatabaseBackupExecut
         if (existingDefinitionHash is null)
         {
             await ExecuteAsync(connection, transaction, """
-INSERT INTO journal_operation_v1
+INSERT INTO journal_operation
     (operation_id, source, operation_kind, protection_set_id, definition_hash,
      intent_event_id, intent_type, intent_json, phase, terminal, admitted_utc, updated_utc)
 VALUES ($operation_id,$source,$kind,$protection_set,$definition_hash,
@@ -125,7 +125,7 @@ VALUES ($operation_id,$source,$kind,$protection_set,$definition_hash,
         }
 
         await ExecuteAsync(connection, transaction, """
-INSERT INTO journal_inbox_v1 (event_id, operation_id, content_hash, admitted_utc)
+INSERT INTO journal_inbox (event_id, operation_id, content_hash, admitted_utc)
 VALUES ($event_id,$operation_id,$content_hash,$now);
 """, cancellationToken,
             ("$event_id", intent.ExecutionEvent.Id.ToString("D")),
@@ -164,7 +164,7 @@ VALUES ($event_id,$operation_id,$content_hash,$now);
         var token = checked(values.Value.FencingToken + 1);
         var expires = DateTimeOffset.UtcNow.Add(leaseDuration);
         var changed = await ExecuteAsync(connection, transaction, """
-UPDATE journal_operation_v1
+UPDATE journal_operation
 SET lease_host_id=$host_id, lease_expires_utc=$expires, fencing_token=$token, updated_utc=$now
 WHERE operation_id=$operation_id AND terminal=0 AND fencing_token=$expected_token;
 """, cancellationToken,
@@ -186,7 +186,7 @@ WHERE operation_id=$operation_id AND terminal=0 AND fencing_token=$expected_toke
         var expires = DateTimeOffset.UtcNow.Add(lease.LeaseDuration);
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
         var changed = await ExecuteAsync(connection, null, """
-UPDATE journal_operation_v1
+UPDATE journal_operation
 SET lease_expires_utc=$expires, updated_utc=$now
 WHERE operation_id=$operation_id AND lease_host_id=$host_id AND fencing_token=$token AND terminal=0;
 """, cancellationToken,
@@ -202,7 +202,7 @@ WHERE operation_id=$operation_id AND lease_host_id=$host_id AND fencing_token=$t
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
         using var transaction = connection.BeginTransaction();
         var changed = await ExecuteAsync(connection, transaction, """
-UPDATE journal_operation_v1
+UPDATE journal_operation
 SET phase=$phase, terminal=$terminal,
     lease_host_id=CASE WHEN $terminal=1 THEN NULL ELSE lease_host_id END,
     lease_expires_utc=CASE WHEN $terminal=1 THEN NULL ELSE lease_expires_utc END,
@@ -214,7 +214,7 @@ WHERE operation_id=$operation_id AND lease_host_id=$host_id AND fencing_token=$t
             ("$host_id", checkpoint.HostId.Value), ("$token", checkpoint.FencingToken)).ConfigureAwait(false);
         if (changed != 1) throw new DatabaseLeaseLostException(checkpoint.OperationId);
         await ExecuteAsync(connection, transaction, """
-INSERT INTO journal_checkpoint_v1
+INSERT INTO journal_checkpoint
     (operation_id, fencing_token, phase, terminal, safe_diagnostic_reference, observed_utc)
 VALUES ($operation_id,$token,$phase,$terminal,$diagnostic,$observed)
 ON CONFLICT (operation_id, fencing_token, phase) DO UPDATE SET
@@ -251,7 +251,7 @@ ON CONFLICT (operation_id, fencing_token, phase) DO UPDATE SET
             await using var command = connection.CreateCommand();
             command.CommandText = """
 SELECT event_id, operation_id, service_sequence, event_type, event_json, publish_attempts
-FROM journal_outbox_v1
+FROM journal_outbox
 WHERE published=0
 ORDER BY operation_id, service_sequence
 LIMIT $maximum_count;
@@ -285,20 +285,20 @@ LIMIT $maximum_count;
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
         using var transaction = connection.BeginTransaction();
         var changed = await ExecuteAsync(connection, transaction, """
-UPDATE journal_outbox_v1
+UPDATE journal_outbox
 SET published=1, published_utc=$published_utc, publish_attempts=publish_attempts+1
 WHERE event_id=$event_id AND published=0;
-UPDATE journal_run_stats_v1
+UPDATE journal_run_stats
 SET published=1
 WHERE (operation_id, statistics_revision) = (
-    SELECT operation_id, service_sequence FROM journal_outbox_v1 WHERE event_id=$event_id
+    SELECT operation_id, service_sequence FROM journal_outbox WHERE event_id=$event_id
 );
 """, cancellationToken,
             ("$published_utc", Format(publishedUtc)), ("$event_id", eventId.ToString("D"))).ConfigureAwait(false);
         if (changed == 0)
         {
             var published = await ScalarLongAsync(connection, transaction,
-                "SELECT published FROM journal_outbox_v1 WHERE event_id=$event_id;", cancellationToken,
+                "SELECT published FROM journal_outbox WHERE event_id=$event_id;", cancellationToken,
                 ("$event_id", eventId.ToString("D"))).ConfigureAwait(false);
             if (published != 1) throw new InvalidOperationException("The DatabaseBackup service event is not present in the outbox.");
         }
@@ -312,7 +312,7 @@ WHERE (operation_id, statistics_revision) = (
         await using var command = connection.CreateCommand();
         command.CommandText = """
 SELECT intent_type, intent_json, phase, last_service_sequence, fencing_token
-FROM journal_operation_v1
+FROM journal_operation
 WHERE terminal=0
 ORDER BY admitted_utc, operation_id;
 """;
@@ -336,10 +336,10 @@ ORDER BY admitted_utc, operation_id;
         if (domainRevision <= 0) throw new ArgumentOutOfRangeException(nameof(domainRevision));
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
         await ExecuteAsync(connection, null, """
-INSERT INTO journal_reconciliation_v1 (operation_id, core_domain_revision, acknowledged_utc)
+INSERT INTO journal_reconciliation (operation_id, core_domain_revision, acknowledged_utc)
 VALUES ($operation_id,$revision,$acknowledged_utc)
 ON CONFLICT (operation_id) DO UPDATE SET
-    core_domain_revision=MAX(journal_reconciliation_v1.core_domain_revision, excluded.core_domain_revision),
+    core_domain_revision=MAX(journal_reconciliation.core_domain_revision, excluded.core_domain_revision),
     acknowledged_utc=excluded.acknowledged_utc;
 """, cancellationToken,
             ("$operation_id", operationId.Value.ToString("D")), ("$revision", domainRevision),
@@ -356,7 +356,7 @@ ON CONFLICT (operation_id) DO UPDATE SET
         var sequence = @event.Source.SourceRevisionOrSequence;
         if (sequence <= 0) throw new ArgumentOutOfRangeException(nameof(@event), "A positive service sequence is required.");
         var existingHash = await ScalarStringAsync(connection, transaction, """
-SELECT content_hash FROM journal_outbox_v1
+SELECT content_hash FROM journal_outbox
 WHERE event_id=$event_id OR (operation_id=$operation_id AND service_sequence=$sequence);
 """, cancellationToken,
             ("$event_id", @event.Id.ToString("D")),
@@ -370,10 +370,10 @@ WHERE event_id=$event_id OR (operation_id=$operation_id AND service_sequence=$se
         }
 
         await ExecuteAsync(connection, transaction, """
-INSERT INTO journal_outbox_v1
+INSERT INTO journal_outbox
     (event_id, operation_id, service_sequence, event_type, event_json, content_hash, created_utc)
 VALUES ($event_id,$operation_id,$sequence,$event_type,$event_json,$content_hash,$created_utc);
-UPDATE journal_operation_v1
+UPDATE journal_operation
 SET last_service_sequence=MAX(last_service_sequence,$sequence), updated_utc=$created_utc
 WHERE operation_id=$operation_id;
 """, cancellationToken,
@@ -383,7 +383,7 @@ WHERE operation_id=$operation_id;
             ("$content_hash", serialized.Hash), ("$created_utc", Format(DateTimeOffset.UtcNow))).ConfigureAwait(false);
         if (@event.Statistics is not null)
             await ExecuteAsync(connection, transaction, """
-INSERT INTO journal_run_stats_v1
+INSERT INTO journal_run_stats
     (operation_id, statistics_revision, statistics_json)
 VALUES ($operation_id,$sequence,$statistics_json);
 """, cancellationToken,
@@ -402,7 +402,7 @@ VALUES ($operation_id,$sequence,$statistics_json);
         command.Transaction = transaction;
         command.CommandText = """
 SELECT terminal, lease_host_id, lease_expires_utc, fencing_token
-FROM journal_operation_v1 WHERE operation_id=$operation_id;
+FROM journal_operation WHERE operation_id=$operation_id;
 """;
         command.Parameters.AddWithValue("$operation_id", operationId.Value.ToString("D"));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);

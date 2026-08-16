@@ -485,7 +485,8 @@ public static class Startup
             SystemAdminActorAssembly.Current,
             TradeActorAssembly.Current
         };
-        var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies());
+        var assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies()
+            .Where(static assembly => !assembly.IsDynamic));
         assemblies.AddRange(domainAssemblies);
         var repositoryTypes = assemblies
             .Distinct()

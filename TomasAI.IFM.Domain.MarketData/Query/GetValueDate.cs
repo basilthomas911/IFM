@@ -1,6 +1,7 @@
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Query;
 
@@ -25,35 +26,7 @@ public static class GetValueDate
     }
 
     internal static ScalarReadModel<DateOnly>? CalculateValueDate(DateTime today)
-    {
-        if (today.DayOfWeek == DayOfWeek.Saturday
-            || (today.DayOfWeek == DayOfWeek.Sunday
-                && today.TimeOfDay < TimeSpan.FromHours(18)))
-        {
-            return null;
-        }
-
-        var valueDate = new ScalarReadModel<DateOnly>(DateOnly.FromDateTime(today));
-        switch (today.DayOfWeek)
-        {
-            case DayOfWeek.Sunday:
-                if (today.TimeOfDay >= TimeSpan.FromHours(18))
-                    valueDate = new ScalarReadModel<DateOnly>(new DateOnly(today.Year, today.Month, today.Day).AddDays(1));
-                break;
-            case DayOfWeek.Monday:
-            case DayOfWeek.Tuesday:
-            case DayOfWeek.Wednesday:
-            case DayOfWeek.Thursday:
-                if (today.TimeOfDay >= TimeSpan.FromHours(18))
-                    valueDate = new ScalarReadModel<DateOnly>(new DateOnly(today.Year, today.Month, today.Day).AddDays(1));
-                else if (today.TimeOfDay <= TimeSpan.FromHours(17))
-                    valueDate = new ScalarReadModel<DateOnly>(new DateOnly(today.Year, today.Month, today.Day));
-                break;
-            case DayOfWeek.Friday:
-                if (today.TimeOfDay <= TimeSpan.FromHours(17))
-                    valueDate = new ScalarReadModel<DateOnly>(new DateOnly(today.Year, today.Month, today.Day));
-                break;
-        }
-        return valueDate;
-    }
+        => FuturesTradingValueDate.TryGet(today, out var valueDate)
+            ? new ScalarReadModel<DateOnly>(valueDate)
+            : null;
 }

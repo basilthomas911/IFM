@@ -35,7 +35,7 @@ public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
     [Key(10)] public string CreatedBy { get; init; }
     /// <summary>The source VIX futures price used by deterministic period derivation.</summary>
     [Key(11)] public double VixFuturesPrice { get; init; }
-    /// <summary>Whether this generated signal is the Daily root of period derivation.</summary>
+    /// <summary>Deprecated compatibility field. New generation events always set this to false.</summary>
     [Key(12)] public bool DeriveLongerPeriods { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
@@ -166,7 +166,7 @@ public record FuturesItiSignalGeneratedCompleteEvent : ICompleteEvent<FuturesIti
     [Key(10)] public string CreatedBy { get; init; }
     /// <summary>The source VIX futures price used to generate this signal.</summary>
     [Key(11)] public double VixFuturesPrice { get; init; }
-    /// <summary>Whether this completion is the Daily root of period derivation.</summary>
+    /// <summary>Deprecated compatibility field retained at its established MessagePack key.</summary>
     [Key(12)] public bool DeriveLongerPeriods { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";

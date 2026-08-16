@@ -4,9 +4,12 @@ using Microsoft.Extensions.Logging;
 using NATS.Net;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesMarketPrice.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -47,12 +50,14 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
 
         var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
         commandApi.GenerateFuturesItiSignalAsync(
-                EsContractId,
-                ValueDate,
-                TimeFrameType.Daily,
+                Arg.Any<string>(),
+                Arg.Any<DateOnly>(),
+                Arg.Any<TimeFrameType>(),
                 Arg.Any<DateTime>(),
-                5450.25,
-                22.75)
+                Arg.Any<double>(),
+                Arg.Any<double>(),
+                Arg.Any<Guid?>(),
+                Arg.Any<DateOnly?>())
             .Returns(call =>
             {
                 commandObserved.TrySetResult(true);
@@ -69,6 +74,7 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
             supervisor,
             commandApiFactory,
             marketDataApi,
+            CreateDbFactory(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
         supervisor.ActorExists(primaryActor.Id).Returns(true);
         supervisor.GetRealtimeRoutes(Arg.Any<ActorTypeId>())
@@ -123,7 +129,9 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
                 TimeFrameType.Daily,
                 @event.Price.Trade!.Value.EventTimestamp.UtcDateTime,
                 5450.25,
-                22.75);
+                22.75,
+                null,
+                ValueDate);
         }
         finally
         {
@@ -171,6 +179,25 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
         api.IsTickDataStreamActive(VxContractId).Returns(true);
         api.GetFuturesPriceAsync(VxContractId).Returns(Task.FromResult(22.75m));
         return api;
+    }
+
+    static IDbContextFactory CreateDbFactory()
+    {
+        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        marketDataDb.GetFuturesItiTimeFrameStateAsync(
+                Arg.Any<string>(),
+                Arg.Any<TimeFrameType>(),
+                Arg.Any<DateOnly>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<FuturesItiSignalV2ReadModel?>(null));
+        marketDataDb.GetFuturesItiSignalsForContractAsync(
+                Arg.Any<string>(),
+                Arg.Any<DateOnly>(),
+                Arg.Any<DateOnly>())
+            .Returns(Task.FromResult<ICollection<FuturesItiSignalV2ReadModel>>([]));
+        var factory = Substitute.For<IDbContextFactory>();
+        factory.MarketDataDb.Returns(marketDataDb);
+        return factory;
     }
 
     static FuturesMarketPriceUpdatedRealtimeEvent CreateEvent()

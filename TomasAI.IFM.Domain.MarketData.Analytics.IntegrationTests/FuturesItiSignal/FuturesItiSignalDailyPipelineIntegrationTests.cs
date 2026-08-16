@@ -29,7 +29,7 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
         factory.Services.GetRequiredService<IActorProducer>();
 
     [Fact]
-    public async Task DailyCommand_ProjectsAndDurablyDerivesWeeklyAndMonthlySignals()
+    public async Task DailyCommand_ProjectsOnlyDailySignalWithoutLongerPeriodFanout()
     {
         var contractId = SampleData.ContractId;
         var valueDate = SampleData.ValueDate;
@@ -92,24 +92,22 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
 
             response.Success.Should().BeTrue();
             await pipelineCompleted.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await Task.Delay(500);
 
-            generated.Keys.Should().BeEquivalentTo(expectedPeriods);
-            completed.Keys.Should().BeEquivalentTo(expectedPeriods);
+            generated.Keys.Should().Equal(TimeFrameType.Daily);
+            completed.Keys.Should().Equal(TimeFrameType.Daily);
+            generated[TimeFrameType.Daily].VixFuturesPrice.Should().Be(SampleData.VixFuturesPrice);
+            completed[TimeFrameType.Daily].VixFuturesPrice.Should().Be(SampleData.VixFuturesPrice);
+            generated[TimeFrameType.Daily].FuturesItiSignal!.TradingDays.Should().Be(1);
+
             foreach (var period in expectedPeriods)
             {
-                generated[period].VixFuturesPrice.Should().Be(SampleData.VixFuturesPrice);
-                completed[period].VixFuturesPrice.Should().Be(SampleData.VixFuturesPrice);
-                generated[period].FuturesItiSignal!.TradingDays.Should().Be(period switch
-                {
-                    TimeFrameType.Daily => 1,
-                    TimeFrameType.Weekly => 5,
-                    TimeFrameType.Monthly => 20,
-                    _ => throw new ArgumentOutOfRangeException(nameof(period))
-                });
-
                 var entityId = new FuturesItiSignalEntityId(contractId, valueDate, period);
                 var signals = await dbFixture.MarketDataDb.GetFuturesItiSignalsAsync(entityId);
-                signals.Should().ContainSingle();
+                if (period == TimeFrameType.Daily)
+                    signals.Should().ContainSingle();
+                else
+                    signals.Should().BeEmpty("longer periods are independent realtime evaluators");
             }
         }
         finally
@@ -131,7 +129,7 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
                 if (Matches(@event.EntityId))
                 {
                     completed[@event.EntityId.TimePeriod] = @event;
-                    if (completed.Count == expectedPeriods.Length)
+                    if (completed.ContainsKey(TimeFrameType.Daily))
                         pipelineCompleted.TrySetResult(true);
                 }
             }

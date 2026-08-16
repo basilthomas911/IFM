@@ -1,15 +1,13 @@
 using System.Collections.Concurrent;
-using System.Collections.Immutable;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using NATS.Net;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
@@ -27,9 +25,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSignal;
 
 /// <summary>
-/// Exercises the complete ITI boundary from a Core NATS market-price update through
-/// the realtime actors, durable command actors, event projectors, and Scylla storage.
-/// Only the external market-data provider is controlled by the test.
+/// Exercises the complete ITI boundary from routed realtime actors through durable
+/// command actors, event projectors, and Scylla storage. The adjacent realtime-actor
+/// integration test owns the Core NATS transport boundary.
 /// </summary>
 [Trait("Category", "Integration")]
 [Collection(ItiPipelineIntegrationCollection.Name)]
@@ -56,30 +54,65 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
         factory.Services.GetRequiredService<IActorProducer>();
 
     [Fact]
-    public async Task CoreNatsTrades_ProjectDailyWeeklyAndMonthlySignalsDurably()
+    public async Task RoutedTrades_ProjectDailyWeeklyAndMonthlySignalsDurably()
     {
         await ResetAsync();
         var marketDataApi = CreateReadyMarketDataApi();
         await using var probe = await ItiEventProbe.StartAsync(EsContractId, ValueDate);
         await using var realtime = await RealtimeHarness.StartAsync(
             _durableProducer,
-            marketDataApi);
+            marketDataApi,
+            dbFixture.DbFactory);
 
         try
         {
             await realtime.PublishAsync(CreateEvent(101, FirstTimestamp));
+            realtime.DurableHandoffs.Should().Be(3);
             await probe.WaitForCompletionCountAsync(3);
 
             await AssertStoredSignalsAsync(expectedCount: 1, FirstTimestamp);
             AssertGeneratedEvents(probe, expectedCount: 1);
 
-            // A distinct live trade is valid input even when its numerical price is unchanged.
+            // An unchanged trade updates hot observation state but remains inside
+            // every active publication band.
             var secondTimestamp = FirstTimestamp.AddSeconds(1);
             await realtime.PublishAsync(CreateEvent(102, secondTimestamp));
+            await Task.Delay(500);
+
+            await AssertStoredSignalsAsync(expectedCount: 1, FirstTimestamp);
+            AssertGeneratedEvents(probe, expectedCount: 1);
+            realtime.DurableHandoffs.Should().Be(3);
+
+            var bandTimestamp = FirstTimestamp.AddSeconds(2);
+            const double bandCrossingPrice = EsPrice + 10;
+            await realtime.PublishAsync(CreateEvent(
+                103,
+                bandTimestamp,
+                price: bandCrossingPrice));
+            realtime.DurableHandoffs.Should().Be(6);
             await probe.WaitForCompletionCountAsync(6);
 
-            await AssertStoredSignalsAsync(expectedCount: 2, FirstTimestamp, secondTimestamp);
-            AssertGeneratedEvents(probe, expectedCount: 2);
+            foreach (var period in ExpectedPeriods)
+            {
+                var signals = await dbFixture.MarketDataDb.GetFuturesItiSignalsAsync(
+                    new FuturesItiSignalEntityId(EsContractId, ValueDate, period));
+                signals.Should().HaveCount(2);
+                signals.Should().Contain(signal =>
+                    signal.IntrinsicPrice == bandCrossingPrice
+                    && signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged
+                    && signal.IntrinsicTimeGroupId == 0);
+                var current = await dbFixture.MarketDataDb.GetFuturesItiTimeFrameStateAsync(
+                    EsContractId,
+                    period,
+                    FuturesItiCalendarBucketStart(ValueDate, period));
+                current.Should().NotBeNull();
+                current!.IntrinsicPrice.Should().Be(bandCrossingPrice);
+                current.TimeFrameStartValueDate.Should().Be(ValueDate);
+                current.BandAnchorPrice.Should().Be(bandCrossingPrice);
+                current.BandPercentage.Should().Be(0.10);
+                current.BandSize.Should().BeGreaterThan(0);
+            }
+            realtime.DurableHandoffs.Should().Be(6);
         }
         finally
         {
@@ -120,7 +153,8 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
 
         await using var realtime = await RealtimeHarness.StartAsync(
             _durableProducer,
-            marketDataApi);
+            marketDataApi,
+            dbFixture.DbFactory);
         try
         {
             await realtime.PublishAsync(CreateEvent(201, FirstTimestamp, eventContractId));
@@ -141,11 +175,15 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
     }
 
     [Fact]
-    public async Task DailyCompletionDerivedCommandIds_AreDurablyIdempotent()
+    public async Task IndependentPeriodCommandIds_AreDurablyIdempotent()
     {
         await ResetAsync();
         await using var probe = await ItiEventProbe.StartAsync(EsContractId, ValueDate);
-        var source = CreateDailyCompletion();
+        var commandIds = new Dictionary<TimeFrameType, Guid>
+        {
+            [TimeFrameType.Weekly] = Guid.NewGuid(),
+            [TimeFrameType.Monthly] = Guid.NewGuid()
+        };
 
         try
         {
@@ -153,17 +191,17 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
             {
                 var result = await SendDurableItiCommandAsync(
                     period,
-                    FuturesItiSignalGeneratedComplete.CreateDerivedCommandId(source, period));
+                    commandIds[period]);
                 result.Success.Should().BeTrue();
             }
             await probe.WaitForLongerPeriodCompletionsAsync();
 
-            // A redelivered Daily completion creates these same deterministic IDs.
+            // A redelivered command with the same ID remains idempotent.
             foreach (var period in new[] { TimeFrameType.Weekly, TimeFrameType.Monthly })
             {
                 var result = await SendDurableItiCommandAsync(
                     period,
-                    FuturesItiSignalGeneratedComplete.CreateDerivedCommandId(source, period));
+                    commandIds[period]);
                 result.Success.Should().BeFalse(
                     "the durable actor must reject a repeated derived command ID");
             }
@@ -274,42 +312,14 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
         _ => throw new ArgumentOutOfRangeException(nameof(period))
     };
 
-    static FuturesItiSignalGeneratedCompleteEvent CreateDailyCompletion()
-    {
-        var entityId = new FuturesItiSignalEntityId(
-            EsContractId,
-            ValueDate,
-            TimeFrameType.Daily);
-        var signal = SampleData.StartOfDayEvent.FuturesItiSignal! with
+    static DateOnly FuturesItiCalendarBucketStart(DateOnly valueDate, TimeFrameType period)
+        => period switch
         {
-            ContractId = EsContractId,
-            ValueDate = ValueDate,
-            TimePeriod = TimeFrameType.Daily,
-            IntrinsicTime = FirstTimestamp,
-            IntrinsicPrice = EsPrice,
-            TradingDays = 1
+            TimeFrameType.Daily => valueDate,
+            TimeFrameType.Weekly => valueDate.AddDays(-(((int)valueDate.DayOfWeek + 6) % 7)),
+            TimeFrameType.Monthly => new DateOnly(valueDate.Year, valueDate.Month, 1),
+            _ => throw new ArgumentOutOfRangeException(nameof(period))
         };
-        return new FuturesItiSignalGeneratedCompleteEvent
-        {
-            Subject = new ActorSubject(
-                ActorType.Event,
-                FuturesItiSignalGeneratedCompleteEvent.Actor,
-                FuturesItiSignalGeneratedCompleteEvent.Verb,
-                entityId.Format()),
-            Id = Guid.NewGuid(),
-            CommandId = Guid.NewGuid(),
-            EntityId = entityId,
-            AggregateId = entityId.Format(),
-            EventId = 1,
-            EventSource = "integration-test",
-            ReceivedOn = FirstTimestamp,
-            FuturesItiSignal = signal,
-            VixFuturesPrice = VxPrice,
-            DeriveLongerPeriods = true,
-            CreatedOn = FirstTimestamp,
-            CreatedBy = "integration-test"
-        };
-    }
 
     static IMarketDataApi CreateReadyMarketDataApi()
     {
@@ -337,7 +347,8 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
     static FuturesMarketPriceUpdatedRealtimeEvent CreateEvent(
         long sourceSequence,
         DateTime timestamp,
-        string contractId = EsContractId)
+        string contractId = EsContractId,
+        double price = EsPrice)
     {
         var entityId = new TickDataEntityId(contractId, ValueDate, AssetTypeId.Futures);
         var eventTimestamp = new DateTimeOffset(timestamp);
@@ -362,7 +373,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 ValueDate,
                 null,
                 new FuturesMarketTradeSnapshot(
-                    (decimal)EsPrice,
+                    (decimal)price,
                     5,
                     sourceSequence,
                     eventTimestamp,
@@ -390,21 +401,15 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
     {
         readonly FuturesMarketPriceRealtimeActor _primaryActor;
         readonly FuturesItiSignalRealtimeActor _itiActor;
-        readonly NatsActorConsumer _consumer;
-        readonly NatsActorProducer _publisher;
         readonly HandoffCounter _handoffCounter;
 
         RealtimeHarness(
             FuturesMarketPriceRealtimeActor primaryActor,
             FuturesItiSignalRealtimeActor itiActor,
-            NatsActorConsumer consumer,
-            NatsActorProducer publisher,
             HandoffCounter handoffCounter)
         {
             _primaryActor = primaryActor;
             _itiActor = itiActor;
-            _consumer = consumer;
-            _publisher = publisher;
             _handoffCounter = handoffCounter;
         }
 
@@ -412,11 +417,10 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
 
         public static async Task<RealtimeHarness> StartAsync(
             IActorProducer durableProducer,
-            IMarketDataApi marketDataApi)
+            IMarketDataApi marketDataApi,
+            IDbContextFactory dbFactory)
         {
-            var queues = Substitute.For<IActorThreadQueues>();
             var mailbox = Substitute.For<IActorMailbox>();
-            mailbox.ThreadQueues.Returns(queues);
             var actorProducer = Substitute.For<IActorProducer>();
             actorProducer.StartAsync(Arg.Any<ActorMailboxId>(), Arg.Any<CancellationToken>())
                 .Returns(ValueTask.CompletedTask);
@@ -434,7 +438,8 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                     Arg.Any<DateTime>(),
                     Arg.Any<double>(),
                     Arg.Any<double>(),
-                    Arg.Any<Guid?>())
+                    Arg.Any<Guid?>(),
+                    Arg.Any<DateOnly?>())
                 .Returns(call => SendDurableCommandAsync(
                     durableProducer,
                     handoffCounter,
@@ -444,7 +449,8 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                     call.ArgAt<DateTime>(3),
                     call.ArgAt<double>(4),
                     call.ArgAt<double>(5),
-                    call.ArgAt<Guid?>(6)));
+                    call.ArgAt<Guid?>(6),
+                    call.ArgAt<DateOnly?>(7)));
             var commandApiFactory = Substitute.For<IActorMarketDataAnalyticsCommandApiFactory>();
             commandApiFactory.Create(Arg.Any<IEventActorContext>()).Returns(commandApi);
 
@@ -455,59 +461,29 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 supervisor,
                 commandApiFactory,
                 marketDataApi,
+                dbFactory,
                 Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
-            supervisor.ActorExists(primaryActor.Id).Returns(true);
-            supervisor.GetRealtimeRoutes(Arg.Any<ActorTypeId>())
-                .Returns(ImmutableHashSet.Create(itiActor.Id));
-            supervisor.Children.Returns(new Dictionary<ActorMailboxId, IActor>
-            {
-                [primaryActor.Id] = primaryActor,
-                [itiActor.Id] = itiActor
-            });
-            queues.TryAdmitAsync(
-                    Arg.Any<IActorMessage>(),
-                    Arg.Any<ActorSubject>(),
-                    Arg.Any<CancellationToken>())
-                .Returns(call => AdmitAsync(primaryActor, itiActor, call));
-
-            var url = Environment.GetEnvironmentVariable("IFM_NATS_URL")
-                ?? "nats://localhost:4222";
-            var consumer = new NatsActorConsumer(
-                new NatsConsumerOptions
-                {
-                    Url = url,
-                    DispatcherCount = 1,
-                    DispatcherCapacity = 16,
-                    SubscriptionCapacity = 16,
-                    FireAndForgetTraffic = new Dictionary<ActorType, CoreNatsTrafficClass>
-                    {
-                        [ActorType.Realtime] = CoreNatsTrafficClass.Optional
-                    }
-                },
-                Substitute.For<ILogger>());
-            var publisher = new NatsActorProducer(
-                new NatsProducerOptions { Url = url },
-                Substitute.For<ILogger>());
-
             await primaryActor.StartAsync(supervisor);
             await itiActor.StartAsync(supervisor);
-            await consumer.StartAsync(
-                supervisor,
-                ActorType.Realtime,
-                $"futures-iti-full-pipeline-{Guid.NewGuid():N}");
-            await Task.Delay(250);
-            return new(primaryActor, itiActor, consumer, publisher, handoffCounter);
+            return new(primaryActor, itiActor, handoffCounter);
         }
 
-        public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event)
-            => _publisher.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
-                @event.Subject,
-                @event);
+        public async ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event)
+        {
+            var message = Substitute.For<IActorMessage>();
+            message.Subject.Returns(@event.Subject);
+            message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>().Returns(@event);
+            await _primaryActor.HandleMessageAsync(
+                message,
+                @event.Subject.ThreadId).ConfigureAwait(false);
+
+            await ((IEventActor<FuturesItiSignalRealtimeActor>)_itiActor)
+                .ReceiveAsync(Substitute.For<IEventActorContext>(), @event)
+                .ConfigureAwait(false);
+        }
 
         public async ValueTask DisposeAsync()
         {
-            await _publisher.StopAsync();
-            await _consumer.StopAsync();
             await _itiActor.StopAsync();
             await _primaryActor.StopAsync();
         }
@@ -521,17 +497,20 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
             DateTime timestamp,
             double futuresPrice,
             double vixFuturesPrice,
-            Guid? commandId)
+            Guid? commandId,
+            DateOnly? timeFrameStartValueDate)
         {
             Interlocked.Increment(ref handoffCounter.Count);
-            var entityId = new FuturesItiSignalEntityId(contractId, valueDate, timePeriod);
+            var frameStart = timeFrameStartValueDate ?? valueDate;
+            var entityId = new FuturesItiSignalEntityId(contractId, frameStart, timePeriod);
             var command = new GenerateFuturesItiSignalCommand(
                 contractId,
                 valueDate,
                 timePeriod,
                 timestamp,
                 futuresPrice,
-                vixFuturesPrice)
+                vixFuturesPrice,
+                frameStart)
             {
                 CommandId = commandId ?? Guid.NewGuid(),
                 Subject = new ActorSubject(
@@ -548,26 +527,11 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 GuidResult>(command.Subject, command, entityId);
         }
 
-        static async ValueTask<ActorAdmissionResult> AdmitAsync(
-            FuturesMarketPriceRealtimeActor primaryActor,
-            FuturesItiSignalRealtimeActor itiActor,
-            NSubstitute.Core.CallInfo call)
-        {
-            var message = call.Arg<IActorMessage>();
-            var subject = call.Arg<ActorSubject>();
-            if (subject.ActorId == primaryActor.Id)
-                await primaryActor.HandleMessageAsync(message, subject.ThreadId).ConfigureAwait(false);
-            else if (subject.ActorId == itiActor.Id)
-                await itiActor.HandleMessageAsync(message, subject.ThreadId).ConfigureAwait(false);
-            else
-                return ActorAdmissionResult.Rejected(ActorAdmissionReason.MailboxRetired);
-            return ActorAdmissionResult.AcceptedResult;
-        }
-
         sealed class HandoffCounter
         {
             public int Count;
         }
+
     }
 
     sealed class ItiEventProbe : IAsyncDisposable
@@ -624,8 +588,8 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
 
         public Task WaitForCompletionCountAsync(int expectedCount) => expectedCount switch
         {
-            3 => _firstCycle.Task.WaitAsync(TimeSpan.FromSeconds(20)),
-            6 => _secondCycle.Task.WaitAsync(TimeSpan.FromSeconds(20)),
+            3 => _firstCycle.Task.WaitAsync(TimeSpan.FromSeconds(45)),
+            6 => _secondCycle.Task.WaitAsync(TimeSpan.FromSeconds(45)),
             _ => throw new ArgumentOutOfRangeException(nameof(expectedCount))
         };
 

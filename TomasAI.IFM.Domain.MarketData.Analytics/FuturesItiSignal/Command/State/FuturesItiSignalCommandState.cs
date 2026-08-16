@@ -21,6 +21,9 @@ public class FuturesItiSignalCommandState
 {
     FuturesItiSignalV2ReadModel? _futuresItiSignal;
 
+    /// <summary>The last durable signal applied to this timeframe stream.</summary>
+    internal FuturesItiSignalV2ReadModel? CurrentSignal => _futuresItiSignal;
+
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.
     /// </summary>
@@ -154,7 +157,9 @@ public class FuturesItiSignalCommandState
     internal bool Exists(FuturesItiSignalEntityId entityId)
         => _futuresItiSignal is not null
             && _futuresItiSignal.Id.ContractId == entityId.ContractId
-            && _futuresItiSignal.Id.ValueDate == entityId.ValueDate;
+            && _futuresItiSignal.EntityId.TimePeriod == entityId.TimePeriod
+            && _futuresItiSignal.EntityId.TimeFrameStartValueDate
+                == entityId.TimeFrameStartValueDate;
 
     /// <summary>
     /// Gets a value indicating whether the trade is in a ready state for execution.

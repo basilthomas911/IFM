@@ -5,7 +5,7 @@ public static class SystemAdminSchemaSql
     public const string CreateSchema = "CREATE SCHEMA IF NOT EXISTS system_admin;";
 
     public const string CreateRecoveryOperation = """
-CREATE TABLE IF NOT EXISTS system_admin.database_recovery_operation_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_recovery_operation (
     operation_id uuid PRIMARY KEY,
     backup_set_id uuid NULL,
     protection_set_id text NOT NULL,
@@ -27,14 +27,14 @@ CREATE TABLE IF NOT EXISTS system_admin.database_recovery_operation_v1 (
     last_event_id bigint NOT NULL,
     last_source_event_id uuid NOT NULL
 );
-CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_v1_history
-    ON system_admin.database_recovery_operation_v1 (source, protection_set_id, created_utc DESC, operation_id);
-CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_v1_backup_set
-    ON system_admin.database_recovery_operation_v1 (backup_set_id) WHERE backup_set_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_history
+    ON system_admin.database_recovery_operation (source, protection_set_id, created_utc DESC, operation_id);
+CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_backup_set
+    ON system_admin.database_recovery_operation (backup_set_id) WHERE backup_set_id IS NOT NULL;
 """;
 
     public const string CreateRecoveryPhase = """
-CREATE TABLE IF NOT EXISTS system_admin.database_recovery_phase_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_recovery_phase (
     operation_id uuid NOT NULL,
     phase smallint NOT NULL,
     event_revision bigint NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS system_admin.database_recovery_phase_v1 (
 """;
 
     public const string CreateRecoveryRunStats = """
-CREATE TABLE IF NOT EXISTS system_admin.database_recovery_run_stats_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_recovery_run_stats (
     operation_id uuid NOT NULL,
     source smallint NOT NULL,
     phase smallint NOT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS system_admin.database_recovery_run_stats_v1 (
 """;
 
     public const string CreateRestorePoint = """
-CREATE TABLE IF NOT EXISTS system_admin.database_restore_point_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_restore_point (
     restore_point_id text NOT NULL,
     source smallint NOT NULL,
     backup_set_id uuid NULL,
@@ -95,12 +95,12 @@ CREATE TABLE IF NOT EXISTS system_admin.database_restore_point_v1 (
     last_source_event_id uuid NOT NULL,
     PRIMARY KEY (restore_point_id, source)
 );
-CREATE INDEX IF NOT EXISTS ix_database_restore_point_v1_latest
-    ON system_admin.database_restore_point_v1 (source, protection_set_id, recovery_point_utc DESC);
+CREATE INDEX IF NOT EXISTS ix_database_restore_point_latest
+    ON system_admin.database_restore_point (source, protection_set_id, recovery_point_utc DESC);
 """;
 
     public const string CreateArtifactReplica = """
-CREATE TABLE IF NOT EXISTS system_admin.database_artifact_replica_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_artifact_replica (
     artifact_replica_id text NOT NULL,
     source smallint NOT NULL,
     operation_id uuid NOT NULL,
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS system_admin.database_artifact_replica_v1 (
 """;
 
     public const string CreateRecoveryError = """
-CREATE TABLE IF NOT EXISTS system_admin.database_recovery_error_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_recovery_error (
     operation_id uuid NOT NULL,
     error_identity uuid NOT NULL,
     classification smallint NOT NULL,
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS system_admin.database_recovery_error_v1 (
 """;
 
     public const string CreateBackupPolicy = """
-CREATE TABLE IF NOT EXISTS system_admin.database_backup_policy_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_backup_policy (
     environment_identity text NOT NULL,
     policy_id text NOT NULL,
     policy_revision bigint NOT NULL,
@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS system_admin.database_backup_policy_v1 (
 """;
 
     public const string CreateServiceHealth = """
-CREATE TABLE IF NOT EXISTS system_admin.database_backup_service_health_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_backup_service_health (
     environment_identity text NOT NULL,
     source smallint NOT NULL,
     host_id text NOT NULL,
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS system_admin.database_backup_service_health_v1 (
 """;
 
     public const string CreateRetentionState = """
-CREATE TABLE IF NOT EXISTS system_admin.database_retention_state_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_retention_state (
     plan_id uuid NOT NULL,
     source smallint NOT NULL,
     plan_revision bigint NOT NULL,
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS system_admin.database_retention_state_v1 (
 """;
 
     public const string CreateProjectionCheckpoint = """
-CREATE TABLE IF NOT EXISTS system_admin.database_backup_projection_checkpoint_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_backup_projection_checkpoint (
     projector_name text PRIMARY KEY,
     last_event_id bigint NOT NULL,
     applied_count bigint NOT NULL,
@@ -190,7 +190,7 @@ CREATE TABLE IF NOT EXISTS system_admin.database_backup_projection_checkpoint_v1
 """;
 
     public const string CreateProjectionReceipt = """
-CREATE TABLE IF NOT EXISTS system_admin.database_backup_projection_receipt_v1 (
+CREATE TABLE IF NOT EXISTS system_admin.database_backup_projection_receipt (
     projector_name text NOT NULL,
     event_id bigint NOT NULL,
     event_hash text NOT NULL,

@@ -50,7 +50,8 @@ public interface IActorMarketDataAnalyticsCommandApi
         DateTime timestamp,
         double futuresPrice,
         double vixFuturesPrice,
-        Guid? commandId = null);
+        Guid? commandId = null,
+        DateOnly? timeFrameStartValueDate = null);
 }
 
 public interface IActorMarketDataAnalyticsCommandApiFactory
