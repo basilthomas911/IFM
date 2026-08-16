@@ -19,7 +19,6 @@ using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
@@ -216,12 +215,7 @@ public static class Startup
                 options.MaximumRangeDays = config.GetValue("AppSettings:Fmp:MaximumImportRangeDays", 366));
             services.AddSingleton(new ExternalMarketDataCompatibilityOptions
             {
-                TreasuryLookbackDays = config.GetValue("AppSettings:Fmp:CompatibilityTreasuryLookbackDays", 14),
-                EconomicCalendarLookbackDays = config.GetValue("AppSettings:Fmp:CompatibilityCalendarLookbackDays", 7),
-                EconomicCalendarForwardDays = config.GetValue("AppSettings:Fmp:CompatibilityCalendarForwardDays", 7),
-                EconomicCalendarCountryCodes = new HashSet<string>(
-                    config.GetSection("AppSettings:Fmp:CountryCodes").Get<string[]>() ?? ["US"],
-                    StringComparer.OrdinalIgnoreCase)
+                TreasuryLookbackDays = config.GetValue("AppSettings:Fmp:CompatibilityTreasuryLookbackDays", 14)
             }.Validate());
             services.AddSingleton(new MarketDataImportPolicyOptions
             {
@@ -415,7 +409,6 @@ public static class Startup
                 provider.GetRequiredService<ISecuritiesDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
             services.AddSingleton<IYieldCurveRatesDbContext, YieldCurveRatesDbContext>();
-            services.AddSingleton<IEconomicCalendarsDbContext, EconomicCalendarsDbContext>();
             services.AddSingleton<EventSourceSchemaDb>();
             services.AddSingleton<LogSchemaDb>();
             services.AddSingleton<SequenceIdSchemaDb>();

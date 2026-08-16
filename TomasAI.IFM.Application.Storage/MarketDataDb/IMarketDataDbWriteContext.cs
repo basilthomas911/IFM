@@ -34,6 +34,10 @@ public interface IMarketDataDbWriteContext
         int batchSize = 256,
         CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
+    Task<EconomicCalendarCutoverResult> BackfillEconomicCalendarV2Async(
+        int batchSize = 256,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 
     Task DeleteFuturesBarDataAsync(FuturesBarDataId e);
     Task DeleteFuturesEodDataAsync(string contractId, DateOnly valueDate);

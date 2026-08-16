@@ -1,4 +1,9 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Storage.Extensions;
@@ -7,17 +12,18 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public partial class MarketDataDbContext
 {
-    internal const int EconomicCalendarMaximumRangeMonths = 120;
-    internal const int EconomicCalendarMaximumAllMonths = 120;
+    internal const int EconomicCalendarMaximumRangeMonths = EconomicCalendarQueryLimits.MaximumRangeMonths;
     internal const int EconomicCalendarMaximumRows = 10_000;
-    internal const int EconomicCalendarMaximumRowsPerMonth = 2_500;
-    internal const int EconomicCalendarMaximumCountryCodes = 512;
+    internal const int EconomicCalendarMaximumRowsPerMonth = EconomicCalendarQueryLimits.MaximumRowsPerPartition;
     internal const int EconomicCalendarMaximumConcurrentQueries = 4;
     const int EconomicCalendarLookupId = 1;
+    const int EconomicCalendarCutoverId = 1;
 
     static EconomicCalendarReadModel MapToEconomicCalendar(IObjectDataRecord row) => new()
     {
-        EventDate = NormalizeEconomicCalendarTimestamp(row.GetDateTime(0)), CountryCode = row.GetString(1), EventName = row.GetString(2),
+        EventDate = NormalizeEconomicCalendarTimestamp(row.GetDateTime(0)),
+        CountryCode = row.GetString(1),
+        EventName = row.GetString(2),
         Actual = GetNullableString(row, 3), Forecast = GetNullableString(row, 4), Prior = GetNullableString(row, 5),
         Impact = GetNullableString(row, 6), Unit = GetNullableString(row, 7),
         Change = GetNullableString(row, 8), ChangePercentage = GetNullableString(row, 9),
@@ -30,88 +36,166 @@ public partial class MarketDataDbContext
     static EconomicCalendarCountryCodeReadModel MapToEconomicCalendarCountryCode(IObjectDataRecord row)
         => new(row.GetString(0));
 
-    static int MapToEconomicCalendarMonth(IObjectDataRecord row) => row.GetInt(0);
-
     static DateTime NormalizeEconomicCalendarTimestamp(DateTime value)
     {
         var utc = ProjectionMutationSafety.AsUtc(value);
-        return new DateTime(
-            utc.Ticks - (utc.Ticks % TimeSpan.TicksPerMillisecond),
-            DateTimeKind.Utc);
+        return new DateTime(utc.Ticks - (utc.Ticks % TimeSpan.TicksPerMillisecond), DateTimeKind.Utc);
     }
 
     static int EconomicCalendarMonthBucket(DateTime value) => value.Year * 100 + value.Month;
 
-    static IEnumerable<int> EconomicCalendarMonthBuckets(DateTime startDate, DateTime endDate)
+    static IEnumerable<int> EconomicCalendarMonthBucketsDescending(DateTime startDate, DateTime endDate)
     {
-        for (var month = new DateTime(startDate.Year, startDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-             month <= endDate; month = month.AddMonths(1))
+        var firstMonth = new DateTime(startDate.Year, startDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        for (var month = new DateTime(endDate.Year, endDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+             month >= firstMonth; month = month.AddMonths(-1))
             yield return EconomicCalendarMonthBucket(month);
     }
 
     public Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId id)
         => GetEconomicCalendarAsync(id, CancellationToken.None);
 
-    public async Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId id, CancellationToken cancellationToken)
-        => await _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetEconomicCalendarById)
-            .SetParameters(new GetEconomicCalendarById(NormalizeEconomicCalendarTimestamp(id.EventDate), id.CountryCode, id.EventName))
+    public async Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(
+        EconomicCalendarId id, CancellationToken cancellationToken)
+    {
+        var eventDate = NormalizeEconomicCalendarTimestamp(id.EventDate);
+        return await _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetEconomicCalendarV2ById)
+            .SetParameters(new GetEconomicCalendarV2ById(
+                id.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName))
             .ExecuteSingleAsync(MapToEconomicCalendar!, cancellationToken);
+    }
 
     public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode)
         => GetEconomicCalendarsAsync(eventDate, countryCode, CancellationToken.None);
 
-    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode, CancellationToken cancellationToken)
+    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
+        DateTime eventDate, string countryCode, CancellationToken cancellationToken)
     {
         var startDate = eventDate.Date;
         var endDate = startDate == DateTime.MaxValue.Date ? DateTime.MaxValue : startDate.AddDays(1).AddTicks(-1);
         return GetEconomicCalendarsAsync(startDate, endDate, countryCode, cancellationToken);
     }
 
-    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode)
+    public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
+        DateTime startDate, DateTime endDate, string countryCode)
         => GetEconomicCalendarsAsync(startDate, endDate, countryCode, CancellationToken.None);
 
-    public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode, CancellationToken cancellationToken)
+    public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
+        DateTime startDate, DateTime endDate, string countryCode, CancellationToken cancellationToken)
     {
         startDate = NormalizeEconomicCalendarTimestamp(startDate);
         endDate = NormalizeEconomicCalendarTimestamp(endDate);
         if (endDate < startDate) return [];
-        var monthBuckets = EconomicCalendarMonthBuckets(startDate, endDate).ToArray();
-        if (monthBuckets.Length > EconomicCalendarMaximumRangeMonths)
+        var request = new EconomicCalendarPageRequest
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(endDate),
-                $"Economic-calendar ranges may span at most {EconomicCalendarMaximumRangeMonths} UTC months.");
-        }
-
-        return await ReadEconomicCalendarMonthsAsync(
-            monthBuckets,
-            bucket => _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetEconomicCalendars)
-                .SetParameters(new GetEconomicCalendars(countryCode, bucket, startDate, endDate))
-                .ExecuteQueryAsync(MapToEconomicCalendar!, cancellationToken),
-            cancellationToken);
+            StartDateUtc = startDate,
+            EndDateUtc = endDate,
+            CountryCodes = [countryCode],
+            PageSize = EconomicCalendarQueryLimits.MaximumPageSize
+        };
+        var rows = new List<EconomicCalendarReadModel>();
+        do
+        {
+            var page = await GetEconomicCalendarPageAsync(request, cancellationToken).ConfigureAwait(false);
+            rows.AddRange(page.Items);
+            if (!page.HasMore || rows.Count >= EconomicCalendarMaximumRows) break;
+            request = request with { ContinuationToken = page.ContinuationToken };
+        } while (true);
+        return [.. rows.Take(EconomicCalendarMaximumRows)];
     }
 
+    public async Task<EconomicCalendarPageReadModel> GetEconomicCalendarPageAsync(
+        EconomicCalendarPageRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        var countries = request.CountryCodes
+            .Select(static code => code.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var partitions = EconomicCalendarMonthBucketsDescending(request.StartDateUtc, request.EndDateUtc)
+            .SelectMany(month => countries.Select(country => new CalendarPartition(country, month)))
+            .ToArray();
+        var fingerprint = GetPageRequestFingerprint(request, countries);
+        var cursor = DecodePageToken(request.ContinuationToken, fingerprint, partitions.Length);
+        var rows = new List<EconomicCalendarReadModel>(request.PageSize);
+
+        for (var partitionIndex = cursor.PartitionIndex; partitionIndex < partitions.Length; partitionIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var partition = partitions[partitionIndex];
+            var partitionRows = await _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetEconomicCalendars)
+                .SetParameters(new GetEconomicCalendars(
+                    partition.CountryCode, partition.MonthBucket, request.StartDateUtc, request.EndDateUtc))
+                .ExecuteQueryAsync(MapToEconomicCalendar!, cancellationToken)
+                .ConfigureAwait(false);
+            if (partitionRows.Count > EconomicCalendarMaximumRowsPerMonth)
+                throw new InvalidOperationException(
+                    $"Economic-calendar partition '{partition.CountryCode}/{partition.MonthBucket}' exceeds the configured row bound.");
+
+            var available = partitionRows
+                .OrderByDescending(static row => row.EventDate)
+                .ThenBy(static row => row.EventName, StringComparer.Ordinal)
+                .Where(row => partitionIndex != cursor.PartitionIndex || IsAfterCursor(row, cursor))
+                .ToArray();
+            var take = Math.Min(request.PageSize - rows.Count, available.Length);
+            rows.AddRange(available.Take(take));
+            if (rows.Count == request.PageSize)
+            {
+                var last = rows[^1];
+                var hasMore = take < available.Length || partitionIndex + 1 < partitions.Length;
+                return new EconomicCalendarPageReadModel
+                {
+                    Items = [.. rows],
+                    ContinuationToken = hasMore
+                        ? EncodePageToken(new CalendarPageToken(
+                            fingerprint, partitionIndex, last.EventDate.Ticks, last.EventName))
+                        : null
+                };
+            }
+            cursor = new CalendarPageToken(fingerprint, partitionIndex + 1, null, null);
+        }
+        return new EconomicCalendarPageReadModel { Items = [.. rows] };
+    }
+
+    [Obsolete("Use GetEconomicCalendarPageAsync with explicit UTC bounds and country codes.")]
     public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync()
         => GetEconomicCalendarAllAsync(CancellationToken.None);
 
+    [Obsolete("Use GetEconomicCalendarPageAsync with explicit UTC bounds and country codes.")]
     public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync(CancellationToken cancellationToken)
     {
-        var months = await _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetEconomicCalendarMonths)
-            .SetParameters(new GetEconomicCalendarMonths(EconomicCalendarLookupId))
-            .ExecuteQueryAsync(MapToEconomicCalendarMonth, cancellationToken);
-
-        return await ReadEconomicCalendarMonthsAsync(
-            months,
-            bucket => _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetEconomicCalendarsByMonth)
-                .SetParameters(new GetEconomicCalendarsByMonth(bucket))
-                .ExecuteQueryAsync(MapToEconomicCalendar!, cancellationToken),
-            cancellationToken);
+        var countries = await GetEconomicCalendarCountryCodesAsync(cancellationToken).ConfigureAwait(false);
+        if (countries.Count == 0) return [];
+        var now = DateTime.UtcNow;
+        var start = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-107);
+        var end = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(13).AddTicks(-1);
+        var request = new EconomicCalendarPageRequest
+        {
+            StartDateUtc = start,
+            EndDateUtc = end,
+            CountryCodes = [.. countries
+                .Take(EconomicCalendarQueryLimits.MaximumPartitions / EconomicCalendarQueryLimits.MaximumRangeMonths)
+                .Select(static row => row.CountryCode)],
+            PageSize = EconomicCalendarQueryLimits.MaximumPageSize
+        };
+        var rows = new List<EconomicCalendarReadModel>();
+        do
+        {
+            var page = await GetEconomicCalendarPageAsync(request, cancellationToken).ConfigureAwait(false);
+            rows.AddRange(page.Items);
+            if (!page.HasMore || rows.Count >= EconomicCalendarMaximumRows) break;
+            request = request with { ContinuationToken = page.ContinuationToken };
+        } while (true);
+        return [.. rows.Take(EconomicCalendarMaximumRows)];
     }
 
     public Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync()
         => GetEconomicCalendarCountryCodesAsync(CancellationToken.None);
 
-    public async Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync(CancellationToken cancellationToken)
+    public async Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync(
+        CancellationToken cancellationToken)
         => await _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetEconomicCalendarCountryCodes)
             .SetParameters(new GetEconomicCalendarCountryCodes(EconomicCalendarLookupId))
             .ExecuteQueryAsync(MapToEconomicCalendarCountryCode, cancellationToken);
@@ -119,22 +203,17 @@ public partial class MarketDataDbContext
     public async Task DeleteEconomicCalendarAsync(EconomicCalendarId id)
     {
         var eventDate = NormalizeEconomicCalendarTimestamp(id.EventDate);
-        var db = _dbFactory.MarketDataDb;
-        await db.ExecuteQueuedCommandsAsync([
-            db.Use(MarketDataDbCql.DeleteEconomicCalendar).SetParameters(new DeleteEconomicCalendar(eventDate, id.CountryCode, id.EventName)).QueueCommand(),
-            db.Use(MarketDataDbCql.DeleteEconomicCalendarByCountryMonthV2).SetParameters(new DeleteEconomicCalendarByCountryMonthV2(id.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName)).QueueCommand(),
-            db.Use(MarketDataDbCql.DeleteEconomicCalendarByMonthV1).SetParameters(new DeleteEconomicCalendarByMonthV1(EconomicCalendarMonthBucket(eventDate), eventDate, id.CountryCode, id.EventName)).QueueCommand()
-        ]);
+        await _dbFactory.MarketDataDb.Use(MarketDataDbCql.DeleteEconomicCalendarV2)
+            .SetParameters(new DeleteEconomicCalendarV2(
+                id.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName))
+            .ExecuteCommandAsync();
     }
 
     public Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar)
         => InsertEconomicCalendarsAsync([economicCalendar]);
 
-    public async Task InsertEconomicCalendarsAsync(ICollection<EconomicCalendarReadModel> economicCalendars)
-        => await InsertEconomicCalendarsAsync(
-            economicCalendars,
-            ImportDuplicatePolicy.Overwrite,
-            Guid.Empty);
+    public Task InsertEconomicCalendarsAsync(ICollection<EconomicCalendarReadModel> economicCalendars)
+        => InsertEconomicCalendarsAsync(economicCalendars, ImportDuplicatePolicy.Overwrite, Guid.Empty);
 
     public async Task InsertEconomicCalendarsAsync(
         ICollection<EconomicCalendarReadModel> economicCalendars,
@@ -144,54 +223,43 @@ public partial class MarketDataDbContext
         if (economicCalendars.Count == 0) return;
         ValidateImportPolicy(duplicatePolicy, commandId);
         var db = _dbFactory.MarketDataDb;
-        var commands = new List<object>(economicCalendars.Count * 3);
+        var commands = new List<object>(economicCalendars.Count * 2);
         var countryCodes = new HashSet<string>(StringComparer.Ordinal);
-        var monthBuckets = new HashSet<int>();
         foreach (var row in economicCalendars)
         {
             var eventDate = NormalizeEconomicCalendarTimestamp(row.EventDate);
+            var parameters = new InsertEconomicCalendarV2(
+                row.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, row.EventName,
+                row.Actual, row.Forecast, row.Prior, row.Impact, row.Unit, row.Change,
+                row.ChangePercentage, row.CreatedOn, row.CreatedBy, commandId);
             if (duplicatePolicy == ImportDuplicatePolicy.Reject)
             {
-                await EnsureImportOwnershipAsync(
-                    "economic-calendar",
-                    $"{eventDate:O}|{row.CountryCode}|{row.EventName}",
-                    commandId,
-                    await GetEconomicCalendarAsync(
-                        new EconomicCalendarId(eventDate, row.CountryCode, row.EventName),
-                        CancellationToken.None).ConfigureAwait(false) is not null)
-                    .ConfigureAwait(false);
+                var applied = await db.Use(MarketDataDbCql.InsertEconomicCalendarV2IfNotExists)
+                    .SetParameters(parameters)
+                    .ExecuteScalarAsync(MapToBoolean!);
+                if (!applied)
+                {
+                    var owner = await db.Use(MarketDataDbCql.GetEconomicCalendarV2CommandId)
+                        .SetParameters(new GetEconomicCalendarV2CommandId(
+                            row.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, row.EventName))
+                        .ExecuteSingleAsync(MapToGuid!);
+                    if (owner != commandId)
+                        throw new MarketDataImportDuplicateException(
+                            $"An economic-calendar row with logical key '{eventDate:O}|{row.CountryCode}|{row.EventName}' already exists.");
+                }
             }
-            var monthBucket = EconomicCalendarMonthBucket(eventDate);
-            commands.Add(db.Use(MarketDataDbCql.InsertEconomicCalendar)
-                .SetParameters(new InsertEconomicCalendar(eventDate, row.CountryCode, row.EventName,
-                    row.Actual, row.Forecast, row.Prior, row.Impact, row.Unit, row.Change,
-                    row.ChangePercentage, row.CreatedOn, row.CreatedBy)).QueueCommand());
-            commands.Add(db.Use(MarketDataDbCql.InsertEconomicCalendarByCountryMonthV2)
-                .SetParameters(new InsertEconomicCalendarByCountryMonthV2(row.CountryCode,
-                    monthBucket, eventDate, row.EventName, row.Actual,
-                    row.Forecast, row.Prior, row.Impact, row.Unit, row.Change,
-                    row.ChangePercentage, row.CreatedOn, row.CreatedBy)).QueueCommand());
-            commands.Add(db.Use(MarketDataDbCql.InsertEconomicCalendarByMonthV1)
-                .SetParameters(new InsertEconomicCalendarByMonthV1(monthBucket, eventDate,
-                    row.CountryCode, row.EventName, row.Actual, row.Forecast, row.Prior,
-                    row.Impact, row.Unit, row.Change, row.ChangePercentage,
-                    row.CreatedOn, row.CreatedBy)).QueueCommand());
+            else
+            {
+                commands.Add(db.Use(MarketDataDbCql.InsertEconomicCalendarV2)
+                    .SetParameters(parameters).QueueCommand());
+            }
             countryCodes.Add(row.CountryCode);
-            monthBuckets.Add(monthBucket);
         }
         commands.AddRange(countryCodes.Select(countryCode => db
             .Use(MarketDataDbCql.InsertEconomicCalendarCountryCodeV1)
-            .SetParameters(new InsertEconomicCalendarCountryCodeV1(
-                EconomicCalendarLookupId,
-                countryCode))
+            .SetParameters(new InsertEconomicCalendarCountryCodeV1(EconomicCalendarLookupId, countryCode))
             .QueueCommand()));
-        commands.AddRange(monthBuckets.Select(monthBucket => db
-            .Use(MarketDataDbCql.InsertEconomicCalendarMonthV1)
-            .SetParameters(new InsertEconomicCalendarMonthV1(
-                EconomicCalendarLookupId,
-                monthBucket))
-            .QueueCommand()));
-        await db.ExecuteQueuedCommandsAsync(commands);
+        if (commands.Count > 0) await db.ExecuteQueuedCommandsAsync(commands);
     }
 
     public async Task UpdateEconomicCalendarAsync(EconomicCalendarId id, EconomicCalendarReadModel economicCalendar)
@@ -200,186 +268,160 @@ public partial class MarketDataDbContext
         await InsertEconomicCalendarAsync(economicCalendar);
     }
 
-    /// <summary>
-    /// Rebuilds the bounded FMP calendar and yield-curve lookup projections from their canonical tables.
-    /// Import writers must be paused for the duration of this offline operation.
-    /// </summary>
-    public async Task<FmpQueryProjectionBackfillResult> BackfillFmpQueryProjectionsAsync(
-        int batchSize = 256,
-        CancellationToken cancellationToken = default)
+    public async Task<EconomicCalendarCutoverResult> BackfillEconomicCalendarV2Async(
+        int batchSize = 256, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
         var db = _dbFactory.MarketDataDb;
-
-        await db.Use(MarketDataDbCql.TruncateEconomicCalendarByMonthV1)
-            .ExecuteCommandAsync(cancellationToken);
         await db.Use(MarketDataDbCql.TruncateEconomicCalendarCountryCodeV1)
             .ExecuteCommandAsync(cancellationToken);
-        await db.Use(MarketDataDbCql.TruncateEconomicCalendarMonthV1)
-            .ExecuteCommandAsync(cancellationToken);
-        await db.Use(MarketDataDbCql.TruncateYieldCurveRateByDateV1)
-            .ExecuteCommandAsync(cancellationToken);
-        await db.Use(MarketDataDbCql.TruncateYieldCurveRateYearV1)
-            .ExecuteCommandAsync(cancellationToken);
-
-        long economicCalendarRowsSource = 0;
-        var economicCalendarSourceIdentity = new ProjectionIdentityBuilder();
-        var countryCodes = new HashSet<string>(StringComparer.Ordinal);
-        var monthBuckets = new HashSet<int>();
-        var calendarBatch = new List<InsertEconomicCalendarByMonthV1>(batchSize);
-        await foreach (var row in db.Use(MarketDataDbCql.GetEconomicCalendarProjectionSource)
+        long sourceRows = 0;
+        var sourceIdentity = new ProjectionIdentityBuilder();
+        var countries = new HashSet<string>(StringComparer.Ordinal);
+        var batch = new List<InsertEconomicCalendarV2>(batchSize);
+        await foreach (var row in db.Use(MarketDataDbCql.GetEconomicCalendarLegacySource)
             .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
         {
-            economicCalendarRowsSource++;
-            economicCalendarSourceIdentity.Add(GetEconomicCalendarProjectionIdentity(row));
-            var monthBucket = EconomicCalendarMonthBucket(row.EventDate);
-            countryCodes.Add(row.CountryCode);
-            monthBuckets.Add(monthBucket);
-            calendarBatch.Add(new InsertEconomicCalendarByMonthV1(
-                monthBucket,
-                row.EventDate,
-                row.CountryCode,
-                row.EventName,
-                row.Actual,
-                row.Forecast,
-                row.Prior,
-                row.Impact,
-                row.Unit,
-                row.Change,
-                row.ChangePercentage,
-                row.CreatedOn,
-                row.CreatedBy));
-            if (calendarBatch.Count == batchSize)
-                await FlushCalendarBatchAsync();
+            sourceRows++;
+            sourceIdentity.Add(GetEconomicCalendarProjectionIdentity(row));
+            countries.Add(row.CountryCode);
+            var eventDate = NormalizeEconomicCalendarTimestamp(row.EventDate);
+            batch.Add(new InsertEconomicCalendarV2(
+                row.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, row.EventName,
+                row.Actual, row.Forecast, row.Prior, row.Impact, row.Unit, row.Change,
+                row.ChangePercentage, row.CreatedOn, row.CreatedBy, Guid.Empty));
+            if (batch.Count == batchSize) await FlushCalendarBatchAsync();
         }
         await FlushCalendarBatchAsync();
-
-        if (countryCodes.Count > 0)
+        if (countries.Count > 0)
         {
             await db.Use(MarketDataDbCql.InsertEconomicCalendarCountryCodeV1)
-                .SetParameters(countryCodes.Select(countryCode =>
-                    new InsertEconomicCalendarCountryCodeV1(EconomicCalendarLookupId, countryCode)))
+                .SetParameters(countries.Select(country =>
+                    new InsertEconomicCalendarCountryCodeV1(EconomicCalendarLookupId, country)))
                 .ExecuteCommandAsync(cancellationToken);
         }
-        if (monthBuckets.Count > 0)
-        {
-            await db.Use(MarketDataDbCql.InsertEconomicCalendarMonthV1)
-                .SetParameters(monthBuckets.Select(monthBucket =>
-                    new InsertEconomicCalendarMonthV1(EconomicCalendarLookupId, monthBucket)))
-                .ExecuteCommandAsync(cancellationToken);
-        }
-
-        long yieldCurveRowsSource = 0;
-        var yieldCurveSourceIdentity = new ProjectionIdentityBuilder();
-        var yieldCurveYears = new HashSet<int>();
-        var yieldCurveBatch = new List<InsertYieldCurveRate>(batchSize);
-        await foreach (var row in db.Use(MarketDataDbCql.GetYieldCurveRateProjectionSource)
-            .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
-        {
-            yieldCurveRowsSource++;
-            yieldCurveSourceIdentity.Add(GetYieldCurveProjectionIdentity(row));
-            yieldCurveYears.Add(row.ValueDate.Year);
-            yieldCurveBatch.Add(new InsertYieldCurveRate(
-                YieldCurveLookupId,
-                row.ValueDate,
-                row.OneMonth,
-                row.TwoMonth,
-                row.ThreeMonth,
-                row.SixMonth,
-                row.OneYear,
-                row.TwoYear,
-                row.ThreeYear,
-                row.FiveYear,
-                row.SevenYear,
-                row.TenYear,
-                row.TwentyYear,
-                row.ThirtyYear));
-            if (yieldCurveBatch.Count == batchSize)
-                await FlushYieldCurveBatchAsync();
-        }
-        await FlushYieldCurveBatchAsync();
-        if (yieldCurveYears.Count > 0)
-        {
-            await db.Use(MarketDataDbCql.InsertYieldCurveRateYearV1)
-                .SetParameters(yieldCurveYears.Select(rateYear =>
-                    new InsertYieldCurveRateYearV1(YieldCurveLookupId, rateYear)))
-                .ExecuteCommandAsync(cancellationToken);
-        }
-
-        long economicCalendarRowsProjected = 0;
-        var economicCalendarProjectedIdentity = new ProjectionIdentityBuilder();
-        await foreach (var row in db.Use(MarketDataDbCql.GetEconomicCalendarByMonthV1All)
+        long targetRows = 0;
+        var targetIdentity = new ProjectionIdentityBuilder();
+        await foreach (var row in db.Use(MarketDataDbCql.GetEconomicCalendarV2All)
             .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
         {
-            economicCalendarRowsProjected++;
-            economicCalendarProjectedIdentity.Add(GetEconomicCalendarProjectionIdentity(row));
+            targetRows++;
+            targetIdentity.Add(GetEconomicCalendarProjectionIdentity(row));
         }
-        var projectedCountryCodes = await db.Use(MarketDataDbCql.GetEconomicCalendarCountryCodeV1All)
-            .ExecuteQueryAsync(MapToEconomicCalendarCountryCode, cancellationToken);
-        var projectedMonths = await db.Use(MarketDataDbCql.GetEconomicCalendarMonthV1All)
-            .ExecuteQueryAsync(MapToEconomicCalendarMonth, cancellationToken);
-        var projectedYieldCurveYears = await db.Use(MarketDataDbCql.GetYieldCurveRateYearV1All)
-            .ExecuteQueryAsync(MapToYearMonth, cancellationToken);
-        long yieldCurveRowsProjected = 0;
-        var yieldCurveProjectedIdentity = new ProjectionIdentityBuilder();
-        await foreach (var row in db.Use(MarketDataDbCql.GetYieldCurveRateByDateV1All)
-            .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
-        {
-            yieldCurveRowsProjected++;
-            yieldCurveProjectedIdentity.Add(GetYieldCurveProjectionIdentity(row));
-        }
-        var calendarSource = economicCalendarSourceIdentity.Build();
-        var calendarProjected = economicCalendarProjectedIdentity.Build();
-        var countryCodesSource = BuildStringSetIdentity(countryCodes);
-        var countryCodesProjected = BuildStringSetIdentity(
-            projectedCountryCodes.Select(static row => row.CountryCode));
-        var monthsSource = BuildIntegerSetIdentity(monthBuckets);
-        var monthsProjected = BuildIntegerSetIdentity(projectedMonths);
-        var yieldYearsSource = BuildIntegerSetIdentity(yieldCurveYears);
-        var yieldYearsProjected = BuildIntegerSetIdentity(projectedYieldCurveYears);
-        var yieldCurveSource = yieldCurveSourceIdentity.Build();
-        var yieldCurveProjected = yieldCurveProjectedIdentity.Build();
-
-        return new FmpQueryProjectionBackfillResult(
-            economicCalendarRowsSource,
-            economicCalendarRowsProjected,
-            calendarSource.Fingerprint,
-            calendarProjected.Fingerprint,
-            countryCodes.Count,
-            projectedCountryCodes.Count,
-            countryCodesSource.Fingerprint,
-            countryCodesProjected.Fingerprint,
-            monthBuckets.Count,
-            projectedMonths.Count,
-            monthsSource.Fingerprint,
-            monthsProjected.Fingerprint,
-            yieldCurveRowsSource,
-            yieldCurveRowsProjected,
-            yieldCurveSource.Fingerprint,
-            yieldCurveProjected.Fingerprint,
-            yieldCurveYears.Count,
-            projectedYieldCurveYears.Count,
-            yieldYearsSource.Fingerprint,
-            yieldYearsProjected.Fingerprint);
+        var source = sourceIdentity.Build();
+        var target = targetIdentity.Build();
+        var verified = sourceRows == targetRows && source.Fingerprint == target.Fingerprint;
+        await db.Use(MarketDataDbCql.UpsertEconomicCalendarCutoverV2)
+            .SetParameters(new UpsertEconomicCalendarCutoverV2(
+                EconomicCalendarCutoverId, sourceRows, targetRows, source.Fingerprint,
+                target.Fingerprint, verified, DateTime.UtcNow))
+            .ExecuteCommandAsync(cancellationToken);
+        return new EconomicCalendarCutoverResult(
+            sourceRows, targetRows, source.Fingerprint, target.Fingerprint, countries.Count, verified);
 
         async Task FlushCalendarBatchAsync()
         {
-            if (calendarBatch.Count == 0)
-                return;
-            await db.Use(MarketDataDbCql.InsertEconomicCalendarByMonthV1)
-                .SetParameters(calendarBatch)
-                .ExecuteCommandAsync(cancellationToken);
-            calendarBatch.Clear();
+            if (batch.Count == 0) return;
+            await db.Use(MarketDataDbCql.InsertEconomicCalendarV2)
+                .SetParameters(batch).ExecuteCommandAsync(cancellationToken);
+            batch.Clear();
         }
+    }
 
-        async Task FlushYieldCurveBatchAsync()
+    public async Task<FmpQueryProjectionBackfillResult> BackfillFmpQueryProjectionsAsync(
+        int batchSize = 256, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        var db = _dbFactory.MarketDataDb;
+        await db.Use(MarketDataDbCql.TruncateYieldCurveRateByDateV1).ExecuteCommandAsync(cancellationToken);
+        await db.Use(MarketDataDbCql.TruncateYieldCurveRateYearV1).ExecuteCommandAsync(cancellationToken);
+        long sourceRows = 0;
+        var sourceIdentity = new ProjectionIdentityBuilder();
+        var years = new HashSet<int>();
+        var batch = new List<InsertYieldCurveRate>(batchSize);
+        await foreach (var row in db.Use(MarketDataDbCql.GetYieldCurveRateProjectionSource)
+            .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
         {
-            if (yieldCurveBatch.Count == 0)
-                return;
-            await db.Use(MarketDataDbCql.InsertYieldCurveRateByDateV1)
-                .SetParameters(yieldCurveBatch)
+            sourceRows++;
+            sourceIdentity.Add(GetYieldCurveProjectionIdentity(row));
+            years.Add(row.ValueDate.Year);
+            batch.Add(new InsertYieldCurveRate(
+                YieldCurveLookupId, row.ValueDate, row.OneMonth, row.TwoMonth, row.ThreeMonth,
+                row.SixMonth, row.OneYear, row.TwoYear, row.ThreeYear, row.FiveYear,
+                row.SevenYear, row.TenYear, row.TwentyYear, row.ThirtyYear));
+            if (batch.Count == batchSize) await FlushYieldBatchAsync();
+        }
+        await FlushYieldBatchAsync();
+        if (years.Count > 0)
+        {
+            await db.Use(MarketDataDbCql.InsertYieldCurveRateYearV1)
+                .SetParameters(years.Select(year => new InsertYieldCurveRateYearV1(YieldCurveLookupId, year)))
                 .ExecuteCommandAsync(cancellationToken);
-            yieldCurveBatch.Clear();
+        }
+        long targetRows = 0;
+        var targetIdentity = new ProjectionIdentityBuilder();
+        await foreach (var row in db.Use(MarketDataDbCql.GetYieldCurveRateByDateV1All)
+            .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
+        {
+            targetRows++;
+            targetIdentity.Add(GetYieldCurveProjectionIdentity(row));
+        }
+        var projectedYears = await db.Use(MarketDataDbCql.GetYieldCurveRateYearV1All)
+            .ExecuteQueryAsync(MapToYearMonth, cancellationToken);
+        var source = sourceIdentity.Build();
+        var target = targetIdentity.Build();
+        var sourceYears = BuildIntegerSetIdentity(years);
+        var targetYears = BuildIntegerSetIdentity(projectedYears);
+        return new FmpQueryProjectionBackfillResult(
+            sourceRows, targetRows, source.Fingerprint, target.Fingerprint,
+            years.Count, projectedYears.Count, sourceYears.Fingerprint, targetYears.Fingerprint);
+
+        async Task FlushYieldBatchAsync()
+        {
+            if (batch.Count == 0) return;
+            await db.Use(MarketDataDbCql.InsertYieldCurveRateByDateV1)
+                .SetParameters(batch).ExecuteCommandAsync(cancellationToken);
+            batch.Clear();
+        }
+    }
+
+    static bool IsAfterCursor(EconomicCalendarReadModel row, CalendarPageToken cursor)
+        => cursor.LastEventDateTicks is null
+            || row.EventDate.Ticks < cursor.LastEventDateTicks.Value
+            || (row.EventDate.Ticks == cursor.LastEventDateTicks.Value
+                && string.CompareOrdinal(row.EventName, cursor.LastEventName) > 0);
+
+    static string GetPageRequestFingerprint(EconomicCalendarPageRequest request, string[] countries)
+    {
+        var identity = $"v1|{request.StartDateUtc.Ticks}|{request.EndDateUtc.Ticks}|{string.Join(',', countries)}|{request.PageSize}";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
+    }
+
+    static string EncodePageToken(CalendarPageToken token)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(token);
+        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    static CalendarPageToken DecodePageToken(string? token, string fingerprint, int partitionCount)
+    {
+        if (string.IsNullOrEmpty(token)) return new CalendarPageToken(fingerprint, 0, null, null);
+        try
+        {
+            var value = token.Replace('-', '+').Replace('_', '/');
+            value = value.PadRight(value.Length + ((4 - value.Length % 4) % 4), '=');
+            var cursor = JsonSerializer.Deserialize<CalendarPageToken>(Convert.FromBase64String(value))
+                ?? throw new FormatException();
+            if (!string.Equals(cursor.Fingerprint, fingerprint, StringComparison.Ordinal)
+                || cursor.PartitionIndex < 0 || cursor.PartitionIndex > partitionCount
+                || cursor.LastEventName?.Any(char.IsControl) == true)
+                throw new FormatException();
+            return cursor;
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            throw new ArgumentException(
+                "The economic-calendar continuation token is invalid for this request.", nameof(token), ex);
         }
     }
 
@@ -417,14 +459,6 @@ public partial class MarketDataDbContext
         return MarketDataProjectionHash.Add(hash, row.ThirtyYear);
     }
 
-    static ProjectionIdentity BuildStringSetIdentity(IEnumerable<string> values)
-    {
-        var identity = new ProjectionIdentityBuilder();
-        foreach (var value in values)
-            identity.Add(MarketDataProjectionHash.Add(MarketDataProjectionHash.Start(), value));
-        return identity.Build();
-    }
-
     static ProjectionIdentity BuildIntegerSetIdentity(IEnumerable<int> values)
     {
         var identity = new ProjectionIdentityBuilder();
@@ -433,32 +467,7 @@ public partial class MarketDataDbContext
         return identity.Build();
     }
 
-    async Task<ICollection<EconomicCalendarReadModel>> ReadEconomicCalendarMonthsAsync(
-        IEnumerable<int> monthBuckets,
-        Func<int, Task<ICollection<EconomicCalendarReadModel>>> queryMonthAsync,
-        CancellationToken cancellationToken)
-    {
-        var rows = new List<EconomicCalendarReadModel>();
-        foreach (var batch in monthBuckets.Chunk(EconomicCalendarMaximumConcurrentQueries))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var remaining = EconomicCalendarMaximumRows - rows.Count;
-            if (remaining <= 0)
-                break;
-
-            var pages = await Task.WhenAll(batch.Select(queryMonthAsync));
-            foreach (var page in pages)
-            {
-                var rowsToAdd = Math.Min(page.Count, EconomicCalendarMaximumRows - rows.Count);
-                if (rowsToAdd <= 0)
-                    break;
-                rows.AddRange(page.Take(rowsToAdd));
-            }
-        }
-
-        return [.. rows
-            .OrderByDescending(static row => row.EventDate)
-            .ThenBy(static row => row.CountryCode, StringComparer.Ordinal)
-            .ThenBy(static row => row.EventName, StringComparer.Ordinal)];
-    }
+    readonly record struct CalendarPartition(string CountryCode, int MonthBucket);
+    sealed record CalendarPageToken(
+        string Fingerprint, int PartitionIndex, long? LastEventDateTicks, string? LastEventName);
 }

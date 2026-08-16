@@ -8,27 +8,11 @@ public sealed class ExternalMarketDataCompatibilityOptions
 {
     public int TreasuryLookbackDays { get; set; } = 14;
 
-    public int EconomicCalendarLookbackDays { get; set; } = 7;
-
-    public int EconomicCalendarForwardDays { get; set; } = 7;
-
-    public IReadOnlySet<string>? EconomicCalendarCountryCodes { get; set; }
-
     public ExternalMarketDataCompatibilityOptions Validate()
     {
         if (TreasuryLookbackDays <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(TreasuryLookbackDays));
-        }
-
-        if (EconomicCalendarLookbackDays < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(EconomicCalendarLookbackDays));
-        }
-
-        if (EconomicCalendarForwardDays < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(EconomicCalendarForwardDays));
         }
 
         return this;

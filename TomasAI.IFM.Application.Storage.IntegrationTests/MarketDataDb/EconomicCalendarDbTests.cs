@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
@@ -13,10 +14,10 @@ public sealed class EconomicCalendarDbTests(MarketDataFixture fixture)
     : IClassFixture<MarketDataFixture>
 {
     [Fact]
-    public void EconomicCalendarSchemaAndRangeQueryUseMarketDataCountryMonthProjection()
+    public void EconomicCalendarSchemaAndRangeQueryUseCanonicalCountryMonthTable()
     {
-        MarketDataSchemaCql.CreateEconomicCalendarByCountryMonthV2Table
-            .Should().Contain("economic_calendar_by_country_month_v2")
+        MarketDataSchemaCql.CreateEconomicCalendarV2Table
+            .Should().Contain("economic_calendar_v2")
             .And.Contain("PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)");
 
         MarketDataDbCql.GetEconomicCalendars
@@ -24,6 +25,57 @@ public sealed class EconomicCalendarDbTests(MarketDataFixture fixture)
             .And.Contain("monthBucket = :monthBucket")
             .And.Contain("eventDate >= :startDate")
             .And.Contain("eventDate <= :endDate");
+    }
+
+    [Fact]
+    public async Task EconomicCalendarPageUsesOpaqueContinuationWithoutDuplicates()
+    {
+        var db = fixture.DevDatabase;
+        var runId = Guid.NewGuid().ToString("N");
+        var start = new DateTime(2047, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        var calendars = Enumerable.Range(0, 3)
+            .Select(index => CreateCalendar(start.AddHours(index), "US", $"page-{index}-{runId}", index.ToString()))
+            .ToArray();
+        try
+        {
+            await db.InsertEconomicCalendarsAsync(calendars);
+            var request = new EconomicCalendarPageRequest
+            {
+                StartDateUtc = start,
+                EndDateUtc = start.AddDays(1),
+                CountryCodes = ["US"],
+                PageSize = 2
+            };
+            var first = await db.GetEconomicCalendarPageAsync(request);
+            var second = await db.GetEconomicCalendarPageAsync(request with
+            {
+                ContinuationToken = first.ContinuationToken
+            });
+
+            first.Items.Should().HaveCount(2);
+            first.HasMore.Should().BeTrue();
+            second.Items.Should().ContainSingle();
+            first.Items.Concat(second.Items).Select(row => row.Id)
+                .Should().OnlyHaveUniqueItems().And.HaveCount(3);
+
+            var invalidTokenRead = () => db.GetEconomicCalendarPageAsync(request with
+            {
+                ContinuationToken = "not-a-valid-token"
+            });
+            await invalidTokenRead.Should().ThrowAsync<ArgumentException>();
+
+            var mismatchedRequestRead = () => db.GetEconomicCalendarPageAsync(request with
+            {
+                EndDateUtc = request.EndDateUtc.AddDays(1),
+                ContinuationToken = first.ContinuationToken
+            });
+            await mismatchedRequestRead.Should().ThrowAsync<ArgumentException>();
+        }
+        finally
+        {
+            foreach (var calendar in calendars)
+                await db.DeleteEconomicCalendarAsync(calendar.Id);
+        }
     }
 
     [Fact]

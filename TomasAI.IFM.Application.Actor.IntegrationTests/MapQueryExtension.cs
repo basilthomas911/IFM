@@ -16,6 +16,7 @@ using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
+using EconomicCalendarPageRequest = TomasAI.IFM.Domain.MarketData.Shared.QueryParameters.EconomicCalendarPageRequest;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
@@ -255,6 +256,29 @@ public static class ReferenceQueries
             var query = new GetLookupTypeQuery("SystemAdminFunctionType");
             query.Subject = new ActorSubject(ActorType.Query, GetLookupTypeQuery.Actor, GetLookupTypeQuery.Verb, query.EntityId.Format());
             return await e.RequestAsync<LookupTypeCollection, GetLookupTypeQuery>(query);
+        });
+
+        endpoints.MapGet(MarketDataQueryUriPath.GetEconomicCalendarPage, async (
+            IActorService e,
+            DateTimeOffset startDateUtc,
+            DateTimeOffset endDateUtc,
+            string countryCodes,
+            int pageSize,
+            string? continuationToken) =>
+        {
+            var request = new EconomicCalendarPageRequest
+            {
+                StartDateUtc = startDateUtc.UtcDateTime,
+                EndDateUtc = endDateUtc.UtcDateTime,
+                CountryCodes = countryCodes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                PageSize = pageSize,
+                ContinuationToken = continuationToken
+            };
+            request.Validate();
+            var query = new GetEconomicCalendarPageQuery(request);
+            query.Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarPageQuery.Actor,
+                GetEconomicCalendarPageQuery.Verb, query.EntityId.Format());
+            return await e.RequestAsync<EconomicCalendarPageReadModel, GetEconomicCalendarPageQuery>(query);
         });
 
         endpoints.MapGet(MarketDataQueryUriPath.GetEconomicCalendars, async (IActorService e, EconomicCalendarViewType calendarViewType, string countryCode, DateTime todaysDate) =>

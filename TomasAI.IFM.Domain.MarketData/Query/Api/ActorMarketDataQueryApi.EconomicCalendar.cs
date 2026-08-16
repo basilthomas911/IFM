@@ -1,7 +1,7 @@
-using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Query;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -9,6 +9,16 @@ namespace TomasAI.IFM.Domain.MarketData.Query.Api;
 
 public sealed partial class ActorMarketDataQueryApi
 {
+    public Task<ServiceResult<EconomicCalendarPageReadModel>> GetEconomicCalendarPageAsync(
+        EconomicCalendarPageRequest request)
+        => GetEconomicCalendarPageAsync(request, CancellationToken.None);
+
+    public Task<ServiceResult<EconomicCalendarPageReadModel>> GetEconomicCalendarPageAsync(
+        EconomicCalendarPageRequest request,
+        CancellationToken cancellationToken)
+        => ExecuteAsync<EconomicCalendarPageReadModel>(GetEconomicCalendarPageQuery.ErrorId, cancellationToken,
+            async () => await _dbFactory.MarketDataDb.GetEconomicCalendarPageAsync(request, cancellationToken));
+
     public Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(
         DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode)
         => GetEconomicCalendarsAsync(todaysDate, calendarType, countryCode, CancellationToken.None);
@@ -30,9 +40,13 @@ public sealed partial class ActorMarketDataQueryApi
         => GetExternalEconomicCalendarsAsync(CancellationToken.None);
 
     public Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync(CancellationToken cancellationToken)
-        => ExecuteAsync<EconomicCalendarReadModel[]>(GetExternalEconomicCalendarsQuery.ErrorId, cancellationToken,
-            async () => _dbFactory.EconomicCalendarsDb is not IEconomicCalendarsDbContext db
-                ? [] : [.. await db.ReadAsync(cancellationToken)]);
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<ServiceResult<EconomicCalendarReadModel[]>>(
+            new ServiceFailed<EconomicCalendarReadModel[]>(
+                GetExternalEconomicCalendarsQuery.ErrorId,
+                "The external-calendar compatibility query was retired. Use POST /api/marketdata/fmp/import."));
+    }
 
     public Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarType)
         => GetEconomicCalendarDateAsync(todaysDate, calendarType, CancellationToken.None);

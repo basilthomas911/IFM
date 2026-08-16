@@ -9,7 +9,6 @@ using TomasAI.IFM.Application.Storage.PredictiveModelDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
-using TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 using TomasAI.IFM.Application.Storage.YieldCurveRatesDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.FundDb.Schema;
@@ -43,7 +42,6 @@ public interface IDbContextFactory
     IReferenceDbContext ReferenceDb { get; }
     ISecuritiesDbContext SecuritiesDb { get; }
     ITradeDbContext TradeDb { get; }
-    IObjectRepository<EconomicCalendarsDbContext> EconomicCalendarsDb { get; }
     IYieldCurveRatesDbContext YieldCurveRatesDb { get; }
     ISystemAdminDbContext SystemAdminDb { get; }
 

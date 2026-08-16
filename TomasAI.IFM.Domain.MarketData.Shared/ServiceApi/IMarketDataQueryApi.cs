@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -6,7 +7,10 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 public interface IMarketDataQueryApi
 {
     Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode);
+    Task<ServiceResult<EconomicCalendarPageReadModel>> GetEconomicCalendarPageAsync(EconomicCalendarPageRequest request);
+    [Obsolete("Use GetEconomicCalendarPageAsync with explicit bounds and countries.")]
     Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync();
+    [Obsolete("Use the authenticated FMP import endpoint.")]
     Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync();
     Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarType);
     Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>> GetEconomicCalendarCountryCodesAsync();

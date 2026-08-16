@@ -11,11 +11,9 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
     static readonly SchemaObjectDefinition[] Objects =
     [
         new("market_data_import_ownership_v1", MarketDataSchemaCql.CreateMarketDataImportOwnershipV1Table, "DROP TABLE IF EXISTS market_data_import_ownership_v1;"),
-        new("economic_calendar", MarketDataSchemaCql.CreateEconomicCalendarTable, "DROP TABLE IF EXISTS economic_calendar;"),
-        new("economic_calendar_by_country_month_v2", MarketDataSchemaCql.CreateEconomicCalendarByCountryMonthV2Table, "DROP TABLE IF EXISTS economic_calendar_by_country_month_v2;"),
-        new("economic_calendar_by_month_v1", MarketDataSchemaCql.CreateEconomicCalendarByMonthV1Table, "DROP TABLE IF EXISTS economic_calendar_by_month_v1;"),
+        new("economic_calendar_v2", MarketDataSchemaCql.CreateEconomicCalendarV2Table, "DROP TABLE IF EXISTS economic_calendar_v2;"),
         new("economic_calendar_country_code_v1", MarketDataSchemaCql.CreateEconomicCalendarCountryCodeV1Table, "DROP TABLE IF EXISTS economic_calendar_country_code_v1;"),
-        new("economic_calendar_month_v1", MarketDataSchemaCql.CreateEconomicCalendarMonthV1Table, "DROP TABLE IF EXISTS economic_calendar_month_v1;"),
+        new("economic_calendar_cutover_v2", MarketDataSchemaCql.CreateEconomicCalendarCutoverV2Table, "DROP TABLE IF EXISTS economic_calendar_cutover_v2;"),
         new("tick_quote_item", MarketDataSchemaCql.CreateTickQuoteItemType, "DROP TYPE IF EXISTS tick_quote_item;"),
         new("tick_trade_data", MarketDataSchemaCql.CreateTickTradeDataTable, "DROP TABLE IF EXISTS tick_trade_data;"),
         new("tick_quote_data", MarketDataSchemaCql.CreateTickQuoteDataTable, "DROP TABLE IF EXISTS tick_quote_data;"),

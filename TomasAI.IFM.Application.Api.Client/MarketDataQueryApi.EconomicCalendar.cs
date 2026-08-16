@@ -8,6 +8,13 @@ namespace TomasAI.IFM.Application.Api.Client;
 
 public partial class MarketDataQueryApi
 {
+    public async Task<ServiceResult<EconomicCalendarPageReadModel>> GetEconomicCalendarPageAsync(
+        EconomicCalendarPageRequest request)
+        => await _querySvc.ExecuteQueryAsync<EconomicCalendarPageReadModel>(
+            MarketDataQueryUriPath.GetEconomicCalendarPage,
+            new GetEconomicCalendarPageParameter(request),
+            GetEconomicCalendarPageQuery.ErrorId);
+
     public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime date, EconomicCalendarViewType viewType, string countryCode)
         => await _querySvc.ExecuteQueryAsync<EconomicCalendarReadModel[]>(MarketDataQueryUriPath.GetEconomicCalendars,
             new GetEconomicCalendarParameter(date, viewType, countryCode), GetEconomicCalendarQuery.ErrorId);

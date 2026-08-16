@@ -13,27 +13,15 @@ internal readonly record struct GetMarketDataImportOwnershipV1(string dataset, s
 }
 internal readonly record struct MarketDataImportOwnership(Guid CommandId, bool MayWrite);
 
-internal readonly record struct DeleteEconomicCalendar(DateTime eventDate, string countryCode, string eventName) : IBindValue
-{
-    public object Bind() => new object?[] { eventDate, countryCode, eventName };
-}
-internal readonly record struct DeleteEconomicCalendarByCountryMonthV2(string countryCode, int monthBucket, DateTime eventDate, string eventName) : IBindValue
+internal readonly record struct DeleteEconomicCalendarV2(string countryCode, int monthBucket, DateTime eventDate, string eventName) : IBindValue
 {
     public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName };
 }
-internal readonly record struct DeleteEconomicCalendarByMonthV1(int monthBucket, DateTime eventDate, string countryCode, string eventName) : IBindValue
+internal readonly record struct GetEconomicCalendarV2ById(string countryCode, int monthBucket, DateTime eventDate, string eventName) : IBindValue
 {
-    public object Bind() => new object?[] { monthBucket, eventDate, countryCode, eventName };
-}
-internal readonly record struct GetEconomicCalendarById(DateTime eventDate, string countryCode, string eventName) : IBindValue
-{
-    public object Bind() => new object?[] { eventDate, countryCode, eventName };
+    public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName };
 }
 internal readonly record struct GetEconomicCalendarCountryCodes(int lookupId) : IBindValue
-{
-    public object Bind() => new object?[] { lookupId };
-}
-internal readonly record struct GetEconomicCalendarMonths(int lookupId) : IBindValue
 {
     public object Bind() => new object?[] { lookupId };
 }
@@ -41,29 +29,23 @@ internal readonly record struct GetEconomicCalendars(string countryCode, int mon
 {
     public object Bind() => new object?[] { countryCode, monthBucket, startDate, endDate };
 }
-internal readonly record struct GetEconomicCalendarsByMonth(int monthBucket) : IBindValue
+internal readonly record struct InsertEconomicCalendarV2(string countryCode, int monthBucket, DateTime eventDate, string eventName, string? actual, string? forecast, string? prior, string? impact, string? unit, string? change, string? changePercentage, DateTime createdOn, string createdBy, Guid commandId) : IBindValue
 {
-    public object Bind() => new object?[] { monthBucket };
+    public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy, commandId };
 }
-internal readonly record struct InsertEconomicCalendar(DateTime eventDate, string countryCode, string eventName, string? actual, string? forecast, string? prior, string? impact, string? unit, string? change, string? changePercentage, DateTime createdOn, string createdBy) : IBindValue
+internal readonly record struct GetEconomicCalendarV2CommandId(string countryCode, int monthBucket, DateTime eventDate, string eventName) : IBindValue
 {
-    public object Bind() => new object?[] { eventDate, countryCode, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy };
-}
-internal readonly record struct InsertEconomicCalendarByCountryMonthV2(string countryCode, int monthBucket, DateTime eventDate, string eventName, string? actual, string? forecast, string? prior, string? impact, string? unit, string? change, string? changePercentage, DateTime createdOn, string createdBy) : IBindValue
-{
-    public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy };
-}
-internal readonly record struct InsertEconomicCalendarByMonthV1(int monthBucket, DateTime eventDate, string countryCode, string eventName, string? actual, string? forecast, string? prior, string? impact, string? unit, string? change, string? changePercentage, DateTime createdOn, string createdBy) : IBindValue
-{
-    public object Bind() => new object?[] { monthBucket, eventDate, countryCode, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy };
+    public object Bind() => new object?[] { countryCode, monthBucket, eventDate, eventName };
 }
 internal readonly record struct InsertEconomicCalendarCountryCodeV1(int lookupId, string countryCode) : IBindValue
 {
     public object Bind() => new object?[] { lookupId, countryCode };
 }
-internal readonly record struct InsertEconomicCalendarMonthV1(int lookupId, int monthBucket) : IBindValue
+internal readonly record struct UpsertEconomicCalendarCutoverV2(
+    int cutoverId, long sourceRows, long targetRows, string sourceFingerprint,
+    string targetFingerprint, bool verified, DateTime updatedOn) : IBindValue
 {
-    public object Bind() => new object?[] { lookupId, monthBucket };
+    public object Bind() => new object?[] { cutoverId, sourceRows, targetRows, sourceFingerprint, targetFingerprint, verified, updatedOn };
 }
 
 internal readonly record struct DeleteFuturesAdxSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue

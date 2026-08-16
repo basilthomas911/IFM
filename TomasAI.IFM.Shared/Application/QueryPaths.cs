@@ -111,6 +111,7 @@ public class FuturesBarDataQueryUriPath
     public const string GetIronCondorMarketData = "/api/marketdata/ironcondor";
     public const string GetFuturesOptionContractIds = "/api/marketdata/futures/option/contractids";
     public const string GetEconomicCalendars = "/api/marketdata/economiccalendar";
+    public const string GetEconomicCalendarPage = "/api/marketdata/economiccalendar/page";
     public const string GetEconomicCalendarAll = "/api/marketdata/economiccalendar/all";
     public const string GetExternalEconomicCalendars = "/api/marketdata/external/economiccalendars";
     public const string GetEconomicCalendarDate = "/api/marketdata/economiccalendar/date";

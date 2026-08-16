@@ -9,6 +9,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 
 namespace TomasAI.IFM.Application.Api.IntegrationTests;
 
@@ -31,6 +32,23 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory)
 
         response.Success.Should().BeTrue();
         response.Value.Should().BeAssignableTo<EconomicCalendarReadModel[]>();
+    }
+
+    [Fact]
+    public async Task GetEconomicCalendarPage_Ok()
+    {
+        var response = await CreateApi().GetEconomicCalendarPageAsync(new EconomicCalendarPageRequest
+        {
+            StartDateUtc = DateTime.UtcNow.Date,
+            EndDateUtc = DateTime.UtcNow.Date.AddDays(1).AddTicks(-1),
+            CountryCodes = ["US"],
+            PageSize = 25
+        });
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().BeAssignableTo<EconomicCalendarPageReadModel>();
+        response.Value!.Items.Should().ContainSingle();
+        response.Value.ContinuationToken.Should().Be("opaque-next-page");
     }
 
     [Fact]

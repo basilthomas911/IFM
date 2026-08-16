@@ -63,6 +63,7 @@ public class EconomicCalendarQueryActor(
     /// use in query deserialization and routing scenarios.</remarks>
     static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
+        [GetEconomicCalendarPageQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarPageQuery, EconomicCalendarPageReadModel>()!,
         [GetEconomicCalendarAllQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarAllQuery, EconomicCalendarReadModel[]>()!,
         [GetEconomicCalendarQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarQuery, EconomicCalendarReadModel[]>()!,
         [GetEconomicCalendarDateQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarDateQuery, string>()!,
@@ -102,6 +103,14 @@ public class EconomicCalendarQueryActor(
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
     static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
+        [typeof(GetEconomicCalendarPageQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        {
+            var query = (GetEconomicCalendarPageQuery)q;
+            var result = await query.GetEconomicCalendarPageAsync(dbFactory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarPageQuery.Verb,
+                new ServiceResult<EconomicCalendarPageReadModel>(result));
+        },
         [typeof(GetEconomicCalendarAllQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarAllQuery;
@@ -168,6 +177,8 @@ public class EconomicCalendarQueryActor(
             IsArgumentNull.Check(ex.Message);
             var serviceResultTask = default(ValueTask) switch
             {
+                _ when query is GetEconomicCalendarPageQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<EconomicCalendarPageReadModel>(query.ErrorCode, ex.Message)),
                 _ when query is GetEconomicCalendarAllQuery 
                     => context.ReplyAsync(threadId, verb, new ServiceResult<EconomicCalendarReadModel[]>(query.ErrorCode, ex.Message)),
                 _ when query is GetEconomicCalendarQuery

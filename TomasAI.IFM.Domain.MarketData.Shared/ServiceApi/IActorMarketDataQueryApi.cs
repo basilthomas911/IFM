@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -10,6 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 public interface IActorMarketDataQueryApi : IMarketDataQueryApi
 {
     Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode, CancellationToken cancellationToken);
+    Task<ServiceResult<EconomicCalendarPageReadModel>> GetEconomicCalendarPageAsync(EconomicCalendarPageRequest request, CancellationToken cancellationToken);
     Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(CancellationToken cancellationToken);
     Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync(CancellationToken cancellationToken);
     Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, CancellationToken cancellationToken);

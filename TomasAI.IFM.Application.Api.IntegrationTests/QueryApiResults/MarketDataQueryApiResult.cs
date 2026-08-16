@@ -10,6 +10,16 @@ namespace TomasAI.IFM.Application.Api.IntegrationTests.QueryApiResults;
 
 public static class MarketDataQueryApiResult
 {
+    public static Task FromGetEconomicCalendarPageAsync(HttpResponse resp)
+        => resp.SetResult(new EconomicCalendarPageReadModel
+        {
+            Items =
+            [
+                new EconomicCalendarReadModel(System.DateTime.UtcNow.Date, "US", "NFP", "1000", "950", "900", System.DateTime.UtcNow, "tester")
+            ],
+            ContinuationToken = "opaque-next-page"
+        });
+
     public static Task FromGetEconomicCalendarsAsync(HttpResponse resp)
         => resp.SetResult(new[] {
             new EconomicCalendarReadModel(System.DateTime.UtcNow.Date, "US", "NFP", "1000", "950", "900", System.DateTime.UtcNow, "tester")

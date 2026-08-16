@@ -65,7 +65,12 @@ public class MarketDataFixture : IDisposable
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
         new MarketDataSchemaDb(dbConn, logger)
-            .CreateAsync(["economic_calendar", "economic_calendar_by_country_month_v2"])
+            .CreateAsync([
+                "market_data_import_ownership_v1",
+                "economic_calendar_v2",
+                "economic_calendar_country_code_v1",
+                "economic_calendar_cutover_v2"
+            ])
             .GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<MarketDataDbContext>), new MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), SeqIdDatabase);

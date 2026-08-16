@@ -122,6 +122,11 @@ Query groups:
 
 The shared `*UriPath` constants define route text, but only constants actually mapped in `CommandMaps.cs` or `QueryMaps.cs` are active API endpoints. The route-constant files contain additional paths that this server does not currently map.
 
+Economic-calendar range reads use `GET /api/marketdata/economiccalendar/page`. The request requires UTC start/end
+bounds, comma-separated explicit country codes, a bounded page size, and an optional opaque continuation token. The
+former external-calendar route is deprecated and instructs callers to use the authenticated
+`POST /api/marketdata/fmp/import` operation.
+
 ### Command request flow
 
 Every command endpoint follows the same adapter pattern:
@@ -410,7 +415,9 @@ The active middleware pipeline is intentionally short:
 - Non-Development: HTTPS redirection
 - All environments: authorization middleware
 
-There is currently no project-level authentication registration, `UseAuthentication`, route-level authorization requirement, CORS policy, rate limiting, health-check mapping, global exception handler, or HSTS configuration.
+Negotiate authentication is registered, authentication and authorization middleware are active, the FMP import route
+requires authorization, and readiness/liveness health routes are mapped. CORS, rate limiting, a global exception
+handler, and HSTS are not configured here.
 
 ### HTTP serialization
 

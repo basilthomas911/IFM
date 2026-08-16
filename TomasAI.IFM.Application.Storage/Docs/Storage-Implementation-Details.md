@@ -22,7 +22,6 @@ The tree below records every directory currently present beneath the project roo
 ```text
 TomasAI.IFM.Application.Storage/                    Project root
 ├── Docs/                                           Maintained project documentation
-├── EconomicCalendarsDb/                            External economic-calendar reader
 ├── EventSourceDb/                                  Active event-source persistence
 │   └── Schema/                                     Event-source SQL schema
 ├── FundDb/                                         Fund persistence
@@ -103,7 +102,6 @@ TomasAI.IFM.Application.Storage/                    Project root
 | --- | --- | --- |
 | Project root | Active | Context discovery/factory/pool contracts and implementations, event-source actor contract, command status, and project definition. |
 | `Docs/` | Active documentation leaf | Contains this implementation and complete folder reference. |
-| `EconomicCalendarsDb/` | Active source leaf | Maps externally read economic-calendar JSON records and converts valid records to reference-domain read models. |
 | `EventSourceDb/` | Active | Event stream/name/log persistence, bounded-context and actor variants, serialization/replay, command logs, and projector state/results. |
 | `EventSourceDb/Schema/` | Active source leaf | Defines event sequences/tables and ordered create/drop operations. |
 | `FundDb/` | Active | Fund, order, trade, transaction, balance, P&L, drawdown, bulk insert, update/delete, and backup operations. |
@@ -267,7 +265,9 @@ Each value has the case-insensitive schema `{"userid":"...","password":"..."}`. 
 | `SecuritiesDbContext` | Futures and futures-option contract master data and currently traded contract queries. |
 | `SequenceIdDbContext` | Executes `fn_get_next_sequence_id` for a named `SequenceName`. |
 | `TradeDbContext` | Broad option trade, position, fill, limit, order, trade-plan, spread, loss-control, live-feed, and placement-signal persistence. |
-| `EconomicCalendarsDbContext` | Reads JSON through the configured data-reader provider; converts valid rows and silently skips row-conversion failures. On an outer failure it returns an empty collection. |
+The former `EconomicCalendarsDbContext` external-reader facade has been retired. FMP acquisition belongs to
+`Framework.MarketData.FinancialModelingPrep`, orchestration belongs to `Application.MarketData`, and durable calendar
+reads/writes use the country/month-partitioned `MarketDataDbContext.economic_calendar_v2` table.
 | `YieldCurveRatesDbContext` | Reads yield-curve JSON through the configured data-reader provider and converts all returned rows. |
 
 ## Event-sourcing behavior

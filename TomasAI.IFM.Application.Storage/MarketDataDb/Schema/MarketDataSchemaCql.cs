@@ -13,27 +13,8 @@ internal static class MarketDataSchemaCql
     );
     """;
 
-    public const string CreateEconomicCalendarTable = """
-    CREATE TABLE IF NOT EXISTS economic_calendar (
-    eventDate timestamp,
-    countryCode text,
-    eventName text,
-    actual text,
-    forecast text,
-    prior text,
-    impact text,
-    unit text,
-    change text,
-    changePercentage text,
-    createdOn timestamp,
-    createdBy text,
-    PRIMARY KEY (eventDate, countryCode, eventName)
-    )
-    WITH CLUSTERING ORDER BY (countryCode ASC, eventName ASC);
-    """;
-
-    public const string CreateEconomicCalendarByCountryMonthV2Table = """
-    CREATE TABLE IF NOT EXISTS economic_calendar_by_country_month_v2 (
+    public const string CreateEconomicCalendarV2Table = """
+    CREATE TABLE IF NOT EXISTS economic_calendar_v2 (
     countryCode text,
     monthBucket int,
     eventDate timestamp,
@@ -47,29 +28,10 @@ internal static class MarketDataSchemaCql
     changePercentage text,
     createdOn timestamp,
     createdBy text,
+    commandId uuid,
     PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)
     )
     WITH CLUSTERING ORDER BY (eventDate DESC, eventName ASC);
-    """;
-
-    public const string CreateEconomicCalendarByMonthV1Table = """
-    CREATE TABLE IF NOT EXISTS economic_calendar_by_month_v1 (
-    monthBucket int,
-    eventDate timestamp,
-    countryCode text,
-    eventName text,
-    actual text,
-    forecast text,
-    prior text,
-    impact text,
-    unit text,
-    change text,
-    changePercentage text,
-    createdOn timestamp,
-    createdBy text,
-    PRIMARY KEY ((monthBucket), eventDate, countryCode, eventName)
-    )
-    WITH CLUSTERING ORDER BY (eventDate DESC, countryCode ASC, eventName ASC);
     """;
 
     public const string CreateEconomicCalendarCountryCodeV1Table = """
@@ -81,13 +43,16 @@ internal static class MarketDataSchemaCql
     WITH CLUSTERING ORDER BY (countryCode ASC);
     """;
 
-    public const string CreateEconomicCalendarMonthV1Table = """
-    CREATE TABLE IF NOT EXISTS economic_calendar_month_v1 (
-    lookupId int,
-    monthBucket int,
-    PRIMARY KEY ((lookupId), monthBucket)
-    )
-    WITH CLUSTERING ORDER BY (monthBucket DESC);
+    public const string CreateEconomicCalendarCutoverV2Table = """
+    CREATE TABLE IF NOT EXISTS economic_calendar_cutover_v2 (
+    cutoverId int PRIMARY KEY,
+    sourceRows bigint,
+    targetRows bigint,
+    sourceFingerprint text,
+    targetFingerprint text,
+    verified boolean,
+    updatedOn timestamp
+    );
     """;
 
     public const string CreateTickQuoteItemType = """

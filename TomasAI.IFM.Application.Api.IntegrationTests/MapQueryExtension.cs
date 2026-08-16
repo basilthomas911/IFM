@@ -100,6 +100,7 @@ public static  class MapQueryExtension
         app.MapGet(ReferenceQueryUriPath.GetFuturesOptionStrikePriceDefinitions, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetFuturesOptionStrikePriceDefinitionsAsync(resp));
         app.MapGet(ReferenceQueryUriPath.LookupTypeShortCodeExists, async (HttpResponse resp) => await ReferenceQueryApiResult.FromLookupTypeShortCodeExistsAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetEconomicCalendars, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarsAsync(resp));
+        app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarPage, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarPageAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarAll, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarAllAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetExternalEconomicCalendars, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetExternalEconomicCalendarsAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarDate, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarDateAsync(resp));

@@ -1,8 +1,8 @@
 # IFM Financial Modeling Prep Market Data Architecture
 
 Status: Implemented
-Version: 0.7
-Date: 2026-08-15
+Version: 0.8
+Date: 2026-08-16
 Scope: Financial Modeling Prep US Treasury curve and economic-calendar acquisition and MarketData-domain import
 
 ## 1. Purpose
@@ -40,7 +40,7 @@ command contract is required for the first implementation.
 10. The existing command payload arrays remain supported. The API-backed coordinator populates those arrays from FMP.
 11. Economic calendar is market data. Its actors, shared contracts, models, storage interfaces, and table move from the
     Reference domain/storage boundary into the MarketData domain and `MarketDataDbContext`.
-12. There is exactly one economic-calendar table: `economic_calendar`. The current canonical-plus-projection design is
+12. There is exactly one runtime economic-calendar row table: `economic_calendar_v2`. The former canonical-plus-projection design is
     replaced rather than copied into MarketData.
 13. Runtime economic-calendar CQL never uses `ALLOW FILTERING` and never falls back to an unbounded table scan.
 14. `ITreasuryCurve` and `IEconomicCalendar` are provider-neutral contracts in
@@ -53,17 +53,16 @@ command contract is required for the first implementation.
 
 ### 3.1 External reader contexts
 
-`Application.Storage` currently contains:
+Before the FMP cutover, `Application.Storage` contained:
 
 - `YieldCurveRatesDbContext`, which reads an external URI through the generic Framework Storage object reader; and
-- `EconomicCalendarsDbContext`, which does the same for an economic-calendar URI.
+- `EconomicCalendarsDbContext`, which did the same for an economic-calendar URI.
 
 These types are external source gateways despite their `DbContext` names. They are not the contexts that own the
 durable ScyllaDB tables.
 
-The FMP adapter will replace their provider-specific URI and JSON-reading behavior. Their public `ReadAsync` methods may
-remain as short-lived compatibility facades during the first implementation. In the target architecture,
-`EconomicCalendarsDbContext` is retired: the FMP abstraction owns acquisition, the MarketData application coordinator
+The FMP adapter replaced their provider-specific URI and JSON-reading behavior. `YieldCurveRatesDbContext` remains a
+short-lived Treasury compatibility facade. `EconomicCalendarsDbContext` is retired: the FMP abstraction owns acquisition, the MarketData application coordinator
 owns import orchestration, and `MarketDataDbContext` owns durable economic-calendar reads and writes.
 
 ### 3.2 Current durable table ownership
@@ -75,15 +74,13 @@ The durable records are currently written as follows:
 | US Treasury curve canonical row | `MarketDataDbContext` | `yield_curve_rates` | Remains in MarketData |
 | US Treasury ordered-date query projection | `MarketDataDbContext` | `yield_curve_rate_by_date_v1` | Supports exact, bounded-range, and server-ordered latest reads |
 | US Treasury year lookup | `MarketDataDbContext` | `yield_curve_rate_year_v1` | Returns distinct bounded years without reading rate rows |
-| Economic calendar canonical row | `MarketDataDbContext` | `economic_calendar` | Remains the current migration/backfill source |
-| Economic calendar country/month query projection | `MarketDataDbContext` | `economic_calendar_by_country_month_v2` | Supports bounded country/date ranges |
-| Economic calendar bounded-all projection | `MarketDataDbContext` | `economic_calendar_by_month_v1` | Supports bounded recent-month reads across countries |
-| Economic calendar lookup projections | `MarketDataDbContext` | `economic_calendar_country_code_v1`, `economic_calendar_month_v1` | Avoid event-table scans and supply known partitions |
+| Economic calendar legacy source | Offline migration only | `economic_calendar` | Preserved temporarily for rollback; never read at runtime |
+| Economic calendar canonical row | `MarketDataDbContext` | `economic_calendar_v2` | Sole runtime row table and bounded country/month query source |
+| Economic calendar country catalog | `MarketDataDbContext` | `economic_calendar_country_code_v1` | Bounded observed-country lookup; contains no event rows |
 
 `YieldCurveRateStateRepository` denormalizes `YieldCurveRatesImportedEvent` directly through
-`InsertYieldCurveRatesAsync`. The current Reference-domain `EconomicCalendarStateRepository` denormalizes
-`EconomicCalendarsImportedEvent` through `ReferenceDbContext.InsertEconomicCalendarsAsync`. The target moves that actor
-repository and bulk write into the MarketData domain and `MarketDataDbContext`.
+`InsertYieldCurveRatesAsync`. `EconomicCalendarStateRepository` now resides in the MarketData domain and denormalizes
+`EconomicCalendarsImportedEvent` through `MarketDataDbContext.InsertEconomicCalendarsAsync`.
 
 ### 3.3 Existing duplicate behavior
 
@@ -115,11 +112,11 @@ The current CQL does not contain a literal `ALLOW FILTERING` clause, but several
 `SELECT ... FROM economic_calendar` and filter or de-duplicate rows in application memory. Those full scans include the
 fallback range path, the no-argument all-calendars query, country-code discovery, and projection reconciliation.
 
-Runtime scans have now been removed. Country codes and known month partitions come from small lookup projections;
-all-calendar reads fan out only over the latest 120 known UTC months, and country/range reads reject ranges over 120
-UTC months. At most four month partitions are queried concurrently. Each month read is limited to 2,500 rows and the
-merged response is limited to 10,000 rows. Full scans remain only in the explicit offline projection migration, where
-import writers are paused and source/target counts plus fingerprints are reconciled.
+Runtime scans have now been removed. The paged request derives every month partition from its explicit UTC bounds and
+country list; it rejects ranges over 120 months, more than 32 countries, or fan-out over 512 partitions. Each
+country/month partition is limited to 2,500 rows and pages are limited to 500 rows. Full scans remain only in the
+explicit offline cutover migration, where import writers are paused and source/target counts plus fingerprints are
+reconciled.
 
 ## 4. Goals and non-goals
 
@@ -172,9 +169,7 @@ FinancialModelingPrep adapter
           |
           | provider DTO -> canonical read model
           v
-YieldCurveRatesDbContext / EconomicCalendarsDbContext transitional compatibility facade
-          |
-          | construct current Import*Parameter and Import*Command
+Application import coordinator constructs current Import*Parameter and Import*Command
           v
 MarketData YieldCurveRate / EconomicCalendar command actor
           |
@@ -184,7 +179,7 @@ MarketData state repository denormalization
           |
           +--> MarketDataDbContext.yield_curve_rates
           |
-          +--> MarketDataDbContext.economic_calendar
+          +--> MarketDataDbContext.economic_calendar_v2
 ```
 
 The FMP network call is never performed on an actor mailbox thread. The coordinator completes acquisition and bounded
@@ -418,10 +413,11 @@ registration dependency.
 
 ### 9.2 Single table schema
 
-The target MarketData keyspace contains exactly one economic-calendar table:
+The target MarketData keyspace contains exactly one runtime economic-calendar row table. A versioned name is required
+because ScyllaDB cannot alter the primary key of the legacy table in place:
 
 ```cql
-CREATE TABLE economic_calendar (
+CREATE TABLE economic_calendar_v2 (
     countryCode text,
     monthBucket int,
     eventDate timestamp,
@@ -433,6 +429,7 @@ CREATE TABLE economic_calendar (
     unit text,
     createdOn timestamp,
     createdBy text,
+    commandId uuid,
     PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)
 ) WITH CLUSTERING ORDER BY (eventDate DESC, eventName ASC);
 ```
@@ -441,9 +438,9 @@ CREATE TABLE economic_calendar (
 partition key, but it is not a separate domain identity field. The logical identity remains
 `(EventDateUtc, CountryCode, EventName)`.
 
-This layout promotes the useful shape of the current country/month projection to the only canonical table. The old
-event-date-partitioned `ReferenceDb.economic_calendar` table and `economic_calendar_by_country_month_v2` are both
-removed after verified migration.
+This layout promotes the useful shape of the former country/month projection to the only canonical row table.
+`commandId` makes same-command Reject replay observable at the row that owns the logical key. The old event-date
+table and all `by_country_month`, `by_month`, and month-catalog projections are removed after the verification window.
 
 ### 9.3 Key-complete query patterns
 
@@ -483,32 +480,32 @@ query returns that bounded actor read model; it does not discover countries thro
 An administrative offline export or repair tool may token-scan the table under explicit resource controls. That is not
 a runtime query API and does not justify `ALLOW FILTERING`.
 
-#### 9.4.1 Implemented bounded compatibility phase
+#### 9.4.1 Implemented paged contract
 
-Until the public actor/API contract carries an explicit continuation token, the no-argument compatibility query reads
-the latest 120 entries in `economic_calendar_month_v1`, queries `economic_calendar_by_month_v1` in groups of four, and
-stops at 10,000 merged rows. This is intentionally a bounded recent-data view even though the legacy method retains
-`All` in its name. Country/range queries have the same global result cap and reject more than 120 intersecting months.
-The future paged contract replaces this compatibility method; it does not relax these storage bounds.
+`GetEconomicCalendarPage` is available through the direct actor API, REST, and NATS clients. It requires UTC start/end
+bounds, at least one country, a page size of at most 500, and an opaque continuation token. Validation caps ranges at
+120 months, countries at 32, and total country/month fan-out at 512 partitions. Each partition is capped at 2,500 rows.
+Tokens are request-bound and rejected when malformed or replayed with different bounds/countries.
 
-The country, calendar-month, and yield-curve-year catalogs are monotonic observed-value indexes. Deleting the last row
-for a catalog value does not remove its entry; a later bounded read may therefore visit an empty partition or offer a
-year with no remaining rows. This trades a harmless empty lookup for race-free imports and avoids distributed
-reference counting. The offline rebuild removes stale catalog entries when an exact catalog refresh is required.
+The no-argument all-calendar and external-calendar contracts are obsolete. The external contract no longer has a
+storage facade and returns an explicit instruction to use the authenticated FMP import endpoint. The country and
+yield-curve-year catalogs are monotonic observed-value indexes; they contain lookup values, not calendar event rows.
 
 ### 9.5 Storage migration and cutover
 
 Migration is a controlled operation:
 
-1. deploy the new MarketData schema and code with imports paused;
-2. read the old Reference canonical table as the migration source;
-3. normalize timestamps to UTC, calculate `monthBucket`, validate logical keys, and write the new MarketData table;
+1. pause calendar imports and create `economic_calendar_v2`, `economic_calendar_country_code_v1`, and
+   `economic_calendar_cutover_v2` without deploying the new runtime binary;
+2. run the Market projection migration tool, which reads only legacy `economic_calendar` as the source;
+3. normalize timestamps to UTC, calculate `monthBucket`, and write `economic_calendar_v2` in bounded batches;
 4. compare source/target logical-key counts and deterministic row digests;
 5. rebuild and replay affected actor state using the MarketData type aliases;
-6. switch command/query actors and FMP imports to `MarketDataDbContext`;
+6. deploy the runtime binary, whose command/query actors and FMP imports use only `economic_calendar_v2`;
 7. run key-complete query, import, overwrite, Reject, and recovery tests;
 8. observe a defined verification window; and
-9. remove the old Reference tables, projection reconciliation code, interfaces, CQL, registrations, and contracts.
+9. after the rollback window, drop `economic_calendar`, `economic_calendar_by_country_month_v2`,
+   `economic_calendar_by_month_v1`, and `economic_calendar_month_v1`.
 
 The migration never attempts to merge both old tables as independent sources of truth. The old canonical table is the
 source; projection discrepancies are reported and resolved before cutover.
@@ -800,13 +797,13 @@ endpoint access and contract drift without writing production tables.
 1. Move economic-calendar shared contracts into `Domain.MarketData.Shared` with serialization compatibility.
 2. Move actors and state repositories into `Domain.MarketData`.
 3. Add the one country/month-partitioned table to `MarketDataDbContext`.
-4. Migrate and verify Reference data, then remove both old Reference tables and projection code.
+4. Migrate and verify the legacy MarketData calendar source, then remove the old row/projection tables after rollback.
 5. Replace unbounded APIs with key-complete bounded fan-out queries.
 
 ### Stage 3: provider client
 
 1. Implement the typed HTTP client and resilience policies.
-2. Replace generic external URI reads behind the two compatibility contexts.
+2. Keep only the Treasury compatibility context and retire the external-calendar storage facade.
 3. Add provider unit, contract, and opt-in live tests.
 
 ### Stage 4: current-command import
@@ -855,7 +852,7 @@ The design is implemented only when:
 18. Range partial-failure semantics are visible and retryable by date.
 19. Yield-curve schema and runtime CQL use the same primary key.
 20. Economic-calendar contracts and actors reside in the MarketData domain and shared project.
-21. `MarketDataDbContext` owns the only `economic_calendar` table.
+21. `MarketDataDbContext` owns the only runtime economic-calendar row table, `economic_calendar_v2`.
 22. The Reference domain and storage context contain no economic-calendar behavior after cutover.
 23. Every runtime economic-calendar CQL query supplies a complete partition key or performs bounded fan-out over known
     country/month keys.
@@ -912,6 +909,7 @@ The design is implemented only when:
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.8 | 2026-08-16 | Completed the versioned single-table calendar cutover, request-bound paged actor/REST/NATS contract, direct canonical LWT Reject behavior, restartable reconciliation tool, compatibility projection removal, and external-calendar facade retirement. |
 | 0.7 | 2026-08-15 | Implemented the FMP adapters, compatibility facades, deterministic application import coordinator, independently configured event-persisted duplicate policies, LWT Reject ownership, supplemental calendar persistence, host/API/schedule/health/metrics wiring, secret cleanup, tests, and rollout migration instructions. |
 | 0.6 | 2026-08-10 | Defined the provider-neutral framework contracts and storage-capable records in code; made Treasury percentage units explicit, preserved UTC/provenance and nullable calendar values including impact/unit/change fields, and specified FMP-to-framework DI registration without any dependency on the application API. |
 | 0.5 | 2026-08-10 | Removed the high-frequency Blackboard L1/L2 requirement: Treasury curves may use ordinary application cache-aside, while DataBento owns its in-process quote/trade hot values and continues to receive only the selected scalar rate. |
