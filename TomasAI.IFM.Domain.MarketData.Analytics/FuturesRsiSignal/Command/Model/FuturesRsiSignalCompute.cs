@@ -66,9 +66,12 @@ internal static class FuturesRsiSignalCompute
     {
         if (periodLength <= 0)
             return false;
+        var validCount = 0;
         foreach (var signal in futuresRsiSignals)
         {
             if (signal.RSI != -1)
+                validCount++;
+            if (validCount >= periodLength)
                 return true;
         }
         return false;
@@ -90,16 +93,10 @@ internal static class FuturesRsiSignalCompute
     {
         if (windowSize <= 0)
             return Array.Empty<FuturesRsiSignalReadModel>();
-        var result = new List<FuturesRsiSignalReadModel>(Math.Min(windowSize, futuresRsiSignals.Count));
-        foreach (var signal in futuresRsiSignals)
-        {
-            if (signal.RSI == -1)
-                continue;
-            result.Add(signal);
-            if (result.Count == windowSize)
-                break;
-        }
-        return result;
+        return futuresRsiSignals
+            .Where(static signal => signal.RSI != -1)
+            .TakeLast(windowSize)
+            .ToArray();
     }
 
     /// <summary>
@@ -133,7 +130,7 @@ internal static class FuturesRsiSignalCompute
             valueDate: signalId.ValueDate,
             timePeriod: signalId.TimePeriod,
             periodLength: signalId.PeriodLength,
-            timestamp: TimeOnly.FromDateTime(DateTime.Now),
+            timestamp: signalId.Timestamp,
             price: futuresPrice,
             priceChange: 0m,
             priceGain: 0m,

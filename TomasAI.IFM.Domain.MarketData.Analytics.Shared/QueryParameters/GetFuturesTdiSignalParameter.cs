@@ -12,6 +12,8 @@ public record GetFuturesTdiSignalParameter : IActorEntityId, IQueryParameter
 {
     [Key(0)] public string ContractId { get; init; } = string.Empty;
     [Key(1)] public DateOnly ValueDate { get; init; }
+    [Key(2)] public TimeFrameType TimePeriod { get; init; } = TimeFrameType.OneMinute;
+    [Key(3)] public string ConfigurationId { get; init; } = FuturesTdiConfiguration.StandardConfigurationId;
 
     [IgnoreMember]
     public string? QueryParams { get; private set; }
@@ -19,13 +21,19 @@ public record GetFuturesTdiSignalParameter : IActorEntityId, IQueryParameter
     public GetFuturesTdiSignalParameter() { }
 
     [SerializationConstructor]
-    public GetFuturesTdiSignalParameter(string contractId, DateOnly valueDate)
+    public GetFuturesTdiSignalParameter(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod = TimeFrameType.OneMinute,
+        string configurationId = FuturesTdiConfiguration.StandardConfigurationId)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
-        QueryParams = $"contractId={ContractId}&valueDate={ValueDate:yyyy-MM-dd}";
+        TimePeriod = timePeriod;
+        ConfigurationId = configurationId;
+        QueryParams = $"contractId={ContractId}&valueDate={ValueDate:yyyy-MM-dd}&timePeriod={TimePeriod}&configurationId={Uri.EscapeDataString(ConfigurationId)}";
     }
 
     public string Format()
-        => $"{ContractId}.{ValueDate:yyyy-MM-dd}";
+        => $"{ContractId}.{ValueDate:yyyy-MM-dd}.{TimePeriod}.{ConfigurationId}";
 }

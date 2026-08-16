@@ -81,19 +81,32 @@ public static class FuturesItiSignalEventExtensions
     }
 
     /// <summary>
-    /// Retrieves the TDI (Trend Direction / Divergence Index) signal for a specified futures contract and value date.
+    /// Retrieves the Traders Dynamic Index (TDI) signal for a specified futures contract and value date.
     /// </summary>
     /// <remarks>This method performs an asynchronous request and may return null if the operation is
     /// unsuccessful or if no data is available for the specified parameters.</remarks>
     /// <param name="contractId">The unique identifier of the futures contract for which the TDI signal is requested.</param>
     /// <param name="valueDate">The date for which the TDI signal is retrieved.</param>
+    /// <param name="timePeriod">The intraday TDI sampling period.</param>
     /// <returns>A task representing the asynchronous operation. The result contains the TDI signal view model,
     /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesTdiSignalReadModel?> GetFuturesTdiSignalAsync(this IEventActorContext context, string contractId, DateOnly valueDate)
+    public static async ValueTask<FuturesTdiSignalReadModel?> GetFuturesTdiSignalAsync(
+        this IEventActorContext context,
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod)
     {
         var tdiSignal = default(FuturesTdiSignalReadModel);
-        var entityId = new FuturesTdiSignalEntityId(contractId, valueDate, TimeFrameType.Daily);
-        GetFuturesTdiSignalQuery query = new(contractId, valueDate)
+        var entityId = new FuturesTdiSignalEntityId(
+            contractId,
+            valueDate,
+            timePeriod,
+            FuturesTdiConfiguration.StandardConfigurationId);
+        GetFuturesTdiSignalQuery query = new(
+            contractId,
+            valueDate,
+            timePeriod,
+            FuturesTdiConfiguration.StandardConfigurationId)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
             EntityId = entityId,

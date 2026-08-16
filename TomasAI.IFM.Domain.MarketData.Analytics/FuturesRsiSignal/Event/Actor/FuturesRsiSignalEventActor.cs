@@ -9,12 +9,14 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Model;
+using TomasAI.IFM.Application.MarketData.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 
 public class FuturesRsiSignalEventActor(
     IActorSupervisor supervisor, 
     IActorMarketDataAnalyticsCommandApiFactory commandApiFactory,
+    IMarketDataApi marketDataApi,
     IStatusConsoleWriter statusConsoleWriter,
     ILogger<FuturesRsiSignalEventActor> logger,
     IBlackboardService blackboardService)
@@ -27,7 +29,7 @@ public class FuturesRsiSignalEventActor(
         [typeof(FuturesRsiSignalStartedEvent).Name] = async (evt, context, commandApi) =>
         {
             var e = (evt as FuturesRsiSignalStartedEvent)!;
-            return await e.ExecuteAsync(context, commandApi, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(context, commandApi, marketDataApi, statusConsoleWriter, logger);
         },
         [typeof(FuturesRsiSignalStoppedEvent).Name] = async (evt, context, _) =>
         {

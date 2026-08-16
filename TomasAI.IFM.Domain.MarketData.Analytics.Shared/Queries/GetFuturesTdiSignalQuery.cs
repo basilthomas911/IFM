@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 
 /// <summary>
-/// MessagePack-serializable query to retrieve the TDI (Trend Direction / Divergence Index) signal
+/// MessagePack-serializable query to retrieve the Traders Dynamic Index (TDI) signal
 /// for a specific futures contract on a given value date.
 /// </summary>
 [MessagePackObject(AllowPrivate = true)]
@@ -31,14 +31,22 @@ public record GetFuturesTdiSignalQuery : IQuery<FuturesTdiSignalReadModel>
     [Key(4)]
     public TimeFrameType TimePeriod { get; init; }
 
+    [Key(5)]
+    public string ConfigurationId { get; init; } = FuturesTdiConfiguration.StandardConfigurationId;
+
     public GetFuturesTdiSignalQuery() { }
 
-    public GetFuturesTdiSignalQuery(string contractId, DateOnly valueDate, TimeFrameType timePeriod = default)
+    public GetFuturesTdiSignalQuery(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod = TimeFrameType.OneMinute,
+        string configurationId = FuturesTdiConfiguration.StandardConfigurationId)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
         TimePeriod = timePeriod;
-        EntityId = new FuturesTdiSignalEntityId(contractId, valueDate, timePeriod);
+        ConfigurationId = configurationId;
+        EntityId = new FuturesTdiSignalEntityId(contractId, valueDate, timePeriod, configurationId);
         ErrorCode = ErrorId;
     }
 
@@ -51,13 +59,15 @@ public record GetFuturesTdiSignalQuery : IQuery<FuturesTdiSignalReadModel>
         IActorEntityId entityId,           // Key(1)
         string contractId,                 // Key(2)
         DateOnly valueDate,                // Key(3)
-        TimeFrameType timePeriod)  // Key(4)
+        TimeFrameType timePeriod,  // Key(4)
+        string? configurationId)   // Key(5)
     {
         Subject = subject;
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
         TimePeriod = timePeriod;
-        EntityId = new FuturesTdiSignalEntityId(contractId, valueDate, timePeriod);
+        ConfigurationId = configurationId ?? FuturesTdiConfiguration.StandardConfigurationId;
+        EntityId = new FuturesTdiSignalEntityId(contractId, valueDate, timePeriod, ConfigurationId);
         ErrorCode = ErrorId;
     }
 }

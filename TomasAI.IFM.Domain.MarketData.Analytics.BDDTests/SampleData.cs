@@ -144,7 +144,7 @@ public static class SampleData
     /// Rising prices series – fast EMA rises faster than slow EMA → positive MACD line,
     /// producing an UpTrending model direction.
     /// </summary>
-    public static FuturesRsiSignalReadModel[] UpTrendingRsiSignals => Enumerable.Range(0, 30)
+    public static FuturesRsiSignalReadModel[] UpTrendingRsiSignals => Enumerable.Range(0, 34)
         .Select(i => new FuturesRsiSignalReadModel(
             contractId: ContractId,
             valueDate: ValueDate,
@@ -167,7 +167,7 @@ public static class SampleData
     /// Falling prices series – fast EMA falls faster than slow EMA → negative MACD line,
     /// producing a DownTrending model direction.
     /// </summary>
-    public static FuturesRsiSignalReadModel[] DownTrendingRsiSignals => Enumerable.Range(0, 30)
+    public static FuturesRsiSignalReadModel[] DownTrendingRsiSignals => Enumerable.Range(0, 34)
         .Select(i => new FuturesRsiSignalReadModel(
             contractId: ContractId,
             valueDate: ValueDate,
@@ -189,7 +189,7 @@ public static class SampleData
     /// <summary>
     /// Flat prices series – same price throughout → MACD line near zero → RangeBound model direction.
     /// </summary>
-    public static FuturesRsiSignalReadModel[] FlatRsiSignals => Enumerable.Range(0, 30)
+    public static FuturesRsiSignalReadModel[] FlatRsiSignals => Enumerable.Range(0, 34)
         .Select(i => new FuturesRsiSignalReadModel(
             contractId: ContractId,
             valueDate: ValueDate,
@@ -366,14 +366,22 @@ public static class SampleData
         FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
         FuturesTrendDirectionStrengthType strength = FuturesTrendDirectionStrengthType.High)
         => new(
-            contractId: contractId,
-            valueDate: valueDate ?? ValueDate,
-            timePeriod: timePeriod,
-            timestamp: FuturesTdiSignalId.Timestamp,
-            upTrendCount: upTrendCount,
-            downTrendCount: downTrendCount,
-            tdi: direction,
-            tdiStrength: strength);
+            contractId,
+            valueDate ?? ValueDate,
+            timePeriod,
+            FuturesTdiSignalId.Timestamp,
+            FuturesTdiConfiguration.Standard,
+            4500m,
+            60d,
+            61d,
+            58d,
+            55d,
+            70d,
+            40d,
+            direction,
+            strength,
+            FuturesTdiCrossType.None,
+            FuturesTdiMarketStateType.AboveMidline);
 
     public static GenerateFuturesTdiSignalCommand TdiGenerateCommandFor(
         TimeFrameType timePeriod,
@@ -384,7 +392,16 @@ public static class SampleData
         var normalizedSignals = (rsiSignals ?? TdiUpTrendingRsiSignals)
             .Select(signal => signal with { TimePeriod = timePeriod })
             .ToArray();
-        return new GenerateFuturesTdiSignalCommand(FuturesTdiSignalId, normalizedSignals)
+        var signalId = new FuturesTdiSignalId(
+            ContractId,
+            ValueDate,
+            timePeriod,
+            FuturesTdiSignalId.Timestamp,
+            FuturesTdiConfiguration.StandardConfigurationId);
+        return new GenerateFuturesTdiSignalCommand(
+            signalId,
+            normalizedSignals,
+            FuturesTdiConfiguration.Standard)
         {
             CommandId = commandId ?? Guid.NewGuid(),
             EntityId = entityId,
@@ -414,14 +431,32 @@ public static class SampleData
                 entityId.Format()),
             EntityId = entityId,
             FuturesTdiSignal = new FuturesTdiSignalReadModel(
-                contractId: ContractId,
-                valueDate: ValueDate,
-                timePeriod: timePeriod,
-                timestamp: FuturesTdiSignalId.Timestamp,
-                upTrendCount: upTrendCount,
-                downTrendCount: downTrendCount,
-                tdi: direction,
-                tdiStrength: strength),
+                ContractId,
+                ValueDate,
+                timePeriod,
+                FuturesTdiSignalId.Timestamp,
+                FuturesTdiConfiguration.Standard,
+                4500m,
+                direction == FuturesTrendDirectionType.DownTrending ? 40d : 60d,
+                direction switch
+                {
+                    FuturesTrendDirectionType.DownTrending => 45d,
+                    FuturesTrendDirectionType.UpTrending => 60d,
+                    _ => 50d
+                },
+                direction switch
+                {
+                    FuturesTrendDirectionType.DownTrending => 55d,
+                    FuturesTrendDirectionType.UpTrending => 50d,
+                    _ => 50d
+                },
+                50d,
+                70d,
+                30d,
+                direction,
+                strength,
+                FuturesTdiCrossType.None,
+                FuturesTdiMarketStateType.AboveMidline),
             CreatedOn = Timestamp,
             CreatedBy = "test"
         };
@@ -430,12 +465,12 @@ public static class SampleData
     /// <summary>
     /// Rising RSI series – RSI >= 50 with positive slope → UpTrending TDI model direction.
     /// </summary>
-    public static FuturesRsiSignalReadModel[] TdiUpTrendingRsiSignals => Enumerable.Range(0, 30)
+    public static FuturesRsiSignalReadModel[] TdiUpTrendingRsiSignals => Enumerable.Range(0, 34)
         .Select(i => new FuturesRsiSignalReadModel(
             contractId: ContractId,
             valueDate: ValueDate,
-            timePeriod: TimeFrameType.Daily,
-            periodLength: 14,
+            timePeriod: TimeFrameType.OneMinute,
+            periodLength: 13,
             timestamp: new TimeOnly(9, 30, 0).Add(TimeSpan.FromMinutes(i)),
             price: 4000m + (i * 5m),
             priceChange: 5m,
@@ -444,7 +479,7 @@ public static class SampleData
             averagePriceGain: 5m,
             averagePriceLoss: 0m,
             rs: 100,
-            rsi: 65,
+            rsi: 35 + i,
             rsiAverage: 60,
             rsiSlope: 1.0))
         .ToArray();
@@ -452,12 +487,12 @@ public static class SampleData
     /// <summary>
     /// Falling RSI series – RSI &lt; 50 with negative slope → DownTrending TDI model direction.
     /// </summary>
-    public static FuturesRsiSignalReadModel[] TdiDownTrendingRsiSignals => Enumerable.Range(0, 30)
+    public static FuturesRsiSignalReadModel[] TdiDownTrendingRsiSignals => Enumerable.Range(0, 34)
         .Select(i => new FuturesRsiSignalReadModel(
             contractId: ContractId,
             valueDate: ValueDate,
-            timePeriod: TimeFrameType.Daily,
-            periodLength: 14,
+            timePeriod: TimeFrameType.OneMinute,
+            periodLength: 13,
             timestamp: new TimeOnly(9, 30, 0).Add(TimeSpan.FromMinutes(i)),
             price: 4200m - (i * 5m),
             priceChange: -5m,
@@ -466,7 +501,7 @@ public static class SampleData
             averagePriceGain: 0m,
             averagePriceLoss: 5m,
             rs: 0,
-            rsi: 30,
+            rsi: 65 - i,
             rsiAverage: 35,
             rsiSlope: -1.0))
         .ToArray();
@@ -474,12 +509,12 @@ public static class SampleData
     /// <summary>
     /// Flat RSI series – RSI = 50 with zero slope → RangeBound TDI model direction.
     /// </summary>
-    public static FuturesRsiSignalReadModel[] TdiFlatRsiSignals => Enumerable.Range(0, 30)
+    public static FuturesRsiSignalReadModel[] TdiFlatRsiSignals => Enumerable.Range(0, 34)
         .Select(i => new FuturesRsiSignalReadModel(
             contractId: ContractId,
             valueDate: ValueDate,
-            timePeriod: TimeFrameType.Daily,
-            periodLength: 14,
+            timePeriod: TimeFrameType.OneMinute,
+            periodLength: 13,
             timestamp: new TimeOnly(9, 30, 0).Add(TimeSpan.FromMinutes(i)),
             price: 4100m,
             priceChange: 0m,
@@ -500,8 +535,8 @@ public static class SampleData
         new FuturesRsiSignalReadModel(
             contractId: ContractId,
             valueDate: ValueDate,
-            timePeriod: TimeFrameType.Daily,
-            periodLength: 14,
+            timePeriod: TimeFrameType.OneMinute,
+            periodLength: 13,
             timestamp: new TimeOnly(18, 50, 10, 451),
             price: 4022,
             priceChange: 0m,
@@ -519,12 +554,12 @@ public static class SampleData
     /// RSI &lt; 50 with positive slope → RangeBound TDI model direction
     /// (neither UpTrending nor DownTrending since conditions require both RSI and slope to align).
     /// </summary>
-    public static FuturesRsiSignalReadModel[] TdiRangeBoundRsiSignals => Enumerable.Range(0, 30)
+    public static FuturesRsiSignalReadModel[] TdiRangeBoundRsiSignals => Enumerable.Range(0, 34)
         .Select(i => new FuturesRsiSignalReadModel(
             contractId: ContractId,
             valueDate: ValueDate,
-            timePeriod: TimeFrameType.Daily,
-            periodLength: 14,
+            timePeriod: TimeFrameType.OneMinute,
+            periodLength: 13,
             timestamp: new TimeOnly(9, 30, 0).Add(TimeSpan.FromMinutes(i)),
             price: 4100m,
             priceChange: 0m,
@@ -977,27 +1012,43 @@ public static class SampleData
     /// TDI signal with UpTrending direction for trade signal tests.
     /// </summary>
     public static FuturesTdiSignalReadModel TradeSignalTdiSignalUpTrending => new(
-        contractId: ContractId,
-        valueDate: ValueDate,
-        timePeriod: TimeFrameType.FifteenSeconds,
-        timestamp: new TimeOnly(10, 0, 0),
-        upTrendCount: 5,
-        downTrendCount: 2,
-        tdi: FuturesTrendDirectionType.UpTrending,
-        tdiStrength: FuturesTrendDirectionStrengthType.Medium);
+        ContractId,
+        ValueDate,
+        TimeFrameType.FifteenSeconds,
+        new TimeOnly(10, 0, 0),
+        FuturesTdiConfiguration.Standard,
+        5500m,
+        62d,
+        61d,
+        58d,
+        55d,
+        70d,
+        40d,
+        FuturesTrendDirectionType.UpTrending,
+        FuturesTrendDirectionStrengthType.Medium,
+        FuturesTdiCrossType.None,
+        FuturesTdiMarketStateType.AboveMidline);
 
     /// <summary>
     /// TDI signal with DownTrending direction for trade signal tests.
     /// </summary>
     public static FuturesTdiSignalReadModel TradeSignalTdiSignalDownTrending => new(
-        contractId: ContractId,
-        valueDate: ValueDate,
-        timePeriod: TimeFrameType.FifteenSeconds,
-        timestamp: new TimeOnly(10, 0, 0),
-        upTrendCount: 2,
-        downTrendCount: 5,
-        tdi: FuturesTrendDirectionType.DownTrending,
-        tdiStrength: FuturesTrendDirectionStrengthType.Medium);
+        ContractId,
+        ValueDate,
+        TimeFrameType.FifteenSeconds,
+        new TimeOnly(10, 0, 0),
+        FuturesTdiConfiguration.Standard,
+        5500m,
+        38d,
+        39d,
+        42d,
+        45d,
+        60d,
+        30d,
+        FuturesTrendDirectionType.DownTrending,
+        FuturesTrendDirectionStrengthType.Medium,
+        FuturesTdiCrossType.None,
+        FuturesTdiMarketStateType.BelowMidline);
 
     /// <summary>
     /// ITI signal data with UpTrend direction change for trade signal tests.
@@ -1116,7 +1167,7 @@ public static class SampleData
         => (direction == FuturesTrendDirectionType.DownTrending
                 ? TradeSignalTdiSignalDownTrending
                 : TradeSignalTdiSignalUpTrending)
-            with { TimePeriod = timePeriod, TDI = direction };
+            with { TDI = direction };
 
     public static FuturesItiSignalDataReadModel TradeSignalItiDataFor(
         TimeFrameType timePeriod,

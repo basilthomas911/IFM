@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Actor;
+using TomasAI.IFM.Application.MarketData.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesAtrSignal;
 
@@ -25,8 +26,9 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
     public class TestableFuturesAtrSignalEventActor : FuturesAtrSignalEventActor
     {
-        public TestableFuturesAtrSignalEventActor(IActorSupervisor supervisor, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesAtrSignalEventActor> logger)
-            : base(supervisor, statusConsoleWriter, logger)
+        public TestableFuturesAtrSignalEventActor(IActorSupervisor supervisor, IStatusConsoleWriter statusConsoleWriter,
+            ILogger<FuturesAtrSignalEventActor> logger, IMarketDataApi marketDataApi)
+            : base(supervisor, statusConsoleWriter, logger, marketDataApi)
         {
         }
 

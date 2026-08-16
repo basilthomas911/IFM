@@ -24,9 +24,18 @@ internal static class IEventActorContextExtensions
     /// <param name="periodLength">The period length for the RSI calculation.</param>
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
-    public static async ValueTask GenerateFuturesRsiSignalAsync(this IActorMarketDataAnalyticsCommandApi commandApi, FuturesRsiSignalId futuresRsiSignalId, decimal futuresPrice)
+    public static async ValueTask GenerateFuturesRsiSignalAsync(
+        this IActorMarketDataAnalyticsCommandApi commandApi,
+        FuturesRsiSignalId futuresRsiSignalId,
+        decimal futuresPrice,
+        long sourceSequence = 0,
+        DateTime sourceEventTimestamp = default)
     {
-        _ = await commandApi.GenerateFuturesRsiSignalAsync(futuresRsiSignalId, futuresPrice);
+        _ = await commandApi.GenerateFuturesRsiSignalAsync(
+            futuresRsiSignalId,
+            futuresPrice,
+            sourceSequence,
+            sourceEventTimestamp);
     }
 
     /// <summary>
@@ -38,9 +47,19 @@ internal static class IEventActorContextExtensions
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask GenerateFuturesTdiSignalAsync(
-        this IActorMarketDataAnalyticsCommandApi commandApi, FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals, TimeFrameType timePeriod)
+        this IActorMarketDataAnalyticsCommandApi commandApi,
+        FuturesTdiSignalId futuresTdiSignalId,
+        FuturesRsiSignalReadModel[] futuresRsiSignals,
+        TimeFrameType timePeriod,
+        FuturesTdiConfiguration? configuration = null,
+        Guid? commandId = null)
     {
-        _ = await commandApi.GenerateFuturesTdiSignalAsync(futuresTdiSignalId, futuresRsiSignals, timePeriod);
+        _ = await commandApi.GenerateFuturesTdiSignalAsync(
+            futuresTdiSignalId,
+            futuresRsiSignals,
+            timePeriod,
+            configuration,
+            commandId);
     }
 
     /// <summary>

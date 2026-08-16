@@ -38,6 +38,12 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
     [Key(7)]
     public decimal FuturesPrice { get; init; }
 
+    /// <summary>Feed sequence from the hot-cache trade snapshot.</summary>
+    [Key(8)] public long SourceSequence { get; init; }
+
+    /// <summary>Exchange/source timestamp from the hot-cache trade snapshot.</summary>
+    [Key(9)] public DateTime SourceEventTimestamp { get; init; }
+
     
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
@@ -52,10 +58,14 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
     /// <exception cref="ArgumentNullException"></exception>
     public GenerateFuturesRsiSignalCommand(
         FuturesRsiSignalId futuresRsiSignalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        long sourceSequence = 0,
+        DateTime sourceEventTimestamp = default)
     {
         FuturesRsiSignalId = futuresRsiSignalId;
         FuturesPrice = futuresPrice;
+        SourceSequence = sourceSequence;
+        SourceEventTimestamp = sourceEventTimestamp;
 
         EntityId = futuresRsiSignalId.ToEntityId();
         ErrorCode = 20001;
@@ -72,7 +82,9 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
         int errorCode,                     // Key(4)
         BoundedContextName routeTo,        // Key(5)
         FuturesRsiSignalId futuresRsiSignalId,
-        decimal futuresPrice)  // Key(6)
+        decimal futuresPrice,
+        long sourceSequence,
+        DateTime sourceEventTimestamp)
     {
         CommandId = commandId;
         Subject = subject;
@@ -82,5 +94,7 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
         RouteTo = routeTo;
         FuturesRsiSignalId = futuresRsiSignalId;
         FuturesPrice = futuresPrice;
+        SourceSequence = sourceSequence;
+        SourceEventTimestamp = sourceEventTimestamp;
     }
 }

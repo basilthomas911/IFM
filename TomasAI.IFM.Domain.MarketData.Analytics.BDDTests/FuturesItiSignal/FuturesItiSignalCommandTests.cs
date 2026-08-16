@@ -71,17 +71,19 @@ public class FuturesItiSignalCommandTests
     }
 
     [Fact]
-    public void GivenNoExistingSignal_WhenGenerateFuturesItiSignalCommandIsExecutedForDailyPeriod_ThenThrowsArgumentOutOfRangeException()
+    public void GivenNoExistingSignal_WhenGenerateFuturesItiSignalCommandIsExecutedForDailyPeriod_ThenStartOfDaySignalIsApplied()
     {
         // Given
         var state = NewState();
         var command = SampleData.GenerateCommandFor(TimeFrameType.Daily);
 
         // When
-        var act = () => command.Execute(state);
+        var result = command.Execute(state);
 
         // Then
-        act.Should().Throw<ArgumentOutOfRangeException>();
+        result.Success.Should().BeTrue();
+        state.Events.Should().ContainSingle();
+        LastSignal(state).TimePeriod.Should().Be(TimeFrameType.Daily);
     }
 
     // ───── GenerateFuturesItiSignalCommand — Up-trend transitions (Given / When / Then) ─────

@@ -6,8 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 
 /// <summary>
-/// Command to generate a TDI (Trend Direction / Divergence Index) signal for a futures contract
-/// by combining a collection of prior RSI signals.
+/// Command to generate a schema-version-2 Traders Dynamic Index signal from a bounded RSI window.
 /// </summary>
 /// <remarks>
 /// Follows the MessagePack serialization pattern adopted by other analytics commands. The command is routed to
@@ -48,6 +47,10 @@ public record GenerateFuturesTdiSignalCommand : ICommand<FuturesTdiSignalEntityI
     [Key(7)]
     public FuturesRsiSignalReadModel[] FuturesRsiSignals { get; init; }
 
+    /// <summary>Exact calculation contract used for the generated signal.</summary>
+    [Key(8)]
+    public FuturesTdiConfiguration Configuration { get; init; } = FuturesTdiConfiguration.Standard;
+
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
     /// </summary>
@@ -60,12 +63,18 @@ public record GenerateFuturesTdiSignalCommand : ICommand<FuturesTdiSignalEntityI
     /// <param name="futuresRsiSignals">Input RSI signal series (cannot be null).</param>
     public GenerateFuturesTdiSignalCommand(
         FuturesTdiSignalId futuresTdiSignalId,
-        FuturesRsiSignalReadModel[] futuresRsiSignals)
+        FuturesRsiSignalReadModel[] futuresRsiSignals,
+        FuturesTdiConfiguration? configuration = null)
     {
         FuturesTdiSignalId = futuresTdiSignalId;
         FuturesRsiSignals = futuresRsiSignals ?? throw new ArgumentNullException(nameof(futuresRsiSignals));
+        Configuration = configuration ?? FuturesTdiConfiguration.Standard;
 
-        EntityId = new FuturesTdiSignalEntityId(FuturesTdiSignalId.ContractId, FuturesTdiSignalId.ValueDate, TimeFrameType.Daily);
+        EntityId = new FuturesTdiSignalEntityId(
+            FuturesTdiSignalId.ContractId,
+            FuturesTdiSignalId.ValueDate,
+            FuturesTdiSignalId.TimePeriod,
+            Configuration.ConfigurationId);
         ErrorCode = 20001;
         RouteTo = BoundedContextName.FuturesTdiSignalBoundedContext;
     }
@@ -80,7 +89,8 @@ public record GenerateFuturesTdiSignalCommand : ICommand<FuturesTdiSignalEntityI
         int errorCode,                      // Key(4)
         BoundedContextName routeTo,         // Key(5)
         FuturesTdiSignalId tdiSignalId,     // Key(6)
-        FuturesRsiSignalReadModel[] rsiSignals) // Key(7)
+        FuturesRsiSignalReadModel[] rsiSignals, // Key(7)
+        FuturesTdiConfiguration? configuration) // Key(8)
     {
         CommandId = commandId;
         Subject = subject;
@@ -90,5 +100,6 @@ public record GenerateFuturesTdiSignalCommand : ICommand<FuturesTdiSignalEntityI
         RouteTo = routeTo;
         FuturesTdiSignalId = tdiSignalId;
         FuturesRsiSignals = rsiSignals;
+        Configuration = configuration ?? FuturesTdiConfiguration.Standard;
     }
 }

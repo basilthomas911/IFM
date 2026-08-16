@@ -243,9 +243,9 @@ public class FuturesRsiSignalCommandTests
     }
 
     [Fact]
-    public void Execute_WhenAtLeastOnePriorValidSignalExists_ProducesSignalsEvent()
+    public void Execute_WhenHistoryIsBelowTheConfiguredWindow_DoesNotProduceSignalsEvent()
     {
-        // Arrange - a single prior valid RSI signal is enough to satisfy CanGenerateFuturesRsiSignals.
+        // Arrange - one prior valid signal is not a complete calculation window.
         var state = SeedState(SampleData.SingleRsiSignal);
         var command = BuildCommand();
 
@@ -253,7 +253,7 @@ public class FuturesRsiSignalCommandTests
         command.Execute(state);
 
         // Assert
-        state.Events.OfType<FuturesRsiSignalsGeneratedEvent>().Should().ContainSingle();
+        state.Events.OfType<FuturesRsiSignalsGeneratedEvent>().Should().BeEmpty();
     }
 
     [Theory]

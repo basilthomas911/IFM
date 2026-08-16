@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Model;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Application.MarketData.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Actor;
 
@@ -18,7 +19,8 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Actor;
 /// <param name="statusConsoleWriter"> </param>
 /// <param name="logger"> </param>
 public class FuturesAtrSignalEventActor(IActorSupervisor supervisor, IStatusConsoleWriter statusConsoleWriter,
-    ILogger<FuturesAtrSignalEventActor> logger, IActorMarketDataAnalyticsCommandApiFactory? commandApiFactory = null)
+    ILogger<FuturesAtrSignalEventActor> logger, IMarketDataApi marketDataApi,
+    IActorMarketDataAnalyticsCommandApiFactory? commandApiFactory = null)
     : BaseEventActor<FuturesAtrSignalEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FuturesAtrSignalEvent";
@@ -77,7 +79,7 @@ public class FuturesAtrSignalEventActor(IActorSupervisor supervisor, IStatusCons
         IsArgumentNull.Check(@event);
         if (@event is FuturesAtrSignalStartedEvent started)
         {
-            _ = await started.ExecuteAsync(context, GetCommandApi(context), statusConsoleWriter, logger);
+            _ = await started.ExecuteAsync(context, GetCommandApi(context), marketDataApi, statusConsoleWriter, logger);
             return;
         }
         if (@event is FuturesAtrSignalStoppedEvent stopped)

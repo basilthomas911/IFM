@@ -339,9 +339,13 @@ internal readonly record struct GetLastFuturesRsiDailySignal(string contractId, 
 {
     public object Bind() => new object?[] { contractId, timePeriod, periodLength };
 }
-internal readonly record struct GetLastFuturesTdiSignal(string contractId, DateOnly valueDate) : IBindValue
+internal readonly record struct GetLastFuturesTdiSignal(
+    string contractId,
+    string timePeriod,
+    string configurationId,
+    DateOnly valueDate) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate };
+    public object Bind() => new object?[] { contractId, timePeriod, configurationId, valueDate };
 }
 internal readonly record struct GetLastFuturesTickData(string contractId, DateOnly valueDate) : IBindValue
 {
@@ -513,9 +517,43 @@ internal readonly record struct InsertFuturesRsiSignal(string contractId, DateOn
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, price, priceChange, priceGain, priceLoss, averagePriceGain, averagePriceLoss, rs, rsi, rsiAverage, rsiSlope };
 }
-internal readonly record struct InsertFuturesTdiSignal(string contractId, DateOnly valueDate, string timePeriod, TimeOnly timestamp, int upTrendCount, int downTrendCount, string tdi, string tdiStrength) : IBindValue
+internal readonly record struct InsertFuturesTdiSignal(
+    string contractId,
+    string timePeriod,
+    string configurationId,
+    DateOnly valueDate,
+    TimeOnly timestamp,
+    int schemaVersion,
+    int rsiPeriod,
+    int priceLinePeriod,
+    int signalLinePeriod,
+    int marketBasePeriod,
+    int volatilityBandPeriod,
+    double volatilityBandDeviation,
+    decimal price,
+    double rsi,
+    double priceLine,
+    double signalLine,
+    double marketBaseLine,
+    double upperVolatilityBand,
+    double lowerVolatilityBand,
+    double bandWidth,
+    double priceSignalDivergence,
+    string crossType,
+    string marketState,
+    string trendDirection,
+    string trendStrength,
+    long sourceSequence,
+    DateTime sourceEventTimestamp) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, timePeriod, timestamp, upTrendCount, downTrendCount, tdi, tdiStrength };
+    public object Bind() => new object?[]
+    {
+        contractId, timePeriod, configurationId, valueDate, timestamp, schemaVersion,
+        rsiPeriod, priceLinePeriod, signalLinePeriod, marketBasePeriod, volatilityBandPeriod,
+        volatilityBandDeviation, price, rsi, priceLine, signalLine, marketBaseLine,
+        upperVolatilityBand, lowerVolatilityBand, bandWidth, priceSignalDivergence,
+        crossType, marketState, trendDirection, trendStrength, sourceSequence, sourceEventTimestamp
+    };
 }
 internal readonly record struct InsertTickTradeData(object?[] Values) : IBindValue
 {

@@ -19,13 +19,20 @@ public static class GenerateFuturesRsiSignal
     /// <returns><see langword="true"/> if the state was updated successfully; otherwise, <see langword="false"/></returns>
     public static bool Execute(this GenerateFuturesRsiSignalCommand e, FuturesRsiSignalCommandState state)
     {
-        var futuresRsiSignal = state.FuturesRsiSignals.GenerateRsiSignal(e.FuturesRsiSignalId, e.FuturesPrice);
+        var futuresRsiSignal = state.FuturesRsiSignals.GenerateRsiSignal(e.FuturesRsiSignalId, e.FuturesPrice) with
+        {
+            SourceSequence = e.SourceSequence,
+            SourceEventTimestamp = e.SourceEventTimestamp
+        };
         var futuresRsiSignalGeneratedEvent = e.CreateFuturesRsiSignalGeneratedEvent(futuresRsiSignal);
         if (state.Update(futuresRsiSignalGeneratedEvent, e))
         {
-            if (state.FuturesRsiSignals.CanGenerateFuturesRsiSignals(e.EntityId.PeriodLength))
+            var outputWindow = Math.Max(
+                e.EntityId.PeriodLength,
+                FuturesTdiConfiguration.Standard.RequiredRsiSamples);
+            if (state.FuturesRsiSignals.CanGenerateFuturesRsiSignals(outputWindow))
             {
-                var futuresRsiSignals = state.FuturesRsiSignals.GenerateFuturesRsiSignals(e.EntityId.PeriodLength);
+                var futuresRsiSignals = state.FuturesRsiSignals.GenerateFuturesRsiSignals(outputWindow);
                 state.Update(e.CreateFuturesRsiSignalsGeneratedEvent(futuresRsiSignal, futuresRsiSignals, e.EntityId.PeriodLength), e);
             }
             return true;
@@ -68,6 +75,7 @@ public static class GenerateFuturesRsiSignal
            EntityId = e.EntityId,
            FuturesRsiSignalsId = new FuturesRsiSignalsId(futuresRsiSignal.ContractId, futuresRsiSignal.ValueDate, futuresRsiSignal.Timestamp),
            FuturesRsiSignals = [.. futuresRsiSignals],
+           PeriodLength = periodLength,
            CreatedBy = e.OriginatedBy,
            CreatedOn = e.OriginatedOn
        };

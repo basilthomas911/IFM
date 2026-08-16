@@ -22,7 +22,10 @@ public interface IMarketDataAnalyticsCommandApi
     Task<ServiceResult<Guid>> StopFuturesAdxSignalAsync(FuturesAdxSignalEntityId entityId);
     Task<ServiceResult<Guid>> StartFuturesAtrSignalAsync(FuturesAtrSignalEntityId entityId);
     Task<ServiceResult<Guid>> StopFuturesAtrSignalAsync(FuturesAtrSignalEntityId entityId);
-    Task<ServiceResult<Guid>> GenerateFuturesTdiSignalAsync(FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals);
+    Task<ServiceResult<Guid>> GenerateFuturesTdiSignalAsync(
+        FuturesTdiSignalId futuresTdiSignalId,
+        FuturesRsiSignalReadModel[] futuresRsiSignals,
+        FuturesTdiConfiguration? configuration = null);
     Task<ServiceResult<Guid>> GenerateFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, DateTime timestamp, double futuresPrice, double vixFuturesPrice);
     Task<ServiceResult<Guid>> SetFuturesItiSignalHoldTradeAsync(FuturesItiSignalId itiSignalId);
     Task<ServiceResult<Guid>> ClearFuturesItiSignalHoldTradeAsync(FuturesItiSignalId itiSignalId);

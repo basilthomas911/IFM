@@ -18,9 +18,9 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
     public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TimeFrameType.Daily,
-        TimeFrameType.Weekly,
-        TimeFrameType.Monthly
+        TimeFrameType.OneMinute,
+        TimeFrameType.FiveMinutes,
+        TimeFrameType.FifteenMinutes
     };
 
     public FuturesTdiSignalEventActorTests(MarketDataAnalyticsTestFixture fixture)
@@ -32,7 +32,11 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         IActorSupervisor supervisor,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesTdiSignalEventActor> logger)
-        : FuturesTdiSignalEventActor(supervisor, statusConsoleWriter, logger)
+        : FuturesTdiSignalEventActor(
+            supervisor,
+            new global::TomasAI.IFM.Domain.MarketData.Analytics.Command.Api.ActorMarketDataAnalyticsCommandApiFactory(),
+            statusConsoleWriter,
+            logger)
     {
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

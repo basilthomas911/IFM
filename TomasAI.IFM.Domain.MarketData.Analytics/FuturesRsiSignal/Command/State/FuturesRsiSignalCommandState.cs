@@ -15,6 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State
 public class FuturesRsiSignalCommandState
     : BaseEventSourceActorState<FuturesRsiSignalCommandState>, IEventSourceActorState<FuturesRsiSignalCommandState>
 {
+    const int MaxSignalHistory = 256;
     readonly List<FuturesRsiSignalReadModel> _futuresRsiSignals = [];
 
     /// <summary>
@@ -44,6 +45,8 @@ public class FuturesRsiSignalCommandState
             if (e.FuturesRsiSignal is not null)
             {
                 _futuresRsiSignals.Add(e.FuturesRsiSignal);
+                if (_futuresRsiSignals.Count > MaxSignalHistory)
+                    _futuresRsiSignals.RemoveAt(0);
                 return true;
             }
             return false;
@@ -54,6 +57,8 @@ public class FuturesRsiSignalCommandState
             if (e.FuturesRsiSignal is not null)
             {
                 _futuresRsiSignals.Add(e.FuturesRsiSignal);
+                if (_futuresRsiSignals.Count > MaxSignalHistory)
+                    _futuresRsiSignals.RemoveAt(0);
                 return true;
             }
             return false;

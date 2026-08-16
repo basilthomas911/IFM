@@ -20,9 +20,9 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
     public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TimeFrameType.Daily,
-        TimeFrameType.Weekly,
-        TimeFrameType.Monthly
+        TimeFrameType.OneMinute,
+        TimeFrameType.FiveMinutes,
+        TimeFrameType.FifteenMinutes
     };
 
     public FuturesTdiSignalQueryActorTests(MarketDataAnalyticsTestFixture fixture)
@@ -198,12 +198,13 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var scenario = CreateScenario();
         var query = SampleData.TdiQueryFor(timePeriod);
         var expected = SampleData.TdiReadModelFor(timePeriod);
-        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate)
+        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(expected));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 
-        await scenario.Db.Received(1).GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate);
+        await scenario.Db.Received(1).GetLastFuturesTdiSignalAsync(
+            query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId);
         await scenario.Context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTdiSignalQuery.Verb,
@@ -220,7 +221,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     {
         var scenario = CreateScenario();
         var query = SampleData.TdiQueryFor(timePeriod);
-        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate)
+        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(null));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
@@ -239,20 +240,21 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var valueDate = new DateOnly(2027, 12, 17);
         var scenario = CreateScenario();
         var query = SampleData.TdiQueryFor(
-            TimeFrameType.Weekly,
+            TimeFrameType.FiveMinutes,
             contractId,
             valueDate);
         var expected = SampleData.TdiReadModelFor(
-            TimeFrameType.Weekly,
+            TimeFrameType.FiveMinutes,
             contractId,
             valueDate,
             direction: FuturesTrendDirectionType.DownTrending);
-        scenario.Db.GetLastFuturesTdiSignalAsync(contractId, valueDate)
+        scenario.Db.GetLastFuturesTdiSignalAsync(contractId, valueDate, query.TimePeriod, query.ConfigurationId)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(expected));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 
-        await scenario.Db.Received(1).GetLastFuturesTdiSignalAsync(contractId, valueDate);
+        await scenario.Db.Received(1).GetLastFuturesTdiSignalAsync(
+            contractId, valueDate, query.TimePeriod, query.ConfigurationId);
         await scenario.Context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTdiSignalQuery.Verb,
@@ -266,7 +268,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     {
         var scenario = CreateScenario();
         var query = SampleData.TdiQueryFor(timePeriod);
-        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate)
+        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
             .Returns<Task<FuturesTdiSignalReadModel?>>(_ =>
                 throw new InvalidOperationException($"{timePeriod} storage unavailable"));
 

@@ -31,10 +31,16 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> GenerateFuturesRsiSignalAsync(
         FuturesRsiSignalId signalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        long sourceSequence = 0,
+        DateTime sourceEventTimestamp = default)
     {
         var entityId = signalId.ToEntityId();
-        GenerateFuturesRsiSignalCommand command = new(signalId, futuresPrice)
+        GenerateFuturesRsiSignalCommand command = new(
+            signalId,
+            futuresPrice,
+            sourceSequence,
+            sourceEventTimestamp)
         {
             Subject = new ActorSubject(
                 ActorType.Command,
@@ -57,11 +63,25 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
     public ValueTask<ServiceResult<GuidResult>> GenerateFuturesTdiSignalAsync(
         FuturesTdiSignalId signalId,
         FuturesRsiSignalReadModel[] futuresRsiSignals,
-        TimeFrameType timePeriod)
+        TimeFrameType timePeriod,
+        FuturesTdiConfiguration? configuration = null,
+        Guid? commandId = null)
     {
-        var entityId = new FuturesTdiSignalEntityId(signalId.ContractId, signalId.ValueDate, timePeriod);
-        GenerateFuturesTdiSignalCommand command = new(signalId, futuresRsiSignals)
+        configuration ??= FuturesTdiConfiguration.Standard;
+        var normalizedSignalId = new FuturesTdiSignalId(
+            signalId.ContractId,
+            signalId.ValueDate,
+            timePeriod,
+            signalId.Timestamp,
+            configuration.ConfigurationId);
+        var entityId = new FuturesTdiSignalEntityId(
+            signalId.ContractId,
+            signalId.ValueDate,
+            timePeriod,
+            configuration.ConfigurationId);
+        GenerateFuturesTdiSignalCommand command = new(normalizedSignalId, futuresRsiSignals, configuration)
         {
+            CommandId = commandId ?? Guid.NewGuid(),
             Subject = new ActorSubject(
                 ActorType.Command,
                 GenerateFuturesTdiSignalCommand.Actor,

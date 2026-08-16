@@ -232,14 +232,23 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="futuresTdiSignalId"></param>
     /// <param name="futuresRsiSignals"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesTdiSignalAsync(FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals)
+    public async Task<ServiceResult<Guid>> GenerateFuturesTdiSignalAsync(
+        FuturesTdiSignalId futuresTdiSignalId,
+        FuturesRsiSignalReadModel[] futuresRsiSignals,
+        FuturesTdiConfiguration? configuration = null)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = new FuturesTdiSignalEntityId(futuresTdiSignalId.ContractId, futuresTdiSignalId.ValueDate, TimeFrameType.Daily);
-            GenerateFuturesTdiSignalCommand cmd = new (futuresTdiSignalId, futuresRsiSignals)
+            configuration ??= FuturesTdiConfiguration.Standard;
+            var timePeriod = futuresTdiSignalId.TimePeriod;
+            var entityId = new FuturesTdiSignalEntityId(
+                futuresTdiSignalId.ContractId,
+                futuresTdiSignalId.ValueDate,
+                timePeriod,
+                configuration.ConfigurationId);
+            GenerateFuturesTdiSignalCommand cmd = new (futuresTdiSignalId, futuresRsiSignals, configuration)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),

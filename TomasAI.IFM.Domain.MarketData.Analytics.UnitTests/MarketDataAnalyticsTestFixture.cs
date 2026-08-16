@@ -3,6 +3,7 @@ using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Query;
@@ -131,15 +132,17 @@ public class MarketDataAnalyticsTestFixture : IDisposable
 
     public TestableFuturesRsiSignalEventActor CreateRsiEventActor(
         IActorSupervisor? supervisor = null,
+        IMarketDataApi? marketDataApi = null,
         IStatusConsoleWriter statusConsoleWriter = null,
         ILogger<FuturesRsiSignalEventActor>? logger = null,
         IBlackboardService blackboardService = null)
     {
         var sv = supervisor ?? Substitute.For<IActorSupervisor>();
+        var marketData = marketDataApi ?? Substitute.For<IMarketDataApi>();
         var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
         var lg = logger ?? Substitute.For<ILogger<FuturesRsiSignalEventActor>>();
         var bb = blackboardService ?? Substitute.For<IBlackboardService>();
-        return new TestableFuturesRsiSignalEventActor(sv, scw, lg, bb);
+        return new TestableFuturesRsiSignalEventActor(sv, marketData, scw, lg, bb);
     }
 
     public TestableFuturesAtrSignalCommandActor CreateAtrCommandActor(
@@ -162,12 +165,14 @@ public class MarketDataAnalyticsTestFixture : IDisposable
 
     public TestableFuturesAtrSignalEventActor CreateAtrEventActor(
         IActorSupervisor? supervisor = null,
-        ILogger<FuturesAtrSignalEventActor>? logger = null)
+        ILogger<FuturesAtrSignalEventActor>? logger = null,
+        IMarketDataApi? marketDataApi = null)
     {
         var sv = supervisor ?? Substitute.For<IActorSupervisor>();
         var scw = Substitute.For<IStatusConsoleWriter>();
         var lg = logger ?? Substitute.For<ILogger<FuturesAtrSignalEventActor>>();
-        return new TestableFuturesAtrSignalEventActor(sv, scw, lg);
+        return new TestableFuturesAtrSignalEventActor(sv, scw, lg,
+            marketDataApi ?? Substitute.For<IMarketDataApi>());
     }
 
     public TestableFuturesMacdSignalCommandActor CreateMacdCommandActor(
@@ -205,12 +210,14 @@ public class MarketDataAnalyticsTestFixture : IDisposable
     public TestableFuturesMacdSignalEventActor CreateMacdEventActor(
         IActorSupervisor? supervisor = null,
         IStatusConsoleWriter statusConsoleWriter = null,
-        ILogger<FuturesMacdSignalEventActor>? logger = null)
+        ILogger<FuturesMacdSignalEventActor>? logger = null,
+        IMarketDataApi? marketDataApi = null)
     {
         var sv = supervisor ?? Substitute.For<IActorSupervisor>();
         var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
         var lg = logger ?? Substitute.For<ILogger<FuturesMacdSignalEventActor>>();
-        return new TestableFuturesMacdSignalEventActor(sv, scw, lg);
+        return new TestableFuturesMacdSignalEventActor(sv, scw, lg,
+            marketDataApi ?? Substitute.For<IMarketDataApi>());
     }
 
     public TestableFuturesTdiSignalCommandActor CreateTdiCommandActor(
@@ -323,12 +330,14 @@ public class MarketDataAnalyticsTestFixture : IDisposable
 
     public TestableFuturesAdxSignalEventActor CreateAdxEventActor(
         IActorSupervisor? supervisor = null,
-        ILogger<FuturesAdxSignalEventActor>? logger = null)
+        ILogger<FuturesAdxSignalEventActor>? logger = null,
+        IMarketDataApi? marketDataApi = null)
     {
         var sv = supervisor ?? Substitute.For<IActorSupervisor>();
         var lg = logger ?? Substitute.For<ILogger<FuturesAdxSignalEventActor>>();
         var scw =  Substitute.For<IStatusConsoleWriter>();    
-        return new TestableFuturesAdxSignalEventActor(sv, scw, lg);
+        return new TestableFuturesAdxSignalEventActor(sv, scw, lg,
+            marketDataApi ?? Substitute.For<IMarketDataApi>());
     }
 
     public void Dispose() { }

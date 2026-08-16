@@ -38,6 +38,14 @@ public static class FuturesRsiSignalTimer
     }
 
     /// <summary>
+    /// Accepts a source sequence once for the active timer registration.
+    /// </summary>
+    public static bool TryAcceptSourceSequence(this FuturesRsiSignalStartedEvent e, long sourceSequence)
+        => sourceSequence >= 0
+           && Timers.TryGetValue(e.EntityId, out var registration)
+           && registration.TryAcceptSourceSequence(sourceSequence);
+
+    /// <summary>
     /// Stops the callback loop and waits for an in-flight callback to finish.
     /// </summary>
     public static async ValueTask<bool> StopTimerAsync(this FuturesRsiSignalStoppedEvent e)
@@ -76,11 +84,22 @@ public static class FuturesRsiSignalTimer
     static TimeSpan GetTimerPeriod(FuturesRsiSignalEntityId rsiSignalId)
         => rsiSignalId.TimePeriod switch
         {
+            TimeFrameType.TenSeconds => TimeSpan.FromSeconds(10),
+            TimeFrameType.FifteenSeconds => TimeSpan.FromSeconds(15),
+            TimeFrameType.OneMinute => TimeSpan.FromMinutes(1),
+            TimeFrameType.FiveMinutes => TimeSpan.FromMinutes(5),
+            TimeFrameType.TenMinutes => TimeSpan.FromMinutes(10),
+            TimeFrameType.FifteenMinutes => TimeSpan.FromMinutes(15),
+            TimeFrameType.ThirtyMinutes => TimeSpan.FromMinutes(30),
+            TimeFrameType.OneHour => TimeSpan.FromHours(1),
             TimeFrameType.Daily => TimeSpan.FromMinutes(1),
             TimeFrameType.Weekly => TimeSpan.FromMinutes(15),
             TimeFrameType.WeekMonthBridge => TimeSpan.FromHours(1),
             TimeFrameType.Monthly => TimeSpan.FromDays(1),
-            _ => TimeSpan.FromMinutes(1)
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(rsiSignalId),
+                rsiSignalId.TimePeriod,
+                "Unsupported RSI sampling period")
         };
 
     sealed class TimerRegistration(
@@ -93,6 +112,19 @@ public static class FuturesRsiSignalTimer
         Task _loopTask = Task.CompletedTask;
         bool _started;
         bool _stopped;
+        long _lastSourceSequence;
+
+        public bool TryAcceptSourceSequence(long sourceSequence)
+        {
+            while (true)
+            {
+                var previous = Volatile.Read(ref _lastSourceSequence);
+                if (sourceSequence <= previous)
+                    return false;
+                if (Interlocked.CompareExchange(ref _lastSourceSequence, sourceSequence, previous) == previous)
+                    return true;
+            }
+        }
 
         public void Start()
         {

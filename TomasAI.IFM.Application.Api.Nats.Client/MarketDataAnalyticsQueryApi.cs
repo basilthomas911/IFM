@@ -106,10 +106,14 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Gets the futures TDI signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(string contractId, DateOnly valueDate)
+    public async Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod = TimeFrameType.OneMinute,
+        string configurationId = FuturesTdiConfiguration.StandardConfigurationId)
     {
-        var entityId = new GetFuturesTdiSignalParameter(contractId, valueDate);
-        GetFuturesTdiSignalQuery query = new(contractId, valueDate)
+        var entityId = new GetFuturesTdiSignalParameter(contractId, valueDate, timePeriod, configurationId);
+        GetFuturesTdiSignalQuery query = new(contractId, valueDate, timePeriod, configurationId)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
         };

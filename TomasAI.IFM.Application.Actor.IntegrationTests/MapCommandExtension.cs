@@ -903,8 +903,12 @@ public static class MarketDataAnalyticsCommands
             var entityId = new FuturesTdiSignalEntityId(
                 cp.FuturesTdiSignalId.ContractId,
                 cp.FuturesTdiSignalId.ValueDate,
-                TimeFrameType.Daily);
-            var cmd = new GenerateFuturesTdiSignalCommand(cp.FuturesTdiSignalId, cp.FuturesRsiSignals)
+                cp.FuturesTdiSignalId.TimePeriod,
+                cp.Configuration.ConfigurationId);
+            var cmd = new GenerateFuturesTdiSignalCommand(
+                cp.FuturesTdiSignalId,
+                cp.FuturesRsiSignals,
+                cp.Configuration)
             {
                 CommandId = Guid.NewGuid(),
                 Subject = new ActorSubject(

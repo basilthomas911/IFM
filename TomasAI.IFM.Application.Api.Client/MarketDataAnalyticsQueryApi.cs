@@ -83,9 +83,13 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
     /// <summary>
     /// Gets the futures TDI signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(string contractId, DateOnly valueDate)
+    public async Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod = TimeFrameType.OneMinute,
+        string configurationId = FuturesTdiConfiguration.StandardConfigurationId)
     {
-        var qryParam = new GetFuturesTdiSignalParameter(contractId, valueDate);
+        var qryParam = new GetFuturesTdiSignalParameter(contractId, valueDate, timePeriod, configurationId);
         return await _querySvc.ExecuteQueryAsync<FuturesTdiSignalReadModel>(
             MarketDataAnalyticsQueryUriPath.GetFuturesTdiSignal,
             qryParam,

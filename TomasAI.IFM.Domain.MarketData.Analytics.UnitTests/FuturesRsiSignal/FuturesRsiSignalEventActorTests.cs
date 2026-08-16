@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
+using TomasAI.IFM.Application.MarketData.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesRsiSignal;
 
@@ -29,12 +30,14 @@ public class FuturesRsiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         public TestableFuturesRsiSignalEventActor(
             IActorSupervisor supervisor, 
+            IMarketDataApi marketDataApi,
             IStatusConsoleWriter statusConsoleWriter,
             ILogger<FuturesRsiSignalEventActor> logger,
             IBlackboardService blackboardService)
             : base(
                 supervisor,
                 new global::TomasAI.IFM.Domain.MarketData.Analytics.Command.Api.ActorMarketDataAnalyticsCommandApiFactory(),
+                marketDataApi,
                 statusConsoleWriter,
                 logger,
                 blackboardService)

@@ -267,14 +267,24 @@ public class SampleData
     );
 
     public static FuturesTdiSignalReadModel FuturesTdiSignal => new (
-        contractId: "SYM20251230",
-        valueDate: new DateOnly(2025, 2, 20),
-        timePeriod: TimeFrameType.FifteenSeconds,
-        timestamp: TimeOnly.FromDateTime(DateTime.Now),
-        upTrendCount: 5,
-        downTrendCount: 3,
-        tdi: FuturesTrendDirectionType.UpTrending,
-        tdiStrength: FuturesTrendDirectionStrengthType.High
+        "SYM20251230",
+        new DateOnly(2025, 2, 20),
+        TimeFrameType.FifteenSeconds,
+        new TimeOnly(14, 30, 0),
+        FuturesTdiConfiguration.Standard,
+        150m,
+        66.67d,
+        67d,
+        64d,
+        58d,
+        72d,
+        44d,
+        FuturesTrendDirectionType.UpTrending,
+        FuturesTrendDirectionStrengthType.Medium,
+        FuturesTdiCrossType.Bullish,
+        FuturesTdiMarketStateType.AboveMidline,
+        123456,
+        new DateTime(2025, 2, 20, 14, 30, 0, DateTimeKind.Utc)
     );
 
     public static FuturesTradeSignalV2ReadModel FuturesTradeSignal => new (

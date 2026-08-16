@@ -78,6 +78,14 @@ public record FuturesRsiSignalReadModel
     [Key(15)]
     public double RSISlope { get; init; }
 
+    /// <summary>Source feed sequence used to suppress duplicate hot-cache samples.</summary>
+    [Key(16)]
+    public long SourceSequence { get; init; }
+
+    /// <summary>Exchange/source timestamp of the trade snapshot used for this sample.</summary>
+    [Key(17)]
+    public DateTime SourceEventTimestamp { get; init; }
+
     /// <summary>
     /// Entity identifier consisting of contract id and value date (not serialized).
     /// </summary>
@@ -130,7 +138,9 @@ public record FuturesRsiSignalReadModel
         double rs,
         double rsi,
         double rsiAverage,
-        double rsiSlope)
+        double rsiSlope,
+        long sourceSequence = 0,
+        DateTime sourceEventTimestamp = default)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -147,6 +157,8 @@ public record FuturesRsiSignalReadModel
         RSI = rsi;
         RSIAverage = rsiAverage;
         RSISlope = rsiSlope;
+        SourceSequence = sourceSequence;
+        SourceEventTimestamp = sourceEventTimestamp;
     }
 
     /// <summary>

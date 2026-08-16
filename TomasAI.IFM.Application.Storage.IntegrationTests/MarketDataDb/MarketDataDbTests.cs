@@ -2329,11 +2329,15 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var entityId = SampleData.FuturesTdiSignal.EntityId;
         var expectedSignal = SampleData.FuturesTdiSignal;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_tdi_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.Use($"delete from futures_traders_dynamic_index_signal where contractId = '{expectedSignal.ContractId}' and timePeriod = '{expectedSignal.TimePeriod}' and configurationId = '{expectedSignal.ConfigurationId}' and valueDate = '{expectedSignal.ValueDate:yyyy-MM-dd}' and timestamp = '{expectedSignal.Timestamp:HH:mm:ss}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesTdiSignalAsync(expectedSignal);
 
         // Act
-        var result = await TestFixture.DevDatabase.GetLastFuturesTdiSignalAsync(entityId.ContractId, entityId.ValueDate);
+        var result = await TestFixture.DevDatabase.GetLastFuturesTdiSignalAsync(
+            entityId.ContractId,
+            entityId.ValueDate,
+            entityId.TimePeriod,
+            entityId.ConfigurationId);
 
         // Assert
         result.Should().NotBeNull();
@@ -2341,10 +2345,61 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.ValueDate.Should().Be(expectedSignal.ValueDate);
         result.Timestamp.Hour.Should().Be(expectedSignal.Timestamp.Hour);
         result.Timestamp.Minute.Should().Be(expectedSignal.Timestamp.Minute);
-        result.UpTrendCount.Should().Be(expectedSignal.UpTrendCount);
-        result.DownTrendCount.Should().Be(expectedSignal.DownTrendCount);
+        result.SchemaVersion.Should().Be(FuturesTdiConfiguration.CurrentSchemaVersion);
+        result.ConfigurationId.Should().Be(expectedSignal.ConfigurationId);
+        result.Rsi.Should().Be(expectedSignal.Rsi);
+        result.PriceLine.Should().Be(expectedSignal.PriceLine);
+        result.SignalLine.Should().Be(expectedSignal.SignalLine);
+        result.MarketBaseLine.Should().Be(expectedSignal.MarketBaseLine);
+        result.UpperVolatilityBand.Should().Be(expectedSignal.UpperVolatilityBand);
+        result.LowerVolatilityBand.Should().Be(expectedSignal.LowerVolatilityBand);
+        result.Cross.Should().Be(expectedSignal.Cross);
+        result.MarketState.Should().Be(expectedSignal.MarketState);
         result.TDI.Should().Be(expectedSignal.TDI);
         result.TDIStrength.Should().Be(expectedSignal.TDIStrength);
+    }
+
+    /// <summary>
+    /// Verifies that TDI projections for the same contract and date remain isolated by period and configuration.
+    /// </summary>
+    [Fact]
+    public async Task GetLastFuturesTdiSignalAsync_IsolatesPeriodAndConfigurationPartitions()
+    {
+        var contractId = $"TDI{Guid.NewGuid():N}";
+        var oneMinute = SampleData.FuturesTdiSignal with
+        {
+            ContractId = contractId,
+            TimePeriod = TimeFrameType.OneMinute,
+            ConfigurationId = FuturesTdiConfiguration.StandardConfigurationId
+        };
+        var fiveMinute = oneMinute with
+        {
+            TimePeriod = TimeFrameType.FiveMinutes,
+            PriceLine = oneMinute.PriceLine + 1d
+        };
+        const string alternateConfiguration = "TDI-INTEGRATION-ALTERNATE";
+        var alternate = oneMinute with
+        {
+            ConfigurationId = alternateConfiguration,
+            PriceLine = oneMinute.PriceLine + 2d
+        };
+
+        await TestFixture.DevDatabase.InsertFuturesTdiSignalAsync(oneMinute);
+        await TestFixture.DevDatabase.InsertFuturesTdiSignalAsync(fiveMinute);
+        await TestFixture.DevDatabase.InsertFuturesTdiSignalAsync(alternate);
+
+        var oneMinuteResult = await TestFixture.DevDatabase.GetLastFuturesTdiSignalAsync(
+            contractId, oneMinute.ValueDate, TimeFrameType.OneMinute,
+            FuturesTdiConfiguration.StandardConfigurationId);
+        var fiveMinuteResult = await TestFixture.DevDatabase.GetLastFuturesTdiSignalAsync(
+            contractId, oneMinute.ValueDate, TimeFrameType.FiveMinutes,
+            FuturesTdiConfiguration.StandardConfigurationId);
+        var alternateResult = await TestFixture.DevDatabase.GetLastFuturesTdiSignalAsync(
+            contractId, oneMinute.ValueDate, TimeFrameType.OneMinute, alternateConfiguration);
+
+        oneMinuteResult.PriceLine.Should().Be(oneMinute.PriceLine);
+        fiveMinuteResult.PriceLine.Should().Be(fiveMinute.PriceLine);
+        alternateResult.PriceLine.Should().Be(alternate.PriceLine);
     }
 
     /// <summary>

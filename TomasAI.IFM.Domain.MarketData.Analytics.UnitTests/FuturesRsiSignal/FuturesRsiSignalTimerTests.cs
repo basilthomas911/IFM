@@ -88,6 +88,30 @@ public class FuturesRsiSignalTimerTests
         (await stopping).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task TryAcceptSourceSequence_AcceptsOnlyIncreasingValuesForActiveTimer()
+    {
+        var (started, stopped) = CreateEvents();
+        var observed = new TaskCompletionSource<(bool First, bool Duplicate, bool Newer)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        started.StartTimer(_ =>
+        {
+            observed.TrySetResult((
+                started.TryAcceptSourceSequence(100),
+                started.TryAcceptSourceSequence(100),
+                started.TryAcceptSourceSequence(101)));
+            return ValueTask.CompletedTask;
+        }, TimeSpan.FromMilliseconds(5)).Should().BeTrue();
+
+        var result = await observed.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await stopped.StopTimerAsync();
+
+        result.First.Should().BeTrue();
+        result.Duplicate.Should().BeFalse();
+        result.Newer.Should().BeTrue();
+    }
+
     static (FuturesRsiSignalStartedEvent Started, FuturesRsiSignalStoppedEvent Stopped) CreateEvents()
     {
         var entityId = new FuturesRsiSignalEntityId(

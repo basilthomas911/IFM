@@ -21,7 +21,9 @@ public sealed class FuturesTdiSignalEventProjector(
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         Describe<FuturesTdiSignalGeneratedEvent, FuturesTdiSignalGeneratedCompleteEvent, FuturesTdiSignalGeneratedFailEvent, FuturesTdiSignalEntityId>(
-            e => dbFactory.MarketDataDb.InsertFuturesTdiSignalAsync(e.FuturesTdiSignal))
+            e => e.FuturesTdiSignal.SchemaVersion == FuturesTdiConfiguration.CurrentSchemaVersion
+                ? dbFactory.MarketDataDb.InsertFuturesTdiSignalAsync(e.FuturesTdiSignal)
+                : Task.CompletedTask)
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

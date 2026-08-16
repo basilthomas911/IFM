@@ -206,12 +206,19 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi(IDbContextFactory d
     /// <param name="valueDate">The applicable market value date.</param>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(
-        string contractId, DateOnly valueDate)
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod = TimeFrameType.OneMinute,
+        string configurationId = FuturesTdiConfiguration.StandardConfigurationId)
     {
         try
         {
             FuturesTdiSignalReadModel result =
-                (await _dbFactory.MarketDataDb.GetLastFuturesTdiSignalAsync(contractId, valueDate))!;
+                (await _dbFactory.MarketDataDb.GetLastFuturesTdiSignalAsync(
+                    contractId,
+                    valueDate,
+                    timePeriod,
+                    configurationId))!;
             return new ServiceOk<FuturesTdiSignalReadModel>(result);
         }
         catch (Exception ex)

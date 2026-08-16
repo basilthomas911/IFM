@@ -147,4 +147,53 @@ public sealed class EventProjectorDescriptorTests
         source.FuturesItiSignal!.SequenceId.Should().Be(0,
             "a projector must not mutate the event-log source payload after persistence");
     }
+
+    [Fact]
+    public async Task Futures_tdi_projector_writes_only_the_version_2_traders_dynamic_index_contract()
+    {
+        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.MarketDataDb.Returns(marketDataDb);
+        var projector = new FuturesTdiSignalEventProjector(
+            dbFactory,
+            Substitute.For<IDurableReplayQueue>(),
+            Substitute.For<IEventSourceActorDbContext>(),
+            Substitute.For<IBlackboardService>(),
+            Substitute.For<ILogger<FuturesTdiSignalEventProjector>>());
+        var descriptor = projector.ProjectionDescriptors.Single(item =>
+            item.SourceEventType == typeof(FuturesTdiSignalGeneratedEvent));
+        var version2 = SampleData.CreateTdiSignalGeneratedEvent();
+        var legacy = version2 with
+        {
+            FuturesTdiSignal = new FuturesTdiSignalReadModel(
+                version2.EntityId.ContractId,
+                version2.EntityId.ValueDate,
+                version2.EntityId.TimePeriod,
+                new TimeOnly(10, 0),
+                2,
+                0,
+                FuturesTrendDirectionType.UpTrending,
+                FuturesTrendDirectionStrengthType.Medium)
+        };
+        var context = new ProjectionExecutionContext(
+            projector.ProjectorName,
+            101,
+            42,
+            new EventProjectorEffectIdentity(
+                projector.ProjectorName,
+                101,
+                EventProjectorEffectKind.TargetProjection),
+            Guid.NewGuid(),
+            EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            CancellationToken.None,
+            streamVersion: 8);
+
+        await descriptor.ApplyAsync(version2, context);
+        await descriptor.ApplyAsync(legacy, context);
+
+        await marketDataDb.Received(1).InsertFuturesTdiSignalAsync(
+            Arg.Is<FuturesTdiSignalReadModel>(signal =>
+                signal.SchemaVersion == FuturesTdiConfiguration.CurrentSchemaVersion
+                && signal.ConfigurationId == FuturesTdiConfiguration.StandardConfigurationId));
+    }
 }

@@ -2070,24 +2070,62 @@ internal static class MarketDataDbCql
     """;
 
     public const string InsertFuturesTdiSignal = """
-        INSERT INTO futures_tdi_signal (
+        INSERT INTO futures_traders_dynamic_index_signal (
             contractId,
-            valueDate,  
             timePeriod,
+            configurationId,
+            valueDate,
             timestamp,
-            upTrendCount,
-            downTrendCount,
-            tdi,
-            tdiStrength
+            schemaVersion,
+            rsiPeriod,
+            priceLinePeriod,
+            signalLinePeriod,
+            marketBasePeriod,
+            volatilityBandPeriod,
+            volatilityBandDeviation,
+            price,
+            rsi,
+            priceLine,
+            signalLine,
+            marketBaseLine,
+            upperVolatilityBand,
+            lowerVolatilityBand,
+            bandWidth,
+            priceSignalDivergence,
+            crossType,
+            marketState,
+            trendDirection,
+            trendStrength,
+            sourceSequence,
+            sourceEventTimestamp
         ) VALUES (
             :contractId,
-            :valueDate,
             :timePeriod,
+            :configurationId,
+            :valueDate,
             :timestamp,
-            :upTrendCount,
-            :downTrendCount,
-            :tdi,
-            :tdiStrength
+            :schemaVersion,
+            :rsiPeriod,
+            :priceLinePeriod,
+            :signalLinePeriod,
+            :marketBasePeriod,
+            :volatilityBandPeriod,
+            :volatilityBandDeviation,
+            :price,
+            :rsi,
+            :priceLine,
+            :signalLine,
+            :marketBaseLine,
+            :upperVolatilityBand,
+            :lowerVolatilityBand,
+            :bandWidth,
+            :priceSignalDivergence,
+            :crossType,
+            :marketState,
+            :trendDirection,
+            :trendStrength,
+            :sourceSequence,
+            :sourceEventTimestamp
         );
     """;
 
@@ -2103,12 +2141,35 @@ internal static class MarketDataDbCql
             ValueDate AS "ValueDate",
             TimePeriod AS "TimePeriod",
             Timestamp AS "Timestamp",
-            UpTrendCount AS "UpTrendCount",
-            DownTrendCount AS "DownTrendCount",
-            TDI AS "TDI",
-            TDIStrength AS "TDIStrength"
-        FROM futures_tdi_signal
-        WHERE ContractId = :contractId AND ValueDate = :valueDate LIMIT 1;
+            SchemaVersion AS "SchemaVersion",
+            ConfigurationId AS "ConfigurationId",
+            RsiPeriod AS "RsiPeriod",
+            PriceLinePeriod AS "PriceLinePeriod",
+            SignalLinePeriod AS "SignalLinePeriod",
+            MarketBasePeriod AS "MarketBasePeriod",
+            VolatilityBandPeriod AS "VolatilityBandPeriod",
+            VolatilityBandDeviation AS "VolatilityBandDeviation",
+            Price AS "Price",
+            Rsi AS "Rsi",
+            PriceLine AS "PriceLine",
+            SignalLine AS "SignalLine",
+            MarketBaseLine AS "MarketBaseLine",
+            UpperVolatilityBand AS "UpperVolatilityBand",
+            LowerVolatilityBand AS "LowerVolatilityBand",
+            BandWidth AS "BandWidth",
+            PriceSignalDivergence AS "PriceSignalDivergence",
+            CrossType AS "CrossType",
+            MarketState AS "MarketState",
+            TrendDirection AS "TrendDirection",
+            TrendStrength AS "TrendStrength",
+            SourceSequence AS "SourceSequence",
+            SourceEventTimestamp AS "SourceEventTimestamp"
+        FROM futures_traders_dynamic_index_signal
+        WHERE ContractId = :contractId
+          AND TimePeriod = :timePeriod
+          AND ConfigurationId = :configurationId
+          AND ValueDate = :valueDate
+        LIMIT 1;
     """;
 
     public const string InsertFuturesTradeSignal = """

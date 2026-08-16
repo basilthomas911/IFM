@@ -174,6 +174,39 @@ internal static class MarketDataSchemaCql
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
         """;
 
+    public const string CreateFuturesTradersDynamicIndexSignalTable = """
+        CREATE TABLE IF NOT EXISTS futures_traders_dynamic_index_signal (
+            contractId TEXT,
+            timePeriod TEXT,
+            configurationId TEXT,
+            valueDate DATE,
+            timestamp TIME,
+            schemaVersion INT,
+            rsiPeriod INT,
+            priceLinePeriod INT,
+            signalLinePeriod INT,
+            marketBasePeriod INT,
+            volatilityBandPeriod INT,
+            volatilityBandDeviation DOUBLE,
+            price DECIMAL,
+            rsi DOUBLE,
+            priceLine DOUBLE,
+            signalLine DOUBLE,
+            marketBaseLine DOUBLE,
+            upperVolatilityBand DOUBLE,
+            lowerVolatilityBand DOUBLE,
+            bandWidth DOUBLE,
+            priceSignalDivergence DOUBLE,
+            crossType TEXT,
+            marketState TEXT,
+            trendDirection TEXT,
+            trendStrength TEXT,
+            sourceSequence BIGINT,
+            sourceEventTimestamp TIMESTAMP,
+            PRIMARY KEY ((contractId, timePeriod, configurationId), valueDate, timestamp)
+        ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
+        """;
+
     public const string CreateFuturesMacdSignalTable = """
         CREATE TABLE IF NOT EXISTS futures_macd_signal (
             contractId TEXT,

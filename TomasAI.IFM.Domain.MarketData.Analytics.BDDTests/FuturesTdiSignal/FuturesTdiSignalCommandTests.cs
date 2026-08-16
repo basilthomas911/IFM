@@ -21,15 +21,15 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesTdiSignal;
 
 /// <summary>
 /// BDD specifications for <see cref="FuturesTdiSignalCommandActor"/>, including message parsing,
-/// validation, state transitions, persistence, and error handling over daily, weekly, and monthly data.
+/// validation, standard Traders Dynamic Index calculation, persistence, and error handling for intraday data.
 /// </summary>
 public class FuturesTdiSignalCommandTests
 {
     public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TimeFrameType.Daily,
-        TimeFrameType.Weekly,
-        TimeFrameType.Monthly
+        TimeFrameType.OneMinute,
+        TimeFrameType.FiveMinutes,
+        TimeFrameType.FifteenMinutes
     };
 
     public FuturesTdiSignalCommandTests()
@@ -151,7 +151,8 @@ public class FuturesTdiSignalCommandTests
 
         result.Success.Should().BeTrue();
         result.Value!.Guid.Should().Be(command.CommandId);
-        LastSignal(state).TDI.Should().Be(FuturesTrendDirectionType.Init);
+        LastSignal(state).TDI.Should().Be(FuturesTrendDirectionType.UpTrending);
+        LastSignal(state).SchemaVersion.Should().Be(FuturesTdiConfiguration.CurrentSchemaVersion);
         LastSignal(state).TimePeriod.Should().Be(timePeriod);
     }
 
@@ -168,7 +169,7 @@ public class FuturesTdiSignalCommandTests
 
         LastSignal(state).TDI.Should().Be(FuturesTrendDirectionType.UpTrending);
         LastSignal(state).TDIStrength.Should().Be(FuturesTrendDirectionStrengthType.High);
-        LastSignal(state).UpTrendCount.Should().BeGreaterThan(1);
+        LastSignal(state).PriceLine.Should().BeGreaterThan(LastSignal(state).SignalLine);
     }
 
     [Theory]
@@ -184,7 +185,7 @@ public class FuturesTdiSignalCommandTests
 
         LastSignal(state).TDI.Should().Be(FuturesTrendDirectionType.DownTrending);
         LastSignal(state).TDIStrength.Should().Be(FuturesTrendDirectionStrengthType.High);
-        LastSignal(state).DownTrendCount.Should().BeGreaterThan(1);
+        LastSignal(state).PriceLine.Should().BeLessThan(LastSignal(state).SignalLine);
     }
 
     [Theory]
@@ -232,19 +233,17 @@ public class FuturesTdiSignalCommandTests
 
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
-    public async Task GivenOneUpTrendingRsiInput_WhenGenerationIsRequested_ThenMediumStrengthIsProduced(
+    public async Task GivenInsufficientRsiInputs_WhenGenerationIsRequested_ThenNoSignalIsProduced(
         TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
         var signal = SampleData.TdiSingleRsiSignal[0] with { RSI = 65, RSISlope = 1 };
         var command = SampleData.TdiGenerateCommandFor(timePeriod, [signal]);
-        var state = CreateSeededState(command, FuturesTrendDirectionType.UpTrending);
+        var state = CreateState(command);
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, state, command);
 
-        LastSignal(state).TDI.Should().Be(FuturesTrendDirectionType.UpTrending);
-        LastSignal(state).TDIStrength.Should().Be(FuturesTrendDirectionStrengthType.Medium);
-        LastSignal(state).UpTrendCount.Should().Be(1);
+        state.Events.OfType<FuturesTdiSignalGeneratedEvent>().Should().BeEmpty();
     }
 
     [Theory]
@@ -260,8 +259,8 @@ public class FuturesTdiSignalCommandTests
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, state, command);
 
         LastSignal(state).TDI.Should().Be(FuturesTrendDirectionType.UpTrending);
-        LastSignal(state).UpTrendCount.Should().Be(6,
-            "sorting must anchor the five-minute window at the latest RSI timestamp");
+        LastSignal(state).Timestamp.Should().Be(inputs.Max(static signal => signal.Timestamp),
+            "sorting must anchor the calculation at the latest RSI timestamp");
     }
 
     // Message parsing and command logging

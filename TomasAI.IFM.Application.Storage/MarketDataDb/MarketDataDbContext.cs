@@ -1119,16 +1119,36 @@ public partial class MarketDataDbContext(
         => e.GetLong(0);
 
     static FuturesTdiSignalReadModel MapToFuturesTdiSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
-            contractId: e.GetString(0),
-            valueDate: e.GetDateOnly(1),
-            timePeriod: e.GetEnum<TimeFrameType>(2),
-            timestamp: e.GetTimeOnly(3),
-            upTrendCount: e.GetInt(4),
-            downTrendCount: e.GetInt(5),
-            tdi: e.GetEnum<FuturesTrendDirectionType>(6),
-            tdiStrength: e.GetEnum<FuturesTrendDirectionStrengthType>(7)
-        );
+        => new()
+        {
+            ContractId = e.GetString(0),
+            ValueDate = e.GetDateOnly(1),
+            TimePeriod = e.GetEnum<TimeFrameType>(2),
+            Timestamp = e.GetTimeOnly(3),
+            SchemaVersion = e.GetInt(4),
+            ConfigurationId = e.GetString(5),
+            RsiPeriod = e.GetInt(6),
+            PriceLinePeriod = e.GetInt(7),
+            SignalLinePeriod = e.GetInt(8),
+            MarketBasePeriod = e.GetInt(9),
+            VolatilityBandPeriod = e.GetInt(10),
+            VolatilityBandDeviation = e.GetDouble(11),
+            Price = e.GetDecimal(12),
+            Rsi = e.GetDouble(13),
+            PriceLine = e.GetDouble(14),
+            SignalLine = e.GetDouble(15),
+            MarketBaseLine = e.GetDouble(16),
+            UpperVolatilityBand = e.GetDouble(17),
+            LowerVolatilityBand = e.GetDouble(18),
+            BandWidth = e.GetDouble(19),
+            PriceSignalDivergence = e.GetDouble(20),
+            Cross = e.GetEnum<FuturesTdiCrossType>(21),
+            MarketState = e.GetEnum<FuturesTdiMarketStateType>(22),
+            TDI = e.GetEnum<FuturesTrendDirectionType>(23),
+            TDIStrength = e.GetEnum<FuturesTrendDirectionStrengthType>(24),
+            SourceSequence = e.GetLong(25),
+            SourceEventTimestamp = e.GetDateTime(26)
+        };
 
     static FuturesMacdSignalReadModel MapToFuturesMacdSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
@@ -2882,13 +2902,32 @@ public partial class MarketDataDbContext(
             .Use(MarketDataDbCql.InsertFuturesTdiSignal)
             .SetParameters(new InsertFuturesTdiSignal(
                 contractId: futuresTdiSignal.ContractId,
-                valueDate: futuresTdiSignal.ValueDate,
                 timePeriod: futuresTdiSignal.TimePeriod.ToStringFast(),
+                configurationId: futuresTdiSignal.ConfigurationId,
+                valueDate: futuresTdiSignal.ValueDate,
                 timestamp: futuresTdiSignal.Timestamp,
-                upTrendCount: futuresTdiSignal.UpTrendCount,
-                downTrendCount: futuresTdiSignal.DownTrendCount,
-                tdi: futuresTdiSignal.TDI.ToStringFast(),
-                tdiStrength: futuresTdiSignal.TDIStrength.ToStringFast()
+                schemaVersion: futuresTdiSignal.SchemaVersion,
+                rsiPeriod: futuresTdiSignal.RsiPeriod,
+                priceLinePeriod: futuresTdiSignal.PriceLinePeriod,
+                signalLinePeriod: futuresTdiSignal.SignalLinePeriod,
+                marketBasePeriod: futuresTdiSignal.MarketBasePeriod,
+                volatilityBandPeriod: futuresTdiSignal.VolatilityBandPeriod,
+                volatilityBandDeviation: futuresTdiSignal.VolatilityBandDeviation,
+                price: futuresTdiSignal.Price,
+                rsi: futuresTdiSignal.Rsi,
+                priceLine: futuresTdiSignal.PriceLine,
+                signalLine: futuresTdiSignal.SignalLine,
+                marketBaseLine: futuresTdiSignal.MarketBaseLine,
+                upperVolatilityBand: futuresTdiSignal.UpperVolatilityBand,
+                lowerVolatilityBand: futuresTdiSignal.LowerVolatilityBand,
+                bandWidth: futuresTdiSignal.BandWidth,
+                priceSignalDivergence: futuresTdiSignal.PriceSignalDivergence,
+                crossType: futuresTdiSignal.Cross.ToString(),
+                marketState: futuresTdiSignal.MarketState.ToString(),
+                trendDirection: futuresTdiSignal.TDI.ToStringFast(),
+                trendStrength: futuresTdiSignal.TDIStrength.ToStringFast(),
+                sourceSequence: futuresTdiSignal.SourceSequence,
+                sourceEventTimestamp: futuresTdiSignal.SourceEventTimestamp
             ))
             .ExecuteCommandAsync();
 
@@ -3869,19 +3908,49 @@ public partial class MarketDataDbContext(
     /// <param name="e">The entity ID containing the contract ID and value date.</param>
     /// <returns>A task representing the asynchronous operation, containing the <see cref="FuturesTdiSignalReadModel"/>.</returns>
     public async Task<FuturesTdiSignalReadModel?> GetLastFuturesTdiSignalAsync(string contractId, DateOnly valueDate)
+        => await GetLastFuturesTdiSignalAsync(
+            contractId,
+            valueDate,
+            TimeFrameType.OneMinute,
+            FuturesTdiConfiguration.StandardConfigurationId);
+
+    public async Task<FuturesTdiSignalReadModel?> GetLastFuturesTdiSignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        string configurationId)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesTdiSignal)
             .SetParameters(new GetLastFuturesTdiSignal(
                 contractId,
+                timePeriod.ToStringFast(),
+                configurationId,
                 valueDate
             ))
             .ExecuteSingleAsync(MapToFuturesTdiSignal!);
 
     public async Task<FuturesTdiSignalReadModel?> GetLastFuturesTdiSignalAsync(
         string contractId, DateOnly valueDate, CancellationToken cancellationToken)
+        => await GetLastFuturesTdiSignalAsync(
+            contractId,
+            valueDate,
+            TimeFrameType.OneMinute,
+            FuturesTdiConfiguration.StandardConfigurationId,
+            cancellationToken);
+
+    public async Task<FuturesTdiSignalReadModel?> GetLastFuturesTdiSignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        string configurationId,
+        CancellationToken cancellationToken)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesTdiSignal)
-            .SetParameters(new GetLastFuturesTdiSignal(contractId, valueDate))
+            .SetParameters(new GetLastFuturesTdiSignal(
+                contractId,
+                timePeriod.ToStringFast(),
+                configurationId,
+                valueDate))
             .ExecuteSingleAsync(MapToFuturesTdiSignal!, cancellationToken)
             .ConfigureAwait(false);
 

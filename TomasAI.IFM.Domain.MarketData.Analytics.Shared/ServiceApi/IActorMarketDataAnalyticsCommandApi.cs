@@ -12,12 +12,16 @@ public interface IActorMarketDataAnalyticsCommandApi
 {
     ValueTask<ServiceResult<GuidResult>> GenerateFuturesRsiSignalAsync(
         FuturesRsiSignalId signalId,
-        decimal futuresPrice);
+        decimal futuresPrice,
+        long sourceSequence = 0,
+        DateTime sourceEventTimestamp = default);
 
     ValueTask<ServiceResult<GuidResult>> GenerateFuturesTdiSignalAsync(
         FuturesTdiSignalId signalId,
         FuturesRsiSignalReadModel[] futuresRsiSignals,
-        TimeFrameType timePeriod);
+        TimeFrameType timePeriod,
+        FuturesTdiConfiguration? configuration = null,
+        Guid? commandId = null);
 
     ValueTask<ServiceResult<GuidResult>> GenerateFuturesMacdSignalAsync(
         FuturesMacdSignalId signalId,

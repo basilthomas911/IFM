@@ -18,19 +18,31 @@ public class FuturesTdiSignalQueryApiTests(WebApplicationFactory<Program> factor
     public async Task GetFuturesTdiSignal_Ok()
     {
         var expectedSignal = new FuturesTdiSignalReadModel(
-            contractId: SampleData.ContractId,
-            valueDate: new DateOnly(2099, 12, 30),
-            timePeriod: TimeFrameType.Daily,
-            timestamp: new TimeOnly(10, 0, 0),
-            upTrendCount: 3,
-            downTrendCount: 0,
-            tdi: FuturesTrendDirectionType.UpTrending,
-            tdiStrength: FuturesTrendDirectionStrengthType.High);
+            SampleData.ContractId,
+            new DateOnly(2099, 12, 30),
+            TimeFrameType.OneMinute,
+            new TimeOnly(10, 0, 0),
+            FuturesTdiConfiguration.Standard,
+            5500m,
+            62d,
+            61d,
+            58d,
+            55d,
+            70d,
+            40d,
+            FuturesTrendDirectionType.UpTrending,
+            FuturesTrendDirectionStrengthType.Medium,
+            FuturesTdiCrossType.None,
+            FuturesTdiMarketStateType.AboveMidline);
 
         await dbFixture.MarketDataDb.InsertFuturesTdiSignalAsync(expectedSignal);
 
         var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
-        var response = await analyticsApi.GetFuturesTdiSignalAsync(expectedSignal.ContractId, expectedSignal.ValueDate);
+        var response = await analyticsApi.GetFuturesTdiSignalAsync(
+            expectedSignal.ContractId,
+            expectedSignal.ValueDate,
+            expectedSignal.TimePeriod,
+            expectedSignal.ConfigurationId);
 
         response.Should().NotBeNull();
         response.Success.Should().BeTrue(response.ErrorMessage);

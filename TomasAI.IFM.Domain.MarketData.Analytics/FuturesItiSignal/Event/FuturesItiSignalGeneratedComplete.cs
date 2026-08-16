@@ -47,7 +47,10 @@ public static class FuturesItiSignalGeneratedComplete
             var valueDate = e.EntityId.ValueDate;
             var futuresEodDataTask = context.GetFuturesEodDataAsync(contractId, valueDate).AsTask();
             var futuresRsiSignalTask = context.GetFuturesRsiSignalAsync(contractId, valueDate, TimeFrameType.Daily, 14).AsTask();
-            var futuresTdiSignalTask = context.GetFuturesTdiSignalAsync(contractId, valueDate).AsTask();
+            var futuresTdiSignalTask = context.GetFuturesTdiSignalAsync(
+                contractId,
+                valueDate,
+                TimeFrameType.FifteenSeconds).AsTask();
             var futuresItiSignalDataTask = context.GetFuturesItiSignalDataAsync(contractId, valueDate, e.EntityId.TimePeriod).AsTask();
             var vixFuturesPriceTask = context.GetVixFuturesEodDataClosePriceAsync(valueDate).AsTask();
             await Task.WhenAll(

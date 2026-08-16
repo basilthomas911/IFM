@@ -8,13 +8,16 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
 
 public static class FuturesAdxSignalLifecycle
 {
     public static ValueTask<bool> ExecuteAsync(this FuturesAdxSignalStartedEvent e, IEventActorContext context,
-        IActorMarketDataAnalyticsCommandApi commandApi, IStatusConsoleWriter status, ILogger logger)
+        IActorMarketDataAnalyticsCommandApi commandApi, IMarketDataApi marketDataApi,
+        IStatusConsoleWriter status, ILogger logger)
     {
         try
         {
@@ -22,14 +25,18 @@ public static class FuturesAdxSignalLifecycle
             {
                 try
                 {
-                    if (!entityId.ContractId.StartsWith("ES", StringComparison.Ordinal))
+                    if (!marketDataApi.IsTickDataStreamActive(entityId.ContractId)
+                        || !marketDataApi.TryGetLastTickPrice(entityId.ContractId, out var snapshot)
+                        || snapshot.Trade is not { } trade)
                         return;
-                    var data = await context.GetLastFuturesEodDataAsync(entityId.ContractId, entityId.ValueDate);
-                    if (data is null)
-                        return;
+                    if (!StringComparer.Ordinal.Equals(snapshot.ContractId, entityId.ContractId)
+                        || snapshot.ValueDate != entityId.ValueDate
+                        || snapshot.AssetTypeId != AssetTypeId.Futures)
+                        throw new MarketDataContractMappingException(entityId.ContractId, "the ADX timer entity and hot-cache snapshot identities do not match");
+                    if (!e.TryAcceptSourceSequence(trade.SourceSequence)) return;
                     var id = new FuturesAdxSignalId(entityId.ContractId, entityId.ValueDate, entityId.TimePeriod,
-                        entityId.PeriodLength, TimeOnly.FromDateTime(DateTime.UtcNow));
-                    _ = await commandApi.GenerateFuturesAdxSignalAsync(id, data.ClosePrice);
+                        entityId.PeriodLength, TimeOnly.FromDateTime(trade.EventTimestamp.UtcDateTime));
+                    _ = await commandApi.GenerateFuturesAdxSignalAsync(id, trade.LastPrice);
                 }
                 catch (Exception ex) { await LogAsync(ex); }
             });

@@ -44,10 +44,10 @@ public class FuturesTdiSignalCommandState
     }
 
     /// <summary>
-    /// Gets the view model that provides TDI (Trend Direction Index) signal data for futures trading analysis.
+    /// Gets the view model that provides Traders Dynamic Index (TDI) signal data for futures trading analysis.
     /// </summary>
     /// <remarks>This property exposes the TDI signal data used to inform trading decisions in futures
     /// markets. The returned view model should be properly initialized before use.</remarks>
-    internal FuturesTdiSignalReadModel TdiSignal => _tdiSignal!;
+    internal FuturesTdiSignalReadModel? TdiSignal => _tdiSignal;
 
 }

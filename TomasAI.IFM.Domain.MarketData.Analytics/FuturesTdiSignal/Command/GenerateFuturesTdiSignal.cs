@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -20,18 +17,11 @@ public static class GenerateFuturesTdiSignal
     /// <param name="state"></param>
     /// <returns></returns>
     public static bool Execute(this GenerateFuturesTdiSignalCommand e, FuturesTdiSignalCommandState state)
-          => e.Compute(state.TdiSignal, out var model) switch
-          {
-              _ when model.IsSignalInitializing
-                    => state.Update(e.CreateFuturesTdiSignalGeneratedEvent(FuturesTrendDirectionType.Init, model), e),
-              _ when model.IsSignalUpTrending
-                    => state.Update(e.CreateFuturesTdiSignalGeneratedEvent(FuturesTrendDirectionType.UpTrending, model), e),
-              _ when model.IsSignalDownTrending
-                    => state.Update(e.CreateFuturesTdiSignalGeneratedEvent(FuturesTrendDirectionType.DownTrending, model), e),
-              _ when model.IsSignalTrendReversal
-                    => state.Update(e.CreateFuturesTdiSignalGeneratedEvent(FuturesTrendDirectionType.TrendReversal, model), e),
-              _ => state.Update(e.CreateFuturesTdiSignalGeneratedEvent(FuturesTrendDirectionType.Flat, model), e),
-          };
+    {
+        if (!e.Compute(state.TdiSignal, out var model))
+            return false;
+        return state.Update(e.CreateFuturesTdiSignalGeneratedEvent(model!), e);
+    }
 
     /// <summary>
     /// Attempts to create a new futures TDI signal compute model based on the specified command and read model.
@@ -41,23 +31,50 @@ public static class GenerateFuturesTdiSignal
     /// <param name="computeModel">When this method returns, contains the resulting futures TDI signal compute model if the operation succeeds;
     /// otherwise, contains null.</param>
     /// <returns>true if the compute model was successfully created; otherwise, false.</returns>
-    internal static bool Compute(this GenerateFuturesTdiSignalCommand e, FuturesTdiSignalReadModel? tdiSignal, out FuturesTdiSignalCompute computeModel)
-        => FuturesTdiSignalCompute.Create(e.FuturesRsiSignals, tdiSignal, out computeModel);
+    internal static bool Compute(
+        this GenerateFuturesTdiSignalCommand e,
+        FuturesTdiSignalReadModel? tdiSignal,
+        out FuturesTdiSignalCompute? computeModel)
+        => FuturesTdiSignalCompute.Create(e.FuturesRsiSignals, tdiSignal, e.Configuration, out computeModel);
 
     /// <summary>
     /// Creates a new instance of the <see cref="FuturesTdiSignalGeneratedEvent"/> using the specified command
     /// and trend direction type.
     /// </summary>
-    internal static FuturesTdiSignalGeneratedEvent CreateFuturesTdiSignalGeneratedEvent(this GenerateFuturesTdiSignalCommand e, FuturesTrendDirectionType trendDirection, FuturesTdiSignalCompute computed)
+    internal static FuturesTdiSignalGeneratedEvent CreateFuturesTdiSignalGeneratedEvent(
+        this GenerateFuturesTdiSignalCommand e,
+        FuturesTdiSignalCompute computed)
     {
-        var entityId = new FuturesTdiSignalEntityId(e.FuturesTdiSignalId.ContractId, e.FuturesTdiSignalId.ValueDate, e.EntityId.TimePeriod);
+        var entityId = new FuturesTdiSignalEntityId(
+            e.FuturesTdiSignalId.ContractId,
+            e.FuturesTdiSignalId.ValueDate,
+            e.EntityId.TimePeriod,
+            e.Configuration.ConfigurationId);
+        var current = computed.CurrentRsiSignal;
         return new FuturesTdiSignalGeneratedEvent
         {
             CommandId = e.CommandId,
             Subject = new ActorSubject(ActorType.Event, FuturesTdiSignalGeneratedEvent.Actor, FuturesTdiSignalGeneratedEvent.Verb, entityId.Format()),
             EntityId = entityId,
-            FuturesTdiSignal = new(e.FuturesTdiSignalId.ContractId, e.FuturesTdiSignalId.ValueDate, e.EntityId.TimePeriod, e.FuturesTdiSignalId.Timestamp,
-                computed.UpTrendCount, computed.DownTrendCount, trendDirection, computed.TrendDirectionStrength()),
+            FuturesTdiSignal = new(
+                e.FuturesTdiSignalId.ContractId,
+                e.FuturesTdiSignalId.ValueDate,
+                e.EntityId.TimePeriod,
+                current.Timestamp,
+                e.Configuration,
+                current.Price,
+                current.RSI,
+                computed.PriceLine,
+                computed.SignalLine,
+                computed.MarketBaseLine,
+                computed.UpperVolatilityBand,
+                computed.LowerVolatilityBand,
+                computed.TrendDirection,
+                computed.TrendStrength,
+                computed.Cross,
+                computed.MarketState,
+                current.SourceSequence,
+                current.SourceEventTimestamp),
             CreatedBy = e.OriginatedBy,
             CreatedOn = e.OriginatedOn
         };

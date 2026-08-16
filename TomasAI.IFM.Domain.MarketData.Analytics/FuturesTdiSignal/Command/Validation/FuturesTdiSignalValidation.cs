@@ -49,4 +49,35 @@ internal static class FuturesTdiSignalValidation
         }
         return validationErrors;
     }
+
+    public static List<ValidationError> ValidateFuturesTdiConfiguration(
+        this List<ValidationError> validationErrors,
+        FuturesTdiConfiguration configuration,
+        FuturesTdiSignalEntityId entityId,
+        FuturesRsiSignalReadModel[] futuresRsiSignals)
+    {
+        var ruleErrors = new FuturesTdiConfigurationValidationRules().Execute(configuration);
+        if (ruleErrors is not null)
+            validationErrors.AddRange(ruleErrors);
+
+        if (!FuturesTdiConfiguration.IsSupportedIntraday(entityId.TimePeriod))
+            validationErrors.Add(new ValidationError("Traders Dynamic Index supports intraday time periods only"));
+        if (!string.Equals(entityId.ConfigurationId, configuration.ConfigurationId, StringComparison.Ordinal))
+            validationErrors.Add(new ValidationError("TDI entity configuration does not match the command configuration"));
+        if (futuresRsiSignals.Length < configuration.RequiredRsiSamples)
+            validationErrors.Add(new ValidationError($"TDI requires at least {configuration.RequiredRsiSamples} RSI samples"));
+
+        foreach (var signal in futuresRsiSignals)
+        {
+            if (!string.Equals(signal.ContractId, entityId.ContractId, StringComparison.Ordinal)
+                || signal.ValueDate != entityId.ValueDate
+                || signal.TimePeriod != entityId.TimePeriod
+                || signal.PeriodLength != configuration.RsiPeriod)
+            {
+                validationErrors.Add(new ValidationError("Every RSI sample must match the TDI contract, value date, time period, and RSI period"));
+                break;
+            }
+        }
+        return validationErrors;
+    }
 }

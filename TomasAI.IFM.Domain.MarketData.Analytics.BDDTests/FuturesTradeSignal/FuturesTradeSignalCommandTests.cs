@@ -241,7 +241,8 @@ public class FuturesTradeSignalCommandTests
         restored.EntityId.Should().Be(expected.EntityId);
         restored.TimePeriod.Should().Be(timePeriod);
         restored.FuturesRsiSignal!.TimePeriod.Should().Be(timePeriod);
-        restored.FuturesTdiSignal!.TimePeriod.Should().Be(timePeriod);
+        restored.FuturesTdiSignal!.TimePeriod.Should().Be(TimeFrameType.FifteenSeconds,
+            "TDI is an intraday input even when the aggregate trade signal is daily or longer");
         restored.FuturesItiSignalData!.TrendDirectionChange!.TimePeriod.Should().Be(timePeriod);
         await scenario.EventDb.Received(1).InsertCommandLogAsync(
             Arg.Is<ICommand>(command => command.CommandId == expected.CommandId),

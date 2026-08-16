@@ -13,4 +13,7 @@ public record GenerateFuturesTdiSignalParameter(
     FuturesTdiSignalId FuturesTdiSignalId,
     FuturesRsiSignalReadModel[] FuturesRsiSignals,
     int ErrorCode)
-    : ICommandParameter;
+    : ICommandParameter
+{
+    public FuturesTdiConfiguration Configuration { get; init; } = FuturesTdiConfiguration.Standard;
+}

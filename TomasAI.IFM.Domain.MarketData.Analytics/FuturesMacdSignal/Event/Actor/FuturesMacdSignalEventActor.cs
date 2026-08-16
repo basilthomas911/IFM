@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Model;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Application.MarketData.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Actor;
 
@@ -23,6 +24,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Actor;
 public class FuturesMacdSignalEventActor(IActorSupervisor supervisor, 
     IStatusConsoleWriter statusConsoleWriter, 
     ILogger<FuturesMacdSignalEventActor> logger,
+    IMarketDataApi marketDataApi,
     IActorMarketDataAnalyticsCommandApiFactory? commandApiFactory = null)
     : BaseEventActor<FuturesMacdSignalEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
@@ -86,7 +88,7 @@ public class FuturesMacdSignalEventActor(IActorSupervisor supervisor,
         IsArgumentNull.Check(@event);
         if (@event is FuturesMacdSignalStartedEvent started)
         {
-            _ = await started.ExecuteAsync(context, GetCommandApi(context), statusConsoleWriter, logger);
+            _ = await started.ExecuteAsync(context, GetCommandApi(context), marketDataApi, statusConsoleWriter, logger);
             return;
         }
         if (@event is FuturesMacdSignalStoppedEvent stopped)

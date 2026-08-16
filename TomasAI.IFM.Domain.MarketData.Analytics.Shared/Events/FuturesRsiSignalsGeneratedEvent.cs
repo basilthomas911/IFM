@@ -95,6 +95,7 @@ public record FuturesRsiSignalsGeneratedEvent : IEvent<FuturesRsiSignalEntityId>
             ReceivedOn = this.ReceivedOn,
             FuturesRsiSignalsId = this.FuturesRsiSignalsId,
             FuturesRsiSignals = this.FuturesRsiSignals,
+            PeriodLength = this.PeriodLength,
             CreatedOn = this.CreatedOn,
             CreatedBy = this.CreatedBy
         };

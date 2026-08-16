@@ -87,12 +87,19 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi
     public Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(
         string contractId,
         DateOnly valueDate,
+        TimeFrameType timePeriod,
+        string configurationId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
             GetFuturesTdiSignalQuery.ErrorId,
             cancellationToken,
             async () => (await _dbFactory.MarketDataDb
-                .GetLastFuturesTdiSignalAsync(contractId, valueDate, cancellationToken))!);
+                .GetLastFuturesTdiSignalAsync(
+                    contractId,
+                    valueDate,
+                    timePeriod,
+                    configurationId,
+                    cancellationToken))!);
 
     public Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(
         string contractId,

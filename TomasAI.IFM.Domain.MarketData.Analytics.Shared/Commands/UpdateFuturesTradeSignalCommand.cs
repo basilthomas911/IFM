@@ -50,7 +50,7 @@ public record UpdateFuturesTradeSignalCommand
     public FuturesRsiSignalReadModel? FuturesRsiSignal { get; init; }
 
     /// <summary>
-    /// Optional TDI (Trend/Divergence Index) signal metrics used to enrich the trade signal update.
+    /// Optional Traders Dynamic Index (TDI) signal metrics used to enrich the trade signal update.
     /// </summary>
     [Key(8)]
     public FuturesTdiSignalReadModel? FuturesTdiSignal { get; init; }

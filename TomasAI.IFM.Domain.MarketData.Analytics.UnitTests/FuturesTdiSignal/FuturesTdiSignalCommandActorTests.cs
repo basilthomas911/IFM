@@ -24,9 +24,9 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
     public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TimeFrameType.Daily,
-        TimeFrameType.Weekly,
-        TimeFrameType.Monthly
+        TimeFrameType.OneMinute,
+        TimeFrameType.FiveMinutes,
+        TimeFrameType.FifteenMinutes
     };
 
     public FuturesTdiSignalCommandActorTests(MarketDataAnalyticsTestFixture fixture)
@@ -238,7 +238,8 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var generatedEvent = state.Events.OfType<FuturesTdiSignalGeneratedEvent>().Should().ContainSingle().Subject;
         generatedEvent.EntityId.TimePeriod.Should().Be(timePeriod);
         generatedEvent.FuturesTdiSignal.TimePeriod.Should().Be(timePeriod);
-        generatedEvent.FuturesTdiSignal.TDI.Should().Be(FuturesTrendDirectionType.Init);
+        generatedEvent.FuturesTdiSignal.TDI.Should().Be(FuturesTrendDirectionType.UpTrending);
+        generatedEvent.FuturesTdiSignal.SchemaVersion.Should().Be(FuturesTdiConfiguration.CurrentSchemaVersion);
     }
 
     [Theory]

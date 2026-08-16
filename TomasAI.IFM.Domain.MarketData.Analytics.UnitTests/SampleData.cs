@@ -746,7 +746,7 @@ public static class SampleData
     // ── TDI Signal ───────────────────────────────────────────────────────
 
     public static FuturesTdiSignalEntityId TdiEntityId
-        => new(ContractId, ValueDate, TimeFrameType.Daily);
+        => new(ContractId, ValueDate, TimeFrameType.OneMinute);
 
     public static FuturesTdiSignalEntityId TdiEntityIdFor(TimeFrameType timePeriod)
         => new(ContractId, ValueDate, timePeriod);
@@ -775,20 +775,50 @@ public static class SampleData
         FuturesTrendDirectionType direction = FuturesTrendDirectionType.UpTrending,
         FuturesTrendDirectionStrengthType strength = FuturesTrendDirectionStrengthType.High)
         => new(
-            contractId: contractId,
-            valueDate: valueDate ?? ValueDate,
-            timePeriod: timePeriod,
-            timestamp: TdiSignalId.Timestamp,
-            upTrendCount: 8,
-            downTrendCount: 2,
-            tdi: direction,
-            tdiStrength: strength);
+            contractId,
+            valueDate ?? ValueDate,
+            timePeriod,
+            TdiSignalId.Timestamp,
+            FuturesTdiConfiguration.Standard,
+            5500m,
+            55d,
+            56d,
+            54d,
+            52d,
+            65d,
+            35d,
+            direction,
+            strength,
+            FuturesTdiCrossType.None,
+            FuturesTdiMarketStateType.AboveMidline);
 
     public static FuturesTdiSignalId TdiSignalId
-        => new(ContractId, ValueDate, new TimeOnly(10, 0, 0));
+        => new(ContractId, ValueDate, TimeFrameType.OneMinute, new TimeOnly(10, 0, 0));
+
+    public static FuturesRsiSignalReadModel[] TdiRsiSignals
+        => Enumerable.Range(0, FuturesTdiConfiguration.Standard.RequiredRsiSamples)
+            .Select(i => new FuturesRsiSignalReadModel(
+                ContractId,
+                ValueDate,
+                TimeFrameType.OneMinute,
+                FuturesTdiConfiguration.Standard.RsiPeriod,
+                new TimeOnly(9, 30).AddMinutes(i),
+                5500m + i,
+                1m,
+                1m,
+                0m,
+                1m,
+                0.5m,
+                2d,
+                40d + i,
+                0d,
+                1d,
+                i + 1,
+                Timestamp.AddMinutes(i)))
+            .ToArray();
 
     public static GenerateFuturesTdiSignalCommand TdiGenerateCommand
-        => new(TdiSignalId, AtrRsiSignals);
+        => new(TdiSignalId, TdiRsiSignals);
 
     public static GenerateFuturesTdiSignalCommand TdiGenerateCommandFor(
         TimeFrameType timePeriod,
@@ -796,10 +826,15 @@ public static class SampleData
         Guid? commandId = null)
     {
         var entityId = TdiEntityIdFor(timePeriod);
-        var normalizedSignals = (rsiSignals ?? AtrRsiSignals)
-            .Select(signal => signal with { TimePeriod = timePeriod })
+        var normalizedSignals = (rsiSignals ?? TdiRsiSignals)
+            .Select(signal => signal with
+            {
+                TimePeriod = timePeriod,
+                PeriodLength = FuturesTdiConfiguration.Standard.RsiPeriod
+            })
             .ToArray();
-        return new GenerateFuturesTdiSignalCommand(TdiSignalId, normalizedSignals)
+        var signalId = new FuturesTdiSignalId(ContractId, ValueDate, timePeriod, TdiSignalId.Timestamp);
+        return new GenerateFuturesTdiSignalCommand(signalId, normalizedSignals)
         {
             CommandId = commandId ?? Guid.NewGuid(),
             EntityId = entityId,
@@ -830,15 +865,8 @@ public static class SampleData
             EventId = 1,
             ReceivedOn = DateTime.UtcNow,
             EventSource = "test",
-            FuturesTdiSignal = new FuturesTdiSignalReadModel(
-                contractId: ContractId,
-                valueDate: ValueDate,
-                timePeriod: timePeriod,
-                timestamp: TdiSignalId.Timestamp,
-                upTrendCount: 8,
-                downTrendCount: 7,
-                tdi: direction,
-                tdiStrength: FuturesTrendDirectionStrengthType.Medium),
+            FuturesTdiSignal = TdiReadModelFor(timePeriod, direction: direction,
+                strength: FuturesTrendDirectionStrengthType.Medium),
             CreatedOn = Timestamp,
             CreatedBy = "UnitTest"
         };
@@ -854,15 +882,10 @@ public static class SampleData
             EventId = 1,
             ReceivedOn = DateTime.UtcNow,
             EventSource = "test",
-            FuturesTdiSignal = new FuturesTdiSignalReadModel(
-                contractId: ContractId,
-                valueDate: ValueDate,
-                timePeriod: TimeFrameType.Daily,
-                timestamp: new TimeOnly(10, 0, 0),
-                upTrendCount: 8,
-                downTrendCount: 7,
-                tdi: FuturesTrendDirectionType.UpTrending,
-                tdiStrength: FuturesTrendDirectionStrengthType.Medium),
+            FuturesTdiSignal = TdiReadModelFor(
+                TimeFrameType.OneMinute,
+                direction: FuturesTrendDirectionType.UpTrending,
+                strength: FuturesTrendDirectionStrengthType.Medium),
             CreatedOn = Timestamp,
             CreatedBy = "UnitTest"
         };
@@ -882,22 +905,15 @@ public static class SampleData
             EventId = 1,
             ReceivedOn = DateTime.UtcNow,
             EventSource = "test",
-            FuturesTdiSignal = new FuturesTdiSignalReadModel(
-                contractId: ContractId,
-                valueDate: ValueDate,
-                timePeriod: timePeriod,
-                timestamp: TdiSignalId.Timestamp,
-                upTrendCount: 8,
-                downTrendCount: 7,
-                tdi: direction,
-                tdiStrength: FuturesTrendDirectionStrengthType.Medium),
+            FuturesTdiSignal = TdiReadModelFor(timePeriod, direction: direction,
+                strength: FuturesTrendDirectionStrengthType.Medium),
             CreatedOn = Timestamp,
             CreatedBy = "UnitTest"
         };
     }
 
     public static FuturesTdiSignalGeneratedCompleteEvent CreateTdiSignalGeneratedCompleteEvent(Guid? commandId = null)
-        => CreateTdiSignalGeneratedCompleteEventFor(TimeFrameType.Daily, commandId: commandId);
+        => CreateTdiSignalGeneratedCompleteEventFor(TimeFrameType.OneMinute, commandId: commandId);
 
     // ── Trade Signal ────────────────────────────────────────────────────
 

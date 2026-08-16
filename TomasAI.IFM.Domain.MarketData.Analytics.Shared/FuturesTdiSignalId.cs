@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.Validation;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 /// <summary>
-/// Unique identifier for a Futures TDI (Trend / Divergence Index) signal composed of a contract identifier,
+/// Unique identifier for a futures Traders Dynamic Index (TDI) signal composed of a contract identifier,
 /// a value date, and a timestamp component for intraday distinction.
 /// </summary>
 /// <remarks>
@@ -31,6 +31,14 @@ public record FuturesTdiSignalId : IActorEntityId
     [Key(2)]
     public TimeOnly Timestamp { get; init; }
 
+    /// <summary>Sampling period represented by this signal.</summary>
+    [Key(3)]
+    public TimeFrameType TimePeriod { get; init; }
+
+    /// <summary>Stable identifier of the calculation contract.</summary>
+    [Key(4)]
+    public string ConfigurationId { get; init; } = FuturesTdiConfiguration.StandardConfigurationId;
+
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.
     /// </summary>
@@ -43,10 +51,23 @@ public record FuturesTdiSignalId : IActorEntityId
     /// <param name="valueDate">Value date of the signal.</param>
     /// <param name="timestamp">Intraday timestamp component.</param>
     public FuturesTdiSignalId(string contractId, DateOnly valueDate, TimeOnly timestamp)
+        : this(contractId, valueDate, TimeFrameType.OneMinute, timestamp)
+    {
+    }
+
+    /// <summary>Initializes a configuration-aware intraday TDI signal identifier.</summary>
+    public FuturesTdiSignalId(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        TimeOnly timestamp,
+        string configurationId = FuturesTdiConfiguration.StandardConfigurationId)
     {
         ContractId = contractId;
         ValueDate = valueDate;
+        TimePeriod = timePeriod;
         Timestamp = timestamp;
+        ConfigurationId = configurationId;
     }
 
     /// <summary>
@@ -55,10 +76,18 @@ public record FuturesTdiSignalId : IActorEntityId
     public static FuturesTdiSignalId Create(string contractId, DateOnly valueDate, TimeOnly timestamp)
         => new(contractId, valueDate, timestamp);
 
+    public static FuturesTdiSignalId Create(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        TimeOnly timestamp,
+        string configurationId = FuturesTdiConfiguration.StandardConfigurationId)
+        => new(contractId, valueDate, timePeriod, timestamp, configurationId);
+
     /// <summary>
     /// Formats the identifier into a stable string key: ContractId.yyyy-MM-dd.HH:mm:ss
     /// </summary>
-    public string Format() => string.Create(null, stackalloc char[80], $"{ContractId}.{ValueDate:yyyy-MM-dd}.{Timestamp:HH:mm:ss}");
+    public string Format() => $"{ContractId}.{ValueDate:yyyy-MM-dd}.{TimePeriod}.{Timestamp:HH:mm:ss}.{ConfigurationId}";
 
     /// <summary>
     /// Returns a compact JSON representation of the identifier.

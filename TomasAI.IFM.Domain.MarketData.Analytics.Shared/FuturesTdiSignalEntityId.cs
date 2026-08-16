@@ -25,6 +25,10 @@ public record FuturesTdiSignalEntityId : IActorEntityId
     [Key(2)]
     public TimeFrameType TimePeriod { get; init; }
 
+    /// <summary>Stable identifier of the calculation contract used by this actor stream.</summary>
+    [Key(3)]
+    public string ConfigurationId { get; init; } = FuturesTdiConfiguration.StandardConfigurationId;
+
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.
     /// </summary>
@@ -36,22 +40,32 @@ public record FuturesTdiSignalEntityId : IActorEntityId
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="valueDate">Value date.</param>
     /// <param name="timePeriod">Time period for the TDI signal.</param>
-    public FuturesTdiSignalEntityId(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
+    public FuturesTdiSignalEntityId(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        string configurationId = FuturesTdiConfiguration.StandardConfigurationId)
     {
         ContractId = contractId;
         ValueDate = valueDate;
         TimePeriod = timePeriod;
+        ConfigurationId = configurationId;
     }
 
     /// <summary>
     /// Factory method for explicit creation.
     /// </summary>
-    public static FuturesTdiSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod) => new(contractId, valueDate, timePeriod);
+    public static FuturesTdiSignalEntityId Create(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        string configurationId = FuturesTdiConfiguration.StandardConfigurationId)
+        => new(contractId, valueDate, timePeriod, configurationId);
 
     /// <summary>
     /// Formats the identifier into a stable string key: ContractId.yyyyMMdd.TimePeriod
     /// </summary>
-    public string Format() => string.Create(null, stackalloc char[80], $"{ContractId}.{ValueDate:yyyyMMdd}.{TimePeriod}");
+    public string Format() => $"{ContractId}.{ValueDate:yyyyMMdd}.{TimePeriod}.{ConfigurationId}";
 
     /// <summary>
     /// Returns a compact JSON representation.

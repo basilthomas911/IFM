@@ -101,8 +101,12 @@ public class MarketDataAnalyticsCommandApi(ICommandServiceApi commandSvc)
     /// <param name="futuresTdiSignalId"></param>
     /// <param name="futuresRsiSignals"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesTdiSignalAsync(FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals)
-        => await new GenerateFuturesTdiSignalParameter(IsArgumentNull.Set(futuresTdiSignalId), IsArgumentNull.Set(futuresRsiSignals), GenerateFuturesTdiSignalCommand.ErrorId)
+    public async Task<ServiceResult<Guid>> GenerateFuturesTdiSignalAsync(
+        FuturesTdiSignalId futuresTdiSignalId,
+        FuturesRsiSignalReadModel[] futuresRsiSignals,
+        FuturesTdiConfiguration? configuration = null)
+        => await (new GenerateFuturesTdiSignalParameter(IsArgumentNull.Set(futuresTdiSignalId), IsArgumentNull.Set(futuresRsiSignals), GenerateFuturesTdiSignalCommand.ErrorId)
+            { Configuration = configuration ?? FuturesTdiConfiguration.Standard })
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataAnalyticsUriPath.GenerateFuturesTdiSignal, e));
 
     /// <summary>

@@ -19,7 +19,7 @@ public static class GetFuturesTdiSignal
         CancellationToken cancellationToken = default)
         => cancellationToken.CanBeCanceled
             ? await dbFactory.MarketDataDb.GetLastFuturesTdiSignalAsync(
-                q.ContractId, q.ValueDate, cancellationToken).ConfigureAwait(false)
+                q.ContractId, q.ValueDate, q.TimePeriod, q.ConfigurationId, cancellationToken).ConfigureAwait(false)
             : await dbFactory.MarketDataDb.GetLastFuturesTdiSignalAsync(
-                q.ContractId, q.ValueDate).ConfigureAwait(false);
+                q.ContractId, q.ValueDate, q.TimePeriod, q.ConfigurationId).ConfigureAwait(false);
 }

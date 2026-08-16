@@ -627,9 +627,17 @@ public static class MarketDataAnalyticsQueries
         });
 
         endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesTdiSignal, async (
-            IActorService e, string contractId, DateOnly valueDate) =>
+            IActorService e,
+            string contractId,
+            DateOnly valueDate,
+            TimeFrameType? timePeriod,
+            string? configurationId) =>
         {
-            var query = new GetFuturesTdiSignalQuery(contractId, valueDate);
+            var query = new GetFuturesTdiSignalQuery(
+                contractId,
+                valueDate,
+                timePeriod ?? TimeFrameType.OneMinute,
+                configurationId ?? FuturesTdiConfiguration.StandardConfigurationId);
             query = query with
             {
                 Subject = new ActorSubject(

@@ -17,16 +17,15 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.FuturesTdiSignal;
 
 /// <summary>
 /// BDD specifications for the complete <see cref="FuturesTdiSignalQueryActor"/> pipeline,
-/// covering message routing, storage lookup, replies, and failure behavior for daily, weekly,
-/// and monthly TDI signals.
+/// covering message routing, versioned storage lookup, replies, and failure behavior for intraday TDI signals.
 /// </summary>
 public class FuturesTdiSignalQueryTests
 {
     public static readonly TheoryData<TimeFrameType> AllTimePeriods = new()
     {
-        TimeFrameType.Daily,
-        TimeFrameType.Weekly,
-        TimeFrameType.Monthly
+        TimeFrameType.OneMinute,
+        TimeFrameType.FiveMinutes,
+        TimeFrameType.FifteenMinutes
     };
 
     public FuturesTdiSignalQueryTests()
@@ -169,12 +168,14 @@ public class FuturesTdiSignalQueryTests
         var (actor, db, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(timePeriod);
         var expected = SampleData.TdiReadModelFor(timePeriod);
-        db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate)
+        db.GetLastFuturesTdiSignalAsync(
+                query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(expected));
 
         await actor.InvokeReceiveAsync(context, query);
 
-        await db.Received(1).GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate);
+        await db.Received(1).GetLastFuturesTdiSignalAsync(
+            query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTdiSignalQuery.Verb,
@@ -191,7 +192,8 @@ public class FuturesTdiSignalQueryTests
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(timePeriod);
-        db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate)
+        db.GetLastFuturesTdiSignalAsync(
+                query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(null));
 
         await actor.InvokeReceiveAsync(context, query);
@@ -218,12 +220,14 @@ public class FuturesTdiSignalQueryTests
             contractId,
             valueDate,
             direction: FuturesTrendDirectionType.DownTrending);
-        db.GetLastFuturesTdiSignalAsync(contractId, valueDate)
+        db.GetLastFuturesTdiSignalAsync(
+                contractId, valueDate, query.TimePeriod, query.ConfigurationId)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(expected));
 
         await actor.InvokeReceiveAsync(context, query);
 
-        await db.Received(1).GetLastFuturesTdiSignalAsync(contractId, valueDate);
+        await db.Received(1).GetLastFuturesTdiSignalAsync(
+            contractId, valueDate, query.TimePeriod, query.ConfigurationId);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTdiSignalQuery.Verb,
@@ -237,7 +241,8 @@ public class FuturesTdiSignalQueryTests
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(timePeriod);
-        db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate)
+        db.GetLastFuturesTdiSignalAsync(
+                query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
             .Returns<Task<FuturesTdiSignalReadModel?>>(_ =>
                 throw new InvalidOperationException($"{timePeriod} storage unavailable"));
 

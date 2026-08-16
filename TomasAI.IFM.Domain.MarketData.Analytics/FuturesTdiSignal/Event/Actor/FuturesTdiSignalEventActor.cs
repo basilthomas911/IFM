@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor;
 
@@ -16,18 +17,48 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor;
 /// <param name="statusConsoleWriter"></param>
 /// <param name="logger"></param>
 public class FuturesTdiSignalEventActor(
-    IActorSupervisor supervisor, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesTdiSignalEventActor> logger)
+    IActorSupervisor supervisor,
+    IActorMarketDataAnalyticsCommandApiFactory commandApiFactory,
+    IStatusConsoleWriter statusConsoleWriter,
+    ILogger<FuturesTdiSignalEventActor> logger)
     : BaseEventActor<FuturesTdiSignalEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "FuturesTdiSignalEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    IActorMarketDataAnalyticsCommandApi? _commandApi;
+    static readonly ActorTypeId RsiSignalsRoute = new(
+        ActorType.Event,
+        FuturesRsiSignalsGeneratedEvent.Actor,
+        FuturesRsiSignalsGeneratedEvent.Verb);
+
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataAnalyticsCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesTdiSignalGeneratedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
+        [typeof(FuturesTdiSignalGeneratedCompleteEvent).Name] = async (evt, context, _, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesTdiSignalGeneratedCompleteEvent)!;
             return await e.ExecuteAsync(context, statusConsoleWriter, logger);
+        },
+        [typeof(FuturesRsiSignalsGeneratedEvent).Name] = async (evt, context, commandApi, _, logger) =>
+        {
+            var e = (evt as FuturesRsiSignalsGeneratedEvent)!;
+            return await e.ExecuteAsync(context, commandApi, logger);
         }
     };
+
+    protected override ValueTask OnStartup(IEventActorContext context)
+    {
+        _ = GetCommandApi(context);
+        context.AddEventRouter(RsiSignalsRoute, Id);
+        return ValueTask.CompletedTask;
+    }
+
+    protected override ValueTask OnShutdown(IEventActorContext context)
+    {
+        context.RemoveEventRouter(RsiSignalsRoute, Id);
+        return ValueTask.CompletedTask;
+    }
+
+    IActorMarketDataAnalyticsCommandApi GetCommandApi(IEventActorContext context)
+        => _commandApi ??= commandApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -54,7 +85,8 @@ public class FuturesTdiSignalEventActor(
     /// </summary>
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
-        [FuturesTdiSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesTdiSignalGeneratedCompleteEvent>()!
+        [FuturesTdiSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesTdiSignalGeneratedCompleteEvent>()!,
+        [FuturesRsiSignalsGeneratedEvent.Verb] = msg => msg.AsEvent<FuturesRsiSignalsGeneratedEvent>()!
     };
 
     /// <summary>
@@ -71,7 +103,7 @@ public class FuturesTdiSignalEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, statusConsoleWriter, logger);
+        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context), statusConsoleWriter, logger);
     }
 
     /// <summary>
