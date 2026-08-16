@@ -240,10 +240,28 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Gets the futures MACD signal for a contract and value date.
     /// </summary>
-    public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
+    public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod = FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+        int fastEmaPeriod = FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+        int slowEmaPeriod = FuturesMacdConfiguration.ConventionalSlowEmaPeriod)
     {
-        var entityId = new GetFuturesMacdSignalParameter(contractId, valueDate, timePeriod, periodLength);
-        GetFuturesMacdSignalQuery query = new(contractId, valueDate, timePeriod, periodLength)
+        var entityId = new GetFuturesMacdSignalParameter(
+            contractId,
+            valueDate,
+            timePeriod,
+            signalEmaPeriod,
+            fastEmaPeriod,
+            slowEmaPeriod);
+        GetFuturesMacdSignalQuery query = new(
+            contractId,
+            valueDate,
+            timePeriod,
+            signalEmaPeriod,
+            fastEmaPeriod,
+            slowEmaPeriod)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesMacdSignalQuery.Actor, GetFuturesMacdSignalQuery.Verb, entityId.Format()),
         };

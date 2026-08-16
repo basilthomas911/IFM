@@ -1193,14 +1193,18 @@ public partial class MarketDataDbContext(
             contractId: e.GetString(0),
             valueDate: e.GetDateOnly(1),
             timePeriod: e.GetEnum<TimeFrameType>(2),
-            periodLength: e.GetInt(3),
-            timestamp: e.GetTimeOnly(4),
-            futuresPrice: e.GetDecimal(5),
-            macdLine: e.GetDouble(6),
-            signalLine: e.GetDouble(7),
-            histogram: e.GetDouble(8),
-            macd: e.GetEnum<FuturesTrendDirectionType>(9),
-            macdStrength: e.GetEnum<FuturesTrendDirectionStrengthType>(10)
+            signalEmaPeriod: e.GetInt(3),
+            fastEmaPeriod: e.GetInt(4),
+            slowEmaPeriod: e.GetInt(5),
+            timestamp: e.GetTimeOnly(6),
+            futuresPrice: e.GetDecimal(7),
+            fastEma: e.GetDouble(8),
+            slowEma: e.GetDouble(9),
+            macdLine: e.GetDouble(10),
+            signalLine: e.GetDouble(11),
+            histogram: e.GetDouble(12),
+            macd: e.GetEnum<FuturesTrendDirectionType>(13),
+            macdStrength: e.GetEnum<FuturesTrendDirectionStrengthType>(14)
         );
 
     static FuturesAtrSignalReadModel MapToFuturesAtrSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -2999,9 +3003,13 @@ public partial class MarketDataDbContext(
                 contractId: futuresMacdSignal.ContractId,
                 valueDate: futuresMacdSignal.ValueDate,
                 timePeriod: futuresMacdSignal.TimePeriod.ToStringFast(),
-                periodLength: futuresMacdSignal.PeriodLength,
+                signalEmaPeriod: futuresMacdSignal.SignalEmaPeriod,
+                fastEmaPeriod: futuresMacdSignal.FastEmaPeriod,
+                slowEmaPeriod: futuresMacdSignal.SlowEmaPeriod,
                 timestamp: futuresMacdSignal.Timestamp,
                 futuresPrice: futuresMacdSignal.FuturesPrice,
+                fastEma: futuresMacdSignal.FastEma,
+                slowEma: futuresMacdSignal.SlowEma,
                 macdLine: futuresMacdSignal.MacdLine,
                 signalLine: futuresMacdSignal.SignalLine,
                 histogram: futuresMacdSignal.Histogram,
@@ -4019,17 +4027,49 @@ public partial class MarketDataDbContext(
     /// <param name="periodLength"></param>
     /// <returns>A task representing the asynchronous operation, containing the <see cref="FuturesMacdSignalReadModel"/>.</returns>
     public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
+        => await GetLastFuturesMacdSignalAsync(
+            contractId,
+            valueDate,
+            timePeriod,
+            periodLength,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod);
+
+    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesMacdSignal)
-            .SetParameters(new GetLastFuturesMacdSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate))
+            .SetParameters(new GetLastFuturesMacdSignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, valueDate))
             .ExecuteSingleAsync(MapToFuturesMacdSignal!);
 
     public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength,
         CancellationToken cancellationToken)
+        => await GetLastFuturesMacdSignalAsync(
+            contractId,
+            valueDate,
+            timePeriod,
+            periodLength,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+            cancellationToken);
+
+    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod,
+        CancellationToken cancellationToken)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesMacdSignal)
-            .SetParameters(new GetLastFuturesMacdSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate))
+            .SetParameters(new GetLastFuturesMacdSignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, valueDate))
             .ExecuteSingleAsync(MapToFuturesMacdSignal!, cancellationToken)
             .ConfigureAwait(false);
 
@@ -4041,17 +4081,45 @@ public partial class MarketDataDbContext(
     /// <param name="periodLength"></param>
     /// <returns></returns>
     public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength)
+        => await GetLastFuturesMacdDailySignalAsync(
+            contractId,
+            timePeriod,
+            periodLength,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod);
+
+    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(
+        string contractId,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesMacdDailySignal)
-            .SetParameters(new GetLastFuturesMacdDailySignal(contractId, timePeriod.ToStringFast(), periodLength))
+            .SetParameters(new GetLastFuturesMacdDailySignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod))
             .ExecuteSingleAsync(MapToFuturesMacdSignal!);
 
     public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(
         string contractId, TimeFrameType timePeriod, int periodLength,
         CancellationToken cancellationToken)
+        => await GetLastFuturesMacdDailySignalAsync(
+            contractId,
+            timePeriod,
+            periodLength,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+            cancellationToken);
+
+    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(
+        string contractId,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod,
+        CancellationToken cancellationToken)
         => await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.GetLastFuturesMacdDailySignal)
-            .SetParameters(new GetLastFuturesMacdDailySignal(contractId, timePeriod.ToStringFast(), periodLength))
+            .SetParameters(new GetLastFuturesMacdDailySignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod))
             .ExecuteSingleAsync(MapToFuturesMacdSignal!, cancellationToken)
             .ConfigureAwait(false);
 

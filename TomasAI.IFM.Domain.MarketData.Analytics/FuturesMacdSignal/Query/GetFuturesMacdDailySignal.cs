@@ -18,8 +18,17 @@ public static class GetFuturesMacdDailySignal
         CancellationToken cancellationToken = default)
         => cancellationToken.CanBeCanceled
             ? await dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
-                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
+                q.ContractId,
+                q.TimePeriod,
+                q.SignalEmaPeriod,
+                q.FastEmaPeriod,
+                q.SlowEmaPeriod,
+                cancellationToken).ConfigureAwait(false)
             : await dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
-                q.ContractId, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
+                q.ContractId,
+                q.TimePeriod,
+                q.SignalEmaPeriod,
+                q.FastEmaPeriod,
+                q.SlowEmaPeriod).ConfigureAwait(false);
     
 }

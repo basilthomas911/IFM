@@ -74,8 +74,17 @@ public class FuturesMacdSignalCommandApiTests(WebApplicationFactory<Program> fac
         futuresMacdSignalGeneratedEvent.FuturesMacdSignal.Should().NotBeNull();
         futuresMacdSignalGeneratedEvent.FuturesMacdSignal.ContractId.Should().Be(contractId);
         futuresMacdSignalGeneratedEvent.FuturesMacdSignal.ValueDate.Should().Be(valueDate);
+        futuresMacdSignalGeneratedEvent.EntityId.SignalEmaPeriod.Should().Be(9);
+        futuresMacdSignalGeneratedEvent.EntityId.FastEmaPeriod.Should().Be(12);
+        futuresMacdSignalGeneratedEvent.EntityId.SlowEmaPeriod.Should().Be(26);
 
-        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesMacdSignalAsync(contractId, valueDate, SampleData.TimePeriod, SampleData.PeriodLength);
+        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesMacdSignalAsync(
+            contractId,
+            valueDate,
+            SampleData.TimePeriod,
+            macdSignalId.SignalEmaPeriod,
+            macdSignalId.FastEmaPeriod,
+            macdSignalId.SlowEmaPeriod);
         lastSignal.Should().NotBeNull();
         lastSignal!.ContractId.Should().Be(contractId);
         lastSignal.ValueDate.Should().Be(valueDate);

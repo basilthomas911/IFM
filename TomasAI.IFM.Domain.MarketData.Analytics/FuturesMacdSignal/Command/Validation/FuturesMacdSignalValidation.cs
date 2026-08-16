@@ -40,4 +40,13 @@ internal static class FuturesMacdSignalValidation
         validationErrors.AddRange(validationRules.Execute(futuresMacdSignalId));
         return validationErrors;
     }
+
+    public static List<ValidationError> ValidateFuturesMacdConfiguration(
+        this List<ValidationError> validationErrors,
+        FuturesMacdConfiguration configuration)
+    {
+        var validationRules = new FuturesMacdConfigurationValidationRules();
+        validationErrors.AddRange(validationRules.Execute(configuration));
+        return validationErrors;
+    }
 }

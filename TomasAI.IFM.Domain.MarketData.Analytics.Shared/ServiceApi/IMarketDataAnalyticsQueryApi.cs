@@ -32,5 +32,11 @@ public interface IMarketDataAnalyticsQueryApi
     Task<ServiceResult<FuturesItiSignalMDIV2ReadModel[]>> GetFuturesItiSignalMDIByTrendAsync(string contractId, DateOnly valueDate, int groupId);
     Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength);
     Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength);
-    Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength);
+    Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod = FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+        int fastEmaPeriod = FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+        int slowEmaPeriod = FuturesMacdConfiguration.ConventionalSlowEmaPeriod);
 }

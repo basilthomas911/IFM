@@ -18,7 +18,7 @@ public static class GenerateFuturesMacdSignal
     /// <param name="state">The current state of the FuturesMacdSignal.</param>
     /// <returns>true if the operation succeeds; otherwise, false.</returns>
     public static bool Execute(this GenerateFuturesMacdSignalCommand e, FuturesMacdSignalCommandState state)
-        => e.Compute(e.EntityId.PeriodLength, state.MacdSignals, out var model) switch
+        => e.Compute(state.MacdSignals, out var model) switch
         {
             _ when model.IsSignalInitializing
                 => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.Init, model), e),
@@ -36,8 +36,15 @@ public static class GenerateFuturesMacdSignal
     /// <param name="computeModel">When this method returns, contains the resulting futures MACD signal compute model if the operation succeeds;
     /// otherwise, contains null.</param>
     /// <returns>true if the compute model was successfully created; otherwise, false.</returns>
-    internal static bool Compute(this GenerateFuturesMacdSignalCommand e, int periodLength, IReadOnlyCollection<FuturesMacdSignalReadModel> previousMacdSignals, out FuturesMacdSignalCompute computeModel)
-       => FuturesMacdSignalCompute.Create(periodLength, previousMacdSignals, out computeModel);
+    internal static bool Compute(
+        this GenerateFuturesMacdSignalCommand e,
+        IReadOnlyCollection<FuturesMacdSignalReadModel> previousMacdSignals,
+        out FuturesMacdSignalCompute computeModel)
+       => FuturesMacdSignalCompute.Create(
+           e.FuturesPrice,
+           previousMacdSignals,
+           e.EntityId.Configuration,
+           out computeModel);
 
     /// <summary>
     /// Creates a FuturesMacdSignalGeneratedEvent based on the provided command, trend direction, and computed MACD signal.
@@ -48,13 +55,27 @@ public static class GenerateFuturesMacdSignal
     /// <returns>The generated event representing the futures MACD signal.</returns>
     internal static FuturesMacdSignalGeneratedEvent CreateFuturesMacdSignalGeneratedEvent(this GenerateFuturesMacdSignalCommand e, FuturesTrendDirectionType trendDirection, FuturesMacdSignalCompute computed)
     {
-        var entityId = new FuturesMacdSignalEntityId(e.FuturesMacdSignalId.ContractId, e.FuturesMacdSignalId.ValueDate, e.EntityId.TimePeriod, e.EntityId.PeriodLength);
+        var entityId = e.FuturesMacdSignalId.ToEntityId();
         return new FuturesMacdSignalGeneratedEvent
         {
             Subject = new ActorSubject(ActorType.Event, FuturesMacdSignalGeneratedEvent.Actor, FuturesMacdSignalGeneratedEvent.Verb, entityId.Format()),
             EntityId = entityId,
-            FuturesMacdSignal = new(e.FuturesMacdSignalId.ContractId, e.FuturesMacdSignalId.ValueDate, e.FuturesMacdSignalId.TimePeriod, e.FuturesMacdSignalId.PeriodLength, e.FuturesMacdSignalId.Timestamp,
-                e.FuturesPrice,computed.MacdLine, computed.SignalLine, computed.Histogram, trendDirection, computed.TrendDirectionStrength()),
+            FuturesMacdSignal = new(
+                e.FuturesMacdSignalId.ContractId,
+                e.FuturesMacdSignalId.ValueDate,
+                e.FuturesMacdSignalId.TimePeriod,
+                e.FuturesMacdSignalId.SignalEmaPeriod,
+                e.FuturesMacdSignalId.FastEmaPeriod,
+                e.FuturesMacdSignalId.SlowEmaPeriod,
+                e.FuturesMacdSignalId.Timestamp,
+                e.FuturesPrice,
+                computed.MacdLine,
+                computed.SignalLine,
+                computed.Histogram,
+                trendDirection,
+                computed.TrendDirectionStrength(),
+                computed.FastEma,
+                computed.SlowEma),
             CreatedBy = e.OriginatedBy,
             CreatedOn = e.OriginatedOn
         };

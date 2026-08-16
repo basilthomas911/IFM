@@ -56,6 +56,14 @@ public interface IActorMarketDataAnalyticsQueryApi : IMarketDataAnalyticsQueryAp
     Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength,
         CancellationToken cancellationToken);
+    Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod,
+        CancellationToken cancellationToken);
 
     Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxDailySignalAsync(
         string contractId,
@@ -78,7 +86,20 @@ public interface IActorMarketDataAnalyticsQueryApi : IMarketDataAnalyticsQueryAp
         TimeFrameType timePeriod,
         int periodLength);
     Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
+        string contractId,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod);
+    Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
         string contractId, TimeFrameType timePeriod, int periodLength,
+        CancellationToken cancellationToken);
+    Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
+        string contractId,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod,
         CancellationToken cancellationToken);
 
     Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiDailySignalAsync(

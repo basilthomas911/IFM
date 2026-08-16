@@ -212,6 +212,27 @@ internal static class MarketDataSchemaCql
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
         """;
 
+    public const string CreateFuturesMacdSignalV2Table = """
+        CREATE TABLE IF NOT EXISTS futures_macd_signal_v2 (
+            contractId TEXT,
+            valueDate DATE,
+            timePeriod TEXT,
+            signalEmaPeriod INT,
+            fastEmaPeriod INT,
+            slowEmaPeriod INT,
+            timestamp TIME,
+            futuresPrice DECIMAL,
+            fastEma DOUBLE,
+            slowEma DOUBLE,
+            macdLine DOUBLE,
+            signalLine DOUBLE,
+            histogram DOUBLE,
+            macd TEXT,
+            macdStrength TEXT,
+            PRIMARY KEY ((contractId, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod), valueDate, timestamp)
+        ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
+        """;
+
     public const string CreateFuturesAdxSignalTable = """
         CREATE TABLE IF NOT EXISTS futures_adx_signal (
             contractId TEXT,

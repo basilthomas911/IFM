@@ -89,6 +89,16 @@ The signal start event owns the timer registration. On every timer callback the 
 
 Stopping the signal removes its timer registration and its sequence-deduplication state. These actors sample immutable snapshots; they do not retain or mutate TickAggregation's live price state.
 
+### MACD configuration and identity
+
+MACD uses the conventional default configuration of a 12-period fast EMA, a 26-period slow EMA, and a 9-period signal EMA. The public contract orders these values as `signalEmaPeriod`, `fastEmaPeriod`, and `slowEmaPeriod`.
+
+All three periods are part of `FuturesMacdSignalEntityId`, `FuturesMacdDailySignalEntityId`, and `FuturesMacdSignalId`. They must also cross the REST and NATS query boundaries. Consequently, two MACD streams for the same contract, value date, and time frame remain different actor threads whenever any one of the three periods differs.
+
+Each generated MACD model persists the current fast and slow EMA accumulators. The next market-price update applies the recursive EMA formulas to those accumulators, computes the MACD line as fast EMA minus slow EMA, and updates the signal EMA from the prior signal line. The command's current market price is therefore part of every calculation.
+
+The durable projection is `futures_macd_signal_v2`, partitioned by `(contractId, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod)` and ordered by value date and timestamp. The original `futures_macd_signal` table remains unchanged as a legacy artifact; new writes and reads use only the v2 projection. Compatibility overloads that accept one period interpret it as the signal EMA period and supply the conventional 12/26 fast/slow defaults.
+
 ## UI and external consumers
 
 UI and console consumers should consume the durable completed signal events or query the v2 projection. They should not independently calculate TDI from raw ticks, because that would create a second calculation and sampling authority. A later UI optimization may use asynchronous streams and throttling, but it must preserve this durable domain boundary.

@@ -113,6 +113,30 @@ public class MarketDataAnalyticsQueryApiTests(WebApplicationFactory<Program> fac
         response.Value.Should().BeAssignableTo<FuturesTrendDirectionReadModel>();
     }
 
+    [Fact]
+    public async Task GetFuturesMacdSignal_SendsAllThreeEmaPeriods()
+    {
+        var queryServiceApi = new QueryServiceApiClient(
+            _httpClientFactory,
+            _jsonSerializer,
+            new QueryServiceApiOptions("http://localhost"));
+        var queryApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
+
+        var response = await queryApi.GetFuturesMacdSignalAsync(
+            "ESU25",
+            new DateOnly(2025, 9, 10),
+            TimeFrameType.FifteenSeconds,
+            signalEmaPeriod: 7,
+            fastEmaPeriod: 10,
+            slowEmaPeriod: 30);
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().BeAssignableTo<FuturesMacdSignalReadModel>();
+        response.Value!.SignalEmaPeriod.Should().Be(7);
+        response.Value.FastEmaPeriod.Should().Be(10);
+        response.Value.SlowEmaPeriod.Should().Be(30);
+    }
+
     /// <summary>
     /// Tests retrieval of a futures TDI signal.
     /// </summary>

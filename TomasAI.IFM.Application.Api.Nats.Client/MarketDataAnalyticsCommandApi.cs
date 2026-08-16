@@ -450,7 +450,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = new FuturesMacdSignalEntityId(signalId.ContractId, signalId.ValueDate, signalId.TimePeriod, signalId.PeriodLength);
+            var entityId = signalId.ToEntityId();
             GenerateFuturesMacdSignalCommand cmd = new(signalId, futuresPrice)
             {
                 CommandId = cmdId,

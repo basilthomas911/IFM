@@ -24,16 +24,27 @@ public class FuturesMacdSignalCommandTests
     static FuturesMacdSignalCommandState SeedState(IReadOnlyList<decimal> prices, TimeFrameType timePeriod, FuturesTrendDirectionType lastDirection)
     {
         var state = new FuturesMacdSignalCommandState();
-        for (var i = 0; i < prices.Count; i++)
+        foreach (var price in prices)
         {
-            var isLast = i == prices.Count - 1;
-            state.Update(SampleData.CreateMacdHistoryEvent(prices[i], timePeriod, direction: isLast ? lastDirection : FuturesTrendDirectionType.Init));
+            SampleData.MacdGenerateCommandFor(timePeriod, price).Execute(state);
+        }
+
+        var previous = state.MacdSignal;
+        if (previous.MACD != lastDirection)
+        {
+            state.Update(new FuturesMacdSignalGeneratedEvent
+            {
+                EntityId = previous.EntityId,
+                FuturesMacdSignal = previous with { MACD = lastDirection }
+            });
         }
         return state;
     }
 
-    static GenerateFuturesMacdSignalCommand BuildCommand(TimeFrameType timePeriod = TimeFrameType.Daily)
-        => SampleData.MacdGenerateCommandFor(timePeriod) with { CommandId = Guid.NewGuid() };
+    static GenerateFuturesMacdSignalCommand BuildCommand(
+        TimeFrameType timePeriod = TimeFrameType.Daily,
+        decimal price = SampleData.FuturesPrice)
+        => SampleData.MacdGenerateCommandFor(timePeriod, price) with { CommandId = Guid.NewGuid() };
 
     static readonly TimeFrameType[] AllTimePeriods =
         [TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly];
@@ -66,7 +77,7 @@ public class FuturesMacdSignalCommandTests
     {
         // Arrange
         var state = SeedState(SampleData.MacdRisingPrices, timePeriod, FuturesTrendDirectionType.UpTrending);
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod, SampleData.MacdRisingPrices[^1] + 15m);
 
         // Act
         var result = command.Execute(state);
@@ -85,7 +96,7 @@ public class FuturesMacdSignalCommandTests
     {
         // Arrange
         var state = SeedState(SampleData.MacdRisingPrices, timePeriod, FuturesTrendDirectionType.TrendReversal);
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod, SampleData.MacdRisingPrices[^1] + 15m);
 
         // Act
         var result = command.Execute(state);
@@ -103,7 +114,7 @@ public class FuturesMacdSignalCommandTests
     {
         // Arrange
         var state = SeedState(SampleData.MacdFallingPrices, timePeriod, FuturesTrendDirectionType.DownTrending);
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod, SampleData.MacdFallingPrices[^1] - 15m);
 
         // Act
         var result = command.Execute(state);
@@ -122,7 +133,7 @@ public class FuturesMacdSignalCommandTests
     {
         // Arrange
         var state = SeedState(SampleData.MacdFallingPrices, timePeriod, FuturesTrendDirectionType.TrendReversal);
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod, SampleData.MacdFallingPrices[^1] - 15m);
 
         // Act
         var result = command.Execute(state);
@@ -173,7 +184,7 @@ public class FuturesMacdSignalCommandTests
     {
         // Arrange
         var state = new FuturesMacdSignalCommandState();
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod, SampleData.MacdFallingPrices[^1] - 15m);
 
         // Act
         command.Execute(state);
@@ -198,7 +209,7 @@ public class FuturesMacdSignalCommandTests
         // direction, and since the prior signal is neither DownTrending nor TrendReversal, the
         // handler cannot classify it as down-trending either, so it falls back to Flat.
         var state = SeedState(SampleData.MacdFallingPrices, timePeriod, FuturesTrendDirectionType.UpTrending);
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod, SampleData.MacdRisingPrices[^1] + 15m);
 
         // Act
         var result = command.Execute(state);
@@ -218,7 +229,7 @@ public class FuturesMacdSignalCommandTests
         // direction, and since the prior signal is neither UpTrending nor TrendReversal, the
         // handler cannot classify it as up-trending either, so it falls back to Flat.
         var state = SeedState(SampleData.MacdRisingPrices, timePeriod, FuturesTrendDirectionType.DownTrending);
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod, SampleData.MacdFlatPrices[^1]);
 
         // Act
         var result = command.Execute(state);
@@ -251,7 +262,7 @@ public class FuturesMacdSignalCommandTests
     {
         // Arrange
         var state = SeedState(SampleData.MacdSinglePrice, TimeFrameType.Daily, FuturesTrendDirectionType.Init);
-        var command = BuildCommand();
+        var command = BuildCommand(price: SampleData.MacdRisingPrices[^1] + 15m);
 
         // Act
         var act = () => command.Execute(state);

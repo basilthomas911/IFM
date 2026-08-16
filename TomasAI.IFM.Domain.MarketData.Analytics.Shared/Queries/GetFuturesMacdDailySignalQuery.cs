@@ -29,16 +29,37 @@ public record GetFuturesMacdDailySignalQuery : IQuery<FuturesMacdSignalReadModel
     public TimeFrameType TimePeriod { get; init; }
 
     [Key(4)]
-    public int PeriodLength { get; init; }
+    public int SignalEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalSignalEmaPeriod;
+
+    [Key(5)]
+    public int FastEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalFastEmaPeriod;
+
+    [Key(6)]
+    public int SlowEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalSlowEmaPeriod;
+
+    [IgnoreMember]
+    public int PeriodLength => SignalEmaPeriod;
 
     public GetFuturesMacdDailySignalQuery() { }
 
-    public GetFuturesMacdDailySignalQuery(string contractId, TimeFrameType timePeriod , int periodLength)
+    public GetFuturesMacdDailySignalQuery(
+        string contractId,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod = FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+        int fastEmaPeriod = FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+        int slowEmaPeriod = FuturesMacdConfiguration.ConventionalSlowEmaPeriod)
     {
         ContractId = contractId ?? string.Empty;
         TimePeriod = timePeriod;
-        PeriodLength = periodLength;
-        EntityId = new FuturesMacdDailySignalEntityId(contractId,  timePeriod, periodLength);
+        SignalEmaPeriod = signalEmaPeriod;
+        FastEmaPeriod = fastEmaPeriod;
+        SlowEmaPeriod = slowEmaPeriod;
+        EntityId = new FuturesMacdDailySignalEntityId(
+            contractId,
+            timePeriod,
+            signalEmaPeriod,
+            fastEmaPeriod,
+            slowEmaPeriod);
         ErrorCode = ErrorId;
     }
 
@@ -51,13 +72,22 @@ public record GetFuturesMacdDailySignalQuery : IQuery<FuturesMacdSignalReadModel
         IActorEntityId entityId,
         string contractId,
         TimeFrameType timePeriod,
-        int periodLength)
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod)
     {
         Subject = subject;
         ContractId = contractId ?? string.Empty;
         TimePeriod = timePeriod;
-        PeriodLength = periodLength;
-        EntityId = new FuturesMacdDailySignalEntityId(contractId, timePeriod, periodLength);
+        SignalEmaPeriod = signalEmaPeriod;
+        FastEmaPeriod = fastEmaPeriod;
+        SlowEmaPeriod = slowEmaPeriod;
+        EntityId = new FuturesMacdDailySignalEntityId(
+            contractId,
+            timePeriod,
+            signalEmaPeriod,
+            fastEmaPeriod,
+            slowEmaPeriod);
         ErrorCode = ErrorId;
     }
 }

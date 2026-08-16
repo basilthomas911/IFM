@@ -9,12 +9,11 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 /// <summary>
 /// Unique identifier for a Futures MACD (Moving Average Convergence Divergence) signal composed of a contract identifier,
-/// a value date, and a timestamp component for intraday distinction.
+/// a value date, all three EMA periods, and a timestamp component for intraday distinction.
 /// </summary>
 /// <remarks>
 /// MessagePack serializable (primitive components only). Implements <see cref="IActorEntityId"/> with a dot
-/// separated format: ContractId.yyyyMMdd.TimePeriod.HH:mm:ss. Use <see cref="Create(string, DateOnly, TimeOnly)"/> when
-/// explicit construction improves clarity.
+/// separated format: ContractId.yyyyMMdd.TimePeriod.SignalEma.FastEma.SlowEma.HH:mm:ss.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public record FuturesMacdSignalId : IActorEntityId
@@ -22,8 +21,18 @@ public record FuturesMacdSignalId : IActorEntityId
     [Key(0)] public string ContractId { get; init; }
     [Key(1)] public DateOnly ValueDate { get; init; }
     [Key(2)] public TimeFrameType TimePeriod { get; init; }
-    [Key(3)] public int PeriodLength { get; init; }
+    [Key(3)] public int SignalEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalSignalEmaPeriod;
     [Key(4)] public TimeOnly Timestamp { get; init; }
+    [Key(5)] public int FastEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalFastEmaPeriod;
+    [Key(6)] public int SlowEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalSlowEmaPeriod;
+
+    [IgnoreMember]
+    [Obsolete("Use SignalEmaPeriod, FastEmaPeriod, and SlowEmaPeriod.")]
+    public int PeriodLength => SignalEmaPeriod;
+
+    [IgnoreMember]
+    public FuturesMacdConfiguration Configuration
+        => new(SignalEmaPeriod, FastEmaPeriod, SlowEmaPeriod);
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and some serializers.
@@ -36,27 +45,74 @@ public record FuturesMacdSignalId : IActorEntityId
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="valueDate">Value date of the signal.</param>
     /// <param name="timePeriod">Futures time period type.</param>
-    /// <param name="periodLength">The length of the time period.</param>
+    /// <param name="signalEmaPeriod">Signal-line EMA period.</param>
+    /// <param name="fastEmaPeriod">Fast EMA period.</param>
+    /// <param name="slowEmaPeriod">Slow EMA period.</param>
     /// <param name="timestamp">Intraday timestamp component.</param>
-    public FuturesMacdSignalId(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, TimeOnly timestamp)
+    public FuturesMacdSignalId(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod,
+        TimeOnly timestamp)
     {
         ContractId = contractId;
         ValueDate = valueDate;
         TimePeriod = timePeriod;
-        PeriodLength = periodLength;
+        SignalEmaPeriod = signalEmaPeriod;
+        FastEmaPeriod = fastEmaPeriod;
+        SlowEmaPeriod = slowEmaPeriod;
         Timestamp = timestamp;
+    }
+
+    /// <summary>Creates a conventional MACD identity with a configurable signal EMA period.</summary>
+    public FuturesMacdSignalId(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int periodLength,
+        TimeOnly timestamp)
+        : this(
+            contractId,
+            valueDate,
+            timePeriod,
+            periodLength,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+            timestamp)
+    {
     }
 
     /// <summary>
     /// Factory method for creating a new identifier instance.
     /// </summary>
-    public static FuturesMacdSignalId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, TimeOnly timestamp)
-        => new(contractId, valueDate, timePeriod, periodLength, timestamp);
+    public static FuturesMacdSignalId Create(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod,
+        TimeOnly timestamp)
+        => new(contractId, valueDate, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, timestamp);
+
+    public static FuturesMacdSignalId Create(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        TimeOnly timestamp)
+        => new(contractId, valueDate, timePeriod, signalEmaPeriod, timestamp);
 
     /// <summary>
-    /// Formats the identifier into a stable string key: ContractId.yyyyMMdd.TimePeriod.HH:mm:ss
+    /// Formats the identifier into a stable string key containing all three EMA periods.
     /// </summary>
-    public string Format() => string.Create(null, stackalloc char[96], $"{ContractId}.{ValueDate:yyyyMMdd}.{TimePeriod}.{PeriodLength}.{Timestamp:HH:mm:ss}");
+    public string Format() => string.Create(
+        null,
+        stackalloc char[128],
+        $"{ContractId}.{ValueDate:yyyyMMdd}.{TimePeriod}.{SignalEmaPeriod}.{FastEmaPeriod}.{SlowEmaPeriod}.{Timestamp:HH:mm:ss}");
 
     /// <summary>
     /// Returns a compact JSON representation.
@@ -67,8 +123,11 @@ public record FuturesMacdSignalId : IActorEntityId
     /// Converts this identifier to a corresponding <see cref="FuturesMacdSignalEntityId"/> instance
     /// </summary>
     /// <returns></returns>
-    public FuturesMacdSignalEntityId ToEntityId() => new(ContractId, ValueDate, TimePeriod, PeriodLength);
-    public FuturesMacdDailySignalEntityId ToDailyEntityId() => new(ContractId, TimePeriod, PeriodLength);
+    public FuturesMacdSignalEntityId ToEntityId()
+        => new(ContractId, ValueDate, TimePeriod, SignalEmaPeriod, FastEmaPeriod, SlowEmaPeriod);
+
+    public FuturesMacdDailySignalEntityId ToDailyEntityId()
+        => new(ContractId, TimePeriod, SignalEmaPeriod, FastEmaPeriod, SlowEmaPeriod);
 }
 
 /// <summary>
@@ -96,6 +155,11 @@ public class FuturesMacdSignalIdValidationRules : BaseValidationRules, IValidati
             RuleFor(x => x.ValueDate).NotEqual(DateOnly.MaxValue).WithMessage(ValueDateMaxErrorMessage);
             RuleFor(x => x.Timestamp).NotEqual(TimeOnly.MinValue).WithMessage(TimestampMinErrorMessage);
             RuleFor(x => x.Timestamp).NotEqual(TimeOnly.MaxValue).WithMessage(TimestampMaxErrorMessage);
+            RuleFor(x => x.SignalEmaPeriod).GreaterThan(0);
+            RuleFor(x => x.FastEmaPeriod).GreaterThan(0);
+            RuleFor(x => x.SlowEmaPeriod).GreaterThan(0);
+            RuleFor(x => x).Must(x => x.FastEmaPeriod < x.SlowEmaPeriod)
+                .WithMessage("FuturesMacdSignalId: FastEmaPeriod must be less than SlowEmaPeriod");
         }
 
         public override ValidationResult Validate(ValidationContext<FuturesMacdSignalId> context)

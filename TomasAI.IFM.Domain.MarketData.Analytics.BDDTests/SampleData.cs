@@ -136,7 +136,9 @@ public static class SampleData
         contractId: ContractId,
         valueDate: ValueDate,
         timePeriod: TimeFrameType.Daily,
-        periodLength: 14,
+        signalEmaPeriod: FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+        fastEmaPeriod: FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+        slowEmaPeriod: FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
         timestamp: new TimeOnly(18, 50, 10, 451)
     );
 
@@ -260,13 +262,22 @@ public static class SampleData
         };
 
     public static FuturesMacdSignalEntityId MacdEntityIdFor(TimeFrameType timePeriod)
-        => new(ContractId, ValueDate, timePeriod, 14);
+        => new(ContractId, ValueDate, timePeriod);
 
     public static FuturesMacdSignalId MacdSignalIdFor(TimeFrameType timePeriod)
-        => new(ContractId, ValueDate, timePeriod, 14, TimeOnly.FromDateTime(Timestamp));
+        => new(
+            ContractId,
+            ValueDate,
+            timePeriod,
+            FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+            TimeOnly.FromDateTime(Timestamp));
 
-    public static GenerateFuturesMacdSignalCommand MacdGenerateCommandFor(TimeFrameType timePeriod)
-        => new(MacdSignalIdFor(timePeriod), FuturesPrice);
+    public static GenerateFuturesMacdSignalCommand MacdGenerateCommandFor(
+        TimeFrameType timePeriod,
+        decimal price = FuturesPrice)
+        => new(MacdSignalIdFor(timePeriod), price);
 
     public static GenerateFuturesMacdSignalCommand MacdGenerateCommand
         => MacdGenerateCommandFor(TimeFrameType.Daily);

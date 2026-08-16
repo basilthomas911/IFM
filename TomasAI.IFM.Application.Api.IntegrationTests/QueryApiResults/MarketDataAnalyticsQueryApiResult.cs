@@ -136,4 +136,22 @@ public static class MarketDataAnalyticsQueryApiResult
         => resp.SetResult(new FuturesAdxSignalReadModel(
             "ESU25", new DateOnly(2025, 9, 10), TimeFrameType.FifteenSeconds, 14, new TimeOnly(14, 30), 5500,
             25.0, 15.0, 30.0, FuturesTrendDirectionType.UpTrending, FuturesTrendDirectionStrengthType.High));
+
+    public static Task FromGetFuturesMacdSignalAsync(HttpResponse resp)
+        => resp.SetResult(new FuturesMacdSignalReadModel(
+            contractId: "ESU25",
+            valueDate: new DateOnly(2025, 9, 10),
+            timePeriod: TimeFrameType.FifteenSeconds,
+            signalEmaPeriod: 7,
+            fastEmaPeriod: 10,
+            slowEmaPeriod: 30,
+            timestamp: new TimeOnly(14, 30),
+            futuresPrice: 5500m,
+            macdLine: 1.5,
+            signalLine: 1.2,
+            histogram: 0.3,
+            macd: FuturesTrendDirectionType.UpTrending,
+            macdStrength: FuturesTrendDirectionStrengthType.High,
+            fastEma: 5501.5,
+            slowEma: 5500.0));
 }

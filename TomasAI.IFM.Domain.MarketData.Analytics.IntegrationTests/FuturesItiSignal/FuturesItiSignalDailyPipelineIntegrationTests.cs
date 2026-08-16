@@ -18,6 +18,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSignal;
 
 [Trait("Category", "Integration")]
+[Collection(ItiPipelineIntegrationCollection.Name)]
 public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
     WebApplicationFactory<Program> factory,
     MarketDataAnalyticsFixture dbFixture)

@@ -35,7 +35,10 @@ public static class FuturesMacdSignalLifecycle
                         throw new MarketDataContractMappingException(entityId.ContractId, "the MACD timer entity and hot-cache snapshot identities do not match");
                     if (!e.TryAcceptSourceSequence(trade.SourceSequence)) return;
                     var id = new FuturesMacdSignalId(entityId.ContractId, entityId.ValueDate, entityId.TimePeriod,
-                        entityId.PeriodLength, TimeOnly.FromDateTime(trade.EventTimestamp.UtcDateTime));
+                        entityId.SignalEmaPeriod,
+                        entityId.FastEmaPeriod,
+                        entityId.SlowEmaPeriod,
+                        TimeOnly.FromDateTime(trade.EventTimestamp.UtcDateTime));
                     _ = await commandApi.GenerateFuturesMacdSignalAsync(id, trade.LastPrice);
                 }
                 catch (Exception ex)

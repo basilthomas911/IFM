@@ -281,10 +281,17 @@ public static class SampleData
             adxStrength: adxStrength);
 
     public static FuturesMacdSignalEntityId MacdEntityId
-        => new(ContractId, ValueDate, TimePeriod, PeriodLength);
+        => new(ContractId, ValueDate, TimePeriod);
 
     public static FuturesMacdSignalId MacdSignalId
-        => new(ContractId, ValueDate, TimePeriod, PeriodLength, TimeOnly.FromDateTime(Timestamp));
+        => new(
+            ContractId,
+            ValueDate,
+            TimePeriod,
+            FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+            TimeOnly.FromDateTime(Timestamp));
 
     public static FuturesRsiSignalReadModel[] CreateRsiSignalsForMacd(int count = 15)
     {
@@ -319,12 +326,16 @@ public static class SampleData
             contractId: ContractId,
             valueDate: ValueDate,
             timePeriod: TimePeriod,
-            periodLength: PeriodLength,
+            signalEmaPeriod: FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+            fastEmaPeriod: FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            slowEmaPeriod: FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
             timestamp: TimeOnly.FromDateTime(Timestamp),
             futuresPrice: 5500.0m,
             macdLine: 1.5,
             signalLine: 1.2,
             histogram: 0.3,
             macd: macd,
-            macdStrength: macdStrength);
+            macdStrength: macdStrength,
+            fastEma: 5510.0,
+            slowEma: 5508.5);
 }

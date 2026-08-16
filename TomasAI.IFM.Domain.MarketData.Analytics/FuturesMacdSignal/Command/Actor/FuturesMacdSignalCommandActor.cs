@@ -147,21 +147,25 @@ public class FuturesMacdSignalCommandActor(
     {
         [typeof(StartFuturesMacdSignalCommand).Name] = cmd => {
             var e = (StartFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName);
+                .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
         },
         [typeof(StopFuturesMacdSignalCommand).Name] = cmd => {
             var e = (StopFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
-                .ValidateCommandId(e.CommandId, e.CommandName);
+                .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
         },
         [typeof(GenerateFuturesMacdSignalCommand).Name] = cmd => {
             var e = (GenerateFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId);
+                .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
+                .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
         },
         [typeof(GenerateFuturesMacdDailySignalCommand).Name] = cmd => {
             var e = (GenerateFuturesMacdDailySignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId);
+                .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
+                .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
         }
     };
 

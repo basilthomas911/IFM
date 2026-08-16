@@ -26,7 +26,7 @@ public record FuturesMacdSignalReadModel
     public TimeFrameType TimePeriod { get; init; }
 
     [Key(3)]
-    public int PeriodLength { get; init; }
+    public int SignalEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalSignalEmaPeriod;
 
     /// <summary>Intraday timestamp (time component) when the signal was generated.</summary>
     [Key(4)]
@@ -56,19 +56,51 @@ public record FuturesMacdSignalReadModel
     [Key(10)]
     public FuturesTrendDirectionStrengthType MACDStrength { get; init; }
 
+    [Key(11)]
+    public int FastEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalFastEmaPeriod;
+
+    [Key(12)]
+    public int SlowEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalSlowEmaPeriod;
+
+    /// <summary>Fast EMA accumulator used for deterministic incremental calculation.</summary>
+    [Key(13)]
+    public double FastEma { get; init; }
+
+    /// <summary>Slow EMA accumulator used for deterministic incremental calculation.</summary>
+    [Key(14)]
+    public double SlowEma { get; init; }
+
+    [JsonIgnore]
+    [IgnoreMember]
+    [Obsolete("Use SignalEmaPeriod, FastEmaPeriod, and SlowEmaPeriod.")]
+    public int PeriodLength => SignalEmaPeriod;
+
     /// <summary>
     /// Entity identifier consisting of contract id and value date (not serialized).
     /// </summary>
     [JsonIgnore]
     [IgnoreMember]
-    public FuturesMacdSignalEntityId EntityId => new(ContractId ?? string.Empty, ValueDate, TimePeriod, PeriodLength);
+    public FuturesMacdSignalEntityId EntityId => new(
+        ContractId ?? string.Empty,
+        ValueDate,
+        TimePeriod,
+        SignalEmaPeriod,
+        FastEmaPeriod,
+        SlowEmaPeriod);
 
     /// <summary>
     /// Full signal identifier including timestamp (not serialized).
     /// </summary>
     [JsonIgnore]
     [IgnoreMember]
-    public FuturesMacdSignalId Id => new(ContractId ?? string.Empty, ValueDate, TimePeriod, PeriodLength, Timestamp);
+    public FuturesMacdSignalId Id => new(
+        ContractId ?? string.Empty,
+        ValueDate,
+        TimePeriod,
+        SignalEmaPeriod,
+        FastEmaPeriod,
+        SlowEmaPeriod,
+        Timestamp);
 
     /// <summary>
     /// Parameterless constructor required for MessagePack and tooling.
@@ -81,7 +113,9 @@ public record FuturesMacdSignalReadModel
     /// <param name="contractId"></param>
     /// <param name="valueDate"></param>
     /// <param name="timePeriod"></param>
-    /// <param name="periodLength"></param>
+    /// <param name="signalEmaPeriod"></param>
+    /// <param name="fastEmaPeriod"></param>
+    /// <param name="slowEmaPeriod"></param>
     /// <param name="timestamp"></param>
     /// <param name="futuresPrice"
     /// <param name="macdLine"></param>
@@ -89,6 +123,41 @@ public record FuturesMacdSignalReadModel
     /// <param name="histogram"></param>
     /// <param name="macd"></param>
     /// <param name="macdStrength"></param>
+    public FuturesMacdSignalReadModel(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod,
+        TimeOnly timestamp,
+        decimal futuresPrice,
+        double macdLine,
+        double signalLine,
+        double histogram,
+        FuturesTrendDirectionType macd,
+        FuturesTrendDirectionStrengthType macdStrength,
+        double fastEma,
+        double slowEma)
+    {
+        ContractId = contractId;
+        ValueDate = valueDate;
+        TimePeriod = timePeriod;
+        SignalEmaPeriod = signalEmaPeriod;
+        FastEmaPeriod = fastEmaPeriod;
+        SlowEmaPeriod = slowEmaPeriod;
+        Timestamp = timestamp;
+        FuturesPrice = futuresPrice;
+        MacdLine = macdLine;
+        SignalLine = signalLine;
+        Histogram = histogram;
+        MACD = macd;
+        MACDStrength = macdStrength;
+        FastEma = fastEma;
+        SlowEma = slowEma;
+    }
+
+    /// <summary>Creates a conventional MACD read model with a configurable signal EMA period.</summary>
     public FuturesMacdSignalReadModel(
         string contractId,
         DateOnly valueDate,
@@ -101,18 +170,23 @@ public record FuturesMacdSignalReadModel
         double histogram,
         FuturesTrendDirectionType macd,
         FuturesTrendDirectionStrengthType macdStrength)
+        : this(
+            contractId,
+            valueDate,
+            timePeriod,
+            periodLength,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+            timestamp,
+            futuresPrice,
+            macdLine,
+            signalLine,
+            histogram,
+            macd,
+            macdStrength,
+            fastEma: (double)futuresPrice,
+            slowEma: (double)futuresPrice)
     {
-        ContractId = contractId;
-        ValueDate = valueDate;
-        TimePeriod = timePeriod;
-        PeriodLength = periodLength;    
-        Timestamp = timestamp;
-        FuturesPrice = futuresPrice;
-        MacdLine = macdLine;
-        SignalLine = signalLine;
-        Histogram = histogram;
-        MACD = macd;
-        MACDStrength = macdStrength;
     }
 
     /// <summary>

@@ -46,12 +46,12 @@ public class FuturesMacdSignalStateRepository(
             ICommand<FuturesMacdDailySignalEntityId> dailyCommand
                 => await LoadStateAsync<FuturesMacdSignalCommandState, FuturesMacdDailySignalGeneratedEvent>(
                     command,
-                    dailyCommand.EntityId.PeriodLength, cancellationToken),
+                    dailyCommand.EntityId.SlowEmaPeriod, cancellationToken),
             ICommand<FuturesMacdSignalEntityId> macdCommand
                 => await LoadStateFromSnapshotLastNRangeAsync<
                     FuturesMacdSignalCommandState,
                     FuturesMacdSignalStartedEvent,
-                    FuturesMacdSignalGeneratedEvent>(command, macdCommand.EntityId.PeriodLength, cancellationToken),
+                    FuturesMacdSignalGeneratedEvent>(command, macdCommand.EntityId.SlowEmaPeriod, cancellationToken),
             _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
         };
 

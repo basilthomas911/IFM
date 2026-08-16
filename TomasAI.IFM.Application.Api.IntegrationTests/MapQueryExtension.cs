@@ -39,6 +39,20 @@ public static  class MapQueryExtension
         app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalMDIByTrend, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesItiSignalMDIByTrendAsync(resp));
         app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesAtrSignal, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesAtrSignalAsync(resp));
         app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesAdxSignal, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesAdxSignalAsync(resp));
+        app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesMacdSignal, async (
+            HttpResponse resp,
+            int signalEmaPeriod,
+            int fastEmaPeriod,
+            int slowEmaPeriod) =>
+        {
+            if (signalEmaPeriod != 7 || fastEmaPeriod != 10 || slowEmaPeriod != 30)
+            {
+                resp.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            await MarketDataAnalyticsQueryApiResult.FromGetFuturesMacdSignalAsync(resp);
+        });
 
         // map Market Data Feed Query APIs
         app.MapGet(MarketDataFeedQueryUriPath.GetLastFuturesTickData, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetLastFuturesTickDataAsync(resp));

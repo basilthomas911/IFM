@@ -51,7 +51,14 @@ public class MacdIndicatorBenchmarks : IndicatorBenchmarkBase
     [Benchmark]
     public IndicatorResult After()
     {
-        FuturesMacdSignalCompute.Create(Period, MacdSignals, out var model);
+        FuturesMacdSignalCompute.Create(
+            MacdSignals[^1].FuturesPrice,
+            MacdSignals,
+            new FuturesMacdConfiguration(
+                Period,
+                FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+                FuturesMacdConfiguration.ConventionalSlowEmaPeriod),
+            out var model);
         return new IndicatorResult(model.MacdLine, model.SignalLine, model.Histogram);
     }
 }

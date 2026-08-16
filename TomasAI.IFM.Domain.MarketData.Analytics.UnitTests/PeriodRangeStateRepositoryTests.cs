@@ -79,9 +79,9 @@ public class PeriodRangeStateRepositoryTests
         await atrRepository.LoadStateAsync(atrDaily);
 
         await ReceivedSnapshotRange<FuturesMacdSignalCommandState, FuturesMacdSignalStartedEvent, FuturesMacdSignalGeneratedEvent>(
-            eventDb, streamId, macd.EntityId.PeriodLength);
+            eventDb, streamId, macd.EntityId.SlowEmaPeriod);
         await ReceivedRange<FuturesMacdSignalCommandState, FuturesMacdDailySignalGeneratedEvent>(
-            eventDb, streamId, macdDaily.EntityId.PeriodLength);
+            eventDb, streamId, macdDaily.EntityId.SlowEmaPeriod);
         await ReceivedSnapshotRange<FuturesAdxSignalCommandState, FuturesAdxSignalStartedEvent, FuturesAdxSignalGeneratedEvent>(
             eventDb, streamId, adx.EntityId.PeriodLength);
         await ReceivedRange<FuturesAdxSignalCommandState, FuturesAdxDailySignalGeneratedEvent>(

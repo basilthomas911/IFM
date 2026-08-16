@@ -2810,13 +2810,17 @@ internal static class MarketDataDbCql
     """;
 
     public const string InsertFuturesMacdSignal = """
-        INSERT INTO futures_macd_signal (
+        INSERT INTO futures_macd_signal_v2 (
             contractId,
             valueDate,
             timePeriod,
-            periodLength,
+            signalEmaPeriod,
+            fastEmaPeriod,
+            slowEmaPeriod,
             timestamp,
             futuresPrice,
+            fastEma,
+            slowEma,
             macdLine,
             signalLine,
             histogram,
@@ -2826,9 +2830,13 @@ internal static class MarketDataDbCql
             :contractId,
             :valueDate,
             :timePeriod,
-            :periodLength,
+            :signalEmaPeriod,
+            :fastEmaPeriod,
+            :slowEmaPeriod,
             :timestamp,
             :futuresPrice,
+            :fastEma,
+            :slowEma,
             :macdLine,
             :signalLine,
             :histogram,
@@ -2841,37 +2849,49 @@ internal static class MarketDataDbCql
         SELECT ContractId AS "ContractId",
             ValueDate AS "ValueDate",
             TimePeriod AS "TimePeriod",
-            PeriodLength AS "PeriodLength",
+            SignalEmaPeriod AS "SignalEmaPeriod",
+            FastEmaPeriod AS "FastEmaPeriod",
+            SlowEmaPeriod AS "SlowEmaPeriod",
             Timestamp AS "Timestamp",
             FuturesPrice AS "FuturesPrice",
+            FastEma AS "FastEma",
+            SlowEma AS "SlowEma",
             MacdLine AS "MacdLine",
             SignalLine AS "SignalLine",
             Histogram AS "Histogram",
             MACD AS "MACD",
             MACDStrength AS "MACDStrength"
-        FROM futures_macd_signal
-        WHERE ContractId = :contractId 
+        FROM futures_macd_signal_v2
+        WHERE ContractId = :contractId
         AND TimePeriod = :timePeriod
-        AND PeriodLength = :periodLength
+        AND SignalEmaPeriod = :signalEmaPeriod
+        AND FastEmaPeriod = :fastEmaPeriod
+        AND SlowEmaPeriod = :slowEmaPeriod
         AND ValueDate = :valueDate LIMIT 1;
     """;
 
     public const string GetLastFuturesMacdDailySignal = """
         SELECT ContractId AS "ContractId",
             ValueDate AS "ValueDate",
-            TimePeriod as "TimePeriod",
-            PeriodLength as "PeriodLength",
+            TimePeriod AS "TimePeriod",
+            SignalEmaPeriod AS "SignalEmaPeriod",
+            FastEmaPeriod AS "FastEmaPeriod",
+            SlowEmaPeriod AS "SlowEmaPeriod",
             Timestamp AS "Timestamp",
-            FuturesPrice as "FuturesPrice",
+            FuturesPrice AS "FuturesPrice",
+            FastEma AS "FastEma",
+            SlowEma AS "SlowEma",
             MacdLine AS "MacdLine",
             SignalLine AS "SignalLine",
             Histogram AS "Histogram",
             MACD AS "MACD",
             MACDStrength AS "MACDStrength"
-        FROM futures_macd_signal
-        WHERE ContractId = :contractId 
+        FROM futures_macd_signal_v2
+        WHERE ContractId = :contractId
         AND TimePeriod = :timePeriod
-        AND PeriodLength = :periodLength
+        AND SignalEmaPeriod = :signalEmaPeriod
+        AND FastEmaPeriod = :fastEmaPeriod
+        AND SlowEmaPeriod = :slowEmaPeriod
         LIMIT 1;
     """;
 

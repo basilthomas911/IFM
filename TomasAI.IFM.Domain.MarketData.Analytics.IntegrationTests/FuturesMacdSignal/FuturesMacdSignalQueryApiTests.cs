@@ -34,7 +34,13 @@ public class FuturesMacdSignalQueryApiTests(WebApplicationFactory<Program> facto
 
         // act...
         var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
-        var response = await analyticsApi.GetFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength);
+        var response = await analyticsApi.GetFuturesMacdSignalAsync(
+            SampleData.ContractId,
+            SampleData.ValueDate,
+            SampleData.TimePeriod,
+            FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod);
 
         // assert...
         response.Should().NotBeNull();
@@ -42,7 +48,47 @@ public class FuturesMacdSignalQueryApiTests(WebApplicationFactory<Program> facto
         response.Value.Should().NotBeNull();
         response.Value!.ContractId.Should().Be(SampleData.ContractId);
         response.Value.ValueDate.Should().Be(SampleData.ValueDate);
+        response.Value.SignalEmaPeriod.Should().Be(9);
+        response.Value.FastEmaPeriod.Should().Be(12);
+        response.Value.SlowEmaPeriod.Should().Be(26);
         response.Value.MACD.Should().Be(FuturesTrendDirectionType.UpTrending);
         response.Value.MACDStrength.Should().Be(FuturesTrendDirectionStrengthType.Medium);
+    }
+
+    [Fact]
+    public async Task MacdStorage_SeparatesSignalsByAllThreeEmaPeriods()
+    {
+        var standard = SampleData.CreateMacdSignalViewModel() with { MacdLine = 1.5 };
+        var custom = standard with
+        {
+            SignalEmaPeriod = 7,
+            FastEmaPeriod = 10,
+            SlowEmaPeriod = 30,
+            MacdLine = 2.5
+        };
+
+        await dbFixture.MarketDataDb.InsertFuturesMacdSignalAsync(standard);
+        await dbFixture.MarketDataDb.InsertFuturesMacdSignalAsync(custom);
+
+        var standardResult = await dbFixture.MarketDataDb.GetLastFuturesMacdSignalAsync(
+            standard.ContractId,
+            standard.ValueDate,
+            standard.TimePeriod,
+            standard.SignalEmaPeriod,
+            standard.FastEmaPeriod,
+            standard.SlowEmaPeriod);
+        var customResult = await dbFixture.MarketDataDb.GetLastFuturesMacdSignalAsync(
+            custom.ContractId,
+            custom.ValueDate,
+            custom.TimePeriod,
+            custom.SignalEmaPeriod,
+            custom.FastEmaPeriod,
+            custom.SlowEmaPeriod);
+
+        standardResult.Should().NotBeNull();
+        customResult.Should().NotBeNull();
+        standardResult!.MacdLine.Should().Be(1.5);
+        customResult!.MacdLine.Should().Be(2.5);
+        standardResult.EntityId.Format().Should().NotBe(customResult.EntityId.Format());
     }
 }

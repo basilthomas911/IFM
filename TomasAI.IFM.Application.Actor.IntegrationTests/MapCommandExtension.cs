@@ -1051,7 +1051,7 @@ public static class MarketDataAnalyticsCommands
 
         endpoints.MapPost(MarketDataAnalyticsUriPath.GenerateFuturesMacdSignal, async (IActorService e, GenerateFuturesMacdSignalParameter cp)
             => {
-                var entityId = new FuturesMacdSignalEntityId(cp.FuturesMacdSignalId.ContractId, cp.FuturesMacdSignalId.ValueDate, cp.FuturesMacdSignalId.TimePeriod, cp.FuturesMacdSignalId.PeriodLength);
+                var entityId = cp.FuturesMacdSignalId.ToEntityId();
                 GenerateFuturesMacdSignalCommand cmd = new(cp.FuturesMacdSignalId, cp.FuturesPrice)
                 {
                     CommandId = Guid.NewGuid(),

@@ -250,22 +250,65 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi
         TimeFrameType timePeriod,
         int periodLength,
         CancellationToken cancellationToken)
+        => GetFuturesMacdSignalAsync(
+            contractId,
+            valueDate,
+            timePeriod,
+            periodLength,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+            cancellationToken);
+
+    public Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod,
+        CancellationToken cancellationToken)
         => ExecuteAsync(
             GetFuturesMacdSignalQuery.ErrorId,
             cancellationToken,
             async () => (await _dbFactory.MarketDataDb.GetLastFuturesMacdSignalAsync(
-                contractId, valueDate, timePeriod, periodLength, cancellationToken))!);
+                contractId,
+                valueDate,
+                timePeriod,
+                signalEmaPeriod,
+                fastEmaPeriod,
+                slowEmaPeriod,
+                cancellationToken))!);
 
     public Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
         string contractId,
         TimeFrameType timePeriod,
         int periodLength,
         CancellationToken cancellationToken)
+        => GetFuturesMacdDailySignalAsync(
+            contractId,
+            timePeriod,
+            periodLength,
+            FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+            FuturesMacdConfiguration.ConventionalSlowEmaPeriod,
+            cancellationToken);
+
+    public Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
+        string contractId,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod,
+        CancellationToken cancellationToken)
         => ExecuteAsync(
             GetFuturesMacdDailySignalQuery.ErrorId,
             cancellationToken,
             async () => (await _dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
-                contractId, timePeriod, periodLength, cancellationToken))!);
+                contractId,
+                timePeriod,
+                signalEmaPeriod,
+                fastEmaPeriod,
+                slowEmaPeriod,
+                cancellationToken))!);
 
     async Task<FuturesItiSignalMDIV2ReadModel[]> GetFuturesItiSignalMDIByTrendCoreAsync(
         string contractId,

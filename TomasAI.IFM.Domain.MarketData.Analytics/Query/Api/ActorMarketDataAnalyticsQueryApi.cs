@@ -523,7 +523,12 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi(IDbContextFactory d
     /// <param name="periodLength">The indicator period length.</param>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(
-        string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod = FuturesMacdConfiguration.ConventionalSignalEmaPeriod,
+        int fastEmaPeriod = FuturesMacdConfiguration.ConventionalFastEmaPeriod,
+        int slowEmaPeriod = FuturesMacdConfiguration.ConventionalSlowEmaPeriod)
     {
         try
         {
@@ -532,7 +537,9 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi(IDbContextFactory d
                     contractId,
                     valueDate,
                     timePeriod,
-                    periodLength))!;
+                    signalEmaPeriod,
+                    fastEmaPeriod,
+                    slowEmaPeriod))!;
             return new ServiceOk<FuturesMacdSignalReadModel>(result);
         }
         catch (Exception ex)
@@ -549,7 +556,9 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi(IDbContextFactory d
     /// <param name="periodLength">The indicator period length.</param>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
-        string contractId, TimeFrameType timePeriod, int periodLength)
+        string contractId,
+        TimeFrameType timePeriod,
+        int periodLength)
     {
         try
         {
@@ -558,6 +567,32 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi(IDbContextFactory d
                     contractId,
                     timePeriod,
                     periodLength))!;
+            return new ServiceOk<FuturesMacdSignalReadModel>(result);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<FuturesMacdSignalReadModel>(
+                GetFuturesMacdDailySignalQuery.ErrorId,
+                ex.Message);
+        }
+    }
+
+    public async Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(
+        string contractId,
+        TimeFrameType timePeriod,
+        int signalEmaPeriod,
+        int fastEmaPeriod,
+        int slowEmaPeriod)
+    {
+        try
+        {
+            FuturesMacdSignalReadModel result =
+                (await _dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
+                    contractId,
+                    timePeriod,
+                    signalEmaPeriod,
+                    fastEmaPeriod,
+                    slowEmaPeriod))!;
             return new ServiceOk<FuturesMacdSignalReadModel>(result);
         }
         catch (Exception ex)

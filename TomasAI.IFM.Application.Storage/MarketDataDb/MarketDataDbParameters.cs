@@ -303,13 +303,24 @@ internal readonly record struct GetLastFuturesItiSignalTrendReversalChange(strin
 {
     public object Bind() => new object?[] { contractId, valueDate, lastTrendDirectionChangedSequenceId };
 }
-internal readonly record struct GetLastFuturesMacdSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue
+internal readonly record struct GetLastFuturesMacdSignal(
+    string contractId,
+    string timePeriod,
+    int signalEmaPeriod,
+    int fastEmaPeriod,
+    int slowEmaPeriod,
+    DateOnly valueDate) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, timePeriod, periodLength, valueDate };
+    public object Bind() => new object?[] { contractId, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, valueDate };
 }
-internal readonly record struct GetLastFuturesMacdDailySignal(string contractId, string timePeriod, int periodLength) : IBindValue
+internal readonly record struct GetLastFuturesMacdDailySignal(
+    string contractId,
+    string timePeriod,
+    int signalEmaPeriod,
+    int fastEmaPeriod,
+    int slowEmaPeriod) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, timePeriod, periodLength };
+    public object Bind() => new object?[] { contractId, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod };
 }
 internal readonly record struct GetLastFuturesOptionTickData(string contractId, DateOnly valueDate) : IBindValue
 {
@@ -498,9 +509,24 @@ internal readonly record struct InsertFuturesItiTrendDeltaModel(string symbol, D
 {
     public object Bind() => new object?[] { symbol, valueDate, startDate, endDate, count, maximum, mean, median, minimum, skewness, stdDev, variance, meanAbsoluteError, meanSquaredError, rootMeanSquaredError, lossFunction, rSquared, modelData };
 }
-internal readonly record struct InsertFuturesMacdSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double macdLine, double signalLine, double histogram, string macd, string macdStrength) : IBindValue
+internal readonly record struct InsertFuturesMacdSignal(
+    string contractId,
+    DateOnly valueDate,
+    string timePeriod,
+    int signalEmaPeriod,
+    int fastEmaPeriod,
+    int slowEmaPeriod,
+    TimeOnly timestamp,
+    decimal futuresPrice,
+    double fastEma,
+    double slowEma,
+    double macdLine,
+    double signalLine,
+    double histogram,
+    string macd,
+    string macdStrength) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, macdLine, signalLine, histogram, macd, macdStrength };
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, timestamp, futuresPrice, fastEma, slowEma, macdLine, signalLine, histogram, macd, macdStrength };
 }
 internal readonly record struct InsertFuturesOptionTickData(string contractId, DateOnly valueDate, long tickId, TimeOnly tickTime, double optionPrice, double bidPrice, double askPrice, int bidSize, int askSize, double impliedVolatility, double underlyingPrice, double delta, double gamma, double vega, double theta, double rho) : IBindValue
 {

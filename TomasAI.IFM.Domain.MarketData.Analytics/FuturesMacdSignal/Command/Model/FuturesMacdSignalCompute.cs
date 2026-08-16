@@ -12,22 +12,24 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Mode
 public class FuturesMacdSignalCompute
 {
     readonly FuturesMacdSignalReadModel? _macdSignal;
-    readonly int _signalPeriod;
 
-    const int FastPeriod = 9;
-    const int SlowPeriod = 26;
-
-    public static bool Create(int periodLength, IReadOnlyCollection<FuturesMacdSignalReadModel> previousMacdSignals, out FuturesMacdSignalCompute model)
+    public static bool Create(
+        decimal futuresPrice,
+        IReadOnlyCollection<FuturesMacdSignalReadModel> previousMacdSignals,
+        FuturesMacdConfiguration configuration,
+        out FuturesMacdSignalCompute model)
     {
-        model = new(periodLength, previousMacdSignals);
+        model = new(futuresPrice, previousMacdSignals, configuration);
         return true;
     }
 
-    FuturesMacdSignalCompute(int periodLength,IReadOnlyCollection<FuturesMacdSignalReadModel> previousMacdSignals)
+    FuturesMacdSignalCompute(
+        decimal futuresPrice,
+        IReadOnlyCollection<FuturesMacdSignalReadModel> previousMacdSignals,
+        FuturesMacdConfiguration configuration)
     {
-        _signalPeriod = periodLength;
         _macdSignal = previousMacdSignals.LastOrDefault();
-        ComputeMacdComponents(previousMacdSignals);
+        ComputeMacdComponents((double)futuresPrice, configuration);
     }
 
     /// <summary>MACD line value (fast EMA minus slow EMA of RSI).</summary>
@@ -38,6 +40,10 @@ public class FuturesMacdSignalCompute
 
     /// <summary>Histogram value (MACD line minus signal line).</summary>
     public double Histogram { get; private set; }
+
+    public double FastEma { get; private set; }
+
+    public double SlowEma { get; private set; }
 
     public FuturesTrendType TrendDirection
         => default(FuturesTrendType) switch
@@ -58,38 +64,33 @@ public class FuturesMacdSignalCompute
         };
     }
 
-    void ComputeMacdComponents(IReadOnlyCollection<FuturesMacdSignalReadModel> signals)
+    void ComputeMacdComponents(double price, FuturesMacdConfiguration configuration)
     {
-        if (signals.Count == 0)
-            return;
-
-        const double fastMultiplier = 2.0 / (FastPeriod + 1);
-        const double slowMultiplier = 2.0 / (SlowPeriod + 1);
-        var signalMultiplier = 2.0 / (_signalPeriod + 1);
-        var initialized = false;
-        var fastEma = 0d;
-        var slowEma = 0d;
-        var signalLine = 0d;
-
-        foreach (var signal in signals)
+        if (_macdSignal is null)
         {
-            var price = (double)signal.FuturesPrice;
-            if (!initialized)
-            {
-                fastEma = price;
-                slowEma = price;
-                initialized = true;
-                continue;
-            }
-
-            fastEma = (price - fastEma) * fastMultiplier + fastEma;
-            slowEma = (price - slowEma) * slowMultiplier + slowEma;
-            var macd = fastEma - slowEma;
-            signalLine = (macd - signalLine) * signalMultiplier + signalLine;
+            FastEma = price;
+            SlowEma = price;
+            MacdLine = 0d;
+            SignalLine = 0d;
+            Histogram = 0d;
+            return;
         }
 
-        MacdLine = fastEma - slowEma;
-        SignalLine = signalLine;
+        var previousFastEma = _macdSignal.FastEma == 0d
+            ? (double)_macdSignal.FuturesPrice
+            : _macdSignal.FastEma;
+        var previousSlowEma = _macdSignal.SlowEma == 0d
+            ? (double)_macdSignal.FuturesPrice
+            : _macdSignal.SlowEma;
+        var fastMultiplier = 2.0 / (configuration.FastEmaPeriod + 1);
+        var slowMultiplier = 2.0 / (configuration.SlowEmaPeriod + 1);
+        var signalMultiplier = 2.0 / (configuration.SignalEmaPeriod + 1);
+
+        FastEma = previousFastEma + fastMultiplier * (price - previousFastEma);
+        SlowEma = previousSlowEma + slowMultiplier * (price - previousSlowEma);
+        MacdLine = FastEma - SlowEma;
+        SignalLine = _macdSignal.SignalLine
+            + signalMultiplier * (MacdLine - _macdSignal.SignalLine);
         Histogram = MacdLine - SignalLine;
     }
 
