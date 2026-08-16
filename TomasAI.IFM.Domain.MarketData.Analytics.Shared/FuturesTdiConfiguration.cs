@@ -34,15 +34,8 @@ public sealed record FuturesTdiConfiguration
     public static FuturesTdiConfiguration Standard { get; } = new();
 
     /// <summary>Returns whether the period is supported by the intraday TDI workflow.</summary>
-    public static bool IsSupportedIntraday(TimeFrameType timePeriod) => timePeriod is
-        TimeFrameType.TenSeconds or
-        TimeFrameType.FifteenSeconds or
-        TimeFrameType.OneMinute or
-        TimeFrameType.FiveMinutes or
-        TimeFrameType.TenMinutes or
-        TimeFrameType.FifteenMinutes or
-        TimeFrameType.ThirtyMinutes or
-        TimeFrameType.OneHour;
+    public static bool IsSupportedIntraday(TimeFrameType timePeriod)
+        => FuturesIntradaySignalActivationProfile.TimeFrames.Contains(timePeriod);
 }
 
 /// <summary>Validates a Traders Dynamic Index configuration before calculation or routing.</summary>

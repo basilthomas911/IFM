@@ -15,6 +15,7 @@ internal static class PeriodSignalTimerPeriod
         TimeFrameType.FifteenMinutes => TimeSpan.FromMinutes(15),
         TimeFrameType.ThirtyMinutes => TimeSpan.FromMinutes(30),
         TimeFrameType.OneHour => TimeSpan.FromHours(1),
+        TimeFrameType.FourHours => TimeSpan.FromHours(4),
         TimeFrameType.Daily => TimeSpan.FromMinutes(1),
         TimeFrameType.Weekly => TimeSpan.FromMinutes(15),
         TimeFrameType.WeekMonthBridge => TimeSpan.FromHours(1),

@@ -51,7 +51,7 @@ The initial, versioned configuration is `TDI-13-2-7-34-34-1.6185-SMA-v1`:
 
 The minimum input is 34 ordered RSI samples produced with RSI period 13. The calculator also records the price/signal divergence, cross direction, market state, trend direction, strength, source sequence, and source event timestamp.
 
-Supported TDI periods are intraday only: 10 seconds, 15 seconds, 1 minute, 5 minutes, 10 minutes, 15 minutes, 30 minutes, and 1 hour. Daily, weekly, and monthly TDI requests are rejected.
+Supported TDI periods follow the authoritative UI intraday profile: 15 seconds, 1 minute, 5 minutes, 15 minutes, 1 hour, and 4 hours. Daily, weekly, and monthly TDI requests are rejected.
 
 ## Durable actor handoff
 
@@ -88,6 +88,12 @@ The signal start event owns the timer registration. On every timer callback the 
 6. emits the appropriate durable generation command.
 
 Stopping the signal removes its timer registration and its sequence-deduplication state. These actors sample immutable snapshots; they do not retain or mutate TickAggregation's live price state.
+
+### Authoritative UI startup profile
+
+After the UI has resolved the active ES contract and current value date, it starts RSI-13, ATR-14, ADX-14, and conventional MACD-9/12/26 actors for each of these timeframes: 15 seconds, 1 minute, 5 minutes, 15 minutes, 1 hour, and 4 hours. `FuturesIntradaySignalActivationProfile` is the single source of these identities and parameters. This produces exactly 24 actor start commands through `IMarketDataAnalyticsCommandApi`; TDI is not independently started because every valid RSI-13 window drives the matching TDI flow.
+
+Startup records the result of every command. A partial failure is reported to the shell and status console, startup continues, and no automatic retry is attempted. Shutdown sends the matching 24 stop commands. Integration verification must observe a typed `Started` event for every configured identity, in addition to checking that every timeframe creates its signal timer registration.
 
 ### MACD configuration and identity
 

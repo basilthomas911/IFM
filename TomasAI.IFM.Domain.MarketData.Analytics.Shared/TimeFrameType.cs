@@ -21,7 +21,8 @@ public enum TimeFrameType
     FifteenMinutes,
     ThirtyMinutes,
     OneHour,
-    WeekMonthBridge
+    WeekMonthBridge,
+    FourHours
 }
 
 public static class TradeTimePeriodTypeExtensions
@@ -41,6 +42,7 @@ public static class TradeTimePeriodTypeExtensions
         TimeFrameType.FifteenMinutes => nameof(TimeFrameType.FifteenMinutes),
         TimeFrameType.ThirtyMinutes => nameof(TimeFrameType.ThirtyMinutes),
         TimeFrameType.OneHour => nameof(TimeFrameType.OneHour),
+        TimeFrameType.FourHours => nameof(TimeFrameType.FourHours),
         _ => value.ToString()
     };
 }

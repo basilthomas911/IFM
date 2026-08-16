@@ -112,6 +112,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     PresentationError? _lastError;
     StartupReferenceDataImportStatus? _yieldCurveStartupImport;
     StartupReferenceDataImportStatus? _economicCalendarStartupImport;
+    IntradaySignalLifecycleResult? _intradaySignalStartup;
     StatusConsoleViewModel? _statusConsole;
     long _errorSequence;
     int _resetTicks;
@@ -235,6 +236,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     {
         get => _economicCalendarStartupImport;
         private set => SetProperty(ref _economicCalendarStartupImport, value);
+    }
+
+    /// <summary>Gets the latest automatic intraday signal startup result.</summary>
+    public IntradaySignalLifecycleResult? IntradaySignalStartup
+    {
+        get => _intradaySignalStartup;
+        private set => SetProperty(ref _intradaySignalStartup, value);
     }
 
     /// <summary>Gets the configured status-console ViewModel after live startup succeeds.</summary>
@@ -372,7 +380,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await StopFuturesBarDataEventConsumer();
         await StopFuturesTradeSignalEventConsumer();
         await StopTradePlacementEventConsumer();
-        await StopFuturesRsiSignalService();
+        await StopFuturesIntradaySignalServices();
         await DisableMarketDataFeedResetListener();
         await DisableTradeLiveFeed();
         await _appRoot.GetModel<ApplicationEventModel>().StopApplicationEventConsumerAsync();
@@ -427,7 +435,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await EnableMarketDataFeedResetListener(cancellationToken);
             await EnableTradeLiveFeed(cancellationToken);
             _lifecycle.RunAsync(ResetLiveFeedAsync);
-            await StartFuturesRsiSignalService(cancellationToken);
+            await StartFuturesIntradaySignalServices(cancellationToken);
             await WriteStatusConsoleAsync(
                 $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete");
             var statusContractId = BaseContracts
@@ -774,35 +782,64 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     }
 
     /// <summary>
-    /// start futures rsi signal service
+    /// Starts the authoritative RSI, ATR, ADX, and MACD intraday actor profile.
     /// </summary>
-    Task StartFuturesRsiSignalService(CancellationToken cancellationToken)
-        => _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Starting Futures Rsi Signal Service Error"));
+    Task StartFuturesIntradaySignalServices(CancellationToken cancellationToken)
+        => _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model =>
+        {
             await DelayStartupAsync(cancellationToken);
             var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
             if (esContract is not null && _valueDate.HasValue)
             {
-                var entityId = FuturesRsiSignalEntityId.Create(esContract.ContractId, _valueDate.Value,  TimeFrameType.Daily, 14);
-                await model.StartFuturesRsiSignalServiceAsync(entityId);
-                await WriteStatusConsoleAsync("Starting Futures Rsi Signal Service...");
+                await WriteStatusConsoleAsync(
+                    "Starting RSI-13, ATR-14, ADX-14, and MACD-9/12/26 for all configured intraday timeframes...");
+                IntradaySignalStartup = await model.StartFuturesIntradaySignalsAsync(
+                    esContract.ContractId,
+                    _valueDate.Value,
+                    cancellationToken);
+
+                if (IntradaySignalStartup.AllSucceeded)
+                {
+                    await WriteStatusConsoleAsync(
+                        $"Started all {IntradaySignalStartup.SuccessfulCount} intraday signal actors.");
+                    return;
+                }
+
+                var failureMessage = string.Join(
+                    Environment.NewLine,
+                    IntradaySignalStartup.Failures.Select(failure =>
+                        $"{failure.SignalType} {failure.TimeFrame}: {failure.ErrorMessage}"));
+                PublishError(
+                    IntradaySignalStartup.Failures.FirstOrDefault()?.ErrorCode ?? 0,
+                    $"Started {IntradaySignalStartup.SuccessfulCount} of {IntradaySignalStartup.RequestedCount} intraday signal actors."
+                        + Environment.NewLine
+                        + failureMessage
+                        + Environment.NewLine
+                        + "No automatic retry was attempted.",
+                    "Intraday Signal Startup");
             }
         });
 
     /// <summary>
-    /// stop futures rsi signal service
+    /// Stops every actor in the authoritative intraday signal profile.
     /// </summary>
-    Task StopFuturesRsiSignalService()
-        => _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Stopping Futures Rsi Signal Service Error"));
+    Task StopFuturesIntradaySignalServices()
+        => _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model =>
+        {
             var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
             if (esContract is not null && _valueDate.HasValue)
             {
-                var entityId = FuturesRsiSignalEntityId.Create(esContract.ContractId,  _valueDate.Value, TimeFrameType.Daily, 14);
-                await model.StopFuturesRsiSignalServiceAsync(entityId);
-                await WriteStatusConsoleAsync("Stopping Futures Rsi Signal Service...");
+                await WriteStatusConsoleAsync("Stopping intraday signal actors...");
+                var result = await model.StopFuturesIntradaySignalsAsync(
+                    esContract.ContractId,
+                    _valueDate.Value);
+                if (!result.AllSucceeded)
+                {
+                    PublishError(
+                        result.Failures.FirstOrDefault()?.ErrorCode ?? 0,
+                        $"Stopped {result.SuccessfulCount} of {result.RequestedCount} intraday signal actors.",
+                        "Intraday Signal Shutdown");
+                }
             }
         });
 
