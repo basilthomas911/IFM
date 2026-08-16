@@ -376,7 +376,7 @@ The command and main event carry only acquisition parameters, correlation metada
 
 The complete event is sent only after storage succeeds and may carry the canonical rows required by UI or downstream consumers. A valid zero-row provider response is a successful import: storage receives an empty array and the handler sends a complete event with zero records. An acquisition, mapping, validation, or storage exception sends a correlated fail event and must never send complete for the same attempt.
 
-Import main events are operation markers. Command state projectors must not use their row data to rebuild durable state, and state repositories post them to the event workflow rather than treating them as completed storage projections. The complete/fail pair is the authoritative terminal result exposed to UI and scheduled-task consumers. A failed attempt is terminal; obtaining current data requires a new import command and command ID rather than replaying the old import event.
+Import main events are operation markers. Command state projectors must not use their row data to rebuild durable state, and state repositories post them to the event workflow rather than treating them as completed storage projections. The complete/fail pair is the authoritative terminal result for a given command. Interactive terminal tracking is currently approved for UI consumers through the [UI Terminal-Operation Tracking and Rollout](UI-Terminal-Operation-Tracking-and-Rollout.md) convention. Legacy scheduled tasks have not been reviewed and must not be treated as compliant with that UI rollout. A failed attempt is terminal; obtaining current data requires a new import command and command ID rather than replaying the old import event.
 
 Tests for every external import family must cover parameter propagation, provider-to-domain mapping, the 0-row and N-row cases, one bulk storage invocation, storage-before-complete ordering where observable, acquisition failure, storage failure, and MessagePack round trips for request, complete, and fail schemas.
 
@@ -399,7 +399,7 @@ For example, a replay-durable inserted-event projection handler may:
 
 Moving this logic into an extension class must not change whether an exception propagates. Refactoring dispatch is not authorization to weaken durability, acknowledgement, or retry behavior.
 
-Transactional external-data import events follow section 7.5 instead: their typed fail event terminates that attempt, and a caller or scheduler starts any retry by submitting a new command.
+Transactional external-data import events follow section 7.5 instead: their typed fail event terminates that attempt, and an authorized caller starts any retry by submitting a new command. Scheduled-task retry policy remains deferred until the legacy scheduler design is reviewed.
 
 ### 8.3 Context use
 
@@ -622,11 +622,13 @@ Reserved. Once the EventActor, CommandActor, and QueryActor sections are mature,
 - [Actor Message Types and Delivery Conventions](Actor-Message-Types-and-Delivery-Conventions.md)
 - [Actor Event Streaming and Paged Query Contracts](Actor-Event-Streaming-and-Paged-Query-Contracts.md)
 - [Event Sourcing Projection Split-Brain Controls](Event-Sourcing-Projection-Split-Brain-Controls.md)
+- [UI Terminal-Operation Tracking and Rollout](UI-Terminal-Operation-Tracking-and-Rollout.md)
 
 ## 15. Revision history
 
 | Date | Revision |
 | --- | --- |
+| 2026-08-16 | Scoped interactive terminal-operation tracking to the approved UI convention and explicitly deferred legacy scheduled-task retry and rollout decisions. |
 | 2026-08-14 | Created the initial system-wide event actor implementation convention. Recorded derived-actor parse/receive maps, event-family extension naming, main/complete/fail co-location, default lifecycle logging, responsibility boundaries, and initial Tick Aggregation and Futures EOD application. |
 | 2026-08-14 | Promoted the document to the system-wide Actor Implementation Conventions guide. Retained EventActor as the only currently defined convention and reserved CommandActor, QueryActor, and cross-actor sections for later implementation review. |
 | 2026-08-14 | Required every EventActor handler to receive the typed actor logger, added a main-event `LogSourceType` and shared family `ServiceId` convention, and limited default logging to caught exceptions and fail lifecycle events. |

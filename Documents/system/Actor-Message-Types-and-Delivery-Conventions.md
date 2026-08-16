@@ -275,6 +275,11 @@ UI and console applications are not actor types. Their listener choice defines t
 
 A UI may therefore run more than one consumer task, but each task remains specific to one actor type and its assigned transport.
 
+When a UI submits an asynchronous command and must tell the user whether it completed, command acceptance is not
+success. The UI must correlate the returned command identifier with the event family's complete/fail result by following
+[UI Terminal-Operation Tracking and Rollout](UI-Terminal-Operation-Tracking-and-Rollout.md). That rollout currently
+applies only to UI operations; legacy scheduled tasks require a separate review.
+
 ## 10. Publication and delivery rules
 
 The following rules apply system-wide:

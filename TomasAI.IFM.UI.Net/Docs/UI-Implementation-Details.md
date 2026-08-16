@@ -292,6 +292,14 @@ Latest-value delivery is appropriate for replaceable screen state such as quotes
 
 `StatusConsoleModel` combines `IStatusConsoleWriter` with `IStatusConsoleEventConsumer`. Views and view models can publish informational or error status messages through the writer and subscribe to `StatusConsoleLoggedEvent` updates through the consumer. The main application view model routes those updates to both the status-console control and the one-line status label.
 
+### Terminal-operation tracking
+
+The authoritative cross-screen convention is [UI Terminal-Operation Tracking and Rollout](../../Documents/system/UI-Terminal-Operation-Tracking-and-Rollout.md). `YieldCurveRateEditorViewModel` and the economic-calendar import in `EconomicCalendarEditorViewModel` start their terminal listeners before command submission, retain the returned command ID, await the matching complete/fail event, buffer bounded early delivery, and refresh durable query state only after complete.
+
+`EconomicCalendarEditorView` surfaces terminal success or typed failure and implements `IAsyncFormControl`. `ReferenceForm` awaits that close lifecycle when changing editors or closing. The calendar event consumer uses a transient registration because the maintenance editor and the always-on market-calendar dashboard may be active concurrently and must not share listener state.
+
+The automatic yield-curve and calendar imports in `IFMAppViewModel` remain submission-only. They are a separate startup workflow and are not terminal-tracking compliant until startup timeout, degraded-mode, and failure-presentation behavior are explicitly designed.
+
 ## Feature map
 
 | Feature area | Primary views | Primary view models | Primary models |
@@ -302,7 +310,7 @@ Latest-value delivery is appropriate for replaceable screen state such as quotes
 | Iron condor trading | `IronCondorView`, `IronCondorTradeOrderView` | `IronCondorViewModel`, `IronCondorTradeOrderViewModel`, `IronCondorTradeInfoViewModel` | trade query/command, market-data/feed, fund, and trade-plan models |
 | End-of-day processing | `TradeEndOfDayForm` | `EndOfDayProcessViewModel` | `EndOfDayProcessEventModel`, fund and trade models |
 | Market-data reference maintenance | `MarketDataForm`, futures contract and option contract controls, yield-curve controls | `MarketDataViewModel`, `FuturesContractEditorViewModel`, `FuturesOptionContractEditorViewModel`, `YieldCurveRateEditorViewModel` | market-data command/query/event models and reference queries |
-| Reference-data maintenance | `ReferenceForm`, `LookupTypeEditorView`, `EconomicCalendarEditorView` | `ReferenceViewModel`, `LookupTypeEditorViewModel`, `EconomicCalendarEditorViewModel` | `ReferenceCommandModel`, `ReferenceQueryModel`, `EconomicCalendarEventModel` |
+| Reference-data maintenance | `ReferenceForm`, `LookupTypeEditorView`, `EconomicCalendarEditorView` | `ReferenceViewModel`, `LookupTypeEditorViewModel`, `EconomicCalendarEditorViewModel` | reference models for selector/lookup data; market-data command/query models and `EconomicCalendarEventModel` for economic calendars |
 | System administration | `SystemAdminForm`, `BackupDatabasesView` | `SystemAdminViewModel`, `BackupDatabasesViewModel` | `SystemAdminModel`, `SpreadDistributionJobModel` |
 
 ## UI-thread handling
@@ -336,7 +344,7 @@ Use the following sequence when adding a feature:
 2. Add the NATS-facing domain API implementation to `TomasAI.IFM.Application.Api.Nats.Client` when a command or query adapter is required.
 3. Register a new domain API explicitly in `Startup.RegisterCommandServices` or `Startup.RegisterQueryServices`.
 4. Add a UI model implementing `IModel<TModel>` or deriving from `BaseModel<TModel>`. It will be discovered automatically and registered transiently.
-5. Add a UI event consumer in `TomasAI.IFM.UI.EventConsumer` when push updates are required, then register it as a singleton in `Startup.RegisterEventConsumers`.
+5. Add a UI event consumer in `TomasAI.IFM.UI.EventConsumer` when push updates are required. Use a singleton only when exactly one application owner controls its lifecycle; use independent transient consumers for concurrently active screens.
 6. Give the model or view model explicit start and stop methods for every event consumer.
 7. Add a view model that owns screen state and exposes callbacks without referencing WinForms controls.
 8. Add a form implementing `IForm<TForm>` or a control implementing `IFormControl`. Forms are discovered automatically and registered as singletons.
@@ -354,6 +362,8 @@ When a singleton form is reopened, its load method must fully reset any state th
 - Forms are singletons while models are transient. Reopened forms can retain control or field state unless their load/close paths reset it.
 - `CommandResponseUIEventConsumer.StartAsync` currently completes without creating a subscription. `EventModel.WaitingForCommandResponse` can therefore become true even though that consumer has not started listening.
 - Some event-consumer method parameters, such as selected `consumeEvents` collections or site identifiers, are not used by their current concrete implementations.
+- The economic-calendar dashboard and editor resolve independent transient event consumers so stopping one listener cannot stop the other.
+- `IFMAppViewModel` startup imports remain acceptance-only command submissions and do not yet observe correlated terminal outcomes.
 - `IAppRoot.Execute`, the `BaseModelExtension` helpers, status-console methods, control-posting helpers, and several shutdown paths suppress exceptions.
 - `IFMAppViewModel` contains operational assumptions specific to the current deployment, including ES selection, a daily 14-period RSI service, and a 900-second live-feed inactivity threshold.
 - `IControlExtension.Draw` uses `user32.dll` and is Windows-only, which is consistent with the project target.

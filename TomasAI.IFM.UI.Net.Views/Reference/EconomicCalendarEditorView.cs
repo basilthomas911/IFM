@@ -12,11 +12,11 @@ using TomasAI.IFM.UI.Net.ViewModels.Reference;
 namespace TomasAI.IFM.UI.Net.Views.Reference
 {
     /// <summary>
-    /// futures contract editor
+    /// Adapts economic-calendar maintenance and correlated imports to WinForms controls.
     /// </summary>
-    public partial class EconomicCalendarEditorView : UserControl, IControlCommand, IFormControl
+    public partial class EconomicCalendarEditorView : UserControl, IControlCommand, IAsyncFormControl
     {
-        EconomicCalendarEditorViewModel _viewModel;
+        readonly EconomicCalendarEditorViewModel _viewModel;
         EditMode _editMode;
 #pragma warning disable CS0649 // Field is never assigned to
         int _lastCalendarEventIndex;
@@ -83,20 +83,22 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                     ddlCountryCodes.Items.Add(e.CountryCode);
                 var selectedIndex = ddlCountryCodes.Items.IndexOf("US");
                 ddlCountryCodes.SelectedIndex = selectedIndex == -1 ? 0 : selectedIndex;
-                _viewModel.LoadEconomicCalendars(DateOnly.FromDateTime(dtmEventDate.Value), "US");
+                var countryCode = _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? string.Empty;
+                _ = LoadCalendarsAsync(DateOnly.FromDateTime(dtmEventDate.Value), countryCode);
             });
 
             _viewModel.OnWaitCursor = () => this.Post(() => Cursor = Cursors.WaitCursor);
             _viewModel.OnDefaultCursor = () => this.Post(() => Cursor = Cursors.Default);
 
-            _viewModel.LoadCountryCodes();
+            _ = LoadEditorAsync();
         }
 
         /// <summary>
-        /// unload futures contract editor
+        /// Stops the economic-calendar listener and any active import.
         /// </summary>
         void IControlCommand.Unload()
         {
+            _ = ((IAsyncFormControl)this).CloseAsync();
         }
 
         /// <summary>
@@ -104,6 +106,8 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         /// </summary>
         public void Add(Action<bool> addAction)
         {
+            if (_viewModel.ImportOperation.IsRunning)
+                return;
             switch (_editMode)
             {
                 case EditMode.View:
@@ -151,6 +155,8 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         /// <param name="changeAction"></param>
         public void Change(Action<bool> changeAction)
         {
+            if (_viewModel.ImportOperation.IsRunning)
+                return;
             var economicCalendarId = _viewModel.GetEconomicCalendar(lstCalendarEvents.SelectedIndex)?.Id;
             if (economicCalendarId != null)
             {
@@ -195,6 +201,8 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         /// </summary>
         public void Remove()
         {
+            if (_viewModel.ImportOperation.IsRunning)
+                return;
             var economicCalendarId = _viewModel.GetEconomicCalendar(lstCalendarEvents.SelectedIndex)?.Id;
             if (economicCalendarId != null)
                 if (MessageBox.Show($"Are you sure you want to remove Economic Calendar {economicCalendarId} ?", "Remove Economic Calendar", MessageBoxButtons.YesNo) == DialogResult.Yes)
@@ -203,8 +211,70 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
 
         public void Import()
         {
+            if (_viewModel.ImportOperation.IsRunning)
+                return;
             var countryCode = _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? string.Empty;
-            _viewModel.ImportEconomicCalendars(DateTime.Now, countryCode);
+            if (string.IsNullOrWhiteSpace(countryCode))
+            {
+                this.ShowErrorMessage(
+                    "Select an economic-calendar country before importing.",
+                    "Economic Calendar Import");
+                return;
+            }
+            _viewModel.PrepareImport(DateTime.Now, countryCode);
+            _ = ImportPreparedCalendarsAsync();
+        }
+
+        async Task LoadEditorAsync()
+        {
+            try
+            {
+                await _viewModel.LoadCountryCodes();
+            }
+            catch (Exception exception)
+            {
+                this.ShowErrorMessage(exception.Message, "Economic Calendar Editor Error");
+            }
+        }
+
+        async Task LoadCalendarsAsync(DateOnly eventDate, string countryCode)
+        {
+            try
+            {
+                await _viewModel.LoadEconomicCalendars(eventDate, countryCode);
+            }
+            catch (Exception exception)
+            {
+                this.ShowErrorMessage(exception.Message, "Economic Calendar Editor Error");
+            }
+        }
+
+        async Task ImportPreparedCalendarsAsync()
+        {
+            Cursor = Cursors.WaitCursor;
+            Enabled = false;
+            try
+            {
+                await _viewModel.ImportOperation.ExecuteAsync();
+                MessageBox.Show(
+                    text: _viewModel.LastStatusMessage,
+                    caption: "Economic Calendar Import",
+                    buttons: MessageBoxButtons.OK,
+                    icon: MessageBoxIcon.Information);
+            }
+            catch (OperationCanceledException)
+            {
+                // Closing the editor cancels local observation; it does not manufacture a domain failure.
+            }
+            catch (Exception exception)
+            {
+                this.ShowErrorMessage(exception.Message, "Economic Calendar Import Failed");
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+                Enabled = true;
+            }
         }
 
         /// <summary>
@@ -293,17 +363,17 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             throw new NotImplementedException();
         }
 
-        public void Close()
-        {
-            throw new NotImplementedException();
-        }
+        public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
+
+        async ValueTask IAsyncFormControl.CloseAsync()
+            => await _viewModel.StopAsync(CancellationToken.None);
 
         private void dtmEventDate_ValueChanged(object sender, EventArgs e)
         {
             if (dtmEventDate.Enabled)
             {
                 var countryCode = _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? string.Empty;
-                _viewModel.LoadEconomicCalendars(DateOnly.FromDateTime(dtmEventDate.Value), countryCode);
+                _ = LoadCalendarsAsync(DateOnly.FromDateTime(dtmEventDate.Value), countryCode);
             }
         }
 

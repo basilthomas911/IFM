@@ -1,7 +1,7 @@
 # IFM Financial Modeling Prep Market Data Architecture
 
 Status: Implemented
-Version: 0.9
+Version: 0.11
 Date: 2026-08-16
 Scope: Financial Modeling Prep US Treasury curve and economic-calendar acquisition and MarketData-domain import
 
@@ -149,14 +149,14 @@ The first implementation does not:
 - make a multi-partition Scylla batch globally transactional;
 - run a polling loop inside the FMP client;
 - place API keys in connection strings; or
-- change the economic-calendar or yield-curve UI workflow beyond what is needed to invoke existing imports.
+- modernize or approve the legacy scheduled-task framework or its import workflows.
 
 ## 5. System context
 
 ```text
-UI / API / ScheduledTask
+UI through typed REST- or NATS-backed client
           |
-          | request an API-backed import for a date or bounded date range
+          | submit a parameter-only import request and receive a command ID
           v
 MarketData YieldCurveRate / EconomicCalendar command actor
           |
@@ -579,7 +579,7 @@ The initial default for both is `Overwrite`. Configuration is validated at start
 than falling back silently.
 
 The current import command parameters do not gain a policy property. The command actor resolves the effective policy,
-records it on the import event, and the storage projector applies that recorded value. A later command contract may
+records it on the import event, and the import event-family handler passes that recorded value to storage. A later command contract may
 allow an authorized per-request override.
 
 ### 11.2 Duplicate categories
@@ -626,8 +626,9 @@ some rows have been applied. Therefore:
 - Reject recognizes rows already owned by the same command rather than classifying them as foreign duplicates; and
 - initial range orchestration uses single-date commands to bound any partial result.
 
-The event workflow does not automatically replay a failed external acquisition. A UI or scheduler retries by submitting
-a new command because current provider data is desired; the old attempt remains terminally failed.
+The event workflow does not automatically replay a failed external acquisition. An authorized UI retry submits a new
+command because current provider data is desired; the old attempt remains terminally failed. Legacy scheduled-task
+retry behavior is deferred until that framework is separately reviewed.
 
 ## 12. Exceptions and result semantics
 
@@ -784,7 +785,8 @@ endpoint access and contract drift without writing production tables.
 
 ### Stage 4: parameter-only actor import
 
-1. Make REST, NATS, UI, and scheduled coordination submit parameter-only commands.
+1. Make REST- and NATS-backed typed clients submit parameter-only commands to the same domain actors; UI consumes the
+   client abstraction.
 2. Split date ranges into deterministic single-date commands.
 3. Record request parameters and effective duplicate policy on main import events.
 4. Acquire through `IReferenceDataApi` in the event-family handlers and publish correlated terminal events.
@@ -797,12 +799,17 @@ endpoint access and contract drift without writing production tables.
 3. Verify partition-local economic-calendar writes and key-complete reads.
 4. Add integration, concurrency, and failure-injection tests.
 
-### Stage 6: operational integration
+### Stage 6: UI terminal-operation integration
 
 1. Register the provider and import coordinator in the host.
 2. Add metrics, alerts, health, and bounded logging.
-3. Integrate authorized UI/API/ScheduledTask invocation using the current commands.
-4. Run affected domain and storage integration suites.
+3. Roll out correlated complete/fail tracking to UI operations through the typed client and event listener, following
+   the system-wide UI terminal-operation convention.
+4. Use `YieldCurveRateEditorViewModel` as the reference implementation and apply the same correlation lifecycle to
+   `EconomicCalendarEditorViewModel` imports.
+5. Run affected UI, client, domain, serialization, and storage integration suites.
+6. Keep legacy scheduled tasks outside this rollout until their task lifecycle, status persistence, retry, recovery, and
+   user-observation requirements have been reviewed and redesigned.
 
 ## 18. Acceptance criteria
 
@@ -844,8 +851,11 @@ The design is implemented only when:
     path.
 31. A valid zero-row provider response performs an empty bulk call and produces a successful complete event.
 32. Acquisition, mapping, validation, and storage failures produce a fail event and never a complete event.
-33. UI and scheduled operations use command IDs to observe terminal success/failure; a retry submits a new command.
+33. Yield-curve and economic-calendar maintenance imports use command IDs to observe terminal success/failure; a retry
+    submits a new command.
 34. Request, complete, and fail schemas have serialization round-trip tests.
+35. Legacy scheduled tasks are not represented as terminal-tracking compliant or rollout-ready until their separate
+    review and redesign is complete.
 
 ## 19. Decisions requested during review
 
@@ -876,9 +886,11 @@ The design is implemented only when:
 | Credential gate | Rotate exposed keys and remove plaintext secrets before live use |
 | Framework contracts | Define provider-neutral `ITreasuryCurve` and `IEconomicCalendar` in `Framework.MarketData.Contracts` |
 | Provider ownership | Implement both contracts in Financial Modeling Prep; application orchestration consumes Treasury data and passes the selected rate to DataBento |
+| Terminal-operation rollout | Apply the system-wide correlated complete/fail pattern to UI first; defer all legacy scheduled-task claims until a separate scheduler review |
 
 ## 20. References
 
+- [UI Terminal-Operation Tracking and Rollout](../../Documents/system/UI-Terminal-Operation-Tracking-and-Rollout.md)
 - [FMP stable Treasury Rates API](https://site.financialmodelingprep.com/developer/docs/stable/treasury-rates)
 - [FMP stable Economic Data Releases Calendar API](https://site.financialmodelingprep.com/developer/docs/stable/economics-calendar)
 - [FMP API quickstart and authentication](https://site.financialmodelingprep.com/developer/docs/quickstart)
@@ -889,6 +901,8 @@ The design is implemented only when:
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.11 | 2026-08-16 | Implemented economic-calendar editor terminal tracking with exact command-ID complete/fail correlation, early-event buffering, durable projection refresh after complete, typed failure, independent listener lifecycle, and focused UI tests. |
+| 0.10 | 2026-08-16 | Scoped terminal-operation rollout to UI, named the yield-curve editor as the reference pattern and economic-calendar editor as the next migration, corrected import-handler storage ownership wording, and explicitly deferred legacy scheduled-task review. |
 | 0.9 | 2026-08-16 | Established the authoritative parameter-only actor import flow, event-handler acquisition through `IReferenceDataApi`, 0..N bulk storage calls, correlated terminal events, transactional non-replay semantics, and removal of both legacy external-query storage facades. |
 | 0.8 | 2026-08-16 | Completed the versioned single-table calendar cutover, request-bound paged actor/REST/NATS contract, direct canonical LWT Reject behavior, restartable reconciliation tool, compatibility projection removal, and external-calendar facade retirement. |
 | 0.7 | 2026-08-15 | Implemented the FMP adapters, compatibility facades, deterministic application import coordinator, independently configured event-persisted duplicate policies, LWT Reject ownership, supplemental calendar persistence, host/API/schedule/health/metrics wiring, secret cleanup, tests, and rollout migration instructions. |

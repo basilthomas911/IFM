@@ -651,6 +651,14 @@ Market Data workflow progress on 2026-08-11:
   duplicate-date/save state, coded validation failure, and the
   no-declared-callback contract. This completes the specialized Market Data
   editor internals.
+- `EconomicCalendarEditorViewModel` now owns a guarded import operation and an
+  independent listener lifecycle. Imports retain the command ID, ignore
+  unrelated terminal events, buffer early completion, preserve typed failure,
+  treat a zero-row complete event as success, and reload the durable
+  date/country projection only after completion. The WinForms editor and parent
+  Reference form await listener shutdown. Seven focused tests cover acceptance,
+  correlation, early and duplicate delivery, zero rows, failure, cancellation,
+  empty IDs, and new-ID retry.
 - `IFMAppViewModel` now exposes observable startup/shutdown operations, menu
   availability, status line and bounded status-log state, coded error
   notifications, close requests, current contracts/value date, and the owned

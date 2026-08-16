@@ -9,6 +9,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
     readonly Dictionary<string, Func<IAppRoot, Control>> _controlMap;
     ReferenceViewModel? _viewModel;
     IControlCommand? _ctrlCommand;
+    bool _closeComplete;
 
     public ReferenceForm(IAppRoot appRoot)
     {
@@ -56,17 +57,22 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
         }
     }
 
-     void ReferenceForm_FormClosing(object sender, FormClosingEventArgs e)
+     async void ReferenceForm_FormClosing(object sender, FormClosingEventArgs e)
     {
+        if (_closeComplete)
+            return;
+        e.Cancel = true;
         if (_viewModel is not null)
             _viewModel.LoadReferenceDataDefinitionTypesOperation.PropertyChanged -= LoadOperation_PropertyChanged;
-        _ctrlCommand?.Unload();
+        await CloseActiveControlAsync();
         ResetButtons(true);
+        _closeComplete = true;
+        Close();
     }
 
-     void ddlReferenceDataSelector_SelectedIndexChanged(object sender, EventArgs e)
+     async void ddlReferenceDataSelector_SelectedIndexChanged(object sender, EventArgs e)
     {
-        _ctrlCommand?.Unload();
+        await CloseActiveControlAsync();
         pnlMarketData.Controls.Clear();
         var mktDataDefType = _viewModel?.GetReferenceDataDefinitionType(ddlReferenceDataSelector.SelectedIndex);
         if (mktDataDefType is not null && _controlMap.ContainsKey(mktDataDefType.ShortCode))
@@ -83,6 +89,16 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
             control.Visible = true;
         }
         ResetButtons(true);
+    }
+
+    async ValueTask CloseActiveControlAsync()
+    {
+        if (pnlMarketData.Controls.Count == 0)
+            return;
+        if (pnlMarketData.Controls[0] is IAsyncFormControl asyncControl)
+            await asyncControl.CloseAsync();
+        else
+            _ctrlCommand?.Unload();
     }
 
     void btnAdd_Click(object sender, EventArgs e) => _ctrlCommand?.Add(enabled => this.Post(() => RefreshAddButton(enabled)));
