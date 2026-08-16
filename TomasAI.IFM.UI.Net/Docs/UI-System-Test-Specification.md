@@ -80,45 +80,43 @@ Every step has one of these statuses:
 
 | ID | Startup/shutdown check | Dependency and expected result |
 |---|---|---|
-| G0-001 | Validate test configuration and create the run evidence directory | Valid environment name, executable paths, endpoints, and writable results location |
+| G0-001 | Validate test configuration and create the run evidence directory | Valid environment name, executable paths, endpoints, and writable results location; require `FMP_API_KEY` when the production FMP adapter is selected, or the explicit approved-adapter configuration otherwise, and record only credential presence—never the secret value |
 | G0-002 | Probe the configured NATS endpoint | Broker accepts a connection on the configured endpoint, normally port 4222 |
 | G0-003 | Probe required PostgreSQL, ScyllaDB, and Redis services | Each configured service reports reachable/ready, or the exact missing dependency is recorded |
 | G0-004 | Start `TomasAI.IFM.Application.Api.Server` in Development | Process remains alive and logs are captured |
-| G0-005 | Verify API readiness and actor runtime | Readiness succeeds and the expected actor runtime is registered; the current baseline is 81 actors |
+| G0-005 | Verify API readiness and actor runtime | Readiness succeeds and the expected actor types are registered; the current baseline is 81 registered actor types, independent of dynamically started entity instances |
 | G0-006 | Launch the configured desktop executable | Initial target is `TomasAI.IFM.UI.Net`; PID and start time are recorded |
 | G0-007 | Await desktop NATS readiness | Connection is established through readiness logic without a fixed startup delay |
 | G0-008 | Find the responsive main window | `IFMAppView` appears, has the expected title, and responds to UI Automation |
 | G0-009 | Audit desktop network transport | Desktop PID has NATS connection(s), normally port 4222, and no connection to API HTTP port 22543 |
-| G0-010 | Observe initial status, application, and economic-calendar listener startup | Startup status is recorded; unexpected listener errors fail the relevant step |
+| G0-010 | Observe initial status, application, and reference-data terminal-listener startup | Status, application, yield-curve, and economic-calendar startup listeners become active before their commands; unexpected listener errors fail the relevant step |
 | G0-011 | Query currently traded ES futures contracts | A configured current contract is returned; absence is currently `BlockedDependency` due to test data |
 | G0-012 | Load conditional latest EOD, signal, and bar state | Runs when the current contract and seed state exist; otherwise records the specific dependency |
-| G0-013 | Query and render application value date | A valid value date is returned and shown in the shell state |
-| G0-014 | Query external FMP yield-curve data | Requires implemented/configured FMP integration and credentials; currently `BlockedDependency` |
-| G0-015 | Conditionally import yield-curve data | Runs for a non-empty valid provider result and records command/event correlation |
-| G0-016 | Query external FMP economic-calendar data | Requires implemented/configured FMP integration and credentials; currently `BlockedDependency` |
-| G0-017 | Conditionally import economic-calendar data | Runs for a non-empty valid provider result and records command/event correlation |
-| G0-018 | Render economic-calendar country/date/list state | Requires imported or seeded data; selected filters and displayed result are recorded |
-| G0-019 | Observe EOD, bar, signal, placement, and feed-reset consumer startup | Each required consumer starts once without an unhandled error |
-| G0-020 | Start the configured current futures feed | Requires G0-011; command acceptance and correlated event/status are recorded |
-| G0-021 | Reach initialized shell state | Status reports initialization complete and applicable toolbar actions become enabled |
+| G0-013 | Observe automatic FMP yield-curve import | The UI submits the parameter-only domain import command, retains its command ID, and observes the matching complete event; provider acquisition occurs behind `IReferenceDataApi`, and the durable MarketData query state matches the accepted provider result, including a valid zero-row result |
+| G0-014 | Observe automatic FMP economic-calendar import | The UI submits the parameter-only domain import command, retains its command ID, and observes the matching complete event; provider acquisition occurs behind `IReferenceDataApi`, and the durable MarketData query state matches the accepted provider result, including a valid zero-row result |
+| G0-015 | Verify startup-import lifecycle policy | Both terminal listeners started before command submission, matched only the exact command ID, stopped after the bounded attempt, and issued no retry; a failed or unobserved normal-path import fails G0 even though the UI must report it and continue startup |
+| G0-016 | Query and render application value date | A valid value date is returned and shown in the shell state; reference-data imports were attempted before this live-trading-hours gate |
+| G0-017 | Render economic-calendar country/date/list state | Requires imported or seeded data; selected filters and displayed result are recorded |
+| G0-018 | Observe EOD, bar, trade-signal, placement, and feed-reset consumer startup | Each required consumer starts exactly once without an unhandled error |
+| G0-019 | Start the configured current futures feed | Requires G0-011; command acceptance and correlated event/status are recorded |
+| G0-020 | Start the authoritative intraday analytics profile | For the active ES contract and value date, observe exactly 24 typed `Started` events: RSI-13, ATR-14, ADX-14, and MACD-9/12/26 for 15 seconds, 1 minute, 5 minutes, 15 minutes, 1 hour, and 4 hours; no daily-or-longer actor is started |
+| G0-021 | Reach initialized shell state | Status reports that all 24 intraday signal actors started, then reports initialization complete and enables applicable toolbar actions; any partial signal-start result is a failed G0 step and must show that no retry occurred |
 | G0-022 | Request main-window close | Normal UI close is accepted without force-killing the process |
-| G0-023 | Observe listener and producer shutdown | Owned consumers and shared producers stop without a self-stop deadlock |
+| G0-023 | Observe analytics, listener, and producer shutdown | Observe matching stop completion for the same 24 intraday signal identities; owned consumers and shared producers stop without duplicate stops or a self-stop deadlock |
 | G0-024 | Observe conditional feed-stop behavior | If a feed was started, stop command/event completion is captured |
-| G0-025 | Verify bounded process exit and cleanup | Desktop exits within the approved threshold; no orphan UI process or desktop network connection remains |
+| G0-025 | Verify bounded process exit and cleanup | Desktop exits within the approved threshold; no orphan UI process, desktop network connection, listener, or signal timer remains |
 
-The initial shutdown reference measurement is 5.4 seconds. The automated threshold should include a small deterministic allowance and be finalized when the G0 fixture is implemented.
+The initial shutdown reference measurement is 5.4 seconds. The implemented default automated threshold is 15 seconds and can be changed explicitly with `IFM_G0_SHUTDOWN_TIMEOUT_SECONDS` when an approved environment requires a different bound.
 
 ### Current expected baseline
 
 The previous controlled verification established working end-to-end NATS command, query, and event connectivity. It also established that the desktop connected to port 4222 and not API HTTP port 22543, received status events, and shut down gracefully.
 
-The following are known environment/data limitations and must appear as explicit G0 dependencies until supplied:
+The FMP treasury-curve and economic-calendar adapters, provider-neutral `IReferenceDataApi`, parameter-only domain import flows, bulk MarketData storage writes, terminal complete/fail events, server dependency injection, and UI startup orchestration are implemented. The production adapter reads `FMP_API_KEY` from the host environment and sends it in a redacted request header. The UI attempts both imports once, reports only failure or an unobserved outcome, performs no retry, and continues startup so a user can import later.
 
-- FMP yield-curve integration and credentials are not yet available.
-- FMP economic-calendar integration and credentials are not yet available.
-- A currently traded futures contract and the necessary deterministic market test data are not yet configured.
+G0 must determine environment readiness at run time instead of describing either FMP integration as an unimplemented dependency. A missing `FMP_API_KEY`, unreachable provider, unusable Development data store, absent current ES contract, or absent deterministic market data is recorded with its exact dependency status and prevents a green run. Provider or import failure after all declared prerequisites are present is `Failed`, not evidence that the integration is missing.
 
-These limitations do not invalidate the verified NATS transport. They do prevent G0 from becoming green because successful initialization depends on them. Yield-curve validation-rule behavior must be revalidated when a non-empty FMP result is available; it must not be prematurely classified as either a configuration issue or a code defect.
+The authoritative intraday startup profile is also implemented and integration-tested through NATS. The G0 process test must still prove that the actual desktop startup selects the current ES contract, starts all 24 configured entity instances, reaches initialization complete, and stops the same instances on close. These dynamic entity instances do not change the API host's registered actor-type count.
 
 The missing `YieldCurveRateEditViewModel` composition registration found during the controlled run has been corrected and is protected by an architecture regression assertion.
 
@@ -157,10 +155,13 @@ Before G0 can pass, the Development UI test fixture needs:
 
 - a NATS endpoint and an API Server configuration that host the application actor runtime;
 - reachable configured PostgreSQL, ScyllaDB, and Redis dependencies;
+- a DataBento native/runtime build that supports the startup contract-catalog query required by `FuturesContractRolloverStartupService`;
 - one known application value date;
 - one currently traded ES futures contract;
 - deterministic latest EOD, signal, and bar data for that contract where the startup branch requires them;
-- implemented/configured FMP yield-curve and economic-calendar access, or an approved test adapter with representative provider responses;
+- FMP enabled in the API Server and a valid `FMP_API_KEY` available to that process, or an explicitly approved deterministic adapter with representative treasury and economic-calendar responses;
+- representative imported or deterministic seeded data for rendered-state assertions that require non-empty rows; a valid 0-row provider import remains a successful domain outcome and is recorded as such;
+- expected intraday signal identities derived from the active ES contract and value date using the authoritative 15-second, 1-minute, 5-minute, 15-minute, 1-hour, and 4-hour profile;
 - unique record prefixes for reversible maintenance tests;
 - cleanup ownership rules that distinguish harness-created state from existing operator state.
 
@@ -198,8 +199,8 @@ The following workflows are understood well enough to specify, but they require 
 - Start and stop the current market-data feed and observe correlated status/events.
 - Create, change, and remove futures contract definitions.
 - Create, change, and remove futures option definitions.
-- Create, change, and remove yield-curve records; exercise provider import only after FMP is available.
-- Create, change, and remove economic-calendar records; exercise provider import only after FMP is available.
+- Create, change, and remove yield-curve records; exercise the provider import with the configured FMP credential or approved deterministic adapter.
+- Create, change, and remove economic-calendar records; exercise the provider import with the configured FMP credential or approved deterministic adapter.
 - Create, change, and remove lookup types/values where domain rules permit.
 - Create a test fund and reversible transactions, orders, and trades under a unique run prefix.
 - Run supported EOD actions only against an isolated deterministic dataset.
@@ -214,7 +215,7 @@ Command tests record the command name, correlation ID, terminal command response
 - Status console: publish/receive representative statuses, preserve the newest-first bounded history, and prevent duplicate deliveries after reopening.
 - Application lifecycle and command responses: correlate terminal state with the initiating UI operation.
 - Economic calendar and market-data maintenance: reflect create/change/remove events exactly once.
-- Futures EOD, futures bar, RSI, and trade-signal events: update the intended state in order.
+- Futures EOD, futures bar, RSI, ATR, ADX, MACD, TDI, and trade-signal events: update the intended state in order and preserve timeframe identity.
 - Trade plan, position, placement, fund, order, trade, and state events: preserve lossless ordering for state transitions.
 - Market-data feed-reset events: reflect reset state without leaving controls incorrectly enabled.
 - Futures-option ticks and option-spread bars: exercise latest-value/coalesced behavior so a slow UI does not accumulate stale display work.
@@ -242,7 +243,7 @@ G5 is a reserved future gate for Milestone F. It will cover complete manual and 
 
 - Pixel-perfect WPF/QTS visual conformance and discretionary WinForms visual changes.
 - Production orders or production broker connectivity.
-- Correctness of live FMP results before the integration, credentials, mappings, and deterministic test fixture exist.
+- Independent financial correctness certification of FMP's live values beyond IFM's implemented authentication, contract validation, mapping, import, storage, and rendering responsibilities.
 - Long-duration paper-trading soak, Milestone F qualification, and live-trading readiness gates.
 - Coordinate/image-based visual regression unless a later visual specification explicitly requires it.
 
@@ -293,8 +294,16 @@ dotnet restore TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csp
 dotnet build TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csproj --no-restore
 ```
 
-Once G0 tests are implemented, execute them in an unlocked interactive Windows session with the approved Development configuration. The exact `dotnet test` filter and environment schema will be documented with the G0 fixture rather than guessed in advance.
+G0 is implemented as an opt-in process test. Execute it in an unlocked interactive Windows session with the approved Development services and deterministic data:
+
+```powershell
+$env:FMP_API_KEY = '<credential>'
+$env:IFM_RUN_UI_G0 = '1'
+dotnet test TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csproj --no-restore --filter Category=G0Process
+```
+
+Normal test runs do not launch the API Server or desktop. The non-process infrastructure coverage is selected with `--filter Category=G0Infrastructure`. Defaults and the complete `IFM_G0_*` override schema are documented in `TomasAI.IFM.UI.Net.SystemTests/Startup/README.md` and enforced by `G0Configuration`.
 
 ## Acceptance
 
-G0 is the first restoration gate. It passes only when every required G0 step is `Passed`, cleanup succeeds, and no step is `Failed`, `BlockedDependency`, or `NotRun`. FMP integration and deterministic current futures data therefore have to be supplied before startup can be declared successful, even though existing NATS transport verification is already positive. Milestone A acceptance requires G0 through G4 and operator confirmation; G5 is outside the restoration milestone.
+G0 is the first restoration gate. It passes only when every required G0 step is `Passed`, cleanup succeeds, and no step is `Failed`, `BlockedDependency`, or `NotRun`. The FMP implementation is present; the run must supply valid provider credentials or the approved deterministic adapter, usable Development infrastructure, a current ES contract, and deterministic current-market data. It must also observe successful terminal completion for both startup imports and all 24 intraday analytics actor starts. Existing NATS transport and lower-level integration verification are prerequisites, not substitutes for this desktop process evidence. Milestone A acceptance requires G0 through G4 and operator confirmation; G5 is outside the restoration milestone.

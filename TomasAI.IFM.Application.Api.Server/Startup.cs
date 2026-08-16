@@ -578,7 +578,25 @@ public static class Startup
         app.UseAuthorization();
         app.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
-            Predicate = registration => registration.Tags.Contains("ready")
+            Predicate = registration => registration.Tags.Contains("ready"),
+            ResponseWriter = static async (context, report) =>
+            {
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    status = report.Status.ToString(),
+                    totalDurationMilliseconds = report.TotalDuration.TotalMilliseconds,
+                    entries = report.Entries.ToDictionary(
+                        entry => entry.Key,
+                        entry => new
+                        {
+                            status = entry.Value.Status.ToString(),
+                            entry.Value.Description,
+                            durationMilliseconds = entry.Value.Duration.TotalMilliseconds,
+                            entry.Value.Data
+                        })
+                });
+            }
         });
         logger.LogInformationEvent("ApiServer", "web app configuration completed");
         return app;
