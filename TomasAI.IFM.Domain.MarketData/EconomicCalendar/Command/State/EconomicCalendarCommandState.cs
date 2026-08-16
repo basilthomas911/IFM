@@ -85,10 +85,8 @@ public class EconomicCalendarCommandState
         ArgumentNullException.ThrowIfNull(e);
         ArgumentNullException.ThrowIfNull(e.EconomicCalendars);
 
-        _economicCalendars.Clear();
         foreach (var economicCalendar in e.EconomicCalendars)
-            if (!_economicCalendars.TryAdd(economicCalendar.Id, economicCalendar))
-                throw new InvalidOperationException($"Duplicate economic calendar {economicCalendar.Id} in imported snapshot.");
+            _economicCalendars[economicCalendar.Id] = economicCalendar;
         return e.EconomicCalendars.Length > 0;
     }
 

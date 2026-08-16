@@ -7,5 +7,9 @@ namespace TomasAI.IFM.Application.Storage.YieldCurveRatesDb
     {
         Task<ICollection<YieldCurveRateReadModel>> ReadAsync();
         Task<ICollection<YieldCurveRateReadModel>> ReadAsync(CancellationToken cancellationToken);
+        Task<ICollection<YieldCurveRateReadModel>> ReadAsync(
+            DateOnly fromInclusive,
+            DateOnly toInclusive,
+            CancellationToken cancellationToken = default);
     }
 }

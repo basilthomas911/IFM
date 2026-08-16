@@ -1,12 +1,14 @@
 using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.YieldCurveRatesDb;
-using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Framework.MarketData.Contracts;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests;
 
@@ -14,20 +16,29 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests;
 public class YieldCurveRatesDbTests
 {
     [TestMethod]
-    [Ignore("Requires a licensed HTTP data feed connection.")]
-    public async Task CreateYieldCurveRatesOk()
+    public async Task ProviderBackedCompatibilityFacadeMapsTreasuryCurve()
     {
-        var dbConn = new DbConnectionSettings()
-            .Add("YieldCurveRatesDbConnection", @"Data Source = https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ&start_date=2018-10-16", "TomasAI.IFM.Framework.Storage");
-        var diContainer = new Dictionary<Type, YieldCurveRatesDbContext>();
-        var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
-        var dbFactory = new DbContextFactory(dbResolver);
+        var valueDate = new DateOnly(2026, 8, 14);
+        var treasury = Substitute.For<ITreasuryCurve>();
+        treasury.GetRangeAsync(valueDate, valueDate, Arg.Any<CancellationToken>())
+            .Returns([new TreasuryCurveSnapshot(
+                valueDate,
+                Enum.GetValues<TreasuryTenor>()
+                    .Select((tenor, index) => new TreasuryRatePoint(tenor, 4m + index / 100m))
+                    .ToArray(),
+                DateTimeOffset.UtcNow,
+                "test")]);
         var logger = Substitute.For<ILogger<DbProvider>>();
-        logger.When(_ => { }).Do(_ => { });
-        diContainer.Add(typeof(IObjectRepository<YieldCurveRatesDbContext>), new YieldCurveRatesDbContext(dbConn, dbFactory, logger));
-        var db = dbFactory.YieldCurveRatesDb as YieldCurveRatesDbContext; 
-        var yieldCurveRates = await db.ReadAsync();
-        Assert.IsNotNull(yieldCurveRates);
+        var db = new YieldCurveRatesDbContext(
+            treasury,
+            new ExternalMarketDataCompatibilityOptions(),
+            TimeProvider.System,
+            logger);
+
+        var yieldCurveRates = await db.ReadAsync(valueDate, valueDate);
+
+        Assert.AreEqual(1, yieldCurveRates.Count);
+        Assert.AreEqual(4d, yieldCurveRates.Single().OneMonth);
     }
 
 }

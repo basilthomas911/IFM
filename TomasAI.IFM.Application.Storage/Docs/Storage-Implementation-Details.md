@@ -236,8 +236,7 @@ Hosts must register settings for the contexts they resolve:
 | Securities | `SecuritiesDbConnection` |
 | Sequence ID | `SequenceIdDbConnection` |
 | Trade | `TradeDbConnection` |
-| Economic calendar external reader | `EconomicCalendarsDbConnection` |
-| Yield curve external reader | `YieldCurveRatesDbConnection` |
+| FMP Treasury/calendar adapter | `FMP_API_KEY` environment variable (secret; not a database connection) |
 
 Schema contexts reuse their corresponding runtime context setting. `EventSourceSchemaDb` uses `EventSourceActorDbConnection`, the same setting as `EventSourceActorDbContext`.
 

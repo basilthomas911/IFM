@@ -2,6 +2,17 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 
 internal static class MarketDataSchemaCql
 {
+    public const string CreateMarketDataImportOwnershipV1Table = """
+    CREATE TABLE IF NOT EXISTS market_data_import_ownership_v1 (
+    dataset text,
+    logicalKey text,
+    commandId uuid,
+    mayWrite boolean,
+    createdOn timestamp,
+    PRIMARY KEY ((dataset, logicalKey))
+    );
+    """;
+
     public const string CreateEconomicCalendarTable = """
     CREATE TABLE IF NOT EXISTS economic_calendar (
     eventDate timestamp,
@@ -10,6 +21,10 @@ internal static class MarketDataSchemaCql
     actual text,
     forecast text,
     prior text,
+    impact text,
+    unit text,
+    change text,
+    changePercentage text,
     createdOn timestamp,
     createdBy text,
     PRIMARY KEY (eventDate, countryCode, eventName)
@@ -26,6 +41,10 @@ internal static class MarketDataSchemaCql
     actual text,
     forecast text,
     prior text,
+    impact text,
+    unit text,
+    change text,
+    changePercentage text,
     createdOn timestamp,
     createdBy text,
     PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)
@@ -42,6 +61,10 @@ internal static class MarketDataSchemaCql
     actual text,
     forecast text,
     prior text,
+    impact text,
+    unit text,
+    change text,
+    changePercentage text,
     createdOn timestamp,
     createdBy text,
     PRIMARY KEY ((monthBucket), eventDate, countryCode, eventName)

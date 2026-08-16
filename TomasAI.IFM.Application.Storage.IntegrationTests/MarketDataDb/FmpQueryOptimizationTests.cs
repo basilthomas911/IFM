@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
@@ -39,6 +41,27 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
             .And.Contain("LIMIT 2500");
         MarketDataDbCql.GetEconomicCalendars
             .Should().Contain("LIMIT 2500");
+    }
+
+    [Fact]
+    public void FmpSchemaPersistsSupplementalFieldsAndRejectUsesConditionalOwnership()
+    {
+        MarketDataSchemaCql.CreateEconomicCalendarTable
+            .Should().Contain("impact text")
+            .And.Contain("unit text")
+            .And.Contain("change text")
+            .And.Contain("changePercentage text");
+        MarketDataDbCql.InsertEconomicCalendar
+            .Should().Contain(":impact")
+            .And.Contain(":changePercentage");
+        MarketDataSchemaCql.CreateMarketDataImportOwnershipV1Table
+            .Should().Contain("PRIMARY KEY ((dataset, logicalKey))");
+        MarketDataDbCql.ClaimMarketDataImportOwnershipV1
+            .Should().Contain("IF NOT EXISTS")
+            .And.NotContain("ALLOW FILTERING");
+        MarketDataDbCql.GetMarketDataImportOwnershipV1
+            .Should().Contain("dataset = :dataset AND logicalKey = :logicalKey")
+            .And.NotContain("ALLOW FILTERING");
     }
 
     [Fact]
@@ -140,6 +163,69 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
         {
             await fixture.DevDatabase.DeleteYieldCurveRateAsync(earlier.ValueDate);
             await fixture.DevDatabase.DeleteYieldCurveRateAsync(latest.ValueDate);
+        }
+    }
+
+    [Fact]
+    public async Task RejectOwnershipAllowsSameCommandReplayAndRejectsConcurrentCommand()
+    {
+        var dateOffset = (int)(BitConverter.ToUInt32(Guid.NewGuid().ToByteArray()) % 30_000);
+        var rate = SampleData.YieldCurveRate with
+        {
+            ValueDate = new DateOnly(8000, 1, 1).AddDays(dateOffset)
+        };
+        var commandId = Guid.NewGuid();
+
+        try
+        {
+            await fixture.DevDatabase.InsertYieldCurveRatesAsync(
+                [rate], ImportDuplicatePolicy.Reject, commandId);
+            await fixture.DevDatabase.InsertYieldCurveRatesAsync(
+                [rate], ImportDuplicatePolicy.Reject, commandId);
+
+            var act = () => fixture.DevDatabase.InsertYieldCurveRatesAsync(
+                [rate], ImportDuplicatePolicy.Reject, Guid.NewGuid());
+
+            await act.Should().ThrowAsync<MarketDataImportDuplicateException>();
+            (await fixture.DevDatabase.GetYieldCurveRateAsync(rate.ValueDate))
+                .Should().BeEquivalentTo(rate);
+        }
+        finally
+        {
+            await fixture.DevDatabase.DeleteYieldCurveRateAsync(rate.ValueDate);
+        }
+    }
+
+    [Fact]
+    public async Task RejectOwnershipFailsClosedForPreExistingCalendarRow()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var calendar = new EconomicCalendarReadModel(
+            new DateTime(8995, 6, 15, 12, 0, 0, DateTimeKind.Utc),
+            "QX",
+            $"reject-existing-{suffix}",
+            "1",
+            null,
+            null,
+            DateTime.UtcNow,
+            nameof(FmpQueryOptimizationTests));
+
+        try
+        {
+            await fixture.DevDatabase.InsertEconomicCalendarAsync(calendar);
+
+            var act = () => fixture.DevDatabase.InsertEconomicCalendarsAsync(
+                [calendar with { Actual = "2" }],
+                ImportDuplicatePolicy.Reject,
+                Guid.NewGuid());
+
+            await act.Should().ThrowAsync<MarketDataImportDuplicateException>();
+            (await fixture.DevDatabase.GetEconomicCalendarAsync(calendar.Id))!
+                .Actual.Should().Be("1");
+        }
+        finally
+        {
+            await fixture.DevDatabase.DeleteEconomicCalendarAsync(calendar.Id);
         }
     }
 

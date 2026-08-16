@@ -43,6 +43,9 @@ public record ImportYieldCurveRatesCommand : ICommand<YieldCurveRateEntityId>
     [Key(7)]
     public YieldCurveRateReadModel[] YieldCurveRates { get; init; } = [];
 
+    [Key(8)]
+    public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
+
     /// <summary>Parameterless constructor required for MessagePack deserialization.</summary>
     public ImportYieldCurveRatesCommand() { }
 
@@ -51,10 +54,14 @@ public record ImportYieldCurveRatesCommand : ICommand<YieldCurveRateEntityId>
     /// </summary>
     /// <param name="importDate">The import date (used to derive the entity year).</param>
     /// <param name="yieldCurveRates">Array of yield curve rates (cannot be null).</param>
-    public ImportYieldCurveRatesCommand(DateTime importDate, YieldCurveRateReadModel[] yieldCurveRates)
+    public ImportYieldCurveRatesCommand(
+        DateTime importDate,
+        YieldCurveRateReadModel[] yieldCurveRates,
+        ImportDuplicatePolicy duplicatePolicy = ImportDuplicatePolicy.Overwrite)
     {
         ImportDate = importDate;
         YieldCurveRates = yieldCurveRates ?? throw new ArgumentNullException(nameof(yieldCurveRates));
+        DuplicatePolicy = duplicatePolicy;
         EntityId = new YieldCurveRateEntityId(importDate.Year);
         ErrorCode = ErrorId;
         RouteTo = BoundedContextName.YieldCurveRateBoundedContext;
@@ -70,7 +77,8 @@ public record ImportYieldCurveRatesCommand : ICommand<YieldCurveRateEntityId>
         int errorCode,                         // Key(4)
         BoundedContextName routeTo,            // Key(5)
         DateTime importDate,                   // Key(6)
-        YieldCurveRateReadModel[] yieldCurveRates) // Key(7)
+        YieldCurveRateReadModel[] yieldCurveRates, // Key(7)
+        ImportDuplicatePolicy duplicatePolicy)     // Key(8)
     {
         CommandId = commandId;
         Subject = subject;
@@ -80,5 +88,6 @@ public record ImportYieldCurveRatesCommand : ICommand<YieldCurveRateEntityId>
         RouteTo = routeTo;
         ImportDate = importDate;
         YieldCurveRates = yieldCurveRates;
+        DuplicatePolicy = duplicatePolicy;
     }
 }

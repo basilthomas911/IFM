@@ -2,6 +2,15 @@
 
 internal static class MarketDataDbCql
 {
+    public const string ClaimMarketDataImportOwnershipV1 = """
+    INSERT INTO market_data_import_ownership_v1 (dataset, logicalKey, commandId, mayWrite, createdOn)
+    VALUES (:dataset, :logicalKey, :commandId, :mayWrite, :createdOn) IF NOT EXISTS;
+    """;
+    public const string GetMarketDataImportOwnershipV1 = """
+    SELECT commandId AS "CommandId", mayWrite AS "MayWrite" FROM market_data_import_ownership_v1
+    WHERE dataset = :dataset AND logicalKey = :logicalKey;
+    """;
+
     public const string DeleteEconomicCalendar = """
     DELETE FROM economic_calendar
     WHERE eventDate = :eventDate AND countryCode = :countryCode AND eventName = :eventName;
@@ -17,7 +26,7 @@ internal static class MarketDataDbCql
     AND countryCode = :countryCode AND eventName = :eventName;
     """;
     public const string GetEconomicCalendarById = """
-    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
+    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
     FROM economic_calendar WHERE eventDate = :eventDate AND countryCode = :countryCode AND eventName = :eventName;
     """;
     public const string GetEconomicCalendarCountryCodes = """
@@ -25,13 +34,13 @@ internal static class MarketDataDbCql
     WHERE lookupId = :lookupId LIMIT 512;
     """;
     public const string GetEconomicCalendars = """
-    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
+    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
     FROM economic_calendar_by_country_month_v2
     WHERE countryCode = :countryCode AND monthBucket = :monthBucket AND eventDate >= :startDate AND eventDate <= :endDate
     LIMIT 2500;
     """;
     public const string GetEconomicCalendarsByMonth = """
-    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
+    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
     FROM economic_calendar_by_month_v1
     WHERE monthBucket = :monthBucket LIMIT 2500;
     """;
@@ -40,16 +49,16 @@ internal static class MarketDataDbCql
     WHERE lookupId = :lookupId LIMIT 120;
     """;
     public const string InsertEconomicCalendar = """
-    INSERT INTO economic_calendar (eventDate, countryCode, eventName, actual, forecast, prior, createdOn, createdBy)
-    VALUES (:eventDate, :countryCode, :eventName, :actual, :forecast, :prior, :createdOn, :createdBy);
+    INSERT INTO economic_calendar (eventDate, countryCode, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy)
+    VALUES (:eventDate, :countryCode, :eventName, :actual, :forecast, :prior, :impact, :unit, :change, :changePercentage, :createdOn, :createdBy);
     """;
     public const string InsertEconomicCalendarByCountryMonthV2 = """
-    INSERT INTO economic_calendar_by_country_month_v2 (countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, createdOn, createdBy)
-    VALUES (:countryCode, :monthBucket, :eventDate, :eventName, :actual, :forecast, :prior, :createdOn, :createdBy);
+    INSERT INTO economic_calendar_by_country_month_v2 (countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy)
+    VALUES (:countryCode, :monthBucket, :eventDate, :eventName, :actual, :forecast, :prior, :impact, :unit, :change, :changePercentage, :createdOn, :createdBy);
     """;
     public const string InsertEconomicCalendarByMonthV1 = """
-    INSERT INTO economic_calendar_by_month_v1 (monthBucket, eventDate, countryCode, eventName, actual, forecast, prior, createdOn, createdBy)
-    VALUES (:monthBucket, :eventDate, :countryCode, :eventName, :actual, :forecast, :prior, :createdOn, :createdBy);
+    INSERT INTO economic_calendar_by_month_v1 (monthBucket, eventDate, countryCode, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy)
+    VALUES (:monthBucket, :eventDate, :countryCode, :eventName, :actual, :forecast, :prior, :impact, :unit, :change, :changePercentage, :createdOn, :createdBy);
     """;
     public const string InsertEconomicCalendarCountryCodeV1 = """
     INSERT INTO economic_calendar_country_code_v1 (lookupId, countryCode)
@@ -60,11 +69,11 @@ internal static class MarketDataDbCql
     VALUES (:lookupId, :monthBucket);
     """;
     public const string GetEconomicCalendarProjectionSource = """
-    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
+    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
     FROM economic_calendar;
     """;
     public const string GetEconomicCalendarByMonthV1All = """
-    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
+    SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy"
     FROM economic_calendar_by_month_v1;
     """;
     public const string GetEconomicCalendarCountryCodeV1All = """

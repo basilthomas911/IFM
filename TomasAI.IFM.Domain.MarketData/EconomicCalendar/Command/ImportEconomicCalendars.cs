@@ -7,13 +7,14 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.State;
+using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
 
 namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command;
 
 public static class ImportEconomicCalendars
 {
     /// <summary>
-    /// Validates the complete import before mutating state, then records one cumulative batch snapshot event.
+    /// Validates and normalizes the complete import before mutating state, then records one batch event.
     /// </summary>
     /// <param name="e">The import economic calendars command.</param>
     /// <param name="state">The economic calendar command state.</param>
@@ -21,25 +22,45 @@ public static class ImportEconomicCalendars
     /// <exception cref="AddEconomicCalendarException">Thrown if an economic calendar with the same entity identifier already exists in the state.</exception>
     public static bool Execute(this ImportEconomicCalendarsCommand e, EconomicCalendarCommandState state)
     {
-        var importedIds = new HashSet<EconomicCalendarId>();
+        var normalized = new Dictionary<EconomicCalendarId, EconomicCalendarReadModel>();
         foreach (var economicCalendar in e.EconomicCalendars)
         {
             var id = economicCalendar.Id;
-            if (!importedIds.Add(id) || state.EconomicCalendarExists(id))
-                throw new AddEconomicCalendarException(e.EconomicCalendarAlreadyExistsErrorMsg());
+            if (normalized.TryGetValue(id, out var existing))
+            {
+                if (existing != economicCalendar)
+                {
+                    throw new MarketDataImportDuplicateException(
+                        $"Conflicting economic-calendar entries were supplied for {id}.");
+                }
+
+                continue;
+            }
+
+            if (e.DuplicatePolicy == ImportDuplicatePolicy.Reject
+                && state.EconomicCalendarExists(id))
+            {
+                throw new MarketDataImportDuplicateException(
+                    $"Economic calendar {id} already exists.");
+            }
+
+            normalized.Add(id, economicCalendar);
         }
 
-        var snapshot = new EconomicCalendarReadModel[state.Count + e.EconomicCalendars.Length];
-        state.CopyEconomicCalendarsTo(snapshot);
-        e.EconomicCalendars.CopyTo(snapshot, state.Count);
-        return state.Update(e.CreateEconomicCalendarsImportedEvent(snapshot), e);
+        return state.Update(
+            e.CreateEconomicCalendarsImportedEvent(
+                [.. normalized.Values
+                    .OrderBy(calendar => calendar.EventDate)
+                    .ThenBy(calendar => calendar.CountryCode, StringComparer.Ordinal)
+                    .ThenBy(calendar => calendar.EventName, StringComparer.Ordinal)]),
+            e);
     }
 
     /// <summary>
-    /// Creates the cumulative batch snapshot used by import streams.
+    /// Creates the normalized batch event used by import streams.
     /// </summary>
     /// <param name="e">The import economic calendars command.</param>
-    /// <param name="economicCalendars">The complete imported state represented by the snapshot.</param>
+    /// <param name="economicCalendars">The normalized imported rows.</param>
     /// <returns>The created batch import event.</returns>
     internal static EconomicCalendarsImportedEvent CreateEconomicCalendarsImportedEvent(
         this ImportEconomicCalendarsCommand e,
@@ -51,7 +72,8 @@ public static class ImportEconomicCalendars
            EntityId = e.EntityId,
            EconomicCalendars = economicCalendars,
            ImportedOn = e.OriginatedOn,
-           ImportedBy = e.OriginatedBy
+           ImportedBy = e.OriginatedBy,
+           DuplicatePolicy = e.DuplicatePolicy
        };
 
     public static string EconomicCalendarAlreadyExistsErrorMsg(this ICommand e) => e switch

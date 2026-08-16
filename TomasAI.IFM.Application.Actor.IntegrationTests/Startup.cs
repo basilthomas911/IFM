@@ -19,6 +19,7 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -232,6 +233,8 @@ public static class Startup
             services.AddSingleton(siContainer);
             services.AddSimpleInjector(siContainer);
             services.AddHttpClient();
+            services.AddFinancialModelingPrepMarketData(options => options.Enabled = false);
+            services.AddSingleton(new ExternalMarketDataCompatibilityOptions());
             services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             var redisUri = config.GetValue<string>("AppSettings:RedisUri")!;
             services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisUri));
@@ -350,8 +353,6 @@ public static class Startup
                 .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
                 .Add("SecuritiesDbConnection", config.GetConnectionString("SecuritiesDbConnection")!, "System.Data.ScyllaDb")
                 .Add("TradeDbConnection", config.GetConnectionString("TradeDbConnection")!, "System.Data.ScyllaDb")
-                .Add("YieldCurveRatesDbConnection", config.GetConnectionString("YieldCurveRatesDbConnection")!, "TomasAI.IFM.Framework.Storage")
-                .Add("EconomicCalendarsDbConnection", config.GetConnectionString("EconomicCalendarsDbConnection")!, "TomasAI.IFM.Framework.Storage")
             );
             services.AddSingleton<IDbCache, DbCache>();
             services.AddSingleton<IDbContextResolver>(_ => new DbContextResolver(e => GetContainerInstance(e)!));

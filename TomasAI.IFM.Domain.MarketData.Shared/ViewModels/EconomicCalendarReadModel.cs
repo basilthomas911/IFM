@@ -27,15 +27,15 @@ public record EconomicCalendarReadModel
 
     /// <summary>Published actual value.</summary>
     [Key(3)]
-    public string Actual { get; init; }
+    public string? Actual { get; init; }
 
     /// <summary>Market/analyst forecast value.</summary>
     [Key(4)]
-    public string Forecast { get; init; }
+    public string? Forecast { get; init; }
 
     /// <summary>Previously reported value (prior).</summary>
     [Key(5)]
-    public string Prior { get; init; }
+    public string? Prior { get; init; }
 
     /// <summary>Timestamp when this record was created.</summary>
     [Key(6)]
@@ -45,6 +45,18 @@ public record EconomicCalendarReadModel
     [Key(7)]
     public string CreatedBy { get; init; }
 
+    [Key(8)]
+    public string? Impact { get; init; }
+
+    [Key(9)]
+    public string? Unit { get; init; }
+
+    [Key(10)]
+    public string? Change { get; init; }
+
+    [Key(11)]
+    public string? ChangePercentage { get; init; }
+
     /// <summary>
     /// Parameterless constructor for serializers; initializes strings to empty.
     /// </summary>
@@ -52,9 +64,6 @@ public record EconomicCalendarReadModel
     {
         CountryCode = string.Empty;
         EventName = string.Empty;
-        Actual = string.Empty;
-        Forecast = string.Empty;
-        Prior = string.Empty;
         CreatedBy = string.Empty;
     }
 
@@ -65,11 +74,15 @@ public record EconomicCalendarReadModel
         DateTime eventDate,
         string countryCode,
         string eventName,
-        string actual,
-        string forecast,
-        string prior,
+        string? actual,
+        string? forecast,
+        string? prior,
         DateTime createdOn,
-        string createdBy)
+        string createdBy,
+        string? impact = null,
+        string? unit = null,
+        string? change = null,
+        string? changePercentage = null)
     {
         EventDate = eventDate;
         CountryCode = countryCode;
@@ -79,6 +92,10 @@ public record EconomicCalendarReadModel
         Prior = prior;
         CreatedOn = createdOn;
         CreatedBy = createdBy;
+        Impact = impact;
+        Unit = unit;
+        Change = change;
+        ChangePercentage = changePercentage;
     }
 
     /// <summary>Derived identifier (excluded from MessagePack).</summary>

@@ -7,6 +7,8 @@ public sealed class FinancialModelingPrepOptions
 {
     public const string DefaultApiKeyEnvironmentVariable = "FMP_API_KEY";
 
+    public bool Enabled { get; set; } = true;
+
     public Uri BaseAddress { get; set; } = new("https://financialmodelingprep.com/stable/");
 
     public string TreasuryRatesEndpoint { get; set; } = "treasury-rates";

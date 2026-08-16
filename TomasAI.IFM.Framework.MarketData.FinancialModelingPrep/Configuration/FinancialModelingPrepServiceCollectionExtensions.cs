@@ -22,7 +22,7 @@ public static class FinancialModelingPrepServiceCollectionExtensions
 
         var options = new FinancialModelingPrepOptions();
         configure?.Invoke(options);
-        options.Validate(requireApiKey: true);
+        options.Validate(requireApiKey: options.Enabled);
 
         services.TryAddSingleton(options);
         services.TryAddSingleton(TimeProvider.System);

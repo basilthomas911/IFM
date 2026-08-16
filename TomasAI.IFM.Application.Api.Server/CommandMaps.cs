@@ -26,6 +26,7 @@ using TomasAI.IFM.Domain.OptionPricer.Shared.CommandParameters;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
+using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Shared.WebService;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.CommandParameters;
@@ -46,6 +47,7 @@ static public class CommandMaps
             .MapFundCommands()
             .MapFundTransactionCommands()
             .MapMarketDataCommands()
+            .MapFmpMarketDataEndpoints()
             .MapMarketDataAnalyticsCommands()
             .MapMarketDataFeedCommands()
             .MapOptionPricerCommands()
@@ -296,10 +298,10 @@ public static class ReferenceCommands
                 return await e.RequestAsync<RemoveEconomicCalendarCommand, EconomicCalendarId>(cmd!);
             });
 
-        endpoints.MapPost(MarketDataUriPath.ImportEconomicCalendars, async (IActorService e, ImportEconomicCalendarsParameter cmdParam)
+        endpoints.MapPost(MarketDataUriPath.ImportEconomicCalendars, async (IActorService e, ImportEconomicCalendarsParameter cmdParam, MarketDataImportPolicyOptions policies)
             => {
                 var entityId = new EconomicCalendarId(cmdParam.ImportedDate, "ZZ", "ImportEconomicCalendars");
-                ImportEconomicCalendarsCommand cmd = new(cmdParam.EconomicCalendars, cmdParam.ImportedDate)
+                ImportEconomicCalendarsCommand cmd = new(cmdParam.EconomicCalendars, cmdParam.ImportedDate, policies.EconomicCalendar)
                 {
                     CommandId = Guid.NewGuid(),
                     Subject = new ActorSubject(ActorType.Command, ImportEconomicCalendarsCommand.Actor, ImportEconomicCalendarsCommand.Verb, entityId.Format()),
@@ -488,10 +490,10 @@ public static class MarketDataCommands
                 return await e.RequestAsync<RemoveYieldCurveRateCommand, YieldCurveRateEntityId>(cmd!);
             });
 
-        endpoints.MapPost(MarketDataUriPath.ImportYieldCurveRates, async (IActorService e, ImportYieldCurveRatesParameter cmdParam)
+        endpoints.MapPost(MarketDataUriPath.ImportYieldCurveRates, async (IActorService e, ImportYieldCurveRatesParameter cmdParam, MarketDataImportPolicyOptions policies)
             => {
                 var entityId = new YieldCurveRateEntityId(cmdParam.ImportDate.Year);
-                ImportYieldCurveRatesCommand cmd = new(cmdParam.ImportDate, cmdParam.YieldCurveRates)
+                ImportYieldCurveRatesCommand cmd = new(cmdParam.ImportDate, cmdParam.YieldCurveRates, policies.Treasury)
                 {
                     CommandId = Guid.NewGuid(),
                     Subject = new ActorSubject(ActorType.Command, ImportYieldCurveRatesCommand.Actor, ImportYieldCurveRatesCommand.Verb, entityId.Format()),

@@ -18,9 +18,14 @@ public partial class MarketDataDbContext
     static EconomicCalendarReadModel MapToEconomicCalendar(IObjectDataRecord row) => new()
     {
         EventDate = NormalizeEconomicCalendarTimestamp(row.GetDateTime(0)), CountryCode = row.GetString(1), EventName = row.GetString(2),
-        Actual = row.GetString(3), Forecast = row.GetString(4), Prior = row.GetString(5),
-        CreatedOn = row.GetDateTime(6), CreatedBy = row.GetString(7)
+        Actual = GetNullableString(row, 3), Forecast = GetNullableString(row, 4), Prior = GetNullableString(row, 5),
+        Impact = GetNullableString(row, 6), Unit = GetNullableString(row, 7),
+        Change = GetNullableString(row, 8), ChangePercentage = GetNullableString(row, 9),
+        CreatedOn = row.GetDateTime(10), CreatedBy = row.GetString(11)
     };
+
+    static string? GetNullableString(IObjectDataRecord row, int index)
+        => row.IsNull(index) ? null : row.GetString(index);
 
     static EconomicCalendarCountryCodeReadModel MapToEconomicCalendarCountryCode(IObjectDataRecord row)
         => new(row.GetString(0));
@@ -126,8 +131,18 @@ public partial class MarketDataDbContext
         => InsertEconomicCalendarsAsync([economicCalendar]);
 
     public async Task InsertEconomicCalendarsAsync(ICollection<EconomicCalendarReadModel> economicCalendars)
+        => await InsertEconomicCalendarsAsync(
+            economicCalendars,
+            ImportDuplicatePolicy.Overwrite,
+            Guid.Empty);
+
+    public async Task InsertEconomicCalendarsAsync(
+        ICollection<EconomicCalendarReadModel> economicCalendars,
+        ImportDuplicatePolicy duplicatePolicy,
+        Guid commandId)
     {
         if (economicCalendars.Count == 0) return;
+        ValidateImportPolicy(duplicatePolicy, commandId);
         var db = _dbFactory.MarketDataDb;
         var commands = new List<object>(economicCalendars.Count * 3);
         var countryCodes = new HashSet<string>(StringComparer.Ordinal);
@@ -135,17 +150,31 @@ public partial class MarketDataDbContext
         foreach (var row in economicCalendars)
         {
             var eventDate = NormalizeEconomicCalendarTimestamp(row.EventDate);
+            if (duplicatePolicy == ImportDuplicatePolicy.Reject)
+            {
+                await EnsureImportOwnershipAsync(
+                    "economic-calendar",
+                    $"{eventDate:O}|{row.CountryCode}|{row.EventName}",
+                    commandId,
+                    await GetEconomicCalendarAsync(
+                        new EconomicCalendarId(eventDate, row.CountryCode, row.EventName),
+                        CancellationToken.None).ConfigureAwait(false) is not null)
+                    .ConfigureAwait(false);
+            }
             var monthBucket = EconomicCalendarMonthBucket(eventDate);
             commands.Add(db.Use(MarketDataDbCql.InsertEconomicCalendar)
                 .SetParameters(new InsertEconomicCalendar(eventDate, row.CountryCode, row.EventName,
-                    row.Actual, row.Forecast, row.Prior, row.CreatedOn, row.CreatedBy)).QueueCommand());
+                    row.Actual, row.Forecast, row.Prior, row.Impact, row.Unit, row.Change,
+                    row.ChangePercentage, row.CreatedOn, row.CreatedBy)).QueueCommand());
             commands.Add(db.Use(MarketDataDbCql.InsertEconomicCalendarByCountryMonthV2)
                 .SetParameters(new InsertEconomicCalendarByCountryMonthV2(row.CountryCode,
                     monthBucket, eventDate, row.EventName, row.Actual,
-                    row.Forecast, row.Prior, row.CreatedOn, row.CreatedBy)).QueueCommand());
+                    row.Forecast, row.Prior, row.Impact, row.Unit, row.Change,
+                    row.ChangePercentage, row.CreatedOn, row.CreatedBy)).QueueCommand());
             commands.Add(db.Use(MarketDataDbCql.InsertEconomicCalendarByMonthV1)
                 .SetParameters(new InsertEconomicCalendarByMonthV1(monthBucket, eventDate,
                     row.CountryCode, row.EventName, row.Actual, row.Forecast, row.Prior,
+                    row.Impact, row.Unit, row.Change, row.ChangePercentage,
                     row.CreatedOn, row.CreatedBy)).QueueCommand());
             countryCodes.Add(row.CountryCode);
             monthBuckets.Add(monthBucket);
@@ -214,6 +243,10 @@ public partial class MarketDataDbContext
                 row.Actual,
                 row.Forecast,
                 row.Prior,
+                row.Impact,
+                row.Unit,
+                row.Change,
+                row.ChangePercentage,
                 row.CreatedOn,
                 row.CreatedBy));
             if (calendarBatch.Count == batchSize)
@@ -359,6 +392,10 @@ public partial class MarketDataDbContext
         hash = MarketDataProjectionHash.Add(hash, row.Actual);
         hash = MarketDataProjectionHash.Add(hash, row.Forecast);
         hash = MarketDataProjectionHash.Add(hash, row.Prior);
+        hash = MarketDataProjectionHash.Add(hash, row.Impact);
+        hash = MarketDataProjectionHash.Add(hash, row.Unit);
+        hash = MarketDataProjectionHash.Add(hash, row.Change);
+        hash = MarketDataProjectionHash.Add(hash, row.ChangePercentage);
         hash = MarketDataProjectionHash.Add(hash, row.CreatedOn.Ticks);
         return MarketDataProjectionHash.Add(hash, row.CreatedBy);
     }

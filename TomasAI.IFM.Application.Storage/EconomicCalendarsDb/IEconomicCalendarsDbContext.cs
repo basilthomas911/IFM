@@ -12,5 +12,10 @@ namespace TomasAI.IFM.Application.Storage.EconomicCalendarsDb
     {
         Task<ICollection<EconomicCalendarReadModel>> ReadAsync();
         Task<ICollection<EconomicCalendarReadModel>> ReadAsync(CancellationToken cancellationToken);
+        Task<ICollection<EconomicCalendarReadModel>> ReadAsync(
+            DateOnly fromInclusive,
+            DateOnly toInclusive,
+            IReadOnlySet<string>? countryCodes = null,
+            CancellationToken cancellationToken = default);
     }
 }

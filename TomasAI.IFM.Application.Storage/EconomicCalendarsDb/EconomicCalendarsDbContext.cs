@@ -1,99 +1,76 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Storage;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.EconomicCalendarsDb;
 
 /// <summary>
-/// Represents the database context for managing economic calendar data.
+/// Compatibility facade for callers of the former external-URI repository.
+/// Provider failures remain failures and are never converted into empty data.
 /// </summary>
-/// <remarks>This class provides functionality for interacting with the Economic Calendars database,  including
-/// mapping models and reading data from external sources. It extends  <see cref="ObjectDataRepository{T}"/> to provide
-/// repository-like behavior and implements  <see cref="IEconomicCalendarsDbContext"/> for dependency injection and
-/// abstraction.</remarks>
-/// <param name="connectionSettings"></param>
-/// <param name="dbFactory"></param>
-/// <param name="logger"></param>
-public class EconomicCalendarsDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger) 
-    : ObjectDataRepository<EconomicCalendarsDbContext>(connectionSettings[EconomicCalendarsDbConnection], logger), IEconomicCalendarsDbContext
+public sealed class EconomicCalendarsDbContext(
+    IEconomicCalendar economicCalendar,
+    ExternalMarketDataCompatibilityOptions options,
+    TimeProvider timeProvider,
+    ILogger<DbProvider> logger)
+    : ObjectDataRepository<EconomicCalendarsDbContext>(null!, logger), IEconomicCalendarsDbContext
 {
-    public const string EconomicCalendarsDbConnection = "EconomicCalendarsDbConnection";
-    readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
+    private readonly IEconomicCalendar _economicCalendar = economicCalendar
+        ?? throw new ArgumentNullException(nameof(economicCalendar));
+    private readonly ExternalMarketDataCompatibilityOptions _options = Validate(options);
+    private readonly TimeProvider _timeProvider = timeProvider
+        ?? throw new ArgumentNullException(nameof(timeProvider));
 
-    /// <summary>
-    /// Gets the database context.
-    /// </summary>
     public override EconomicCalendarsDbContext Database => this;
 
-    static EconomicCalendarJsonModel MapEconomicCalendar(IObjectDataRecord row)
-        => new(
-            row.GetString(0),
-            row.GetDateTime(1),
-            row.GetString(2),
-            row.GetString(3),
-            row.GetString(4),
-            row.GetString(5),
-            row.GetString(6),
-            row.GetString(7),
-            row.GetString(8));
+    public Task<ICollection<EconomicCalendarReadModel>> ReadAsync() =>
+        ReadAsync(CancellationToken.None);
 
-    /// <summary>
-    /// read economic calendars from external web site
-    /// </summary>
-    /// <returns></returns>
-    public async Task<ICollection<EconomicCalendarReadModel>> ReadAsync()
+    public Task<ICollection<EconomicCalendarReadModel>> ReadAsync(
+        CancellationToken cancellationToken)
     {
-        try
-        {
-            var db = _dbFactory.EconomicCalendarsDb;
-            var economicCalendarJson = await db.Use(connectionString => new DataReaderOptions(connectionString))
-                .ReadAsync(MapEconomicCalendar);
-            var economicCalendars = new List<EconomicCalendarReadModel>();
-            foreach (var e in economicCalendarJson)
-            {
-                try
-                {
-                    economicCalendars.Add(e.ToViewModel());
-                }
-                catch { }
-            }
-            return economicCalendars;
-        }
-        catch 
-        {
-            return [];
-        }
+        var today = DateOnly.FromDateTime(_timeProvider.GetUtcNow().UtcDateTime);
+        return ReadAsync(
+            today.AddDays(-_options.EconomicCalendarLookbackDays),
+            today.AddDays(_options.EconomicCalendarForwardDays),
+            _options.EconomicCalendarCountryCodes,
+            cancellationToken);
     }
 
-    public async Task<ICollection<EconomicCalendarReadModel>> ReadAsync(CancellationToken cancellationToken)
+    public async Task<ICollection<EconomicCalendarReadModel>> ReadAsync(
+        DateOnly fromInclusive,
+        DateOnly toInclusive,
+        IReadOnlySet<string>? countryCodes = null,
+        CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var db = _dbFactory.EconomicCalendarsDb;
-            var economicCalendarJson = await db.Use(connectionString => new DataReaderOptions(connectionString))
-                .ReadAsync(MapEconomicCalendar, cancellationToken);
-            var economicCalendars = new List<EconomicCalendarReadModel>();
-            foreach (var e in economicCalendarJson)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                try
-                {
-                    economicCalendars.Add(e.ToViewModel());
-                }
-                catch { }
-            }
-            return economicCalendars;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch
-        {
-            return [];
-        }
+        var entries = await _economicCalendar
+            .GetAsync(fromInclusive, toInclusive, countryCodes, cancellationToken)
+            .ConfigureAwait(false);
+
+        return entries.Select(Map).ToArray();
     }
 
+    private static EconomicCalendarReadModel Map(EconomicCalendarEntry entry) =>
+        new(
+            entry.EventTimeUtc.UtcDateTime,
+            entry.CountryCode,
+            entry.EventName,
+            entry.Actual,
+            entry.Forecast,
+            entry.Previous,
+            entry.RetrievedAtUtc.UtcDateTime,
+            entry.Source,
+            entry.Impact,
+            entry.Unit,
+            entry.Change,
+            entry.ChangePercentage);
+
+    private static ExternalMarketDataCompatibilityOptions Validate(
+        ExternalMarketDataCompatibilityOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
+        return options;
+    }
 }

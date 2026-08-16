@@ -38,6 +38,7 @@ public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
     [Key(9)] public YieldCurveRateReadModel[] YieldCurveRates { get; init; }
     [Key(10)] public DateTime ImportedOn { get; init; }
     [Key(11)] public string ImportedBy { get; init; }
+    [Key(12)] public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -61,7 +62,8 @@ public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
         DateTime importDate,
         YieldCurveRateReadModel[] yieldCurveRates,
         DateTime importedOn,
-        string importedBy)
+        string importedBy,
+        ImportDuplicatePolicy duplicatePolicy)
     {
         Subject = subject;
         Id = id;
@@ -75,6 +77,7 @@ public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
         YieldCurveRates = yieldCurveRates ?? [];
         ImportedOn = importedOn;
         ImportedBy = importedBy ?? string.Empty;
+        DuplicatePolicy = duplicatePolicy;
     }
 
     /// <summary>
@@ -101,7 +104,8 @@ public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
             ImportDate = this.ImportDate,
             YieldCurveRates = this.YieldCurveRates,
             ImportedOn = this.ImportedOn,
-            ImportedBy = this.ImportedBy
+            ImportedBy = this.ImportedBy,
+            DuplicatePolicy = this.DuplicatePolicy
         };
 
         return (ICompleteEvent<TEntityId>)completed;
@@ -162,6 +166,7 @@ public record YieldCurveRatesImportedCompleteEvent : ICompleteEvent<YieldCurveRa
     [Key(9)] public YieldCurveRateReadModel[] YieldCurveRates { get; init; }
     [Key(10)] public DateTime ImportedOn { get; init; }
     [Key(11)] public string ImportedBy { get; init; }
+    [Key(12)] public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -182,7 +187,8 @@ public record YieldCurveRatesImportedCompleteEvent : ICompleteEvent<YieldCurveRa
         DateTime importDate,
         YieldCurveRateReadModel[] yieldCurveRates,
         DateTime importedOn,
-        string importedBy)
+        string importedBy,
+        ImportDuplicatePolicy duplicatePolicy)
     {
         Subject = subject;
         EntityId = entityId;
@@ -196,6 +202,7 @@ public record YieldCurveRatesImportedCompleteEvent : ICompleteEvent<YieldCurveRa
         YieldCurveRates = yieldCurveRates ?? [];
         ImportedOn = importedOn;
         ImportedBy = importedBy ?? string.Empty;
+        DuplicatePolicy = duplicatePolicy;
     }
 }
 

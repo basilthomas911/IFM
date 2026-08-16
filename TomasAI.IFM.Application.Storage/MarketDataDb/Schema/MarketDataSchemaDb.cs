@@ -10,6 +10,7 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("market_data_import_ownership_v1", MarketDataSchemaCql.CreateMarketDataImportOwnershipV1Table, "DROP TABLE IF EXISTS market_data_import_ownership_v1;"),
         new("economic_calendar", MarketDataSchemaCql.CreateEconomicCalendarTable, "DROP TABLE IF EXISTS economic_calendar;"),
         new("economic_calendar_by_country_month_v2", MarketDataSchemaCql.CreateEconomicCalendarByCountryMonthV2Table, "DROP TABLE IF EXISTS economic_calendar_by_country_month_v2;"),
         new("economic_calendar_by_month_v1", MarketDataSchemaCql.CreateEconomicCalendarByMonthV1Table, "DROP TABLE IF EXISTS economic_calendar_by_month_v1;"),

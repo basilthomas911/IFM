@@ -385,10 +385,11 @@ The following settings are consumed during service registration:
 | `ConnectionStrings:ReferenceDbConnection` | ScyllaDB reference data |
 | `ConnectionStrings:SecuritiesDbConnection` | ScyllaDB securities data |
 | `ConnectionStrings:TradeDbConnection` | ScyllaDB trade data |
-| `ConnectionStrings:YieldCurveRatesDbConnection` | Yield-curve object-data source |
-| `ConnectionStrings:EconomicCalendarsDbConnection` | Economic-calendar object-data source |
+| `FMP_API_KEY` environment variable | Financial Modeling Prep credential; never stored in a URI or JSON setting |
 
-The checked-in environment files do not currently define every consumed key. In particular, the yield-curve/economic-calendar connections, storage base URIs, Azure storage, and Interactive Brokers sections must be provided by the deployment if those services are used.
+The checked-in environment files do not currently define every consumed key. In particular, storage base URIs,
+Azure storage, Interactive Brokers sections, and `FMP_API_KEY` must be provided by the deployment if those services
+are used.
 
 ### Ports and profiles
 

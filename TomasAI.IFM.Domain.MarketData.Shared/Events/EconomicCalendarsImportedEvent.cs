@@ -34,6 +34,7 @@ public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
     [Key(8)] public EconomicCalendarReadModel[] EconomicCalendars { get; init; }
     [Key(9)] public DateTime ImportedOn { get; init; }
     [Key(10)] public string ImportedBy { get; init; }
+    [Key(11)] public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -56,7 +57,8 @@ public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
         DateTime receivedOn,
         EconomicCalendarReadModel[] economicCalendars,
         DateTime importedOn,
-        string importedBy)
+        string importedBy,
+        ImportDuplicatePolicy duplicatePolicy)
     {
         Subject = subject;
         Id = id;
@@ -69,6 +71,7 @@ public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
         EconomicCalendars = economicCalendars ?? [];
         ImportedOn = importedOn;
         ImportedBy = importedBy ?? string.Empty;
+        DuplicatePolicy = duplicatePolicy;
     }
 
     /// <summary>
@@ -94,7 +97,8 @@ public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
             ReceivedOn = this.ReceivedOn,
             EconomicCalendars = this.EconomicCalendars,
             ImportedOn = this.ImportedOn,
-            ImportedBy = this.ImportedBy
+            ImportedBy = this.ImportedBy,
+            DuplicatePolicy = this.DuplicatePolicy
         };
 
         return (ICompleteEvent<TEntityId>)completed;
@@ -154,6 +158,7 @@ public record EconomicCalendarsImportedCompleteEvent : ICompleteEvent<EconomicCa
     [Key(8)] public EconomicCalendarReadModel[] EconomicCalendars { get; init; }
     [Key(9)] public DateTime ImportedOn { get; init; }
     [Key(10)] public string ImportedBy { get; init; }
+    [Key(11)] public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -173,7 +178,8 @@ public record EconomicCalendarsImportedCompleteEvent : ICompleteEvent<EconomicCa
         DateTime receivedOn,
         EconomicCalendarReadModel[] economicCalendars,
         DateTime importedOn,
-        string importedBy)
+        string importedBy,
+        ImportDuplicatePolicy duplicatePolicy)
     {
         Subject = subject;
         EntityId = entityId;
@@ -186,6 +192,7 @@ public record EconomicCalendarsImportedCompleteEvent : ICompleteEvent<EconomicCa
         EconomicCalendars = economicCalendars ?? [];
         ImportedOn = importedOn;
         ImportedBy = importedBy ?? string.Empty;
+        DuplicatePolicy = duplicatePolicy;
     }
 }
 

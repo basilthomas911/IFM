@@ -1,64 +1,86 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.YieldCurveRatesDb;
 
 /// <summary>
-/// yield curve rates database
+/// Compatibility facade for callers of the former external-URI repository.
+/// Acquisition is owned by the provider-neutral Treasury contract.
 /// </summary>
-/// <remarks>
-/// yield curve rates database constructor
-/// </remarks>
-/// <param name="connectionSettings"></param>
-public class YieldCurveRatesDbContext(
-    IDbConnectionSettings connectionSettings, 
-    IDbContextFactory dbFactory, 
+public sealed class YieldCurveRatesDbContext(
+    ITreasuryCurve treasuryCurve,
+    ExternalMarketDataCompatibilityOptions options,
+    TimeProvider timeProvider,
     ILogger<DbProvider> logger)
-    : ObjectDataRepository<YieldCurveRatesDbContext>(connectionSettings[YieldCurveRatesDbConnection], logger  ), IYieldCurveRatesDbContext
+    : ObjectDataRepository<YieldCurveRatesDbContext>(null!, logger), IYieldCurveRatesDbContext
 {
-    public const string YieldCurveRatesDbConnection = "YieldCurveRatesDbConnection";
-    readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
+    private readonly ITreasuryCurve _treasuryCurve = treasuryCurve
+        ?? throw new ArgumentNullException(nameof(treasuryCurve));
+    private readonly ExternalMarketDataCompatibilityOptions _options = Validate(options);
+    private readonly TimeProvider _timeProvider = timeProvider
+        ?? throw new ArgumentNullException(nameof(timeProvider));
 
-    /// <summary>
-    /// Gets the database context.
-    /// </summary>
     public override YieldCurveRatesDbContext Database => this;
 
-    static YieldCurveRateJsonModel MapYieldCurveRate(IObjectDataRecord row)
-        => new(
-            row.GetDateTime(0),
-            row.GetDouble(1),
-            row.GetDouble(2),
-            row.GetDouble(3),
-            row.GetDouble(4),
-            row.GetDouble(5),
-            row.GetDouble(6),
-            row.GetDouble(7),
-            row.GetDouble(8),
-            row.GetDouble(9),
-            row.GetDouble(10),
-            row.GetDouble(11),
-            row.GetDouble(12));
+    public Task<ICollection<YieldCurveRateReadModel>> ReadAsync() =>
+        ReadAsync(CancellationToken.None);
 
-    /// <summary>
-    /// read yield curve rates from external web site
-    /// </summary>
-    /// <returns></returns>
-    public async Task<ICollection<YieldCurveRateReadModel>> ReadAsync()
-        => await ReadAsync(CancellationToken.None).ConfigureAwait(false);
-
-    public async Task<ICollection<YieldCurveRateReadModel>> ReadAsync(
+    public Task<ICollection<YieldCurveRateReadModel>> ReadAsync(
         CancellationToken cancellationToken)
     {
-        var yieldCurveRates = await _dbFactory.YieldCurveRatesDb
-            .Use(connectionString => new DataReaderOptions(connectionString))
-            .ReadAsync(MapYieldCurveRate, cancellationToken)
-            .ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        return [.. yieldCurveRates.Select(e => e.ToViewModel())];
+        var today = DateOnly.FromDateTime(_timeProvider.GetUtcNow().UtcDateTime);
+        return ReadAsync(
+            today.AddDays(-_options.TreasuryLookbackDays + 1),
+            today,
+            cancellationToken);
     }
 
+    public async Task<ICollection<YieldCurveRateReadModel>> ReadAsync(
+        DateOnly fromInclusive,
+        DateOnly toInclusive,
+        CancellationToken cancellationToken = default)
+    {
+        var snapshots = await _treasuryCurve
+            .GetRangeAsync(fromInclusive, toInclusive, cancellationToken)
+            .ConfigureAwait(false);
+
+        return snapshots.Select(Map).ToArray();
+    }
+
+    private static YieldCurveRateReadModel Map(TreasuryCurveSnapshot snapshot) =>
+        new(
+            snapshot.ValueDate,
+            Rate(snapshot, TreasuryTenor.OneMonth),
+            Rate(snapshot, TreasuryTenor.TwoMonth),
+            Rate(snapshot, TreasuryTenor.ThreeMonth),
+            Rate(snapshot, TreasuryTenor.SixMonth),
+            Rate(snapshot, TreasuryTenor.OneYear),
+            Rate(snapshot, TreasuryTenor.TwoYear),
+            Rate(snapshot, TreasuryTenor.ThreeYear),
+            Rate(snapshot, TreasuryTenor.FiveYear),
+            Rate(snapshot, TreasuryTenor.SevenYear),
+            Rate(snapshot, TreasuryTenor.TenYear),
+            Rate(snapshot, TreasuryTenor.TwentyYear),
+            Rate(snapshot, TreasuryTenor.ThirtyYear));
+
+    private static double Rate(TreasuryCurveSnapshot snapshot, TreasuryTenor tenor)
+    {
+        if (!snapshot.TryGetRate(tenor, out var point))
+        {
+            throw new InvalidOperationException(
+                $"Treasury curve {snapshot.ValueDate:yyyy-MM-dd} is missing required tenor {tenor}.");
+        }
+
+        return decimal.ToDouble(point.RatePercent);
+    }
+
+    private static ExternalMarketDataCompatibilityOptions Validate(
+        ExternalMarketDataCompatibilityOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
+        return options;
+    }
 }

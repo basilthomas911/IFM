@@ -78,8 +78,11 @@ internal static class MarketDataProjectionHash
 
     public static ulong Start() => OffsetBasis;
 
-    public static ulong Add(ulong hash, string value)
+    public static ulong Add(ulong hash, string? value)
     {
+        if (value is null)
+            return AddByte(hash, 0xFE);
+
         foreach (var character in value)
         {
             hash = AddByte(hash, (byte)character);

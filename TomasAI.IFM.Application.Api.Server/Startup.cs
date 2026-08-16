@@ -15,6 +15,7 @@ using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -41,6 +42,7 @@ using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 using TomasAI.IFM.Domain.Fund;
 using TomasAI.IFM.Domain.MarketData;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics;
 using TomasAI.IFM.Domain.MarketData.Feed;
 using TomasAI.IFM.Domain.MarketData.Securities;
@@ -59,6 +61,8 @@ using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
+using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
+using Microsoft.AspNetCore.Authentication.Negotiate;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
@@ -194,7 +198,36 @@ public static class Startup
             logger.LogInformationEvent("ApiServer", "register base services...");
             services.AddIfmMetrics(config, "TomasAI.IFM.Application.Api.Server");
             services.AddHealthChecks()
-                .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["ready"]);
+                .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["ready"])
+                .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["ready"]);
+            services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
+            services.AddAuthorization();
+
+            var fmpEnabled = config.GetValue("AppSettings:Fmp:Enabled", true);
+            services.AddFinancialModelingPrepMarketData(options =>
+            {
+                options.Enabled = fmpEnabled;
+                options.LatestTreasuryLookbackDays = config.GetValue("AppSettings:Fmp:LatestTreasuryLookbackDays", 14);
+                options.MaximumProviderWindowDays = config.GetValue("AppSettings:Fmp:MaximumProviderWindowDays", 90);
+                options.MaximumRequestRangeDays = config.GetValue("AppSettings:Fmp:MaximumRequestRangeDays", 3_660);
+                options.MaximumConcurrentRequests = config.GetValue("AppSettings:Fmp:MaximumConcurrentRequests", 2);
+            });
+            services.AddFmpMarketDataImport(options =>
+                options.MaximumRangeDays = config.GetValue("AppSettings:Fmp:MaximumImportRangeDays", 366));
+            services.AddSingleton(new ExternalMarketDataCompatibilityOptions
+            {
+                TreasuryLookbackDays = config.GetValue("AppSettings:Fmp:CompatibilityTreasuryLookbackDays", 14),
+                EconomicCalendarLookbackDays = config.GetValue("AppSettings:Fmp:CompatibilityCalendarLookbackDays", 7),
+                EconomicCalendarForwardDays = config.GetValue("AppSettings:Fmp:CompatibilityCalendarForwardDays", 7),
+                EconomicCalendarCountryCodes = new HashSet<string>(
+                    config.GetSection("AppSettings:Fmp:CountryCodes").Get<string[]>() ?? ["US"],
+                    StringComparer.OrdinalIgnoreCase)
+            }.Validate());
+            services.AddSingleton(new MarketDataImportPolicyOptions
+            {
+                Treasury = ParseImportPolicy(config, "AppSettings:Fmp:TreasuryDuplicatePolicy"),
+                EconomicCalendar = ParseImportPolicy(config, "AppSettings:Fmp:EconomicCalendarDuplicatePolicy")
+            }.Validate());
             services.AddOpenApiDocument();
 
             // Register HazelcastCache as the IDistributedCache implementation
@@ -364,8 +397,6 @@ public static class Startup
                 .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
                 .Add("SecuritiesDbConnection", config.GetConnectionString("SecuritiesDbConnection")!, "System.Data.ScyllaDb")
                 .Add("TradeDbConnection", config.GetConnectionString("TradeDbConnection")!, "System.Data.ScyllaDb")
-                .Add("YieldCurveRatesDbConnection", config.GetConnectionString("YieldCurveRatesDbConnection")!, "TomasAI.IFM.Framework.Storage")
-                .Add("EconomicCalendarsDbConnection", config.GetConnectionString("EconomicCalendarsDbConnection")!, "TomasAI.IFM.Framework.Storage")
             );
             services.AddSingleton<IDbCache, DbCache>();
             services.AddSingleton<IDbContextResolver>(_ => new DbContextResolver(e => GetContainerInstance(e)!));
@@ -445,6 +476,11 @@ public static class Startup
                 TickAggregationEventPublisher>();
             services.AddApplicationMarketDataApi(runtimeOptions);
             services.AddHostedService<FuturesContractRolloverStartupService>();
+            var fmpScheduleOptions = (config
+                .GetSection("AppSettings:Fmp:Schedule")
+                .Get<FmpImportScheduleOptions>() ?? new FmpImportScheduleOptions()).Validate();
+            services.AddSingleton(fmpScheduleOptions);
+            services.AddHostedService<FmpMarketDataImportHostedService>();
 
             //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();
             services.AddSingleton<IFuturesBarDataTimer, FuturesBarDataTimer>();
@@ -546,6 +582,7 @@ public static class Startup
         {
             app.UseHttpsRedirection();
         }
+        app.UseAuthentication();
         app.UseAuthorization();
         app.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
@@ -553,6 +590,18 @@ public static class Startup
         });
         logger.LogInformationEvent("ApiServer", "web app configuration completed");
         return app;
+    }
+
+    static ImportDuplicatePolicy ParseImportPolicy(IConfiguration config, string configurationKey)
+    {
+        var value = config.GetValue<string>(configurationKey);
+        if (string.IsNullOrWhiteSpace(value))
+            return ImportDuplicatePolicy.Overwrite;
+        if (Enum.TryParse<ImportDuplicatePolicy>(value, true, out var policy)
+            && Enum.IsDefined(policy))
+            return policy;
+        throw new InvalidOperationException(
+            $"Configuration '{configurationKey}' must be Overwrite or Reject.");
     }
 
     /// <summary>

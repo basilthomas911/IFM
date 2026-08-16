@@ -68,6 +68,7 @@
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.RestApi\TomasAI.IFM.Framework.Messaging.RestApi.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Messaging\TomasAI.IFM.Framework.Messaging.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Framework.MarketData.FinancialModelingPrep\TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Serialization\TomasAI.IFM.Framework.Serialization.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Storage.Azure\TomasAI.IFM.Framework.Storage.Azure.csproj" />

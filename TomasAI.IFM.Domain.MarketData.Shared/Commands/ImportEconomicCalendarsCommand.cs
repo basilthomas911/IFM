@@ -52,6 +52,9 @@ public record ImportEconomicCalendarsCommand : ICommand<EconomicCalendarId>
     [Key(7)]
     public DateTime ImportedDate { get; init; }
 
+    [Key(8)]
+    public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
+
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
     /// </summary>
@@ -62,10 +65,14 @@ public record ImportEconomicCalendarsCommand : ICommand<EconomicCalendarId>
     /// </summary>
     /// <param name="economicCalendars">Array of calendar entries (cannot be null).</param>
     /// <param name="importedDate">Import batch date.</param>
-    public ImportEconomicCalendarsCommand(EconomicCalendarReadModel[] economicCalendars, DateTime importedDate)
+    public ImportEconomicCalendarsCommand(
+        EconomicCalendarReadModel[] economicCalendars,
+        DateTime importedDate,
+        ImportDuplicatePolicy duplicatePolicy = ImportDuplicatePolicy.Overwrite)
     {
         EconomicCalendars = economicCalendars ?? throw new ArgumentNullException(nameof(economicCalendars));
         ImportedDate = importedDate;
+        DuplicatePolicy = duplicatePolicy;
 
         EntityId = new EconomicCalendarId(ImportedDate, "ZZ", "ImportEconomicCalendars");
         RouteTo = BoundedContextName.EconomicCalendarBoundedContext;
@@ -84,7 +91,8 @@ public record ImportEconomicCalendarsCommand : ICommand<EconomicCalendarId>
         int errorCode,                  // Key(4)
         BoundedContextName routeTo,     // Key(5)
         EconomicCalendarReadModel[] economicCalendars, // Key(6)
-        DateTime importedDate)          // Key(7)
+        DateTime importedDate,          // Key(7)
+        ImportDuplicatePolicy duplicatePolicy) // Key(8)
     {
         CommandId = commandId;
         Subject = subject;
@@ -94,5 +102,6 @@ public record ImportEconomicCalendarsCommand : ICommand<EconomicCalendarId>
         RouteTo = routeTo;
         EconomicCalendars = economicCalendars ?? [];
         ImportedDate = importedDate;
+        DuplicatePolicy = duplicatePolicy;
     }
 }

@@ -10,14 +10,14 @@ namespace TomasAI.IFM.Framework.Storage.UnitTests
         public void CreateDataReaderOptionsOk()
         {
             // Arrange
-            var connectionString = @"Data Source = https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ";
+            var connectionString = @"Data Source = https://example.invalid/sanitized-yield-fixture.csv";
 
             // Act
             var dro = new DataReaderOptions(connectionString);
 
             // Assert
             dro.Uri.Should().NotBeNull();
-            dro.Uri.AbsoluteUri.Should().Be(@"https://www.quandl.com/api/v3/datasets/USTREASURY/YIELD.csv?api_key=Vpxxmo8BPMwZP-xH8XZZ");
+            dro.Uri.AbsoluteUri.Should().Be(@"https://example.invalid/sanitized-yield-fixture.csv");
             dro.DataReaderType.Should().Be(DataReaderType.Csv);
             dro.DataSourceType.Should().Be(DataSourceType.Uri);
         }
@@ -67,13 +67,13 @@ namespace TomasAI.IFM.Framework.Storage.UnitTests
         public void CreateDataReaderOptionsWithApiKey()
         {
             // Arrange
-            var connectionString = @"Data Source = https://example.com/data.csv; ApiKey = MySecretKey123";
+            var connectionString = @"Data Source = https://example.com/data.csv; ApiKey = test-key";
 
             // Act
             var dro = new DataReaderOptions(connectionString);
 
             // Assert
-            dro.ApiKey.Should().Be("MySecretKey123");
+            dro.ApiKey.Should().Be("test-key");
         }
 
         [Fact]

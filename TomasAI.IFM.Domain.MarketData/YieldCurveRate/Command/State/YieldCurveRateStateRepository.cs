@@ -66,7 +66,7 @@ public class YieldCurveRateStateRepository(
                 YieldCurveRateRemovedEvent e => await UpdateReadModelAsync<YieldCurveRateRemovedEvent, YieldCurveRateRemovedCompleteEvent, YieldCurveRateRemovedFailEvent, YieldCurveRateEntityId>(
                     context, e, () => DeleteYieldCurveRateAsync(db, e.ValueDate)),
                 YieldCurveRatesImportedEvent e => await UpdateReadModelAsync<YieldCurveRatesImportedEvent, YieldCurveRatesImportedCompleteEvent, YieldCurveRatesImportedFailEvent, YieldCurveRateEntityId>(
-                    context, e, () => InsertYieldCurveRatesAsync(db, e.YieldCurveRates)),
+                    context, e, () => InsertYieldCurveRatesAsync(db, e.YieldCurveRates, e.DuplicatePolicy, e.CommandId)),
                 _ => false
             };
         }
@@ -77,7 +77,11 @@ public class YieldCurveRateStateRepository(
         static async ValueTask DeleteYieldCurveRateAsync(IMarketDataDbContext db, DateOnly valueDate)
             => await db.DeleteYieldCurveRateAsync(valueDate);
 
-        static async ValueTask InsertYieldCurveRatesAsync(IMarketDataDbContext db, ICollection<YieldCurveRateReadModel> rates)
-            => await db.InsertYieldCurveRatesAsync(rates);
+        static async ValueTask InsertYieldCurveRatesAsync(
+            IMarketDataDbContext db,
+            ICollection<YieldCurveRateReadModel> rates,
+            ImportDuplicatePolicy duplicatePolicy,
+            Guid commandId)
+            => await db.InsertYieldCurveRatesAsync(rates, duplicatePolicy, commandId);
     }
 }

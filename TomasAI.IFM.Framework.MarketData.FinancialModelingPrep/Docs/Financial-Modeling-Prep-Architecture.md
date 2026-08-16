@@ -1,14 +1,14 @@
 # IFM Financial Modeling Prep Market Data Architecture
 
-Status: Draft for architecture review
-Version: 0.6
-Date: 2026-08-10
+Status: Implemented
+Version: 0.7
+Date: 2026-08-15
 Scope: Financial Modeling Prep US Treasury curve and economic-calendar acquisition and MarketData-domain import
 
 ## 1. Purpose
 
 This document defines the architecture for `TomasAI.IFM.Framework.MarketData.FinancialModelingPrep` (FMP). The project
-will obtain US Treasury curve and economic-calendar data from the Financial Modeling Prep stable APIs, normalize the
+obtains US Treasury curve and economic-calendar data from the Financial Modeling Prep stable APIs, normalizes the
 responses into existing IFM models, and support their import through the existing yield-curve and economic-calendar
 command paths.
 
@@ -912,6 +912,7 @@ The design is implemented only when:
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.7 | 2026-08-15 | Implemented the FMP adapters, compatibility facades, deterministic application import coordinator, independently configured event-persisted duplicate policies, LWT Reject ownership, supplemental calendar persistence, host/API/schedule/health/metrics wiring, secret cleanup, tests, and rollout migration instructions. |
 | 0.6 | 2026-08-10 | Defined the provider-neutral framework contracts and storage-capable records in code; made Treasury percentage units explicit, preserved UTC/provenance and nullable calendar values including impact/unit/change fields, and specified FMP-to-framework DI registration without any dependency on the application API. |
 | 0.5 | 2026-08-10 | Removed the high-frequency Blackboard L1/L2 requirement: Treasury curves may use ordinary application cache-aside, while DataBento owns its in-process quote/trade hot values and continues to receive only the selected scalar rate. |
 | 0.4 | 2026-08-10 | Clarified that application orchestration owns Treasury L1/L2 caching and tenor selection and passes the selected scalar rate into DataBento, which performs no FMP or Blackboard calls. |

@@ -2,11 +2,17 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 
 namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 
 internal sealed class FinancialModelingPrepHttpClient
 {
+    private static readonly Meter Meter = new("TomasAI.IFM.Framework.MarketData.FMP");
+    private static readonly Counter<long> RequestCount = Meter.CreateCounter<long>("ifm.fmp.http.requests");
+    private static readonly Counter<long> RetryCount = Meter.CreateCounter<long>("ifm.fmp.http.retries");
+    private static readonly Counter<long> ResponseBytes = Meter.CreateCounter<long>("ifm.fmp.http.response.bytes");
+    private static readonly Histogram<double> RequestDuration = Meter.CreateHistogram<double>("ifm.fmp.http.duration.ms");
     private static readonly HttpStatusCode[] TransientStatusCodes =
     [
         HttpStatusCode.RequestTimeout,
@@ -42,6 +48,7 @@ internal sealed class FinancialModelingPrepHttpClient
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativeUri);
         _requestGate.ThrowIfCircuitOpen(_timeProvider);
+        var dataset = DatasetTag(relativeUri);
 
         for (var attempt = 0; attempt <= _options.MaximumRetryAttempts; attempt++)
         {
@@ -50,6 +57,8 @@ internal sealed class FinancialModelingPrepHttpClient
 
             try
             {
+                var requestStarted = Stopwatch.GetTimestamp();
+                RequestCount.Add(1, new KeyValuePair<string, object?>("dataset", dataset));
                 using var lease = await _requestGate.EnterAsync(cancellationToken).ConfigureAwait(false);
                 using var request = new HttpRequestMessage(HttpMethod.Get, relativeUri);
                 request.Headers.TryAddWithoutValidation("apikey", _options.GetApiKey());
@@ -63,6 +72,10 @@ internal sealed class FinancialModelingPrepHttpClient
                         HttpCompletionOption.ResponseHeadersRead,
                         requestTimeout.Token)
                     .ConfigureAwait(false);
+                RequestDuration.Record(
+                    Stopwatch.GetElapsedTime(requestStarted).TotalMilliseconds,
+                    new KeyValuePair<string, object?>("dataset", dataset),
+                    new KeyValuePair<string, object?>("status_class", $"{(int)response.StatusCode / 100}xx"));
 
                 if (IsTransient(response.StatusCode) && attempt < _options.MaximumRetryAttempts)
                 {
@@ -72,6 +85,7 @@ internal sealed class FinancialModelingPrepHttpClient
                 {
                     EnsureSuccess(response.StatusCode);
                     var payload = await ReadBoundedAsync(response.Content, cancellationToken).ConfigureAwait(false);
+                    ResponseBytes.Add(payload.Length, new KeyValuePair<string, object?>("dataset", dataset));
                     _requestGate.RecordSuccess();
                     return payload;
                 }
@@ -101,6 +115,7 @@ internal sealed class FinancialModelingPrepHttpClient
 
             if (retryDelay is { } delay && delay > TimeSpan.Zero)
             {
+                RetryCount.Add(1, new KeyValuePair<string, object?>("dataset", dataset));
                 await Task.Delay(delay, _timeProvider, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -192,6 +207,15 @@ internal sealed class FinancialModelingPrepHttpClient
     }
 
     private static bool IsTransient(HttpStatusCode statusCode) => TransientStatusCodes.Contains(statusCode);
+
+    private string DatasetTag(string relativeUri)
+    {
+        var pathLength = relativeUri.IndexOf('?');
+        var path = (pathLength < 0 ? relativeUri : relativeUri[..pathLength]).TrimStart('/');
+        return string.Equals(path, _options.TreasuryRatesEndpoint.TrimStart('/'), StringComparison.Ordinal)
+            ? "treasury"
+            : "economic-calendar";
+    }
 
     public static string BuildDateRangeUri(string endpoint, DateOnly fromInclusive, DateOnly toInclusive) =>
         string.Create(

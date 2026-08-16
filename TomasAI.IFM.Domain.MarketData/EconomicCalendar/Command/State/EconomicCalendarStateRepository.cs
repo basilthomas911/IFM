@@ -73,7 +73,7 @@ public class EconomicCalendarStateRepository(
                 EconomicCalendarAddedEvent e => await UpdateReadModelAsync<EconomicCalendarAddedEvent, EconomicCalendarAddedCompleteEvent, EconomicCalendarAddedFailEvent, EconomicCalendarId>(
                     context, e, () =>InsertEconomicCalendarAsync(db, e.EconomicCalendar!)),
                 EconomicCalendarsImportedEvent e => await UpdateReadModelAsync<EconomicCalendarsImportedEvent, EconomicCalendarsImportedCompleteEvent, EconomicCalendarsImportedFailEvent, EconomicCalendarId>(
-                    context, e, () => InsertEconomicCalendarsAsync(db, e.EconomicCalendars)),
+                    context, e, () => InsertEconomicCalendarsAsync(db, e.EconomicCalendars, e.DuplicatePolicy, e.CommandId)),
                 EconomicCalendarChangedEvent e => await UpdateReadModelAsync<EconomicCalendarChangedEvent, EconomicCalendarChangedCompleteEvent, EconomicCalendarChangedFailEvent, EconomicCalendarId>(
                     context, e, () =>UpdateEconomicCalendarAsync(db, e.EntityId!, e.EconomicCalendar!)),
                 EconomicCalendarRemovedEvent e => await UpdateReadModelAsync<EconomicCalendarRemovedEvent, EconomicCalendarRemovedCompleteEvent, EconomicCalendarRemovedFailEvent, EconomicCalendarId>(
@@ -86,11 +86,11 @@ public class EconomicCalendarStateRepository(
             => new(db.InsertEconomicCalendarAsync(e));
 
         static async ValueTask InsertEconomicCalendarsAsync(
-            IMarketDataDbContext db, EconomicCalendarReadModel[] economicCalendars)
-        {
-            foreach (var economicCalendar in economicCalendars)
-                await db.InsertEconomicCalendarAsync(economicCalendar).ConfigureAwait(false);
-        }
+            IMarketDataDbContext db,
+            EconomicCalendarReadModel[] economicCalendars,
+            ImportDuplicatePolicy duplicatePolicy,
+            Guid commandId)
+            => await db.InsertEconomicCalendarsAsync(economicCalendars, duplicatePolicy, commandId).ConfigureAwait(false);
 
         static ValueTask UpdateEconomicCalendarAsync(IMarketDataDbContext db, EconomicCalendarId id, EconomicCalendarReadModel e)
             => new(db.UpdateEconomicCalendarAsync(id, e));

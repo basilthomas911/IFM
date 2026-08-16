@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MathNet.Numerics.Distributions;
@@ -93,6 +94,43 @@ public partial class MarketDataDbContext(
 
     static bool MapToBoolean<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => e.GetBool(0);
+
+    static void ValidateImportPolicy(ImportDuplicatePolicy duplicatePolicy, Guid commandId)
+    {
+        if (!Enum.IsDefined(duplicatePolicy))
+            throw new ArgumentOutOfRangeException(nameof(duplicatePolicy));
+        if (duplicatePolicy == ImportDuplicatePolicy.Reject && commandId == Guid.Empty)
+            throw new ArgumentException("Reject imports require a durable command identity.", nameof(commandId));
+    }
+
+    static MarketDataImportOwnership MapToMarketDataImportOwnership<TDataRecord>(TDataRecord row)
+        where TDataRecord : IObjectDataRecord
+        => new(row.GetGuid(0), row.GetBool(1));
+
+    async Task EnsureImportOwnershipAsync(
+        string dataset,
+        string logicalKey,
+        Guid commandId,
+        bool logicalRowAlreadyExists)
+    {
+        var db = _dbFactory.MarketDataDb;
+        var applied = await db.Use(MarketDataDbCql.ClaimMarketDataImportOwnershipV1)
+            .SetParameters(new ClaimMarketDataImportOwnershipV1(
+                dataset, logicalKey, commandId, !logicalRowAlreadyExists, DateTime.UtcNow))
+            .ExecuteScalarAsync(MapToBoolean!);
+        if (applied && !logicalRowAlreadyExists)
+            return;
+
+        var owner = await db.Use(MarketDataDbCql.GetMarketDataImportOwnershipV1)
+            .SetParameters(new GetMarketDataImportOwnershipV1(dataset, logicalKey))
+            .ExecuteSingleAsync(MapToMarketDataImportOwnership!);
+        if (owner is { CommandId: var ownerCommandId, MayWrite: true }
+            && ownerCommandId == commandId)
+            return;
+
+        throw new MarketDataImportDuplicateException(
+            $"A {dataset} row with logical key '{logicalKey}' is already owned by another import command.");
+    }
 
     static MarketDataProjectionMutationData MapToProjectionMutation<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord
@@ -2329,15 +2367,32 @@ public partial class MarketDataDbContext(
     /// <param name="e">The collection of YieldCurveRateReadModel containing the data to insert.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InsertYieldCurveRatesAsync(ICollection<YieldCurveRateReadModel> e)
+        => await InsertYieldCurveRatesAsync(e, ImportDuplicatePolicy.Overwrite, Guid.Empty);
+
+    public async Task InsertYieldCurveRatesAsync(
+        ICollection<YieldCurveRateReadModel> e,
+        ImportDuplicatePolicy duplicatePolicy,
+        Guid commandId)
     {
         if (e.Count == 0)
             return;
+
+        ValidateImportPolicy(duplicatePolicy, commandId);
 
         var db = _dbFactory.MarketDataDb;
         var commands = new List<object>(e.Count * 2 + e.Count);
         var years = new HashSet<int>();
         foreach (var row in e)
         {
+            if (duplicatePolicy == ImportDuplicatePolicy.Reject)
+            {
+                await EnsureImportOwnershipAsync(
+                    "treasury-curve",
+                    row.ValueDate.ToString("yyyy-MM-dd"),
+                    commandId,
+                    await GetYieldCurveRateAsync(row.ValueDate).ConfigureAwait(false) is not null)
+                    .ConfigureAwait(false);
+            }
             var parameters = new InsertYieldCurveRate(
                 id: YieldCurveLookupId,
                 valueDate: row.ValueDate,
