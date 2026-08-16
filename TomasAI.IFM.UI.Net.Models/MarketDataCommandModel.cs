@@ -36,13 +36,8 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
     public Task<Guid> RemoveEconomicCalendarAsync(EconomicCalendarId economicCalendarId, bool overwrite)
         => ExecuteCommandAsync(() => _commandApi.RemoveEconomicCalendarAsync(economicCalendarId, overwrite));
 
-    public Task ImportEconomicCalendarsAsync(
-        DateTime importDate,
-        EconomicCalendarReadModel[] economicCalendars,
-        Action onCompleted)
-        => ExecuteCommandAsync(
-            () => _commandApi.ImportEconomicCalendarsAsync(importDate, economicCalendars),
-            onCompleted);
+    public Task<Guid> ImportEconomicCalendarsAsync(DateTime importDate, string[]? countryCodes = null)
+        => ExecuteCommandAsync(() => _commandApi.ImportEconomicCalendarsAsync(importDate, countryCodes));
 
     /// <summary>
     /// add futures contract
@@ -153,9 +148,8 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
     /// import yield curve rates
     /// </summary>
     /// <param name="importDate"></param>
-    /// <param name="yieldCurveRates"></param>
     /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
-    public Task<Guid> ImportYieldCurveRatesAsync(DateTime importDate, YieldCurveRateReadModel[] yieldCurveRates)
-        => ExecuteCommandAsync(() => _commandApi.ImportYieldCurveRatesAsync(importDate, yieldCurveRates));
+    public Task<Guid> ImportYieldCurveRatesAsync(DateTime importDate)
+        => ExecuteCommandAsync(() => _commandApi.ImportYieldCurveRatesAsync(importDate));
 
 }

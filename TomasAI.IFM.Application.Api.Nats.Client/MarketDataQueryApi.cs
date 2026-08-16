@@ -159,16 +159,6 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<YieldCurveRateReadModel[]>> GetExternalYieldCurveRatesAsync()
-    {
-        var entityId = new GetExternalYieldCurveRatesParameter();
-        GetExternalYieldCurveRatesQuery query = new()
-        {
-            Subject = new ActorSubject(ActorType.Query, GetExternalYieldCurveRatesQuery.Actor, GetExternalYieldCurveRatesQuery.Verb, entityId.Format()),
-        };
-        return await RequestAsync<GetExternalYieldCurveRatesQuery, YieldCurveRateReadModel[]>(query.Subject, query);
-    }
-
     /// <inheritdoc />
     public async Task<ServiceResult<YieldCurveRateYearsReadModel>> GetYieldCurveRateYearsAsync()
     {

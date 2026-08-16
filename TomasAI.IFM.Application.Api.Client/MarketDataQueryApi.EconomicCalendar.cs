@@ -23,10 +23,6 @@ public partial class MarketDataQueryApi
         => await _querySvc.ExecuteQueryAsync<EconomicCalendarReadModel[]>(MarketDataQueryUriPath.GetEconomicCalendarAll,
             new GetEconomicCalendarAllParameter(), GetEconomicCalendarAllQuery.ErrorId);
 
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync()
-        => await _querySvc.ExecuteQueryAsync<EconomicCalendarReadModel[]>(MarketDataQueryUriPath.GetExternalEconomicCalendars,
-            new GetExternalEconomicCalendarsParameter(), GetExternalEconomicCalendarsQuery.ErrorId);
-
     public async Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime date, EconomicCalendarViewType viewType)
         => await _querySvc.ExecuteQueryAsync<string>(MarketDataQueryUriPath.GetEconomicCalendarDate,
             new GetEconomicCalendarDateParameter(date, viewType), GetEconomicCalendarDateQuery.ErrorId);

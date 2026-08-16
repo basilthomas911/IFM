@@ -1,5 +1,4 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.YieldCurveRatesDb;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -300,27 +299,6 @@ public sealed partial class ActorMarketDataQueryApi(IDbContextFactory dbFactory)
         catch (Exception ex)
         {
             return new ServiceFailed<YieldCurveRateReadModel[]>(GetYieldCurveRatesQuery.ErrorId, ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Gets external yield curve rates.
-    /// </summary>
-    /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<YieldCurveRateReadModel[]>> GetExternalYieldCurveRatesAsync()
-    {
-        try
-        {
-            if (_dbFactory.YieldCurveRatesDb is not IYieldCurveRatesDbContext db)
-                return new ServiceOk<YieldCurveRateReadModel[]>([]);
-            YieldCurveRateReadModel[] result = [.. await db.ReadAsync()];
-            return new ServiceOk<YieldCurveRateReadModel[]>(result);
-        }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<YieldCurveRateReadModel[]>(
-                GetExternalYieldCurveRatesQuery.ErrorId,
-                ex.Message);
         }
     }
 

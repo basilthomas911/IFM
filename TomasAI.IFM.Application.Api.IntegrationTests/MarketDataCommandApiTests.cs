@@ -64,7 +64,7 @@ public class MarketDataCommandApiTests(WebApplicationFactory<Program> factory)
 
         var response = await api.ImportEconomicCalendarsAsync(
             DateTime.Now.Date,
-            [EconomicCalendar("Imported Event")]);
+            ["US"]);
 
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);
@@ -333,7 +333,7 @@ public class MarketDataCommandApiTests(WebApplicationFactory<Program> factory)
                 thirtyYear: 0.022
             )
         };
-        var response = await marketDataApi.ImportYieldCurveRatesAsync(importDate, yieldCurveRates);
+        var response = await marketDataApi.ImportYieldCurveRatesAsync(importDate);
 
         response.Success.Should().BeTrue();
         response.Value.Should().NotBe(Guid.Empty);

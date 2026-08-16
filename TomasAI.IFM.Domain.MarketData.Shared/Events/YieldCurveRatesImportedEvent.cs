@@ -8,14 +8,10 @@ using MessagePack;
 namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
 
 /// <summary>
-/// Represents a domain event indicating that yield curve rates have been imported. Used to communicate the import
-/// of yield curve rates within the event-driven system and to support denormalization workflows.
+/// Represents an accepted request to acquire and import yield curve rates.
 /// </summary>
-/// <remarks>This event is typically published when yield curve rates are successfully imported. It carries
-/// metadata and the details of the imported yield curve rates for downstream processing, auditing, or projection
-/// updates. The event supports conversion to completion or failure events to indicate the outcome of related command
-/// handling. Thread safety is not guaranteed; instances are generally used as data transfer objects within event
-/// processing pipelines.</remarks>
+/// <remarks>The event carries acquisition parameters and correlation metadata only. Its event-family handler acquires,
+/// validates, and stores the records before publishing a complete or fail terminal event.</remarks>
 [MessagePackObject(AllowPrivate = true)]
 public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
 {
@@ -35,9 +31,8 @@ public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
 
     // payload (keys 8..)
     [Key(8)] public DateTime ImportDate { get; init; }
-    [Key(9)] public YieldCurveRateReadModel[] YieldCurveRates { get; init; }
-    [Key(10)] public DateTime ImportedOn { get; init; }
-    [Key(11)] public string ImportedBy { get; init; }
+    [Key(10)] public DateTime RequestedOn { get; init; }
+    [Key(11)] public string RequestedBy { get; init; }
     [Key(12)] public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
@@ -60,9 +55,8 @@ public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
         string eventSource,
         DateTime receivedOn,
         DateTime importDate,
-        YieldCurveRateReadModel[] yieldCurveRates,
-        DateTime importedOn,
-        string importedBy,
+        DateTime requestedOn,
+        string requestedBy,
         ImportDuplicatePolicy duplicatePolicy)
     {
         Subject = subject;
@@ -74,20 +68,29 @@ public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
         EventSource = eventSource ?? string.Empty;
         ReceivedOn = receivedOn;
         ImportDate = importDate;
-        YieldCurveRates = yieldCurveRates ?? [];
-        ImportedOn = importedOn;
-        ImportedBy = importedBy ?? string.Empty;
+        RequestedOn = requestedOn;
+        RequestedBy = requestedBy ?? string.Empty;
         DuplicatePolicy = duplicatePolicy;
     }
 
     /// <summary>
-    /// Convert this denormalize event into a completed event which indicates successful handling.
+    /// Converts this request event into a zero-record completed event.
     /// Validates the requested entity id type and returns a strongly-typed complete event.
     /// </summary>
     public ICompleteEvent<TEntityId> ToCompleteEvent<TComplete, TEntityId>()
         where TComplete : ICompleteEvent<TEntityId>
         where TEntityId : IActorEntityId
+        => ToCompleteEvent<TComplete, TEntityId>([]);
+
+    /// <summary>
+    /// Converts this import request into its successful terminal event using the records actually acquired and stored.
+    /// </summary>
+    public ICompleteEvent<TEntityId> ToCompleteEvent<TComplete, TEntityId>(
+        YieldCurveRateReadModel[] yieldCurveRates)
+        where TComplete : ICompleteEvent<TEntityId>
+        where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(yieldCurveRates);
         if (typeof(TEntityId) != typeof(YieldCurveRateEntityId))
             throw new InvalidOperationException($"{EventName}.ToCompleteEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(YieldCurveRateEntityId).FullName}.");
 
@@ -102,9 +105,9 @@ public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
             EventSource = this.EventSource,
             ReceivedOn = this.ReceivedOn,
             ImportDate = this.ImportDate,
-            YieldCurveRates = this.YieldCurveRates,
-            ImportedOn = this.ImportedOn,
-            ImportedBy = this.ImportedBy,
+            YieldCurveRates = yieldCurveRates,
+            ImportedOn = DateTime.UtcNow,
+            ImportedBy = this.RequestedBy,
             DuplicatePolicy = this.DuplicatePolicy
         };
 
@@ -136,7 +139,9 @@ public record YieldCurveRatesImportedEvent : IEvent<YieldCurveRateEntityId>
             ErrorCode = ErrorCode,
             ErrorData = ex.ToString(),
             ReceivedOn = this.ReceivedOn,
-            AggregateId = this.AggregateId
+            AggregateId = this.AggregateId,
+            ImportDate = this.ImportDate,
+            DuplicatePolicy = this.DuplicatePolicy
         };
 
         return (IErrorEvent<TEntityId>)failed;
@@ -232,6 +237,8 @@ public record YieldCurveRatesImportedFailEvent : IErrorEvent<YieldCurveRateEntit
     [Key(13)] public string CommandName { get; init; }
     [Key(14)] public string CommandData { get; init; }
     [Key(15)] public string RouteTo { get; init; }
+    [Key(16)] public DateTime ImportDate { get; init; }
+    [Key(17)] public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
 
     [IgnoreMember] public string EventName => GetType().Name;
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
@@ -256,7 +263,9 @@ public record YieldCurveRatesImportedFailEvent : IErrorEvent<YieldCurveRateEntit
         string aggregateId,
         string commandName,
         string commandData,
-        string routeTo)
+        string routeTo,
+        DateTime importDate,
+        ImportDuplicatePolicy duplicatePolicy)
     {
         Subject = subject;
         EntityId = entityId;
@@ -274,5 +283,7 @@ public record YieldCurveRatesImportedFailEvent : IErrorEvent<YieldCurveRateEntit
         CommandName = commandName ?? string.Empty;
         CommandData = commandData ?? string.Empty;
         RouteTo = routeTo ?? string.Empty;
+        ImportDate = importDate;
+        DuplicatePolicy = duplicatePolicy;
     }
 }

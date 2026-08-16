@@ -64,6 +64,8 @@ public enum LogSourceType
     FuturesTickTradeDataChanged,
     FuturesTickQuoteDataChanged,
     FuturesTickTradeDataInserted,
+    YieldCurveRatesImported,
+    EconomicCalendarsImported,
     FuturesTickQuoteDataInserted,
     FuturesMarketPriceUpdated
 }
@@ -111,6 +113,8 @@ public static class LogSourceTypeExtensions
         LogSourceType.FuturesTickTradeDataChanged => nameof(LogSourceType.FuturesTickTradeDataChanged),
         LogSourceType.FuturesTickQuoteDataChanged => nameof(LogSourceType.FuturesTickQuoteDataChanged),
         LogSourceType.FuturesTickTradeDataInserted => nameof(LogSourceType.FuturesTickTradeDataInserted),
+        LogSourceType.YieldCurveRatesImported => nameof(LogSourceType.YieldCurveRatesImported),
+        LogSourceType.EconomicCalendarsImported => nameof(LogSourceType.EconomicCalendarsImported),
         LogSourceType.FuturesTickQuoteDataInserted => nameof(LogSourceType.FuturesTickQuoteDataInserted),
         LogSourceType.FuturesMarketPriceUpdated => nameof(LogSourceType.FuturesMarketPriceUpdated),
         _ => value.ToString()

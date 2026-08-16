@@ -10,8 +10,6 @@ public interface IMarketDataQueryApi
     Task<ServiceResult<EconomicCalendarPageReadModel>> GetEconomicCalendarPageAsync(EconomicCalendarPageRequest request);
     [Obsolete("Use GetEconomicCalendarPageAsync with explicit bounds and countries.")]
     Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync();
-    [Obsolete("Use the authenticated FMP import endpoint.")]
-    Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync();
     Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarType);
     Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>> GetEconomicCalendarCountryCodesAsync();
     Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(string symbol);
@@ -27,7 +25,6 @@ public interface IMarketDataQueryApi
     Task<ServiceResult<ScalarReadModel<int>>> GetTradingDaysAsync(DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType);
     Task<ServiceResult<DateOnly[]>> GetTradingDatesAsync(DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType);
     Task<ServiceResult<YieldCurveRateReadModel[]>> GetYieldCurveRatesAsync(DateOnly startDate, DateOnly endDate);
-    Task<ServiceResult<YieldCurveRateReadModel[]>> GetExternalYieldCurveRatesAsync();
     Task<ServiceResult<YieldCurveRateYearsReadModel>> GetYieldCurveRateYearsAsync();
     Task<ServiceResult<ScalarReadModel<bool>>> YieldCurveRateExistsAsync(DateOnly valueDate);
     Task<ServiceResult<ScalarReadModel<DateOnly>>> GetValueDateAsync();

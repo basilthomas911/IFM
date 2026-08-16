@@ -174,14 +174,9 @@ public class YieldCurveRateCommandActor(
     static List<ValidationError> Validate(
         ImportYieldCurveRatesCommand command,
         IValidationRules<YieldCurveRateReadModel> validationRules)
-    {
-        var errors = new List<ValidationError>()
+        => new List<ValidationError>()
             .ValidateCommandId(command.CommandId, command.CommandName)
             .ValidateImportDate(command.ImportDate, command.CommandName);
-        foreach (var yieldCurveRate in command.YieldCurveRates)
-            errors.AddRange(validationRules.Execute(yieldCurveRate));
-        return errors;
-    }
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

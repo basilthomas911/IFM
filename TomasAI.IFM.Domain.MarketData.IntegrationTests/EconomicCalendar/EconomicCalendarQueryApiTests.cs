@@ -219,22 +219,6 @@ public class EconomicCalendarQueryApiTests(WebApplicationFactory<Program> factor
     }
 
     [Fact]
-    public async Task GetExternalEconomicCalendarsQuery_Ok()
-    {
-        // arrange...
-        // Note: This test assumes external economic calendar source is available
-
-        // act...
-        var marketDataApi = new MarketDataQueryApi(_actorProducer);
-        var response = await marketDataApi.GetExternalEconomicCalendarsAsync();
-
-        // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBeNull();
-    }
-
-    [Fact]
     public async Task GetEconomicCalendarAllQuery_MultipleEntries_Ok()
     {
         // arrange...

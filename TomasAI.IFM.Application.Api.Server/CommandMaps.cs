@@ -301,7 +301,7 @@ public static class ReferenceCommands
         endpoints.MapPost(MarketDataUriPath.ImportEconomicCalendars, async (IActorService e, ImportEconomicCalendarsParameter cmdParam, MarketDataImportPolicyOptions policies)
             => {
                 var entityId = new EconomicCalendarId(cmdParam.ImportedDate, "ZZ", "ImportEconomicCalendars");
-                ImportEconomicCalendarsCommand cmd = new(cmdParam.EconomicCalendars, cmdParam.ImportedDate, policies.EconomicCalendar)
+                ImportEconomicCalendarsCommand cmd = new(cmdParam.ImportedDate, cmdParam.CountryCodes, policies.EconomicCalendar)
                 {
                     CommandId = Guid.NewGuid(),
                     Subject = new ActorSubject(ActorType.Command, ImportEconomicCalendarsCommand.Actor, ImportEconomicCalendarsCommand.Verb, entityId.Format()),
@@ -493,7 +493,7 @@ public static class MarketDataCommands
         endpoints.MapPost(MarketDataUriPath.ImportYieldCurveRates, async (IActorService e, ImportYieldCurveRatesParameter cmdParam, MarketDataImportPolicyOptions policies)
             => {
                 var entityId = new YieldCurveRateEntityId(cmdParam.ImportDate.Year);
-                ImportYieldCurveRatesCommand cmd = new(cmdParam.ImportDate, cmdParam.YieldCurveRates, policies.Treasury)
+                ImportYieldCurveRatesCommand cmd = new(cmdParam.ImportDate, policies.Treasury)
                 {
                     CommandId = Guid.NewGuid(),
                     Subject = new ActorSubject(ActorType.Command, ImportYieldCurveRatesCommand.Actor, ImportYieldCurveRatesCommand.Verb, entityId.Format()),

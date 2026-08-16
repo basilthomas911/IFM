@@ -3,16 +3,14 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
 
 /// <summary>
-/// Represents a domain event that occurs when one or more economic calendars have been successfully imported.
+/// Represents an accepted request to acquire and import economic calendars.
 /// </summary>
-/// <remarks>This event provides details about the imported economic calendars, including the associated calendar
-/// identifier, the imported calendar data, the import timestamp, and the user who performed the import. It can be
-/// denormalized into completion or failure events to indicate the outcome of the import operation.</remarks>
+/// <remarks>The event carries acquisition parameters and correlation metadata only. Its event-family handler acquires,
+/// validates, and stores the records before publishing a complete or fail terminal event.</remarks>
 [MessagePackObject(AllowPrivate = true)]
 public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
 {
@@ -31,10 +29,11 @@ public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
     // payload (keys 8..)
-    [Key(8)] public EconomicCalendarReadModel[] EconomicCalendars { get; init; }
-    [Key(9)] public DateTime ImportedOn { get; init; }
-    [Key(10)] public string ImportedBy { get; init; }
+    [Key(9)] public DateTime RequestedOn { get; init; }
+    [Key(10)] public string RequestedBy { get; init; }
     [Key(11)] public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
+    [Key(12)] public DateTime ImportedDate { get; init; }
+    [Key(13)] public string[] CountryCodes { get; init; } = [];
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -55,10 +54,11 @@ public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        EconomicCalendarReadModel[] economicCalendars,
-        DateTime importedOn,
-        string importedBy,
-        ImportDuplicatePolicy duplicatePolicy)
+        DateTime requestedOn,
+        string requestedBy,
+        ImportDuplicatePolicy duplicatePolicy,
+        DateTime importedDate,
+        string[] countryCodes)
     {
         Subject = subject;
         Id = id;
@@ -68,20 +68,31 @@ public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
         AggregateId = aggregateId ?? string.Empty;
         EventSource = eventSource ?? string.Empty;
         ReceivedOn = receivedOn;
-        EconomicCalendars = economicCalendars ?? [];
-        ImportedOn = importedOn;
-        ImportedBy = importedBy ?? string.Empty;
+        RequestedOn = requestedOn;
+        RequestedBy = requestedBy ?? string.Empty;
         DuplicatePolicy = duplicatePolicy;
+        ImportedDate = importedDate;
+        CountryCodes = countryCodes ?? [];
     }
 
     /// <summary>
-    /// Convert this denormalize event into a completed event which indicates successful handling.
+    /// Converts this request event into a zero-record completed event.
     /// Validates the requested entity id type and returns a strongly-typed complete event.
     /// </summary>
     public ICompleteEvent<TEntityId> ToCompleteEvent<TComplete, TEntityId>()
         where TComplete : ICompleteEvent<TEntityId>
         where TEntityId : IActorEntityId
+        => ToCompleteEvent<TComplete, TEntityId>([]);
+
+    /// <summary>
+    /// Converts this import request into its successful terminal event using the records actually acquired and stored.
+    /// </summary>
+    public ICompleteEvent<TEntityId> ToCompleteEvent<TComplete, TEntityId>(
+        EconomicCalendarReadModel[] economicCalendars)
+        where TComplete : ICompleteEvent<TEntityId>
+        where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(economicCalendars);
         if (typeof(TEntityId) != typeof(EconomicCalendarId))
             throw new InvalidOperationException($"{EventName}.ToCompleteEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(EconomicCalendarId).FullName}.");
 
@@ -95,10 +106,12 @@ public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
             AggregateId = this.AggregateId,
             EventSource = this.EventSource,
             ReceivedOn = this.ReceivedOn,
-            EconomicCalendars = this.EconomicCalendars,
-            ImportedOn = this.ImportedOn,
-            ImportedBy = this.ImportedBy,
-            DuplicatePolicy = this.DuplicatePolicy
+            EconomicCalendars = economicCalendars,
+            ImportedOn = DateTime.UtcNow,
+            ImportedBy = this.RequestedBy,
+            DuplicatePolicy = this.DuplicatePolicy,
+            ImportedDate = this.ImportedDate,
+            CountryCodes = this.CountryCodes
         };
 
         return (ICompleteEvent<TEntityId>)completed;
@@ -129,7 +142,10 @@ public record EconomicCalendarsImportedEvent : IEvent<EconomicCalendarId>
             ErrorCode = ErrorCode,
             ErrorData = ex.ToString(),
             ReceivedOn = this.ReceivedOn,
-            AggregateId = this.AggregateId
+            AggregateId = this.AggregateId,
+            ImportedDate = this.ImportedDate,
+            CountryCodes = this.CountryCodes,
+            DuplicatePolicy = this.DuplicatePolicy
         };
 
         return (IErrorEvent<TEntityId>)failed;
@@ -159,6 +175,8 @@ public record EconomicCalendarsImportedCompleteEvent : ICompleteEvent<EconomicCa
     [Key(9)] public DateTime ImportedOn { get; init; }
     [Key(10)] public string ImportedBy { get; init; }
     [Key(11)] public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
+    [Key(12)] public DateTime ImportedDate { get; init; }
+    [Key(13)] public string[] CountryCodes { get; init; } = [];
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -179,7 +197,9 @@ public record EconomicCalendarsImportedCompleteEvent : ICompleteEvent<EconomicCa
         EconomicCalendarReadModel[] economicCalendars,
         DateTime importedOn,
         string importedBy,
-        ImportDuplicatePolicy duplicatePolicy)
+        ImportDuplicatePolicy duplicatePolicy,
+        DateTime importedDate,
+        string[] countryCodes)
     {
         Subject = subject;
         EntityId = entityId;
@@ -193,6 +213,8 @@ public record EconomicCalendarsImportedCompleteEvent : ICompleteEvent<EconomicCa
         ImportedOn = importedOn;
         ImportedBy = importedBy ?? string.Empty;
         DuplicatePolicy = duplicatePolicy;
+        ImportedDate = importedDate;
+        CountryCodes = countryCodes ?? [];
     }
 }
 
@@ -222,6 +244,9 @@ public record EconomicCalendarsImportedFailEvent : IErrorEvent<EconomicCalendarI
     [Key(13)] public string CommandName { get; init; }
     [Key(14)] public string CommandData { get; init; }
     [Key(15)] public string RouteTo { get; init; }
+    [Key(16)] public DateTime ImportedDate { get; init; }
+    [Key(17)] public string[] CountryCodes { get; init; } = [];
+    [Key(18)] public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
 
     [IgnoreMember] public string EventName => GetType().Name;
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
@@ -246,7 +271,10 @@ public record EconomicCalendarsImportedFailEvent : IErrorEvent<EconomicCalendarI
         string aggregateId,
         string commandName,
         string commandData,
-        string routeTo)
+        string routeTo,
+        DateTime importedDate,
+        string[] countryCodes,
+        ImportDuplicatePolicy duplicatePolicy)
     {
         Subject = subject;
         EntityId = entityId;
@@ -264,5 +292,8 @@ public record EconomicCalendarsImportedFailEvent : IErrorEvent<EconomicCalendarI
         CommandName = commandName ?? string.Empty;
         CommandData = commandData ?? string.Empty;
         RouteTo = routeTo ?? string.Empty;
+        ImportedDate = importedDate;
+        CountryCodes = countryCodes ?? [];
+        DuplicatePolicy = duplicatePolicy;
     }
 }

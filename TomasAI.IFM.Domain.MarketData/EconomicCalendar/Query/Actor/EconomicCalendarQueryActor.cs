@@ -67,8 +67,7 @@ public class EconomicCalendarQueryActor(
         [GetEconomicCalendarAllQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarAllQuery, EconomicCalendarReadModel[]>()!,
         [GetEconomicCalendarQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarQuery, EconomicCalendarReadModel[]>()!,
         [GetEconomicCalendarDateQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarDateQuery, string>()!,
-        [GetEconomicCalendarCountryCodesQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarCountryCodesQuery, EconomicCalendarCountryCodeReadModel[]>()!,
-        [GetExternalEconomicCalendarsQuery.Verb] = msg => msg.AsQuery<GetExternalEconomicCalendarsQuery, EconomicCalendarReadModel[]>()!
+        [GetEconomicCalendarCountryCodesQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarCountryCodesQuery, EconomicCalendarCountryCodeReadModel[]>()!
     };
 
     /// <summary>
@@ -142,14 +141,6 @@ public class EconomicCalendarQueryActor(
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarCountryCodesQuery.Verb,
                 new ServiceResult<EconomicCalendarCountryCodeReadModel[]>(result));
-        },
-        [typeof(GetExternalEconomicCalendarsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
-        {
-            var query = q as GetExternalEconomicCalendarsQuery;
-            var result = await query.GetExternalEconomicCalendarsAsync(dbFactory, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetExternalEconomicCalendarsQuery.Verb,
-                new ServiceResult<EconomicCalendarReadModel[]>(result));
         }
     };
 
@@ -187,8 +178,6 @@ public class EconomicCalendarQueryActor(
                     => context.ReplyAsync(threadId, verb, new ServiceResult<string>(query.ErrorCode, ex.Message)),
                 _ when query is GetEconomicCalendarCountryCodesQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<EconomicCalendarCountryCodeReadModel[]>(query.ErrorCode, ex.Message)),
-                _ when query is GetExternalEconomicCalendarsQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<EconomicCalendarReadModel[]>(query.ErrorCode, ex.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message))
             };
             await serviceResultTask;

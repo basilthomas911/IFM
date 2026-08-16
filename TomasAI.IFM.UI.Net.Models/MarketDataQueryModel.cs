@@ -57,8 +57,6 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
             () => _queryApi.GetEconomicCalendarDateAsync(todaysDate, calendarViewType),
             onCompleted);
 
-    public Task GetExternalEconomicCalendarsAsync(Action<EconomicCalendarReadModel[]> onCompleted)
-        => ExecuteAsync(_queryApi.GetExternalEconomicCalendarsAsync, onCompleted);
 
     /// <summary>
     /// load futures contract
@@ -165,8 +163,6 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
     /// get external yield curve rates
     /// </summary>
     /// <returns></returns>
-    public async Task GetExternalYieldCurveRatesAsync(Action<YieldCurveRateReadModel[]> onCompleted)
-        => await ExecuteAsync( _queryApi.GetExternalYieldCurveRatesAsync, onCompleted);
 
     /// <summary>
     /// get risk free rate

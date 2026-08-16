@@ -117,13 +117,9 @@ public class EconomicCalendarEditorViewModel(IAppRoot appRoot) : BaseEditorViewM
      => AppRoot.GetModel<MarketDataCommandModel>()
             .ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
-                var economicCalendars = default(EconomicCalendarReadModel[]);
-                await AppRoot.GetModel<MarketDataQueryModel>().GetExternalEconomicCalendarsAsync(e => economicCalendars = e);
-                await model.ImportEconomicCalendarsAsync(importDate, economicCalendars!,
-                    () => {
-                        LoadEconomicCalendars(DateOnly.FromDateTime(importDate), countryCode);
-                        WriteStatusConsole(LogSourceType.Reference, $"Economic Calendars For: {importDate:yyyy-MM-dd} Imported");
-                    });
+                await model.ImportEconomicCalendarsAsync(importDate, [countryCode]);
+                WriteStatusConsole(LogSourceType.Reference,
+                    $"Economic Calendar import requested for: {importDate:yyyy-MM-dd}");
             });
 
     /// <summary>

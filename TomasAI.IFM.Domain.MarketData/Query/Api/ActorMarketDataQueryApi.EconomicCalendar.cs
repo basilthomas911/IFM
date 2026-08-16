@@ -36,18 +36,6 @@ public sealed partial class ActorMarketDataQueryApi
         => ExecuteAsync<EconomicCalendarReadModel[]>(GetEconomicCalendarAllQuery.ErrorId, cancellationToken,
             async () => [.. await _dbFactory.MarketDataDb.GetEconomicCalendarAllAsync(cancellationToken)]);
 
-    public Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync()
-        => GetExternalEconomicCalendarsAsync(CancellationToken.None);
-
-    public Task<ServiceResult<EconomicCalendarReadModel[]>> GetExternalEconomicCalendarsAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult<ServiceResult<EconomicCalendarReadModel[]>>(
-            new ServiceFailed<EconomicCalendarReadModel[]>(
-                GetExternalEconomicCalendarsQuery.ErrorId,
-                "The external-calendar compatibility query was retired. Use POST /api/marketdata/fmp/import."));
-    }
-
     public Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarType)
         => GetEconomicCalendarDateAsync(todaysDate, calendarType, CancellationToken.None);
 

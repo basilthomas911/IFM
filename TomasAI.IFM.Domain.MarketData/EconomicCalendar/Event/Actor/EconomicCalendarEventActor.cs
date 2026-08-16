@@ -4,15 +4,37 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event.Actor;
 
-public class EconomicCalendarEventActor(IActorSupervisor supervisor, ILogger<EconomicCalendarEventActor> logger)
+public class EconomicCalendarEventActor(
+    IActorSupervisor supervisor,
+    IReferenceDataApi referenceDataApi,
+    IDbContextFactory dbFactory,
+    ILogger<EconomicCalendarEventActor> logger)
     : BaseEventActor<EconomicCalendarEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "EconomicCalendarEvent";
-    static readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = [];
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, ValueTask<bool>>> _receiveMap = new()
+    {
+        [typeof(EconomicCalendarsImportedEvent).Name] = (@event, context) =>
+            ((EconomicCalendarsImportedEvent)@event).ExecuteAsync(context, referenceDataApi, dbFactory, logger),
+        [typeof(EconomicCalendarsImportedCompleteEvent).Name] = (@event, context) =>
+            ((EconomicCalendarsImportedCompleteEvent)@event).ExecuteAsync(context, logger),
+        [typeof(EconomicCalendarsImportedFailEvent).Name] = (@event, context) =>
+            ((EconomicCalendarsImportedFailEvent)@event).ExecuteAsync(context, logger)
+    };
+
+    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    {
+        [EconomicCalendarsImportedEvent.Verb] = message => message.AsEvent<EconomicCalendarsImportedEvent>()!,
+        [EconomicCalendarsImportedCompleteEvent.Verb] = message => message.AsEvent<EconomicCalendarsImportedCompleteEvent>()!,
+        [EconomicCalendarsImportedFailEvent.Verb] = message => message.AsEvent<EconomicCalendarsImportedFailEvent>()!
+    };
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -50,7 +72,7 @@ public class EconomicCalendarEventActor(IActorSupervisor supervisor, ILogger<Eco
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, logger);
+        _ = await receiveFunc.Invoke(@event, context).ConfigureAwait(false);
     }
 
     /// <summary>

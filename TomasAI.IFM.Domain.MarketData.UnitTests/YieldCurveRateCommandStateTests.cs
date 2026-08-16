@@ -2,7 +2,6 @@ using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
@@ -14,7 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.UnitTests;
 public class YieldCurveRateCommandStateTests
 {
     [Fact]
-    public void ImportReplayTracksExistenceWithoutRetainingRateModels()
+    public void ImportReplayDoesNotRebuildExternalRecords()
     {
         var valueDate = new DateOnly(2026, 8, 5);
         var rate = new YieldCurveRateReadModel(
@@ -22,13 +21,13 @@ public class YieldCurveRateCommandStateTests
         var state = new YieldCurveRateCommandState();
         state.ReplayEvents(new IEvent[]
         {
-            new YieldCurveRatesImportedEvent { YieldCurveRates = [rate] }
+            new YieldCurveRatesImportedEvent { ImportDate = valueDate.ToDateTime(TimeOnly.MinValue) }
         });
         var duplicate = Route(new AddYieldCurveRateCommand(rate));
 
         var act = () => duplicate.Execute(state);
 
-        act.Should().Throw<AddYieldCurveRateException>();
+        act.Should().NotThrow();
     }
 
     [Fact]
@@ -40,7 +39,7 @@ public class YieldCurveRateCommandStateTests
         var state = new YieldCurveRateCommandState();
         state.ReplayEvents(new IEvent[]
         {
-            new YieldCurveRatesImportedEvent { YieldCurveRates = [rate] },
+            new YieldCurveRateAddedEvent { YieldCurveRate = rate },
             new YieldCurveRateRemovedEvent { ValueDate = valueDate }
         });
 
@@ -48,7 +47,7 @@ public class YieldCurveRateCommandStateTests
     }
 
     [Fact]
-    public void RejectImportThrowsForExistingDate()
+    public void RejectImportRecordsIntentForStorageEnforcement()
     {
         var valueDate = new DateOnly(2026, 8, 5);
         var rate = new YieldCurveRateReadModel(
@@ -56,21 +55,20 @@ public class YieldCurveRateCommandStateTests
         var state = new YieldCurveRateCommandState();
         state.ReplayEvents(new IEvent[]
         {
-            new YieldCurveRatesImportedEvent { YieldCurveRates = [rate] }
+            new YieldCurveRatesImportedEvent { ImportDate = valueDate.ToDateTime(TimeOnly.MinValue) }
         });
         var command = Route(new ImportYieldCurveRatesCommand(
             valueDate.ToDateTime(TimeOnly.MinValue),
-            [rate],
             ImportDuplicatePolicy.Reject));
 
-        var act = () => command.Execute(state);
-
-        act.Should().Throw<MarketDataImportDuplicateException>();
-        state.Events.Should().BeEmpty();
+        command.Execute(state).Should().BeTrue();
+        state.Events.Should().ContainSingle()
+            .Which.Should().BeOfType<YieldCurveRatesImportedEvent>()
+            .Which.DuplicatePolicy.Should().Be(ImportDuplicatePolicy.Reject);
     }
 
     [Fact]
-    public void ExactImportDuplicatesCollapseAndPersistEffectivePolicy()
+    public void ImportPersistsRequestDateAndEffectivePolicy()
     {
         var valueDate = new DateOnly(2026, 8, 5);
         var rate = new YieldCurveRateReadModel(
@@ -78,14 +76,13 @@ public class YieldCurveRateCommandStateTests
         var state = new YieldCurveRateCommandState();
         var command = Route(new ImportYieldCurveRatesCommand(
             valueDate.ToDateTime(TimeOnly.MinValue),
-            [rate, rate],
             ImportDuplicatePolicy.Overwrite));
 
         command.Execute(state).Should().BeTrue();
 
         var imported = state.Events.Should().ContainSingle()
             .Which.Should().BeOfType<YieldCurveRatesImportedEvent>().Subject;
-        imported.YieldCurveRates.Should().ContainSingle();
+        imported.ImportDate.Should().Be(valueDate.ToDateTime(TimeOnly.MinValue));
         imported.DuplicatePolicy.Should().Be(ImportDuplicatePolicy.Overwrite);
     }
 

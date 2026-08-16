@@ -107,13 +107,11 @@ public class FuturesBarDataQueryUriPath
     public const string GetYieldCurveRateYears = "/api/marketdata/yieldcurve/years";
     public const string YieldCurveRateExists = "/api/marketdata/yieldcurve/exists";
     public const string GetValueDate = "/api/marketdata/valuedate";
-    public const string GetExternalYieldCurveRates = "/api/marketdata/yieldcurve/externalrates";
     public const string GetIronCondorMarketData = "/api/marketdata/ironcondor";
     public const string GetFuturesOptionContractIds = "/api/marketdata/futures/option/contractids";
     public const string GetEconomicCalendars = "/api/marketdata/economiccalendar";
     public const string GetEconomicCalendarPage = "/api/marketdata/economiccalendar/page";
     public const string GetEconomicCalendarAll = "/api/marketdata/economiccalendar/all";
-    public const string GetExternalEconomicCalendars = "/api/marketdata/external/economiccalendars";
     public const string GetEconomicCalendarDate = "/api/marketdata/economiccalendar/date";
     public const string GetEconomicCalendarCountryCodes = "/api/marketdata/economiccalendar/countrycodes";
 }

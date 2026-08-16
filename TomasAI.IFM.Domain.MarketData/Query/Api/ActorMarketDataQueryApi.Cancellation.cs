@@ -147,15 +147,6 @@ public sealed partial class ActorMarketDataQueryApi
             async () => [.. await _dbFactory.MarketDataDb
                 .GetYieldCurveRatesAsync(startDate, endDate, cancellationToken)]);
 
-    public Task<ServiceResult<YieldCurveRateReadModel[]>> GetExternalYieldCurveRatesAsync(
-        CancellationToken cancellationToken)
-        => ExecuteAsync<YieldCurveRateReadModel[]>(
-            GetExternalYieldCurveRatesQuery.ErrorId,
-            cancellationToken,
-            async () => _dbFactory.YieldCurveRatesDb is not Application.Storage.YieldCurveRatesDb.IYieldCurveRatesDbContext db
-                ? []
-                : [.. await db.ReadAsync(cancellationToken)]);
-
     public Task<ServiceResult<YieldCurveRateYearsReadModel>> GetYieldCurveRateYearsAsync(
         CancellationToken cancellationToken)
         => ExecuteAsync(

@@ -14,9 +14,9 @@ public interface IMarketDataDbWriteContext
 {
     Task DeleteEconomicCalendarAsync(EconomicCalendarId id);
     Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar);
-    Task InsertEconomicCalendarsAsync(ICollection<EconomicCalendarReadModel> economicCalendars);
+    Task InsertEconomicCalendarsAsync(EconomicCalendarReadModel[] economicCalendars);
     Task InsertEconomicCalendarsAsync(
-        ICollection<EconomicCalendarReadModel> economicCalendars,
+        EconomicCalendarReadModel[] economicCalendars,
         ImportDuplicatePolicy duplicatePolicy,
         Guid commandId);
     Task UpdateEconomicCalendarAsync(EconomicCalendarId id, EconomicCalendarReadModel economicCalendar);
@@ -78,9 +78,9 @@ public interface IMarketDataDbWriteContext
     Task<long> InsertFuturesTradeSignalsAsync(IEnumerable<FuturesTradeSignalV2ReadModel> futuresTradeSignals);
     Task InsertRateOfReturnAsync(RateOfReturnReadModel e);
     Task InsertYieldCurveRateAsync(YieldCurveRateReadModel e);
-    Task InsertYieldCurveRatesAsync(ICollection<YieldCurveRateReadModel> e);
+    Task InsertYieldCurveRatesAsync(YieldCurveRateReadModel[] e);
     Task InsertYieldCurveRatesAsync(
-        ICollection<YieldCurveRateReadModel> e,
+        YieldCurveRateReadModel[] e,
         ImportDuplicatePolicy duplicatePolicy,
         Guid commandId);
     Task InsertMarketHolidayAsync(MarketHolidayReadModel e);

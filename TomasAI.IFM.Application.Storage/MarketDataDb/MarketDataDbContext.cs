@@ -2366,21 +2366,22 @@ public partial class MarketDataDbContext(
     /// </summary>
     /// <param name="e">The collection of YieldCurveRateReadModel containing the data to insert.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InsertYieldCurveRatesAsync(ICollection<YieldCurveRateReadModel> e)
+    public async Task InsertYieldCurveRatesAsync(YieldCurveRateReadModel[] e)
         => await InsertYieldCurveRatesAsync(e, ImportDuplicatePolicy.Overwrite, Guid.Empty);
 
     public async Task InsertYieldCurveRatesAsync(
-        ICollection<YieldCurveRateReadModel> e,
+        YieldCurveRateReadModel[] e,
         ImportDuplicatePolicy duplicatePolicy,
         Guid commandId)
     {
-        if (e.Count == 0)
+        ArgumentNullException.ThrowIfNull(e);
+        if (e.Length == 0)
             return;
 
         ValidateImportPolicy(duplicatePolicy, commandId);
 
         var db = _dbFactory.MarketDataDb;
-        var commands = new List<object>(e.Count * 2 + e.Count);
+        var commands = new List<object>(e.Length * 3);
         var years = new HashSet<int>();
         foreach (var row in e)
         {

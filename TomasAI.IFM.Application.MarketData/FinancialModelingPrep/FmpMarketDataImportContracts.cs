@@ -15,16 +15,15 @@ public enum FmpImportDataset
 
 public enum FmpImportDateStatus
 {
-    Accepted = 1,
-    Failed = 2
+    Submitted = 1,
+    Rejected = 2
 }
 
 public sealed record FmpImportDateResult(
     DateOnly Date,
     FmpImportDataset Dataset,
     FmpImportDateStatus Status,
-    int RowCount,
-    Guid? CommandResult,
+    Guid? CommandId,
     int ErrorCode,
     string? ErrorMessage);
 
@@ -32,11 +31,8 @@ public sealed record FmpMarketDataImportResult(
     DateOnly FromInclusive,
     DateOnly ToInclusive,
     int RequestedDatasetDates,
-    int AcquiredRows,
-    int AcceptedCommands,
-    int AcceptedRows,
-    int NoDataDates,
-    int FailedDates,
+    int SubmittedCommands,
+    int RejectedSubmissions,
     int RemainingUnsubmittedDates,
     bool Cancelled,
     IReadOnlyList<FmpImportDateResult> Dates);

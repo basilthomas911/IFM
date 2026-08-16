@@ -20,7 +20,8 @@ public class EconomicCalendarUIEventConsumer(INatsEventListenerOptions options, 
             = [EconomicCalendarAddedCompleteEvent.Verb,
                 EconomicCalendarChangedCompleteEvent.Verb,
                 EconomicCalendarRemovedCompleteEvent.Verb,
-                EconomicCalendarsImportedCompleteEvent.Verb
+                EconomicCalendarsImportedCompleteEvent.Verb,
+                EconomicCalendarsImportedFailEvent.Verb
             ]
     };
 
@@ -36,7 +37,8 @@ public class EconomicCalendarUIEventConsumer(INatsEventListenerOptions options, 
         Action<EconomicCalendarAddedCompleteEvent> addedAction,
         Action<EconomicCalendarChangedCompleteEvent> changedAction, 
         Action<EconomicCalendarRemovedCompleteEvent> removedAction,
-        Action<EconomicCalendarsImportedCompleteEvent> importedAction)
+        Action<EconomicCalendarsImportedCompleteEvent> importedAction,
+        Action<EconomicCalendarsImportedFailEvent> importFailedAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
 
@@ -54,6 +56,8 @@ public class EconomicCalendarUIEventConsumer(INatsEventListenerOptions options, 
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarRemovedCompleteEvent>()!, e => removedAction(e as EconomicCalendarRemovedCompleteEvent)),
                     _ when eventVerb == EconomicCalendarsImportedCompleteEvent.Verb 
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarsImportedCompleteEvent>()!, e => importedAction(e as EconomicCalendarsImportedCompleteEvent)),
+                    _ when eventVerb == EconomicCalendarsImportedFailEvent.Verb
+                        => HandleEvent(eventMsg.AsEvent<EconomicCalendarsImportedFailEvent>()!, e => importFailedAction(e as EconomicCalendarsImportedFailEvent)),
                     _ => default!
                 };
                 await ValueTask.CompletedTask;
@@ -78,6 +82,7 @@ public interface IEconomicCalendarUIEventConsumer
         Action<EconomicCalendarAddedCompleteEvent> addedAction,
         Action<EconomicCalendarChangedCompleteEvent> changedAction,
         Action<EconomicCalendarRemovedCompleteEvent> removedAction,
-        Action<EconomicCalendarsImportedCompleteEvent> importedAction);
+        Action<EconomicCalendarsImportedCompleteEvent> importedAction,
+        Action<EconomicCalendarsImportedFailEvent> importFailedAction);
     ValueTask StopAsync();
 }

@@ -1,7 +1,7 @@
 # IFM Financial Modeling Prep Market Data Architecture
 
 Status: Implemented
-Version: 0.8
+Version: 0.9
 Date: 2026-08-16
 Scope: Financial Modeling Prep US Treasury curve and economic-calendar acquisition and MarketData-domain import
 
@@ -9,35 +9,35 @@ Scope: Financial Modeling Prep US Treasury curve and economic-calendar acquisiti
 
 This document defines the architecture for `TomasAI.IFM.Framework.MarketData.FinancialModelingPrep` (FMP). The project
 obtains US Treasury curve and economic-calendar data from the Financial Modeling Prep stable APIs, normalizes the
-responses into existing IFM models, and support their import through the existing yield-curve and economic-calendar
+responses into provider-neutral records, and supports their import through the existing yield-curve and economic-calendar
 command paths.
 
-The first implementation preserves the current command parameter contracts:
+The authoritative import request contracts are parameter-only:
 
-- `ImportYieldCurveRatesParameter` with `ImportDate`, `YieldCurveRates`, and `ErrorCode`; and
-- `ImportEconomicCalendarsParameter` with `ImportedDate`, `EconomicCalendars`, and `ErrorCode`.
+- `ImportYieldCurveRatesParameter` carries `ImportDate` and `ErrorCode`; and
+- `ImportEconomicCalendarsParameter` carries `ImportedDate`, optional `CountryCodes`, and `ErrorCode`.
 
-An API-backed import may issue multiple existing import commands for a single date or date range. No new date-range
-command contract is required for the first implementation.
+Provider rows never enter a command or main import event. The MarketData import-event handler acquires them through
+`IReferenceDataApi`, maps them to canonical read models, and passes one 0..N array to durable storage.
 
 ## 2. Decisions established by this design
 
 1. FMP is an outbound data adapter. It never connects to ScyllaDB and never writes application tables.
-2. An API-backed import is a composed operation: fetch from FMP, normalize and validate, construct the current import
-   command parameters, commit the domain event, then directly bulk-write the corresponding read tables.
+2. An API-backed import starts at the domain actor: accept a parameter-only command, commit a parameter-only import
+   event, acquire and normalize data in its event-family handler, then bulk-write the corresponding read table.
 3. Direct table import means one bounded bulk storage operation after the import event. It does not mean issuing an
    `Add` or `Change` actor command for every returned row.
-4. Event sourcing remains authoritative. No database write occurs before the import command and its domain event have
-   been accepted.
+4. The command/event actor flow remains authoritative. No database write occurs before the import command and its main
+   domain event have been accepted, but imported rows are transactional and are not replay state.
 5. Duplicate behavior is configurable independently for yield curves and economic calendars.
 6. The initial default duplicate policy is **Overwrite** because FMP can revise calendar forecasts, previous values,
    actual values, and other data after first publication.
 7. **Reject** mode throws a typed duplicate exception and does not silently skip an existing logical key.
-8. The effective duplicate policy is recorded on the committed import event. Changing configuration later cannot alter
-   replay or denormalization semantics for an existing event.
+8. The effective duplicate policy is recorded on the committed import event and applied to that storage attempt.
 9. A single-date import command is the initial execution and failure boundary. Date ranges may be split into multiple
    single-date commands.
-10. The existing command payload arrays remain supported. The API-backed coordinator populates those arrays from FMP.
+10. Legacy row-array command payloads and external-query storage facades are removed; all imports use the same
+    parameter-only actor workflow.
 11. Economic calendar is market data. Its actors, shared contracts, models, storage interfaces, and table move from the
     Reference domain/storage boundary into the MarketData domain and `MarketDataDbContext`.
 12. There is exactly one runtime economic-calendar row table: `economic_calendar_v2`. The former canonical-plus-projection design is
@@ -61,9 +61,8 @@ Before the FMP cutover, `Application.Storage` contained:
 These types are external source gateways despite their `DbContext` names. They are not the contexts that own the
 durable ScyllaDB tables.
 
-The FMP adapter replaced their provider-specific URI and JSON-reading behavior. `YieldCurveRatesDbContext` remains a
-short-lived Treasury compatibility facade. `EconomicCalendarsDbContext` is retired: the FMP abstraction owns acquisition, the MarketData application coordinator
-owns import orchestration, and `MarketDataDbContext` owns durable economic-calendar reads and writes.
+Both wrapper contexts are retired. The FMP abstraction owns acquisition, the MarketData event-family handlers own
+import orchestration, and `MarketDataDbContext` owns only durable market-data reads and writes.
 
 ### 3.2 Current durable table ownership
 
@@ -78,9 +77,9 @@ The durable records are currently written as follows:
 | Economic calendar canonical row | `MarketDataDbContext` | `economic_calendar_v2` | Sole runtime row table and bounded country/month query source |
 | Economic calendar country catalog | `MarketDataDbContext` | `economic_calendar_country_code_v1` | Bounded observed-country lookup; contains no event rows |
 
-`YieldCurveRateStateRepository` denormalizes `YieldCurveRatesImportedEvent` directly through
-`InsertYieldCurveRatesAsync`. `EconomicCalendarStateRepository` now resides in the MarketData domain and denormalizes
-`EconomicCalendarsImportedEvent` through `MarketDataDbContext.InsertEconomicCalendarsAsync`.
+`YieldCurveRateStateRepository` and `EconomicCalendarStateRepository` post their main imported events to the event
+workflow. Their event-family handlers acquire provider-neutral data and invoke
+`MarketDataDbContext.InsertYieldCurveRatesAsync` or `InsertEconomicCalendarsAsync` with one canonical array.
 
 ### 3.3 Existing duplicate behavior
 
@@ -128,11 +127,11 @@ The architecture must:
 - keep the API key outside URLs, logs, traces, exceptions, and source control;
 - support cancellation and bounded date windows;
 - map FMP responses explicitly rather than deserialize directly into domain models;
-- retain the current import command parameter contracts;
+- use parameter-only import commands and main events;
 - support one or more commands for single-date or date-range acquisition;
 - write the corresponding tables directly through their existing bulk storage contexts;
 - make overwrite versus duplicate rejection explicit and testable;
-- preserve event-sourced command decisions and deterministic replay;
+- preserve event-sourced command decisions without replaying transactional provider acquisition;
 - handle FMP revisions to existing economic events; and
 - move all economic-calendar ownership into the MarketData domain and storage context;
 - use one economic-calendar table with key-complete CQL only;
@@ -159,32 +158,26 @@ UI / API / ScheduledTask
           |
           | request an API-backed import for a date or bounded date range
           v
-Application import coordinator
-          |
-          | async HTTPS with cancellation
-          v
-FinancialModelingPrep adapter
-  - treasury-rates
-  - economic-calendar
-          |
-          | provider DTO -> canonical read model
-          v
-Application import coordinator constructs current Import*Parameter and Import*Command
-          v
 MarketData YieldCurveRate / EconomicCalendar command actor
           |
-          | committed import domain event with effective duplicate policy
+          | committed parameter-only import event with effective duplicate policy
           v
-MarketData state repository denormalization
+MarketData import event-family handler
           |
-          +--> MarketDataDbContext.yield_curve_rates
+          +--> Application.MarketData.IReferenceDataApi
+          |       |
+          |       +--> FinancialModelingPrep adapter (treasury-rates / economic-calendar)
+          |       |
+          |       +--> provider-neutral records -> canonical domain array (0..N)
           |
-          +--> MarketDataDbContext.economic_calendar_v2
+          +--> MarketDataDbContext bulk storage
+          |
+          +--> correlated ImportedComplete or ImportedFail event
 ```
 
-The FMP network call is never performed on an actor mailbox thread. The coordinator completes acquisition and bounded
-mapping before submitting a command. The command actor receives an in-memory bounded payload compatible with the
-current command contract.
+The event actor awaits acquisition and storage, so a terminal event cannot precede the durable write. Its asynchronous
+handler does not block a thread. Each attempt is terminal: failure is recorded and a retry is a new command with a new
+command ID.
 
 ## 6. Project boundary and dependencies
 
@@ -209,10 +202,11 @@ The provider project owns:
 - FMP-specific exceptions and error classification; and
 - FMP request telemetry.
 
-Application and storage layers own:
+Application, domain, and storage layers own:
 
-- import orchestration;
+- the vendor-neutral `IReferenceDataApi` facade;
 - command creation and event sourcing;
+- import-event acquisition, mapping, and terminal-event publication;
 - duplicate policy;
 - MarketData table writes;
 - import completion/failure events; and
@@ -512,69 +506,60 @@ source; projection discrepancies are reported and resolved before cutover.
 
 ## 10. API-backed import operation
 
-### 10.1 Current command compatibility
+### 10.1 Parameter-only request contracts
 
-The first implementation preserves the serialized fields and API parameters of both existing imports. The coordinator
-uses FMP results to populate the existing arrays:
+REST and NATS clients expose the same authenticated command API. Both invoke the existing MarketData domain command
+actors; neither transport owns a separate import coordinator or provider call.
 
 ```text
-FMP treasury rows
-  -> YieldCurveRateReadModel[]
-  -> ImportYieldCurveRatesParameter
+ImportYieldCurveRatesParameter(ImportDate, ErrorCode)
   -> ImportYieldCurveRatesCommand
+  -> YieldCurveRatesImportedEvent(ImportDate, DuplicatePolicy)
 
-FMP economic rows
-  -> EconomicCalendarReadModel[]
-  -> ImportEconomicCalendarsParameter
+ImportEconomicCalendarsParameter(ImportedDate, CountryCodes, ErrorCode)
   -> ImportEconomicCalendarsCommand
+  -> EconomicCalendarsImportedEvent(ImportedDate, CountryCodes, DuplicatePolicy)
 ```
 
-Existing callers that already supply valid arrays remain supported. They pass through the same validation, duplicate
-policy, event, and direct table-write path. A later command version may carry only a date range and source identity, but
-that is not required for initial FMP support.
+The command and main event schemas intentionally contain no imported records. Historic array-carrying request schemas
+and the `GetExternal*` query surfaces are not supported by the authoritative flow.
 
 ### 10.2 Single-date workflow
 
 1. The caller requests acquisition for one date.
-2. The coordinator calls the FMP client asynchronously with cancellation.
-3. The client validates HTTP status, content type, response bounds, JSON, and required fields.
-4. Provider rows are normalized into canonical read models.
-5. The coordinator validates logical keys, values, and the complete bounded batch.
-6. The coordinator builds the existing import command parameter and command.
-7. The command actor resolves the configured duplicate policy for the dataset.
-8. Domain state validates or merges the import according to that policy.
-9. The committed import event records the effective duplicate policy and canonical payload.
-10. The MarketData state repository writes the batch directly to the single canonical table.
-11. Completion or failure follows the existing event-sourced denormalization contract.
+2. The command actor validates the request and resolves the configured duplicate policy.
+3. The command state emits a parameter-only main imported event.
+4. The state repository posts that event to its MarketData event actor without treating rows as replay state.
+5. The event-family handler calls `IReferenceDataApi.TreasuryCurve` or `.EconomicCalendar`.
+6. The FMP client validates HTTP status, content type, response bounds, JSON, and required fields.
+7. The handler maps provider-neutral records into canonical domain read models.
+8. The handler calls the array-based storage API once, including when the array is empty.
+9. After storage succeeds, the handler sends a correlated complete event containing the canonical 0..N records.
+10. On acquisition, mapping, validation, or storage failure, the handler sends a correlated fail event and no complete
+    event.
 
-An empty valid FMP response is represented as a no-data outcome and does not create a successful empty import event.
+An empty valid FMP response is a successful zero-record import. It is distinguishable from every failure.
 
 ### 10.3 Date-range workflow
 
-The initial coordinator splits a requested range into deterministic single-date imports. This is deliberately allowed
-even when the provider call covers a larger window:
+The application coordinator splits an API-requested range into deterministic single-date command submissions. It does
+not acquire provider data. Commands use stable ordering, and cancellation stops submission of new commands without
+cancelling a command already durably accepted.
 
-- treasury rows are grouped by `ValueDate`;
-- economic rows are grouped by UTC event date;
-- each group produces the current command parameter and one command;
-- commands use stable ordering; and
-- cancellation stops submission of new commands without cancelling a command already durably accepted.
-
-This approach bounds actor payload size, avoids an ever-growing economic-calendar snapshot for one synthetic import
-entity, gives a precise retry boundary, and limits partial range failure. A later optimized implementation may use a
-bounded range command only after its state, serialization, replay, and partial-failure semantics are designed.
+This approach gives every date its own correlation and retry boundary while keeping actor messages bounded.
 
 ### 10.4 Direct storage writes
 
-The import event is denormalized as a batch:
+The import event handler writes a batch:
 
 - yield curves call one bounded `InsertYieldCurveRatesAsync` operation that maintains `yield_curve_rates`,
   `yield_curve_rate_by_date_v1`, and the de-duplicated year lookup; and
 - economic calendars call one bounded `MarketDataDbContext.InsertEconomicCalendarsAsync` operation that maintains the
-  canonical row, country/month and month query projections, and country/month lookup catalogs.
+  canonical country/month-partitioned rows and country lookup catalog.
 
-The importer does not emit one `Add` or `Change` command per row. Native storage batching may be used only within the
-driver's safe size and partition constraints.
+The handler does not emit one `Add` or `Change` command per row. Native storage batching may be used only within the
+driver's safe size and partition constraints. Storage contexts contain no FMP-derived interface and perform no HTTP
+request.
 
 ## 11. Duplicate policy
 
@@ -619,20 +604,14 @@ whose forecast, prior, actual, unit, and impact can change as an event approache
 For economic calendars, overwrite updates the one `MarketDataDbContext.economic_calendar` row. If normalization changes
 a logical key, the operation is a delete-old plus insert-new change, not an overwrite of the old identity.
 
-The economic-calendar command state must merge imported rows by logical key instead of throwing unconditionally. The
-yield-curve command state continues to maintain existence by `ValueDate`. Both imported events contain the final
-canonical batch and effective policy.
+Command state contains no imported rows. The event-family handler passes the canonical batch and effective policy to
+storage, where matching logical keys are overwritten.
 
 ### 11.4 Reject behavior
 
-Reject mode has two protections:
-
-1. a bounded preflight checks duplicate keys in the normalized batch and current state/storage; and
-2. conditional `INSERT ... IF NOT EXISTS` protects against a concurrent writer after preflight.
-
-A check-then-unconditional-insert implementation is not sufficient. A duplicate produces a typed
-`ExternalDataDuplicateException` (final name to follow repository conventions) containing the dataset, operation ID,
-and a bounded list/count of logical keys. It contains no API key, URL query, or complete provider payload.
+Reject mode uses a conditional ownership write to protect against concurrent writers. A check-then-unconditional-insert
+implementation is not sufficient. A duplicate produces `MarketDataImportDuplicateException` containing bounded,
+non-secret operation context.
 
 For economic calendars, the single `economic_calendar` row is the conditional ownership point. No second projection
 write or projection-repair workflow exists after migration.
@@ -642,15 +621,13 @@ write or projection-repair workflow exists after migration.
 ScyllaDB does not make arbitrary multi-partition date-range imports globally atomic. A process failure can occur after
 some rows have been applied. Therefore:
 
-- a committed command/event identity is the idempotency identity;
-- completion state distinguishes replay of the same command from a new import;
-- overwrite retries are naturally idempotent for the same normalized values;
-- reject retries must recognize rows already written by the same command rather than classify them as foreign
-  duplicates; and
+- a command ID is the storage ownership/idempotency identity for its single attempt;
+- overwrite is naturally idempotent for the same normalized values;
+- Reject recognizes rows already owned by the same command rather than classifying them as foreign duplicates; and
 - initial range orchestration uses single-date commands to bound any partial result.
 
-Reject mode cannot be enabled in production until same-command retry behavior is proven with an import receipt or
-equivalent durable operation identity. It must not depend only on an in-memory preflight.
+The event workflow does not automatically replay a failed external acquisition. A UI or scheduler retries by submitting
+a new command because current provider data is desired; the old attempt remains terminally failed.
 
 ## 12. Exceptions and result semantics
 
@@ -671,9 +648,8 @@ The current external contexts swallow most exceptions and return an empty collec
 FMP imports. An empty list means FMP successfully returned no qualifying rows; it never means authentication, parsing,
 timeout, or storage failure.
 
-Range import results report bounded counts for requested dates, acquired rows, accepted commands, inserted rows,
-overwritten rows, rejected rows, no-data dates, failed dates, and remaining unsubmitted dates. Large row-level details
-belong in logs or an operation record rather than actor replies.
+Range submission results report accepted or rejected command submissions. Actual row counts and final success/failure
+belong to the correlated complete/fail events and operational logs, not the initial command response.
 
 ## 13. HTTP resilience
 
@@ -689,8 +665,8 @@ It applies:
 - concurrency limiting aligned with the subscribed FMP plan; and
 - a circuit breaker that fails quickly during sustained provider failure.
 
-Retries occur only during acquisition. A storage retry is controlled by the event denormalization/idempotency path, not
-the HTTP policy.
+HTTP retries occur only inside acquisition for safe transient failures. Once the handler produces a fail event, another
+end-to-end import is a new domain command.
 
 ## 14. Configuration and secrets
 
@@ -803,16 +779,16 @@ endpoint access and contract drift without writing production tables.
 ### Stage 3: provider client
 
 1. Implement the typed HTTP client and resilience policies.
-2. Keep only the Treasury compatibility context and retire the external-calendar storage facade.
+2. Retire both external-reader storage contexts and every `GetExternal*` query surface.
 3. Add provider unit, contract, and opt-in live tests.
 
-### Stage 4: current-command import
+### Stage 4: parameter-only actor import
 
-1. Add the API-backed coordinator that constructs current import parameters.
+1. Make REST, NATS, UI, and scheduled coordination submit parameter-only commands.
 2. Split date ranges into deterministic single-date commands.
-3. Record effective duplicate policy on import events.
-4. Make economic-calendar state merge or reject according to that policy.
-5. Correct yield-curve schema/runtime CQL mismatch.
+3. Record request parameters and effective duplicate policy on main import events.
+4. Acquire through `IReferenceDataApi` in the event-family handlers and publish correlated terminal events.
+5. Make imported command events operation markers rather than replayed row state.
 
 ### Stage 5: storage policies
 
@@ -838,16 +814,16 @@ The design is implemented only when:
 4. Provider DTOs are separate from canonical read models.
 5. Treasury fields map completely without treating missing values as zero.
 6. Calendar timestamps are normalized to UTC and missing values remain distinguishable from zero.
-7. The current import command parameter contracts remain accepted.
-8. An API-backed range can be represented by multiple current single-date commands.
-9. No actor thread performs an FMP HTTP request.
+7. Import commands and main events contain request parameters but no provider rows.
+8. An API-backed range is represented by multiple single-date command submissions.
+9. Event-family handlers acquire through `IReferenceDataApi`; storage has no FMP dependency.
 10. Import commands remain event sourced before table writes.
 11. Imports write the target tables directly in bounded batches rather than emitting per-row commands.
 12. Overwrite and Reject are independently configurable per dataset.
 13. The effective policy is persisted on the import event.
 14. Overwrite is the initial default and updates the single target row.
 15. Reject throws a typed exception and uses a conditional storage write.
-16. Same-command retry is idempotent under both policies.
+16. Same-command storage ownership is idempotent under both policies.
 17. Conflicting provider duplicates fail in both policies.
 18. Range partial-failure semantics are visible and retryable by date.
 19. Yield-curve schema and runtime CQL use the same primary key.
@@ -866,14 +842,18 @@ The design is implemented only when:
 30. Application orchestration resolves and passes the selected rate; DataBento
     performs no FMP HTTP or Blackboard/Redis operation on its option-record hot
     path.
+31. A valid zero-row provider response performs an empty bulk call and produces a successful complete event.
+32. Acquisition, mapping, validation, and storage failures produce a fail event and never a complete event.
+33. UI and scheduled operations use command IDs to observe terminal success/failure; a retry submits a new command.
+34. Request, complete, and fail schemas have serialization round-trip tests.
 
 ## 19. Decisions requested during review
 
 | Decision | Proposed direction |
 | --- | --- |
-| Initial command contract | Preserve current `ImportYieldCurveRatesParameter` and `ImportEconomicCalendarsParameter` |
-| API-backed range | Fetch a bounded range, then issue deterministic single-date current commands |
-| Direct write meaning | Bulk denormalization to the target tables after the committed import event; no per-row actor commands |
+| Initial command contract | Parameter-only `ImportYieldCurveRatesParameter` and `ImportEconomicCalendarsParameter` |
+| API-backed range | Issue deterministic single-date commands; each event handler fetches its requested date |
+| Direct write meaning | One 0..N bulk storage call from the main import-event handler; no per-row actor commands |
 | Yield target | `MarketDataDbContext.yield_curve_rates` |
 | Calendar domain | Move actors and all shared contracts from Reference to MarketData |
 | Calendar storage owner | Move reads, writes, schema, and CQL to `MarketDataDbContext` |
@@ -886,7 +866,7 @@ The design is implemented only when:
 | Initial duplicate default | `Overwrite` for both datasets |
 | Duplicate configuration | Independent `Overwrite` or `Reject` setting per dataset |
 | Policy audit | Record effective policy on every import event |
-| Reject concurrency | Preflight plus conditional `IF NOT EXISTS`; never check then unconditionally insert |
+| Reject concurrency | Conditional ownership through `IF NOT EXISTS`; never check then unconditionally insert |
 | Range atomicity | No global transaction claim; single-date commands bound partial failure |
 | Economic calendar revisions | Overwrite the matching row in the single MarketData table |
 | Calendar supplemental values | Add optional `Impact`, `Unit`, `Change`, and `ChangePercentage` canonical/storage fields before claiming full FMP fidelity |
@@ -909,6 +889,7 @@ The design is implemented only when:
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.9 | 2026-08-16 | Established the authoritative parameter-only actor import flow, event-handler acquisition through `IReferenceDataApi`, 0..N bulk storage calls, correlated terminal events, transactional non-replay semantics, and removal of both legacy external-query storage facades. |
 | 0.8 | 2026-08-16 | Completed the versioned single-table calendar cutover, request-bound paged actor/REST/NATS contract, direct canonical LWT Reject behavior, restartable reconciliation tool, compatibility projection removal, and external-calendar facade retirement. |
 | 0.7 | 2026-08-15 | Implemented the FMP adapters, compatibility facades, deterministic application import coordinator, independently configured event-persisted duplicate policies, LWT Reject ownership, supplemental calendar persistence, host/API/schedule/health/metrics wiring, secret cleanup, tests, and rollout migration instructions. |
 | 0.6 | 2026-08-10 | Defined the provider-neutral framework contracts and storage-capable records in code; made Treasury percentage units explicit, preserved UTC/provenance and nullable calendar values including impact/unit/change fields, and specified FMP-to-framework DI registration without any dependency on the application API. |

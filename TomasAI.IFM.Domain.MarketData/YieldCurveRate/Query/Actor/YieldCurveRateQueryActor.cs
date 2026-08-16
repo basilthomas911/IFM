@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query.Actor;
 /// </summary>
 /// <remarks>The <see cref="YieldCurveRateQueryActor"/> is a specialized query actor designed to handle operations
 /// related to yield curve rates. It processes queries such as retrieving yield curve rates by date range, checking existence,
-/// and fetching external yield curve rate data. This actor uses dependency injection to resolve required services.</remarks>
+/// and retrieving persisted yield curve data. This actor uses dependency injection to resolve required services.</remarks>
 /// <param name="logger">The logger instance for tracking actor operations.</param>
 public class YieldCurveRateQueryActor(
     IDbContextFactory dbFactory,
@@ -47,7 +47,6 @@ public class YieldCurveRateQueryActor(
             GetYieldCurveRatesQuery.Verb => message.AsQuery<GetYieldCurveRatesQuery, YieldCurveRateReadModel[]>(),
             GetYieldCurveRateExistsQuery.Verb => message.AsQuery<GetYieldCurveRateExistsQuery, ScalarReadModel<bool>>(),
             GetYieldCurveRateYearsQuery.Verb => message.AsQuery<GetYieldCurveRateYearsQuery, YieldCurveRateYearsReadModel>(),
-            GetExternalYieldCurveRatesQuery.Verb => message.AsQuery<GetExternalYieldCurveRatesQuery, YieldCurveRateReadModel[]>(),
             _ => throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}")
         };
         IsArgumentNull.Check(query);
@@ -82,7 +81,6 @@ public class YieldCurveRateQueryActor(
             GetYieldCurveRatesQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
             GetYieldCurveRateExistsQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
             GetYieldCurveRateYearsQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
-            GetExternalYieldCurveRatesQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
             _ => throw new InvalidOperationException(
                 $"Unable to process {ActorName} query: {query.GetType().Name}")
         };
@@ -132,17 +130,6 @@ public class YieldCurveRateQueryActor(
             new ServiceResult<YieldCurveRateYearsReadModel>(result)).ConfigureAwait(false);
     }
 
-    async ValueTask ReceiveAsync(
-        IQueryActorContext context,
-        GetExternalYieldCurveRatesQuery query,
-        CancellationToken cancellationToken)
-    {
-        var result = await query.GetExternalYieldCurveRatesAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, GetExternalYieldCurveRatesQuery.Verb,
-            new ServiceResult<YieldCurveRateReadModel[]>(result)).ConfigureAwait(false);
-    }
-
     /// <summary>
     /// Handles exceptions that occur during the processing of a query in the actor context.
     /// </summary>
@@ -173,8 +160,6 @@ public class YieldCurveRateQueryActor(
                     => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarReadModel<bool>>(query.ErrorCode, ex.Message)),
                 _ when query is GetYieldCurveRateYearsQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<YieldCurveRateYearsReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetExternalYieldCurveRatesQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<YieldCurveRateReadModel[]>(query.ErrorCode, ex.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message))
             };
             await serviceResultTask;

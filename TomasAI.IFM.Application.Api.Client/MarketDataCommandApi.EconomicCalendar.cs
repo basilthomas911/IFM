@@ -20,7 +20,7 @@ public partial class MarketDataCommandApi
         => await new RemoveEconomicCalendarParameter(id, overwrite, RemoveEconomicCalendarCommand.ErrorId)
             .ExecuteAsync(value => _commandSvc.ExecuteCommandAsync(MarketDataUriPath.RemoveEconomicCalendar, value));
 
-    public async Task<ServiceResult<Guid>> ImportEconomicCalendarsAsync(DateTime importedDate, EconomicCalendarReadModel[] calendars)
-        => await new ImportEconomicCalendarsParameter(importedDate, calendars, ImportEconomicCalendarsCommand.ErrorId)
+    public async Task<ServiceResult<Guid>> ImportEconomicCalendarsAsync(DateTime importedDate, string[]? countryCodes = null)
+        => await new ImportEconomicCalendarsParameter(importedDate, countryCodes ?? [], ImportEconomicCalendarsCommand.ErrorId)
             .ExecuteAsync(value => _commandSvc.ExecuteCommandAsync(MarketDataUriPath.ImportEconomicCalendars, value));
 }

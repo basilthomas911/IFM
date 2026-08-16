@@ -839,13 +839,11 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             .ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) =>
                     PublishError(errorCode, errorMsg, "Import Yield Curve Rates Error"));
-                YieldCurveRateReadModel[] yieldCurveRates = [];
                 var importDate = DateTime.Now;
-                await _appRoot.GetModel<MarketDataQueryModel>().GetExternalYieldCurveRatesAsync(e => yieldCurveRates = e);
-                await model.ImportYieldCurveRatesAsync(importDate, yieldCurveRates ?? []);
+                await model.ImportYieldCurveRatesAsync(importDate);
                 onCompleted?.Invoke();
                 await WriteStatusConsoleAsync(
-                    $"{yieldCurveRates?.Length ?? 0} Yield Curve Rates Imported on: {importDate:yyyy-MM-dd}");
+                    $"Yield Curve Rates import requested for: {importDate:yyyy-MM-dd}");
             });
 
     /// <summary>
@@ -856,20 +854,11 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             .ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) =>
                     PublishError(errorCode, errorMsg, "Import Economic Calendars Error"));
-                EconomicCalendarReadModel[] economicCalendars = [];
                 var importDate = DateTime.Now;
-                await _appRoot.GetModel<MarketDataQueryModel>().GetExternalEconomicCalendarsAsync(e => economicCalendars = e);
-                var imported = false;
-                await model.ImportEconomicCalendarsAsync(
-                    importDate,
-                    economicCalendars,
-                    () => imported = true);
-                if (imported)
-                {
-                    await WriteStatusConsoleAsync(
-                        $"Economic Calendars For: {importDate:yyyy-MM-dd} Imported");
-                    onCompleted?.Invoke();
-                }
+                await model.ImportEconomicCalendarsAsync(importDate);
+                await WriteStatusConsoleAsync(
+                    $"Economic Calendars import requested for: {importDate:yyyy-MM-dd}");
+                onCompleted?.Invoke();
             });
 
     /// <summary>

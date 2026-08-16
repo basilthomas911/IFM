@@ -61,15 +61,6 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory)
     }
 
     [Fact]
-    public async Task GetExternalEconomicCalendars_Ok()
-    {
-        var response = await CreateApi().GetExternalEconomicCalendarsAsync();
-
-        response.Success.Should().BeTrue();
-        response.Value.Should().BeAssignableTo<EconomicCalendarReadModel[]>();
-    }
-
-    [Fact]
     public async Task GetEconomicCalendarDate_Ok()
     {
         var response = await CreateApi().GetEconomicCalendarDateAsync(
@@ -305,21 +296,6 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory)
         var startDate = new DateOnly(2025, 1, 1);
         var endDate = new DateOnly(2025, 12, 31);
         var response = await queryApi.GetYieldCurveRatesAsync(startDate, endDate);
-        response.Success.Should().BeTrue();
-        response.Value.Should().NotBeNull();
-        response.Value.Should().BeAssignableTo<YieldCurveRateReadModel[]>();
-        response.Value.Should().NotBeEmpty();
-    }
-
-    /// <summary>
-    /// Tests retrieval of external yield curve rates.
-    /// </summary>
-    [Fact]
-    public async Task GetExternalYieldCurveRates_Ok()
-    {
-        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
-        var queryApi = new MarketDataQueryApi(queryServiceApi);
-        var response = await queryApi.GetExternalYieldCurveRatesAsync();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
         response.Value.Should().BeAssignableTo<YieldCurveRateReadModel[]>();

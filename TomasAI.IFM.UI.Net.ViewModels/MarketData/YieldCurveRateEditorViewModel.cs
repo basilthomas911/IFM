@@ -329,13 +329,9 @@ public sealed class YieldCurveRateEditorViewModel
     {
         var importDate = _pendingImportDate
             ?? throw new InvalidOperationException("No yield-curve import date is prepared.");
-        YieldCurveRateReadModel[] externalRates = [];
-        await _queryModel.ExecuteObservableAsync(
-            model => model.GetExternalYieldCurveRatesAsync(loaded => externalRates = loaded ?? []),
-            cancellationToken);
         await ExecuteMutationAsync(
-            model => model.ImportYieldCurveRatesAsync(importDate, externalRates),
-            $"{externalRates.Length} Yield Curve Rates Imported on {importDate:yyyy-MM-dd}",
+            model => model.ImportYieldCurveRatesAsync(importDate),
+            $"Yield Curve Rates Imported for {importDate:yyyy-MM-dd}",
             () => _pendingImportDate = null,
             cancellationToken);
     }

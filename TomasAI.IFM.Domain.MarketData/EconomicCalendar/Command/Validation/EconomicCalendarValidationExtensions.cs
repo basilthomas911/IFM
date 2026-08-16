@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.Validation;
@@ -29,17 +28,24 @@ public static class EconomicCalendarValidationExtensions
         return validationErrors;
     }
 
-    public static List<ValidationError> ValidateEconomicCalendars(this List<ValidationError> validationErrors, EconomicCalendarReadModel[] economicCalendars, string commandName)
+    /// <summary>Validates the optional provider-neutral country filters on an import request.</summary>
+    public static List<ValidationError> ValidateImportCountryCodes(
+        this List<ValidationError> validationErrors,
+        string[]? countryCodes,
+        string commandName)
     {
-        if (economicCalendars is null || economicCalendars.Length == 0)
-            validationErrors.Add(new ValidationError($"{commandName}.EconomicCalendars is empty"));
-
-        foreach (var e in economicCalendars!)
+        if (countryCodes is null)
         {
-            var ruleErrors = EconomicCalendarRules.Execute(e);
-            if (ruleErrors is not null)
-                validationErrors.AddRange(ruleErrors);
+            validationErrors.Add(new ValidationError($"{commandName}.CountryCodes is null"));
+            return validationErrors;
         }
+
+        foreach (var countryCode in countryCodes)
+            if (string.IsNullOrWhiteSpace(countryCode)
+                || countryCode.Trim().Length is < 2 or > 3
+                || countryCode.Trim().Any(character => !char.IsAsciiLetter(character)))
+                validationErrors.Add(new ValidationError(
+                    $"{commandName}.CountryCodes contains an invalid two- or three-letter country code"));
         return validationErrors;
     }
 

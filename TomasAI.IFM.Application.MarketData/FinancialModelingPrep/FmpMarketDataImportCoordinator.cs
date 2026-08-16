@@ -2,29 +2,20 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 
 public sealed class FmpMarketDataImportCoordinator(
-    ITreasuryCurve treasuryCurve,
-    IEconomicCalendar economicCalendar,
     IMarketDataCommandApi commandApi,
     FmpMarketDataImportOptions options,
     ILogger<FmpMarketDataImportCoordinator> logger) : IFmpMarketDataImportCoordinator
 {
-    private const string Source = "FinancialModelingPrep";
     private static readonly Meter Meter = new("TomasAI.IFM.Application.MarketData.FMP");
     private static readonly Counter<long> ImportRequests = Meter.CreateCounter<long>("ifm.fmp.import.requests");
-    private static readonly Counter<long> ImportRows = Meter.CreateCounter<long>("ifm.fmp.import.rows");
+    private static readonly Counter<long> ImportSubmissions = Meter.CreateCounter<long>("ifm.fmp.import.submissions");
     private static readonly Counter<long> ImportFailures = Meter.CreateCounter<long>("ifm.fmp.import.failures");
     private static readonly Histogram<double> ImportDuration = Meter.CreateHistogram<double>("ifm.fmp.import.duration.ms");
 
-    private readonly ITreasuryCurve _treasuryCurve = treasuryCurve
-        ?? throw new ArgumentNullException(nameof(treasuryCurve));
-    private readonly IEconomicCalendar _economicCalendar = economicCalendar
-        ?? throw new ArgumentNullException(nameof(economicCalendar));
     private readonly IMarketDataCommandApi _commandApi = commandApi
         ?? throw new ArgumentNullException(nameof(commandApi));
     private readonly FmpMarketDataImportOptions _options = Validate(options);
@@ -59,44 +50,13 @@ public sealed class FmpMarketDataImportCoordinator(
         FmpMarketDataImportRequest request,
         CancellationToken cancellationToken)
     {
-        var countries = NormalizeCountries(request.CountryCodes);
-        IReadOnlyList<TreasuryCurveSnapshot> treasurySnapshots = [];
-        IReadOnlyList<EconomicCalendarEntry> calendarEntries = [];
-
-        // Complete acquisition and validation before submitting the first command.
-        if (request.IncludeTreasury)
-        {
-            treasurySnapshots = await _treasuryCurve
-                .GetRangeAsync(request.FromInclusive, request.ToInclusive, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        if (request.IncludeEconomicCalendar)
-        {
-            calendarEntries = await _economicCalendar
-                .GetAsync(request.FromInclusive, request.ToInclusive, countries, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
         var operations = new List<ImportOperation>();
-        if (request.IncludeTreasury)
+        for (var date = request.FromInclusive; date <= request.ToInclusive; date = date.AddDays(1))
         {
-            operations.AddRange(treasurySnapshots
-                .GroupBy(snapshot => snapshot.ValueDate)
-                .Select(group => new ImportOperation(
-                    group.Key,
-                    FmpImportDataset.Treasury,
-                    group.Select(MapTreasury).ToArray())));
-        }
-
-        if (request.IncludeEconomicCalendar)
-        {
-            operations.AddRange(calendarEntries
-                .GroupBy(entry => DateOnly.FromDateTime(entry.EventTimeUtc.UtcDateTime))
-                .Select(group => new ImportOperation(
-                    group.Key,
-                    FmpImportDataset.EconomicCalendar,
-                    group.Select(MapEconomicCalendar).ToArray())));
+            if (request.IncludeTreasury)
+                operations.Add(new ImportOperation(date, FmpImportDataset.Treasury));
+            if (request.IncludeEconomicCalendar)
+                operations.Add(new ImportOperation(date, FmpImportDataset.EconomicCalendar));
         }
 
         operations.Sort(static (left, right) =>
@@ -108,12 +68,9 @@ public sealed class FmpMarketDataImportCoordinator(
         var requestedDays = request.ToInclusive.DayNumber - request.FromInclusive.DayNumber + 1;
         var requestedDatasetDates = requestedDays
             * (Convert.ToInt32(request.IncludeTreasury) + Convert.ToInt32(request.IncludeEconomicCalendar));
-        var noDataDates = requestedDatasetDates - operations.Count;
-        var acquiredRows = treasurySnapshots.Count + calendarEntries.Count;
         var dateResults = new List<FmpImportDateResult>(operations.Count);
-        var acceptedCommands = 0;
-        var acceptedRows = 0;
-        var failedDates = 0;
+        var submittedCommands = 0;
+        var rejectedSubmissions = 0;
         var remaining = 0;
         var cancelled = false;
 
@@ -130,24 +87,22 @@ public sealed class FmpMarketDataImportCoordinator(
             var result = operation.Dataset switch
             {
                 FmpImportDataset.Treasury => await _commandApi.ImportYieldCurveRatesAsync(
-                    operation.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                    (YieldCurveRateReadModel[])operation.Rows).ConfigureAwait(false),
+                    operation.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)).ConfigureAwait(false),
                 FmpImportDataset.EconomicCalendar => await _commandApi.ImportEconomicCalendarsAsync(
                     operation.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                    (EconomicCalendarReadModel[])operation.Rows).ConfigureAwait(false),
+                    request.CountryCodes).ConfigureAwait(false),
                 _ => throw new UnreachableException()
             };
 
             if (!result.Success)
             {
-                failedDates++;
+                rejectedSubmissions++;
                 remaining = operations.Count - index - 1;
                 dateResults.Add(new FmpImportDateResult(
                     operation.Date,
                     operation.Dataset,
-                    FmpImportDateStatus.Failed,
-                    operation.Rows.Length,
-                    result.Value,
+                    FmpImportDateStatus.Rejected,
+                    null,
                     result.ErrorCode,
                     result.ErrorMessage));
                 _logger.LogError(
@@ -157,103 +112,31 @@ public sealed class FmpMarketDataImportCoordinator(
                 break;
             }
 
-            acceptedCommands++;
-            acceptedRows += operation.Rows.Length;
+            submittedCommands++;
             dateResults.Add(new FmpImportDateResult(
                 operation.Date,
                 operation.Dataset,
-                FmpImportDateStatus.Accepted,
-                operation.Rows.Length,
+                FmpImportDateStatus.Submitted,
                 result.Value,
                 0,
                 null));
         }
 
-        ImportRows.Add(acceptedRows);
-        if (failedDates > 0)
+        ImportSubmissions.Add(submittedCommands);
+        if (rejectedSubmissions > 0)
         {
-            ImportFailures.Add(failedDates);
+            ImportFailures.Add(rejectedSubmissions);
         }
 
         return new FmpMarketDataImportResult(
             request.FromInclusive,
             request.ToInclusive,
             requestedDatasetDates,
-            acquiredRows,
-            acceptedCommands,
-            acceptedRows,
-            noDataDates,
-            failedDates,
+            submittedCommands,
+            rejectedSubmissions,
             remaining,
             cancelled,
             dateResults);
-    }
-
-    private static YieldCurveRateReadModel MapTreasury(TreasuryCurveSnapshot snapshot) =>
-        new(
-            snapshot.ValueDate,
-            Rate(snapshot, TreasuryTenor.OneMonth),
-            Rate(snapshot, TreasuryTenor.TwoMonth),
-            Rate(snapshot, TreasuryTenor.ThreeMonth),
-            Rate(snapshot, TreasuryTenor.SixMonth),
-            Rate(snapshot, TreasuryTenor.OneYear),
-            Rate(snapshot, TreasuryTenor.TwoYear),
-            Rate(snapshot, TreasuryTenor.ThreeYear),
-            Rate(snapshot, TreasuryTenor.FiveYear),
-            Rate(snapshot, TreasuryTenor.SevenYear),
-            Rate(snapshot, TreasuryTenor.TenYear),
-            Rate(snapshot, TreasuryTenor.TwentyYear),
-            Rate(snapshot, TreasuryTenor.ThirtyYear));
-
-    private static EconomicCalendarReadModel MapEconomicCalendar(EconomicCalendarEntry entry) =>
-        new(
-            entry.EventTimeUtc.UtcDateTime,
-            entry.CountryCode,
-            entry.EventName,
-            entry.Actual,
-            entry.Forecast,
-            entry.Previous,
-            entry.RetrievedAtUtc.UtcDateTime,
-            Source,
-            entry.Impact,
-            entry.Unit,
-            entry.Change,
-            entry.ChangePercentage);
-
-    private static double Rate(TreasuryCurveSnapshot snapshot, TreasuryTenor tenor)
-    {
-        if (!snapshot.TryGetRate(tenor, out var point))
-        {
-            throw new FmpMarketDataImportException(
-                $"Treasury curve {snapshot.ValueDate:yyyy-MM-dd} is missing tenor {tenor}.");
-        }
-
-        return decimal.ToDouble(point.RatePercent);
-    }
-
-    private static HashSet<string>? NormalizeCountries(string[]? countryCodes)
-    {
-        if (countryCodes is null || countryCodes.Length == 0)
-        {
-            return null;
-        }
-
-        var result = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var countryCode in countryCodes)
-        {
-            var normalized = countryCode?.Trim().ToUpperInvariant();
-            if (string.IsNullOrWhiteSpace(normalized)
-                || normalized.Length is < 2 or > 3
-                || normalized.Any(character => !char.IsAsciiLetter(character)))
-            {
-                throw new FmpMarketDataImportException(
-                    "FMP country filters must be two- or three-letter codes.");
-            }
-
-            result.Add(normalized);
-        }
-
-        return result;
     }
 
     private void ValidateRequest(FmpMarketDataImportRequest request)
@@ -283,8 +166,5 @@ public sealed class FmpMarketDataImportCoordinator(
         return options;
     }
 
-    private sealed record ImportOperation(
-        DateOnly Date,
-        FmpImportDataset Dataset,
-        Array Rows);
+    private sealed record ImportOperation(DateOnly Date, FmpImportDataset Dataset);
 }

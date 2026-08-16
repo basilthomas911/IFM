@@ -1,12 +1,11 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.Commands;
 
 /// <summary>
-/// Command to import a batch of yield curve rates for a given import date.
+/// Command to acquire and import yield curve rates for a given date.
 /// </summary>
 /// <remarks>
 /// MessagePack serialization pattern: base command keys 0�5; custom properties start at key 6.
@@ -39,10 +38,6 @@ public record ImportYieldCurveRatesCommand : ICommand<YieldCurveRateEntityId>
     [Key(6)]
     public DateTime ImportDate { get; init; }
 
-    /// <summary>Collection of yield curve rate view models to import.</summary>
-    [Key(7)]
-    public YieldCurveRateReadModel[] YieldCurveRates { get; init; } = [];
-
     [Key(8)]
     public ImportDuplicatePolicy DuplicatePolicy { get; init; } = ImportDuplicatePolicy.Overwrite;
 
@@ -53,14 +48,11 @@ public record ImportYieldCurveRatesCommand : ICommand<YieldCurveRateEntityId>
     /// Creates a new command to import yield curve rates.
     /// </summary>
     /// <param name="importDate">The import date (used to derive the entity year).</param>
-    /// <param name="yieldCurveRates">Array of yield curve rates (cannot be null).</param>
     public ImportYieldCurveRatesCommand(
         DateTime importDate,
-        YieldCurveRateReadModel[] yieldCurveRates,
         ImportDuplicatePolicy duplicatePolicy = ImportDuplicatePolicy.Overwrite)
     {
         ImportDate = importDate;
-        YieldCurveRates = yieldCurveRates ?? throw new ArgumentNullException(nameof(yieldCurveRates));
         DuplicatePolicy = duplicatePolicy;
         EntityId = new YieldCurveRateEntityId(importDate.Year);
         ErrorCode = ErrorId;
@@ -77,7 +69,6 @@ public record ImportYieldCurveRatesCommand : ICommand<YieldCurveRateEntityId>
         int errorCode,                         // Key(4)
         BoundedContextName routeTo,            // Key(5)
         DateTime importDate,                   // Key(6)
-        YieldCurveRateReadModel[] yieldCurveRates, // Key(7)
         ImportDuplicatePolicy duplicatePolicy)     // Key(8)
     {
         CommandId = commandId;
@@ -87,7 +78,6 @@ public record ImportYieldCurveRatesCommand : ICommand<YieldCurveRateEntityId>
         ErrorCode = errorCode;
         RouteTo = routeTo;
         ImportDate = importDate;
-        YieldCurveRates = yieldCurveRates;
         DuplicatePolicy = duplicatePolicy;
     }
 }

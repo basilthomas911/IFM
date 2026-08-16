@@ -77,7 +77,6 @@ public static  class MapQueryExtension
         app.MapGet(MarketDataQueryUriPath.GetYieldCurveRateYears, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetYieldCurveRateYearsAsync(resp));
         app.MapGet(MarketDataQueryUriPath.YieldCurveRateExists, async (HttpResponse resp) => await MarketDataQueryApiResult.FromYieldCurveRateExistsAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetValueDate, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetValueDateAsync(resp));
-        app.MapGet(MarketDataQueryUriPath.GetExternalYieldCurveRates, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetExternalYieldCurveRatesAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetIronCondorMarketData, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetIronCondorMarketDataAsync(resp));
         app.MapPost(MarketDataQueryUriPath.GetFuturesOptionContractIds, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetFuturesOptionContractIdsAsync(resp));
 
@@ -102,7 +101,6 @@ public static  class MapQueryExtension
         app.MapGet(MarketDataQueryUriPath.GetEconomicCalendars, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarsAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarPage, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarPageAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarAll, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarAllAsync(resp));
-        app.MapGet(MarketDataQueryUriPath.GetExternalEconomicCalendars, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetExternalEconomicCalendarsAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarDate, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarDateAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetEconomicCalendarCountryCodes, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetEconomicCalendarCountryCodesAsync(resp));
         app.MapGet(ReferenceQueryUriPath.GetMDIForwardLossRatios, async (HttpResponse resp) => await ReferenceQueryApiResult.FromGetMDIForwardLossRatiosAsync(resp));

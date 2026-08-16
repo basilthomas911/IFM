@@ -76,6 +76,20 @@ public class MarketEconomicCalendarViewModelTests
     }
 
     [Fact]
+    public async Task ImportFailure_IsPublishedAsObservableError()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+
+        subject.EventSource.PublishImportFailed(429, "provider rate limited");
+
+        subject.ViewModel.LastError.Should().NotBeNull();
+        subject.ViewModel.LastError!.ErrorCode.Should().Be(429);
+        subject.ViewModel.LastError.Message.Should().Be("provider rate limited");
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
     public async Task CodedFailure_IsObservableAndPublicSurfaceHasNoCallbacks()
     {
         var subject = CreateSubject(
@@ -157,6 +171,7 @@ public class MarketEconomicCalendarViewModelTests
     sealed class TestEventSource
     {
         Action<EconomicCalendarAddedCompleteEvent>? _added;
+        Action<EconomicCalendarsImportedFailEvent>? _importFailed;
 
         public TestEventSource(IEconomicCalendarUIEventConsumer consumer)
         {
@@ -164,10 +179,12 @@ public class MarketEconomicCalendarViewModelTests
                     Arg.Any<Action<EconomicCalendarAddedCompleteEvent>>(),
                     Arg.Any<Action<EconomicCalendarChangedCompleteEvent>>(),
                     Arg.Any<Action<EconomicCalendarRemovedCompleteEvent>>(),
-                    Arg.Any<Action<EconomicCalendarsImportedCompleteEvent>>())
+                    Arg.Any<Action<EconomicCalendarsImportedCompleteEvent>>(),
+                    Arg.Any<Action<EconomicCalendarsImportedFailEvent>>())
                 .Returns(call =>
                 {
                     _added = call.ArgAt<Action<EconomicCalendarAddedCompleteEvent>>(0);
+                    _importFailed = call.ArgAt<Action<EconomicCalendarsImportedFailEvent>>(4);
                     IsStarted = true;
                     return ValueTask.CompletedTask;
                 });
@@ -182,5 +199,13 @@ public class MarketEconomicCalendarViewModelTests
 
         public void PublishAdded()
             => (_added ?? throw new InvalidOperationException("Listener not started."))(null!);
+
+        public void PublishImportFailed(int errorCode, string errorMessage)
+            => (_importFailed ?? throw new InvalidOperationException("Listener not started."))(
+                new EconomicCalendarsImportedFailEvent
+                {
+                    ErrorCode = errorCode,
+                    ErrorMessage = errorMessage
+                });
     }
 }

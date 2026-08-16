@@ -305,16 +305,15 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// Imports yield curve rates.
     /// </summary>
     /// <param name="importDate">The import date.</param>
-    /// <param name="yieldCurveRates">The array of yield curve rates to import.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the operation.</returns>
-    public async Task<ServiceResult<Guid>> ImportYieldCurveRatesAsync(DateTime importDate, YieldCurveRateReadModel[] yieldCurveRates)
+    public async Task<ServiceResult<Guid>> ImportYieldCurveRatesAsync(DateTime importDate)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
             var entityId = new YieldCurveRateEntityId(importDate.Year);
-            var cmd = new ImportYieldCurveRatesCommand(importDate, yieldCurveRates)
+            var cmd = new ImportYieldCurveRatesCommand(importDate)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, ImportYieldCurveRatesCommand.Actor, ImportYieldCurveRatesCommand.Verb, entityId.Format()),

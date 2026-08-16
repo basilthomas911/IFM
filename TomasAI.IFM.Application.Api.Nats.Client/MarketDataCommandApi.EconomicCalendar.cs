@@ -60,13 +60,13 @@ public partial class MarketDataCommandApi
         catch (Exception ex) { return OnError(ex, commandId, RemoveEconomicCalendarCommand.ErrorId); }
     }
 
-    public async Task<ServiceResult<Guid>> ImportEconomicCalendarsAsync(DateTime importedDate, EconomicCalendarReadModel[] calendars)
+    public async Task<ServiceResult<Guid>> ImportEconomicCalendarsAsync(DateTime importedDate, string[]? countryCodes = null)
     {
         var commandId = Guid.NewGuid();
         try
         {
             var entityId = new EconomicCalendarId(importedDate, "ZZ", "ImportEconomicCalendars");
-            var command = new ImportEconomicCalendarsCommand(calendars, importedDate)
+            var command = new ImportEconomicCalendarsCommand(importedDate, countryCodes)
             {
                 CommandId = commandId,
                 Subject = new ActorSubject(ActorType.Command, ImportEconomicCalendarsCommand.Actor, ImportEconomicCalendarsCommand.Verb, entityId.Format()),

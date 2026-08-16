@@ -212,18 +212,19 @@ public partial class MarketDataDbContext
     public Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar)
         => InsertEconomicCalendarsAsync([economicCalendar]);
 
-    public Task InsertEconomicCalendarsAsync(ICollection<EconomicCalendarReadModel> economicCalendars)
+    public Task InsertEconomicCalendarsAsync(EconomicCalendarReadModel[] economicCalendars)
         => InsertEconomicCalendarsAsync(economicCalendars, ImportDuplicatePolicy.Overwrite, Guid.Empty);
 
     public async Task InsertEconomicCalendarsAsync(
-        ICollection<EconomicCalendarReadModel> economicCalendars,
+        EconomicCalendarReadModel[] economicCalendars,
         ImportDuplicatePolicy duplicatePolicy,
         Guid commandId)
     {
-        if (economicCalendars.Count == 0) return;
+        ArgumentNullException.ThrowIfNull(economicCalendars);
+        if (economicCalendars.Length == 0) return;
         ValidateImportPolicy(duplicatePolicy, commandId);
         var db = _dbFactory.MarketDataDb;
-        var commands = new List<object>(economicCalendars.Count * 2);
+        var commands = new List<object>(economicCalendars.Length * 2);
         var countryCodes = new HashSet<string>(StringComparer.Ordinal);
         foreach (var row in economicCalendars)
         {

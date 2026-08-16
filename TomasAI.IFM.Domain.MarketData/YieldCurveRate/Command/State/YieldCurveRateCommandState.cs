@@ -80,9 +80,7 @@ public class YieldCurveRateCommandState
     /// <param name="e"></param>
     bool On(YieldCurveRatesImportedEvent e)
     {
-        _yieldCurveRateDates.EnsureCapacity(_yieldCurveRateDates.Count + e.YieldCurveRates.Length);
-        foreach (var yieldCurveRate in e.YieldCurveRates)
-            _yieldCurveRateDates.Add(yieldCurveRate.ValueDate);
+        ArgumentNullException.ThrowIfNull(e);
         return true;
     }
 

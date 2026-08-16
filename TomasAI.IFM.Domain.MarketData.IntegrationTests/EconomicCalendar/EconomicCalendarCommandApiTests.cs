@@ -195,52 +195,21 @@ public class EconomicCalendarCommandApiTests(WebApplicationFactory<Program> fact
     }
 
     [Fact]
-    public async Task ImportEconomicCalendars_Ok()
+    public async Task ImportEconomicCalendars_SubmitsParameterOnlyRequest()
     {
         // arrange...
         var importedDate = DateTime.UtcNow;
-        var runId = Guid.NewGuid().ToString("N");
-        var economicCalendars = SampleData.EconomicCalendars
-            .Select(calendar => calendar with { EventName = $"{calendar.EventName}-{runId}" })
-            .ToArray();
         var importEntityId = new EconomicCalendarId(importedDate, "ZZ", "ImportEconomicCalendars");
         await ClearEventStreamAsync(new ActorSubject(
             ActorType.Command, ImportEconomicCalendarsCommand.Actor, ImportEconomicCalendarsCommand.Verb, importEntityId.Format()));
 
-        // clean up any existing records
-        foreach (var calendar in economicCalendars)
-        {
-            await dbFixture.MarketDataDb.DeleteEconomicCalendarAsync(calendar.Id);
-        }
-
         // act...
         var marketDataApi = new MarketDataCommandApi(_actorProducer);
-        var response = await marketDataApi.ImportEconomicCalendarsAsync(importedDate, economicCalendars);
+        var response = await marketDataApi.ImportEconomicCalendarsAsync(importedDate, ["US"]);
 
         response.Should().NotBeNull();
         response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
-
-        await WaitUntilAsync(async () =>
-        {
-            var importedRows = await Task.WhenAll(
-                economicCalendars.Select(calendar =>
-                    dbFixture.MarketDataDb.GetEconomicCalendarAsync(calendar.Id)));
-            return importedRows.All(static calendar => calendar is not null);
-        });
-
-        // assert...
-        // verify all 5 economic calendars were added to database
-        foreach (var calendar in economicCalendars)
-        {
-            var savedCalendar = await dbFixture.MarketDataDb.GetEconomicCalendarAsync(calendar.Id);
-            savedCalendar.Should().NotBeNull();
-            savedCalendar!.CountryCode.Should().Be(calendar.CountryCode);
-            savedCalendar.EventName.Should().Be(calendar.EventName);
-            savedCalendar.Actual.Should().Be(calendar.Actual);
-            savedCalendar.Forecast.Should().Be(calendar.Forecast);
-            savedCalendar.Prior.Should().Be(calendar.Prior);
-        }
     }
 
     async Task ClearEventStreamAsync(ActorSubject subject)

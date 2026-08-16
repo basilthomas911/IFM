@@ -3,7 +3,7 @@
 **Document type:** System-wide implementation guide for all actor types  
 **Status:** Evolving design convention; durable and realtime EventActor conventions documented, CommandActor and QueryActor conventions reserved for later review
 **Created:** 2026-08-14  
-**Last updated:** 2026-08-14  
+**Last updated:** 2026-08-16
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
 
 ## 1. Purpose
@@ -359,6 +359,27 @@ A default complete or fail handler must not:
 
 Specialized lifecycle behavior is allowed, such as the existing VIX completion workflow, but it must remain in the same main-event extension class and be explicitly tested.
 
+### 7.5 Transactional external-data imports
+
+An external-data import is a transactional event-family workflow, not a replayable data snapshot. Its authoritative flow is:
+
+```text
+parameter-only import command
+  -> parameter-only main import event
+  -> provider-neutral application API
+  -> canonical domain read-model array (0..N)
+  -> one bulk storage API call
+  -> correlated complete or fail event
+```
+
+The command and main event carry only acquisition parameters, correlation metadata, and the duplicate policy. They do not carry provider rows. The main event handler owns acquisition through an application-layer, vendor-neutral interface, conversion to canonical domain read models, validation, and the single array-based storage call. Framework vendor implementations must not be resolved by a command actor or storage context.
+
+The complete event is sent only after storage succeeds and may carry the canonical rows required by UI or downstream consumers. A valid zero-row provider response is a successful import: storage receives an empty array and the handler sends a complete event with zero records. An acquisition, mapping, validation, or storage exception sends a correlated fail event and must never send complete for the same attempt.
+
+Import main events are operation markers. Command state projectors must not use their row data to rebuild durable state, and state repositories post them to the event workflow rather than treating them as completed storage projections. The complete/fail pair is the authoritative terminal result exposed to UI and scheduled-task consumers. A failed attempt is terminal; obtaining current data requires a new import command and command ID rather than replaying the old import event.
+
+Tests for every external import family must cover parameter propagation, provider-to-domain mapping, the 0-row and N-row cases, one bulk storage invocation, storage-before-complete ordering where observable, acquisition failure, storage failure, and MessagePack round trips for request, complete, and fail schemas.
+
 ## 8. EventActor error and retry behavior
 
 ### 8.1 Actor-level failures
@@ -369,7 +390,7 @@ Failures in common parsing, dispatch, or actor execution flow through the derive
 
 Handler behavior must preserve the domain workflow's delivery and retry guarantees.
 
-For example, an inserted-event projection handler may:
+For example, a replay-durable inserted-event projection handler may:
 
 1. await the database write;
 2. publish the typed complete event after success;
@@ -377,6 +398,8 @@ For example, an inserted-event projection handler may:
 4. rethrow the original exception so durable actor retry remains active.
 
 Moving this logic into an extension class must not change whether an exception propagates. Refactoring dispatch is not authorization to weaken durability, acknowledgement, or retry behavior.
+
+Transactional external-data import events follow section 7.5 instead: their typed fail event terminates that attempt, and a caller or scheduler starts any retry by submitting a new command.
 
 ### 8.3 Context use
 

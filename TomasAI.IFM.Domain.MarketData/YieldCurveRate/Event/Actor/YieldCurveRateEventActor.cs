@@ -4,15 +4,37 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Event;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Event.Actor;
 
-public class YieldCurveRateEventActor(IActorSupervisor supervisor, ILogger<YieldCurveRateEventActor> logger)
+public class YieldCurveRateEventActor(
+    IActorSupervisor supervisor,
+    IReferenceDataApi referenceDataApi,
+    IDbContextFactory dbFactory,
+    ILogger<YieldCurveRateEventActor> logger)
     : BaseEventActor<YieldCurveRateEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
 {
     public const string Actor = "YieldCurveRateEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = [];
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
+    readonly Dictionary<string, Func<IEvent, IEventActorContext, ValueTask<bool>>> _receiveMap = new()
+    {
+        [typeof(YieldCurveRatesImportedEvent).Name] = (@event, context) =>
+            ((YieldCurveRatesImportedEvent)@event).ExecuteAsync(context, referenceDataApi, dbFactory, logger),
+        [typeof(YieldCurveRatesImportedCompleteEvent).Name] = (@event, context) =>
+            ((YieldCurveRatesImportedCompleteEvent)@event).ExecuteAsync(context, logger),
+        [typeof(YieldCurveRatesImportedFailEvent).Name] = (@event, context) =>
+            ((YieldCurveRatesImportedFailEvent)@event).ExecuteAsync(context, logger)
+    };
+
+    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    {
+        [YieldCurveRatesImportedEvent.Verb] = message => message.AsEvent<YieldCurveRatesImportedEvent>()!,
+        [YieldCurveRatesImportedCompleteEvent.Verb] = message => message.AsEvent<YieldCurveRatesImportedCompleteEvent>()!,
+        [YieldCurveRatesImportedFailEvent.Verb] = message => message.AsEvent<YieldCurveRatesImportedFailEvent>()!
+    };
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -50,7 +72,7 @@ public class YieldCurveRateEventActor(IActorSupervisor supervisor, ILogger<Yield
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, logger);
+        _ = await receiveFunc.Invoke(@event, context).ConfigureAwait(false);
     }
 
     /// <summary>

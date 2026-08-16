@@ -19,6 +19,7 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -32,7 +33,6 @@ using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
-using TomasAI.IFM.Application.Storage.YieldCurveRatesDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.FundDb.Schema;
 using TomasAI.IFM.Application.Storage.LogDb.Schema;
@@ -233,6 +233,7 @@ public static class Startup
             services.AddSimpleInjector(siContainer);
             services.AddHttpClient();
             services.AddFinancialModelingPrepMarketData(options => options.Enabled = false);
+            services.AddFinancialModelingPrepReferenceDataApi();
             services.AddSingleton(new ExternalMarketDataCompatibilityOptions());
             services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             var redisUri = config.GetValue<string>("AppSettings:RedisUri")!;
@@ -369,7 +370,6 @@ public static class Startup
             services.AddSingleton<IFuturesContractRolloverStore>(provider =>
                 provider.GetRequiredService<ISecuritiesDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<YieldCurveRatesDbContext>() as IYieldCurveRatesDbContext)!);
             services.AddSingleton<IFundDbContext, FundDbContext>();
             services.AddSingleton<IMarketDataDbContext, MarketDataDbContext>();
             services.AddSingleton<EventSourceSchemaDb>();

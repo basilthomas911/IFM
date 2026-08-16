@@ -83,11 +83,7 @@ public class EconomicCalendarCommandState
     bool On(EconomicCalendarsImportedEvent e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(e.EconomicCalendars);
-
-        foreach (var economicCalendar in e.EconomicCalendars)
-            _economicCalendars[economicCalendar.Id] = economicCalendar;
-        return e.EconomicCalendars.Length > 0;
+        return true;
     }
 
     /// <summary>

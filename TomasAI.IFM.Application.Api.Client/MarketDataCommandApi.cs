@@ -130,9 +130,8 @@ public partial class MarketDataCommandApi(ICommandServiceApi commandSvc) : IMark
     /// Imports yield curve rates.
     /// </summary>
     /// <param name="importDate">The import date.</param>
-    /// <param name="yieldCurveRates">The array of yield curve rates to import.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the operation.</returns>
-    public async Task<ServiceResult<Guid>> ImportYieldCurveRatesAsync(DateTime importDate, YieldCurveRateReadModel[] yieldCurveRates)
-        => await new ImportYieldCurveRatesParameter(importDate, IsArgumentNull.Set(yieldCurveRates), ImportYieldCurveRatesCommand.ErrorId)
+    public async Task<ServiceResult<Guid>> ImportYieldCurveRatesAsync(DateTime importDate)
+        => await new ImportYieldCurveRatesParameter(importDate, ImportYieldCurveRatesCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataUriPath.ImportYieldCurveRates, e));
 }

@@ -184,7 +184,8 @@ public class EconomicCalendarCommandActor(
             var e = (ImportEconomicCalendarsCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
                 .ValidateEconomicCalendarId(e.EntityId)
-                .ValidateEconomicCalendars(e.EconomicCalendars, e.CommandName);
+                .ValidateImportDate(e.ImportedDate, e.CommandName)
+                .ValidateImportCountryCodes(e.CountryCodes, e.CommandName);
         }
             
     };

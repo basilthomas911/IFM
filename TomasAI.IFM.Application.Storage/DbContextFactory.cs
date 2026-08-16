@@ -9,7 +9,6 @@ using TomasAI.IFM.Application.Storage.PredictiveModelDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
-using TomasAI.IFM.Application.Storage.YieldCurveRatesDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.FundDb.Schema;
 using TomasAI.IFM.Application.Storage.LogDb.Schema;
@@ -44,7 +43,6 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public IReferenceDbContext ReferenceDb => _dbContextResolver.Resolve<ReferenceDbContext>() as IReferenceDbContext;
     public ISecuritiesDbContext SecuritiesDb => _dbContextResolver.Resolve<SecuritiesDbContext>() as ISecuritiesDbContext;
     public ITradeDbContext TradeDb => _dbContextResolver.Resolve<TradeDbContext>() as ITradeDbContext;
-    public IYieldCurveRatesDbContext YieldCurveRatesDb => _dbContextResolver.Resolve<YieldCurveRatesDbContext>() as IYieldCurveRatesDbContext;
     public ISystemAdminDbContext SystemAdminDb => _dbContextResolver.Resolve<SystemAdminDbContext>() as ISystemAdminDbContext;
 
     public EventSourceSchemaDb EventSourceSchema => (_dbContextResolver.Resolve<EventSourceSchemaDb>() as EventSourceSchemaDb)!;

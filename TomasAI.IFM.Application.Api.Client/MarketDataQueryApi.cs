@@ -113,12 +113,6 @@ public partial class MarketDataQueryApi(IQueryServiceApi querySvc) : IMarketData
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<YieldCurveRateReadModel[]>> GetExternalYieldCurveRatesAsync()
-    {
-        var qryParam = new GetExternalYieldCurveRatesParameter();
-        return await _querySvc.ExecuteQueryAsync<YieldCurveRateReadModel[]>(MarketDataQueryUriPath.GetExternalYieldCurveRates, qryParam, GetExternalYieldCurveRatesQuery.ErrorId);
-    }
-
     /// <inheritdoc />
     public async Task<ServiceResult<YieldCurveRateYearsReadModel>> GetYieldCurveRateYearsAsync()
     {

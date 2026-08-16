@@ -127,12 +127,10 @@ public class YieldCurveRateEditorViewModelTests
         var commandId = Guid.NewGuid();
         var imported = CreateRate(new DateOnly(2026, 8, 11));
         var subject = CreateSubject([]);
-        subject.QueryApi.GetExternalYieldCurveRatesAsync().Returns(
-            new ServiceOk<YieldCurveRateReadModel[]>([imported]));
         subject.QueryApi.GetYieldCurveRatesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>()).Returns(
             new ServiceOk<YieldCurveRateReadModel[]>([]),
             new ServiceOk<YieldCurveRateReadModel[]>([imported]));
-        subject.CommandApi.ImportYieldCurveRatesAsync(Arg.Any<DateTime>(), Arg.Any<YieldCurveRateReadModel[]>())
+        subject.CommandApi.ImportYieldCurveRatesAsync(Arg.Any<DateTime>())
             .Returns(_ => PublishEarlyCompletionAsync());
         await subject.ViewModel.LoadOperation.ExecuteAsync();
         subject.ViewModel.PrepareImport(new DateTime(2026, 8, 11));
@@ -141,7 +139,7 @@ public class YieldCurveRateEditorViewModelTests
 
         subject.ViewModel.CommandId.Should().BeEmpty();
         subject.ViewModel.YieldCurveRates.Should().Equal(imported);
-        subject.ViewModel.LastStatusMessage.Should().StartWith("1 Yield Curve Rates Imported");
+        subject.ViewModel.LastStatusMessage.Should().StartWith("Yield Curve Rates Imported");
         await subject.ViewModel.StopAsync(CancellationToken.None);
 
         async Task<ServiceResult<Guid>> PublishEarlyCompletionAsync()

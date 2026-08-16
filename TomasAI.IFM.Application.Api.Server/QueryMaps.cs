@@ -302,13 +302,6 @@ public static class ReferenceQueries
             return await e.RequestAsync<EconomicCalendarReadModel[], GetEconomicCalendarAllQuery>(query);
         });
 
-        endpoints.MapGet(MarketDataQueryUriPath.GetExternalEconomicCalendars, async (IActorService e) =>
-        {
-            var query = new GetExternalEconomicCalendarsQuery();
-            query.Subject = new ActorSubject(ActorType.Query, GetExternalEconomicCalendarsQuery.Actor, GetExternalEconomicCalendarsQuery.Verb, query.EntityId.Format());
-            return await e.RequestAsync<EconomicCalendarReadModel[], GetExternalEconomicCalendarsQuery>(query);
-        });
-
         endpoints.MapGet(MarketDataQueryUriPath.GetEconomicCalendarDate, async (IActorService e, DateTime todaysDate, EconomicCalendarViewType calendarViewType) =>
         {
             var query = new GetEconomicCalendarDateQuery(todaysDate, calendarViewType);
@@ -410,13 +403,6 @@ public static class MarketDataQueries
             var query = new GetYieldCurveRateYearsQuery(true);
             query = query with { Subject = new ActorSubject(ActorType.Query, GetYieldCurveRateYearsQuery.Actor, GetYieldCurveRateYearsQuery.Verb, query.EntityId.Format()) };
             return await e.RequestAsync<YieldCurveRateYearsReadModel, GetYieldCurveRateYearsQuery>(query);
-        });
-
-        endpoints.MapGet(MarketDataQueryUriPath.GetExternalYieldCurveRates, async (IActorService e) =>
-        {
-            var query = new GetExternalYieldCurveRatesQuery();
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetExternalYieldCurveRatesQuery.Actor, GetExternalYieldCurveRatesQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<YieldCurveRateReadModel[], GetExternalYieldCurveRatesQuery>(query);
         });
 
         endpoints.MapGet(MarketDataQueryUriPath.GetLastRateOfReturn, async (IActorService e, string symbol, DateOnly valueDate) =>

@@ -46,10 +46,9 @@ public sealed class FmpMarketDataImportHostedService(
                         CountryCodes: options.CountryCodes),
                     stoppingToken).ConfigureAwait(false);
                 logger.LogInformation(
-                    "Scheduled FMP import accepted {AcceptedRows} rows in {AcceptedCommands} commands; {FailedDates} dates failed.",
-                    result.AcceptedRows,
-                    result.AcceptedCommands,
-                    result.FailedDates);
+                    "Scheduled FMP import submitted {SubmittedCommands} commands; {RejectedSubmissions} submissions were rejected. Terminal import outcomes are recorded by their correlated events.",
+                    result.SubmittedCommands,
+                    result.RejectedSubmissions);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

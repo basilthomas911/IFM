@@ -30,11 +30,6 @@ public static class MarketDataQueryApiResult
             new EconomicCalendarReadModel(System.DateTime.UtcNow.Date, "US", "NFP", "1000", "950", "900", System.DateTime.UtcNow, "tester")
         });
 
-    public static Task FromGetExternalEconomicCalendarsAsync(HttpResponse resp)
-        => resp.SetResult(new[] {
-            new EconomicCalendarReadModel(System.DateTime.UtcNow.Date, "US", "NFP", "1000", "950", "900", System.DateTime.UtcNow, "external")
-        });
-
     public static Task FromGetEconomicCalendarDateAsync(HttpResponse resp)
         => resp.SetResult(System.DateTime.UtcNow.Date.ToString("yyyy-MM-dd"));
 
@@ -127,11 +122,6 @@ public static class MarketDataQueryApiResult
 
     public static Task FromGetValueDateAsync(HttpResponse resp)
         => resp.SetResult(new ScalarReadModel<System.DateOnly>(new System.DateOnly(2025, 10, 10)));
-
-    public static Task FromGetExternalYieldCurveRatesAsync(HttpResponse resp)
-        => resp.SetResult(new[] {
-            new YieldCurveRateReadModel(new System.DateOnly(2025, 10, 10), 0.01, 0.011, 0.012, 0.013, 0.014, 0.015, 0.016, 0.017, 0.018, 0.019, 0.02, 0.021)
-        });
 
     public static Task FromGetIronCondorMarketDataAsync(HttpResponse resp)
         => resp.SetResult(new IronCondorMarketDataReadModel(
